@@ -131,7 +131,8 @@ Config source: `agents/src/config.ts`.
 | `SEED_AGENTS_EXEC_CPUS`                 | `1`                    | Virtual CPUs per execution sandbox.                                          |
 | `SEED_AGENTS_EXEC_MEMORY_MIB`           | `512`                  | Guest memory per execution sandbox (MiB).                                    |
 | `SEED_AGENTS_EXEC_TIMEOUT_SECS`         | `60`                   | Default per-execution timeout (tool may request up to 300s).                 |
-| `SEED_AGENTS_EXEC_ALLOW_NETWORK`        | _(unset)_              | Set `true` to allow outbound network from execution sandboxes.               |
+| `SEED_AGENTS_EXEC_ALLOW_NETWORK`        | `true`                 | Sandbox internet access. Set `false`/`off`/`0` to isolate sandboxes.         |
+| `SEED_AGENTS_EXEC_DNS`                  | `1.1.1.1,8.8.8.8`      | Comma-separated DNS resolvers used inside execution sandboxes.               |
 
 CLI flags override env/defaults:
 
@@ -228,6 +229,13 @@ support keep the tool visible but every call fails with a clear backend-unavaila
 When the agents service runs inside a container, the container needs access to the host virtualization device (on Linux,
 `--device /dev/kvm`); without it, executions fail with the backend-unavailable error while the rest of the service keeps
 working.
+
+Sandbox networking is **on by default** so agents can install packages and fetch data. The runtime gives each sandbox an
+explicit DNS resolver (`SEED_AGENTS_EXEC_DNS`, default `1.1.1.1,8.8.8.8` — a guest has no resolver otherwise) and a
+non-local egress policy: the sandbox reaches the public internet but not the host's private network or cloud-metadata
+endpoints (e.g. `169.254.169.254`). Set `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` to cut the sandbox off entirely.
+Installed packages do not survive between calls (each runs in a fresh microVM); the tool prompt tells agents to
+`pip install --target /workspace/pylibs <pkg>` so packages persist in memory and can be re-imported later.
 
 Production deployment of these sidecars on the hosted agent server is handled in the `mintterteam/infrastructure` repo
 (the `seed_infra/agentic` Terraform stack adds the `searxng` and `crawl4ai` containers and wires the env vars), not in

@@ -1311,7 +1311,7 @@ export class Service {
       : ''
     const execEnabled = (definition.tools ?? []).includes(seedToolRegistry.execute_code.name)
     const execPrompt = execEnabled
-      ? '\n\nYou can run Python or shell code with the execute_code tool. Code runs in an isolated sandbox with your memory mounted at /workspace (the working directory), so reading and writing files there directly reads and writes your persistent memory. Each call is a fresh sandbox: no variables, packages, or processes persist between calls — save anything durable as files. Sandbox networking is typically disabled; fetch web files with memory_download first, then process them with code.'
+      ? '\n\nYou can run Python or shell code with the execute_code tool. Code runs in an isolated sandbox with your memory mounted at /workspace (the working directory), so reading and writing files there directly reads and writes your persistent memory. Each call is a fresh sandbox: no variables, installed packages, or processes persist between calls — save anything durable as files. The sandbox has internet access, so you can install packages and fetch data, but it cannot reach private/local network addresses. To keep Python packages across calls, install them into the workspace, e.g. `pip install --target /workspace/pylibs <pkg>`, then add that directory to sys.path in later calls.'
       : ''
     const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${execPrompt}`
     if (!signingKeys.length) return basePrompt

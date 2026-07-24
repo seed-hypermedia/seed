@@ -283,8 +283,10 @@ Behavior and safety:
   state survives between calls, so the prompt instructs the model to persist results as files;
 - the memory mount carries a guest write quota equal to the agent's remaining memory budget (clamped to 1 GiB), so
   sandboxed code cannot blow past memory limits;
-- networking is disabled inside the sandbox unless `SEED_AGENTS_EXEC_ALLOW_NETWORK=true`; the model is told to fetch web
-  files with `memory_download` first and process them with code;
+- networking is **on by default** so agents can install packages and fetch data; the runtime configures explicit DNS
+  resolvers (`SEED_AGENTS_EXEC_DNS`) and a non-local egress policy, so the sandbox reaches the public internet but not
+  the host's private network or cloud-metadata endpoints. Set `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` to isolate it. The
+  prompt tells agents to `pip install --target /workspace/pylibs <pkg>` so packages persist in memory across calls;
 - stdout/stderr are truncated to 64 KiB each; the result carries `exitCode`, `success`, `durationMs`, and a
   `changedFiles` diff (added/modified/removed memory paths from a before/after listing comparison);
 - memory changes made by code emit the same `agent-memory-changed` events as the memory tools, so the Memory tab

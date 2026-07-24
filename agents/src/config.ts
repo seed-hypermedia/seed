@@ -44,6 +44,8 @@ export type Config = {
     timeoutSecs: number
     /** Allow outbound network access from sandboxes. */
     allowNetwork: boolean
+    /** Upstream DNS nameservers for sandbox name resolution. */
+    dnsServers: string[]
   }
 }
 
@@ -66,6 +68,7 @@ export type Flags = {
   'exec-memory-mib': number
   'exec-timeout-secs': number
   'exec-allow-network': string
+  'exec-dns': string
 }
 
 /** Creates default flag values from the current environment. */
@@ -87,7 +90,8 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
     'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
     'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
-    'exec-allow-network': env.SEED_AGENTS_EXEC_ALLOW_NETWORK || '',
+    'exec-allow-network': env.SEED_AGENTS_EXEC_ALLOW_NETWORK ?? '',
+    'exec-dns': env.SEED_AGENTS_EXEC_DNS || '',
   }
 }
 
@@ -162,9 +166,26 @@ export function create(pflags: Flags): Config {
       cpus: parsePositiveInteger(String(pflags['exec-cpus']), 'exec-cpus'),
       memoryMib: parsePositiveInteger(String(pflags['exec-memory-mib']), 'exec-memory-mib'),
       timeoutSecs: parsePositiveInteger(String(pflags['exec-timeout-secs']), 'exec-timeout-secs'),
-      allowNetwork: isTruthyFlag(pflags['exec-allow-network']),
+      allowNetwork: isNetworkEnabled(pflags['exec-allow-network']),
+      dnsServers: parseDnsServers(pflags['exec-dns']),
     },
   }
+}
+
+/** Parses a comma-separated DNS server list; empty falls back to the executor default resolvers. */
+function parseDnsServers(value: string): string[] {
+  return value
+    .split(',')
+    .map((server) => server.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Interprets the exec network flag. Network is ON by default (agents commonly need to install
+ * packages and fetch data); set the flag to a falsy value to disable it.
+ */
+function isNetworkEnabled(value: string): boolean {
+  return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase())
 }
 
 /** Parses the code-execution backend flag; empty disables execution. */
@@ -173,11 +194,6 @@ function parseExecBackend(value: string): '' | 'microsandbox' {
   if (trimmed === '' || trimmed === 'off' || trimmed === 'none') return ''
   if (trimmed === 'microsandbox') return 'microsandbox'
   throw new Error(`Invalid exec backend: ${value} (expected "microsandbox" or empty)`)
-}
-
-/** Interprets a string flag as an on/off toggle. */
-function isTruthyFlag(value: string): boolean {
-  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
 }
 
 /** Normalizes an optional http(s) URL flag; returns undefined when unset. */

@@ -191,8 +191,12 @@ sandboxing:
   quota; code cannot see other agents' memory, the SQLite DB, or secrets;
 - guest-created symlinks inside the memory directory cannot trick host-side reads: `readMemoryFile` refuses symlinks and
   listings skip them (the existing memory sandbox rules);
-- sandbox networking is disabled by default (`SEED_AGENTS_EXEC_ALLOW_NETWORK` opts in), so exfiltration and SSRF from
-  executed code are off by default;
+- sandbox networking is on by default (agents need to install packages and fetch data) but constrained: the runtime
+  applies a **non-local egress policy**, so executed code reaches the public internet but not the host's private network
+  or cloud-metadata endpoints (verified: `169.254.169.254` is refused). DNS is an explicit resolver set
+  (`SEED_AGENTS_EXEC_DNS`), not the host's. Set `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` to remove the NIC entirely. Note
+  that on-by-default egress widens the exfiltration surface versus a fully offline sandbox — the isolation is the
+  non-local policy plus the memory-only mount, not an air gap;
 - CPU count, guest memory, per-exec timeout, and total sandbox lifetime are all capped server-side; stdout/stderr are
   size-bounded before reaching the model;
 - resource note: each concurrent execution boots a microVM with its configured guest memory; there is no per-account

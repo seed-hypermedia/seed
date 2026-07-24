@@ -36,6 +36,8 @@ export type CodeExecConfig = {
   timeoutSecs: number
   /** Allow outbound network access from sandboxes. */
   allowNetwork: boolean
+  /** Upstream DNS nameservers for sandbox name resolution when networking is enabled. */
+  dnsServers: string[]
 }
 
 /** Languages the execute_code tool accepts. */
@@ -71,11 +73,25 @@ export type SandboxSdk = {
   Sandbox: {
     builder(name: string): SandboxBuilderLike
   }
+  /** Network policy factories; `nonLocal` permits public internet but not private/link-local ranges. */
+  NetworkPolicy: {
+    nonLocal(): unknown
+  }
 }
 
 export type MountBuilderLike = {
   bind(host: string): MountBuilderLike
   quota(mib: number): MountBuilderLike
+}
+
+export type DnsBuilderLike = {
+  nameservers(servers: string[]): DnsBuilderLike
+}
+
+export type NetworkBuilderLike = {
+  enabled(enabled: boolean): NetworkBuilderLike
+  dns(configure: (dns: DnsBuilderLike) => DnsBuilderLike): NetworkBuilderLike
+  policy(policy: unknown): NetworkBuilderLike
 }
 
 export type SandboxBuilderLike = {
@@ -86,6 +102,7 @@ export type SandboxBuilderLike = {
   ephemeral(ephemeral: boolean): SandboxBuilderLike
   security(profile: string): SandboxBuilderLike
   disableNetwork(): SandboxBuilderLike
+  network(configure: (network: NetworkBuilderLike) => NetworkBuilderLike): SandboxBuilderLike
   maxDuration(secs: number): SandboxBuilderLike
   volume(guestPath: string, configure: (mount: MountBuilderLike) => MountBuilderLike): SandboxBuilderLike
   create(): Promise<SandboxLike>
@@ -126,9 +143,20 @@ export class CodeExecError extends Error {
   }
 }
 
-/** Default configuration: microsandbox backend, python image, no network. */
+/** Default public DNS resolvers used inside sandboxes when networking is enabled. */
+export const DEFAULT_EXEC_DNS_SERVERS = ['1.1.1.1', '8.8.8.8']
+
+/** Default configuration: microsandbox backend, python image, network enabled with public DNS. */
 export function defaultCodeExecConfig(): CodeExecConfig {
-  return {backend: 'microsandbox', image: 'python', cpus: 1, memoryMib: 512, timeoutSecs: 60, allowNetwork: false}
+  return {
+    backend: 'microsandbox',
+    image: 'python',
+    cpus: 1,
+    memoryMib: 512,
+    timeoutSecs: 60,
+    allowNetwork: true,
+    dnsServers: DEFAULT_EXEC_DNS_SERVERS,
+  }
 }
 
 const loadMicrosandbox = async (): Promise<SandboxSdk> => (await import('microsandbox')) as unknown as SandboxSdk
@@ -186,7 +214,20 @@ export function createCodeExecutor(
           .security('restricted')
           .maxDuration(timeoutSecs + 30)
           .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(memoryRoot).quota(quotaMib))
-        if (!config.allowNetwork) builder = builder.disableNetwork()
+        if (config.allowNetwork) {
+          // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
+          // non-local policy so code can reach the public internet but not the host's private
+          // network or cloud metadata endpoints.
+          const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
+          builder = builder.network((network) =>
+            network
+              .enabled(true)
+              .dns((dns) => dns.nameservers(dnsServers))
+              .policy(sdk.NetworkPolicy.nonLocal()),
+          )
+        } else {
+          builder = builder.disableNetwork()
+        }
         sandbox = await builder.create()
       } catch (error) {
         throw new CodeExecError(
