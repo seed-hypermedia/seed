@@ -1,0 +1,5 @@
+{
+  "name": "Timestamp",
+  "description": "A timestamp, encoded as an integer of Unix milliseconds.",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+}

@@ -10,7 +10,8 @@ import {type ReactNode, useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Textarea} from './components/textarea'
-import {base64ToBytes, isDagJsonBytes} from './dag-json'
+import {isOnyxSchema} from './onyx/onyx-engine'
+import {base64ToBytes, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
 import {useFileProxyUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
 import {Spinner} from './spinner'
@@ -416,4 +417,36 @@ function readInspectIpfsPath(data: unknown, pathSegments: string[]): unknown {
     }
     return undefined
   }, data)
+}
+
+/**
+ * What building-block actions the inspector offers for a blob: whether it can
+ * open in the schema/blob editor (a DAG-CBOR blob viewed at its root), whether
+ * the value is itself a schema (→ "New Instance"), and whether it carries an
+ * attached schema link. Pure so it can be unit-tested without rendering, and
+ * reused by the standalone explorer app. Uses the RAW value, before
+ * cleanInspectIpfsData rewrites `{"/":cid}` links to `ipfs://` strings.
+ */
+export function inspectorBlobActions(
+  cid: string | undefined,
+  rawValue: unknown,
+  isTopLevel: boolean,
+): {canEdit: boolean; valueIsSchema: boolean; hasAttachedSchema: boolean; attachedSchemaCid: string | undefined} {
+  const isDagCbor = !!cid && parseCidString(cid)?.code === DAG_CBOR_CODE
+  const valueIsSchema = isTopLevel && isOnyxSchema(rawValue)
+  // A non-schema instance's `schema` link, when it's a DAG-CBOR CID we could
+  // fetch and validate against. (A value that IS itself an Onyx schema is
+  // `valueIsSchema`, handled separately, not validated here.)
+  const schemaLink =
+    isTopLevel && !valueIsSchema && !!rawValue && typeof rawValue === 'object'
+      ? (rawValue as Record<string, unknown>).schema
+      : undefined
+  const attachedSchemaCid =
+    isDagJsonLink(schemaLink) && parseCidString(schemaLink['/'])?.code === DAG_CBOR_CODE ? schemaLink['/'] : undefined
+  return {
+    canEdit: isTopLevel && !!isDagCbor,
+    valueIsSchema,
+    hasAttachedSchema: !!attachedSchemaCid,
+    attachedSchemaCid,
+  }
 }

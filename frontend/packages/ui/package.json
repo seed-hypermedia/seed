@@ -32,6 +32,9 @@
     "format:check": "prettier --check .",
     "format:write": "prettier --write .",
     "test": "vitest --run",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:harness": "vite --config e2e/vite.config.ts",
     "typecheck": "tsc --noEmit --project tsconfig.app.json"
   },
   "dependencies": {
@@ -55,9 +58,11 @@
     "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
     "@seed-hypermedia/client": "workspace:*",
+    "multiformats": "^13.4.1",
     "@shm/shared": "workspace:*",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.8",
+    "@tanstack/react-query": "^4.36.1",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -78,8 +83,12 @@
     "vaul": "^1.1.2"
   },
   "devDependencies": {
+    "@ipld/dag-cbor": "^9.2.5",
+    "@playwright/test": "1.57.0",
+    "@vitejs/plugin-react": "^4.3.4",
     "shadcn": "^2.6.3",
     "typescript": "5.8.3",
+    "vite": "6.4.2",
     "vitest": "4.1.8"
   },
   "peerDependencies": {

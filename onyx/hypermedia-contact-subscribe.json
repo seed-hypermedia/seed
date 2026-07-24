@@ -1,0 +1,13 @@
+{
+  "name": "Contact subscription",
+  "description": "Subscription preferences for a contact: subscribe to the subject's site and/or profile.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "properties": {
+    "site": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+    },
+    "profile": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean"
+    }
+  }
+}

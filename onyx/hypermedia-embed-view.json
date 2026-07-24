@@ -1,0 +1,11 @@
+{
+  "name": "Embed view",
+  "description": "How an Embed block renders its target: Content, Card, Comments, or Link.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+  "enum": [
+    "Content",
+    "Card",
+    "Comments",
+    "Link"
+  ]
+}

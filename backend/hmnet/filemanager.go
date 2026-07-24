@@ -48,6 +48,7 @@ type PublicCIDChecker interface {
 type FileManager struct {
 	log              *zap.Logger
 	bs               blockstore.Blockstore
+	bsvc             blockservice.BlockService
 	dagService       ipld.DAGService
 	publicCIDChecker PublicCIDChecker
 }
@@ -65,9 +66,16 @@ func NewFileManager(log *zap.Logger, bs blockstore.Blockstore, bitswap exchange.
 	return &FileManager{
 		log:              log,
 		bs:               bs,
+		bsvc:             bsvc,
 		dagService:       dag,
 		publicCIDChecker: publicCIDChecker,
 	}
+}
+
+// GetBlock fetches a single raw block, from the local store or discovered on
+// the IPFS network via bitswap when it's not available locally.
+func (fm *FileManager) GetBlock(ctx context.Context, c cid.Cid) (blocks.Block, error) {
+	return fm.bsvc.GetBlock(ctx, c)
 }
 
 // GetFile retrieves a file from ipfs.
