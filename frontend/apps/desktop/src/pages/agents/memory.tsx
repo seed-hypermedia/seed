@@ -10,6 +10,7 @@ import {
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
+import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -276,10 +277,10 @@ export function AgentMemoryTab({
         </form>
       ) : null}
 
-      <div className="flex min-h-0 flex-1 gap-4">
+      <div className="border-border bg-card flex min-h-0 flex-1 overflow-hidden rounded-xl border">
         <div
-          className={`border-border bg-card flex w-64 flex-none flex-col overflow-y-auto rounded-xl border p-2 ${
-            dropTarget === '' ? 'ring-primary/50 ring-2' : ''
+          className={`border-border flex w-64 flex-none flex-col overflow-y-auto border-r p-2 ${
+            dropTarget === '' ? 'ring-primary/50 ring-2 ring-inset' : ''
           }`}
           onDragOver={(event) => {
             if (!hasDraggedFiles(event)) return
@@ -352,7 +353,7 @@ export function AgentMemoryTab({
           )}
         </div>
 
-        <div className="border-border bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           {selectedPath === null ? (
             <div className="flex flex-1 items-center justify-center p-6">
               <SizableText size="sm" color="muted">
@@ -381,45 +382,45 @@ export function AgentMemoryTab({
                   {file.data.mimeType ? ` · ${file.data.mimeType}` : ''}
                   {file.data.updatedAt ? ` · ${formattedDateMedium(new Date(file.data.updatedAt))}` : ''}
                 </SizableText>
-                <Button
-                  variant="ghost"
-                  size="iconSm"
-                  className="flex-none"
-                  aria-label={`Download ${selectedPath}`}
-                  onClick={() => file.data && saveFileToDisk(file.data)}
-                >
-                  <Download className="size-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex-none"
-                  onClick={() => void handlePublishToIpfs()}
-                  disabled={uploadToIpfs.isLoading}
-                >
-                  <UploadCloud className="mr-1 size-3.5" /> {uploadToIpfs.isLoading ? 'Publishing…' : 'Publish to IPFS'}
-                </Button>
                 {file.data.encoding === 'utf8' && dirty ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="flex-none"
-                    onClick={() => setDraftText(null)}
-                    disabled={writeFile.isLoading}
-                  >
-                    <RotateCcw className="mr-1 size-3.5" /> Revert
-                  </Button>
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="flex-none"
+                      onClick={() => setDraftText(null)}
+                      disabled={writeFile.isLoading}
+                    >
+                      <RotateCcw className="mr-1 size-3.5" /> Revert
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="flex-none"
+                      onClick={() => void handleSave()}
+                      disabled={writeFile.isLoading}
+                    >
+                      <Save className="mr-1 size-3.5" /> {writeFile.isLoading ? 'Saving…' : 'Save'}
+                    </Button>
+                  </>
                 ) : null}
-                {file.data.encoding === 'utf8' ? (
-                  <Button
-                    size="sm"
-                    className="flex-none"
-                    onClick={() => void handleSave()}
-                    disabled={!dirty || writeFile.isLoading}
-                  >
-                    <Save className="mr-1 size-3.5" /> {writeFile.isLoading ? 'Saving…' : 'Save'}
-                  </Button>
-                ) : null}
+                <OptionsDropdown
+                  align="end"
+                  menuItems={[
+                    {
+                      key: 'download',
+                      icon: <Download className="size-4" />,
+                      label: 'Download',
+                      onClick: () => file.data && saveFileToDisk(file.data),
+                    },
+                    {
+                      key: 'publish-ipfs',
+                      icon: <UploadCloud className="size-4" />,
+                      label: uploadToIpfs.isLoading ? 'Publishing…' : 'Publish to IPFS',
+                      disabled: uploadToIpfs.isLoading,
+                      onClick: () => void handlePublishToIpfs(),
+                    },
+                  ]}
+                />
               </div>
               {selectedIpfsUrl ? (
                 <div className="border-border bg-muted/40 flex items-center gap-2 border-b px-3 py-1.5">
