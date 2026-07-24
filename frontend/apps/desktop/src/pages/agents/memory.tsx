@@ -450,7 +450,7 @@ export function AgentMemoryTab({
                   spellCheck={false}
                 />
               ) : (
-                <BinaryFilePreview file={file.data} />
+                <BinaryFilePreview file={file.data} onDownload={() => file.data && saveFileToDisk(file.data)} />
               )}
             </>
           ) : null}
@@ -460,10 +460,13 @@ export function AgentMemoryTab({
   )
 }
 
-/** Renders an inline media preview for binary memory files, or a download hint otherwise. */
-function BinaryFilePreview({file}: {file: AgentMemoryFile}) {
+/**
+ * Renders binary memory files: inline previews for images (including animated GIFs), video, and
+ * audio, and a download-first card for every other binary type.
+ */
+function BinaryFilePreview({file, onDownload}: {file: AgentMemoryFile; onDownload: () => void}) {
   const objectUrl = useMemo(() => {
-    if (!file.data) return null
+    if (!file.data || !file.data.byteLength) return null
     const blob = new Blob([new Uint8Array(file.data)], file.mimeType ? {type: file.mimeType} : undefined)
     return URL.createObjectURL(blob)
   }, [file])
@@ -475,23 +478,59 @@ function BinaryFilePreview({file}: {file: AgentMemoryFile}) {
   }, [objectUrl])
 
   const kind = file.mimeType?.split('/')[0]
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
-      {objectUrl && kind === 'image' ? (
+  if (objectUrl && kind === 'image') {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
         <img src={objectUrl} alt={file.path} className="max-h-full max-w-full rounded-md object-contain" />
-      ) : objectUrl && kind === 'video' ? (
+      </div>
+    )
+  }
+  if (objectUrl && kind === 'video') {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
         <video src={objectUrl} controls className="max-h-full max-w-full rounded-md" />
-      ) : objectUrl && kind === 'audio' ? (
+      </div>
+    )
+  }
+  if (objectUrl && kind === 'audio') {
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4">
         <audio src={objectUrl} controls className="w-full max-w-md" />
-      ) : (
-        <div className="flex flex-col items-center gap-2">
-          <FileText className="text-muted-foreground size-8" />
-          <SizableText size="sm" color="muted">
-            No preview for this file type{file.mimeType ? ` (${file.mimeType})` : ''}. Use the download button to save
-            it.
+      </div>
+    )
+  }
+  const name = file.path.split('/').at(-1) || file.path
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-6">
+      <div className="border-border bg-muted/30 flex w-full max-w-sm flex-col items-center gap-3 rounded-xl border border-dashed p-8">
+        <div className="bg-muted text-muted-foreground flex size-14 items-center justify-center rounded-xl">
+          <FileText className="size-7" />
+        </div>
+        <div className="flex flex-col items-center gap-0.5">
+          <SizableText size="sm" weight="bold" className="max-w-full truncate font-mono">
+            {name}
+          </SizableText>
+          <SizableText size="xs" color="muted">
+            {formatBytes(file.size)}
+            {file.mimeType ? ` · ${file.mimeType}` : ' · binary file'}
           </SizableText>
         </div>
-      )}
+        {objectUrl ? (
+          <>
+            <SizableText size="xs" color="muted" className="text-center">
+              This file type has no inline preview.
+            </SizableText>
+            <Button onClick={onDownload}>
+              <Download className="mr-2 size-4" /> Download
+            </Button>
+          </>
+        ) : (
+          <SizableText size="xs" color="muted" className="text-center">
+            The file content could not be loaded for preview. If this agent server was recently updated, restart it and
+            reopen the file.
+          </SizableText>
+        )}
+      </div>
     </div>
   )
 }
