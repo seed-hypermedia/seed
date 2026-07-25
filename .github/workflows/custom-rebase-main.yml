@@ -19,6 +19,8 @@ jobs:
     name: Rebase main onto upstream/main
     runs-on: ubuntu-latest
     if: github.repository == 'horacioh/seed'
+    outputs:
+      latest_new_tag: ${{ steps.tags.outputs.latest_new_tag }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v4
@@ -40,6 +42,7 @@ jobs:
         run: |
           git remote add upstream https://github.com/seed-hypermedia/seed.git
           git fetch --prune upstream main
+          git fetch upstream '+refs/tags/*:refs/tags/*'
 
       - name: Rebase main onto upstream/main
         run: git rebase upstream/main
@@ -51,6 +54,25 @@ jobs:
       - name: Push rebased main
         if: steps.after.outputs.sha != steps.before.outputs.sha
         run: git push --force-with-lease origin HEAD:main
+
+      - name: Mirror new upstream tags
+        id: tags
+        run: |
+          list_tags() {
+            git ls-remote --tags "$1" | awk '{print $2}' | sed 's#^refs/tags/##' | grep -v '\^{}$' | sort -u
+          }
+          list_tags upstream > /tmp/upstream-tags
+          list_tags origin > /tmp/origin-tags
+          new_tags=$(comm -23 /tmp/upstream-tags /tmp/origin-tags)
+          if [ -z "$new_tags" ]; then
+            echo 'No new upstream tags.'
+            exit 0
+          fi
+          echo "New upstream tags:"
+          echo "$new_tags"
+          # shellcheck disable=SC2046
+          git push origin $(echo "$new_tags" | sed 's#^#refs/tags/#')
+          echo "latest_new_tag=$(echo "$new_tags" | sort -V | tail -1)" >> "$GITHUB_OUTPUT"
 
       - name: Open or update failure issue
         if: failure()
@@ -104,6 +126,18 @@ jobs:
       - name: Push rebased custom-images
         if: steps.after.outputs.sha != steps.before.outputs.sha
         run: git push --force-with-lease origin HEAD:custom-images
+
+      - name: Tag custom-images for the newest mirrored tag
+        if: needs.sync-main.outputs.latest_new_tag != ''
+        env:
+          TAG: ${{ needs.sync-main.outputs.latest_new_tag }}-custom
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin."
+            exit 0
+          fi
+          git tag -a "$TAG" -m "custom-images rebased onto ${{ needs.sync-main.outputs.latest_new_tag }}"
+          git push origin "refs/tags/$TAG"
 
       - name: Open or update failure issue
         if: failure()
