@@ -31,7 +31,14 @@ import (
 // blow up the Prometheus series count.
 
 const (
-	maxCallerLabels = 64
+	// maxCallerLabels bounds Prometheus series and per-caller reservoir
+	// memory. Note the package's own test suite spends from this same
+	// budget (each test function that opens an instrumented tx is a
+	// distinct label): at 64 the suite sat within a handful of labels of
+	// the cap, and any few added tests silently pushed the page tests'
+	// callers into "other". 128 keeps ample headroom at ~8 MiB worst-case
+	// reservoir memory (see reservoirCap).
+	maxCallerLabels = 128
 	slowThreshold   = 100 * time.Millisecond
 	// recentWriteCap caps the top-K ring of slowest write-side transactions
 	// (commits/rollbacks/savepoint_top/savepoint and begin_busy/interrupted
@@ -225,8 +232,8 @@ type readStats struct {
 // much longer time window than the reservoir for callers with rare slow
 // events (the cap on the recent-slow ring is per total events, not per
 // caller, so for a 2%-slow caller it spans ~50x more history than a fixed
-// reservoir of all events). At 8192 floats per caller × 64-caller cap ≈
-// 4 MiB; still cheap, and brings the windows closer so the visible recent
+// reservoir of all events). At 8192 floats per caller × 128-caller cap ≈
+// 8 MiB; still cheap, and brings the windows closer so the visible recent
 // max is reflected in p99 for high-frequency callers like syncing.loadStore.
 const reservoirCap = 8192
 
@@ -1182,14 +1189,14 @@ type trackerSnapshot struct {
 // writeCallerSnapshot mirrors the original per-caller stats shape, minus
 // the now-removed Max column.
 type writeCallerSnapshot struct {
-	Count         uint64
-	Commits       uint64
-	Rollbacks     uint64
-	BusyCount     uint64
-	HoldP10Ms     float64
-	HoldP50Ms     float64
-	HoldP90Ms     float64
-	HoldP99Ms     float64
+	Count     uint64
+	Commits   uint64
+	Rollbacks uint64
+	BusyCount uint64
+	HoldP10Ms float64
+	HoldP50Ms float64
+	HoldP90Ms float64
+	HoldP99Ms float64
 	// HoldMaxMs is the all-time max writer-slot hold for this caller —
 	// survives ring eviction so a rare slow commit stays visible after the
 	// reservoir wraps past it.

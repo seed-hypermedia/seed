@@ -21,6 +21,7 @@ import (
 	"runtime/trace"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -270,6 +271,19 @@ outer:
 	return nil
 }
 
+// leakedTxRepairs counts connections that were returned to the pool while
+// still inside an open transaction and were repaired (rolled back) by Put.
+// Non-zero values mean some code path is leaking transactions — most likely
+// an interrupted cleanup that WithTx/Save could not run — and deserve
+// investigation even though Put contains the damage.
+var leakedTxRepairs atomic.Uint64
+
+// LeakedTxRepairs reports how many leaked open transactions Pool.Put has
+// rolled back since the process started. Surfaced on /debug/sqlite.
+func LeakedTxRepairs() uint64 {
+	return leakedTxRepairs.Load()
+}
+
 // Put puts an SQLite connection back into the Pool.
 //
 // Put will panic if conn is nil or if the conn was not originally created by
@@ -294,6 +308,30 @@ func (p *Pool) Put(conn *sqlite.Conn) {
 
 	if !found {
 		panic("sqlite.Pool.Put: connection not created by this pool")
+	}
+
+	// A connection must never re-enter the pool inside an open transaction:
+	// the next lessee's WithTx would silently degrade to a savepoint inside
+	// it, report success, stay invisible to readers, and be destroyed when
+	// the leaked transaction eventually rolls back (this silently discarded
+	// ~2.5 hours of acknowledged writes on prod, 2026-07-24). WithTx repairs
+	// its own failure paths; this is the last line of defense for any other
+	// path that BEGINs without cleaning up — e.g. a top-level Save whose
+	// release was interrupted. Repair rather than panic: the common trigger
+	// is a canceled request ctx, which is normal operation. The interrupt is
+	// masked for the ROLLBACK because a tripped interrupt is usually what
+	// prevented cleanup in the first place; the next lessee gets a fresh
+	// interrupt from get() regardless.
+	if !conn.GetAutocommit() {
+		conn.SetInterrupt(nil)
+		if err := Exec(conn, "ROLLBACK;", nil); err != nil {
+			// With the interrupt masked and no active statements (checked
+			// above), ROLLBACK on an open transaction cannot fail short of
+			// connection corruption — same class of invariant violation as
+			// the active-statement check.
+			panic(fmt.Sprintf("sqlite.Pool.Put: failed to roll back a transaction leaked into the pool: %v", err))
+		}
+		leakedTxRepairs.Add(1)
 	}
 
 	conn.ResetTxTracking()

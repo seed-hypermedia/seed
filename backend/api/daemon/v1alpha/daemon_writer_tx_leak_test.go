@@ -27,12 +27,13 @@ import (
 // destroyed ~2.5 hours later when the leaked transaction rolled back — no
 // daemon restart involved.
 //
-// The leak sequence uses only public API: a WithTx whose request ctx is
-// canceled mid-transaction. WithTx's internal ROLLBACK fails on the tripped
-// interrupt, and Pool.Put recycles the connection without noticing the open
-// transaction. Every later StoreBlobs then nests as a silent savepoint inside
-// it. See the companion tests in util/sqlite/sqlitex/tx_leak_test.go for the
-// pool-level mechanics.
+// The trigger uses only public API: a WithTx whose request ctx is canceled
+// mid-transaction. Before the fix, WithTx's internal ROLLBACK failed on the
+// tripped interrupt and Pool.Put recycled the connection without noticing the
+// open transaction; every later StoreBlobs then nested as a silent savepoint
+// inside it. The fix (WithTx force-rollback + Pool.Put repair) must keep
+// StoreBlobs' acknowledgment truthful. See the companion tests in
+// util/sqlite/sqlitex/tx_leak_test.go for the pool-level mechanics.
 func TestStoreBlobsAckMustBeDurable(t *testing.T) {
 	u := coretest.NewTester("alice")
 	keyMaterial := []byte("0123456789abcdef0123456789abcdef")
@@ -53,9 +54,9 @@ func TestStoreBlobsAckMustBeDurable(t *testing.T) {
 
 	srv := NewServer(store, &mockedP2PNode{}, idx, tMgr, zap.NewNop())
 
-	// Leak an open transaction into the pool's write connection: an earlier
-	// request is canceled mid-transaction, so WithTx's ROLLBACK is interrupted
-	// and the connection returns to the pool still inside the transaction.
+	// The prod trigger: an earlier request is canceled mid-transaction, so
+	// WithTx's plain ROLLBACK is interrupted. Before the fix this leaked the
+	// open transaction into the pool's write connection.
 	poisonCtx, cancel := context.WithCancel(context.Background())
 	conn, release, err := store.DB().WriteConn(poisonCtx)
 	require.NoError(t, err)

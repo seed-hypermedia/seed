@@ -43,6 +43,12 @@ type sqlitePage struct {
 	RecentBusyCap   int
 	RecentReadCap   int
 	BusyEventsCount int
+	// LeakedTxRepairs is the number of open transactions Pool.Put found on
+	// returned connections and rolled back. Anything non-zero means a code
+	// path is leaking transactions into the pool; before this repair existed,
+	// such a leak silently converted later commits into savepoints and
+	// discarded them wholesale (2026-07-24 prod data loss).
+	LeakedTxRepairs uint64
 }
 
 // aggregateRow renders one entry on the "Aggregate writer-slot utilization"
@@ -248,7 +254,8 @@ func buildSQLitePage() sqlitePage {
 	now := time.Now()
 
 	page := sqlitePage{
-		GeneratedAt: now.Format(time.RFC3339),
+		GeneratedAt:     now.Format(time.RFC3339),
+		LeakedTxRepairs: LeakedTxRepairs(),
 	}
 
 	for _, a := range snap.Active {
@@ -683,7 +690,7 @@ th.grp{background:#ececec;text-align:center}
 </style>
 </head><body>
 <h1>SQLite writer health</h1>
-<div class="meta">snapshot: {{.GeneratedAt}} &middot; <a href="/debug/metrics">/debug/metrics</a> &middot; <a href="/debug/network">/debug/network</a></div>
+<div class="meta">snapshot: {{.GeneratedAt}} &middot; <a href="/debug/metrics">/debug/metrics</a> &middot; <a href="/debug/network">/debug/network</a>{{if .LeakedTxRepairs}} &middot; <span style="color:#c00">leaked-tx repairs: {{.LeakedTxRepairs}}</span>{{end}}</div>
 
 <details class="help"><summary>What this page measures</summary>
 <p>Every call to <code>sqlitex.WithTx</code> opens a real SQLite write transaction via <code>BEGIN IMMEDIATE</code>. Only one such transaction can be in flight at a time across the whole daemon. This page records per-caller wall durations and <code>SQLITE_BUSY</code> counts so we can tell who is holding the writer slot and who is being starved.</p>

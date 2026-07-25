@@ -99,14 +99,32 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	if err := fn(); err != nil {
 		stmts := endCapture(conn)
 		if rberr := Exec(conn, "ROLLBACK", nil); rberr != nil {
-			tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
-			return fmt.Errorf("ROLLBACK error: %v; original error: %w", rberr, err)
+			// The usual reason ROLLBACK fails is a tripped interrupt: the
+			// caller's ctx was canceled mid-transaction, so the binding fails
+			// every call before it reaches SQLite — including this cleanup.
+			// The transaction must not outlive WithTx either way: left open,
+			// it follows the connection back into the pool, later WithTx
+			// calls on it silently degrade to savepoints, and their
+			// acknowledged writes are destroyed when the leaked transaction
+			// finally rolls back.
+			if frerr := forceRollback(conn); frerr != nil {
+				tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
+				return fmt.Errorf("ROLLBACK error: %v; original error: %w", errors.Join(rberr, frerr), err)
+			}
 		}
 		tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
 		return err
 	}
 
 	commitErr := Exec(conn, "COMMIT", nil)
+	if commitErr != nil {
+		// A failed COMMIT does not always unwind the transaction: an
+		// interrupted one never reaches SQLite at all. Roll back explicitly
+		// so the connection leaves WithTx in autocommit mode no matter what.
+		if frerr := forceRollback(conn); frerr != nil {
+			commitErr = errors.Join(commitErr, frerr)
+		}
+	}
 	stmts := endCapture(conn)
 	outcome := outcomeCommit
 	if commitErr != nil {
@@ -114,6 +132,21 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 	}
 	tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcome, stmts, nil, nil, "")
 	return commitErr
+}
+
+// forceRollback unwinds the connection's open transaction even when the
+// connection's interrupt has tripped, by masking the interrupt for the
+// duration of the ROLLBACK. Masking is safe here: ROLLBACK only unwinds
+// state this connection already owns and cannot block on the writer lock.
+// No-op if the connection is already in autocommit mode (e.g. the failed
+// COMMIT actually did unwind the transaction).
+func forceRollback(conn *sqlite.Conn) error {
+	if conn.GetAutocommit() {
+		return nil
+	}
+	old := conn.SetInterrupt(nil)
+	defer conn.SetInterrupt(old)
+	return Exec(conn, "ROLLBACK;", nil)
 }
 
 // classifyBeginBusy maps an extended SQLite error code from a failed
