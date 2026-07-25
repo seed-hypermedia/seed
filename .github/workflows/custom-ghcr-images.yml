@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - custom-images
+    tags:
+      - '*.*.*-custom'
 
 permissions:
   contents: read
@@ -30,7 +32,13 @@ jobs:
         id: resolve
         shell: bash
         run: |
-          tag="main"
+          # Branch pushes publish the rolling `main` tag; `<version>-custom` tags,
+          # created when the fork mirrors an upstream release, publish `<version>`.
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME%-custom}"
+          else
+            tag="main"
+          fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "Resolved Docker image tag: $tag"
 
