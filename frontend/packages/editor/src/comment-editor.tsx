@@ -259,6 +259,8 @@ export type CommentEditorSubmitHandle = {
   submit: () => void
   reset: () => void
   focus: (options?: {moveCursorToEnd?: boolean}) => void
+  /** Emits any pending (debounced) onContentChange synchronously. */
+  flush: () => void
   getContent: (
     prepareAttachments: (binaries: Uint8Array[]) => Promise<{
       blobs: {cid: string; data: Uint8Array}[]
@@ -396,7 +398,7 @@ export function CommentEditor({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
-  const hasPendingContentChangeRef = useRef(false)
+  const contentChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLocalEditsRef = useRef(false)
   const isApplyingInitialBlocksRef = useRef(false)
   const shouldFocusOnActivateRef = useRef(false)
@@ -435,7 +437,13 @@ export function CommentEditor({
     return Math.max(0, editor._tiptapEditor.view.state.doc.content.size - 4)
   }
 
-  const emitContentChangeNow = () => {
+  // Serializes the whole document for onContentChange. Too expensive to run
+  // per keystroke (typing lags on long comments, #884), so changes only
+  // schedule this and it runs debounced, or synchronously on blur/submit/unmount.
+  const flushContentChange = () => {
+    if (!contentChangeTimeoutRef.current) return
+    clearTimeout(contentChangeTimeoutRef.current)
+    contentChangeTimeoutRef.current = null
     if (!onContentChange) return
 
     try {
@@ -448,7 +456,7 @@ export function CommentEditor({
         Object.keys(mediaRefs).length > 0 ? mediaRefs : undefined,
       )
     } catch (error) {
-      console.error('Failed to emit immediate content change:', error)
+      console.error('Failed to emit content change:', error)
     }
   }
 
@@ -500,7 +508,7 @@ export function CommentEditor({
       lastId = blockNode.id
     }
 
-    emitContentChangeNow()
+    flushContentChange()
   }
 
   const isFileDrag = (dataTransfer: DataTransfer | null | undefined) => {
@@ -648,28 +656,28 @@ export function CommentEditor({
     }
   }, [editor])
 
-  // Notify parent of content changes
+  // Notify parent of content changes, debounced (see flushContentChange)
   useEffect(() => {
     if (!onContentChange) return
 
     const handleChange = () => {
-      hasPendingContentChangeRef.current = true
       if (!isApplyingInitialBlocksRef.current) {
         hasLocalEditsRef.current = true
       }
-      emitContentChangeNow()
-      hasPendingContentChangeRef.current = false
+      if (contentChangeTimeoutRef.current) {
+        clearTimeout(contentChangeTimeoutRef.current)
+      }
+      contentChangeTimeoutRef.current = setTimeout(flushContentChange, 300)
     }
 
-    // Listen to editor changes
     editor._tiptapEditor.on('update', handleChange)
+    // Flush when focus leaves the editor (e.g. tapping a save/submit button)
+    editor._tiptapEditor.on('blur', flushContentChange)
 
     return () => {
       editor._tiptapEditor.off('update', handleChange)
-      if (hasPendingContentChangeRef.current) {
-        emitContentChangeNow()
-        hasPendingContentChangeRef.current = false
-      }
+      editor._tiptapEditor.off('blur', flushContentChange)
+      flushContentChange()
     }
   }, [editor, onContentChange])
 
@@ -712,7 +720,7 @@ export function CommentEditor({
 
     const editorDom = editor._tiptapEditor.view.dom
     const handleInsertedFileDrop = () => {
-      emitContentChangeNow()
+      flushContentChange()
     }
 
     editorDom.addEventListener(FILE_DROP_INSERTED_EVENT, handleInsertedFileDrop)
@@ -766,6 +774,10 @@ export function CommentEditor({
       resultCIDs: string[]
     }>,
   ) => {
+    // Emit any debounced content change before the destructive mutations below,
+    // so parents (draft persistence) hold the final pre-publish content.
+    flushContentChange()
+
     // @ts-expect-error
     const editorBlocks: EditorBlock[] = editor.topLevelBlocks
 
@@ -895,6 +907,7 @@ export function CommentEditor({
       submit: () => submitCallbackRef.current?.(),
       reset,
       focus: focusEditor,
+      flush: flushContentChange,
       getContent,
     }
   }

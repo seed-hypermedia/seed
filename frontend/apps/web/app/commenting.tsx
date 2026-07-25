@@ -8,7 +8,7 @@ import {
   HMPublishBlobsOutput,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {CommentEditor} from '@shm/editor/comment-editor'
+import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {
   getValidatedWebSeedLinkState,
   hmId,
@@ -119,6 +119,7 @@ export default function WebCommenting({
 
   // Track latest editor content for non-destructive reads (e.g. persisting intent to IDB)
   const latestBlocksRef = useRef<HMBlockNode[] | null>(null)
+  const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
 
   // Generation counter: bumped on clearDraft to force editor remount via key
   const [editorGeneration, setEditorGeneration] = useState(0)
@@ -274,6 +275,10 @@ export default function WebCommenting({
     ) => {
       if (isSubmitting || !docVersion) return // Prevent double submission
 
+      // Content changes are debounced in the editor; flush so latestBlocksRef
+      // holds the final content before reading it below.
+      submitHandleRef.current?.flush()
+
       if (!userKeyPair) {
         // Persist intent to IDB so it can be processed after account creation
         // (works for both local and vault flows).
@@ -415,6 +420,7 @@ export default function WebCommenting({
         key={`${draftId}-${editorGeneration}`}
         focusOnMount={focusOnMount ?? autoFocus}
         isReplying={isReplyEditor}
+        submitHandleRef={submitHandleRef}
         handleSubmit={handleSubmit}
         initialBlocks={initialBlocks}
         onContentChange={(blocks, mediaRefs) => {
