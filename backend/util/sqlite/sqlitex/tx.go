@@ -109,7 +109,7 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 			// finally rolls back.
 			if frerr := forceRollback(conn); frerr != nil {
 				tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
-				return fmt.Errorf("ROLLBACK error: %v; original error: %w", errors.Join(rberr, frerr), err)
+				return fmt.Errorf("ROLLBACK error: %w; original error: %w", errors.Join(rberr, frerr), err)
 			}
 		}
 		tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
