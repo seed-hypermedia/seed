@@ -59,7 +59,7 @@ jobs:
         id: tags
         run: |
           list_tags() {
-            git ls-remote --tags "$1" | awk '{print $2}' | sed 's#^refs/tags/##' | grep -v '\^{}$' | sort -u
+            git ls-remote --tags "$1" | awk '{print $2}' | sed 's#^refs/tags/##' | { grep -v '\^{}$' || true; } | sort -u
           }
           list_tags upstream > /tmp/upstream-tags
           list_tags origin > /tmp/origin-tags
