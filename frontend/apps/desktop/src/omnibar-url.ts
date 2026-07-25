@@ -1,6 +1,12 @@
 import {normalizeAgentServerUrl} from '@/agents-client'
 import {resolveHypermediaUrl, type ResolveOptions} from '@seed-hypermedia/client'
-import {createDocumentNavRoute, createInspectNavRoute, type NavRoute} from '@shm/shared/routes'
+import {
+  createDocumentNavRoute,
+  createInspectIpfsNavRoute,
+  createInspectNavRoute,
+  type NavRoute,
+} from '@shm/shared/routes'
+import {CID} from 'multiformats/cid'
 import {
   activitySlugToFilter,
   extractViewTermFromUrl,
@@ -53,12 +59,38 @@ export function selectValidatedOmnibarSiteUrl(params: {
   return params.candidateSiteUrl
 }
 
+/** Multicodec code for DAG-CBOR. */
+const DAG_CBOR_CODE = 0x71
+
+/**
+ * Resolves an ipfs:// URL to a route. DAG-CBOR blobs open in the raw blob
+ * JSON editor; anything else (other codecs, or CIDs with sub-paths) opens in
+ * the raw IPFS inspector. Invalid CIDs resolve to null.
+ */
+export function ipfsUrlToRoute(input: string): NavRoute | null {
+  const match = input.trim().match(/^ipfs:\/\/([A-Za-z0-9]+)(\/[^?#]*)?$/)
+  if (!match) return null
+  const [, cidString, subPath] = match
+  try {
+    const cid = CID.parse(cidString!)
+    if (!subPath && cid.code === DAG_CBOR_CODE) {
+      return {key: 'raw-blob', cid: cidString!}
+    }
+  } catch {
+    return null
+  }
+  return createInspectIpfsNavRoute(`${cidString}${subPath || ''}`)
+}
+
 /**
  * Resolves a URL using the same routing rules as the desktop omnibar.
  */
 export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOptions): Promise<NavRoute | null> {
   const siteSettingsEmailsRoute = await siteSettingsEmailsUrlToRoute(url, opts)
   if (siteSettingsEmailsRoute) return siteSettingsEmailsRoute
+
+  const ipfsRoute = ipfsUrlToRoute(url)
+  if (ipfsRoute) return ipfsRoute
 
   const directRoute = hypermediaUrlToRoute(url)
   if (directRoute) return directRoute

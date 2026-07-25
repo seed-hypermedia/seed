@@ -646,6 +646,10 @@ export function useCID(cid: string | undefined) {
       return await client.request('GetCID', {cid: cid!}, {signal})
     },
     enabled: !!cid,
+    // A blob that isn't found (yet) is a state every consumer renders
+    // (searching/retry UIs) — never a reason to unmount the page via the
+    // QueryClient's default useErrorBoundary: true.
+    useErrorBoundary: false,
   })
 }
 

@@ -1,0 +1,5 @@
+{
+  "name": "CID",
+  "description": "A content identifier: a link (CBOR tag 42) referencing another IPFS block by its hash.",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link"
+}

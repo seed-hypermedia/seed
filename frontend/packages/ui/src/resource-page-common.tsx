@@ -56,6 +56,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
   DocumentMachineProvider,
+  selectCanEdit,
   selectContext,
   selectIsEditing,
   selectIsUnpublishedDraft,
@@ -98,6 +99,9 @@ import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {DocumentMetadataView} from './document-metadata-view'
+import {RequiredAttributesEditor} from './required-attributes-editor'
+import {schemaDefinitionCid, SchemaDocumentHeaderActions} from './onyx/schema-document'
+import {useEffectiveDocSchema} from './onyx/onyx-schema-resolve'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
@@ -2152,7 +2156,22 @@ function DocumentBody({
         {documentContentAction}
       </div>
     ) : null
-  const documentToolsRightAction = isMobile ? documentContentAction : null
+  // A document that DEFINES a type (carries a `schemaDefinition`) gets header
+  // actions: a tag that opens the schema, and a button to create a value of it.
+  // Use draft-merged metadata so an unpublished schemaDefinition still surfaces
+  // (same source the Attributes tab reads).
+  const headerMetadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const schemaDocActions = schemaDefinitionCid(headerMetadata) ? (
+    <SchemaDocumentHeaderActions metadata={headerMetadata} />
+  ) : null
+  const mobileContentAction = isMobile ? documentContentAction : null
+  const documentToolsRightAction =
+    schemaDocActions || mobileContentAction ? (
+      <div className="flex items-center gap-2">
+        {schemaDocActions}
+        {mobileContentAction}
+      </div>
+    ) : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // Main page content (used in both mobile and desktop layouts)
@@ -2337,14 +2356,20 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
+              activeView !== 'content' &&
+              activeView !== 'site-profile' &&
+              activeView !== 'all-documents' &&
+              activeView !== 'metadata' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
+                          key: activeView as Exclude<
+                            ActiveView,
+                            'content' | 'site-profile' | 'all-documents' | 'metadata'
+                          >,
                           id: docId,
                         }
                   }
@@ -2714,7 +2739,7 @@ function PanelContentRenderer({
     case 'metadata':
       return (
         <div className="px-4">
-          <DocumentMetadataPage document={document} fileUpload={fileUpload} />
+          <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
         </div>
       )
     case 'activity':
@@ -2873,9 +2898,11 @@ function DocumentOptionsPanel({
 /** Metadata view wired to the document machine: edits stage into the draft
  * and publish through the standard publish flow. */
 function DocumentMetadataPage({
+  docId,
   document,
   fileUpload,
 }: {
+  docId: UnpackedHypermediaId
   document: HMDocument
   fileUpload?: (file: File) => Promise<string>
 }) {
@@ -2886,6 +2913,9 @@ function DocumentMetadataPage({
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  // The schema this document conforms to (own `schema`, else parent's
+  // `childrenSchema`) — drives required-field rows + advisory validation.
+  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(docId, metadata)
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
   const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
@@ -2897,12 +2927,14 @@ function DocumentMetadataPage({
     <DocumentMetadataView
       metadata={metadata as any}
       canEdit={canEdit}
+      conformanceSchema={conformanceSchema}
       onMetadata={(patch) => {
         beginEditIfNeeded()
         send({type: 'change', metadata: patch as any})
       }}
       fileUpload={fileUpload}
       openFile={openFile}
+      openUrl={openUrl}
       onCreateBlob={onCreateBlob}
     />
   )
@@ -3039,7 +3071,7 @@ function MainContent({
         <PageLayout contentMaxWidth={contentMaxWidth}>
           {/* Extra left padding in the main view; the panel render keeps its own. */}
           <div className="pl-4">
-            <DocumentMetadataPage document={document} fileUpload={fileUpload} />
+            <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
           </div>
         </PageLayout>
       )
@@ -3208,6 +3240,17 @@ function ContentViewWithOutline({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const rootChildrenType = (ctx.metadata?.childrenType ?? document.metadata?.childrenType) || 'Group'
+  // Required custom attributes (from the doc's schema) render above the body.
+  const canEdit = useDocumentSelector(selectCanEdit)
+  const isEditing = useDocumentSelector(selectIsEditing)
+  const send = useDocumentSend()
+  const requiredAttrMetadata = useMemo(
+    () => ({...document.metadata, ...ctx.metadata}),
+    [document.metadata, ctx.metadata],
+  )
+  // The schema this document must conform to (own `schema`, else parent's
+  // `childrenSchema`) — drives the always-visible required attributes.
+  const {metadataSchema: conformanceSchema} = useEffectiveDocSchema(resourceId, requiredAttrMetadata)
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
@@ -3254,6 +3297,18 @@ function ContentViewWithOutline({
       )}
 
       <div {...mainContentProps} className={cn(mainContentProps.className, 'px-4 pt-8')}>
+        {canEdit && (
+          <RequiredAttributesEditor
+            conformanceSchema={conformanceSchema}
+            metadata={requiredAttrMetadata}
+            onMetadata={(patch) => {
+              // A published doc isn't editing yet — enter editing first so the
+              // `change` is accepted (drafts are already in the editing state).
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: patch})
+            }}
+          />
+        )}
         <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
           {DocumentContentComponent ? (
             <DocumentContentComponent
