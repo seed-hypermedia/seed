@@ -6,13 +6,12 @@ import {Input} from './components/input'
 import {Label} from './components/label'
 import {ScrollArea} from './components/scroll-area'
 import {Switch} from './components/switch'
-import {SwitchField} from './form-fields'
 import {ImageForm} from './image-form'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 
-export const SPACE_NAME_MAX_LENGTH = 20
+export const SPACE_NAME_MAX_LENGTH = 60
 const TOTAL_STEPS = 3
 
 // Values for the header layout select. `stored` is the value persisted in
@@ -31,7 +30,6 @@ export type CreateSpaceFormState = {
   logo: File | null
   headerLayout: CreateSpaceHeaderLayout
   contentWidth: 'S' | 'M' | 'L'
-  showPublicationDate: boolean
   showActivity: boolean
 }
 
@@ -41,7 +39,6 @@ export const defaultCreateSpaceFormState: CreateSpaceFormState = {
   logo: null,
   headerLayout: 'horizontal',
   contentWidth: 'L',
-  showPublicationDate: true,
   showActivity: true,
 }
 
@@ -247,14 +244,6 @@ function AppearanceStep({state, update}: StepProps) {
             </SelectContent>
           </Select>
         </div>
-      </div>
-      <div className="bg-muted rounded-lg p-3">
-        <SwitchField
-          label="Set publication display date"
-          id="space-publication-date"
-          checked={state.showPublicationDate}
-          onCheckedChange={(showPublicationDate) => update({showPublicationDate})}
-        />
       </div>
       <div className="bg-muted flex items-center justify-between gap-4 rounded-lg p-3">
         <div className="flex items-center gap-1.5">

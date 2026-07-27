@@ -143,7 +143,10 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
       signingAccountId: input.signingAccountId ?? '',
       capabilityCid: existingDraft?.capabilityCid ?? deps.getCapabilityCid(),
       content,
-      metadata: input.metadata ?? {},
+      // Merge over the stored metadata rather than replacing it. The session
+      // overlay (input.metadata) can be empty/partial before the draft resolves,
+      // and a full replace would wipe those fields on the first autosave.
+      metadata: {...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})},
       deps: input.deps,
       navigation: input.navigation ?? null,
       locationUid: isReservedRouteDraft ? deps.docId.uid : input.locationUid || null,

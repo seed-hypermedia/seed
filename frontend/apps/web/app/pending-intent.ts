@@ -4,6 +4,7 @@ import {queryKeys} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {toast} from '@shm/ui/toast'
 import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
 import {webUniversalClient} from './universal-client'
@@ -16,6 +17,7 @@ export type PendingIntentResult =
   | {type: 'follow'}
   | {type: 'comment'; commentUrl: string}
   | {type: 'publish-draft'; spaceUrl: string}
+  | {type: 'publish-draft-failed'; retryUrl: string}
 
 let pendingIntentProcessingPromise: Promise<PendingIntentResult> | null = null
 
@@ -168,13 +170,15 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
 
   if (intent.type === 'publish-draft') {
     console.log('[processPendingIntent] Publish-draft intent', intent)
+    const accountUid = await getCurrentAccountUidWithDelegation()
+    if (!accountUid) {
+      await clearPendingIntent()
+      return {type: 'none'}
+    }
+    const {adoptPendingSpaceDraft, repointSpaceHomeDraftToAccount} = await import(
+      './document-edit/web-create-space-draft'
+    )
     try {
-      const accountUid = await getCurrentAccountUidWithDelegation()
-      if (!accountUid) {
-        await clearPendingIntent()
-        return {type: 'none'}
-      }
-      const {adoptPendingSpaceDraft} = await import('./document-edit/web-create-space-draft')
       const {publishWebDocument} = await import('./document-edit/web-document-actors')
       // Re-key the anonymous home draft to the new account, then publish it.
       const homeId = await adoptPendingSpaceDraft(intent.draftId, accountUid)
@@ -208,7 +212,12 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       return {type: 'publish-draft', spaceUrl: `/hm/${accountUid}`}
     } catch (e) {
       console.error('Failed to process publish-draft intent:', e)
+      toast.error('Your account was created, but publishing your space failed. You can try publishing again.')
       await clearPendingIntent()
+      // Re-point the home draft to a placeholder edit route
+      // under the new account and redirect there for retry.
+      const retryUrl = await repointSpaceHomeDraftToAccount(intent.draftId, accountUid)
+      if (retryUrl) return {type: 'publish-draft-failed', retryUrl}
       return {type: 'none'}
     }
   }

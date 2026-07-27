@@ -6,6 +6,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {getMetadataName, NavRoute, SearchResult, useRouteLink, useValidatedWebRouteLink} from '@shm/shared'
+import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {ScrollArea} from './components/scroll-area'
@@ -83,11 +84,12 @@ export function SiteHeader({
     }
   }
   // Determine the home document for logo/branding
-  // Priority: current doc if on home page, otherwise siteHomeDocument
-  const homeDoc =
-    docId && !docId.path?.length
-      ? {document, id: docId} // On home page — document IS the home doc
-      : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
+  // Priority: current doc if on home page, otherwise siteHomeDocument.
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeView = homeDraftOverride ?? !!(docId && !docId.path?.length)
+  const homeDoc = isHomeView
+    ? {document, id: docId} // On home page — document IS the home doc
+    : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
   const headerSearch = (
     <>
       <Button

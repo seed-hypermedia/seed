@@ -23,19 +23,19 @@ describe('createSpaceMetadata', () => {
     expect(createSpaceMetadata(stateWith({headerLayout: 'center'}), {}).theme).toEqual({headerLayout: 'Center'})
   })
 
-  it('adds ipfs:// cover and logo (as the icon/avatar) only when their CIDs are provided', () => {
+  it('adds ipfs:// cover and logo (as the header logo) only when their CIDs are provided', () => {
     const withImages = createSpaceMetadata(stateWith({}), {coverCid: 'bafcover', logoCid: 'bafylogo'})
     expect(withImages.cover).toBe('ipfs://bafcover')
-    expect(withImages.icon).toBe('ipfs://bafylogo')
+    expect(withImages.seedExperimentalLogo).toBe('ipfs://bafylogo')
 
     const withoutImages = createSpaceMetadata(stateWith({}), {})
     expect(withoutImages).not.toHaveProperty('cover')
-    expect(withoutImages).not.toHaveProperty('icon')
+    expect(withoutImages).not.toHaveProperty('seedExperimentalLogo')
   })
 
   it('adds only the image that has a CID', () => {
     const coverOnly = createSpaceMetadata(stateWith({}), {coverCid: 'bafcover'})
     expect(coverOnly.cover).toBe('ipfs://bafcover')
-    expect(coverOnly).not.toHaveProperty('icon')
+    expect(coverOnly).not.toHaveProperty('seedExperimentalLogo')
   })
 })

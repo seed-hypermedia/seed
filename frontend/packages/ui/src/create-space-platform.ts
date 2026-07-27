@@ -18,6 +18,6 @@ export function createSpaceMetadata(
     theme: {headerLayout: storedHeaderLayout},
   }
   if (images.coverCid) metadata.cover = `ipfs://${images.coverCid}`
-  if (images.logoCid) metadata.icon = `ipfs://${images.logoCid}`
+  if (images.logoCid) metadata.seedExperimentalLogo = `ipfs://${images.logoCid}`
   return metadata
 }

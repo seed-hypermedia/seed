@@ -98,3 +98,25 @@ export async function adoptPendingSpaceDraft(
   })
   return homeId
 }
+
+/**
+ * After a failed publish, re-point the home draft to a
+ * placeholder edit route under the new account and
+ * return the web path to navigate to.
+ */
+export async function repointSpaceHomeDraftToAccount(draftId: string, accountUid: string): Promise<string | null> {
+  const draft = await getWebDocDraft(draftId)
+  if (!draft) return null
+  const editId = hmId(accountUid, {path: [`-${draftId}`]})
+  await putWebDocDraft({
+    ...draft,
+    docId: editId.id,
+    signingAccountId: accountUid,
+    locationUid: accountUid,
+    locationPath: [],
+    editUid: accountUid,
+    editPath: [], // still publishes to the home path
+  })
+  markSpaceHomeDraftId(draftId)
+  return `/hm/${accountUid}/-${draftId}`
+}

@@ -1,6 +1,7 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useAccount} from '@shm/shared/models/entity'
+import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import {
   selectDocument,
   selectDraftId,
@@ -113,7 +114,8 @@ export function PublishPopoverBody({
   const draftId = useDocumentSelector(selectDraftId)
   const metadata = useDocumentSelector(selectMetadata)
 
-  const isHomeDoc = (docId.path?.length ?? 0) === 0
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? (docId.path?.length ?? 0) === 0
   const isFirstPublish = !publishedDoc?.version && !isHomeDoc
   const isPrivate = publishedDoc?.visibility === 'PRIVATE'
   const lastSeg = docId.path?.at(-1) || ''
