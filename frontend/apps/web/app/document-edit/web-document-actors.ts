@@ -10,12 +10,9 @@
  * closing over the host's editor accessor + universal client + signer factory.
  */
 
-import {signDocumentChange} from '@seed-hypermedia/client'
-import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {createGenesisChange, createVersionRef, signDocumentChange} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
-import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import type {
   HMBlockNode,
   HMDocument,
@@ -23,6 +20,8 @@ import type {
   HMSigner,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
+import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import {
   documentMachine,
   retargetQueryBlockIncludesForPublish,
@@ -40,16 +39,18 @@ import type {UniversalClient} from '@shm/shared/universal-client'
 import {
   compareBlocksWithMap,
   createBlocksMap,
-  extractDeletes,
   expandObjectRemovals,
+  extractDeletes,
   getDocAttributeChanges,
 } from '@shm/shared/utils/document-changes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {getNavigationChanges} from '@shm/shared/utils/navigation-changes'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {nanoid} from 'nanoid'
 import {fromPromise} from 'xstate'
 
+import {enqueueWebDocumentCardCleanup} from './web-document-card-cleanup'
 import {
   deleteWebDocDraft,
   getWebDocDraft,
@@ -57,7 +58,6 @@ import {
   putWebDocDraft,
   type WebDocDraft,
 } from './web-draft-db'
-import {enqueueWebDocumentCardCleanup} from './web-document-card-cleanup'
 import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath, isWebPrivateDraftPlaceholderPath} from './web-draft-path'
 
 /** @deprecated Use `EditorAccessor` from `@shm/shared/models/document-machine` instead. */
@@ -143,7 +143,10 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
       signingAccountId: input.signingAccountId ?? '',
       capabilityCid: existingDraft?.capabilityCid ?? deps.getCapabilityCid(),
       content,
-      metadata: input.metadata ?? {},
+      // Merge over the stored metadata rather than replacing it. The session
+      // overlay (input.metadata) can be empty/partial before the draft resolves,
+      // and a full replace would wipe those fields on the first autosave.
+      metadata: {...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})},
       deps: input.deps,
       navigation: input.navigation ?? null,
       locationUid: isReservedRouteDraft ? deps.docId.uid : input.locationUid || null,
@@ -287,27 +290,56 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
   // Web signs client-side via `signDocumentChange`. Generation must be strictly
   // greater than existing HEAD's — a tie keeps the old HEAD.
   const signer = deps.getSigner(signerAccountUid)
+
+  const existingGenerationRaw = editDocument?.generationInfo?.generation
+  const existingGenerationNum = existingGenerationRaw != null ? Number(existingGenerationRaw) : 0
+  const nextGeneration = Math.max(Date.now(), existingGenerationNum + 1)
+
+  // New home document has no genesis on the server yet, and the
+  // server's PrepareChange can't bootstrap one. This is pending draft's first
+  // publish on web. Publish a client-signed genesis Change and a version Ref
+  // so the document becomes resolvable, then continue with the normal
+  // PrepareDocumentChange using that genesis as the base version.
+  let effectiveBaseVersion = baseVersion
+  let effectiveGenesis: string | undefined = editDocument?.genesis
+  if (!editDocument && publishPath.length === 0) {
+    const genesisChange = await createGenesisChange(signer)
+    const genesisRef = await createVersionRef(
+      {
+        space: deps.docId.uid,
+        path: '',
+        genesis: genesisChange.cid.toString(),
+        version: genesisChange.cid.toString(),
+        generation: nextGeneration,
+        capability: capabilityCid,
+      },
+      signer,
+    )
+    await (deps.client as any).publish({
+      blobs: [{data: genesisChange.bytes, cid: genesisChange.cid.toString()}, ...genesisRef.blobs],
+    })
+    effectiveBaseVersion = genesisChange.cid.toString()
+    effectiveGenesis = genesisChange.cid.toString()
+  }
+
   const prepareResult = (await deps.client.request(
     'PrepareDocumentChange' as any,
     {
       account: deps.docId.uid,
       path,
-      baseVersion,
+      baseVersion: effectiveBaseVersion,
       changes: allChanges as any,
       capability: capabilityCid,
       visibility,
     } as any,
   )) as any
 
-  const existingGenerationRaw = editDocument?.generationInfo?.generation
-  const existingGenerationNum = existingGenerationRaw != null ? Number(existingGenerationRaw) : 0
-  const nextGeneration = Math.max(Date.now(), existingGenerationNum + 1)
   const {changeCid, publishInput} = await signDocumentChange(
     {
       account: deps.docId.uid,
       path,
       unsignedChange: prepareResult.unsignedChange,
-      genesis: editDocument?.genesis,
+      genesis: effectiveGenesis,
       generation: nextGeneration,
       capability: capabilityCid,
       visibility,

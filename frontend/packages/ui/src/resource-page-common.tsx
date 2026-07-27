@@ -9,7 +9,6 @@ import {
   HMResource,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {useQuery} from '@tanstack/react-query'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -73,8 +72,10 @@ import {
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
+import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
+import {useOpenUrl} from '@shm/shared/routing'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
@@ -83,10 +84,11 @@ import {
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
-import {useOpenUrl} from '@shm/shared/routing'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
+import {useQuery} from '@tanstack/react-query'
 import {FilePen, Info, Quote, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AccountPage} from './account-page'
@@ -97,8 +99,8 @@ import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {DocumentMetadataView} from './document-metadata-view'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
+import {DocumentMetadataView} from './document-metadata-view'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
 import {Feed, type DraftVersionEntry} from './feed'
@@ -1223,7 +1225,8 @@ export function PageWrapper({
   // outside DocumentMachineProvider (loading/error/discovery branches), in
   // which case we fall back to the published headerData.items.
   const machineNav = useDocumentNavigationOptional()
-  const isHomeDoc = !docId.path?.length
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
   const liveItems: DocNavigationItem[] | undefined =
     isHomeDoc && machineNav
       ? machineNav
@@ -1585,21 +1588,24 @@ function DocumentBody({
     })
   }, []) // only on mount
 
-  const isHomeDoc = !docId.path?.length
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
   const draftVisibility = existingDraft ? existingDraftVisibility : undefined
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
-  const siteMembers = useSiteMembers(siteId)
-  const directory = useDirectory(docId)
-  const interactionSummary = useInteractionSummary(docId)
-  const collaborators = useDocumentCollaborators(docId)
+  // Skip the queries for anonymous pending drafts.
+  const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
+  const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
+  const directory = useDirectory(isLocalOnlyDoc ? null : docId)
+  const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
+  const collaborators = useDocumentCollaborators(isLocalOnlyDoc ? null : docId)
   const peopleCount = useMemo(
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
     [collaborators.data, isHomeDoc],
   )
   const citationsDocId = useMemo(() => ({...docId, blockRef: null, blockRange: null}), [docId])
-  const citations = useCitations(citationsDocId)
+  const citations = useCitations(isLocalOnlyDoc ? null : citationsDocId)
 
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
@@ -2848,7 +2854,8 @@ function DocumentOptionsPanel({
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
-  const isHomeDoc = !docId.path?.length
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
 
   const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
   // draftId may not exist yet when the panel is opened in read mode. Fall back

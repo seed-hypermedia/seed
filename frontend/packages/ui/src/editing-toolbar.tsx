@@ -1,6 +1,7 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {type DocumentMachineEvent} from '@shm/shared/models/document-machine'
 import {useAccount} from '@shm/shared/models/entity'
+import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import {
   selectDocument,
   selectDraftId,
@@ -42,6 +43,12 @@ export type EditingToolbarCallbacks = {
    * unpublished child drafts.
    */
   getUnpublishedChildCount?: () => number
+  /**
+   * Intercept the publish action before it reaches the document machine. Return
+   * true when handled to skip the normal publish. Return false/undefined
+   * to publish normally.
+   */
+  onPublishIntercept?: (pathOverride?: string[]) => boolean
 }
 
 /** Dark pill shown top-right while autosave is saving or just saved. */
@@ -107,7 +114,8 @@ export function PublishPopoverBody({
   const draftId = useDocumentSelector(selectDraftId)
   const metadata = useDocumentSelector(selectMetadata)
 
-  const isHomeDoc = (docId.path?.length ?? 0) === 0
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? (docId.path?.length ?? 0) === 0
   const isFirstPublish = !publishedDoc?.version && !isHomeDoc
   const isPrivate = publishedDoc?.visibility === 'PRIVATE'
   const lastSeg = docId.path?.at(-1) || ''
@@ -344,6 +352,7 @@ export function PublishButtonWithPopover({
   computeFirstPublishPath,
   onGoToVersions,
   getUnpublishedChildCount,
+  onPublishIntercept,
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
@@ -384,6 +393,8 @@ export function PublishButtonWithPopover({
   const publishNow = (pathOverride?: string[]) => {
     if (!canPublish) return
     popoverState.onOpenChange(false)
+    // Signed-out drafts hand off to account creation instead of publishing directly.
+    if (onPublishIntercept?.(pathOverride)) return
     send({type: 'edit.start'})
     send({type: 'publish.start', pathOverride})
   }

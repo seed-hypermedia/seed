@@ -3,12 +3,14 @@ import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {getDocumentTitle} from '@shm/shared/content'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
-import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
 import {useResource} from '@shm/shared/models/entity'
+import {HomeDraftProvider} from '@shm/shared/home-draft-context'
+import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
 import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
@@ -17,7 +19,6 @@ import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, latestId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute, useNavigate} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
-import {getDocumentTitle} from '@shm/shared/content'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
@@ -44,6 +45,7 @@ import {
 } from './auth'
 import {preloadCommenting} from './client-lazy'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
+import {isPendingSpaceUid, isSpaceHomeDraftId} from './document-edit/web-create-space-draft'
 import {createWebDocumentMachine} from './document-edit/web-document-actors'
 import {
   loadWebCleanupDraft,
@@ -137,6 +139,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const universalClient = useUniversalClient()
   const linkExtensionOptions = useMemo(() => ({universalClient}), [universalClient])
   const {canEdit, signingAccountId, capability, capabilitiesLoading} = useWebCanEdit(docId)
+  const {createAccount, content: createAccountContent} = useCreateAccount()
   const keyPairLoaded = useLocalKeyPairLoaded()
   const fileUpload = useMemo(() => makeWebFileUpload(universalClient), [universalClient])
 
@@ -202,17 +205,21 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const draftQuery = useQuery({
     queryKey: ['web-doc-draft', docId.id, signingAccountId ?? null, placeholderDraftId ?? null] as const,
     queryFn: async () => {
-      if (!signingAccountId) return null
+      const isPending = isPendingSpaceUid(docId.uid)
+      if (!signingAccountId && !isPending) return null
       if (placeholderDraftId) {
         const draft = await getWebDocDraft(placeholderDraftId)
         if (draft?.docId !== docId.id) return null
-        if (draft.signingAccountId !== signingAccountId) return null
+        if (draft.signingAccountId !== signingAccountId && !isPending) return null
         return draft
       }
       if (!canEdit) return null
       return getLatestWebDocDraftForDoc(docId.id)
     },
-    enabled: typeof window !== 'undefined' && !!signingAccountId && (canEdit || !!placeholderDraftId),
+    enabled:
+      typeof window !== 'undefined' &&
+      (!!signingAccountId || isPendingSpaceUid(docId.uid)) &&
+      (canEdit || !!placeholderDraftId),
     staleTime: 60_000,
     keepPreviousData: false,
   })
@@ -230,9 +237,15 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       : null
   const isDraftStale = false
 
+  const isPendingSpace = isPendingSpaceUid(docId.uid)
+  // A create space home draft.
+  const isSpaceHomeDraft = isSpaceHomeDraftId(placeholderDraftId)
   const canEditLocalPlaceholderDraft =
-    !!placeholderDraftId && !!draftData && !!signingAccountId && draftData.signingAccountId === signingAccountId
-  const effectiveCanEdit = canEdit || canEditLocalPlaceholderDraft || (!!placeholderDraftId && !!signingAccountId)
+    !!placeholderDraftId &&
+    !!draftData &&
+    (isPendingSpace || (!!signingAccountId && draftData.signingAccountId === signingAccountId))
+  const effectiveCanEdit =
+    canEdit || canEditLocalPlaceholderDraft || (!!placeholderDraftId && (!!signingAccountId || isPendingSpace))
   const effectiveCapabilityCid = capability && capability.id !== '_owner' ? capability.id : draftData?.capabilityCid
 
   // Build a documentMachine wired to web actors. Stable per (docId, signing identity, capability).
@@ -388,8 +401,37 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
           panel: createDocumentVersionsPanelRoute(id),
         } as any)
       },
+      // Pending space home drafts publish by first creating an account.
+      // Stashes a publish-draft intent, then open the account dialog
+      // and resume after the vault sign in.
+      onPublishIntercept: () => {
+        const isSpaceDraft = isSpaceHomeDraft || isPendingSpace
+        if (!isSpaceDraft || !placeholderDraftId) return false
+        void setPendingIntent({type: 'publish-draft', draftId: placeholderDraftId}).then(() => {
+          if (userKeyPair) {
+            void processPendingIntent(originHomeId ?? undefined).then((result) => {
+              if (result.type === 'publish-draft') window.location.assign(result.spaceUrl)
+            })
+          } else {
+            createAccount({source: 'join'})
+          }
+        })
+        return true
+      },
     }),
-    [origin, originHomeId, navigate, replaceRoute, docId, route],
+    [
+      origin,
+      originHomeId,
+      navigate,
+      replaceRoute,
+      docId,
+      route,
+      isSpaceHomeDraft,
+      isPendingSpace,
+      placeholderDraftId,
+      userKeyPair,
+      createAccount,
+    ],
   )
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
@@ -441,8 +483,10 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       !!signingAccountId && (id.uid === signingAccountId || (effectiveCanEdit && id.uid === docId.uid)),
     [docId.uid, effectiveCanEdit, signingAccountId],
   )
+  const homeDraftOverride: boolean | undefined = isSpaceHomeDraft || isPendingSpace ? true : undefined
+  const isHomeTarget = homeDraftOverride ?? !docId.path?.length
   const moveMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!effectiveCanEdit || !signingAccountId || !docId.path?.length) return null
+    if (!effectiveCanEdit || !signingAccountId || isHomeTarget) return null
     return {
       key: 'move',
       label: 'Move',
@@ -470,9 +514,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         destinationDialog.open({id: docId, mode: 'move'})
       },
     }
-  }, [destinationDialog, docId, draftData, effectiveCanEdit, placeholderDraftId, signingAccountId])
+  }, [destinationDialog, docId, draftData, effectiveCanEdit, isHomeTarget, placeholderDraftId, signingAccountId])
   const deleteMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!effectiveCanEdit || !signingAccountId || !docId.path?.length) return null
+    if (!effectiveCanEdit || !signingAccountId || isHomeTarget) return null
     return {
       key: 'delete',
       label: 'Delete Document',
@@ -487,7 +531,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         })
       },
     }
-  }, [docId, effectiveCanEdit, onDeleteDocument, replaceRoute, signingAccountId])
+  }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
     () => [newMenuItem, ...webMenuItems, moveMenuItem, deleteMenuItem].filter(Boolean) as MenuItemType[],
     [deleteMenuItem, moveMenuItem, newMenuItem, webMenuItems],
@@ -582,37 +626,39 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             >
               <QuerySearchInputProvider value={WebQuerySearchInput}>
                 <WebDraftBreadcrumbProvider>
-                  <ResourcePage
-                    docId={docId}
-                    resourceId={useLocalDraftShell ? null : docId}
-                    CommentEditor={CommentEditor}
-                    pageFooter={<PageFooter id={docId} />}
-                    onEditProfile={onEditProfile}
-                    profileHeaderButtons={profileHeaderButtons}
-                    onFollowClick={onFollowClick}
-                    rightActions={<WebHeaderActions siteUid={docId.uid} />}
-                    optionsMenuItems={optionsMenuItems}
-                    inlineInsert={inlineInsert}
-                    DocumentContentComponent={DocumentContentComponent}
-                    ssrContentHTML={ssrContentHTML}
-                    perspectiveAccountUid={ownAccountUid}
-                    linkExtensionOptions={linkExtensionOptions}
-                    canEdit={effectiveCanEdit}
-                    machine={machine}
-                    machineExtras={<WebDraftExternalModificationListener />}
-                    signingAccountId={signingAccountId ?? undefined}
-                    publishAccountUid={signingAccountId ?? undefined}
-                    onEditorReady={onEditorReady}
-                    existingDraft={existingDraft}
-                    reservedDraftId={reservedDraftId}
-                    existingDraftVisibility={draftData?.visibility}
-                    existingDraftContent={existingDraftContent}
-                    existingDraftCursorPosition={existingDraftCursorPosition}
-                    existingDraftDeps={draftData?.deps}
-                    draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
-                    editingFloatingActions={editingFloatingActions}
-                    fileUpload={fileUpload}
-                  />
+                  <HomeDraftProvider value={homeDraftOverride}>
+                    <ResourcePage
+                      docId={docId}
+                      resourceId={useLocalDraftShell ? null : docId}
+                      CommentEditor={CommentEditor}
+                      pageFooter={<PageFooter id={docId} />}
+                      onEditProfile={onEditProfile}
+                      profileHeaderButtons={profileHeaderButtons}
+                      onFollowClick={onFollowClick}
+                      rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                      optionsMenuItems={optionsMenuItems}
+                      inlineInsert={inlineInsert}
+                      DocumentContentComponent={DocumentContentComponent}
+                      ssrContentHTML={ssrContentHTML}
+                      perspectiveAccountUid={ownAccountUid}
+                      linkExtensionOptions={linkExtensionOptions}
+                      canEdit={effectiveCanEdit}
+                      machine={machine}
+                      machineExtras={<WebDraftExternalModificationListener />}
+                      signingAccountId={signingAccountId ?? undefined}
+                      publishAccountUid={signingAccountId ?? undefined}
+                      onEditorReady={onEditorReady}
+                      existingDraft={existingDraft}
+                      reservedDraftId={reservedDraftId}
+                      existingDraftVisibility={draftData?.visibility}
+                      existingDraftContent={existingDraftContent}
+                      existingDraftCursorPosition={existingDraftCursorPosition}
+                      existingDraftDeps={draftData?.deps}
+                      draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
+                      editingFloatingActions={editingFloatingActions}
+                      fileUpload={fileUpload}
+                    />
+                  </HomeDraftProvider>
                 </WebDraftBreadcrumbProvider>
               </QuerySearchInputProvider>
             </QueryBlockDraftsProvider>
@@ -621,6 +667,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       </CommentsProvider>
       {editProfileDialog.content}
       {followAccountContent}
+      {createAccountContent}
       {newMenuContent}
       {deleteDialog.content}
       {destinationDialog.content}

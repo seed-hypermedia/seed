@@ -19,8 +19,6 @@ import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {SearchInput} from '@/components/search-input'
 import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
-import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {useDraft} from '@/models/accounts'
 import {useMyAccountIds} from '@/models/daemon'
 import {
@@ -52,6 +50,8 @@ import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
+import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 // import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {
   DiscardDraftInput,
@@ -443,7 +443,12 @@ export default function DesktopResourcePage() {
         })
         const result = await client.drafts.write.mutate({
           id: draftId,
-          metadata: input.metadata,
+          // Merge over the stored metadata rather than replacing it. The
+          // session overlay (input.metadata) can be empty before draft.resolved
+          // populates it (e.g. a home draft pre-written with metadata values by
+          // the create space form), and a full replace would wipe those
+          // fields on the first autosave.
+          metadata: {...existingDraft?.metadata, ...input.metadata},
           signingAccount: input.signingAccountId || undefined,
           content,
           cursorPosition,

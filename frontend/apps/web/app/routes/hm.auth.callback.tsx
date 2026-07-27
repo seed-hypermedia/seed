@@ -7,9 +7,9 @@ import {
   getAuthState,
   writeLocalKeys,
 } from '@/local-db'
+import {queryAPI} from '@/models'
 import {getSiteMembershipStatus, processPendingIntent} from '@/pending-intent'
 import {webUniversalClient} from '@/universal-client'
-import {queryAPI} from '@/models'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {useUniversalAppContext} from '@shm/shared'
@@ -137,11 +137,17 @@ export default function AuthCallbackRoute() {
         const intentResult = await processPendingIntent(originHomeId)
 
         let targetUrl = returnUrl
-        let successVariant: 'comment' | 'join' | 'login' | 'welcome-back' = 'login'
+        let successVariant: 'comment' | 'join' | 'login' | 'welcome-back' | 'publish-draft' | null = 'login'
 
         if (intentResult.type === 'comment') {
           targetUrl = intentResult.commentUrl
           successVariant = 'comment'
+        } else if (intentResult.type === 'publish-draft') {
+          targetUrl = intentResult.spaceUrl
+          successVariant = 'publish-draft'
+        } else if (intentResult.type === 'publish-draft-failed') {
+          targetUrl = intentResult.retryUrl
+          successVariant = null
         } else if (intentResult.type === 'join') {
           successVariant = intentResult.joinStatus === 'joined' ? 'join' : 'welcome-back'
         } else if (originHomeId?.uid) {
@@ -152,7 +158,7 @@ export default function AuthCallbackRoute() {
         }
 
         const nextUrl = new URL(targetUrl, window.location.origin)
-        nextUrl.searchParams.set('vault_success', successVariant)
+        if (successVariant) nextUrl.searchParams.set('vault_success', successVariant)
         navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
