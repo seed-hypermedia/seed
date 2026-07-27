@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
@@ -251,4 +252,82 @@ func TestWithTxAcknowledgedWriteSurvivesLeakedTxRollback(t *testing.T) {
 
 	require.EqualValues(t, 1, countLeakRows(t, pool, 43),
 		"an acknowledged write must survive later rollbacks on the pooled connection")
+}
+
+// TestPoolPutRepairsLeakedReadTransaction pins the repair on the read side of
+// the pool, which the write-path tests do not cover. A read connection handed
+// back mid-transaction is less dramatic than the writer — no acknowledged
+// write is at stake — but it is not harmless: an open read transaction pins
+// the WAL at its snapshot, so checkpointing cannot advance past it for as long
+// as the connection sits in the pool, and the next lessee silently reads stale
+// data from that snapshot instead of current state.
+func TestPoolPutRepairsLeakedReadTransaction(t *testing.T) {
+	pool := newFilePool(t)
+	setupLeakTable(t, pool)
+	repairsBefore := sqlitex.LeakedTxRepairs()
+
+	conn, release, err := pool.ReadConn(context.Background())
+	require.NoError(t, err)
+	// A deferred BEGIN takes the connection out of autocommit; the SELECT
+	// materialises the read snapshot it is pinned to.
+	require.NoError(t, sqlitex.Exec(conn, "BEGIN;", nil))
+	require.NoError(t, sqlitex.Exec(conn, "SELECT count(*) FROM leaktest;", nil))
+	require.False(t, conn.GetAutocommit(), "precondition: the read tx is open")
+	release() // leaks it into the read side of the pool
+
+	require.Equal(t, repairsBefore+1, sqlitex.LeakedTxRepairs(),
+		"Put must repair and count a leaked read transaction too")
+	require.Zero(t, sqlitex.LeakedTxRepairFailures(),
+		"the repair itself must not have failed")
+
+	// Every read connection the pool can hand out must be clean. Lease the
+	// whole read side at once so the repaired conn cannot hide behind a
+	// healthy sibling.
+	var conns []*sqlite.Conn
+	var releases []func()
+	for range 3 {
+		c, rel, err := pool.ReadConn(context.Background())
+		require.NoError(t, err)
+		require.True(t, c.GetAutocommit(),
+			"pool handed out a read connection still inside a leaked transaction")
+		conns = append(conns, c)
+		releases = append(releases, rel)
+	}
+	for _, rel := range releases {
+		rel()
+	}
+}
+
+// TestPoolSurvivesRepeatedLeaks guards the property the previous panic-based
+// repair would have broken: Put must always return the connection to the pool.
+// Put runs inside net/http handler goroutines and singleflight, both of which
+// recover panics, so a panic there would not crash the daemon — it would
+// silently retire the pool's only write connection and every later writer
+// would block in get() forever. Leaking repeatedly must leave the pool fully
+// usable.
+func TestPoolSurvivesRepeatedLeaks(t *testing.T) {
+	pool := newFilePool(t)
+	setupLeakTable(t, pool)
+
+	for i := range 5 {
+		interruptRequestOnWriter(t, pool)
+
+		// The write connection must still be leasable and usable after each
+		// leak. A stranded conn would hang here instead of failing.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		conn, release, err := pool.WriteConn(ctx)
+		require.NoError(t, err, "write connection was not returned to the pool after leak %d", i)
+		require.True(t, conn.GetAutocommit())
+		require.NoError(t, sqlitex.WithTx(conn, func() error {
+			return sqlitex.Exec(conn, "INSERT INTO leaktest (x) VALUES (?);", nil, int64(100+i))
+		}))
+		release()
+		cancel()
+
+		require.EqualValues(t, 1, countLeakRows(t, pool, int64(100+i)),
+			"write after leak %d must be durable", i)
+	}
+
+	require.Zero(t, sqlitex.LeakedTxRepairFailures(),
+		"no repair should have failed on a healthy connection")
 }
