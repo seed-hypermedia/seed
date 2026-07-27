@@ -2,6 +2,7 @@ package sqlitex
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"runtime"
 	"sort"
@@ -14,6 +15,14 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// log is the package logger. Mirrors the sqlite package's SetLogger contract.
+var log = slog.Default()
+
+// SetLogger sets the logger for this package.
+func SetLogger(logger *slog.Logger) {
+	log = logger
+}
 
 // Instrumentation for write transactions opened through WithTx.
 //
@@ -158,10 +167,15 @@ var (
 		Name: "seed_sqlite_writetx_inflight",
 		Help: "Currently in-flight write transactions (between BEGIN IMMEDIATE success and COMMIT/ROLLBACK).",
 	}, []string{"caller"})
+
+	mLeakedTx = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_sqlite_leaked_tx_total",
+		Help: "Connections returned to the pool inside an open transaction, by the caller that released them. outcome=repaired means Put rolled the transaction back; outcome=failed means the rollback itself failed and the connection may still be poisoned.",
+	}, []string{"caller", "outcome"})
 )
 
 func init() {
-	prometheus.MustRegister(mTxDuration, mBeginWait, mBeginBusy, mInFlight)
+	prometheus.MustRegister(mTxDuration, mBeginWait, mBeginBusy, mInFlight, mLeakedTx)
 }
 
 // callerStats accumulates per-caller stats for the debug page, split into

@@ -278,10 +278,80 @@ outer:
 // investigation even though Put contains the damage.
 var leakedTxRepairs atomic.Uint64
 
+// leakedTxRepairFailures counts the leaked transactions Put could not roll
+// back. Unlike leakedTxRepairs this is not a contained problem: the
+// connection went back into the pool with its transaction still open, so the
+// write blackhole this repair exists to prevent may be live right now.
+var leakedTxRepairFailures atomic.Uint64
+
 // LeakedTxRepairs reports how many leaked open transactions Pool.Put has
 // rolled back since the process started. Surfaced on /debug/sqlite.
 func LeakedTxRepairs() uint64 {
 	return leakedTxRepairs.Load()
+}
+
+// LeakedTxRepairFailures reports how many leaked open transactions Pool.Put
+// found but could not roll back. Any non-zero value is an emergency: see
+// leakedTxRepairFailures. Surfaced on /debug/sqlite.
+func LeakedTxRepairFailures() uint64 {
+	return leakedTxRepairFailures.Load()
+}
+
+// repairLeakedTx rolls back a transaction found open on a connection that is
+// being returned to the pool.
+//
+// It deliberately never panics. Put runs from deferred release() closures all
+// over the daemon, including inside net/http handler goroutines (the daemon
+// HTTP server carries POST /ipfs/{cid} and the whole grpc-web surface) and
+// inside singleflight — both of which recover panics. A panic here would
+// therefore not stop the process; it would strand this connection outside the
+// pool forever, so every later writer blocks in get() with no error and
+// Pool.Close panics at shutdown. That is strictly worse, and much harder to
+// diagnose, than the leak this repair exists to contain. Report loudly and
+// keep the pool whole instead.
+func (p *Pool) repairLeakedTx(conn *sqlite.Conn) {
+	// Discard any capture buffer the leaking scope left behind before we run
+	// a statement on its connection: captureExecStart would otherwise append
+	// the repair to a stranger's buffer and can fire its promote callback,
+	// registering a tracker.startActive with no matching endActive — a
+	// permanently in-flight phantom writer on /debug/sqlite.
+	endCapture(conn)
+
+	// resolveCaller skips sqlitex frames, so from here it names whoever
+	// called release(). That is the code path that leaked the transaction,
+	// which is the whole question an operator has when the counter moves.
+	caller := tracker.normalizeCaller(resolveCaller())
+	role := "unknown"
+	switch p.roles[conn] {
+	case connRead:
+		role = "read"
+	case connWrite:
+		role = "write"
+	}
+
+	// Mask the interrupt: a tripped interrupt is usually what prevented the
+	// leaker's own cleanup from running, and it would fail this ROLLBACK the
+	// same way. Safe — ROLLBACK only unwinds state this connection already
+	// owns and cannot block on the writer lock. The next lessee gets a fresh
+	// interrupt from get() regardless.
+	conn.SetInterrupt(nil)
+	if err := Exec(conn, "ROLLBACK;", nil); err != nil {
+		leakedTxRepairFailures.Add(1)
+		mLeakedTx.WithLabelValues(caller, "failed").Inc()
+		log.Error("SQLiteLeakedTxRepairFailed",
+			"caller", caller,
+			"role", role,
+			"error", err,
+		)
+		return
+	}
+
+	leakedTxRepairs.Add(1)
+	mLeakedTx.WithLabelValues(caller, "repaired").Inc()
+	log.Warn("SQLiteLeakedTxRepaired",
+		"caller", caller,
+		"role", role,
+	)
 }
 
 // Put puts an SQLite connection back into the Pool.
@@ -317,21 +387,13 @@ func (p *Pool) Put(conn *sqlite.Conn) {
 	// ~2.5 hours of acknowledged writes on prod, 2026-07-24). WithTx repairs
 	// its own failure paths; this is the last line of defense for any other
 	// path that BEGINs without cleaning up — e.g. a top-level Save whose
-	// release was interrupted. Repair rather than panic: the common trigger
-	// is a canceled request ctx, which is normal operation. The interrupt is
-	// masked for the ROLLBACK because a tripped interrupt is usually what
-	// prevented cleanup in the first place; the next lessee gets a fresh
-	// interrupt from get() regardless.
+	// release was interrupted, or the migration runner's own BEGIN IMMEDIATE.
+	// GetAutocommit is a read-only predicate (sqlite3_get_autocommit): it
+	// asks "is this connection mid-transaction right now", and at this point
+	// — after release(), with the next lessee being a different caller — the
+	// answer can only be yes because something leaked.
 	if !conn.GetAutocommit() {
-		conn.SetInterrupt(nil)
-		if err := Exec(conn, "ROLLBACK;", nil); err != nil {
-			// With the interrupt masked and no active statements (checked
-			// above), ROLLBACK on an open transaction cannot fail short of
-			// connection corruption — same class of invariant violation as
-			// the active-statement check.
-			panic(fmt.Sprintf("sqlite.Pool.Put: failed to roll back a transaction leaked into the pool: %v", err))
-		}
-		leakedTxRepairs.Add(1)
+		p.repairLeakedTx(conn)
 	}
 
 	conn.ResetTxTracking()
