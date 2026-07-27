@@ -214,6 +214,11 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
         e.preventDefault()
         e.stopPropagation()
       }}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        editor.blockHoverActions?.freeze()
+      }}
       onMouseEnter={() => editor.blockHoverActions?.freeze()}
       onMouseLeave={() => {
         editor.blockHoverActions?.unfreeze()

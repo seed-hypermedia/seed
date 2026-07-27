@@ -118,6 +118,15 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
   /** Last known mouse position in viewport coordinates (clientX/clientY). */
   private lastMousePosition: {x: number; y: number} | null = null
 
+  /** Active touch/pen pointer state. Tracks a single pointer to show the action card on a tap. */
+  private pointerDown: {
+    pointerId: number
+    startX: number
+    startY: number
+    startBlockId: string | null
+  } | null = null
+  private pointerHasMoved = false
+
   constructor(
     private readonly editor: BlockNoteEditor<BSchema>,
     private readonly pmView: EditorView,
@@ -128,6 +137,10 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     this.pmView.dom.addEventListener('mouseleave', this.onMouseLeave)
     this.pmView.dom.addEventListener('focus', this.onFocus)
     this.pmView.dom.addEventListener('blur', this.onBlur)
+    this.pmView.dom.addEventListener('pointerdown', this.onPointerDown)
+    this.pmView.dom.addEventListener('pointerup', this.onPointerUp)
+    this.pmView.dom.addEventListener('pointermove', this.onPointerMove)
+    this.pmView.dom.addEventListener('pointercancel', this.onPointerCancel)
   }
 
   private isEditable(): boolean {
@@ -158,6 +171,24 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     }
 
     return null
+  }
+
+  private shouldIgnorePointerTarget(node: Node | null): boolean {
+    let el: Element | null =
+      node?.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null
+
+    while (el && el !== this.pmView.dom) {
+      if (
+        el.matches?.(
+          'a[href], .link, button:not(.bn-supernumber-badge), input, textarea, select, [data-citation-fragment="true"]',
+        )
+      ) {
+        return true
+      }
+      el = el.parentElement
+    }
+
+    return false
   }
 
   private findBlockContentElement(node: Node | null): HTMLElement | null {
@@ -383,6 +414,109 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     this.handleMouseMove(event)
   }
 
+  onPointerDown = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse' || this.isEditable()) {
+      return
+    }
+
+    const target = event.target
+    if (target instanceof Element && target.closest('[data-bn-block-hover-actions="true"]')) {
+      this.pointerDown = null
+      return
+    }
+
+    if (this.shouldIgnorePointerTarget(target as Node | null)) {
+      this.pointerDown = null
+      return
+    }
+
+    const contentElement = this.findBlockContentElement(target as Node | null)
+    const blockElement = contentElement ? this.findOwningBlockElement(contentElement) : null
+    const startBlockId = blockElement?.getAttribute('data-id') ?? null
+
+    this.pointerDown = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startBlockId,
+    }
+    this.pointerHasMoved = false
+  }
+
+  onPointerMove = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse') {
+      return
+    }
+
+    const down = this.pointerDown
+    if (!down || event.pointerId !== down.pointerId) {
+      return
+    }
+
+    const dx = event.clientX - down.startX
+    const dy = event.clientY - down.startY
+    if (dx * dx + dy * dy > 100) {
+      this.pointerHasMoved = true
+    }
+  }
+
+  onPointerUp = (event: PointerEvent) => {
+    if (event.pointerType === 'mouse') {
+      return
+    }
+
+    const down = this.pointerDown
+    this.pointerDown = null
+    if (!down || event.pointerId !== down.pointerId) {
+      return
+    }
+
+    if (this.isEditable()) {
+      return
+    }
+
+    if (this.pointerHasMoved) {
+      return
+    }
+
+    const target = event.target
+    if (target instanceof Element && target.closest('[data-bn-block-hover-actions="true"]')) {
+      return
+    }
+
+    if (this.shouldIgnorePointerTarget(target as Node | null)) {
+      this.hide()
+      return
+    }
+
+    const {selection} = this.pmView.state
+    if (!selection.empty && !(selection instanceof NodeSelection)) {
+      this.hide()
+      return
+    }
+
+    const contentElement = this.findBlockContentElement(target as Node | null)
+    if (!contentElement) {
+      this.hide()
+      return
+    }
+
+    const blockElement = this.findOwningBlockElement(contentElement)
+    if (!blockElement) {
+      this.hide()
+      return
+    }
+
+    this.showState(this.blockStateFromElement(blockElement))
+  }
+
+  onPointerCancel = (event: PointerEvent) => {
+    if (this.pointerDown && event.pointerId === this.pointerDown.pointerId) {
+      this.pointerDown = null
+      this.pointerHasMoved = false
+    }
+  }
+
   private handleMouseMove(event: MouseEvent) {
     if (!this.pmView.dom.isConnected) {
       this.hide()
@@ -531,6 +665,10 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     this.pmView.dom.removeEventListener('mouseleave', this.onMouseLeave)
     this.pmView.dom.removeEventListener('focus', this.onFocus)
     this.pmView.dom.removeEventListener('blur', this.onBlur)
+    this.pmView.dom.removeEventListener('pointerdown', this.onPointerDown)
+    this.pmView.dom.removeEventListener('pointerup', this.onPointerUp)
+    this.pmView.dom.removeEventListener('pointermove', this.onPointerMove)
+    this.pmView.dom.removeEventListener('pointercancel', this.onPointerCancel)
 
     if (this.currentState.show) {
       this.emitState({show: false, blockId: null, referenceRect: null})

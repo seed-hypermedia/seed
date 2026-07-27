@@ -9,6 +9,19 @@ import {
   PredictionConeDebugState,
 } from './BlockHoverActionsPlugin'
 
+if (typeof PointerEvent === 'undefined') {
+  class PolyfillPointerEvent extends MouseEvent {
+    public readonly pointerType: string
+    public readonly pointerId: number
+    constructor(type: string, init?: MouseEventInit & {pointerType?: string; pointerId?: number}) {
+      super(type, init)
+      this.pointerType = init?.pointerType ?? 'mouse'
+      this.pointerId = init?.pointerId ?? 0
+    }
+  }
+  ;(globalThis as any).PointerEvent = PolyfillPointerEvent
+}
+
 const suppressedContentTypes = ['query'] as const
 const hoverableAtomicContentTypes = ['embed', 'image', 'video', 'file'] as const
 
@@ -123,6 +136,27 @@ function dispatchMouseMove(element: HTMLElement) {
 
 function dispatchMouseMoveAt(element: HTMLElement, clientX: number, clientY: number) {
   element.dispatchEvent(new MouseEvent('mousemove', {clientX, clientY, bubbles: true}))
+}
+
+function dispatchPointerEvent(
+  element: HTMLElement,
+  type: string,
+  options: {pointerType?: string; clientX?: number; clientY?: number} = {},
+) {
+  element.dispatchEvent(
+    new (globalThis as any).PointerEvent(type, {
+      bubbles: true,
+      clientX: options.clientX ?? 10,
+      clientY: options.clientY ?? 10,
+      pointerType: options.pointerType ?? 'touch',
+      pointerId: 1,
+    }),
+  )
+}
+
+function dispatchTap(element: HTMLElement, options?: {pointerType?: string; clientX?: number; clientY?: number}) {
+  dispatchPointerEvent(element, 'pointerdown', options)
+  dispatchPointerEvent(element, 'pointerup', options)
 }
 
 function setRect(element: HTMLElement, rect: Partial<DOMRect>) {
@@ -360,6 +394,84 @@ describe('BlockHoverActionsProsemirrorPlugin', () => {
 
     expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
   })
+
+  // --- touch / pointer tap tests ---
+
+  it('shows the action card on a touch tap in reading mode', () => {
+    const {view, updates} = createView(false)
+    const content = view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement
+
+    dispatchTap(content)
+
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
+  })
+
+  it('does not show the card when the touch pointer moves beyond the tap threshold', () => {
+    const {view, updates} = createView(false)
+    const content = view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement
+
+    dispatchPointerEvent(content, 'pointerdown', {clientX: 10, clientY: 10})
+    dispatchPointerEvent(content, 'pointermove', {clientX: 25, clientY: 10})
+    dispatchPointerEvent(content, 'pointerup', {clientX: 25, clientY: 10})
+
+    expect(updates.length).toBe(0)
+  })
+
+  it('does not show the card on a touch tap while editing', () => {
+    const {view, updates} = createView(true)
+    forceFocused(view)
+    const content = view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement
+
+    dispatchTap(content)
+
+    // Editing mode is driven by selection/focus, not pointer taps.
+    expect(updates.length).toBe(0)
+  })
+
+  it('hides the action card on a touch tap outside a block', () => {
+    const {view, updates} = createView(false)
+    const content = view.dom.querySelector('[data-content-type="paragraph"]') as HTMLElement
+
+    dispatchTap(content)
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
+
+    dispatchTap(view.dom, {clientX: 500, clientY: 500})
+    expect(updates.at(-1)).toMatchObject({show: false, blockId: null})
+  })
+
+  it('switches the action card on a touch tap to a different block', () => {
+    const {view, updates} = createView(false, createTwoBlockDoc())
+    const firstContent = view.dom.querySelector('[data-id="block-1"] [data-content-type="paragraph"]') as HTMLElement
+    const secondContent = view.dom.querySelector('[data-id="block-2"] [data-content-type="paragraph"]') as HTMLElement
+
+    dispatchTap(firstContent)
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-1'})
+
+    dispatchTap(secondContent)
+    expect(updates.at(-1)).toMatchObject({show: true, blockId: 'block-2'})
+  })
+
+  it.each(hoverableAtomicContentTypes)(
+    'shows the action card on a touch tap for %s blocks in reading mode',
+    (contentType) => {
+      const {view, updates} = createView(false, createAtomicBlockDoc(contentType))
+
+      dispatchTap(view.dom.querySelector(`[data-content-type="${contentType}"]`) as HTMLElement)
+
+      expect(updates.at(-1)).toMatchObject({show: true, blockId: contentType})
+    },
+  )
+
+  it.each(suppressedContentTypes)(
+    'does not show the action card on a touch tap for %s blocks in reading mode',
+    (contentType) => {
+      const {view, updates} = createView(false, createAtomicBlockDoc(contentType))
+
+      dispatchTap(view.dom.querySelector(`[data-content-type="${contentType}"]`) as HTMLElement)
+
+      expect(updates.length).toBe(0)
+    },
+  )
 
   // --- prediction cone tests ---
 
