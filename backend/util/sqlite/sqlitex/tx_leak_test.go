@@ -283,14 +283,12 @@ func TestPoolPutRepairsLeakedReadTransaction(t *testing.T) {
 	// Every read connection the pool can hand out must be clean. Lease the
 	// whole read side at once so the repaired conn cannot hide behind a
 	// healthy sibling.
-	var conns []*sqlite.Conn
 	var releases []func()
 	for range 3 {
 		c, rel, err := pool.ReadConn(context.Background())
 		require.NoError(t, err)
 		require.True(t, c.GetAutocommit(),
 			"pool handed out a read connection still inside a leaked transaction")
-		conns = append(conns, c)
 		releases = append(releases, rel)
 	}
 	for _, rel := range releases {
