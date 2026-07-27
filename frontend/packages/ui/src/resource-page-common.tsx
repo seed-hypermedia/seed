@@ -1444,6 +1444,11 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  // Draft metadata (partial) overrides published metadata, same as the options panel.
+  const metadata = useMemo(
+    () => ({...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}),
+    [ctx.document?.metadata, document.metadata, ctx.metadata],
+  )
   const effectiveContent = useDocumentSelector(selectRenderableBlocks)
   // Set of block ids present in the currently published version of the document.
   const publishedBlockIds = useMemo(() => {
@@ -1543,7 +1548,7 @@ function DocumentBody({
   })
 
   // Respect the showActivity metadata toggle to hide the document tools bar.
-  const showActivity = document.metadata?.showActivity !== false
+  const showActivity = metadata?.showActivity !== false
 
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
@@ -1714,17 +1719,16 @@ function DocumentBody({
       // unpublished draft even before the account draft list resolves.
       // Avoids flashing "not found" on the active draft on first paint.
       const showAsUnpublishedDraft = isCurrent && isUnpublishedDraft
-      const metadata =
-        isCurrent && currentDraftName
-          ? {...(document.metadata || {}), name: currentDraftName}
-          : isCurrent
-            ? document.metadata || {}
-            : data?.type === 'document'
-              ? data.document?.metadata || {}
-              : {}
+      const itemMetadata = isCurrent
+        ? currentDraftName
+          ? {...metadata, name: currentDraftName}
+          : metadata
+        : data?.type === 'document'
+          ? data.document?.metadata || {}
+          : {}
       return {
         id,
-        metadata,
+        metadata: itemMetadata,
         draftId: showAsUnpublishedDraft && existingDraft ? existingDraft.id : undefined,
         fallbackName,
         isLoading: !result || result?.isDiscovering || result?.isLoading,
@@ -1771,7 +1775,7 @@ function DocumentBody({
     draftsForBreadcrumbs,
     pendingDraftLookup,
     reservedDraftBreadcrumbNames,
-    document.metadata,
+    metadata,
     isUnpublishedDraft,
     existingDraft,
     ctx.metadata?.name,
@@ -1808,8 +1812,8 @@ function DocumentBody({
 
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
-      contentWidth: document.metadata?.contentWidth,
-      showSidebars: !isHomeDoc && document.metadata?.showOutline !== false && activeView === 'content',
+      contentWidth: metadata?.contentWidth,
+      showSidebars: !isHomeDoc && metadata?.showOutline !== false && activeView === 'content',
     })
 
   // Fetch author metadata for document header and subscribe for discovery
@@ -2165,7 +2169,7 @@ function DocumentBody({
         !pageFooter && 'min-h-full',
       )}
     >
-      <DocumentCover cover={document.metadata?.cover} />
+      <DocumentCover cover={metadata?.cover} />
 
       {!isMobile ? (
         <div {...wrapperProps} className={cn(wrapperProps.className, 'flex-none', !showSidebars && 'justify-center')}>
@@ -2183,7 +2187,7 @@ function DocumentBody({
               <div className="mt-4 px-6">
                 <Breadcrumbs
                   breadcrumbs={[
-                    {id: hmId(docId.uid, {latest: true}), metadata: document.metadata || {}},
+                    {id: hmId(docId.uid, {latest: true}), metadata: metadata},
                     ...(activeView !== 'content'
                       ? [
                           {
@@ -2210,7 +2214,7 @@ function DocumentBody({
               (canEdit ? (
                 <EditableDocumentHeader
                   docId={docId}
-                  docMetadata={document.metadata}
+                  docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
                   breadcrumbs={breadcrumbs}
@@ -2220,7 +2224,7 @@ function DocumentBody({
               ) : (
                 <DocumentHeader
                   docId={docId}
-                  docMetadata={document.metadata}
+                  docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
                   breadcrumbs={breadcrumbs}
@@ -2245,7 +2249,7 @@ function DocumentBody({
             <div className="mt-4 px-6">
               <Breadcrumbs
                 breadcrumbs={[
-                  {id: hmId(docId.uid, {latest: true}), metadata: document.metadata || {}},
+                  {id: hmId(docId.uid, {latest: true}), metadata: metadata},
                   ...(activeView !== 'content'
                     ? [
                         {
@@ -2272,7 +2276,7 @@ function DocumentBody({
             (canEdit ? (
               <EditableDocumentHeader
                 docId={docId}
-                docMetadata={document.metadata}
+                docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
@@ -2282,7 +2286,7 @@ function DocumentBody({
             ) : (
               <DocumentHeader
                 docId={docId}
-                docMetadata={document.metadata}
+                docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
                 breadcrumbs={breadcrumbs}
@@ -2324,7 +2328,7 @@ function DocumentBody({
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
-            metadataCount={countCustomMetadataFields(document.metadata)}
+            metadataCount={countCustomMetadataFields(metadata)}
             rightAction={documentToolsRightAction}
             layoutProps={
               isMobile
