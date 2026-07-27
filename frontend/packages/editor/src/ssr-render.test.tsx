@@ -82,6 +82,33 @@ describe('renderDocumentToHTML', () => {
     expect(html).toContain('the caption')
   })
 
+  it('keeps native controls on autoplay videos', () => {
+    const html = render([
+      {
+        block: {
+          id: 'video1',
+          type: 'Video',
+          text: '',
+          annotations: [],
+          link: 'ipfs://bafyvideocid',
+          attributes: {
+            name: 'demo.mp4',
+            autoplay: true,
+            loop: true,
+            muted: true,
+          },
+        },
+        children: [],
+      },
+    ] as any)
+    const videoTag = html.match(/<video[^>]*>/)?.[0]
+
+    expect(videoTag).toContain('controls=""')
+    expect(videoTag).toContain('autoplay=""')
+    expect(videoTag).toContain('loop=""')
+    expect(videoTag).toContain('muted=""')
+  })
+
   it('renders code blocks with the shared chrome and highlight spans', () => {
     const html = render([
       {
