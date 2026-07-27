@@ -41,12 +41,26 @@ func SetLogger(logger *slog.Logger) {
 
 const (
 	// maxCallerLabels bounds Prometheus series and per-caller reservoir
-	// memory. Note the package's own test suite spends from this same
-	// budget (each test function that opens an instrumented tx is a
-	// distinct label): at 64 the suite sat within a handful of labels of
-	// the cap, and any few added tests silently pushed the page tests'
-	// callers into "other". 128 keeps ample headroom at ~8 MiB worst-case
-	// reservoir memory (see reservoirCap).
+	// memory. Raised 64 -> 128 because 64 had become thin headroom from two
+	// directions:
+	//
+	//   - The backend has roughly 60 distinct functions that enter this
+	//     package (static count of enclosing funcs around WithTx / Save /
+	//     Read / WithSave callsites, so an upper bound on what a given
+	//     process actually registers — not a live measurement). Close
+	//     enough to 64 to be uncomfortable, and the failure is silent:
+	//     slots are claimed in runtime arrival order, so once full it is
+	//     whichever callers happen to run first that keep their names,
+	//     and a hot writer that starts later disappears into "other".
+	//     To check a real daemon, look for an "other" row in the
+	//     per-caller tables on /debug/sqlite.
+	//   - The package's own test suite spends from this same budget (each
+	//     test function that opens an instrumented tx is a distinct label,
+	//     and the tracker is a process-global with no reset), so adding a
+	//     handful of tests could silently bucket the page tests' callers
+	//     into "other" and fail them in full-suite runs only.
+	//
+	// 128 costs ~8 MiB worst-case reservoir memory (see reservoirCap).
 	maxCallerLabels = 128
 	slowThreshold   = 100 * time.Millisecond
 	// recentWriteCap caps the top-K ring of slowest write-side transactions
