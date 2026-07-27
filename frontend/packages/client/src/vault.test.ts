@@ -98,7 +98,9 @@ describe('vault.json envelope', () => {
 
   test('unwrapDEK fails with a clear error on the wrong secret', async () => {
     const dek = new Uint8Array(32).fill(5)
-    const envelope = vault.parseVaultEnvelope(await buildEnvelopeJSON(vault.createEmpty(), dek, new Uint8Array(32).fill(7)))
+    const envelope = vault.parseVaultEnvelope(
+      await buildEnvelopeJSON(vault.createEmpty(), dek, new Uint8Array(32).fill(7)),
+    )
     await expect(vault.unwrapDEK(envelope, new Uint8Array(32).fill(8))).rejects.toThrow(/wrong vault secret/)
   })
 
@@ -118,7 +120,13 @@ describe('vault.json envelope', () => {
       JSON.stringify({
         encryptedData: 'AAAA',
         wrappedDEK: 'AAAA',
-        credentials: [{kind: 'password', credentialId: 'cred-1', wrappedDEK: new Uint8Array([1, 2, 3]).toBase64({alphabet: 'base64url', omitPadding: true})}],
+        credentials: [
+          {
+            kind: 'password',
+            credentialId: 'cred-1',
+            wrappedDEK: new Uint8Array([1, 2, 3]).toBase64({alphabet: 'base64url', omitPadding: true}),
+          },
+        ],
         remote: {vaultUrl: 'https://vault.example.com', userId: 'user-1', credentialId: 'cred-2'},
       }),
     )

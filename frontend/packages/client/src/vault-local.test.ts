@@ -36,7 +36,10 @@ async function writeVaultFixture(dir: string, extraEnvelope: Record<string, unkn
   const encryptedData = await encryption.encrypt(await vault.serialize(state), DEK)
   const wrappedDEK = await encryption.encrypt(DEK, KEK)
   const path = join(dir, 'vault.json')
-  writeFileSync(path, JSON.stringify({encryptedData: b64(encryptedData), wrappedDEK: b64(wrappedDEK), ...extraEnvelope}))
+  writeFileSync(
+    path,
+    JSON.stringify({encryptedData: b64(encryptedData), wrappedDEK: b64(wrappedDEK), ...extraEnvelope}),
+  )
   return path
 }
 
