@@ -215,9 +215,10 @@ export function BlockHoverActionsPositioner<BSchema extends BlockSchema = BlockS
         e.stopPropagation()
       }}
       onPointerDown={(e) => {
+        // Stop the pointer event from reaching the editor surface so a touch
+        // tap on the card does not get interpreted as a tap on the document.
         e.preventDefault()
         e.stopPropagation()
-        editor.blockHoverActions?.freeze()
       }}
       onMouseEnter={() => editor.blockHoverActions?.freeze()}
       onMouseLeave={() => {

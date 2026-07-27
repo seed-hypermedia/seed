@@ -340,14 +340,14 @@ describe('BlockHoverActionsPositioner', () => {
     expect(container.querySelector('[aria-label="147 comments"]')?.textContent).toBe('147')
   })
 
-  it('freezes the plugin on pointer down so touch taps on the card do not dismiss it', () => {
+  it('stops pointer down on the card so touch taps do not propagate to the editor surface', () => {
     const block = document.createElement('div')
     block.dataset.id = 'block-1'
     appendPublishedContent(block)
     editorDom.appendChild(block)
 
     const onStartComment = vi.fn()
-    const {plugin} = renderPositioner({onStartComment})
+    renderPositioner({onStartComment})
 
     act(() => {
       listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
@@ -358,7 +358,6 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(commentButton.dispatchEvent(pointerDown)).toBe(false)
     expect(pointerDown.defaultPrevented).toBe(true)
-    expect(plugin.freeze).toHaveBeenCalled()
   })
 
   it('hides the comment count when the hovered block has no comments', () => {

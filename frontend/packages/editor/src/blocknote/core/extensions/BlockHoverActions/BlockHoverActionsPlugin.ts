@@ -123,7 +123,6 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
     pointerId: number
     startX: number
     startY: number
-    startBlockId: string | null
   } | null = null
   private pointerHasMoved = false
 
@@ -430,15 +429,10 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
-    const contentElement = this.findBlockContentElement(target as Node | null)
-    const blockElement = contentElement ? this.findOwningBlockElement(contentElement) : null
-    const startBlockId = blockElement?.getAttribute('data-id') ?? null
-
     this.pointerDown = {
       pointerId: event.pointerId,
       startX: event.clientX,
       startY: event.clientY,
-      startBlockId,
     }
     this.pointerHasMoved = false
   }
