@@ -329,13 +329,11 @@ func (p *Pool) repairLeakedTx(conn *sqlite.Conn) {
 		role = "write"
 	}
 
-	// Mask the interrupt: a tripped interrupt is usually what prevented the
-	// leaker's own cleanup from running, and it would fail this ROLLBACK the
-	// same way. Safe — ROLLBACK only unwinds state this connection already
-	// owns and cannot block on the writer lock. The next lessee gets a fresh
-	// interrupt from get() regardless.
-	conn.SetInterrupt(nil)
-	if err := Exec(conn, "ROLLBACK;", nil); err != nil {
+	// forceRollback masks the interrupt for the ROLLBACK: a tripped interrupt
+	// is usually what prevented the leaker's own cleanup from running, and it
+	// would fail this one the same way. The next lessee gets a fresh interrupt
+	// from get() regardless.
+	if err := forceRollback(conn); err != nil {
 		leakedTxRepairFailures.Add(1)
 		mLeakedTx.WithLabelValues(caller, "failed").Inc()
 		log.Error("SQLiteLeakedTxRepairFailed",

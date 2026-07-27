@@ -98,21 +98,22 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 
 	if err := fn(); err != nil {
 		stmts := endCapture(conn)
-		if rberr := Exec(conn, "ROLLBACK", nil); rberr != nil {
-			// The usual reason ROLLBACK fails is a tripped interrupt: the
-			// caller's ctx was canceled mid-transaction, so the binding fails
-			// every call before it reaches SQLite — including this cleanup.
-			// The transaction must not outlive WithTx either way: left open,
-			// it follows the connection back into the pool, later WithTx
-			// calls on it silently degrade to savepoints, and their
-			// acknowledged writes are destroyed when the leaked transaction
-			// finally rolls back.
-			if frerr := forceRollback(conn); frerr != nil {
-				tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
-				return fmt.Errorf("ROLLBACK error: %w; original error: %w", errors.Join(rberr, frerr), err)
-			}
-		}
+		// Roll back with the interrupt masked, unconditionally. The usual
+		// reason cleanup fails is a tripped interrupt: the caller's ctx was
+		// canceled mid-transaction, so the binding fails every call before it
+		// reaches SQLite — including this ROLLBACK. Attempting the unmasked
+		// one first only buys a guaranteed failure whose statement lands in
+		// the capture. Same contract as savepoint.go's release path.
+		//
+		// The transaction must not outlive WithTx: left open, it follows the
+		// connection back into the pool, later WithTx calls on it silently
+		// degrade to savepoints, and their acknowledged writes are destroyed
+		// when the leaked transaction finally rolls back.
+		rberr := forceRollback(conn)
 		tracker.recordTx(caller, beginWait, time.Since(t1), poolWait, outcomeRollback, stmts, nil, nil, "")
+		if rberr != nil {
+			return fmt.Errorf("ROLLBACK error: %w; original error: %w", rberr, err)
+		}
 		return err
 	}
 
@@ -140,6 +141,12 @@ func WithTx(conn *sqlite.Conn, fn func() error) error {
 // state this connection already owns and cannot block on the writer lock.
 // No-op if the connection is already in autocommit mode (e.g. the failed
 // COMMIT actually did unwind the transaction).
+//
+// Shared by WithTx's failure paths and Pool.Put's leaked-transaction repair.
+// savepoint.go's release path does the same interrupt masking inline rather
+// than calling through here: it must roll back to a named savepoint (and then
+// RELEASE it), and its masked region contains a re-panic that a closure
+// boundary would break — see the recover() note on Save.
 func forceRollback(conn *sqlite.Conn) error {
 	if conn.GetAutocommit() {
 		return nil
