@@ -2,6 +2,7 @@ package sqlitex
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"runtime"
 	"sort"
@@ -14,6 +15,14 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// log is the package logger. Mirrors the sqlite package's SetLogger contract.
+var log = slog.Default()
+
+// SetLogger sets the logger for this package.
+func SetLogger(logger *slog.Logger) {
+	log = logger
+}
 
 // Instrumentation for write transactions opened through WithTx.
 //
@@ -31,7 +40,28 @@ import (
 // blow up the Prometheus series count.
 
 const (
-	maxCallerLabels = 64
+	// maxCallerLabels bounds Prometheus series and per-caller reservoir
+	// memory. Raised 64 -> 128 because 64 had become thin headroom from two
+	// directions:
+	//
+	//   - The backend has roughly 60 distinct functions that enter this
+	//     package (static count of enclosing funcs around WithTx / Save /
+	//     Read / WithSave callsites, so an upper bound on what a given
+	//     process actually registers — not a live measurement). Close
+	//     enough to 64 to be uncomfortable, and the failure is silent:
+	//     slots are claimed in runtime arrival order, so once full it is
+	//     whichever callers happen to run first that keep their names,
+	//     and a hot writer that starts later disappears into "other".
+	//     To check a real daemon, look for an "other" row in the
+	//     per-caller tables on /debug/sqlite.
+	//   - The package's own test suite spends from this same budget (each
+	//     test function that opens an instrumented tx is a distinct label,
+	//     and the tracker is a process-global with no reset), so adding a
+	//     handful of tests could silently bucket the page tests' callers
+	//     into "other" and fail them in full-suite runs only.
+	//
+	// 128 costs ~8 MiB worst-case reservoir memory (see reservoirCap).
+	maxCallerLabels = 128
 	slowThreshold   = 100 * time.Millisecond
 	// recentWriteCap caps the top-K ring of slowest write-side transactions
 	// (commits/rollbacks/savepoint_top/savepoint and begin_busy/interrupted
@@ -151,10 +181,15 @@ var (
 		Name: "seed_sqlite_writetx_inflight",
 		Help: "Currently in-flight write transactions (between BEGIN IMMEDIATE success and COMMIT/ROLLBACK).",
 	}, []string{"caller"})
+
+	mLeakedTx = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_sqlite_leaked_tx_total",
+		Help: "Connections returned to the pool inside an open transaction, by the caller that released them. outcome=repaired means Put rolled the transaction back; outcome=failed means the rollback itself failed and the connection may still be poisoned.",
+	}, []string{"caller", "outcome"})
 )
 
 func init() {
-	prometheus.MustRegister(mTxDuration, mBeginWait, mBeginBusy, mInFlight)
+	prometheus.MustRegister(mTxDuration, mBeginWait, mBeginBusy, mInFlight, mLeakedTx)
 }
 
 // callerStats accumulates per-caller stats for the debug page, split into
@@ -225,8 +260,8 @@ type readStats struct {
 // much longer time window than the reservoir for callers with rare slow
 // events (the cap on the recent-slow ring is per total events, not per
 // caller, so for a 2%-slow caller it spans ~50x more history than a fixed
-// reservoir of all events). At 8192 floats per caller × 64-caller cap ≈
-// 4 MiB; still cheap, and brings the windows closer so the visible recent
+// reservoir of all events). At 8192 floats per caller × 128-caller cap ≈
+// 8 MiB; still cheap, and brings the windows closer so the visible recent
 // max is reflected in p99 for high-frequency callers like syncing.loadStore.
 const reservoirCap = 8192
 
@@ -1182,14 +1217,14 @@ type trackerSnapshot struct {
 // writeCallerSnapshot mirrors the original per-caller stats shape, minus
 // the now-removed Max column.
 type writeCallerSnapshot struct {
-	Count         uint64
-	Commits       uint64
-	Rollbacks     uint64
-	BusyCount     uint64
-	HoldP10Ms     float64
-	HoldP50Ms     float64
-	HoldP90Ms     float64
-	HoldP99Ms     float64
+	Count     uint64
+	Commits   uint64
+	Rollbacks uint64
+	BusyCount uint64
+	HoldP10Ms float64
+	HoldP50Ms float64
+	HoldP90Ms float64
+	HoldP99Ms float64
 	// HoldMaxMs is the all-time max writer-slot hold for this caller —
 	// survives ring eviction so a rare slow commit stays visible after the
 	// reservoir wraps past it.
