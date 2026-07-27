@@ -49,6 +49,11 @@ vi.mock('@/models/agents', () => ({
   }),
 }))
 
+// Provisioning is exercised by local-assistant.test.ts; here it must only not interfere.
+vi.mock('@/models/local-assistant', () => ({
+  useEnsureLocalAssistantAgent: () => {},
+}))
+
 vi.mock('@/models/contacts', () => ({
   useConnectPeer: () => ({
     isLoading: false,

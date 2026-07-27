@@ -68,6 +68,8 @@ const MAX_TOOL_RESULT_BYTES = 256 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
 const DEFAULT_SESSION_PAGE_SIZE = 50
 const MAX_SESSION_PAGE_SIZE = 200
+const MAX_CONTEXT_LINES = 64
+const MAX_CONTEXT_LINE_BYTES = 2 * 1024
 
 /** Result of evaluating one activity event against enabled triggers. */
 export type TriggerProcessingResult = {
@@ -1078,6 +1080,7 @@ export class Service {
         content: firstMessage.text,
         rawMarkdown: firstMessage.text,
         ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
+        ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
       },
       now,
     )
@@ -1555,10 +1558,21 @@ export class Service {
         input?: unknown
         output?: unknown
         error?: string
+        contextLines?: unknown
       }
       if (value.type === 'message' && value.role === 'user' && typeof value.content === 'string') {
         flushPendingAssistant()
-        messages.push({role: 'user', content: value.content, timestamp: event.createdAt})
+        // Client context (e.g. the desktop's current window) rides along to the model inside a
+        // tagged block, mirroring how trigger context reaches it — but stays out of `content`, so
+        // transcripts never render it.
+        const contextLines = Array.isArray(value.contextLines)
+          ? value.contextLines.filter((line): line is string => typeof line === 'string')
+          : []
+        const content =
+          contextLines.length > 0
+            ? `${value.content}\n\n<window_context>\n${contextLines.join('\n')}\n</window_context>`
+            : value.content
+        messages.push({role: 'user', content, timestamp: event.createdAt})
       } else if (value.type === 'message' && value.role === 'assistant' && typeof value.content === 'string') {
         appendPendingAssistantContent({type: 'text', text: value.content}, event.createdAt)
       } else if (value.type === 'tool_call') {
@@ -4461,26 +4475,53 @@ function canonicalServerUrl(rawUrl: string): string {
   }
 }
 
+/** Validates the `lines` of a `context` content part. Empty lines are allowed as separators. */
+function normalizeContextLines(raw: unknown): string[] {
+  if (!Array.isArray(raw)) throw new APIError(400, 'Context lines must be an array of strings')
+  if (raw.length > MAX_CONTEXT_LINES) throw new APIError(400, 'Too many context lines')
+  return raw.map((line) => {
+    if (typeof line !== 'string') throw new APIError(400, 'Context lines must be an array of strings')
+    if (new TextEncoder().encode(line).byteLength > MAX_CONTEXT_LINE_BYTES) {
+      throw new APIError(400, 'Context line is too large')
+    }
+    return line
+  })
+}
+
 function normalizeMessageContent(
   content: api.MessageSession['content'],
-): Array<{text: string; blocks?: api.AgentMessageBlock[]}> {
+): Array<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}> {
   if (!Array.isArray(content) || content.length === 0) throw new APIError(400, 'Message content is required')
-  const messages = content.map((part) => {
-    if (!part || typeof part !== 'object' || part.type !== 'text' || typeof part.text !== 'string') {
-      throw new APIError(400, 'Only text message content is supported')
-    }
-    const text = part.text.trim()
-    return {
-      text,
-      ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
-    }
-  })
+  const contextLines: string[] = []
+  const messages = content.flatMap<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}>(
+    (part) => {
+      if (!part || typeof part !== 'object') throw new APIError(400, 'Only text message content is supported')
+      if (part.type === 'context') {
+        contextLines.push(...normalizeContextLines(part.lines))
+        return []
+      }
+      if (part.type !== 'text' || typeof part.text !== 'string') {
+        throw new APIError(400, 'Only text message content is supported')
+      }
+      const text = part.text.trim()
+      return [
+        {
+          text,
+          ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
+        },
+      ]
+    },
+  )
+  if (messages.length === 0) throw new APIError(400, 'Message content is required')
   if (messages.some((message) => !message.text)) throw new APIError(400, 'Message content is required')
   if (
     new TextEncoder().encode(messages.map((message) => message.text).join('\n')).byteLength > MAX_MESSAGE_TEXT_BYTES
   ) {
     throw new APIError(400, 'Message content is too large')
   }
+  // Context describes the sending window as a whole, so all context parts collapse onto the first
+  // message of the request — the turn the model reads them with.
+  if (contextLines.length > 0) messages[0]!.contextLines = contextLines
   return messages
 }
 

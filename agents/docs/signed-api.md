@@ -518,10 +518,15 @@ Request:
 {
   _: 'MessageSession'
   sessionId: string
-  content: Array<{type: 'text'; text: string; blocks?: AgentMessageBlock[]}>
+  content: Array<{type: 'text'; text: string; blocks?: AgentMessageBlock[]} | {type: 'context'; lines: string[]}>
   clientMessageId?: string
 }
 ```
+
+`context` parts carry ambient client state — the desktop sidebar sends the current window (open document, view, focused
+block) so "this document" resolves for the model. All context lines in a request collapse onto its first user message as
+`contextLines`, reach the model appended to that message inside a `<window_context>` block, and never appear in the
+transcript `content`. At least one `text` part is required.
 
 Flow:
 

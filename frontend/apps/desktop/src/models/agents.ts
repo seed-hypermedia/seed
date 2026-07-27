@@ -935,6 +935,8 @@ export function useUpdateAgent(serverUrl: string | undefined, accountUid: string
 export type AgentSessionDraftMessage = {
   text: string
   blocks?: AgentMessageBlock[]
+  /** Ambient client context (e.g. the sidebar's current window), sent as a `context` part. */
+  contextLines?: string[]
 }
 
 /** Sends a user message and asks the server-hosted agent to respond. */
@@ -949,11 +951,18 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
     }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       const messages = Array.isArray(message) ? message : [message]
-      const content: MessageSessionContentPart[] = messages.map((message) => ({
-        type: 'text',
-        text: message.text,
-        ...(message.blocks ? {blocks: message.blocks} : {}),
-      }))
+      // Context describes the sending window as a whole, so all lines collapse into one part.
+      const contextLines = messages.flatMap((message) => message.contextLines ?? [])
+      const content: MessageSessionContentPart[] = [
+        ...(contextLines.length > 0 ? [{type: 'context', lines: contextLines} as const] : []),
+        ...messages.map(
+          (message): MessageSessionContentPart => ({
+            type: 'text',
+            text: message.text,
+            ...(message.blocks ? {blocks: message.blocks} : {}),
+          }),
+        ),
+      ]
       return sendAgentAction({
         serverUrl,
         accountUid,

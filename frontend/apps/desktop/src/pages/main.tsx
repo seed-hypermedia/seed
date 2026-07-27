@@ -29,6 +29,7 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
 import {useAgentServerUrls, useHasAnyAgent} from '@/models/agents'
+import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
 import {AssistantPanel} from '../components/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -117,6 +118,9 @@ export default function Main({className}: {className?: string}) {
   // with. While the agent lists are still resolving we treat the assistant as available so a
   // restored sidebar is not torn down on every launch.
   const agentServerUrls = useAgentServerUrls()
+  // On a fresh install the local server has no agents, which would keep the assistant hidden
+  // forever — provision the built-in Assistant as soon as a model provider exists.
+  useEnsureLocalAssistantAgent(selectedAccountId)
   const {hasAgents, isSettled: agentsSettled} = useHasAnyAgent(agentServerUrls.data, selectedAccountId)
   const isAssistantAvailable = hasAgents || !agentsSettled
   const shouldRenderAssistantPanel = assistantOpen && isAssistantAvailable

@@ -3,9 +3,10 @@ import path from 'path'
 /**
  * Resolves the bundled agents-server binary, mirroring {@link ./daemon-path.ts} for the Go daemon.
  *
- * The binary is produced by `bun build --compile` from `agents/src/main.ts` and shipped as an
- * `extraResource`, so in a packaged app it sits directly in `process.resourcesPath`. In development
- * the desktop attaches to an externally run server instead of spawning one (see
+ * The binary is produced by `agents/scripts/build-binary.ts` (`bun build --compile`) into
+ * `plz-out/bin/agents/` alongside the `package.json` it needs at startup, and that whole directory
+ * ships as an `extraResource` — so in a packaged app it sits in `<resources>/agents/`. In
+ * development the desktop attaches to an externally run server instead of spawning one (see
  * `agents-server-process.ts`), so the dev path here is only a fallback for locally produced builds.
  */
 export function getAgentsServerBinaryPath(): string {
@@ -14,7 +15,7 @@ export function getAgentsServerBinaryPath(): string {
 
   if (isPackaged) {
     const resourcesPath = process.resourcesPath || path.join(__dirname, '..', 'Resources')
-    return path.join(resourcesPath, fileName)
+    return path.join(resourcesPath, 'agents', fileName)
   }
   return path.join(process.cwd(), '../../..', 'plz-out/bin/agents', fileName)
 }

@@ -1436,6 +1436,102 @@ describe('api service', () => {
     }
   })
 
+  test('feeds context content parts to the model but keeps them out of the transcript', async () => {
+    // The desktop sidebar attaches the current window (document URL, view, focused block) as a
+    // `context` part so "this document" means something to the model. The regression this guards:
+    // context either leaking into the visible transcript, or being dropped before the model call —
+    // both defeat the point of a typed part.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {onEvent: () => {}})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'prompt', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const modelRequestBodies: string[] = []
+      globalThis.fetch = mock(async (_url: string, init?: RequestInit) => {
+        modelRequestBodies.push(String(init?.body))
+        return openAIStreamResponse([
+          {id: 'chat-1', choices: [{delta: {content: 'It is the plan document'}}]},
+          {id: 'chat-1', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const message = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [
+              {type: 'context', lines: ['## Current window', 'URL: hm://z6MkDoc/plan', 'View: document']},
+              {type: 'text', text: 'What is this document?'},
+            ],
+          },
+        }),
+      )
+      expect(message._).toBe('MessageSessionResponse')
+
+      // The model saw the user text with the tagged context block appended.
+      expect(modelRequestBodies.length).toBeGreaterThan(0)
+      expect(modelRequestBodies[0]).toContain('What is this document?')
+      expect(modelRequestBodies[0]).toContain('<window_context>')
+      expect(modelRequestBodies[0]).toContain('URL: hm://z6MkDoc/plan')
+
+      // The transcript shows only the user's words; context rides in a separate field.
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const userEvent = session.events[0]?.event as {content: string; contextLines?: string[]}
+      expect(userEvent.content).toBe('What is this document?')
+      expect(userEvent.content).not.toContain('window_context')
+      expect(userEvent.contextLines).toEqual(['## Current window', 'URL: hm://z6MkDoc/plan', 'View: document'])
+
+      // Context-only content is not a message.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'MessageSession',
+              sessionId: createdSession.sessionId,
+              content: [{type: 'context', lines: ['## Current window']}],
+            },
+          }),
+        ),
+      ).rejects.toThrow('Message content is required')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('runs hidden session title tool without persisting tool events and respects manual title overrides', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

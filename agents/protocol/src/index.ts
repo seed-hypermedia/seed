@@ -63,12 +63,24 @@ export type AgentPromptBlock = {
 /** Rich block tree preserved for displaying user-authored session messages. */
 export type AgentMessageBlock = AgentPromptBlock
 
-/** Message content part submitted to a session. */
-export type MessageSessionContentPart = {
-  type: 'text'
-  text: string
-  blocks?: AgentMessageBlock[]
-}
+/**
+ * Message content part submitted to a session.
+ *
+ * `text` parts are the user's words. `context` parts carry ambient client state — the desktop
+ * sidebar sends the current window (open document, view, focused block) so "this document" means
+ * something to the model. Context is model-facing only: the server attaches it to the turn's user
+ * message for the model but keeps it out of the visible transcript content.
+ */
+export type MessageSessionContentPart =
+  | {
+      type: 'text'
+      text: string
+      blocks?: AgentMessageBlock[]
+    }
+  | {
+      type: 'context'
+      lines: string[]
+    }
 
 /** Signed CBOR action envelope accepted by `/api/message` and `/agents/ws`. */
 export type SignedActionEnvelope = {
@@ -443,6 +455,11 @@ export type SessionEventPayload =
       toolCallId?: string
       rawMarkdown?: string
       blocks?: AgentMessageBlock[]
+      /**
+       * Client context lines (from a `context` content part) that accompanied this user message.
+       * Fed to the model with the message but never part of `content`, so transcripts stay clean.
+       */
+      contextLines?: string[]
     }
   | {type: 'tool_call'; id: string; name: string; input: unknown}
   | {type: 'tool_result'; toolCallId: string; name: string; output?: unknown; error?: string}

@@ -26,6 +26,7 @@ import {ArrowDown, Bot, ChevronDown, Loader2, MessageCirclePlus, Send, Square, T
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
+import {useAssistantWindowContextLines} from './assistant-window-context'
 import {ChatMessageComposer} from './chat-message-composer'
 import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
 
@@ -256,6 +257,12 @@ function AssistantSessionChat({
   const deleteSession = useDeleteAgentSession(serverUrl, accountUid)
   const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
 
+  // Current-window context, re-derived per render so a send always describes what the user is
+  // looking at right now — including queued messages flushed after navigating elsewhere.
+  const windowContextLines = useAssistantWindowContextLines()
+  const windowContextLinesRef = useRef(windowContextLines)
+  windowContextLinesRef.current = windowContextLines
+
   const [input, setInput] = useState('')
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -302,7 +309,11 @@ function AssistantSessionChat({
       if (!accountUid) return
       const messages = (Array.isArray(content) ? content : [content]).map((text) => ({text}))
       addOptimisticSessionMessage(serverUrl, accountUid, sessionId, messages)
-      messageSession.mutate({sessionId, message: messages})
+      const contextLines = windowContextLinesRef.current
+      const withContext = contextLines
+        ? messages.map((message, index) => (index === 0 ? {...message, contextLines} : message))
+        : messages
+      messageSession.mutate({sessionId, message: withContext})
     },
     [accountUid, messageSession, serverUrl, sessionId],
   )

@@ -41,7 +41,30 @@ const daemonBinaryPath = path.join(
   `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
 )
 
+// The local agents server: a `bun build --compile` binary staged by
+// `agents/scripts/build-binary.ts` together with the package.json it needs at startup. The whole
+// directory ships so it lands as `<resources>/agents/`, which is where
+// `src/agents-server-path.ts` looks for it in a packaged app.
+const agentsServerName = process.env.AGENTS_SERVER_NAME || getPlatformTriple()
+const agentsDistPath = path.join(devProjectRoot, 'plz-out/bin/agents')
+const agentsBinaryPath = path.join(agentsDistPath, `seed-agents-${agentsServerName}`)
+const hasAgentsBinary = fs.existsSync(agentsBinaryPath) && fs.existsSync(path.join(agentsDistPath, 'package.json'))
+if (!hasAgentsBinary) {
+  if (process.env.CI) {
+    // Fail loudly rather than notarize and ship an app whose assistant cannot start.
+    throw new Error(
+      `Missing agents server binary at ${agentsBinaryPath} (build it with \`cd agents && bun run build:binary\`)`,
+    )
+  }
+  console.warn(
+    `[FORGE CONFIG]: ⚠️ No agents server binary at ${agentsBinaryPath} — packaging WITHOUT a local agents server. Build it with \`cd agents && bun run build:binary\`.`,
+  )
+}
+
 const extraResources = [daemonBinaryPath]
+if (hasAgentsBinary) {
+  extraResources.push(agentsDistPath)
+}
 
 if (process.platform === 'win32') {
   const winpthreadRuntimePath = path.join(devProjectRoot, 'plz-out/bin/backend/libwinpthread-1.dll')
@@ -256,7 +279,11 @@ const config: ForgeConfig = {
       console.info('PostPackage output paths:', options.outputPaths)
       await signWindowsPackagePaths(options.outputPaths, {
         packageExecutableName,
-        packageResourceExecutableNames: [path.basename(daemonBinaryPath)],
+        packageResourceExecutableNames: [
+          path.basename(daemonBinaryPath),
+          // The agents binary ships inside the `agents/` resources subdirectory.
+          ...(hasAgentsBinary ? [path.join('agents', path.basename(agentsBinaryPath))] : []),
+        ],
       })
 
       for (const outputPath of options.outputPaths) {
@@ -376,7 +403,9 @@ function notarizeMaybe() {
     gatekeeperAssess: false,
     hardenedRuntime: true,
     identity: 'Developer ID Application: Mintter Technologies S.L. (XSKC6RJDD8)',
-    binaries: [daemonBinaryPath],
+    // Every nested executable must be listed, or notarization ships an unsigned binary that
+    // refuses to launch on other machines.
+    binaries: hasAgentsBinary ? [daemonBinaryPath, agentsBinaryPath] : [daemonBinaryPath],
   }
 }
 

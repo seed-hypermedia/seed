@@ -202,6 +202,22 @@ jobs:
             echo "libwinpthread-1.dll import detected and staged correctly"
           fi
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+
+      # The local agents server ships with the desktop app: a `bun build --compile` binary staged
+      # into plz-out/bin/agents/, which forge.config.ts picks up as an extraResource (and fails
+      # loudly in CI when missing). --smoke boots the compiled binary and checks its health
+      # endpoint, so a binary that compiles but cannot start fails here instead of on user machines.
+      - name: Build Agents Server
+        shell: bash
+        run: |
+          cd agents
+          bun install --frozen-lockfile
+          bun scripts/build-binary.ts --target=${{ matrix.config.daemon_name }} --smoke
+
       - name: Set MacOS signing certs
         if: startsWith(matrix.config.os, 'macos')
         env:
@@ -233,6 +249,7 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=8192
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           DAEMON_NAME: ${{ matrix.config.daemon_name }}
+          AGENTS_SERVER_NAME: ${{ matrix.config.daemon_name }}
           VITE_VERSION: '${{ needs.build-info.outputs.version }}'
           VITE_COMMIT_HASH: '${{ github.sha }}'
           VITE_DESKTOP_P2P_PORT: '56000'
@@ -294,6 +311,7 @@ jobs:
           NODE_OPTIONS: --max_old_space_size=6144
           GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           DAEMON_NAME: '${{ matrix.config.daemon_name }}.exe'
+          AGENTS_SERVER_NAME: '${{ matrix.config.daemon_name }}.exe'
           VITE_VERSION: '${{ needs.build-info.outputs.version }}'
           VITE_COMMIT_HASH: '${{ github.sha }}'
           VITE_DESKTOP_P2P_PORT: '56000'
