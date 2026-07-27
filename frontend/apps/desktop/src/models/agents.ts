@@ -136,6 +136,12 @@ export function isLocalAgentServer(serverUrl: string, localServerUrl: string | n
   return !!localServerUrl && serverUrl === localServerUrl
 }
 
+/** The agents-server URL an agents route points at, or null for any other route. */
+export function agentRouteServerUrl(route: {key: string; serverUrl?: string}): string | null {
+  if (route.key !== 'agent-server' && route.key !== 'agent' && route.key !== 'agent-session') return null
+  return route.serverUrl || DEFAULT_AGENT_SERVER_URL
+}
+
 /** Human-readable name for an agent server: the fixed local label, or the remote host. */
 export function describeAgentServer(serverUrl: string, localServerUrl: string | null | undefined): string {
   if (isLocalAgentServer(serverUrl, localServerUrl)) return LOCAL_AGENT_SERVER_LABEL
