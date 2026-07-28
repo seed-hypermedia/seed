@@ -8,9 +8,6 @@ import {z} from 'zod'
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET
 
 const webDataDir = process.env.DATA_DIR || process.cwd()
-console.log('~~ process.env.DATA_DIR DATA_DIR', process.env.DATA_DIR)
-console.log('~~ process.env.DATA_DIR webDataDir', webDataDir)
-console.log('~~ process.env.DATA_DIR cwd', process.cwd())
 const configPath = join(webDataDir, 'config.json')
 const serviceConfigPath = join(webDataDir, 'service-config.json')
 
@@ -47,19 +44,29 @@ try {
 }
 
 let serviceConfig: ServiceConfig | null = null
+let serviceConfigError: string | null = null
 try {
   const serviceConfigData = readFileSync(serviceConfigPath, 'utf-8')
   const serviceConfigJSON = JSON.parse(serviceConfigData)
   serviceConfig = serviceConfigSchema.parse(serviceConfigJSON)
-} catch (e: any) {}
+} catch (e: any) {
+  serviceConfigError = e.message
+}
 
 if (serviceConfig) {
-  console.log('Service config loaded.')
+  console.log(`Service config loaded from ${serviceConfigPath}`)
 } else if (singleSiteConfig) {
-  console.log('Single site config loaded.')
+  console.log(`Single site config loaded from ${configPath}`)
 } else {
-  console.error('Config error: ', singleSiteConfigError)
-  throw new Error('Failed to load configuration. Set DATA_DIR/config.json or DATA_DIR/service-config.json')
+  // The config is resolved against DATA_DIR when set, otherwise against the
+  // process working directory — which depends on how the app was launched.
+  // Spell out where we looked and why each candidate failed, so a wrong cwd
+  // (e.g. starting from the repo root) is diagnosable from the message alone.
+  throw new Error(
+    `Failed to load web app configuration from ${webDataDir} ` +
+      (process.env.DATA_DIR ? '(set via DATA_DIR)' : '(process cwd; set DATA_DIR to override)') +
+      `:\n  config.json: ${singleSiteConfigError}\n  service-config.json: ${serviceConfigError}`,
+  )
 }
 
 export async function getConfig(hostname: string) {
