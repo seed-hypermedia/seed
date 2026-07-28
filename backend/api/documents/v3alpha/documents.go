@@ -1266,6 +1266,19 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 			"dg.last_change_time",
 			"dg.last_activity_time",
 			"(SELECT 1 FROM unread_resources WHERE iri = r.iri) AS is_unread",
+			// Alive direct children of the document, so listing cards can show
+			// the subdocument count without a per-document interaction-summary
+			// request. The prefix-range comparison (everything between
+			// 'iri/' and 'iri0', '0' being the character after '/') seeks the
+			// resources.iri index instead of scanning; the instr check drops
+			// grandchildren; the innermost subquery keeps only resources whose
+			// latest generation is alive.
+			`(SELECT count(*)
+			  FROM resources cr
+			  WHERE cr.iri > r.iri || '/' AND cr.iri < r.iri || '0'
+			    AND instr(substr(cr.iri, length(r.iri) + 2), '/') = 0
+			    AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
+			) AS children_count`,
 		).
 		From(
 			"document_generations dg",
@@ -1293,6 +1306,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		lastActivityTime  = row.ColumnInt64(inc())
 		_                 = lastActivityTime
 		isUnread          = row.ColumnInt64(inc()) > 0
+		childrenCount     = row.ColumnInt64(inc())
 	)
 
 	iri := blob.IRI(iriRaw)
@@ -1428,6 +1442,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			LatestCommentTime: latestCommentTime,
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 			IsUnread:          isUnread,
+			ChildrenCount:     int32(childrenCount), //nolint:gosec
 		},
 		GenerationInfo: &documents.GenerationInfo{
 			Genesis:    genesis,

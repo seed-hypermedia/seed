@@ -2659,6 +2659,15 @@ export class ActivitySummary extends Message<ActivitySummary> {
    */
   isUnread = false;
 
+  /**
+   * Output only. Number of alive direct child documents.
+   * Only populated in document listings; listing cards show it without
+   * fetching a per-document interaction summary.
+   *
+   * @generated from field: int32 children_count = 6;
+   */
+  childrenCount = 0;
+
   constructor(data?: PartialMessage<ActivitySummary>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2672,6 +2681,7 @@ export class ActivitySummary extends Message<ActivitySummary> {
     { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 3, name: "latest_change_time", kind: "message", T: Timestamp },
     { no: 5, name: "is_unread", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 6, name: "children_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ActivitySummary {

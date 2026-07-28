@@ -1085,6 +1085,51 @@ func TestListDirectory(t *testing.T) {
 	)
 }
 
+func TestListDirectoryChildrenCount(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+
+	publish := func(path, name string) {
+		_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Path:           path,
+			Account:        aliceSpace,
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_SetMetadata_{
+					SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: name},
+				}},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	publish("/parent", "Parent")
+	publish("/parent/kid-a", "Kid A")
+	publish("/parent/kid-b", "Kid B")
+	publish("/parent/kid-a/grandkid", "Grandkid")
+	publish("/loner", "Loner")
+
+	list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+		Account:       aliceSpace,
+		DirectoryPath: "",
+		Recursive:     true,
+	})
+	require.NoError(t, err)
+
+	children := map[string]int32{}
+	for _, d := range list.Documents {
+		children[d.Path] = d.ActivitySummary.ChildrenCount
+	}
+
+	require.Equal(t, int32(2), children["/parent"], "parent has two direct children; grandchildren don't count")
+	require.Equal(t, int32(1), children["/parent/kid-a"], "kid-a has one child")
+	require.Equal(t, int32(0), children["/parent/kid-b"])
+	require.Equal(t, int32(0), children["/loner"])
+}
+
 func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
 	t.Parallel()
 

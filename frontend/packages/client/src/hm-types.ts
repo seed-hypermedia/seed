@@ -658,6 +658,9 @@ export const HMActivitySummarySchema = z.object({
   commentCount: z.number(),
   latestChangeTime: HMTimestampSchema,
   isUnread: z.boolean(),
+  // Alive direct child documents. Populated in listings so cards show the
+  // subdocument count without a per-document interaction-summary request.
+  childrenCount: z.number().optional(),
 })
 export type HMActivitySummary = z.infer<typeof HMActivitySummarySchema>
 
@@ -1699,6 +1702,7 @@ export type HMInteractionSummaryRequest = z.infer<typeof HMInteractionSummaryReq
 
 export const HMQueryBlockItemSummarySchema = z.object({
   comments: z.number(),
+  children: z.number().optional(),
   authorUids: z.array(z.string()).default([]),
 })
 export type HMQueryBlockItemSummary = z.infer<typeof HMQueryBlockItemSummarySchema>

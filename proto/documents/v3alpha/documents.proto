@@ -751,6 +751,11 @@ message ActivitySummary {
 
   // Whether there's any unread activity on this document/account.
   bool is_unread = 5;
+
+  // Output only. Number of alive direct child documents.
+  // Only populated in document listings; listing cards show it without
+  // fetching a per-document interaction summary.
+  int32 children_count = 6;
 }
 
 // Basic information about ancestor documents in the path hierarchy.

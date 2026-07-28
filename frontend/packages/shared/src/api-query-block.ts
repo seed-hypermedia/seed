@@ -86,9 +86,12 @@ async function loadQueryTargetName(grpcClient: GRPCClient, id: UnpackedHypermedi
   }
 }
 
-function getQueryBlockItemSummary(item: {activitySummary?: {commentCount?: number}}): HMQueryBlockItemSummary {
+function getQueryBlockItemSummary(item: {
+  activitySummary?: {commentCount?: number; childrenCount?: number}
+}): HMQueryBlockItemSummary {
   return {
     comments: item.activitySummary?.commentCount ?? 0,
+    children: item.activitySummary?.childrenCount ?? 0,
     authorUids: [],
   }
 }

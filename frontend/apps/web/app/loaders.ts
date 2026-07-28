@@ -323,32 +323,13 @@ async function prefetchResourceData(
     ]),
   )
 
-  // Wave 3: per-result interaction summaries. Query-block cards/list items
-  // (and the home page's directory card grid) show subtree comment counts
-  // via useInteractionSummary per item; without prefetch the counts are
-  // absent in SSR and fetched per-card on the client. Only the first
-  // INITIAL_LIST_CHUNK items of a list render before scrolling, so cap the
-  // fetches per source.
+  // Wave 3: interaction summaries for embed cards, which show the target's
+  // comment count via useInteractionSummary. Query-block cards and list
+  // items DON'T need this: their comment/children counts ride on each
+  // listing item's activitySummary and reach them through the payload's
+  // interactionSummaries, with no per-item requests.
   const MAX_RESULT_SUMMARIES = 30
   const resultIds = new Map<string, UnpackedHypermediaId>()
-  const collectResultIds = (items: {id: UnpackedHypermediaId; path: string[]}[] | undefined | null) => {
-    for (const item of (items || []).slice(0, MAX_RESULT_SUMMARIES)) {
-      const id = hmId(item.id.uid, {path: item.path})
-      resultIds.set(id.id, id)
-    }
-  }
-  for (const block of queryBlocks) {
-    const input = getQueryBlockInput(hmBlockToEditorBlock(block).props as any)
-    if (!input) continue
-    const payload = prefetchCtx.queryClient.getQueryData(queryQueryBlock(client, input).queryKey) as any
-    collectResultIds(payload?.results)
-  }
-  // Home documents render their child directory as a card grid.
-  if (!docId.path?.length) {
-    const directory = prefetchCtx.queryClient.getQueryData(queryDirectory(client, docId, 'Children').queryKey) as any
-    collectResultIds(directory)
-  }
-  // Embed cards show the target's comment count too.
   for (const ref of refs.slice(0, MAX_RESULT_SUMMARIES)) {
     resultIds.set(ref.refId.id, ref.refId)
   }
