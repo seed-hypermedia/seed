@@ -174,7 +174,17 @@ export function AssistantPanel({
           localServerUrl={localServerUrl.data ?? null}
           onSelect={(key) => setChosenAgent(key)}
           onCreateAgent={() =>
-            createAgentDialog.open({serverUrls: serverUrls.data || [], selectedAccountId: accountUid})
+            createAgentDialog.open({
+              serverUrls: serverUrls.data || [],
+              selectedAccountId: accountUid,
+              // Creating from the sidebar stays in the sidebar: select the new agent's context and
+              // open a draft so the user can talk to it immediately.
+              onCreated: ({serverUrl, agentId}) => {
+                setChosenAgent({serverUrl, agentId})
+                setIsDraft(true)
+                focusInput()
+              },
+            })
           }
           onOpenAgentsPage={() => navigate({key: 'agents'})}
         />

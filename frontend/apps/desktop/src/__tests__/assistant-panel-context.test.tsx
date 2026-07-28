@@ -21,6 +21,7 @@ const mockState = vi.hoisted(() => ({
   sessionEntries: [] as Array<{serverUrl: string; session: Record<string, unknown>}>,
   navigate: undefined as unknown as ReturnType<typeof vi.fn>,
   createAgentDialogMounts: 0,
+  createAgentDialogInput: null as null | {onCreated?: (created: {serverUrl: string; agentId: string}) => void},
 }))
 
 vi.mock('@/models/agents', () => ({
@@ -49,8 +50,9 @@ vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefine
 // The real create dialog drags in the prompt editor stack; the panel only mounts it via
 // useAppDialog, which is what these tests assert.
 vi.mock('@/pages/agents/dialogs', () => ({
-  CreateAgentDialog: () => {
+  CreateAgentDialog: ({input}: {input: (typeof mockState)['createAgentDialogInput']}) => {
     mockState.createAgentDialogMounts += 1
+    mockState.createAgentDialogInput = input
     return null
   },
 }))
@@ -98,6 +100,7 @@ beforeEach(() => {
 
   mockState.navigate = vi.fn()
   mockState.createAgentDialogMounts = 0
+  mockState.createAgentDialogInput = null
   mockState.serverUrls = [LOCAL, REMOTE]
   mockState.agentLists = [
     {data: [{id: 'assistant', definition: {name: 'Assistant', model: 'claude-sonnet-5'}}]},
@@ -172,6 +175,25 @@ describe('assistant sidebar agent context', () => {
     clickText('Assistant')
     clickText('New agent')
     expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
+  })
+
+  it('selects the newly created agent and opens a draft chat, staying in the sidebar', () => {
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+
+    clickText('Assistant')
+    clickText('New agent')
+
+    // The dialog completes: the sidebar must switch context to the created agent, not navigate
+    // away to the full agent page.
+    act(() => {
+      mockState.createAgentDialogInput?.onCreated?.({serverUrl: REMOTE, agentId: 'researcher'})
+    })
+
+    expect(mockState.navigate).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain('Researcher')
+    expect(document.body.textContent).toContain('Send a message to start chatting with Researcher')
   })
 
   it('can create an agent even when none exist yet', () => {
