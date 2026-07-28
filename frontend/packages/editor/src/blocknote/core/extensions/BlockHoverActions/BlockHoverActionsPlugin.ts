@@ -483,6 +483,13 @@ class BlockHoverActionsView<BSchema extends BlockSchema> implements PluginView {
       return
     }
 
+    const supernumberBadge = target instanceof Element ? target.closest('.bn-supernumber-badge') : null
+    const supernumberBlockId = supernumberBadge instanceof HTMLElement ? supernumberBadge.dataset.blockId : undefined
+    if (supernumberBlockId) {
+      this.showState(this.blockStateFromBlockId(supernumberBlockId))
+      return
+    }
+
     const {selection} = this.pmView.state
     if (!selection.empty && !(selection instanceof NodeSelection)) {
       this.hide()

@@ -22,10 +22,10 @@ pnpm test:harness
 
 Open the browser at a real-mode fixture URL, e.g.:
 ```
-http://localhost:5180/?real=1&fixture=allBlocks
+http://localhost:5180/?real=1&fixture=allBlocks&badges=1
 ```
 
-`real=1` mounts the actual `DocumentEditor` with a mock document machine; `fixture=allBlocks` renders one of every block type defined in `e2e/test-app/TestEditor.tsx`.
+`real=1` mounts the actual `DocumentEditor` with a mock document machine; `fixture=allBlocks` renders one of every block type defined in `e2e/test-app/TestEditor.tsx`; `badges=1` gives every fixture block a mock citation/comment count so supernumber badges render.
 
 ## Mobile viewport emulation
 The Chrome for Testing instance in this environment listens on remote-debugging port `29229`. Use CDP to set a mobile viewport without keeping DevTools open:
