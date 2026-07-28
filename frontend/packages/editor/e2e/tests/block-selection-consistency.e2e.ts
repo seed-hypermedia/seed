@@ -81,10 +81,13 @@ async function clickBlockBody(page: Page, blockId: string) {
     }
   }
   if (!box) throw new Error(`could not measure block ${blockId}`)
-  // Query blocks fill their center with cards, which are LINKS by design
-  // (they navigate on first click) — select via the frame padding instead.
+  // Some styled atomic blocks put interactive controls or links at their
+  // center. Select those blocks via the frame/body gutter instead, and leave
+  // link/control-specific behavior to the dedicated tests below.
   if (blockId === 'blk-query') {
     await page.mouse.click(box.x + 8, box.y + 8)
+  } else if (blockId === 'blk-video' || blockId === 'blk-embed') {
+    await page.mouse.click(box.x + 8, box.y + box.height / 2)
   } else {
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
   }
