@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -179,6 +180,7 @@ func TestListRootDocuments(t *testing.T) {
 	require.Equal(t, "", roots.NextPageToken, "must have no page token for a single item")
 
 	wantAlicesRoot := DocumentToListItem(profile)
+	stampEmptyFirstImage(wantAlicesRoot)
 
 	testutil.StructsEqual(bobsRoot, roots.Documents[0]).
 		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
@@ -187,6 +189,15 @@ func TestListRootDocuments(t *testing.T) {
 	testutil.StructsEqual(wantAlicesRoot, roots.Documents[1]).
 		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 		Compare(t, "alice's root document must match and be second")
+}
+
+// stampEmptyFirstImage sets the index-derived first_image_in_content field on
+// an expected listing item. Listings carry the field for every document
+// without a cover/icon (empty = "derived, no image"), while DocumentToListItem
+// — converting from a raw Document — leaves it unset.
+func stampEmptyFirstImage(d *documents.DocumentInfo) *documents.DocumentInfo {
+	d.FirstImageInContent = proto.String("")
+	return d
 }
 
 func TestListAccounts(t *testing.T) {
@@ -330,6 +341,9 @@ func TestListDocuments(t *testing.T) {
 	require.NoError(t, err)
 
 	want := []*documents.DocumentInfo{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}
+	for _, w := range want {
+		stampEmptyFirstImage(w)
+	}
 	require.Len(t, list.Documents, len(want))
 
 	testutil.StructsEqual(want[0], list.Documents[0]).
@@ -730,7 +744,9 @@ func TestTombstoneRef(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, list.Documents, 1, "only initial root document must be in the list")
 
-		testutil.StructsEqual(DocumentToListItem(home), list.Documents[0]).
+		wantHome := DocumentToListItem(home)
+		stampEmptyFirstImage(wantHome)
+		testutil.StructsEqual(wantHome, list.Documents[0]).
 			IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 			Compare(t, "listing must only show home document")
 	}
@@ -807,6 +823,9 @@ func TestTombstoneRef(t *testing.T) {
 				DocumentToListItem(home),
 				DocumentToListItem(republished),
 			},
+		}
+		for _, w := range want.Documents {
+			stampEmptyFirstImage(w)
 		}
 
 		slices.SortFunc(want.Documents, func(a, b *documents.DocumentInfo) int { return cmp.Compare(a.Version, b.Version) })
@@ -1064,6 +1083,141 @@ func TestListDirectory(t *testing.T) {
 		true,
 		[]string{"/nested/doc-1"},
 	)
+}
+
+func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+
+	// A child with an image block in its content but no explicit cover/icon:
+	// the indexer should derive _firstImageInContent so directory cards get a
+	// fallback cover from fast metadata (no per-child document fetch).
+	withImage, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/with-image",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Has Image"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b1", Type: "Paragraph", Text: "hello"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b2", Parent: "", LeftSibling: "b1"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "b2", Type: "Image", Link: "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// A child that carries an explicit cover: derivation must be skipped.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/with-cover",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "cover", Value: "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "c1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "c1", Type: "Image", Link: "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// A child with text only: no image, so no derived key.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/text-only",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Text Only"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "t1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "t1", Type: "Paragraph", Text: "no pictures"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	listDir := func() map[string]*documents.DocumentInfo {
+		list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+			Account:       aliceSpace,
+			DirectoryPath: "",
+			Recursive:     true,
+		})
+		require.NoError(t, err)
+		byPath := map[string]*documents.DocumentInfo{}
+		for _, d := range list.Documents {
+			byPath[d.Path] = d
+		}
+		return byPath
+	}
+
+	// firstImage returns the derived value and whether the field is set at
+	// all: presence with an empty value means "derived, no image" (the client
+	// skips its fallback fetch), while absence means derivation never ran.
+	// The value must live in the typed sibling field only — never in the
+	// user-authored metadata map.
+	firstImage := func(d *documents.DocumentInfo) (string, bool) {
+		require.NotNil(t, d)
+		require.NotNil(t, d.Metadata)
+		require.NotContains(t, d.Metadata.Fields, "_firstImageInContent",
+			"derived value must not pollute the metadata map")
+		if d.FirstImageInContent == nil {
+			return "", false
+		}
+		return *d.FirstImageInContent, true
+	}
+
+	byPath := listDir()
+
+	img, ok := firstImage(byPath["/with-image"])
+	require.True(t, ok)
+	require.Equal(t, "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", img,
+		"cover-less doc must get its first content image derived")
+
+	_, ok = firstImage(byPath["/with-cover"])
+	require.False(t, ok, "doc with an explicit cover must not derive a fallback")
+
+	img, ok = firstImage(byPath["/text-only"])
+	require.True(t, ok, "imageless doc must carry the empty sentinel so cards skip the fallback fetch")
+	require.Empty(t, img)
+
+	// Removing the document's only image must overwrite the previously derived
+	// value with the empty sentinel — a stale first-image must never outlive
+	// the image's removal.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/with-image",
+		Account:        aliceSpace,
+		BaseVersion:    withImage.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_DeleteBlock{DeleteBlock: "b2"}},
+		},
+	})
+	require.NoError(t, err)
+
+	img, ok = firstImage(listDir()["/with-image"])
+	require.True(t, ok)
+	require.Empty(t, img, "removing the image must clear the derived value")
 }
 
 func TestUpdateReadStatus(t *testing.T) {

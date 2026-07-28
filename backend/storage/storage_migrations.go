@@ -63,6 +63,12 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Reindex to backfill the derived "_firstImageInContent" document metadata
+	// key (the fallback cover image), so directory cards can render a thumbnail
+	// from fast metadata instead of fetching each child's full document.
+	{Version: "2026-07-28.104351", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return scheduleReindex(conn)
+	}},
 	// Add the embeddings_index bookkeeping table: one row per fts entry that has
 	// been embedded. The vec0 embeddings table can't be indexed on fts_id, so the
 	// embedder's pending scan had to full-scan the vector table on every pass;

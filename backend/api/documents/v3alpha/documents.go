@@ -66,7 +66,7 @@ type Server struct {
 
 // NewServer creates a new Documents API v3 server.
 func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
-	return &Server{
+	srv := &Server{
 		cfg:      cfg,
 		keys:     keys,
 		idx:      idx,
@@ -75,6 +75,50 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 		p2p:      p2p,
 		hydrated: newHydrateCache(),
 	}
+
+	// Let the indexer derive a fallback cover image at index time, reusing the
+	// real docmodel so the result matches what the read path renders. This is
+	// how "_firstImageInContent" gets populated. The daemon also wires this
+	// earlier (before the backfill reindex task starts); this keeps embedders
+	// and tests that construct the server directly working.
+	idx.SetDeriveFirstContentImage(DeriveFirstContentImage)
+
+	return srv
+}
+
+// DeriveFirstContentImage rebuilds a document in memory from the given changes
+// and returns the link of its first image block in reading order (or "" if it
+// has none). It's injected into the indexer (SetDeriveFirstContentImage) to
+// populate the reserved "_firstImageInContent" metadata key, letting directory
+// cards render a fallback cover from fast metadata instead of fetching each
+// child's full document. It's a pure function so the daemon can wire it before
+// the migration-triggered backfill reindex starts, long before this server
+// exists.
+//
+// The changes are supplied by the indexer (already loaded on its transaction's
+// connection), so this does no database I/O and is safe to call mid-indexing.
+// It mirrors loadDocument's in-memory build but never touches the pool.
+func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (string, error) {
+	if len(changes) == 0 {
+		return "", nil
+	}
+
+	doc, err := docmodel.New(iri, cclock.New())
+	if err != nil {
+		return "", err
+	}
+
+	for _, ch := range changes {
+		doc.SetVisibility(ch.Visibility)
+		if !doc.Generation.IsSet() {
+			doc.Generation = maybe.New(ch.Generation)
+		}
+		if err := doc.ApplyChange(ch.CID, ch.Data); err != nil {
+			return "", err
+		}
+	}
+
+	return doc.FirstContentImage(), nil
 }
 
 // SetTelemetry wires the journeys profiler. Optional; when nil, all
@@ -1277,6 +1321,17 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		}
 	}
 
+	// Derived fallback cover image, stored under an internal "$db." key (so it
+	// never leaks into the user-authored metadata map) and exposed as a typed
+	// sibling field. Field presence distinguishes "not derived yet" from
+	// "derived: the document has no content image" (empty string).
+	var firstImageInContent *string
+	if v, ok := attrs[blob.FirstImageInContentAttr]; ok {
+		if s, isStr := v.Value.(string); isStr {
+			firstImageInContent = &s
+		}
+	}
+
 	var authorIDs []int64
 	if err := json.Unmarshal(authorsJSON, &authorIDs); err != nil {
 		return nil, err
@@ -1357,15 +1412,16 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	}
 
 	out := &documents.DocumentInfo{
-		Account:     space.String(),
-		Path:        path,
-		Metadata:    metastruct,
-		Authors:     authors,
-		CreateTime:  timestamppb.New(time.UnixMilli(genesisChangeTime)),
-		UpdateTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
-		Genesis:     genesis,
-		Version:     blob.NewVersion(cids...).String(),
-		Breadcrumbs: crumbs,
+		Account:             space.String(),
+		Path:                path,
+		Metadata:            metastruct,
+		FirstImageInContent: firstImageInContent,
+		Authors:             authors,
+		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
+		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),
+		Genesis:             genesis,
+		Version:             blob.NewVersion(cids...).String(),
+		Breadcrumbs:         crumbs,
 		ActivitySummary: &documents.ActivitySummary{
 			CommentCount:      int32(commentCount), //nolint:gosec
 			LatestCommentId:   latestComment,

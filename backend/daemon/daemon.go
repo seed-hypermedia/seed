@@ -14,6 +14,7 @@ import (
 
 	"seed/backend/api"
 	activity "seed/backend/api/activity/v1alpha"
+	documentsv3 "seed/backend/api/documents/v3alpha"
 	"seed/backend/blob"
 	"seed/backend/config"
 	"seed/backend/daemon/reindexing"
@@ -155,6 +156,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	otel.SetTracerProvider(tp)
 
 	a.Index = blob.OpenIndexPendingReindex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel))
+	// Wire the fallback-cover-image deriver before the reindex task below can
+	// start: a migration-triggered backfill reindex must derive
+	// "_firstImageInContent" for every document, and the documents server that
+	// also wires this is constructed only later in initGRPC.
+	a.Index.SetDeriveFirstContentImage(documentsv3.DeriveFirstContentImage)
 	a.clean.Add(a.Index.Domains)
 	a.taskMgr.UpdateGlobalState(daemon.State_STARTING)
 

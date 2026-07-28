@@ -689,6 +689,11 @@ export const HMDocumentInfoSchema = z.object({
   generationInfo: HMGenerationInfoSchema,
   redirectInfo: HMRedirectInfoSchema.optional(),
   metadata: HMDocumentMetadataSchema,
+  // Indexer-derived first image block of the document's content (reading
+  // order), used as a fallback cover on directory cards without fetching the
+  // full document. Undefined = not derived (yet); empty string = derived, the
+  // document has no content image (cards skip their fallback fetch).
+  firstImageInContent: z.string().optional(),
   visibility: HMResourceVisibilitySchema,
 })
 export type HMDocumentInfo = z.infer<typeof HMDocumentInfoSchema>

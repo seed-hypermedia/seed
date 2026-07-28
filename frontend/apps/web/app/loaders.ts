@@ -331,19 +331,10 @@ async function prefetchResourceData(
   // fetches per source.
   const MAX_RESULT_SUMMARIES = 30
   const resultIds = new Map<string, UnpackedHypermediaId>()
-  // Cards without a cover/icon lazily fetch their doc to find a fallback
-  // content image (DocumentCard); prefetch those resources so the SSR cards
-  // and the hydrated cards agree (and the client skips the fetch).
-  const fallbackImageIds = new Map<string, UnpackedHypermediaId>()
-  const collectResultIds = (
-    items: {id: UnpackedHypermediaId; path: string[]; metadata?: {cover?: string; icon?: string}}[] | undefined | null,
-  ) => {
+  const collectResultIds = (items: {id: UnpackedHypermediaId; path: string[]}[] | undefined | null) => {
     for (const item of (items || []).slice(0, MAX_RESULT_SUMMARIES)) {
       const id = hmId(item.id.uid, {path: item.path})
       resultIds.set(id.id, id)
-      if (!item.metadata?.cover && !item.metadata?.icon) {
-        fallbackImageIds.set(item.id.id, item.id)
-      }
     }
   }
   for (const block of queryBlocks) {
@@ -361,20 +352,15 @@ async function prefetchResourceData(
   for (const ref of refs.slice(0, MAX_RESULT_SUMMARIES)) {
     resultIds.set(ref.refId.id, ref.refId)
   }
-  if (resultIds.size || fallbackImageIds.size) {
+  if (resultIds.size) {
     await instrument(ctx || noopCtx, 'prefetchWave3', () =>
-      Promise.allSettled([
-        ...Array.from(resultIds.values()).map((id) =>
+      Promise.allSettled(
+        Array.from(resultIds.values()).map((id) =>
           instrument(ctx || noopCtx, `prefetchResultSummary(${packHmId(id)})`, () =>
             prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, id)),
           ),
         ),
-        ...Array.from(fallbackImageIds.values()).map((id) =>
-          instrument(ctx || noopCtx, `prefetchResultResource(${packHmId(id)})`, () =>
-            prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
-          ),
-        ),
-      ]),
+      ),
     )
   }
 }

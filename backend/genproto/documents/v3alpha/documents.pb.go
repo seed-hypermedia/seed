@@ -2808,9 +2808,17 @@ type DocumentInfo struct {
 	// Output only. Redirect information if the document is a republish or a redirect.
 	RedirectInfo *RefTarget_Redirect `protobuf:"bytes,13,opt,name=redirect_info,json=redirectInfo,proto3" json:"redirect_info,omitempty"`
 	// Output only. Visibility of the document.
-	Visibility    ResourceVisibility `protobuf:"varint,14,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Visibility ResourceVisibility `protobuf:"varint,14,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	// Output only. Link of the first image block in the document's content
+	// (in reading order), derived by the indexer for documents that have no
+	// explicit cover or icon. Clients use it as a fallback cover on directory
+	// cards without fetching the full document.
+	//
+	// Unset means the indexer hasn't derived it (yet); an empty string means
+	// the document is known to have no content image.
+	FirstImageInContent *string `protobuf:"bytes,15,opt,name=first_image_in_content,json=firstImageInContent,proto3,oneof" json:"first_image_in_content,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *DocumentInfo) Reset() {
@@ -2932,6 +2940,13 @@ func (x *DocumentInfo) GetVisibility() ResourceVisibility {
 		return x.Visibility
 	}
 	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
+}
+
+func (x *DocumentInfo) GetFirstImageInContent() string {
+	if x != nil && x.FirstImageInContent != nil {
+		return *x.FirstImageInContent
+	}
+	return ""
 }
 
 // Information about the generation of a document.
@@ -4511,7 +4526,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x12\n" +
 	"\x04deps\x18\x03 \x03(\tR\x04deps\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xd5\x05\n" +
+	"createTime\"\xaa\x06\n" +
 	"\fDocumentInfo\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -4530,7 +4545,9 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\rredirect_info\x18\r \x01(\v2..com.seed.documents.v3alpha.RefTarget.RedirectR\fredirectInfo\x12N\n" +
 	"\n" +
 	"visibility\x18\x0e \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
-	"visibility\"J\n" +
+	"visibility\x128\n" +
+	"\x16first_image_in_content\x18\x0f \x01(\tH\x00R\x13firstImageInContent\x88\x01\x01B\x19\n" +
+	"\x17_first_image_in_content\"J\n" +
 	"\x0eGenerationInfo\x12\x18\n" +
 	"\agenesis\x18\x01 \x01(\tR\agenesis\x12\x1e\n" +
 	"\n" +
@@ -4887,6 +4904,7 @@ func file_documents_v3alpha_documents_proto_init() {
 		(*ListContactsRequest_Account)(nil),
 		(*ListContactsRequest_Subject)(nil),
 	}
+	file_documents_v3alpha_documents_proto_msgTypes[40].OneofWrappers = []any{}
 	file_documents_v3alpha_documents_proto_msgTypes[48].OneofWrappers = []any{
 		(*DocumentChange_SetMetadata_)(nil),
 		(*DocumentChange_MoveBlock_)(nil),
