@@ -15,6 +15,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {
+  ChevronRight,
   Copy,
   Download,
   FilePlus,
@@ -62,11 +63,14 @@ export function AgentMemoryTab({
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   /** Last IPFS publish result per memory path, kept so the URL stays visible/copyable. */
   const [ipfsUrls, setIpfsUrls] = useState<Record<string, string>>({})
+  /** Directories currently expanded in the tree; everything starts collapsed. */
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
   const uploadInputRef = useRef<HTMLInputElement>(null)
   const file = useAgentMemoryFile(serverUrl, accountUid, agentId, selectedPath ?? undefined)
 
   const entries = memory.data?.entries ?? []
   const fileCount = entries.filter((entry) => entry.type === 'file').length
+  const visibleEntries = entries.filter((entry) => isPathVisible(entry.path, expandedDirs))
 
   // Drop the selection when the selected file disappears from the listing (e.g. the
   // agent or another window deleted it).
@@ -82,6 +86,27 @@ export function AgentMemoryTab({
     setSelectedPath(path)
     setDraftText(null)
     setConfirmDeletePath(null)
+    revealPath(path)
+  }
+
+  function toggleDir(path: string) {
+    setExpandedDirs((current) => {
+      const next = new Set(current)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  /** Expands every ancestor directory of a path so it is visible in the tree. */
+  function revealPath(path: string) {
+    const segments = path.split('/')
+    if (segments.length <= 1) return
+    setExpandedDirs((current) => {
+      const next = new Set(current)
+      for (let i = 1; i < segments.length; i++) next.add(segments.slice(0, i).join('/'))
+      return next
+    })
   }
 
   async function handleCreateFile() {
@@ -314,12 +339,14 @@ export function AgentMemoryTab({
               files here.
             </SizableText>
           ) : (
-            entries.map((entry) => (
+            visibleEntries.map((entry) => (
               <MemoryEntryRow
                 key={entry.path}
                 entry={entry}
                 selected={entry.type === 'file' && entry.path === selectedPath}
                 confirmingDelete={confirmDeletePath === entry.path}
+                expanded={entry.type === 'dir' && expandedDirs.has(entry.path)}
+                onToggle={entry.type === 'dir' ? () => toggleDir(entry.path) : undefined}
                 onSelect={() => (entry.type === 'file' ? selectFile(entry.path) : undefined)}
                 onRequestDelete={() => setConfirmDeletePath(entry.path)}
                 onCancelDelete={() => setConfirmDeletePath(null)}
@@ -540,6 +567,8 @@ function MemoryEntryRow({
   selected,
   confirmingDelete,
   deleting,
+  expanded,
+  onToggle,
   onSelect,
   onRequestDelete,
   onCancelDelete,
@@ -552,6 +581,10 @@ function MemoryEntryRow({
   selected: boolean
   confirmingDelete: boolean
   deleting: boolean
+  /** True when this directory's contents are shown. */
+  expanded?: boolean
+  /** Collapses/expands this directory. */
+  onToggle?: () => void
   onSelect: () => void
   onRequestDelete: () => void
   onCancelDelete: () => void
@@ -573,10 +606,17 @@ function MemoryEntryRow({
       onDrop={onDirDrop}
     >
       {entry.type === 'dir' ? (
-        <span className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
+        <button
+          type="button"
+          className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-label={`${expanded ? 'Collapse' : 'Expand'} ${entry.path}`}
+        >
+          <ChevronRight className={`size-3 flex-none transition-transform ${expanded ? 'rotate-90' : ''}`} />
           <Folder className="size-3.5 flex-none" />
           <span className="truncate font-mono text-xs">{name}</span>
-        </span>
+        </button>
       ) : (
         <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left" onClick={onSelect}>
           <FileText className="text-muted-foreground size-3.5 flex-none" />
@@ -606,6 +646,15 @@ function MemoryEntryRow({
       )}
     </div>
   )
+}
+
+/** True when every ancestor directory of the path is expanded (root entries are always visible). */
+function isPathVisible(path: string, expandedDirs: Set<string>): boolean {
+  const segments = path.split('/')
+  for (let i = 1; i < segments.length; i++) {
+    if (!expandedDirs.has(segments.slice(0, i).join('/'))) return false
+  }
+  return true
 }
 
 /** True when a drag event carries OS files (rather than in-app text/element drags). */
