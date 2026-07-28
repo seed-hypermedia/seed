@@ -68,6 +68,58 @@ func TestDocmodelSmoke(t *testing.T) {
 	}
 }
 
+func TestFirstContentImage(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+
+	load := func(c blob.Encoded[*blob.Change]) *Document {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		must.Do(doc.ApplyChange(c.CID, c.Decoded))
+		return doc
+	}
+
+	t.Run("returns first image in reading order", func(t *testing.T) {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		must.Do(doc.MoveBlock("p1", "", ""))
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "p1", Type: "Paragraph", Text: "intro"}))
+		must.Do(doc.MoveBlock("img1", "", "p1"))
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "img1", Type: "Image", Link: "ipfs://first"}))
+		must.Do(doc.MoveBlock("img2", "", "img1"))
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "img2", Type: "Image", Link: "ipfs://second"}))
+
+		require.Equal(t, "ipfs://first", load(must.Do2(doc.SignChange(alice))).FirstContentImage())
+	})
+
+	t.Run("reading order wins over creation order", func(t *testing.T) {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		// The bottom image block is created first, then a second image is
+		// inserted above it. Reading order must return the top one.
+		must.Do(doc.MoveBlock("bottom", "", ""))
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "bottom", Type: "Image", Link: "ipfs://bottom"}))
+		must.Do(doc.MoveBlock("top", "", "")) // left sibling "" => first position
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "top", Type: "Image", Link: "ipfs://top"}))
+
+		require.Equal(t, "ipfs://top", load(must.Do2(doc.SignChange(alice))).FirstContentImage())
+	})
+
+	t.Run("no image returns empty", func(t *testing.T) {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		must.Do(doc.MoveBlock("p1", "", ""))
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "p1", Type: "Paragraph", Text: "no images"}))
+
+		require.Equal(t, "", load(must.Do2(doc.SignChange(alice))).FirstContentImage())
+	})
+
+	t.Run("image without a link is skipped", func(t *testing.T) {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		must.Do(doc.MoveBlock("empty", "", ""))
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "empty", Type: "Image", Link: ""}))
+		must.Do(doc.MoveBlock("real", "", "empty"))
+		must.Do(doc.ReplaceBlock(&documents.Block{Id: "real", Type: "Image", Link: "ipfs://real"}))
+
+		require.Equal(t, "ipfs://real", load(must.Do2(doc.SignChange(alice))).FirstContentImage())
+	})
+}
+
 func TestBug_RedundantReplaces(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 

@@ -140,6 +140,16 @@ type Index struct {
 	hookInFlight bool
 	hookNotify   chan struct{}
 	hookWorkerOn sync.Once
+
+	// deriveFirstContentImage computes a document's fallback cover image (the
+	// first image block in reading order) from its full change history. It's
+	// implemented by a higher layer (the documents API, which owns docmodel)
+	// and injected via SetDeriveFirstContentImage to avoid an import cycle.
+	// May be nil, in which case the derivation is skipped. Guarded by hookMu:
+	// the daemon wires it before the migration-triggered backfill reindex
+	// starts, but the documents server also (re)sets it later while indexing
+	// may already be running.
+	deriveFirstContentImage DeriveFirstContentImage
 }
 
 // indexedHookBatchSize caps how many blob ids a single hook transaction
@@ -263,6 +273,30 @@ func (idx *Index) WaitIndexedHook(ctx context.Context) error {
 	return nil
 }
 
+// DeriveFirstContentImage derives a fallback cover-image URL for a document
+// from the changes that make up its current version, in reading order.
+// Returns an empty string when the document has no image block.
+type DeriveFirstContentImage func(iri IRI, changes []ChangeRecord) (string, error)
+
+// SetDeriveFirstContentImage installs the fallback-cover-image deriver used
+// during indexing. Wire it before the backfill reindex task starts so the
+// migration-triggered reindex derives for every document; setting it again
+// later (e.g. from the documents server) is safe while indexing runs.
+// See DeriveFirstContentImage and FirstImageInContentAttr.
+func (idx *Index) SetDeriveFirstContentImage(fn DeriveFirstContentImage) {
+	idx.hookMu.Lock()
+	idx.deriveFirstContentImage = fn
+	idx.hookMu.Unlock()
+}
+
+// firstImageDeriver returns the installed fallback-cover-image deriver (nil if
+// none), race-safe against a concurrent SetDeriveFirstContentImage.
+func (idx *Index) firstImageDeriver() DeriveFirstContentImage {
+	idx.hookMu.RLock()
+	defer idx.hookMu.RUnlock()
+	return idx.deriveFirstContentImage
+}
+
 // OpenIndex creates the index and reindexes the data if necessary.
 // At some point we should probably make the reindexing a separate concern.
 func OpenIndex(ctx context.Context, db *sqlitex.Pool, log *zap.Logger) (*Index, error) {
@@ -339,6 +373,11 @@ type indexOpts struct {
 	// the caller flushes it only after the transaction commits, so a rolled-back
 	// batch contributes nothing. May be nil (no accounting).
 	Kinds *[]syncperf.KindSample
+
+	// DeriveFirstContentImage, when set, computes a document's fallback cover
+	// image during Ref indexing. Threaded from the owning Index via
+	// firstImageDeriver(). May be nil (derivation skipped).
+	DeriveFirstContentImage DeriveFirstContentImage
 }
 
 // indexBlob runs the per-blob indexers and (optionally) forward visibility
@@ -394,6 +433,7 @@ func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []by
 	ictx.kinds = opts.Kinds
 	ictx.writerCache = wc
 	ictx.hookIDs = hookIDs
+	ictx.deriveFirstContentImage = opts.DeriveFirstContentImage
 	if err := ictx.Unstash(); err != nil {
 		return err
 	}
@@ -936,6 +976,71 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 	}
 
 	return it, check
+}
+
+// changesFromHeadIDsConn loads all changes reachable from the given head
+// change ids (e.g. a documentGeneration's merged head set), in causal
+// (timestamp) order, using the provided connection. Unlike IterChanges it
+// reuses an existing connection instead of acquiring one from the pool, so it
+// is safe to call from inside an indexing transaction (where a separate pool
+// connection would not see the writes still pending in that transaction).
+//
+// The returned records carry the given generation so the caller can rebuild an
+// in-memory docmodel without a second lookup.
+func changesFromHeadIDsConn(conn *sqlite.Conn, bs *blockStore, headIDs []int64, generation int64) (_ []ChangeRecord, err error) {
+	headsJSON, err := json.Marshal(headIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []ChangeRecord
+	buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
+	rows, discard, check := sqlitex.Query(conn, qIterChangesFromHeads(), unsafeutil.StringFromBytes(headsJSON)).All()
+	defer discard(&err)
+	for row := range rows {
+		next := sqlite.NewIncrementor(0)
+		var (
+			codec = row.ColumnInt64(next())
+			hash  = row.ColumnBytesUnsafe(next())
+			data  = row.ColumnBytesUnsafe(next())
+		)
+
+		if len(data) == 0 {
+			//nolint:gosec
+			err = errors.Join(err, fmt.Errorf("changesFromHeadIDsConn: empty data for change %s", cid.NewCidV1(uint64(codec), hash)))
+			break
+		}
+
+		buf, err = bs.decoder.DecodeAll(data, buf)
+		if err != nil {
+			break
+		}
+
+		//nolint:gosec
+		chcid := cid.NewCidV1(uint64(codec), hash)
+		ch := &Change{}
+		if derr := cbornode.DecodeInto(buf, ch); derr != nil {
+			err = errors.Join(err, fmt.Errorf("changesFromHeadIDsConn: failed to decode change %s: %w", chcid, derr))
+			break
+		}
+
+		out = append(out, ChangeRecord{
+			CID:        chcid,
+			Data:       ch,
+			Generation: generation,
+		})
+
+		buf = buf[:0] // reset the slice reusing the backing array
+	}
+
+	if cerr := check(); cerr != nil {
+		err = errors.Join(err, cerr)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 // IsValidAgent checks whether a key is allowed to act as an agent for a given space.
@@ -1585,6 +1690,10 @@ type indexingCtx struct {
 	// updates the legacy tables but not the maintained RBSR index. Shared across
 	// the cascade via the threaded pointer. May be nil (no accumulation).
 	hookIDs *[]int64
+
+	// deriveFirstContentImage, when set, computes a document's fallback cover
+	// image during Ref indexing. Threaded from the owning Index. May be nil.
+	deriveFirstContentImage DeriveFirstContentImage
 }
 
 func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *indexingCtx {
@@ -1609,10 +1718,11 @@ func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *index
 // describe the whole transaction.
 func (idx *indexingCtx) childOpts() indexOpts {
 	return indexOpts{
-		TrackUnreads: idx.mustTrackUnreads,
-		ObservedAt:   idx.observedAt,
-		FromNetwork:  idx.fromNetwork,
-		Kinds:        idx.kinds,
+		TrackUnreads:            idx.mustTrackUnreads,
+		ObservedAt:              idx.observedAt,
+		FromNetwork:             idx.fromNetwork,
+		Kinds:                   idx.kinds,
+		DeriveFirstContentImage: idx.deriveFirstContentImage,
 	}
 }
 
