@@ -1112,6 +1112,8 @@ export function ResourcePage({
         <DocumentBody
           docId={renderedDocId}
           document={document}
+          documentSyncRouteKey={documentResourceRouteKey}
+          documentIsPlaceholderData={resource.isPreviousData}
           activeView={getActiveView(route.key)}
           isLatest={isLatest}
           siteUrl={siteHomeDocument?.metadata?.siteUrl}
@@ -1319,6 +1321,8 @@ function TransientResourceBanner({error}: {error: TransientResourceError}) {
 function DocumentBody({
   docId,
   document,
+  documentSyncRouteKey,
+  documentIsPlaceholderData,
   activeView,
   isLatest = true,
   siteUrl,
@@ -1354,6 +1358,10 @@ function DocumentBody({
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
+  /** Identifies intentional route-level version changes for document synchronization. */
+  documentSyncRouteKey?: string
+  /** Whether React Query is retaining the previous route's document while the selected version loads. */
+  documentIsPlaceholderData?: boolean
   /** Which tab/view to display */
   activeView: ActiveView
   isLatest?: boolean
@@ -1402,7 +1410,7 @@ function DocumentBody({
   transientResourceError?: TransientResourceError
 }) {
   // Sync document into state machine
-  useDocumentSync(document)
+  useDocumentSync(document, documentSyncRouteKey, documentIsPlaceholderData)
   // Sync canEdit changes into the machine (for account switching)
   useCapabilitySync(canEdit)
   // Sync isLatest changes into the machine (for old-version edit guard)
