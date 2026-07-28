@@ -508,7 +508,7 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
             key={videoSrc}
             contentEditable={false}
             playsInline
-            controls={!autoplay}
+            controls
             preload="metadata"
             autoPlay={!editor.isEditable && autoplay}
             loop={!editor.isEditable && loop}
