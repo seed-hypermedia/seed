@@ -21,6 +21,10 @@ export const EXEC_WORKSPACE_GUEST_PATH = '/workspace'
 export const MAX_EXEC_OUTPUT_BYTES = 64 * 1024
 /** Upper bound for a single execution timeout. */
 export const MAX_EXEC_TIMEOUT_SECS = 300
+/** Characters of recent combined output kept in live progress updates (enough for ~10 lines). */
+export const EXEC_OUTPUT_TAIL_CHARS = 2000
+/** Minimum interval between output-driven progress callbacks. */
+export const EXEC_PROGRESS_INTERVAL_MS = 250
 
 /** Code-execution backend configuration. */
 export type CodeExecConfig = {
@@ -50,6 +54,16 @@ export type CodeExecRequest = {
   code: string
   /** Optional timeout override in seconds, clamped to [1, MAX_EXEC_TIMEOUT_SECS]. */
   timeoutSecs?: number
+  /** Called with live progress while the execution runs, so callers can show what is happening. */
+  onProgress?: (progress: CodeExecProgress) => void
+}
+
+/** Live progress emitted during an execution. */
+export type CodeExecProgress = {
+  /** `starting` while the sandbox boots, `running` once the code is executing. */
+  stage: 'starting' | 'running'
+  /** Last ~EXEC_OUTPUT_TAIL_CHARS characters of combined stdout/stderr, when the backend streams output. */
+  outputTail?: string
 }
 
 /** One memory file changed by an execution. */
@@ -120,8 +134,25 @@ export type ExecOutputLike = {
   stderr(): string
 }
 
+/** Event from a streaming execution, mirroring the microsandbox `ExecEvent` shape. */
+export type ExecStreamEventLike =
+  | {kind: 'started'; pid: number}
+  | {kind: 'stdout'; data: Uint8Array}
+  | {kind: 'stderr'; data: Uint8Array}
+  | {kind: 'exited'; code: number}
+
+export type ExecStreamHandleLike = {
+  recv(): Promise<ExecStreamEventLike | null>
+  kill(): Promise<void>
+}
+
 export type SandboxLike = {
   execWith(cmd: string, configure: (builder: ExecOptionsBuilderLike) => ExecOptionsBuilderLike): Promise<ExecOutputLike>
+  /** Streaming variant of execWith; when present, output is streamed so progress can be reported live. */
+  execStreamWith?(
+    cmd: string,
+    configure: (builder: ExecOptionsBuilderLike) => ExecOptionsBuilderLike,
+  ): Promise<ExecStreamHandleLike>
   stop(): Promise<void>
   kill(): Promise<void>
 }
@@ -203,6 +234,7 @@ export function createCodeExecutor(
 
       const sdk = await getSdk()
       const startedAt = Date.now()
+      request.onProgress?.({stage: 'starting'})
       let sandbox: SandboxLike
       try {
         let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
@@ -239,19 +271,20 @@ export function createCodeExecutor(
       try {
         const command =
           request.language === 'python' ? {cmd: 'python', args: ['-c', code]} : {cmd: '/bin/sh', args: ['-c', code]}
-        let output: ExecOutputLike
+        request.onProgress?.({stage: 'running'})
+        let output: RawExecResult
         try {
-          output = await sandbox.execWith(command.cmd, (builder) =>
-            builder.args(command.args).timeout(timeoutSecs * 1000),
-          )
+          output = sandbox.execStreamWith
+            ? await runStreamingExec(sandbox, command, timeoutSecs, request.onProgress)
+            : await runBufferedExec(sandbox, command, timeoutSecs)
         } catch (error) {
           throw new CodeExecError(
             502,
             `Code execution failed: ${error instanceof Error ? error.message : String(error)}`,
           )
         }
-        const stdout = boundOutput(output.stdout())
-        const stderr = boundOutput(output.stderr())
+        const stdout = boundOutput(output.stdout)
+        const stderr = boundOutput(output.stderr)
         const after = snapshotMemory(request.stateDir)
         return {
           exitCode: output.code,
@@ -269,6 +302,88 @@ export function createCodeExecutor(
           await sandbox.kill().catch(() => {})
         }
       }
+    },
+  }
+}
+
+type RawExecResult = {code: number; success: boolean; stdout: string; stderr: string}
+
+type ExecCommand = {cmd: string; args: string[]}
+
+async function runBufferedExec(
+  sandbox: SandboxLike,
+  command: ExecCommand,
+  timeoutSecs: number,
+): Promise<RawExecResult> {
+  const output = await sandbox.execWith(command.cmd, (builder) =>
+    builder.args(command.args).timeout(timeoutSecs * 1000),
+  )
+  return {code: output.code, success: output.success, stdout: output.stdout(), stderr: output.stderr()}
+}
+
+/**
+ * Runs the command through the streaming exec API, reporting a throttled tail of combined output
+ * through `onProgress` as chunks arrive.
+ */
+async function runStreamingExec(
+  sandbox: SandboxLike,
+  command: ExecCommand,
+  timeoutSecs: number,
+  onProgress?: (progress: CodeExecProgress) => void,
+): Promise<RawExecResult> {
+  const handle = await sandbox.execStreamWith!(command.cmd, (builder) =>
+    builder.args(command.args).timeout(timeoutSecs * 1000),
+  )
+  const stdout = createOutputCollector()
+  const stderr = createOutputCollector()
+  const tailDecoders = {stdout: new TextDecoder(), stderr: new TextDecoder()}
+  let tail = ''
+  let exitCode: number | null = null
+  let lastProgressAt = 0
+  for (let event = await handle.recv(); event !== null; event = await handle.recv()) {
+    if (event.kind === 'stdout' || event.kind === 'stderr') {
+      ;(event.kind === 'stdout' ? stdout : stderr).push(event.data)
+      tail = (tail + tailDecoders[event.kind].decode(event.data, {stream: true})).slice(-EXEC_OUTPUT_TAIL_CHARS)
+      const now = Date.now()
+      if (onProgress && now - lastProgressAt >= EXEC_PROGRESS_INTERVAL_MS) {
+        lastProgressAt = now
+        onProgress({stage: 'running', outputTail: tail})
+      }
+    } else if (event.kind === 'exited') {
+      exitCode = event.code
+    }
+  }
+  if (exitCode === null) {
+    // The stream ended without an exit status, e.g. the exec timeout killed the process.
+    const note = '[execution ended without an exit status — likely timed out]'
+    const stderrText = stderr.text()
+    return {code: -1, success: false, stdout: stdout.text(), stderr: stderrText ? `${stderrText}\n${note}` : note}
+  }
+  return {code: exitCode, success: exitCode === 0, stdout: stdout.text(), stderr: stderr.text()}
+}
+
+type OutputCollector = {push(data: Uint8Array): void; text(): string}
+
+/** Accumulates stream chunks, keeping just past the return limit so boundOutput flags the overflow. */
+function createOutputCollector(): OutputCollector {
+  const chunks: Uint8Array[] = []
+  let total = 0
+  return {
+    push(data) {
+      const room = MAX_EXEC_OUTPUT_BYTES + 1 - total
+      if (room <= 0) return
+      const slice = data.byteLength > room ? data.slice(0, room) : data
+      chunks.push(slice)
+      total += slice.byteLength
+    },
+    text() {
+      const merged = new Uint8Array(total)
+      let offset = 0
+      for (const chunk of chunks) {
+        merged.set(chunk, offset)
+        offset += chunk.byteLength
+      }
+      return new TextDecoder().decode(merged)
     },
   }
 }

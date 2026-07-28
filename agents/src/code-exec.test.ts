@@ -9,7 +9,9 @@ import {
   MAX_EXEC_OUTPUT_BYTES,
   createCodeExecutor,
   defaultCodeExecConfig,
+  type CodeExecProgress,
   type ExecOutputLike,
+  type ExecStreamEventLike,
   type SandboxSdk,
 } from '@/code-exec'
 
@@ -42,6 +44,8 @@ function fakeSdk(
   call: FakeCall,
   behavior: {
     output?: Partial<ExecOutputLike> & {stdoutText?: string; stderrText?: string}
+    /** When set, the sandbox also offers execStreamWith replaying these events. */
+    stream?: ExecStreamEventLike[]
     onExec?: () => void
     createError?: Error
     execError?: Error
@@ -87,7 +91,31 @@ function fakeSdk(
           },
           create: async () => {
             if (behavior.createError) throw behavior.createError
+            const captureExec = (cmd: string, configure: (b: any) => any) => {
+              const exec: {cmd: string; args: string[]; timeoutMs?: number} = {cmd, args: []}
+              const optionsBuilder = {
+                args: (args: string[]) => ((exec.args = args), optionsBuilder),
+                timeout: (ms: number) => ((exec.timeoutMs = ms), optionsBuilder),
+              }
+              configure(optionsBuilder)
+              call.exec = exec
+            }
+            const streaming = behavior.stream
+              ? {
+                  execStreamWith: async (cmd: string, configure: (b: any) => any) => {
+                    captureExec(cmd, configure)
+                    behavior.onExec?.()
+                    if (behavior.execError) throw behavior.execError
+                    const events = [...behavior.stream!]
+                    return {
+                      recv: async () => events.shift() ?? null,
+                      kill: async () => {},
+                    }
+                  },
+                }
+              : {}
             return {
+              ...streaming,
               execWith: async (cmd: string, configure: (b: any) => any) => {
                 const exec: {cmd: string; args: string[]; timeoutMs?: number} = {cmd, args: []}
                 const optionsBuilder = {
@@ -209,6 +237,59 @@ describe('code exec', () => {
       expect(result.success).toBe(false)
       expect(result.truncated).toBe(true)
       expect(result.stdout.endsWith('[output truncated]')).toBe(true)
+    })
+  })
+
+  test('streams output with live progress when the backend supports streaming exec', async () => {
+    await withStateDir(async (stateDir) => {
+      const encode = (text: string) => new TextEncoder().encode(text)
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {
+          stream: [
+            {kind: 'started', pid: 42},
+            {kind: 'stdout', data: encode('hello\n')},
+            {kind: 'stderr', data: encode('warn\n')},
+            {kind: 'stdout', data: encode('done\n')},
+            {kind: 'exited', code: 0},
+          ],
+        }),
+      )
+      const progress: CodeExecProgress[] = []
+      const result = await executor.execute({
+        stateDir,
+        language: 'python',
+        code: 'print("hi")',
+        onProgress: (update) => progress.push(update),
+      })
+      expect(result).toMatchObject({exitCode: 0, success: true, stdout: 'hello\ndone\n', stderr: 'warn\n'})
+      expect(call.exec).toEqual({cmd: 'python', args: ['-c', 'print("hi")'], timeoutMs: 60_000})
+      // Stage progression: starting (sandbox boot), running (exec begins), then output-driven updates.
+      expect(progress[0]).toEqual({stage: 'starting'})
+      expect(progress[1]).toEqual({stage: 'running'})
+      const withTail = progress.filter((update) => update.outputTail)
+      expect(withTail.length).toBeGreaterThan(0)
+      expect(withTail[0]!.outputTail).toContain('hello')
+    })
+  })
+
+  test('reports a failed execution when the stream ends without an exit status', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {
+          stream: [
+            {kind: 'started', pid: 42},
+            {kind: 'stdout', data: new TextEncoder().encode('partial\n')},
+          ],
+        }),
+      )
+      const result = await executor.execute({stateDir, language: 'shell', code: 'sleep 999'})
+      expect(result.exitCode).toBe(-1)
+      expect(result.success).toBe(false)
+      expect(result.stdout).toBe('partial\n')
+      expect(result.stderr).toContain('without an exit status')
+      expect(call.stopped).toBe(true)
     })
   })
 

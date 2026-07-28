@@ -45,6 +45,18 @@ export function extractTriggerInstructions(content: string): string | undefined 
   return text ? text : undefined
 }
 
+/** Builds the shareable link to a session on its agent server. */
+export function buildAgentSessionUrl(
+  serverUrl: string,
+  agentId: string | undefined,
+  sessionId: string,
+): string | undefined {
+  if (!agentId) return undefined
+  return `${serverUrl.replace(/\/+$/, '')}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(
+    sessionId,
+  )}`
+}
+
 /** Builds the deep link to one event, used by the per-message share action. */
 export function buildAgentSessionEventUrl(
   serverUrl: string,
@@ -52,10 +64,16 @@ export function buildAgentSessionEventUrl(
   sessionId: string,
   eventId: string,
 ): string | undefined {
-  if (!agentId) return undefined
-  return `${serverUrl.replace(/\/+$/, '')}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(
-    sessionId,
-  )}#event=${encodeURIComponent(eventId)}`
+  const sessionUrl = buildAgentSessionUrl(serverUrl, agentId, sessionId)
+  return sessionUrl ? `${sessionUrl}#event=${encodeURIComponent(eventId)}` : undefined
+}
+
+/** True when the row contains a tool call still waiting for its result (i.e. currently executing). */
+export function chatRowHasPendingToolCall(row: AgentSessionChatRow): boolean {
+  if (row.kind !== 'message') return false
+  return (row.message.parts ?? []).some(
+    (part) => part.type === 'tool' && part.result === undefined && part.rawOutput === undefined,
+  )
 }
 
 /** Parses the `#event=<id>` hash used to focus a shared event. */

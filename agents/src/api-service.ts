@@ -1401,6 +1401,17 @@ export class Service {
         codeExec: this.#codeExec,
         onMemoryChange: () =>
           this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId}),
+        // emitProgress is declared below in this scope; tools only call this mid-run, after it exists.
+        onToolProgress: (toolName, progress) =>
+          emitProgress({
+            activity: {
+              phase: 'tool',
+              toolName,
+              toolCallId: progress.toolCallId,
+              detail: progress.detail,
+              outputTail: progress.outputTail,
+            },
+          }),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
       }),
       tools: [
@@ -1572,7 +1583,12 @@ export class Service {
           input: summarizeForLog(event.args),
         })
         emitProgress({
-          activity: {phase: 'tool', toolName: event.toolName, detail: summarizeToolArgs(event.args)},
+          activity: {
+            phase: 'tool',
+            toolName: event.toolName,
+            toolCallId: event.toolCallId,
+            detail: summarizeToolArgs(event.args),
+          },
         })
         appendedToolCalls.add(event.toolCallId)
         this.#appendSessionEvent(
@@ -3213,6 +3229,8 @@ type AgentServicePiToolContext = WriteToolContext & {
   stateDir: string
   /** Called after a memory tool mutates files, so clients watching the Memory tab refresh. */
   onMemoryChange: () => void
+  /** Reports live mid-call progress from a long-running tool, surfaced as run activity to clients. */
+  onToolProgress: (toolName: string, progress: {toolCallId?: string; detail?: string; outputTail?: string}) => void
   /** Sandboxed code execution against the memory workspace. */
   codeExec: CodeExecutor
 }
@@ -3233,15 +3251,15 @@ type ParsedWriteDocumentContent = {
 
 function defineSeedPiTool(
   metadata: SeedToolMetadata,
-  execute: (params: unknown) => Promise<unknown> | unknown,
+  execute: (params: unknown, toolCallId: string) => Promise<unknown> | unknown,
 ): pi.ToolDefinition {
   return pi.defineTool({
     name: metadata.name,
     label: metadata.label,
     description: metadata.description,
     parameters: metadata.inputSchema as never,
-    execute: async (_toolCallId, params) => {
-      const output = jsonSafeToolOutput(await execute(params))
+    execute: async (toolCallId, params) => {
+      const output = jsonSafeToolOutput(await execute(params, toolCallId))
       return {content: [{type: 'text', text: safeJSONStringify(output)}], details: output}
     },
   })
@@ -3418,8 +3436,9 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         contentType: result.contentType,
       }
     }),
-    defineSeedPiTool(seedToolRegistry.execute_code, async (params) => {
+    defineSeedPiTool(seedToolRegistry.execute_code, async (params, toolCallId) => {
       const input = isRecord(params) ? params : {}
+      const language = typeof input.language === 'string' ? input.language : 'code'
       let result
       try {
         result = await context.codeExec.execute({
@@ -3427,6 +3446,12 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
           language: input.language as never,
           code: typeof input.code === 'string' ? input.code : '',
           timeoutSecs: typeof input.timeout_secs === 'number' ? input.timeout_secs : undefined,
+          onProgress: (progress) =>
+            context.onToolProgress(seedToolRegistry.execute_code.name, {
+              toolCallId,
+              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${language} code…`,
+              outputTail: progress.outputTail,
+            }),
         })
       } catch (error) {
         if (error instanceof CodeExecError) throw new APIError(error.status, error.message)

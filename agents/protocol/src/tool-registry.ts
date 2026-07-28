@@ -836,10 +836,9 @@ export const seedToolRegistry: SeedToolRegistry = {
       summaryArg: 'language',
       summaryOutputPath: 'summary',
       details: [
-        {label: 'Code', source: 'input', path: 'code', format: 'markdown'},
-        {label: 'Output', source: 'output', path: 'stdout', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Result', source: 'output'},
+        {label: 'Code', source: 'input', path: 'code'},
+        {label: 'Output', source: 'output', path: 'stdout'},
+        {label: 'Errors', source: 'output', path: 'stderr'},
       ],
     },
     runtimes: ['agent-service'],

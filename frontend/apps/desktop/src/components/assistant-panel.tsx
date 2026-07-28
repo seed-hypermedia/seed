@@ -14,7 +14,7 @@ import {
   useStopAgentSession,
   type AgentSessionListEntry,
 } from '@/models/agents'
-import {buildAgentSessionChatRows} from '@/models/agent-session-rows'
+import {buildAgentSessionChatRows, buildAgentSessionUrl, chatRowHasPendingToolCall} from '@/models/agent-session-rows'
 import {
   resolveAssistantSelection,
   type AssistantAgentKey,
@@ -34,13 +34,14 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {
   ArrowDown,
   Bot,
   ChevronDown,
   LayoutGrid,
-  Loader2,
+  Link2,
   Maximize2,
   MessageCirclePlus,
   MoreHorizontal,
@@ -50,7 +51,9 @@ import {
   Trash2,
 } from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
+import {useChatAutoScroll} from './chat-autoscroll'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {ChatMessageComposer} from './chat-message-composer'
@@ -226,6 +229,20 @@ export function AssistantPanel({
               >
                 <Maximize2 className="size-3.5" />
                 Open
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={!sessionAgentId}
+                onClick={() => {
+                  const url =
+                    sessionAgentId &&
+                    buildAgentSessionUrl(activeSession.serverUrl, sessionAgentId, activeSession.sessionId)
+                  if (!url) return
+                  void navigator.clipboard?.writeText(url)
+                  toast.success('Session URL copied')
+                }}
+              >
+                <Link2 className="size-3.5" />
+                Copy URL
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -544,13 +561,11 @@ function AssistantSessionChat({
   windowContextLinesRef.current = windowContextLines
 
   const [input, setInput] = useState('')
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [isNearBottom, setIsNearBottom] = useState(true)
-  const [showScrollButton, setShowScrollButton] = useState(false)
+  const autoScroll = useChatAutoScroll()
 
   const status = session.data?.session.status
   const isStreaming = status === 'streaming'
+  const runStartedAt = useRunStartedAt(isStreaming)
   const events = session.data?.events
   const rows = useMemo(
     () =>
@@ -562,27 +577,6 @@ function AssistantSessionChat({
       }),
     [events, serverUrl, sessionId, session.data?.session.agentId, session.data?.triggerContext],
   )
-
-  const checkIsNearBottom = useCallback(() => {
-    const container = messagesContainerRef.current
-    if (!container) return true
-    return container.scrollHeight - container.scrollTop - container.clientHeight <= 100
-  }, [])
-
-  const handleScroll = useCallback(() => {
-    const nearBottom = checkIsNearBottom()
-    setIsNearBottom(nearBottom)
-    if (nearBottom) setShowScrollButton(false)
-  }, [checkIsNearBottom])
-
-  useEffect(() => {
-    if (isNearBottom) {
-      const container = messagesContainerRef.current
-      if (container) container.scrollTop = container.scrollHeight
-    } else if (isStreaming) {
-      setShowScrollButton(true)
-    }
-  }, [rows.length, live.text, isNearBottom, isStreaming])
 
   const doSendMessage = useCallback(
     (content: string | string[]) => {
@@ -609,48 +603,54 @@ function AssistantSessionChat({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div ref={messagesContainerRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-3 py-2">
-        {rows.length === 0 && !isStreaming ? (
-          <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-            Send a message to start chatting
-          </div>
-        ) : null}
-        {rows.map((row) => {
-          if (row.kind === 'message') return <ChatMessageBubble key={row.key} message={row.message} />
-          if (row.kind === 'error') {
-            return (
-              <div key={row.key} className="text-destructive my-1 rounded-lg px-3 py-2 text-xs">
-                {row.message}
-              </div>
-            )
-          }
-          return null
-        })}
-        {live.text ? (
-          <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
-        ) : isStreaming ? (
-          <div className="bg-muted my-1 mr-6 rounded-lg px-3 py-2 text-xs">
-            <div className="text-muted-foreground flex items-center gap-2">
-              <Loader2 className="size-3.5 animate-spin" />
-              <span>{live.activity?.phase === 'tool' ? `Using ${live.activity.toolName}…` : 'Thinking…'}</span>
+      <div
+        ref={autoScroll.containerRef}
+        onScroll={autoScroll.handleScroll}
+        className="relative flex-1 overflow-y-auto px-3 py-2"
+      >
+        <div ref={autoScroll.contentRef} className="flex min-h-full flex-col">
+          {rows.length === 0 && !isStreaming ? (
+            <div className="text-muted-foreground flex flex-1 items-center justify-center text-xs">
+              Send a message to start chatting
             </div>
-          </div>
-        ) : null}
-        <div ref={messagesEndRef} />
-        {showScrollButton ? (
-          <div className="pointer-events-none sticky bottom-2 flex justify-center">
-            <button
-              onClick={() => {
-                setShowScrollButton(false)
-                setIsNearBottom(true)
-                messagesEndRef.current?.scrollIntoView({behavior: 'smooth'})
-              }}
-              className="bg-muted border-border text-foreground pointer-events-auto rounded-full border p-1.5 shadow-lg"
-            >
-              <ArrowDown className="size-4" />
-            </button>
-          </div>
-        ) : null}
+          ) : null}
+          {rows.map((row) => {
+            if (row.kind === 'message')
+              return (
+                <ChatMessageBubble
+                  key={row.key}
+                  message={row.message}
+                  liveActivity={chatRowHasPendingToolCall(row) ? live.activity : undefined}
+                />
+              )
+            if (row.kind === 'error') {
+              return (
+                <div key={row.key} className="text-destructive my-1 rounded-lg px-3 py-2 text-xs">
+                  {row.message}
+                </div>
+              )
+            }
+            return null
+          })}
+          {live.text ? (
+            <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
+          ) : null}
+          {isStreaming && !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
+            // Hidden while a pending tool row is showing its own live status, to avoid two spinners.
+            <AgentRunStatusBar startedAt={runStartedAt} activity={live.activity} usage={live.usage} />
+          ) : null}
+          {autoScroll.showScrollButton ? (
+            <div className="pointer-events-none sticky bottom-2 flex justify-center">
+              <button
+                onClick={autoScroll.scrollToBottom}
+                className="bg-muted border-border text-foreground pointer-events-auto rounded-full border p-1.5 shadow-lg"
+                aria-label="Scroll to latest message"
+              >
+                <ArrowDown className="size-4" />
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <QueuedChatMessages messages={queuedMessages} />
