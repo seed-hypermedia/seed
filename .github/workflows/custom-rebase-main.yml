@@ -58,11 +58,10 @@ jobs:
       - name: Mirror new upstream tags
         id: tags
         run: |
-          list_tags() {
-            git ls-remote --tags "$1" | awk '{print $2}' | sed 's#^refs/tags/##' | { grep -v '\^{}$' || true; } | sort -u
-          }
-          list_tags upstream > /tmp/upstream-tags
-          list_tags origin > /tmp/origin-tags
+          # Compare local tags (the snapshot fetched from upstream) against origin, so every
+          # tag pushed below is guaranteed to exist locally even if upstream tags mid-run.
+          git tag --list | sort -u > /tmp/upstream-tags
+          git ls-remote --tags origin | awk '{print $2}' | sed 's#^refs/tags/##' | { grep -v '\^{}$' || true; } | sort -u > /tmp/origin-tags
           new_tags=$(comm -23 /tmp/upstream-tags /tmp/origin-tags)
           if [ -z "$new_tags" ]; then
             echo 'No new upstream tags.'
