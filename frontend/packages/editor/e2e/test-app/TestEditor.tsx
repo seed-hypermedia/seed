@@ -496,6 +496,9 @@ function RealModeInner({fixtureName}: {fixtureName: FixtureName}) {
         <DocumentEditor
           blocks={fixtures[fixtureName] as any}
           resourceId={editModeId}
+          blockCitations={
+            Object.fromEntries(fixtures[fixtureName].map((b: any) => [b.id, {citations: 0, comments: 1}])) as any
+          }
           onEditorReady={setEditor}
           draftCursorPosition={draftCursorPosition}
           isUnpublishedDraft={publishedParam === 'none'}
