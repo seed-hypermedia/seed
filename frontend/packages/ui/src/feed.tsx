@@ -104,6 +104,13 @@ export const RESTORE_VERSION_DIALOG = {
   restoreVariant: 'danger',
 } as const
 
+/** Shared classes for version-row action buttons; leaves the icon button dimensions untouched. */
+export const RESTORE_VERSION_ACTION_BUTTON_CLASS =
+  'text-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out'
+
+/** Shared classes for version-row action icons so restore/copy actions stay readable. */
+export const RESTORE_VERSION_ACTION_ICON_CLASS = 'size-4'
+
 export function Feed({
   filterResource,
   filterAuthors,
@@ -510,14 +517,14 @@ function EventHeaderContent({
             aria-label="Restore"
             size="icon"
             variant="ghost"
-            className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+            className={RESTORE_VERSION_ACTION_BUTTON_CLASS}
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
               setRestoreDialogOpen(true)
             }}
           >
-            <RotateCcw className="size-3" />
+            <RotateCcw className={RESTORE_VERSION_ACTION_ICON_CLASS} />
           </Button>
         </Tooltip>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
@@ -590,7 +597,7 @@ function EventHeaderContent({
             <Button
               size="icon"
               variant="ghost"
-              className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+              className={RESTORE_VERSION_ACTION_BUTTON_CLASS}
               onClick={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -612,7 +619,7 @@ function EventHeaderContent({
                 onPushReference?.(versionedId)
               }}
             >
-              <Link className="size-3" />
+              <Link className={RESTORE_VERSION_ACTION_ICON_CLASS} />
             </Button>
           </Tooltip>
         </div>
