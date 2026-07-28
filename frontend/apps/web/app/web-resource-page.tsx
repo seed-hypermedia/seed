@@ -7,9 +7,9 @@ import {getDocumentTitle} from '@shm/shared/content'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import type {DocumentContentProps} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
+import {HomeDraftProvider} from '@shm/shared/home-draft-context'
 import {type EditorAccessor} from '@shm/shared/models/document-machine'
 import {useResource} from '@shm/shared/models/entity'
-import {HomeDraftProvider} from '@shm/shared/home-draft-context'
 import {selectContext, useDocumentMachineRef} from '@shm/shared/models/use-document-machine'
 import {QueryBlockDraftsProvider} from '@shm/shared/query-block-drafts-context'
 import {replaceRouteDocumentId} from '@shm/shared/routes'
@@ -22,6 +22,7 @@ import {pathNameify} from '@shm/shared/utils/path'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 import {getDraftReturnParentId, isReservedLazyDraftId} from '@shm/shared/utils/reserved-draft-ids'
+import {Button} from '@shm/ui/button'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {EditingDocToolsRight, type EditingToolbarCallbacks} from '@shm/ui/editing-toolbar'
 import {Trash} from '@shm/ui/icons'
@@ -62,6 +63,7 @@ import {restoreWebDocumentVersion} from './document-edit/web-restore-document-ve
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
+import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
 import {WebQuerySearchInput} from './web-query-search-input'
@@ -333,11 +335,24 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     return () => editProfileDialog.open({accountUid: profileAccountUid})
   }, [isOwnProfile, isDelegated, profileAccountUid, editProfileDialog])
 
-  // Profile header buttons (vault account settings + logout) - only for own profile
+  // "Create a space" side panel, opened from the profile header.
+  const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
+  const {data: hasExistingSpace} = useHasExistingSpace(isOwnProfile ? ownAccountUid : undefined)
+
+  // Profile header buttons (create space + vault account settings + logout) - only for own profile
   const profileHeaderButtons = useMemo(() => {
     if (!isOwnProfile) return undefined
-    return <LogoutButton />
-  }, [isOwnProfile])
+    return (
+      <>
+        {hasExistingSpace ? null : (
+          <Button variant="default" onClick={openCreateSpaceDialog}>
+            Create Space
+          </Button>
+        )}
+        <LogoutButton />
+      </>
+    )
+  }, [isOwnProfile, hasExistingSpace, openCreateSpaceDialog])
 
   // Follow intent flow for unauthenticated users
   const {content: followAccountContent, createAccount: openFollowAccountDialog} = useCreateAccount({
@@ -667,6 +682,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       </CommentsProvider>
       {editProfileDialog.content}
       {followAccountContent}
+      {createSpaceDialogContent}
       {createAccountContent}
       {newMenuContent}
       {deleteDialog.content}

@@ -2,15 +2,14 @@ import {useLocalKeyPair} from '@/auth'
 import {createSpaceHomeDraft} from '@/document-edit/web-create-space-draft'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
 import {webUniversalClient} from '@/universal-client'
+import {useHasExistingSpace} from '@/web-create-space-dialog'
 import {useNavigate} from '@remix-run/react'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {createSpaceMetadata} from '@shm/ui/create-space-platform'
 import {CreateSpaceForm, type CreateSpaceFormState} from '@shm/ui/create-space-form'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useQuery} from '@tanstack/react-query'
 import {useMemo, useState} from 'react'
 
 function Panel({children}: {children: React.ReactNode}) {
@@ -35,19 +34,7 @@ export default function CreateSiteRoute() {
   const fileUpload = useMemo(() => makeWebFileUpload(webUniversalClient), [])
 
   // When signed in, check whether this account already has a space.
-  const existingSpace = useQuery({
-    queryKey: ['create-space-existing-home', accountUid],
-    enabled: !!accountUid,
-    queryFn: async () => {
-      if (!accountUid) return false
-      try {
-        const res = (await webUniversalClient.request('Resource', hmId(accountUid, {path: []}))) as {type?: string}
-        return res?.type === 'document'
-      } catch {
-        return false
-      }
-    },
-  })
+  const existingSpace = useHasExistingSpace(accountUid)
 
   async function handleComplete(state: CreateSpaceFormState) {
     setBusy(true)

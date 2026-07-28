@@ -192,7 +192,7 @@ function SiteLink({account}: {account?: HMMetadataPayload | null}) {
   const hostname = getSiteHostname(siteUrl)
   const homeDocument = useResource(homeId, {subscribed: true})
   const homeDocData = homeDocument.data?.type === 'document' ? homeDocument.data.document : null
-  const hasSite = !!siteUrl || !!homeDocData?.content?.length
+  const hasSite = !!siteUrl || !!homeDocData
   const domainInfo = useDomain(hostname, {
     enabled: !!hostname,
     retry: false,
