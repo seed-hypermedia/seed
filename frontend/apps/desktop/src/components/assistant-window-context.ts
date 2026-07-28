@@ -17,7 +17,16 @@ import {useMemo} from 'react'
 export type AssistantWindowContext = {
   url?: string
   title?: string
-  view?: 'document' | 'comments' | 'directory' | 'activity' | 'collaborators' | 'feed' | 'inspect' | 'draft'
+  view?:
+    | 'document'
+    | 'comments'
+    | 'directory'
+    | 'activity'
+    | 'collaborators'
+    | 'feed'
+    | 'inspect'
+    | 'draft'
+    | 'attributes'
   activePanel?: 'comments' | 'activity' | 'directory' | 'collaborators' | 'options'
   openComment?: string
   focusedBlockId?: string
@@ -62,7 +71,16 @@ export function useAssistantWindowContextLines(): string[] | undefined {
   const documentTitle =
     resource.data?.type === 'document' ? resource.data.document?.metadata?.name || undefined : undefined
 
-  const context = useMemo<AssistantWindowContext | undefined>(() => {
+  const context = useMemo(() => deriveAssistantWindowContext(navRoute, documentTitle), [navRoute, documentTitle])
+  return useMemo(() => formatWindowContextLines(context), [context])
+}
+
+/** Pure route → context derivation, exported for tests. */
+export function deriveAssistantWindowContext(
+  navRoute: ReturnType<typeof useNavRoute>,
+  documentTitle: string | undefined,
+): AssistantWindowContext | undefined {
+  {
     const panel =
       'panel' in navRoute ? (navRoute.panel as {key: string; openComment?: string} | null | undefined) : undefined
     const activePanel = panel?.key as AssistantWindowContext['activePanel']
@@ -88,6 +106,20 @@ export function useAssistantWindowContextLines(): string[] | undefined {
           }
           if (panel?.key === 'comments' && panel.openComment) ctx.openComment = panel.openComment
           return ctx
+        } catch {
+          return undefined
+        }
+      }
+      // The attributes tab: surfaced in URLs as `:attributes`, routed as `metadata`.
+      case 'metadata': {
+        const id = navRoute.id
+        try {
+          return {
+            url: packHmId(id),
+            title: documentTitle,
+            view: 'attributes',
+            activePanel,
+          }
         } catch {
           return undefined
         }
@@ -126,7 +158,5 @@ export function useAssistantWindowContextLines(): string[] | undefined {
       default:
         return undefined
     }
-  }, [navRoute, documentTitle])
-
-  return useMemo(() => formatWindowContextLines(context), [context])
+  }
 }

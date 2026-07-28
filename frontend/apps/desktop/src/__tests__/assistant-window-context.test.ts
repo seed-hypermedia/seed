@@ -5,7 +5,7 @@ import {describe, expect, it, vi} from 'vitest'
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavRoute: () => ({key: 'library'})}))
 
-import {formatWindowContextLines} from '../components/assistant-window-context'
+import {deriveAssistantWindowContext, formatWindowContextLines} from '../components/assistant-window-context'
 
 /**
  * The window-context lines attached to assistant sends.
@@ -51,5 +51,36 @@ describe('formatWindowContextLines', () => {
     // A context part with no referent is pure token noise on every send.
     expect(formatWindowContextLines(undefined)).toBeUndefined()
     expect(formatWindowContextLines({view: 'feed'})).toBeUndefined()
+  })
+})
+
+describe('deriveAssistantWindowContext', () => {
+  const docId = {
+    id: 'hm://z6MkDoc/employees',
+    uid: 'z6MkDoc',
+    path: ['employees'],
+    version: null,
+    blockRef: null,
+    blockRange: null,
+    hostname: null,
+    latest: true,
+    scheme: null,
+  }
+
+  it('describes the attributes tab, which routes as `metadata`', () => {
+    // Regression: the attributes view sent no context at all, so the agent had no idea the user
+    // was looking at a document's attributes.
+    const context = deriveAssistantWindowContext({key: 'metadata', id: docId} as never, 'Employees')
+    expect(context?.view).toBe('attributes')
+    expect(context?.url).toBe('hm://z6MkDoc/employees')
+    const lines = formatWindowContextLines(context)
+    expect(lines).toContain('View: attributes')
+    expect(lines).toContain('Title: "Employees"')
+  })
+
+  it('describes the plain document view', () => {
+    const context = deriveAssistantWindowContext({key: 'document', id: docId} as never, 'Employees')
+    expect(context?.view).toBe('document')
+    expect(context?.url).toBe('hm://z6MkDoc/employees')
   })
 })

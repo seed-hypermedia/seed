@@ -45,7 +45,13 @@ import {
 } from '@seed-hypermedia/client'
 import type {DocumentOperation} from '@seed-hypermedia/client'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
-import type {HMSigner, HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {
+  HMSigner,
+  HMBlockNode,
+  HMDocument,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as pi from '@mariozechner/pi-coding-agent'
 import {CID} from 'multiformats/cid'
@@ -4294,7 +4300,22 @@ function emptyPiUsage(): {
   }
 }
 
-async function readHypermedia(input: unknown): Promise<Record<string, unknown>> {
+/**
+ * Detects a trailing `:attributes` view term (or its legacy `:metadata` spelling) on a resolved id
+ * and strips it, so the underlying document can be fetched. The caller then returns only the
+ * document's metadata — the same thing the desktop's attributes tab shows.
+ */
+function stripAttributesViewTerm(id: UnpackedHypermediaId): {
+  id: UnpackedHypermediaId
+  attributesOnly: boolean
+} {
+  const lastTerm = id.path?.[id.path.length - 1]
+  if (lastTerm !== ':attributes' && lastTerm !== ':metadata') return {id, attributesOnly: false}
+  return {id: {...id, path: id.path!.slice(0, -1)}, attributesOnly: true}
+}
+
+/** Exported for tests. Implements the agent `read` tool. */
+export async function readHypermedia(input: unknown): Promise<Record<string, unknown>> {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new APIError(400, 'Tool input must be an object')
   const requestedId = normalizeBoundedString((input as {id?: unknown}).id, 'Hypermedia ID', 2048)
@@ -4326,6 +4347,9 @@ async function readHypermedia(input: unknown): Promise<Record<string, unknown>> 
   if (id.path?.[0] === ':profile') {
     return readProfileHypermedia({requestedId, id, client, serverUrl, server, dev})
   }
+  const stripped = stripAttributesViewTerm(id)
+  id = stripped.id
+  const attributesOnly = stripped.attributesOnly
   let resource = await client.request('Resource', id)
   if (
     (resource.type === 'not-found' || resource.type === 'error') &&
@@ -4334,9 +4358,10 @@ async function readHypermedia(input: unknown): Promise<Record<string, unknown>> 
     requestedId.startsWith('hm:')
   ) {
     const devResolved = await resolveIdWithClient(requestedId, {serverUrl: 'https://dev.hyper.media'})
-    const devResource = await devResolved.client.request('Resource', devResolved.id)
+    const devId = stripAttributesViewTerm(devResolved.id).id
+    const devResource = await devResolved.client.request('Resource', devId)
     if (devResource.type !== 'not-found' && devResource.type !== 'error') {
-      id = devResolved.id
+      id = devId
       serverUrl = devResolved.serverUrl
       resource = devResource
     }
@@ -4355,6 +4380,11 @@ async function readHypermedia(input: unknown): Promise<Record<string, unknown>> 
     result.title = resource.document.metadata?.name
     result.version = resource.document.version
     result.metadata = resource.document.metadata
+    if (attributesOnly) {
+      // The :attributes view is exactly the metadata — never the document content.
+      result.view = 'attributes'
+      return result
+    }
     if (outputFormat === 'json') {
       result.resource = resource
     } else {

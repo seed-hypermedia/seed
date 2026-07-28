@@ -11,6 +11,62 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 
 describe('api service', () => {
+  test('read tool returns only metadata for :attributes URLs', async () => {
+    // Mirrors the desktop's attributes tab: `<doc>/:attributes` is a view term, not a path
+    // segment. The regression this guards: the term being sent to the HM server as part of the
+    // document path (a not-found), or the full document content coming back when only the
+    // metadata was asked for.
+    const originalFetch = globalThis.fetch
+    const resourceRequests: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      if (href.includes('/api/Resource')) {
+        resourceRequests.push(href)
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId('hm://z6MkDoc/employees'),
+            document: {
+              content: [{block: {id: 'b1', type: 'Paragraph', text: 'Secret roster body'}, children: []}],
+              version: 'v7',
+              account: 'z6MkDoc',
+              authors: [],
+              path: '/employees',
+              createTime: '',
+              updateTime: '',
+              metadata: {name: 'Employees', summary: 'Team roster'},
+              genesis: 'genesis',
+              visibility: 'PUBLIC',
+            },
+          }),
+        )
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    try {
+      const result = await apisvc.readHypermedia({
+        id: 'https://hyper.media/hm/z6MkDoc/employees/:attributes',
+      })
+
+      // The view term was stripped before hitting the resolver.
+      expect(resourceRequests).toHaveLength(1)
+      expect(resourceRequests[0]).not.toContain(':attributes')
+      expect(resourceRequests[0]).toContain('hm://z6MkDoc/employees')
+
+      // Metadata only: no document content in any form.
+      expect(result.view).toBe('attributes')
+      expect(result.metadata).toEqual({name: 'Employees', summary: 'Team roster'})
+      expect(result.title).toBe('Employees')
+      expect(result.version).toBe('v7')
+      expect(result.markdown).toBeUndefined()
+      expect(result.resource).toBeUndefined()
+      expect(JSON.stringify(result)).not.toContain('Secret roster body')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('creates and lists agents for the signed account', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {
