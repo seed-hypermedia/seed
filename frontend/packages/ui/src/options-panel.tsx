@@ -1,5 +1,5 @@
 import {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {useEffect, useRef, useState} from 'react'
+import {useState} from 'react'
 import {PanelContent} from './accessories'
 import {Button} from './button'
 import {DatePicker} from './components/date-picker'
@@ -10,7 +10,6 @@ import {getDaemonFileUrl} from './get-file-url'
 import {IconForm} from './icon-form'
 import {ImageForm} from './image-form'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
-import {SizableText} from './text'
 
 export function OptionsPanel({
   draftId,
@@ -34,21 +33,12 @@ export function OptionsPanel({
             <DocumentIconForm draftId={draftId} metadata={metadata} onMetadata={onMetadata} fileUpload={fileUpload} />
             <HeaderLogo draftId={draftId} metadata={metadata} onMetadata={onMetadata} fileUpload={fileUpload} />
             <HeaderLayout metadata={metadata} onMetadata={onMetadata} />
-
-            <SizableText className="mt-4 flex-1 px-1 select-none" size="md" weight="semibold">
-              Document Options
-            </SizableText>
-            <CoverImage draftId={draftId} metadata={metadata} onMetadata={onMetadata} fileUpload={fileUpload} />
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <ContentWidth metadata={metadata} onMetadata={onMetadata} />
             <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
           </>
         ) : (
           <>
-            <NameInput metadata={metadata} onMetadata={onMetadata} />
-            <SummaryInput metadata={metadata} onMetadata={onMetadata} />
-            <DocumentIconForm draftId={draftId} metadata={metadata} onMetadata={onMetadata} fileUpload={fileUpload} />
-            <CoverImage draftId={draftId} metadata={metadata} onMetadata={onMetadata} fileUpload={fileUpload} />
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <OutlineVisibility metadata={metadata} onMetadata={onMetadata} />
             <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
@@ -71,61 +61,6 @@ function NameInput({metadata, onMetadata}: {metadata: HMMetadata; onMetadata: (v
         onChange={(e) => {
           const name = e.target.value
           onMetadata({name})
-        }}
-      />
-    </div>
-  )
-}
-
-function SummaryInput({
-  metadata,
-  onMetadata,
-}: {
-  metadata: HMMetadata
-  onMetadata: (values: Partial<HMMetadata>) => void
-}) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const adjustHeight = (textarea: HTMLTextAreaElement) => {
-    textarea.style.height = 'auto'
-    textarea.style.height = `${textarea.scrollHeight > 150 ? 150 : textarea.scrollHeight}px`
-
-    if (textarea.scrollHeight > 150) {
-      textarea.style.overflow = 'auto'
-    } else {
-      textarea.style.overflow = 'hidden'
-    }
-  }
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      adjustHeight(textareaRef.current)
-    }
-  }, [metadata.summary])
-
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const textarea = e.target
-    onMetadata({summary: textarea.value.replace(/\n/g, '')})
-  }
-
-  return (
-    <div className="flex flex-col gap-1">
-      <Label size="sm" className="text-muted-foreground">
-        Summary
-      </Label>
-      <textarea
-        ref={textareaRef}
-        className="bg-muted border-border w-full rounded-md border-1 p-2 px-4"
-        style={{
-          resize: 'none',
-          minHeight: '38px',
-          overflow: 'hidden',
-        }}
-        value={metadata.summary}
-        onChange={handleTextareaChange}
-        onInput={(e) => {
-          const textarea = e.target as HTMLTextAreaElement
-          adjustHeight(textarea)
         }}
       />
     </div>
@@ -164,45 +99,6 @@ function DocumentIconForm({
         onRemoveIcon={() => {
           onMetadata({
             icon: '',
-          })
-        }}
-      />
-    </div>
-  )
-}
-
-function CoverImage({
-  draftId,
-  metadata,
-  onMetadata,
-  fileUpload,
-}: {
-  draftId: string
-  metadata: HMMetadata
-  onMetadata: (values: Partial<HMMetadata>) => void
-  fileUpload?: (file: File) => Promise<string>
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <Label size="sm" className="text-muted-foreground">
-        Cover Image
-      </Label>
-      <ImageForm
-        height={100}
-        id={`cover-${draftId}`}
-        label={metadata.cover}
-        url={metadata.cover ? getDaemonFileUrl(metadata.cover) : ''}
-        fileUpload={fileUpload}
-        onImageUpload={(imageCid) => {
-          if (imageCid) {
-            onMetadata({
-              cover: `ipfs://${imageCid}`,
-            })
-          }
-        }}
-        onRemove={() => {
-          onMetadata({
-            cover: '',
           })
         }}
       />

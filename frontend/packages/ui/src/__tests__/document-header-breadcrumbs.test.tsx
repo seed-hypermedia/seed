@@ -176,4 +176,27 @@ describe('DocumentHeader Breadcrumbs', () => {
       errorSpy.mockRestore()
     }
   })
+
+  it('renders an editor remove button on the actual document icon', () => {
+    const onRemoveIcon = vi.fn()
+
+    renderWithProvider(
+      <DocumentHeader
+        docId={hmId('site', {path: ['doc']})}
+        docMetadata={{name: 'Doc', icon: 'ipfs://icon-cid'} as any}
+        authors={[]}
+        updateTime={null}
+        onRemoveIcon={onRemoveIcon}
+      />,
+    )
+
+    const removeButton = container.querySelector<HTMLButtonElement>('button[aria-label="Remove document icon"]')
+    expect(removeButton).not.toBeNull()
+
+    act(() => {
+      removeButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+
+    expect(onRemoveIcon).toHaveBeenCalledOnce()
+  })
 })

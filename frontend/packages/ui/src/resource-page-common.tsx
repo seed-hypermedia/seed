@@ -100,6 +100,7 @@ import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
+import {EditableDocumentMetadataFields, HomeDocumentMetadataAffordanceBar} from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
@@ -1457,6 +1458,8 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  const send = useDocumentSend()
+  const {beginEditIfNeeded} = useEditorGate()
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = useMemo(
     () => ({...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}),
@@ -1479,6 +1482,19 @@ function DocumentBody({
   const isBlockInPublishedVersion = useCallback(
     (blockId: string) => publishedBlockIds.has(blockId),
     [publishedBlockIds],
+  )
+  const removeCover = useCallback(() => {
+    beginEditIfNeeded()
+    send({type: 'change', metadata: {cover: ''}})
+  }, [beginEditIfNeeded, send])
+  const changeCover = useCallback(
+    async (file: File) => {
+      if (!fileUpload) return
+      const cid = await fileUpload(file)
+      beginEditIfNeeded()
+      send({type: 'change', metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
+    },
+    [beginEditIfNeeded, fileUpload, send],
   )
 
   // Capture the editor instance locally and forward to upstream onEditorReady.
@@ -2186,7 +2202,14 @@ function DocumentBody({
         !pageFooter && 'min-h-full',
       )}
     >
-      <DocumentCover cover={metadata?.cover} />
+      <DocumentCover
+        cover={metadata?.cover}
+        onRemove={canEdit && metadata?.cover ? removeCover : undefined}
+        onChangeCover={canEdit && metadata?.cover && fileUpload ? changeCover : undefined}
+      />
+      {isHomeDoc && canEdit && activeView === 'content' ? (
+        <HomeDocumentMetadataControls metadata={metadata as any} fileUpload={fileUpload} />
+      ) : null}
 
       {!isMobile ? (
         <div {...wrapperProps} className={cn(wrapperProps.className, 'flex-none', !showSidebars && 'justify-center')}>
@@ -2237,6 +2260,7 @@ function DocumentBody({
                   breadcrumbs={breadcrumbs}
                   visibility={headerVisibility}
                   version={document.version}
+                  fileUpload={fileUpload}
                 />
               ) : (
                 <DocumentHeader
@@ -2299,6 +2323,7 @@ function DocumentBody({
                 breadcrumbs={breadcrumbs}
                 visibility={headerVisibility}
                 version={document.version}
+                fileUpload={fileUpload}
               />
             ) : (
               <DocumentHeader
@@ -2560,6 +2585,7 @@ function EditableDocumentHeader({
   breadcrumbs,
   visibility,
   version,
+  fileUpload,
 }: {
   docId: UnpackedHypermediaId
   docMetadata: HMDocument['metadata']
@@ -2568,77 +2594,16 @@ function EditableDocumentHeader({
   breadcrumbs?: BreadcrumbEntry[]
   visibility?: string
   version?: HMDocument['version'] | null
+  fileUpload?: (file: File) => Promise<string>
 }) {
   const ctx = useDocumentSelector(selectContext)
   const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
-  const inputName = useRef<HTMLTextAreaElement | null>(null)
-  const inputSummary = useRef<HTMLTextAreaElement | null>(null)
 
   // Use machine context metadata if it has been changed, otherwise fall back to document metadata
   const name = ctx.metadata?.name ?? docMetadata?.name ?? ''
   const summary = ctx.metadata?.summary ?? docMetadata?.summary ?? ''
-
-  // Reflow both textareas. Runs the resize immediately, on the next animation
-  // frame (after React commits paint), and once fonts have loaded — reading
-  // `scrollHeight` before fonts settle or before the parent has its final
-  // width produces a stale height that sticks until the next window resize,
-  // which is why opening DevTools (a window resize) "fixes" the layout.
-  const reflowBoth = useCallback(() => {
-    const doResize = () => {
-      if (inputName.current) applyTitleResize(inputName.current)
-      if (inputSummary.current) applyTitleResize(inputSummary.current)
-    }
-    doResize()
-    requestAnimationFrame(doResize)
-    if (typeof document !== 'undefined' && (document as any).fonts?.ready) {
-      ;(document as any).fonts.ready.then(doResize).catch(() => {})
-    }
-  }, [])
-
-  useEffect(() => {
-    const target = inputName.current
-    if (!target) return
-    if (target.value !== name) {
-      target.value = name || ''
-    }
-    applyTitleResize(target)
-    requestAnimationFrame(() => {
-      if (inputName.current) applyTitleResize(inputName.current)
-    })
-  }, [name])
-
-  useEffect(() => {
-    const target = inputSummary.current
-    if (!target) return
-    if (target.value !== summary) {
-      target.value = summary || ''
-    }
-    applyTitleResize(target)
-    requestAnimationFrame(() => {
-      if (inputSummary.current) applyTitleResize(inputSummary.current)
-    })
-  }, [summary])
-
-  useEffect(() => {
-    reflowBoth()
-    window.addEventListener('resize', reflowBoth)
-
-    // Watch the parent container so any width change (panel open/close,
-    // content re-layout after publish, scrollbar appearing) re-reflows the
-    // textareas without waiting for a window resize.
-    const parent = inputName.current?.parentElement
-    let observer: ResizeObserver | null = null
-    if (parent && typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(() => reflowBoth())
-      observer.observe(parent)
-    }
-
-    return () => {
-      window.removeEventListener('resize', reflowBoth)
-      observer?.disconnect()
-    }
-  }, [reflowBoth])
+  const metadata = {...(docMetadata || {}), ...ctx.metadata}
 
   return (
     <DocumentHeader
@@ -2650,63 +2615,37 @@ function EditableDocumentHeader({
       visibility={visibility as any}
       version={version}
       showTitle={false}
+      onRemoveIcon={
+        metadata.icon
+          ? () => {
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: {icon: ''}})
+            }
+          : undefined
+      }
     >
-      <textarea
-        ref={inputName}
-        rows={1}
-        className="w-full resize-none border-none border-transparent bg-transparent text-4xl font-bold shadow-none ring-0 ring-transparent outline-none focus:ring-0"
-        defaultValue={name}
-        onFocus={() => {
+      <EditableDocumentMetadataFields
+        name={name}
+        summary={summary}
+        metadata={metadata as any}
+        fileUpload={fileUpload}
+        onBeginEdit={() => {
           if (!isEditing) send({type: 'edit.start'})
         }}
-        onChange={(e) => {
-          applyTitleResize(e.target)
-          send({type: 'change', metadata: {name: e.target.value}})
+        onMetadata={(metadata) => {
+          send({type: 'change', metadata})
         }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape' && isEditing) {
-            e.currentTarget.blur()
+        onCancelEdit={() => {
+          if (isEditing) {
             send({type: 'edit.cancel'})
           }
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            inputSummary.current?.focus()
-          }
         }}
-        placeholder="Document Title"
-      />
-      <textarea
-        ref={inputSummary}
-        rows={1}
-        className="text-muted-foreground w-full resize-none border-none border-transparent bg-transparent font-serif text-xl font-normal shadow-none ring-0 ring-transparent outline-none focus:ring-0"
-        defaultValue={summary}
-        onFocus={() => {
-          if (!isEditing) send({type: 'edit.start'})
+        onSummaryEnter={() => {
+          send({type: 'edit.start', cursorPosition: 'end'})
         }}
-        onChange={(e) => {
-          applyTitleResize(e.target)
-          send({type: 'change', metadata: {summary: e.target.value}})
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape' && isEditing) {
-            e.currentTarget.blur()
-            send({type: 'edit.cancel'})
-          }
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            send({type: 'edit.start', cursorPosition: 'end'})
-          }
-        }}
-        placeholder="Document Summary"
       />
     </DocumentHeader>
   )
-}
-
-/** Auto-resize a textarea to fit its content. */
-function applyTitleResize(el: HTMLTextAreaElement) {
-  el.style.height = 'auto'
-  el.style.height = el.scrollHeight + 'px'
 }
 
 // Renders panel content based on panel type
@@ -2891,6 +2830,29 @@ function DocumentOptionsPanel({
         if (!newMetadata) return
         beginEditIfNeeded()
         send({type: 'change', metadata: newMetadata})
+      }}
+    />
+  )
+}
+
+function HomeDocumentMetadataControls({
+  metadata,
+  fileUpload,
+}: {
+  metadata: HMDocument['metadata']
+  fileUpload?: (file: File) => Promise<string>
+}) {
+  const send = useDocumentSend()
+  const {beginEditIfNeeded} = useEditorGate()
+
+  return (
+    <HomeDocumentMetadataAffordanceBar
+      metadata={metadata}
+      fileUpload={fileUpload}
+      onBeginEdit={beginEditIfNeeded}
+      onMetadata={(patch) => {
+        beginEditIfNeeded()
+        send({type: 'change', metadata: patch})
       }}
     />
   )
