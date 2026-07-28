@@ -80,7 +80,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title='Upstream sync of main failed'
-          body="The scheduled rebase of \`main\` onto \`seed-hypermedia/seed:main\` failed. Resolve it manually, then re-run the workflow.
+          body="The scheduled sync with \`seed-hypermedia/seed\` failed — either the rebase of \`main\` or the mirroring of upstream tags. Check the failed step in the run below, resolve it manually, then re-run the workflow.
 
           Failed run: $RUN_URL"
           existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
@@ -145,7 +145,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title='Rebase of custom-images failed'
-          body="The scheduled rebase of \`custom-images\` onto the freshly synced \`main\` failed, most likely due to a conflict with the fork's custom commits. Resolve it manually, then re-run the workflow.
+          body="The scheduled rebase of \`custom-images\` onto the freshly synced \`main\` failed (most likely a conflict with the fork's custom commits), or the \`<version>-custom\` tag could not be pushed. Check the failed step in the run below, resolve it manually, then re-run the workflow.
 
           Failed run: $RUN_URL"
           existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
