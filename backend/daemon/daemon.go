@@ -158,7 +158,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	a.Index = blob.OpenIndexPendingReindex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel))
 	// Wire the fallback-cover-image deriver before the reindex task below can
 	// start: a migration-triggered backfill reindex must derive
-	// "_firstImageInContent" for every document, and the documents server that
+	// the fallback cover for every document, and the documents server that
 	// also wires this is constructed only later in initGRPC.
 	a.Index.SetDeriveFirstContentImage(documentsv3.DeriveFirstContentImage)
 	a.clean.Add(a.Index.Domains)

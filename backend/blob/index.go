@@ -282,7 +282,7 @@ type DeriveFirstContentImage func(iri IRI, changes []ChangeRecord) (string, erro
 // during indexing. Wire it before the backfill reindex task starts so the
 // migration-triggered reindex derives for every document; setting it again
 // later (e.g. from the documents server) is safe while indexing runs.
-// See DeriveFirstContentImage and the reserved "_firstImageInContent" key.
+// See DeriveFirstContentImage and FirstImageInContentAttr.
 func (idx *Index) SetDeriveFirstContentImage(fn DeriveFirstContentImage) {
 	idx.hookMu.Lock()
 	idx.deriveFirstContentImage = fn
@@ -1007,7 +1007,7 @@ func changesFromHeadIDsConn(conn *sqlite.Conn, bs *blockStore, headIDs []int64, 
 
 		if len(data) == 0 {
 			//nolint:gosec
-			err = errors.Join(err, fmt.Errorf("changesFromHeadsConn: empty data for change %s", cid.NewCidV1(uint64(codec), hash)))
+			err = errors.Join(err, fmt.Errorf("changesFromHeadIDsConn: empty data for change %s", cid.NewCidV1(uint64(codec), hash)))
 			break
 		}
 
@@ -1020,7 +1020,7 @@ func changesFromHeadIDsConn(conn *sqlite.Conn, bs *blockStore, headIDs []int64, 
 		chcid := cid.NewCidV1(uint64(codec), hash)
 		ch := &Change{}
 		if derr := cbornode.DecodeInto(buf, ch); derr != nil {
-			err = errors.Join(err, fmt.Errorf("changesFromHeadsConn: failed to decode change %s: %w", chcid, derr))
+			err = errors.Join(err, fmt.Errorf("changesFromHeadIDsConn: failed to decode change %s: %w", chcid, derr))
 			break
 		}
 

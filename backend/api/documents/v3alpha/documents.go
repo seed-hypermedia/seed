@@ -78,7 +78,7 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 
 	// Let the indexer derive a fallback cover image at index time, reusing the
 	// real docmodel so the result matches what the read path renders. This is
-	// how "_firstImageInContent" gets populated. The daemon also wires this
+	// how the derived cover field gets populated. The daemon also wires this
 	// earlier (before the backfill reindex task starts); this keeps embedders
 	// and tests that construct the server directly working.
 	idx.SetDeriveFirstContentImage(DeriveFirstContentImage)
@@ -89,7 +89,7 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 // DeriveFirstContentImage rebuilds a document in memory from the given changes
 // and returns the link of its first image block in reading order (or "" if it
 // has none). It's injected into the indexer (SetDeriveFirstContentImage) to
-// populate the reserved "_firstImageInContent" metadata key, letting directory
+// populate DocumentInfo.first_image_in_content, letting directory
 // cards render a fallback cover from fast metadata instead of fetching each
 // child's full document. It's a pure function so the daemon can wire it before
 // the migration-triggered backfill reindex starts, long before this server

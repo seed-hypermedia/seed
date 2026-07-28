@@ -63,8 +63,8 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
-	// Reindex to backfill the derived "_firstImageInContent" document metadata
-	// key (the fallback cover image), so directory cards can render a thumbnail
+	// Reindex to backfill the derived fallback-cover image (see
+	// blob.FirstImageInContentAttr), so directory cards can render a thumbnail
 	// from fast metadata instead of fetching each child's full document.
 	{Version: "2026-07-28.104351", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return scheduleReindex(conn)
