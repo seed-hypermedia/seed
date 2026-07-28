@@ -21,6 +21,7 @@ import {
   type AssistantAgentKey,
   type AssistantAgentOption,
 } from '@/models/assistant-selection'
+import {CreateAgentDialog} from '@/pages/agents/dialogs'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
@@ -39,10 +40,12 @@ import {
   ArrowDown,
   Bot,
   ChevronDown,
+  LayoutGrid,
   Loader2,
   Maximize2,
   MessageCirclePlus,
   MoreHorizontal,
+  Plus,
   Send,
   Square,
   Trash2,
@@ -158,17 +161,30 @@ export function AssistantPanel({
 
   const deleteSession = useDeleteAgentSession(activeSession?.serverUrl, accountUid)
   const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
+  const createAgentDialog = useAppDialog(CreateAgentDialog)
 
   return (
     <div className="flex h-full flex-col">
       {deleteDialog.content}
-      <div className="border-border window-drag flex h-10 items-center border-b px-2 py-2">
+      {createAgentDialog.content}
+      <div className="border-border window-drag flex h-10 items-center justify-between gap-1 border-b px-2 py-2">
         <AssistantAgentPicker
           agents={agents}
           activeAgent={activeAgent}
           localServerUrl={localServerUrl.data ?? null}
           onSelect={(key) => setChosenAgent(key)}
+          onCreateAgent={() =>
+            createAgentDialog.open({serverUrls: serverUrls.data || [], selectedAccountId: accountUid})
+          }
+          onOpenAgentsPage={() => navigate({key: 'agents'})}
         />
+        <button
+          onClick={startDraft}
+          className="no-window-drag text-muted-foreground hover:text-foreground p-1"
+          title="New chat"
+        >
+          <MessageCirclePlus className="size-4" />
+        </button>
       </div>
       <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
         <AssistantSessionPicker
@@ -179,9 +195,6 @@ export function AssistantPanel({
           isDraft={!activeSession}
           onSelect={selectSession}
         />
-        <button onClick={startDraft} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
-          <MessageCirclePlus className="size-3.5" />
-        </button>
         {activeSession ? (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -248,9 +261,7 @@ export function AssistantPanel({
         />
       ) : (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
-          {sessions.isLoading
-            ? 'Loading…'
-            : 'No agents available yet. Create one from the Agents page, then chat here.'}
+          {sessions.isLoading ? 'Loading…' : 'No agents yet. Create one from the Agents menu above.'}
         </div>
       )}
     </div>
@@ -262,18 +273,24 @@ export function AssistantPanel({
  *
  * Choosing the context up front is what removes the friction of a per-chat agent dialog: every
  * action below (sessions, new chats) applies to this agent. Agents are grouped under their server
- * so the same name on two servers stays distinguishable.
+ * so the same name on two servers stays distinguishable. The footer actions — creating an agent
+ * and jumping to the full Agents page — live here so the sidebar is self-sufficient: on a fresh
+ * install with zero agents, this dropdown is where you fix that.
  */
 function AssistantAgentPicker({
   agents,
   activeAgent,
   localServerUrl,
   onSelect,
+  onCreateAgent,
+  onOpenAgentsPage,
 }: {
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
   localServerUrl: string | null
   onSelect: (key: AssistantAgentKey) => void
+  onCreateAgent: () => void
+  onOpenAgentsPage: () => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -303,9 +320,7 @@ function AssistantAgentPicker({
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-1">
         {groups.length === 0 ? (
-          <div className="text-muted-foreground px-2 py-3 text-center text-xs">
-            No agents available yet. Create one from the Agents page.
-          </div>
+          <div className="text-muted-foreground px-2 py-3 text-center text-xs">No agents yet.</div>
         ) : (
           groups.map((group) => (
             <div key={group.serverUrl} className="flex flex-col">
@@ -341,6 +356,30 @@ function AssistantAgentPicker({
             </div>
           ))
         )}
+        <div className="border-border mt-1 flex flex-col border-t pt-1">
+          <button
+            type="button"
+            className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+            onClick={() => {
+              setOpen(false)
+              onCreateAgent()
+            }}
+          >
+            <Plus className="text-muted-foreground size-3.5 shrink-0" />
+            New agent
+          </button>
+          <button
+            type="button"
+            className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+            onClick={() => {
+              setOpen(false)
+              onOpenAgentsPage()
+            }}
+          >
+            <LayoutGrid className="text-muted-foreground size-3.5 shrink-0" />
+            Agents page
+          </button>
+        </div>
       </PopoverContent>
     </Popover>
   )

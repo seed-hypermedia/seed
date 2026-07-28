@@ -19,6 +19,8 @@ const mockState = vi.hoisted(() => ({
   serverUrls: [] as string[],
   agentLists: [] as Array<{data: Array<{id: string; definition: {name: string; model: string}}>}>,
   sessionEntries: [] as Array<{serverUrl: string; session: Record<string, unknown>}>,
+  navigate: undefined as unknown as ReturnType<typeof vi.fn>,
+  createAgentDialogMounts: 0,
 }))
 
 vi.mock('@/models/agents', () => ({
@@ -42,8 +44,16 @@ vi.mock('@/models/agents', () => ({
 }))
 
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => 'account-1'}))
-vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
+vi.mock('@/utils/useNavigate', () => ({useNavigate: () => mockState.navigate}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
+// The real create dialog drags in the prompt editor stack; the panel only mounts it via
+// useAppDialog, which is what these tests assert.
+vi.mock('@/pages/agents/dialogs', () => ({
+  CreateAgentDialog: () => {
+    mockState.createAgentDialogMounts += 1
+    return null
+  },
+}))
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
 
@@ -86,6 +96,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
 
+  mockState.navigate = vi.fn()
+  mockState.createAgentDialogMounts = 0
   mockState.serverUrls = [LOCAL, REMOTE]
   mockState.agentLists = [
     {data: [{id: 'assistant', definition: {name: 'Assistant', model: 'claude-sonnet-5'}}]},
@@ -130,7 +142,7 @@ describe('assistant sidebar agent context', () => {
     expect(document.body.textContent).not.toContain('Doc questions')
   })
 
-  it('starts a new chat as a draft in the current context, ready to type', () => {
+  it('starts a new chat as a draft in the current context, from the top bar', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
@@ -138,12 +150,41 @@ describe('assistant sidebar agent context', () => {
     const newChat = Array.from(document.body.querySelectorAll('button')).find(
       (element) => element.getAttribute('title') === 'New chat',
     )
+    // The button lives in the top bar beside the agent picker, not down in the session row.
+    expect(newChat?.closest('.window-drag')).toBeTruthy()
     act(() => {
       newChat!.dispatchEvent(new MouseEvent('click', {bubbles: true}))
     })
 
     expect(document.body.textContent).toContain('New chat')
     expect(document.body.textContent).toContain('Send a message to start chatting with Assistant')
+  })
+
+  it('offers agent creation and the full Agents page from the agent dropdown', () => {
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+
+    clickText('Assistant')
+    clickText('Agents page')
+    expect(mockState.navigate).toHaveBeenCalledWith({key: 'agents'})
+
+    clickText('Assistant')
+    clickText('New agent')
+    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
+  })
+
+  it('can create an agent even when none exist yet', () => {
+    mockState.agentLists = [{data: []}, {data: []}]
+    mockState.sessionEntries = []
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+
+    clickText('Agents')
+    expect(document.body.textContent).toContain('No agents yet')
+    clickText('New agent')
+    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
   })
 
   it('offers session options in a menu on the session row, not a dedicated row', () => {
