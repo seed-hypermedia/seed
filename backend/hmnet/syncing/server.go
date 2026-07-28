@@ -297,7 +297,7 @@ func (s *Server) AnnounceBlobs(in *p2p.AnnounceBlobsRequest, stream grpc.ServerS
 		tracker.Finish(nil)
 	}()
 
-	if err := s.index.PutMany(ctx, downloaded); err != nil {
+	if err := s.index.PutMany(blob.ContextWithNetworkOrigin(ctx), downloaded); err != nil {
 		tracker.Finish(err)
 		return fmt.Errorf("failed to put blobs: %w", err)
 	}

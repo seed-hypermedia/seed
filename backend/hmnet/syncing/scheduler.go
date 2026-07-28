@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -171,6 +173,61 @@ type discoverer interface {
 	DiscoverObjectWithProgress(ctx context.Context, entityID blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string, prog *Progress) (blob.Version, error)
 }
 
+// Reasons dispatchReadyTasks stopped handing out work. Exactly one is recorded
+// per pass, so their relative counts say why the worker pool is idle:
+//
+//	not_due        the next task isn't scheduled to run yet
+//	saturated      a task was ready but every worker slot was taken
+//	preempted      a slot was freed for a hot task; the pass retries
+//	queue_drained  no tasks left to consider
+//
+// not_due dominating means run intervals set the pace; saturated dominating
+// means cfg.MaxWorkers does.
+const (
+	dispatchEndNotDue       = "not_due"
+	dispatchEndSaturated    = "saturated"
+	dispatchEndPreempted    = "preempted"
+	dispatchEndQueueDrained = "queue_drained"
+)
+
+var (
+	// MSchedulerDispatchEnd counts dispatch passes by why they stopped.
+	MSchedulerDispatchEnd = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_sync_scheduler_dispatch_end_total",
+		Help: "Why each dispatch pass stopped handing out work.",
+	}, []string{"reason"})
+
+	// MSchedulerColdBlocked counts cold tasks deferred because the cold lane was
+	// full. The lane is capped at MaxWorkers-1, so a high count means that
+	// reserve — not MaxWorkers — limits bulk catch-up concurrency.
+	MSchedulerColdBlocked = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_sync_scheduler_cold_blocked_total",
+		Help: "Cold tasks deferred because the cold lane (MaxWorkers-1) was full.",
+	})
+
+	// Worker-pool occupancy as of the last dispatch pass.
+	MSchedulerSlotsBusy = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_sync_scheduler_slots_busy",
+		Help: "Worker slots running a discovery task, as of the last dispatch pass.",
+	})
+	MSchedulerSlotsBusyCold = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_sync_scheduler_slots_busy_cold",
+		Help: "Subset of busy slots running background (cold) rounds.",
+	})
+	MSchedulerSlotsTotal = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_sync_scheduler_slots_total",
+		Help: "Worker slots available (cfg.MaxWorkers).",
+	})
+	MSchedulerColdCap = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_sync_scheduler_cold_cap",
+		Help: "Maximum slots cold work may occupy (MaxWorkers-1, or 1 for single-worker pools).",
+	})
+	MSchedulerQueueDepth = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_sync_scheduler_queue_depth",
+		Help: "Tasks in the scheduler queue, as of the last dispatch pass.",
+	})
+)
+
 // scheduler manages discovery tasks with a bounded worker pool.
 //
 // Worker capacity is bounded by cfg.MaxWorkers via an errgroup limit. Each
@@ -243,6 +300,7 @@ func newScheduler(disc discoverer, cfg config.Syncing) *scheduler {
 	}
 
 	s.workers.SetLimit(cfg.MaxWorkers)
+	MSchedulerSlotsTotal.Set(float64(cfg.MaxWorkers))
 
 	// Track heap indices for Fix/Remove operations.
 	s.queue.OnIndexChange = func(task *taskHandle, newIndex int) {
@@ -496,6 +554,10 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	// cold tier ordering), so the scan must drain past them to reach it.
 	var blockedCold []*taskHandle
 
+	// Attributes why this pass stopped. Stays queue_drained if the loop runs the
+	// queue empty; every break below overwrites it.
+	endReason := dispatchEndQueueDrained
+
 	for s.queue.Len() > 0 {
 		task := s.queue.Peek()
 
@@ -531,6 +593,7 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 		// derives the same head-due wake this path used to return directly.
 		const lookAhead = 10 * time.Second
 		if task.queueTier == tierCold && task.nextRunTime.After(now.Add(lookAhead)) {
+			endReason = dispatchEndNotDue
 			break
 		}
 
@@ -599,13 +662,20 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 
 		if preempted {
 			// A slot will open shortly. Stop dispatching; we'll be woken again.
+			endReason = dispatchEndPreempted
 			break
 		}
 		// Fully saturated with no preemption candidate.
+		endReason = dispatchEndSaturated
 		break
 	}
 
 	now := time.Now()
+
+	MSchedulerDispatchEnd.WithLabelValues(endReason).Inc()
+	if n := len(blockedCold); n > 0 {
+		MSchedulerColdBlocked.Add(float64(n))
+	}
 
 	// Put back any cold tasks the scan set aside; they keep their due times
 	// and dispatch as cold slots free up (worker completions re-enter us).
@@ -614,6 +684,14 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	}
 
 	s.cleanupExpiredHotTasksLocked(now)
+
+	// Occupancy is recorded after the re-enqueue and cleanup so it describes the
+	// settled state, not a mid-pass one where deferred tasks are still out of
+	// the queue and would undercount its depth.
+	MSchedulerSlotsBusy.Set(float64(s.inProgress))
+	MSchedulerSlotsBusyCold.Set(float64(s.inProgressCold))
+	MSchedulerColdCap.Set(float64(coldCap))
+	MSchedulerQueueDepth.Set(float64(s.queue.Len()))
 
 	// Sleep forever unless an in-progress hot task's heartbeat is about to
 	// expire (so we can cancel it promptly), or a queued cold task becomes due.

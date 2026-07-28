@@ -9,8 +9,21 @@ import (
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"go.uber.org/zap"
 )
+
+// mWALBytesWritten is the physical volume the database has actually written to
+// the main file: every WAL frame the checkpointer copies, times the page size.
+// It costs nothing to collect — the checkpoint pragma already returns the frame
+// count and we were throwing it away — and it is the counterpart to the logical
+// blob bytes counted in syncperf. The ratio between the two is write
+// amplification: derived tables, indexes, and page rewrites.
+var mWALBytesWritten = promauto.NewCounter(prometheus.CounterOpts{
+	Name: "seed_sqlite_wal_written_bytes_total",
+	Help: "Bytes checkpointed from the WAL into the main database file (all writers).",
+})
 
 // defaultCheckpointInterval is how often the background checkpointer flushes the
 // WAL to the main database file. Because the flush runs PASSIVE on a dedicated
@@ -68,6 +81,10 @@ type walCheckpointer struct {
 	interval time.Duration
 	log      *zap.Logger
 
+	// pageSize is read once at construction so tick can convert checkpointed
+	// frame counts into bytes without issuing a query per tick.
+	pageSize int64
+
 	stop chan struct{}
 	done chan struct{}
 
@@ -101,10 +118,22 @@ func newWALCheckpointer(path string, interval time.Duration, log *zap.Logger) (*
 		return nil, errClose(conn, err)
 	}
 
+	// The only query this whole metrics feature adds: one pragma, once, on this
+	// dedicated connection. It never touches the pool, so it cannot contend
+	// with real reads or writes.
+	var pageSize int64
+	if err := sqlitex.ExecTransient(conn, "PRAGMA page_size;", func(stmt *sqlite.Stmt) error {
+		pageSize = stmt.ColumnInt64(0)
+		return nil
+	}); err != nil {
+		return nil, errClose(conn, err)
+	}
+
 	return &walCheckpointer{
 		conn:     conn,
 		interval: interval,
 		log:      log,
+		pageSize: pageSize,
 		stop:     make(chan struct{}),
 		done:     make(chan struct{}),
 	}, nil
@@ -148,6 +177,9 @@ func (c *walCheckpointer) tick() {
 		return
 	}
 	if checkpointed > 0 {
+		// PASSIVE only. tick may follow up with a TRUNCATE below, which reports
+		// the same frames it just drained; counting both would double the figure.
+		mWALBytesWritten.Add(float64(int64(checkpointed) * c.pageSize))
 		c.log.Debug("WALCheckpoint",
 			zap.Int("busy", busy),
 			zap.Int("wal_frames", walFrames),

@@ -501,7 +501,7 @@ func (srv *Server) addTargetBlockRevisions(ctx context.Context, target string, a
 			var err error
 			revisions, err = srv.targetBlockRevisionsAtVersion(ctx, account, path, citation.TargetVersion)
 			if err != nil {
-				if status.Code(err) == codes.NotFound || status.Code(err) == codes.FailedPrecondition {
+				if isUnresolvableTarget(err) {
 					revisions = map[string]string{}
 				} else {
 					return fmt.Errorf("failed to load target block revisions for %s at %s: %w", target, citation.TargetVersion, err)
@@ -514,6 +514,19 @@ func (srv *Server) addTargetBlockRevisions(ctx context.Context, target string, a
 	}
 
 	return nil
+}
+
+// isUnresolvableTarget reports whether a citation's target version simply can't
+// be resolved locally right now: never seen, deleted, or known but not yet
+// synced. Block revisions only decorate citations, so any of these means "leave
+// the revision blank", not "fail the whole request" — one unsynced target
+// should not take down an entire InteractionSummary.
+func isUnresolvableTarget(err error) bool {
+	switch status.Code(err) {
+	case codes.NotFound, codes.FailedPrecondition, codes.Unavailable:
+		return true
+	}
+	return false
 }
 
 func blockIDFromCitationFragment(fragment string) string {

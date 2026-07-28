@@ -44,6 +44,27 @@ func newHydrateCache() *hydrateCache {
 	return &hydrateCache{lru: c}
 }
 
+// hydrateCacheKey builds the immutable key an entry is stored under. Entries
+// are keyed by content-addressed version, so a key fully determines its value.
+func hydrateCacheKey(iri, version string) string {
+	return iri + "@" + version
+}
+
+// peek returns a cached hydration for a version that has already been resolved
+// some other way, without needing the loaded document.
+//
+// This is what lets GetDocument skip the change replay altogether: the version
+// can be read straight out of the index, and on a hit we never build the
+// docmodel at all. A miss simply means the caller has to do the real work.
+func (c *hydrateCache) peek(key string) (*documents.Document, bool) {
+	cached, ok := c.lru.Get(key)
+	if !ok {
+		return nil, false
+	}
+
+	return proto.Clone(cached).(*documents.Document), true
+}
+
 // get returns the hydrated proto for doc, computing it at most once per
 // version across all concurrent callers. iri is the document's hm:// URL, used
 // together with the resolved version to form the immutable cache key. The
@@ -57,7 +78,7 @@ func (c *hydrateCache) get(ctx context.Context, iri string, doc *docmodel.Docume
 		return doc.Hydrate(ctx)
 	}
 
-	key := iri + "@" + version
+	key := hydrateCacheKey(iri, version)
 
 	if cached, ok := c.lru.Get(key); ok {
 		return proto.Clone(cached).(*documents.Document), nil

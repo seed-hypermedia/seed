@@ -93,19 +93,6 @@ func cborToMap(v any) map[string]any {
 	return m
 }
 
-// mapToCBOR converts a map to a CBOR object.
-// TODO(burdiyan): This is a workaround. Should not exist.
-func mapToCBOR(data map[string]any, v any) {
-	rawData, err := cbornode.DumpObject(data)
-	if err != nil {
-		panic(err)
-	}
-
-	if err := cbornode.DecodeInto(rawData, v); err != nil {
-		panic(err)
-	}
-}
-
 // Type is a named type alias for blob types.
 type Type string
 

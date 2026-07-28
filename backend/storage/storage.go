@@ -57,6 +57,10 @@ func Open(dataDir string, device crypto.PrivKey, kms core.KeyStore, logLevel str
 		}
 	}
 
+	// Must happen before newSQLite creates any database file:
+	// only files created after the flag is set inherit it.
+	maybeDisableCOW(filepath.Join(dataDir, dbDir), log)
+
 	db, err := newSQLite(sqlitePath(dataDir))
 	if err != nil {
 		return nil, err

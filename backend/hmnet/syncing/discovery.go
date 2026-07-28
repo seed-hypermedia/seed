@@ -14,6 +14,7 @@ import (
 	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"seed/backend/util/syncperf"
 	"seed/backend/util/unsafeutil"
 	"sort"
 	"strings"
@@ -44,6 +45,12 @@ type Progress struct {
 	BlobsDiscovered atomic.Int32
 	BlobsDownloaded atomic.Int32
 	BlobsFailed     atomic.Int32
+
+	// BytesDownloaded is the wire size of the blobs this session pulled down.
+	// Distinct from the daemon-wide persisted-bytes counter in syncperf: this
+	// includes blobs that turn out to be duplicates of ones we already have,
+	// because from the session's point of view they were still transferred.
+	BytesDownloaded atomic.Int64
 
 	// Diagnostic counters for attributing why a discovery is cut
 	// before convergence. MaxReconciledWants is the largest single-peer reconciled
@@ -109,13 +116,31 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 
 	discoverStart := time.Now()
+	// This is the single entry point for every sync session — scheduler tasks,
+	// gRPC DiscoverEntity, and direct subscription calls all funnel here — so
+	// it's the one place that has to mark the session in flight for throughput
+	// accounting. Concurrent sessions are handled by the tracker: it unions
+	// their intervals instead of summing them.
+	sessionSite := ""
+	if space, _, err := entityID.SpacePath(); err == nil {
+		sessionSite = space.String()
+	}
+	endSession := syncperf.Default.SessionStart(sessionSite)
 	outcome := "notfound"
 	defer func() {
+		endSession()
 		if resultErr != nil {
 			outcome = "error"
 		}
 		dur := time.Since(discoverStart)
 		MDiscoverTotalSeconds.WithLabelValues(outcome).Observe(dur.Seconds())
+		s.log.Debug("DiscoverySessionDone",
+			zap.String("iri", string(entityID)),
+			zap.String("outcome", outcome),
+			zap.Duration("took", dur),
+			zap.Int32("blobsDownloaded", prog.BlobsDownloaded.Load()),
+			zap.Int64("bytesDownloaded", prog.BytesDownloaded.Load()),
+		)
 	}()
 
 	ctxLocalPeers, cancel := context.WithTimeout(ctx, DefaultSyncingTimeout)

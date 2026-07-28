@@ -23,6 +23,7 @@ import (
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"seed/backend/util/syncperf"
 
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
@@ -296,12 +297,53 @@ func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
 	return idx
 }
 
+// indexOpts carries the per-call knobs of indexBlob. It's a struct rather than
+// a row of positional booleans so the call sites stay readable.
+type indexOpts struct {
+	// TrackUnreads marks affected resources unread as they're indexed.
+	TrackUnreads bool
+
+	// DeferPropagation skips the per-blob propagateVisibility call; the caller
+	// must then run propagateVisibilityBatch once the whole batch is indexed.
+	// This is what PutMany uses to coalesce many tiny CTE walks into one walk
+	// per space.
+	DeferPropagation bool
+
+	// ObservedAt is when this blob arrived from the network. Zero means it
+	// didn't (local publish, reindex) and no arrival delay is recorded.
+	//
+	// blobs.insert_time looks like it should serve this and can't:
+	//   - it's stamped by ensureBlob when we first learn a CID from a link,
+	//     and blobsUpdateMissingData does not reset it when the data finally
+	//     arrives, so for those blobs it records discovery, not arrival;
+	//   - it's identical for local publishes, which must be excluded;
+	//   - it's a SQL DEFAULT, so reading it back means a SELECT per blob
+	//     inside the write transaction on the single writer.
+	//
+	// PutMany stamps one value per batch transaction rather than per blob: a
+	// batch holds the write lock ~150ms while delays are measured in seconds,
+	// so per-blob precision would buy nothing and cost a clock read per blob
+	// in the indexing loop.
+	ObservedAt time.Time
+
+	// FromNetwork marks a blob as synced rather than locally authored.
+	//
+	// Distinct from ObservedAt: the unstash cascade clears ObservedAt because a
+	// stashed blob's true arrival time is lost, but the blob is still network
+	// traffic and still belongs in the write breakdown. Gating attribution on
+	// ObservedAt dropped every stashed blob from the per-site table.
+	FromNetwork bool
+
+	// Kinds, if non-nil, accumulates one sample per indexed blob for the
+	// per-site write breakdown. Threaded like hookIDs and for the same reason:
+	// the caller flushes it only after the transaction commits, so a rolled-back
+	// batch contributes nothing. May be nil (no accounting).
+	Kinds *[]syncperf.KindSample
+}
+
 // indexBlob runs the per-blob indexers and (optionally) forward visibility
-// propagation. When deferPropagation is true the propagateVisibility call is
-// skipped; the caller is responsible for running propagateVisibilityBatch
-// after the whole batch has been indexed. This is what PutMany uses to
-// coalesce many tiny CTE walks into one walk per space.
-func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
+// propagation.
+func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []byte, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
 	release := sqlitex.Save(conn)
 	defer func() {
 		// This is really obscure and hard to reason about, because we want the handle stash error,
@@ -345,7 +387,11 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 	}()
 
 	ictx := newCtx(conn, id, bs, log)
-	ictx.mustTrackUnreads = trackUnreads
+	ictx.mustTrackUnreads = opts.TrackUnreads
+	ictx.observedAt = opts.ObservedAt
+	ictx.fromNetwork = opts.FromNetwork
+	ictx.blobSize = len(data)
+	ictx.kinds = opts.Kinds
 	ictx.writerCache = wc
 	ictx.hookIDs = hookIDs
 	if err := ictx.Unstash(); err != nil {
@@ -375,7 +421,7 @@ func indexBlob(trackUnreads bool, deferPropagation bool, conn *sqlite.Conn, id i
 		*hookIDs = append(*hookIDs, id)
 	}
 
-	if !deferPropagation {
+	if !opts.DeferPropagation {
 		if err := propagateVisibility(ictx, id); err != nil {
 			return fmt.Errorf("failed to propagate visibility for blob: %s (%d): %w", c.String(), id, err)
 		}
@@ -418,6 +464,172 @@ type ChangeRecord struct {
 	Visibility Visibility
 }
 
+// DocumentState is the part of a document's current state that the index can
+// answer on its own, without replaying the change log.
+type DocumentState struct {
+	Heads      []cid.Cid
+	Generation int64
+	Visibility Visibility
+}
+
+// ResolveLatest resolves the heads and visibility of a resource's latest
+// generation without decoding or replaying a single change.
+//
+// It shares resolveLatestGeneration with IterChanges, so it reports redirects
+// and tombstones with exactly the same errors: a caller that uses this to skip
+// a document load stays indistinguishable from one that doesn't. Returns
+// NotFound when the resource has no generations, matching loadDocument.
+func (idx *Index) ResolveLatest(ctx context.Context, resource IRI) (DocumentState, error) {
+	conn, release, err := idx.db.ReadConn(ctx)
+	if err != nil {
+		return DocumentState{}, err
+	}
+	defer release()
+
+	dg, found, err := idx.resolveLatestGeneration(conn, resource)
+	if err != nil {
+		return DocumentState{}, err
+	}
+
+	if !found || len(dg.Heads) == 0 {
+		return DocumentState{}, status.Errorf(codes.NotFound, "document not found: %s", resource)
+	}
+
+	visibility, err := dg.visibility()
+	if err != nil {
+		return DocumentState{}, err
+	}
+
+	out := DocumentState{
+		Generation: dg.Generation,
+		Visibility: visibility,
+		Heads:      make([]cid.Cid, 0, len(dg.Heads)),
+	}
+
+	lookup := NewLookupCache(conn)
+	for id := range dg.Heads {
+		c, err := lookup.CID(id)
+		if err != nil {
+			return DocumentState{}, err
+		}
+		out.Heads = append(out.Heads, c)
+	}
+
+	return out, nil
+}
+
+// resolveLatestGeneration loads a resource's most recent generation row and
+// applies the two conditions that make a document unreadable: a redirect, and a
+// tombstone. Both surface as FailedPrecondition, and the redirect carries the
+// details the client needs to follow it.
+//
+// found is false when the resource has no generations at all, which callers
+// treat as an empty document rather than an error.
+func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg documentGeneration, found bool, err error) {
+	q := dqb.Select(
+		"dg.resource",
+		"dg.genesis_change_time",
+		"dg.last_change_time",
+		"dg.last_tombstone_ref_time",
+		"dg.last_alive_ref_time",
+		"dg.generation",
+		"dg.genesis",
+		"dg.last_comment",
+		"dg.last_comment_time",
+		"dg.comment_count",
+		"dg.heads",
+		"dg.changes",
+		"dg.change_count",
+		"dg.authors",
+		"dg.metadata",
+	).
+		From("document_generations dg", "resources r").
+		Where("r.id = dg.resource").
+		Where("r.iri = ?").
+		OrderBy("dg.generation DESC").
+		Limit("1").
+		String()
+
+	rows, discard, check := sqlitex.Query(conn, q, resource).All()
+	defer discard(&err)
+
+	for row := range rows {
+		if err := dg.fromRow(row); err != nil {
+			return dg, false, err
+		}
+		found = true
+	}
+	if err := check(); err != nil {
+		return dg, false, err
+	}
+
+	if !found {
+		return dg, false, nil
+	}
+
+	// Check for redirects.
+	var hasRedirect bool
+	var targetIRI IRI
+	if rt, ok := dg.Metadata["$db.redirect"]; ok {
+		hasRedirect = true
+		var ok bool
+		targetIRI, ok = rt.Value.(IRI)
+		if !ok {
+			// Try string conversion as fallback
+			if s, ok := rt.Value.(string); ok {
+				targetIRI = IRI(s)
+			} else {
+				return dg, false, fmt.Errorf("invalid redirect target type: %T", rt.Value)
+			}
+		}
+	}
+
+	// Check if it's a tombstone (deleted document).
+	// A document is deleted when last_tombstone_ref_time > last_alive_ref_time
+	isDeleted := dg.LastTombstoneRefTime > dg.LastAliveRefTime
+
+	// Handle redirects
+	if hasRedirect {
+		space, path, err := targetIRI.SpacePath()
+		if err != nil {
+			return dg, false, err
+		}
+
+		// If it's deleted and has a redirect, it's a tombstone redirect (not republish)
+		// If it's not deleted and has a redirect, it's a republish
+		republish := !isDeleted
+
+		return dg, false, must.Do2(status.Newf(codes.FailedPrecondition, "document '%s' has a redirect to %s (republish = %v)", resource, targetIRI, republish).
+			WithDetails(&documents.RedirectErrorDetails{
+				TargetAccount: space.String(),
+				TargetPath:    path,
+				Republish:     republish,
+			})).Err()
+	}
+
+	// Check if it's a deleted document (tombstone without redirect).
+	if isDeleted {
+		return dg, false, status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
+	}
+
+	return dg, true, nil
+}
+
+// visibility reads the generation's indexed visibility attribute.
+func (dg *documentGeneration) visibility() (Visibility, error) {
+	v, ok := dg.Metadata["$db.visibility"]
+	if !ok {
+		return "", nil
+	}
+
+	s, ok := v.Value.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid visibility type: %T", v.Value)
+	}
+
+	return Visibility(s), nil
+}
+
 // iterChangesLatest iterates over changes for a given resource for the latest generation.
 func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.Seq[ChangeRecord], check func() error) {
 	var outErr error
@@ -432,43 +644,8 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 		defer release()
 
-		// Query the latest generation from document_generations table.
-		var dg documentGeneration
-		q := dqb.Select(
-			"dg.resource",
-			"dg.genesis_change_time",
-			"dg.last_change_time",
-			"dg.last_tombstone_ref_time",
-			"dg.last_alive_ref_time",
-			"dg.generation",
-			"dg.genesis",
-			"dg.last_comment",
-			"dg.last_comment_time",
-			"dg.comment_count",
-			"dg.heads",
-			"dg.changes",
-			"dg.change_count",
-			"dg.authors",
-			"dg.metadata",
-		).
-			From("document_generations dg", "resources r").
-			Where("r.id = dg.resource").
-			Where("r.iri = ?").
-			OrderBy("dg.generation DESC").
-			Limit("1").
-			String()
-
-		rows, discard, check := sqlitex.Query(conn, q, resource).All()
-		defer discard(&outErr)
-		found := false
-		for row := range rows {
-			if err := dg.fromRow(row); err != nil {
-				outErr = err
-				return
-			}
-			found = true
-		}
-		if err := check(); err != nil {
+		dg, found, err := idx.resolveLatestGeneration(conn, resource)
+		if err != nil {
 			outErr = err
 			return
 		}
@@ -477,52 +654,9 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 			return
 		}
 
-		// Check for redirects.
-		var hasRedirect bool
-		var targetIRI IRI
-		if rt, ok := dg.Metadata["$db.redirect"]; ok {
-			hasRedirect = true
-			var ok bool
-			targetIRI, ok = rt.Value.(IRI)
-			if !ok {
-				// Try string conversion as fallback
-				if s, ok := rt.Value.(string); ok {
-					targetIRI = IRI(s)
-				} else {
-					outErr = fmt.Errorf("invalid redirect target type: %T", rt.Value)
-					return
-				}
-			}
-		}
-
-		// Check if it's a tombstone (deleted document).
-		// A document is deleted when last_tombstone_ref_time > last_alive_ref_time
-		isDeleted := dg.LastTombstoneRefTime > dg.LastAliveRefTime
-
-		// Handle redirects
-		if hasRedirect {
-			space, path, err := targetIRI.SpacePath()
-			if err != nil {
-				outErr = err
-				return
-			}
-
-			// If it's deleted and has a redirect, it's a tombstone redirect (not republish)
-			// If it's not deleted and has a redirect, it's a republish
-			republish := !isDeleted
-
-			outErr = must.Do2(status.Newf(codes.FailedPrecondition, "document '%s' has a redirect to %s (republish = %v)", resource, targetIRI, republish).
-				WithDetails(&documents.RedirectErrorDetails{
-					TargetAccount: space.String(),
-					TargetPath:    path,
-					Republish:     republish,
-				})).Err()
-			return
-		}
-
-		// Check if it's a deleted document (tombstone without redirect).
-		if isDeleted {
-			outErr = status.Errorf(codes.FailedPrecondition, "document '%s' is marked as deleted", resource)
+		visibility, err := dg.visibility()
+		if err != nil {
+			outErr = err
 			return
 		}
 
@@ -546,7 +680,7 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 
 		buf := make([]byte, 0, 1024*1024) // preallocating 1MB for decompression.
-		rows, discard, check = sqlitex.Query(conn, qIterChangesFromHeads(), unsafeutil.StringFromBytes(changesJSON)).All()
+		rows, discard, check := sqlitex.Query(conn, qIterChangesFromHeads(), unsafeutil.StringFromBytes(changesJSON)).All()
 		defer discard(&outErr)
 		for row := range rows {
 			next := sqlite.NewIncrementor(0)
@@ -573,10 +707,7 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 				CID:        chcid,
 				Data:       ch,
 				Generation: dg.Generation,
-			}
-
-			if v, ok := dg.Metadata["$db.visibility"]; ok {
-				rec.Visibility = Visibility(v.Value.(string))
+				Visibility: visibility,
 			}
 
 			if !yield(rec) {
@@ -646,7 +777,16 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 				return
 			}
 			if genesis == 0 {
-				outErr = fmt.Errorf("no genesis for change %s", heads[i])
+				// The query is COALESCE(genesis_blob, id), so a zero here can
+				// only mean there is no structural_blobs row for this change —
+				// it isn't indexed yet. That happens routinely mid-sync: we
+				// learn a version head from a Ref before the change itself
+				// arrives, or the change arrived and was stashed pending its
+				// genesis. It is a transient state, not a server fault, so
+				// report it as retryable rather than Internal — otherwise the
+				// UI shows a red "Something went wrong" for content that is
+				// simply still on its way.
+				outErr = status.Errorf(codes.Unavailable, "document is still syncing: change %s has not been indexed yet", heads[i])
 				return
 			}
 
@@ -1410,6 +1550,22 @@ type indexingCtx struct {
 
 	mustTrackUnreads bool
 
+	// observedAt is when this blob arrived from the network; zero if it didn't.
+	// See indexOpts.ObservedAt.
+	observedAt time.Time
+
+	// fromNetwork marks this blob as synced rather than locally authored.
+	// See indexOpts.FromNetwork.
+	fromNetwork bool
+
+	// blobSize is the uncompressed byte length of the blob being indexed, used
+	// to attribute bytes to a site and kind in SaveBlob.
+	blobSize int
+
+	// kinds accumulates write-breakdown samples for the enclosing transaction.
+	// See indexOpts.Kinds.
+	kinds *[]syncperf.KindSample
+
 	// Lookup tables for internal database IDs.
 	pubKeys   map[core.PrincipalUnsafeString]int64
 	resources map[IRI]int64
@@ -1445,6 +1601,18 @@ func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *index
 		blobs:     make(map[cid.Cid]blobsGetSizeResult, 16),
 
 		lookup: NewLookupCache(conn),
+	}
+}
+
+// childOpts builds the indexOpts for a nested indexBlob run triggered from
+// within this one (the unstash cascade), carrying forward the flags that
+// describe the whole transaction.
+func (idx *indexingCtx) childOpts() indexOpts {
+	return indexOpts{
+		TrackUnreads: idx.mustTrackUnreads,
+		ObservedAt:   idx.observedAt,
+		FromNetwork:  idx.fromNetwork,
+		Kinds:        idx.kinds,
 	}
 }
 
@@ -1496,12 +1664,15 @@ func (idx *indexingCtx) SaveBlob(sb structuralBlob) error {
 		blobAuthor = maybe.New(kid)
 	}
 
+	var genesisKey string
 	if sb.GenesisBlob.Defined() {
 		id, err := idx.ensureBlob(sb.GenesisBlob)
 		if err != nil {
 			return err
 		}
 		blobGenesis = maybe.New(id)
+		// The multihash, not id: filling a placeholder reassigns blobs.id.
+		genesisKey = string(sb.GenesisBlob.Hash())
 	}
 
 	if sb.Resource.ID != "" {
@@ -1533,6 +1704,40 @@ func (idx *indexingCtx) SaveBlob(sb structuralBlob) error {
 
 	if !sb.Ts.IsZero() {
 		blobTime = maybe.New(sb.Ts.UnixMilli())
+	}
+
+	// This is the single funnel every structural blob passes through with both
+	// halves of the delay in hand: the timestamp its author claimed, and when
+	// we observed it. No-ops unless the blob came off the network.
+	syncperf.Default.RecordDelay(string(sb.Type), idx.observedAt, sb.Ts)
+
+	// Same funnel, and the only place that knows a blob's kind AND the space it
+	// belongs to, so it's where the per-site write breakdown is attributed.
+	// Gated on observedAt for the same reason as the delay: a local publish
+	// isn't synced traffic. Buffered, not recorded — the caller flushes after
+	// the transaction commits.
+	if idx.fromNetwork && idx.kinds != nil {
+		kind := string(sb.Type)
+		if sb.Type == TypeDagPB {
+			// DagPB is media that happens to be indexable; group it with raw
+			// media rather than giving it a column of its own.
+			kind = syncperf.KindMedia
+		}
+		var site string
+		if sb.Resource.ID != "" {
+			if space, _, err := sb.Resource.ID.SpacePath(); err == nil {
+				site = space.String()
+			}
+		}
+		// When the space isn't known (a Change carries no resource IRI), the
+		// genesis lets the debug page recover it later from any Ref that shares
+		// the same genesis.
+		*idx.kinds = append(*idx.kinds, syncperf.KindSample{
+			Site:  site,
+			Doc:   genesisKey,
+			Kind:  kind,
+			Bytes: int64(idx.blobSize),
+		})
 	}
 
 	if err := dbStructuralBlobsInsert(idx.conn, idx.blobID, string(sb.Type), blobAuthor, blobGenesis, blobResource, blobTime, blobMeta); err != nil {
@@ -2048,9 +2253,19 @@ var qLookupRecordID = dqb.Str(`
 	LIMIT 1
 `)
 
-func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
+func reindexStashedBlobs(opts indexOpts, conn *sqlite.Conn, reason stashReason, match string, bs *blockStore, log *zap.Logger, wc *writerValidityCache, hookIDs *[]int64) (err error) {
 	rows, discard, check := sqlitex.Query(conn, qLoadStashedBlobs(), reason, match).All()
 	defer discard(&err)
+
+	// A blob coming out of the stash reached us earlier than the blob that
+	// unstashed it — it was written, rolled back, and has been sitting here
+	// since. opts.ObservedAt is the unstashing blob's arrival time, so using it
+	// would report a delay strictly larger than the truth. Drop the
+	// observation rather than record a wrong one, and count the gap so the
+	// histogram's coverage stays auditable.
+	childOpts := opts
+	countAsDeferred := !opts.ObservedAt.IsZero()
+	childOpts.ObservedAt = time.Time{}
 
 	// We collect the stashed blobs into closures, to avoid nested SQLite queries,
 	// because the result set here would select and update the same table, which sometimes gives unexpected results.
@@ -2072,8 +2287,12 @@ func reindexStashedBlobs(trackUnreads bool, conn *sqlite.Conn, reason stashReaso
 
 		c := cid.NewCidV1(uint64(codec), hash)
 
+		if countAsDeferred {
+			syncperf.Default.SkipDelay(syncperf.SkipDeferredUnstash)
+		}
+
 		funcs = append(funcs, func() error {
-			return indexBlob(trackUnreads, false, conn, id, c, data, bs, log, wc, hookIDs)
+			return indexBlob(childOpts, conn, id, c, data, bs, log, wc, hookIDs)
 		})
 	}
 

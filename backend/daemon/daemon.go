@@ -30,6 +30,7 @@ import (
 	"seed/backend/storage/vault"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/pprofx"
+	"seed/backend/util/syncperf"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -105,6 +106,12 @@ func WithGRPCServerOption(opt grpc.ServerOption) Option {
 //
 // To shut down the app gracefully cancel the provided context and call Wait().
 func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option) (a *App, err error) {
+	// Anchor the sync-performance session here rather than at process start:
+	// this is the point before which no syncing can happen, and it defines both
+	// the wall-throughput denominator and the cutoff below which arriving blobs
+	// count as offline backfill instead of live delivery.
+	syncperf.Default.SetSessionStart(time.Now())
+
 	a = &App{
 		log:     logging.New("seed/daemon", cfg.LogLevel),
 		Storage: r,

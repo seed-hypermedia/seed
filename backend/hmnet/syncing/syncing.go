@@ -19,6 +19,7 @@ import (
 
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
+	"seed/backend/util/syncperf"
 
 	"github.com/ipfs/boxo/exchange"
 	blocks "github.com/ipfs/go-block-format"
@@ -860,12 +861,38 @@ func shouldKeepDrainingTier(tierOutstanding, tierWants int64, idleStrikes int) b
 // unbounded in-flight batches.
 const persistFeederCap = 16
 
+// commonSpace returns the space shared by every entity in scope, or "" if they
+// don't all belong to one. A recursive discovery walks a single space's subtree,
+// so in the common case this resolves; a multi-space wave deliberately does not.
+func commonSpace(eids map[string]entityScope) string {
+	var out string
+	for iri := range eids {
+		space, _, err := blob.IRI(iri).SpacePath()
+		if err != nil {
+			return ""
+		}
+		s := space.String()
+		if out == "" {
+			out = s
+			continue
+		}
+		if out != s {
+			return ""
+		}
+	}
+	return out
+}
+
 // persistJob is one batch of fetched blocks handed to the shared persist feeder,
 // together with the WaitGroup the submitting tier blocks on for its barrier.
 type persistJob struct {
 	blocks []blocks.Block
 	wg     *sync.WaitGroup
 	pid    peer.ID
+	// site is the space whose sync pulled this batch, used to attribute media
+	// bytes that carry no space of their own. Empty when the batch spans more
+	// than one space.
+	site string
 }
 
 // persistFeeder serializes ALL synced-block persistence — across every concurrent
@@ -892,7 +919,9 @@ func startPersistFeeder(persistCtx context.Context, idx Index, log *zap.Logger) 
 	go func() {
 		for job := range pf.ch {
 			putmanyStart := time.Now()
-			perr := idx.PutMany(persistCtx, job.blocks)
+			leaveStage := syncperf.Default.EnterStage(syncperf.StageTransfer, job.site)
+			perr := idx.PutMany(blob.ContextWithSyncSite(persistCtx, job.site), job.blocks)
+			leaveStage()
 			MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
 			if perr != nil {
 				MSyncPersistRollbackTotal.Inc()
@@ -912,9 +941,9 @@ func startPersistFeeder(persistCtx context.Context, idx Index, log *zap.Logger) 
 // submit queues a batch and registers it on wg (the caller's per-tier barrier).
 // It blocks while the queue is full; the feeder drains continuously, so this is
 // backpressure, not a deadlock.
-func (pf *persistFeeder) submit(wg *sync.WaitGroup, pid peer.ID, batch []blocks.Block) {
+func (pf *persistFeeder) submit(wg *sync.WaitGroup, pid peer.ID, site string, batch []blocks.Block) {
 	wg.Add(1)
-	pf.ch <- persistJob{blocks: batch, wg: wg, pid: pid}
+	pf.ch <- persistJob{blocks: batch, wg: wg, pid: pid, site: site}
 }
 
 // globalPersistFeeder returns the daemon-wide persist feeder, starting it on first
@@ -922,7 +951,7 @@ func (pf *persistFeeder) submit(wg *sync.WaitGroup, pid peer.ID, batch []blocks.
 // writer; see persistFeeder.
 func (s *Service) globalPersistFeeder() *persistFeeder {
 	s.persistOnce.Do(func() {
-		s.persistFeeder = startPersistFeeder(blob.ContextWithUnreadsTracking(context.Background()), s.index, s.log)
+		s.persistFeeder = startPersistFeeder(blob.ContextWithNetworkOrigin(blob.ContextWithUnreadsTracking(context.Background())), s.index, s.log)
 	})
 	return s.persistFeeder
 }
@@ -1116,6 +1145,8 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	connCachedBefore := s.isConnCached != nil && s.isConnCached(pid)
 
 	c, err := func() (p2p.SyncingClient, error) {
+		leaveStage := syncperf.Default.EnterStage(syncperf.StageConnecting, commonSpace(eids))
+		defer leaveStage()
 		dialCtx, dialCancel := context.WithTimeout(ctx, 10*time.Second)
 		defer dialCancel()
 		return s.rbsrClient(dialCtx, pid)
@@ -1187,6 +1218,12 @@ func syncResources(
 		return fmt.Errorf("syncEntities: must specify entities to sync")
 	}
 
+	// The space this peer-sync is pulling for. Used to attribute media bytes,
+	// which carry no space of their own, and to break the stage timings down
+	// per space. Empty when the scope spans more than one space, in which case
+	// both stay unattributed rather than being credited to an arbitrary one.
+	syncSite := commonSpace(eids)
+
 	mSyncsInFlight.Inc()
 	defer func() {
 		mSyncsInFlight.Dec()
@@ -1253,12 +1290,14 @@ func syncResources(
 		// the user-visible discovery wall-clock.
 		const reconcileRoundTimeout = 15 * time.Second
 		rpcStart := time.Now()
+		leaveStage := syncperf.Default.EnterStage(syncperf.StageExchange, syncSite)
 		roundCtx, roundCancel := context.WithTimeout(ctx, reconcileRoundTimeout)
 		res, rerr := c.ReconcileBlobs(roundCtx, &p2p.ReconcileBlobsRequest{
 			Ranges:  msg,
 			Filters: filters,
 		})
 		roundCancel()
+		leaveStage()
 		rpcDur := time.Since(rpcStart)
 		rpcElapsed := rpcDur.Seconds()
 		MSyncPeerPhaseSeconds.WithLabelValues("reconcile_rpc").Observe(rpcElapsed)
@@ -1350,6 +1389,14 @@ func syncResources(
 	*phase = "bitswap_fetch"
 	bitswapStart := time.Now()
 
+	// Transfer stage: the window in which bytes actually move, and the honest
+	// denominator for throughput — see syncperf.Stage. Closed explicitly where
+	// fetchElapsed is computed so the stage window is exactly the bitswap_fetch
+	// phase window; the defer is only a guard for early returns (leave is
+	// idempotent).
+	leaveTransfer := syncperf.Default.EnterStage(syncperf.StageTransfer, syncSite)
+	defer leaveTransfer()
+
 	// Bitswap is IO-bound (network); persistence is CPU/disk-bound (SQLite write
 	// tx + indexBlob). Each tier streams batches as they arrive to the discovery's
 	// shared persist feeder (pf), which serializes all peers' writes through a
@@ -1422,7 +1469,7 @@ func syncResources(
 			if len(batch) == 0 {
 				return
 			}
-			pf.submit(&persistWG, pid, batch)
+			pf.submit(&persistWG, pid, syncSite, batch)
 			batch = make([]blocks.Block, 0, persistBatchSize)
 		}
 
@@ -1457,6 +1504,7 @@ func syncResources(
 				}
 				lastBlockAt = time.Now()
 				prog.BlobsDownloaded.Add(1)
+				prog.BytesDownloaded.Add(int64(len(blk.RawData())))
 				downloadedTotal++
 				tierDownloaded++
 				batch = append(batch, blk)
@@ -1547,6 +1595,7 @@ func syncResources(
 		}
 	}
 
+	leaveTransfer()
 	fetchDur := time.Since(bitswapStart)
 	fetchElapsed := fetchDur.Seconds()
 	if bitswapOutcome == "" {

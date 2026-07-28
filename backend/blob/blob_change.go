@@ -146,6 +146,9 @@ type OpType string
 type OpMap map[string]any
 
 // ToOp converts the map into a concrete op type, checking the discriminator field.
+//
+// See blob_change_ops.go for how the per-variant conversion works, and why it
+// no longer goes through the CBOR codec.
 func (o OpMap) ToOp() (Op, error) {
 	switch ot := o["type"].(type) {
 	case nil:
@@ -153,30 +156,20 @@ func (o OpMap) ToOp() (Op, error) {
 	case string:
 		switch OpType(ot) {
 		case OpTypeSetKey:
-			var out OpSetKey
-			mapToCBOR(o, &out)
-			return out, nil
+			return opSetKeyFromMap(o)
 		case OpTypeMoveBlocks:
-			var out OpMoveBlocks
-			mapToCBOR(o, &out)
-			return out, nil
+			return opMoveBlocksFromMap(o)
 		case OpTypeReplaceBlock:
-			var out OpReplaceBlock
-			mapToCBOR(o, &out)
-			return out, nil
+			return opReplaceBlockFromMap(o)
 		case OpTypeDeleteBlocks:
-			var out OpDeleteBlocks
-			mapToCBOR(o, &out)
-			return out, nil
+			return opDeleteBlocksFromMap(o)
 		case OpTypeSetAttributes:
-			var out OpSetAttributes
-			mapToCBOR(o, &out)
-			return out, nil
+			return opSetAttributesFromMap(o)
 		default:
-			return nil, fmt.Errorf("unsupported op type %s", o)
+			return nil, fmt.Errorf("unsupported op type %s", ot)
 		}
 	default:
-		return nil, fmt.Errorf("invalid op type type %T", o)
+		return nil, fmt.Errorf("invalid op type type %T", ot)
 	}
 }
 
@@ -534,7 +527,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		return err
 	}
 
-	if err := reindexStashedBlobs(ictx.mustTrackUnreads, ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log, ictx.writerCache, ictx.hookIDs); err != nil {
+	if err := reindexStashedBlobs(ictx.childOpts(), ictx.conn, stashReasonFailedPrecondition, c.String(), ictx.blockStore, ictx.log, ictx.writerCache, ictx.hookIDs); err != nil {
 		return err
 	}
 

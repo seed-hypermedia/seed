@@ -203,7 +203,7 @@ require (
 	github.com/libp2p/go-libp2p-asn-util v0.4.1 // indirect
 	github.com/libp2p/go-libp2p-kbucket v0.8.0 // indirect
 	github.com/libp2p/go-libp2p-routing-helpers v0.7.5 // indirect
-	github.com/libp2p/go-msgio v0.3.0
+	github.com/libp2p/go-msgio v0.3.0 // indirect
 	github.com/libp2p/go-netroute v0.4.0 // indirect
 	github.com/libp2p/go-reuseport v0.4.0 // indirect
 	github.com/lightninglabs/gozmq v0.0.0-20191113021534-d20a764486bf // indirect
@@ -257,7 +257,7 @@ require (
 	golang.org/x/crypto v0.49.0
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/net v0.52.0
-	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/sys v0.42.0
 	golang.org/x/term v0.41.0
 	golang.org/x/tools v0.43.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect

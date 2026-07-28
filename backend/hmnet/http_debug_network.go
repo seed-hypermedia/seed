@@ -197,6 +197,35 @@ type section struct {
 	Counter *counterTable
 	Bucket  *bucketTable
 	KV      *kvTable
+	Matrix  *matrixTable
+}
+
+// matrixTable renders a rows-by-columns grid: one row per site, one column per
+// blob kind. The totals row is always visible; the per-site rows live inside a
+// <details> so a node subscribed to hundreds of spaces doesn't bury the rest of
+// the page.
+type matrixTable struct {
+	RowHeader string   // header for the leftmost column
+	Columns   []string // e.g. "total", "media", "Ref", ...
+	Groups    []matrixGroup
+	// Footnote carries caveats that belong with the numbers rather than in the
+	// help text — e.g. unclassified bytes, or folded-away sites.
+	Footnote string
+}
+
+// matrixGroup is one metric row plus, for metrics that disaggregate by space,
+// the per-site rows revealed when it's expanded. Metrics that exist only in
+// aggregate (timings, duty cycle) simply carry no children and don't expand.
+type matrixGroup struct {
+	Row      matrixRow
+	Children []matrixRow
+}
+
+type matrixRow struct {
+	Label string
+	// Cells are pre-formatted and parallel to Columns.
+	Cells []string
+	Class string
 }
 
 // withHelp attaches a Help HTML blob to a section produced by one of the
@@ -299,6 +328,10 @@ func (n *Node) buildPage(ctx context.Context) networkPage {
 	}
 
 	page.Sections = []section{
+		withHelp(n.buildSyncThroughputSection(ctx), helpSyncThroughput),
+		withHelp(buildEffortSection(), helpSyncEffort),
+		withHelp(buildSchedulerSection(), helpSchedulerOccupancy),
+		withHelp(buildSyncDelaySection(), helpArrivalDelay),
 		withHelp(buildLatencySection(
 			"Discovery latency",
 			"time spent in each phase of one Subscribe / DiscoverObject call",
@@ -1328,7 +1361,24 @@ details.help ul{margin:6px 0 6px 18px;padding:0}
 details.help li{margin:2px 0}
 details.howto{background:#f7faff;border:1px solid #d6e4ff;border-radius:4px;padding:8px 12px;margin:0 0 16px 0}
 details.howto>summary{color:#0a58ca;font-weight:600}
+tr.exp{cursor:pointer}
+tr.exp:hover>td{background:#f2f6ff}
+tr.exp .tw{color:#0a58ca;font-size:11px;display:inline-block;width:10px}
+tr.det>td{background:#fafafa;font-size:12px}
+tr.det>td.sub{padding-left:26px;color:#555}
 </style></head><body>
+<script>
+// Expand one metric row to reveal its per-site breakdown. The detail rows are
+// the consecutive tr.det siblings that follow, so no ids or lookups are needed.
+function tgm(r){
+  var open = r.classList.toggle('open');
+  var tw = r.querySelector('.tw');
+  if (tw) tw.textContent = open ? '▾' : '▸';
+  for (var n = r.nextElementSibling; n && n.classList.contains('det'); n = n.nextElementSibling) {
+    n.hidden = !open;
+  }
+}
+</script>
 <h1>Seed daemon network health</h1>
 <div class="meta">
   uptime <strong>{{.Uptime}}</strong>
@@ -1392,6 +1442,25 @@ details.howto>summary{color:#0a58ca;font-weight:600}
 <tr><td>{{.Key}}</td><td class="{{.Class}}">{{.Value}}</td></tr>
 {{end}}
 </table>
+{{end}}
+{{end}}
+
+{{if .Matrix}}
+{{with .Matrix}}
+<table>
+<tr><th>{{.RowHeader}}</th>{{range .Columns}}<th>{{.}}</th>{{end}}</tr>
+{{range .Groups}}{{$g := .}}{{$r := $g.Row}}
+{{if $g.Children}}
+<tr class="exp" onclick="tgm(this)"><td><span class="tw">&#9656;</span> {{$r.Label}}</td>{{range $r.Cells}}<td class="{{$r.Class}}">{{.}}</td>{{end}}</tr>
+{{range $g.Children}}
+<tr class="det" hidden><td class="sub"><code>{{.Label}}</code></td>{{range .Cells}}<td class="num">{{.}}</td>{{end}}</tr>
+{{end}}
+{{else}}
+<tr><td>{{$r.Label}}</td>{{range $r.Cells}}<td class="{{$r.Class}}">{{.}}</td>{{end}}</tr>
+{{end}}
+{{end}}
+</table>
+{{if .Footnote}}<div class="note">{{.Footnote}}</div>{{end}}
 {{end}}
 {{end}}
 

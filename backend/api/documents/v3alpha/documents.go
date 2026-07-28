@@ -149,6 +149,23 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		return nil, err
 	}
 
+	iri, err := makeIRI(ns, in.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Try to answer from the hydration cache before doing any real work. Only
+	// requests for the current version qualify -- see cachedDocument.
+	if len(heads) == 0 {
+		cached, ok, err := srv.cachedDocument(ctx, iri, ns, in.Path)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			return cached, nil
+		}
+	}
+
 	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, false)
 	if err != nil {
 		return nil, err
@@ -160,12 +177,45 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		}
 	}
 
-	iri, err := makeIRI(ns, in.Path)
+	return srv.hydrated.get(ctx, string(iri), doc)
+}
+
+// cachedDocument tries to answer a GetDocument for the current version straight
+// from the hydration cache, without replaying the document's change log.
+//
+// The cache is keyed by the document's content-addressed version, and until now
+// that version was only known after loadDocument had already replayed every
+// change -- so even a cache hit paid the full cost, which the production profile
+// showed as ~22% of all daemon CPU. The version is also sitting in the index,
+// one indexed read away, and that same read carries the visibility we need for
+// the private-document check.
+//
+// Only the current version takes this path. An explicit version may belong to
+// an older generation, and visibility is a per-generation attribute, so serving
+// one from here would risk applying the wrong generation's access rules.
+//
+// A miss is always safe: the caller falls through to the full load. A hit can't
+// be stale either, because ResolveLatest reads the very document_generations row
+// that IterChanges derives its replay set from -- if that row were behind, the
+// full load would compute the same version anyway.
+func (srv *Server) cachedDocument(ctx context.Context, iri blob.IRI, ns core.Principal, path string) (*documents.Document, bool, error) {
+	state, err := srv.idx.ResolveLatest(ctx, iri)
 	if err != nil {
-		return nil, err
+		// Any failure here just means no shortcut. We deliberately swallow it
+		// and fall through so the regular load stays responsible for every
+		// error message, redirect detail and tombstone.
+		return nil, false, nil //nolint:nilerr // Intentional: fall back to the slow path.
 	}
 
-	return srv.hydrated.get(ctx, string(iri), doc)
+	if state.Visibility == blob.VisibilityPrivate {
+		if err := srv.denyPrivateDocument(ctx, ns, path); err != nil {
+			return nil, false, err
+		}
+	}
+
+	cached, ok := srv.hydrated.peek(hydrateCacheKey(string(iri), docmodel.NewVersion(state.Heads...).String()))
+
+	return cached, ok, nil
 }
 
 // GetDocumentInfo implements Documents API v3.

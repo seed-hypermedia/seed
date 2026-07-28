@@ -4,7 +4,9 @@ import (
 	"context"
 	"seed/backend/ipfs"
 	"seed/backend/util/sqlite"
+	"seed/backend/util/syncperf"
 	"slices"
+	"time"
 
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -25,25 +27,50 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 	}
 	defer release()
 
+	fromNetwork := networkOrigin(ctx)
+	opts := indexOpts{TrackUnreads: unreadsTrackingEnabled(ctx), FromNetwork: fromNetwork}
+	if fromNetwork {
+		opts.ObservedAt = time.Now()
+	}
+
 	// hookIDs collects this blob plus any older blobs the unstash cascade
 	// re-indexes, so the maintained RBSR index sees them all. Enqueued for the
 	// asynchronous hook only after the transaction commits.
 	hookIDs := make([]int64, 0, 1)
+	var wrote bool
+	var kinds []syncperf.KindSample
+	if fromNetwork {
+		opts.Kinds = &kinds
+	}
 	if err := sqlitex.WithTx(conn, func() error {
 		codec, hash := ipfs.DecodeCID(blk.Cid())
 		id, exists, err := idx.bs.putBlock(conn, 0, uint64(codec), hash, blk.RawData())
 		if err != nil {
 			return err
 		}
+		wrote = !exists
 
 		if exists || !isIndexable(multicodec.Code(codec)) {
+			if wrote && fromNetwork {
+				kinds = append(kinds, syncperf.KindSample{
+					Site:  syncSite(ctx),
+					Kind:  syncperf.KindMedia,
+					Bytes: int64(len(blk.RawData())),
+				})
+			}
 			return nil
 		}
 
 		// Single-blob path: a fresh per-call cache (no cross-blob reuse to exploit).
-		return indexBlob(unreadsTrackingEnabled(ctx), false, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache(), &hookIDs)
+		return indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, newWriterValidityCache(), &hookIDs)
 	}); err != nil {
 		return err
+	}
+
+	// Only after the commit: a rolled-back transaction wrote nothing.
+	if fromNetwork && wrote {
+		syncperf.Default.RecordWrite(1, int64(len(blk.RawData())))
+		syncperf.Default.RecordKinds(kinds)
 	}
 
 	idx.enqueueIndexedHook(hookIDs)
@@ -66,12 +93,28 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	// device-link, push) pass only a handful of blobs, so they're unaffected.
 	const batchSize = 100
 
-	trackUnreads := unreadsTrackingEnabled(ctx)
+	fromNetwork := networkOrigin(ctx)
+	// Raw media never reaches the indexer, so it can't learn its space the way
+	// structural blobs do. The syncing session that pulled it does know, and
+	// passes it down here — see blob.ContextWithSyncSite.
+	mediaSite := syncSite(ctx)
+	opts := indexOpts{
+		TrackUnreads:     unreadsTrackingEnabled(ctx),
+		DeferPropagation: true,
+		FromNetwork:      fromNetwork,
+	}
 
 	for batch := range slices.Chunk(blks, batchSize) {
 		conn, release, err := idx.db.WriteConn(ctx)
 		if err != nil {
 			return err
+		}
+
+		// One arrival timestamp per batch transaction rather than per blob:
+		// the batch holds the write lock ~150ms while delays are measured in
+		// seconds, so the extra precision would be noise.
+		if fromNetwork {
+			opts.ObservedAt = time.Now()
 		}
 
 		// One writer-validity cache per batch transaction: shared across this
@@ -85,6 +128,18 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 		// so they're not in `indexed`) — for the asynchronous RBSR index hook.
 		// Enqueued only after this batch's transaction commits.
 		hookIDs := make([]int64, 0, len(batch))
+		// putBlock already tells us which blobs actually reached the disk, so
+		// throughput accounting is a pair of adds in a loop we already run —
+		// no extra query, and blobs bounced as "exists" (which wrote nothing)
+		// are excluded for free.
+		var wroteBlobs, wroteBytes int64
+		// kinds is filled by SaveBlob for indexable blobs (which know their type
+		// and space) and here for raw media (which never reaches the indexer).
+		// Flushed only after the commit.
+		var kinds []syncperf.KindSample
+		if fromNetwork {
+			opts.Kinds = &kinds
+		}
 		err = sqlitex.WithTx(conn, func() error {
 			// Track every blob we actually indexed in this batch so we can run
 			// one coalesced visibility propagation pass at the end instead of
@@ -96,12 +151,28 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 				if err != nil {
 					return err
 				}
+				indexable := isIndexable(multicodec.Code(codec))
+				if !exists {
+					wroteBlobs++
+					wroteBytes += int64(len(blk.RawData()))
+					// Raw media never reaches the indexer, so this is its only
+					// chance to be counted. It carries no space either: a raw
+					// block is reached by walking links out of a document, and
+					// that document isn't in scope by the time it lands here.
+					if !indexable && fromNetwork {
+						kinds = append(kinds, syncperf.KindSample{
+							Site:  mediaSite,
+							Kind:  syncperf.KindMedia,
+							Bytes: int64(len(blk.RawData())),
+						})
+					}
+				}
 
-				if exists || !isIndexable(multicodec.Code(codec)) {
+				if exists || !indexable {
 					continue
 				}
 
-				if err := indexBlob(trackUnreads, true, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc, &hookIDs); err != nil {
+				if err := indexBlob(opts, conn, id, blk.Cid(), blk.RawData(), idx.bs, idx.log, wc, &hookIDs); err != nil {
 					return err
 				}
 				indexed = append(indexed, id)
@@ -112,6 +183,12 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 		release()
 		if err != nil {
 			return err
+		}
+
+		// Only after the commit: a rolled-back batch wrote nothing.
+		if fromNetwork {
+			syncperf.Default.RecordWrite(wroteBlobs, wroteBytes)
+			syncperf.Default.RecordKinds(kinds)
 		}
 
 		idx.enqueueIndexedHook(hookIDs)
