@@ -9,11 +9,5 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* On narrow viewports the right margin may be too small for the negative
-   offset, so pin the badge inside the block edge to keep counts visible. */
-@media (max-width: 40rem) {
-  .bn-supernumber-badge {
-    right: 0.5rem;
-    top: 0.25rem;
-  }
-}
+/* On narrow viewports the badge stays at its right gutter position; it is
+   already small enough that most mobile margins can accommodate -24px. */

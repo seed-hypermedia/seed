@@ -25,7 +25,9 @@ Open the browser at a real-mode fixture URL, e.g.:
 http://localhost:5180/?real=1&fixture=allBlocks&badges=1
 ```
 
-`real=1` mounts the actual `DocumentEditor` with a mock document machine; `fixture=allBlocks` renders one of every block type defined in `e2e/test-app/TestEditor.tsx`; `badges=1` gives every fixture block a mock citation/comment count so supernumber badges render.
+- `real=1` mounts the actual `DocumentEditor` with a mock document machine.
+- `fixture=allBlocks` renders one of every block type defined in `e2e/test-app/TestEditor.tsx`.
+- `badges=1` gives every fixture block a mock citation/comment count so supernumber badges render.
 
 ## Mobile viewport emulation
 The Chrome for Testing instance in this environment listens on remote-debugging port `29229`. Use CDP to set a mobile viewport without keeping DevTools open:
@@ -33,22 +35,26 @@ The Chrome for Testing instance in this environment listens on remote-debugging 
 ```javascript
 // /tmp/set-mobile-viewport.js
 const http = require('http');
-const WebSocket = require('ws');
+const WebSocket = require('/home/ubuntu/repos/seed/node_modules/ws');
 
 http.get('http://localhost:29229/json/list', (res) => {
   let data = '';
   res.on('data', (c) => (data += c));
   res.on('end', () => {
     const pages = JSON.parse(data);
-    const page = pages.find((p) => p.url.includes('localhost:5180') && p.type === 'page');
+    const page = pages.find((p) => p.type === 'page' && (p.url.includes('localhost:5180') || p.url === 'about:blank'));
+    if (!page) { console.error('No suitable page found'); process.exit(1); }
     const ws = new WebSocket(page.webSocketDebuggerUrl);
     ws.on('open', () => {
-      ws.send(JSON.stringify({id: 1, method: 'Emulation.setDeviceMetricsOverride', params: {
-        width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
-        screenWidth: 390, screenHeight: 844,
-      }}));
-      ws.send(JSON.stringify({id: 2, method: 'Emulation.setTouchEmulationEnabled', params: {enabled: true}}));
-      setTimeout(() => ws.close(), 500);
+      ws.send(JSON.stringify({id: 1, method: 'Page.navigate', params: {url: 'http://localhost:5180/?real=1&fixture=allBlocks&badges=1'}}));
+      setTimeout(() => {
+        ws.send(JSON.stringify({id: 2, method: 'Emulation.setDeviceMetricsOverride', params: {
+          width: 390, height: 844, deviceScaleFactor: 2, mobile: true,
+          screenWidth: 390, screenHeight: 844,
+        }}));
+        ws.send(JSON.stringify({id: 3, method: 'Emulation.setTouchEmulationEnabled', params: {enabled: true}}));
+        setTimeout(() => ws.close(), 500);
+      }, 300);
     });
   });
 });
@@ -65,7 +71,7 @@ Verify with `window.innerWidth` and `window.innerHeight` in the console.
 - Range selection bubble: buttons with `aria-label="Copy link to selection"` or `aria-label="Comment on selection"`, inside a `bg-popover ... rounded-md border ... shadow-md` element
 
 ## Useful runtime globals
-- `window.TEST_EDITOR` (raw / default mode) — exposes `hoverActionsBlockId()`, `blockToolsBlockId()`, `getSelection()`, `getBlocks()`, etc.
+- `window.TEST_EDITOR` (`?real=1`) — exposes `hoverActionsBlockId()`, `blockToolsBlockId()`, `getSelection()`, `getBlocks()`, etc.
 - `window.TEST_MACHINE` (`?real=1`) — exposes `state()` and `send()` for the document machine actor.
 - `window.TEST_BLOCK_TOOL_CALLS` — records `{copyLink, comment}` calls made by the `BlockHoverActions` card in `?real=1`.
 
@@ -83,8 +89,32 @@ content.dispatchEvent(new PointerEvent('pointerup', {pointerType:'touch', bubble
 ```
 
 ## Triggering RangeSelection
-Make a non-empty text selection inside a block (e.g. long-press and drag on a touch device, or click-drag with a mouse) and release. The plugin settles after 10 ms, then opens the horizontal bubble above the selection.
+On a real touch device, long-pressing text and adjusting the selection handles creates the selection, and the `RangeSelection` plugin opens the bubble after `touchend`/10 ms settle.
+
+In the harness under CDP device emulation, a real mouse drag across the read-only `contenteditable=false` editor may leave only a collapsed caret. To demonstrate the bubble reliably, set both the native selection and the ProseMirror selection, then dispatch `mouseup` on the editor DOM:
+
+```javascript
+const view = window.TEST_EDITOR.editor._tiptapEditor.view;
+const TextSelection = view.state.selection.constructor;
+view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, 3, 18)));
+
+const content = document.querySelector('[data-node-type="blockNode"][data-id="p-top"] [data-content-type="paragraph"]');
+const textNode = Array.from(content.childNodes).find(n => n.nodeType === Node.TEXT_NODE);
+if (textNode) {
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  const range = document.createRange();
+  range.setStart(textNode, 0);
+  range.setEnd(textNode, textNode.length);
+  sel.addRange(range);
+}
+
+await new Promise(r => setTimeout(r, 20));
+view.dom.dispatchEvent(new MouseEvent('mouseup', {bubbles: true, cancelable: true, clientX: 100, clientY: 100}));
+```
 
 ## Common pitfalls
+- `?badges=1` is required in the harness to render `.bn-supernumber-badge` widgets.
 - `Emulation.setTouchEmulationEnabled` is deprecated in newer CDP versions; if it stops working, use `Emulation.setEmitTouchEventsForMouse` or a newer `Emulation` domain method.
 - The `allBlocks` fixture intentionally uses a broken web-embed URL and a draft embed; expect `Error loading embed` and `Draft card` content — these are not failures.
+- Do not set a `TextSelection` to block-node boundary positions (e.g. 0, 1, or 19); this produces a `blockChildren`/`blockNode` endpoint warning and may fail to trigger the desired UI.
