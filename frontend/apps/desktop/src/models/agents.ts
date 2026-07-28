@@ -1230,6 +1230,9 @@ export function addOptimisticSessionMessage(
             content: message.text,
             rawMarkdown: message.text,
             ...(message.blocks ? {blocks: message.blocks} : {}),
+            // Mirrors the durable event shape so the context info chip shows without waiting for
+            // the server round trip.
+            ...(message.contextLines?.length ? {contextLines: message.contextLines} : {}),
           },
           createdAt: now,
         })),

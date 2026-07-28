@@ -56,6 +56,34 @@ describe('buildAgentSessionChatRows', () => {
     expect(row.message.parts?.[0]).toMatchObject({result: 'Not found'})
   })
 
+  it('carries window-context lines on the message without leaking them into its text', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {
+          type: 'message',
+          role: 'user',
+          content: 'What is this?',
+          contextLines: ['## Current window', 'URL: hm://z6MkDoc/plan', 42, null],
+        }),
+      ],
+      CONTEXT,
+    )
+
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    // The bubble text is only the user's words; the context reaches the UI as a separate field so
+    // the info chip can show exactly what the agent was told.
+    expect(row.message.content).toBe('What is this?')
+    expect(row.message.contextLines).toEqual(['## Current window', 'URL: hm://z6MkDoc/plan'])
+  })
+
+  it('leaves contextLines off messages that carried none', () => {
+    const rows = buildAgentSessionChatRows([event(1, {type: 'message', role: 'user', content: 'Hello'})], CONTEXT)
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    expect(row.message.contextLines).toBeUndefined()
+  })
+
   it('hides the trigger context block from the bubble but keeps the full text as raw markdown', () => {
     const content = 'Please review.\n<trigger_context>\n{"a":1}\n</trigger_context>'
     const rows = buildAgentSessionChatRows([event(1, {type: 'message', role: 'user', content})], {

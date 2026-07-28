@@ -99,6 +99,7 @@ export function buildAgentSessionChatRows(
       error?: string
       rawMarkdown?: string
       blocks?: HMBlockNode[]
+      contextLines?: unknown
     }
 
     if (payload.type === 'message' && typeof payload.content === 'string') {
@@ -110,6 +111,12 @@ export function buildAgentSessionChatRows(
       if (attachTriggerCard) triggerCardAttached = true
       const displayContent = hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content
       const triggerInstructions = attachTriggerCard ? extractTriggerInstructions(payload.content) : undefined
+      // Client context (e.g. the sidebar's current window) rides on the event as a separate field:
+      // it never renders as message text, but the bubble surfaces it behind an info chip so the
+      // user can see exactly what the agent was told.
+      const contextLines = Array.isArray(payload.contextLines)
+        ? payload.contextLines.filter((line): line is string => typeof line === 'string')
+        : undefined
       rows.push({
         key: event.id,
         kind: 'message',
@@ -118,6 +125,7 @@ export function buildAgentSessionChatRows(
           content: displayContent,
           rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
           blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
+          contextLines: contextLines?.length ? contextLines : undefined,
           eventId: event.id,
           sessionId: event.sessionId,
           seq: event.seq,

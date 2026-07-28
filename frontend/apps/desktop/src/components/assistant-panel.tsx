@@ -487,11 +487,9 @@ function AssistantDraftChat({
       const result = await createSession.mutateAsync({serverUrl, agentId, title: 'New chat'})
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected CreateSession response')
       setInput('')
-      addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, [{text: content}])
-      messageSession.mutate({
-        sessionId: result.sessionId,
-        message: [{text: content, contextLines: windowContextLinesRef.current}],
-      })
+      const messages = [{text: content, contextLines: windowContextLinesRef.current}]
+      addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, messages)
+      messageSession.mutate({sessionId: result.sessionId, message: messages})
       onSessionCreated({serverUrl, sessionId: result.sessionId})
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not start the chat')
@@ -583,13 +581,12 @@ function AssistantSessionChat({
   const doSendMessage = useCallback(
     (content: string | string[]) => {
       if (!accountUid) return
-      const messages = (Array.isArray(content) ? content : [content]).map((text) => ({text}))
-      addOptimisticSessionMessage(serverUrl, accountUid, sessionId, messages)
       const contextLines = windowContextLinesRef.current
-      const withContext = contextLines
-        ? messages.map((message, index) => (index === 0 ? {...message, contextLines} : message))
-        : messages
-      messageSession.mutate({sessionId, message: withContext})
+      const messages = (Array.isArray(content) ? content : [content]).map((text, index) =>
+        index === 0 && contextLines ? {text, contextLines} : {text},
+      )
+      addOptimisticSessionMessage(serverUrl, accountUid, sessionId, messages)
+      messageSession.mutate({sessionId, message: messages})
     },
     [accountUid, messageSession, serverUrl, sessionId],
   )

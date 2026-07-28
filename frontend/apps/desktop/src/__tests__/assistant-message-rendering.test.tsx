@@ -112,6 +112,44 @@ describe('assistant message rendering', () => {
     document.body.innerHTML = ''
   })
 
+  it('reveals the exact window context a user message carried behind an info chip', () => {
+    // Context is model-facing and never renders as message text — but the user must be able to
+    // audit exactly what the agent was told about what they were looking at.
+    const contextLines = ['## Current window', 'URL: hm://z6MkDoc/plan', 'View: document']
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    act(() => {
+      root.render(<ChatMessageBubble message={{role: 'user', content: 'What is this?', contextLines}} />)
+    })
+
+    // The bubble shows only the user's words plus the chip.
+    expect(container.textContent).toContain('What is this?')
+    expect(container.textContent).not.toContain('hm://z6MkDoc/plan')
+    const chip = findButton(container, (element) => element.textContent?.includes('Context') ?? false)
+    expect(chip).toBeTruthy()
+
+    click(chip)
+    expect(document.body.textContent).toContain('Context shared with the agent')
+    expect(document.body.textContent).toContain('URL: hm://z6MkDoc/plan')
+    expect(document.body.textContent).toContain('View: document')
+
+    cleanupRendered(root, container)
+  })
+
+  it('shows no context chip on messages that carried none', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    act(() => {
+      root.render(<ChatMessageBubble message={{role: 'user', content: 'Hello'}} />)
+    })
+
+    expect(findButton(container, (element) => element.textContent?.includes('Context') ?? false)).toBeUndefined()
+
+    cleanupRendered(root, container)
+  })
+
   it('renders provider errors with destructive styling in the transcript', () => {
     const {container, root} = renderErrorMessage('Quota exceeded for model gemini-3.1-pro.')
     const errorBlock = Array.from(container.querySelectorAll('.text-destructive')).find(
