@@ -1371,6 +1371,209 @@ func TestListComments_AfterDocumentMove(t *testing.T) {
 	require.Equal(t, cmt.Id, newPathResult.Comments[0].Id)
 }
 
+// TestCommentCount_AfterDocumentMove is a regression test for a bug where document
+// listings (ListDirectory/ListDocuments — what query blocks render) reported
+// ActivitySummary.CommentCount = 0 for moved documents. Comment blobs record the
+// document's path at write time, so the indexed counts stay on the old path's
+// resource; listings must aggregate counts across the redirect chain, the same way
+// ListComments walks it.
+func TestCommentCount_AfterDocumentMove(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		Path:           "/old-path",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Moving Doc"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	comment := func(path, text string) *pb.Comment {
+		cmt, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+			SigningKeyName: "main",
+			TargetAccount:  aliceSpace,
+			TargetPath:     path,
+			TargetVersion:  doc.Version,
+			Content: []*pb.BlockNode{
+				{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: text}},
+			},
+		})
+		require.NoError(t, err)
+		return cmt
+	}
+
+	move := func(from, to string) {
+		t.Helper()
+
+		_, err := alice.CreateRef(ctx, &pb.CreateRefRequest{
+			Account: aliceSpace,
+			Path:    to,
+			Target: &pb.RefTarget{
+				Target: &pb.RefTarget_Version_{
+					Version: &pb.RefTarget_Version{Genesis: doc.Genesis, Version: doc.Version},
+				},
+			},
+			SigningKeyName: "main",
+		})
+		require.NoError(t, err)
+
+		_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+			Account: aliceSpace,
+			Path:    from,
+			Target: &pb.RefTarget{
+				Target: &pb.RefTarget_Redirect_{
+					Redirect: &pb.RefTarget_Redirect{Account: aliceSpace, Path: to},
+				},
+			},
+			SigningKeyName: "main",
+		})
+		require.NoError(t, err)
+	}
+
+	// listedDoc returns the single doc listed at the space root along with its activity summary.
+	listedDoc := func(wantPath string) *pb.DocumentInfo {
+		t.Helper()
+
+		list, err := alice.ListDirectory(ctx, &pb.ListDirectoryRequest{
+			Account:       aliceSpace,
+			DirectoryPath: "",
+			Recursive:     true,
+		})
+		require.NoError(t, err)
+		require.Len(t, list.Documents, 1, "only the moved doc's current path must be listed")
+		require.Equal(t, wantPath, list.Documents[0].Path)
+		return list.Documents[0]
+	}
+
+	c1 := comment("/old-path", "First comment before the move")
+	c2 := comment("/old-path", "Second comment before the move")
+	_ = c1
+
+	move("/old-path", "/new-path")
+
+	got := listedDoc("/new-path")
+	require.Equal(t, int32(2), got.ActivitySummary.CommentCount, "comments made before the move must be counted after it")
+	require.Equal(t, c2.Id, got.ActivitySummary.LatestCommentId, "latest comment must come from the pre-move path")
+
+	// A comment made after the move (targeting the new path) adds to the same count.
+	c3 := comment("/new-path", "Comment after the move")
+
+	got = listedDoc("/new-path")
+	require.Equal(t, int32(3), got.ActivitySummary.CommentCount, "comments made after the move must add to the count")
+	require.Equal(t, c3.Id, got.ActivitySummary.LatestCommentId)
+
+	// Move once more: counts must survive a multi-hop redirect chain.
+	move("/new-path", "/final-path")
+
+	got = listedDoc("/final-path")
+	require.Equal(t, int32(3), got.ActivitySummary.CommentCount, "counts must aggregate across a redirect chain")
+	require.Equal(t, c3.Id, got.ActivitySummary.LatestCommentId)
+
+	// ListDocuments must agree with ListDirectory.
+	docs, err := alice.ListDocuments(ctx, &pb.ListDocumentsRequest{Account: aliceSpace})
+	require.NoError(t, err)
+	require.Len(t, docs.Documents, 1)
+	require.Equal(t, "/final-path", docs.Documents[0].Path)
+	require.Equal(t, int32(3), docs.Documents[0].ActivitySummary.CommentCount)
+
+	// The count must match what ListComments actually returns for the document.
+	comments, err := alice.ListComments(ctx, &pb.ListCommentsRequest{
+		TargetAccount: aliceSpace,
+		TargetPath:    "/final-path",
+	})
+	require.NoError(t, err)
+	require.Len(t, comments.Comments, 3, "sanity check: listing counts must match the comments the document shows")
+
+	// Deleting a comment after the move must decrement the count,
+	// even though the comment was written against the pre-move path.
+	_, err = alice.DeleteComment(ctx, &pb.DeleteCommentRequest{
+		Id:             c2.Id,
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	got = listedDoc("/final-path")
+	require.Equal(t, int32(2), got.ActivitySummary.CommentCount, "deleting a pre-move comment must decrement the count")
+	require.Equal(t, c3.Id, got.ActivitySummary.LatestCommentId)
+}
+
+// TestCommentCount_RepublishRedirect ensures that when a document is republished at a
+// new path while staying alive at the old one (a redirect with republish, rather than
+// a move), both listed paths report the comments that their document pages show:
+// the old path keeps its own comments, and the new path inherits them through the
+// redirect chain, matching ListComments' behavior for both.
+func TestCommentCount_RepublishRedirect(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		Path:           "/old-path",
+		Changes: []*pb.DocumentChange{
+			{Op: &pb.DocumentChange_SetMetadata_{SetMetadata: &pb.DocumentChange_SetMetadata{Key: "title", Value: "Republished Doc"}}},
+		},
+	})
+	require.NoError(t, err)
+
+	cmt, err := alice.CreateComment(ctx, &pb.CreateCommentRequest{
+		SigningKeyName: "main",
+		TargetAccount:  aliceSpace,
+		TargetPath:     "/old-path",
+		TargetVersion:  doc.Version,
+		Content: []*pb.BlockNode{
+			{Block: &pb.Block{Id: "b1", Type: "paragraph", Text: "Comment before republishing"}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+		Account: aliceSpace,
+		Path:    "/new-path",
+		Target: &pb.RefTarget{
+			Target: &pb.RefTarget_Version_{
+				Version: &pb.RefTarget_Version{Genesis: doc.Genesis, Version: doc.Version},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	_, err = alice.CreateRef(ctx, &pb.CreateRefRequest{
+		Account: aliceSpace,
+		Path:    "/old-path",
+		Target: &pb.RefTarget{
+			Target: &pb.RefTarget_Redirect_{
+				Redirect: &pb.RefTarget_Redirect{Account: aliceSpace, Path: "/new-path", Republish: true},
+			},
+		},
+		SigningKeyName: "main",
+	})
+	require.NoError(t, err)
+
+	list, err := alice.ListDirectory(ctx, &pb.ListDirectoryRequest{
+		Account:       aliceSpace,
+		DirectoryPath: "",
+		Recursive:     true,
+	})
+	require.NoError(t, err)
+	require.Len(t, list.Documents, 2, "republished doc must be listed at both paths")
+
+	for _, d := range list.Documents {
+		require.Equal(t, int32(1), d.ActivitySummary.CommentCount, "path %s must count the comment", d.Path)
+		require.Equal(t, cmt.Id, d.ActivitySummary.LatestCommentId, "path %s must expose the latest comment", d.Path)
+	}
+}
+
 // TestCommentCount_DedupesEditsAndDeletions ensures that editing or deleting a
 // comment does not inflate ActivitySummary.CommentCount. Each comment TSID
 // counts at most once while at least one non-tombstone version exists.
