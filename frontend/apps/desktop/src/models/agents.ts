@@ -1192,6 +1192,20 @@ export function useAgentWebSocketSubscription(
 }
 
 /** Adds an optimistic user message to the cached session while the signed request is in flight. */
+/**
+ * Optimistically drops a session from the cached cross-server session lists.
+ *
+ * Deletion flows call this before the DeleteSession round trip: anything that re-derives its
+ * selection from the list (the sidebar picks "the agent's newest session" when none is selected)
+ * would otherwise re-select the session that is being deleted from the still-stale cache.
+ */
+export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: string, sessionId: string) {
+  queryClient.setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) => {
+    if (!Array.isArray(old)) return old
+    return old.filter((entry: AgentSessionListEntry) => entry.session.id !== sessionId)
+  })
+}
+
 export function addOptimisticSessionMessage(
   serverUrl: string,
   accountUid: string,

@@ -1,5 +1,8 @@
 import {
   addOptimisticSessionMessage,
+  describeAgentServer,
+  isLocalAgentServer,
+  removeOptimisticSessionFromLists,
   useAgentLists,
   useAgentServerUrls,
   useAgentSession,
@@ -7,22 +10,43 @@ import {
   useAllAgentSessions,
   useCreateAgentSessionOnServer,
   useDeleteAgentSession,
-  describeAgentServer,
-  isLocalAgentServer,
   useLocalAgentServerUrl,
   useMessageAgentSession,
   useStopAgentSession,
   type AgentSessionListEntry,
 } from '@/models/agents'
 import {buildAgentSessionChatRows} from '@/models/agent-session-rows'
+import {
+  resolveAssistantSelection,
+  type AssistantAgentKey,
+  type AssistantAgentOption,
+} from '@/models/assistant-selection'
 import {useSelectedAccountId} from '@/selected-account'
-import {Button} from '@shm/ui/button'
+import {useNavigate} from '@/utils/useNavigate'
 import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
-import {DialogDescription, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
+import {Button} from '@shm/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {SizableText} from '@shm/ui/text'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, Bot, ChevronDown, Loader2, MessageCirclePlus, Send, Square, Trash2} from 'lucide-react'
+import {
+  ArrowDown,
+  Bot,
+  ChevronDown,
+  Loader2,
+  Maximize2,
+  MessageCirclePlus,
+  MoreHorizontal,
+  Send,
+  Square,
+  Trash2,
+} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
@@ -33,9 +57,10 @@ import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
 /**
  * Assistant sidebar.
  *
- * This is a session view over the Agents service, not a separate assistant runtime: it lists and
- * opens sessions belonging to any agent on any configured server — the locally spawned one included
- * — and renders them with the same components as the full Agents session page.
+ * A session view over the Agents service, scoped to one agent at a time: the dropdown at the very
+ * top picks the agent context, the row below it picks a session within that context, and new chats
+ * start directly in the current context — no dialog in the way. A new chat is a draft until the
+ * first send, which creates the session and delivers the message in one motion.
  */
 export function AssistantPanel({
   initialSessionId,
@@ -47,192 +72,411 @@ export function AssistantPanel({
   newChatRequest?: number
   onSessionChange?: (sessionId: string | null) => void
 }) {
-  return (
-    <div className="flex h-full flex-col">
-      <div className="border-border window-drag flex h-10 items-center justify-between border-b px-3 py-2">
-        <div className="no-select flex items-center gap-2">
-          <Bot className="text-muted-foreground size-4" />
-          <SizableText size="sm" className="font-medium">
-            Assistant
-          </SizableText>
-        </div>
-      </div>
-      <AssistantChatView
-        initialSessionId={initialSessionId}
-        newChatRequest={newChatRequest}
-        onSessionChange={onSessionChange}
-      />
-    </div>
-  )
-}
-
-function AssistantChatView({
-  initialSessionId,
-  newChatRequest,
-  onSessionChange,
-}: {
-  initialSessionId?: string | null
-  newChatRequest?: number
-  onSessionChange?: (sessionId: string | null) => void
-}) {
   const accountUid = useSelectedAccountId()
   const serverUrls = useAgentServerUrls()
   const localServerUrl = useLocalAgentServerUrl()
+  const agentQueries = useAgentLists(serverUrls.data, accountUid)
   const sessions = useAllAgentSessions(serverUrls.data, accountUid)
+  const navigate = useNavigate()
 
-  const [selected, setSelectedRaw] = useState<AssistantSessionRef | null>(() =>
-    decodeAssistantSessionRef(initialSessionId),
+  const agents: AssistantAgentOption[] = useMemo(
+    () =>
+      (serverUrls.data || []).flatMap((serverUrl, index) =>
+        (agentQueries[index]?.data || []).map((agent) => ({serverUrl, agent})),
+      ),
+    [serverUrls.data, agentQueries],
   )
+
+  const [stored, setStoredRaw] = useState<AssistantSessionRef | null>(() => decodeAssistantSessionRef(initialSessionId))
+  const [chosenAgent, setChosenAgent] = useState<AssistantAgentKey | null>(null)
+  const [isDraft, setIsDraft] = useState(false)
   const lastNewChatRequestRef = useRef(0)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
-  const setSelected = useCallback(
+  // Shares its cache with the transcript below; used to attribute a restored session to its agent
+  // before the session lists have loaded, and for the full-view navigation target.
+  const storedSessionQuery = useAgentSession(stored?.serverUrl, accountUid, stored?.sessionId)
+
+  const selection = resolveAssistantSelection({
+    agents,
+    sessions: sessions.entries,
+    chosenAgent,
+    storedSession: stored,
+    storedSessionAgentId: storedSessionQuery.data?.session.agentId,
+    isDraft,
+  })
+
+  const setStored = useCallback(
     (ref: AssistantSessionRef | null) => {
-      setSelectedRaw(ref)
+      setStoredRaw(ref)
       onSessionChange?.(ref ? encodeAssistantSessionRef(ref) : null)
     },
     [onSessionChange],
   )
+
+  // Keep window state in step with what is actually shown (e.g. the resolver replaced a stored
+  // session from another agent with the active agent's newest).
+  useEffect(() => {
+    const resolved = selection.session
+    const same = resolved?.serverUrl === stored?.serverUrl && resolved?.sessionId === stored?.sessionId
+    if (!same && !(resolved === null && stored === null)) setStored(resolved)
+  }, [selection.session, stored, setStored])
 
   const focusInput = useCallback(() => {
     inputRef.current?.focus()
     requestAnimationFrame(() => inputRef.current?.focus())
   }, [])
 
-  // Select the most recent session across all servers once the lists arrive, so opening the sidebar
-  // lands somewhere useful rather than on an empty picker.
-  useEffect(() => {
-    if (selected || sessions.entries.length === 0) return
-    const newest = sessions.entries[0]!
-    setSelected({serverUrl: newest.serverUrl, sessionId: newest.session.id})
-  }, [selected, sessions.entries, setSelected])
+  const selectSession = useCallback(
+    (ref: AssistantSessionRef) => {
+      setIsDraft(false)
+      setStored(ref)
+    },
+    [setStored],
+  )
 
-  const newSessionDialog = useAppDialog(NewAssistantSessionDialog)
-
-  const openNewSessionPicker = useCallback(() => {
-    newSessionDialog.open({
-      onCreated: (ref: AssistantSessionRef) => {
-        setSelected(ref)
-        focusInput()
-      },
-    })
-  }, [focusInput, newSessionDialog, setSelected])
+  const startDraft = useCallback(() => {
+    setIsDraft(true)
+    focusInput()
+  }, [focusInput])
 
   useEffect(() => {
     if (!newChatRequest || newChatRequest === lastNewChatRequestRef.current) return
     lastNewChatRequestRef.current = newChatRequest
-    openNewSessionPicker()
-  }, [newChatRequest, openNewSessionPicker])
+    startDraft()
+  }, [newChatRequest, startDraft])
+
+  const activeAgent = selection.agent
+  const activeSession = selection.session
+  const sessionEntry = activeSession
+    ? sessions.entries.find(
+        (entry) => entry.serverUrl === activeSession.serverUrl && entry.session.id === activeSession.sessionId,
+      )
+    : undefined
+  const sessionTitle = sessionEntry?.session.title || storedSessionQuery.data?.session.title
+  const sessionAgentId = sessionEntry?.session.agentId || storedSessionQuery.data?.session.agentId
+
+  const deleteSession = useDeleteAgentSession(activeSession?.serverUrl, accountUid)
+  const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {newSessionDialog.content}
-      <AssistantSessionPicker
-        entries={sessions.entries}
-        isLoading={sessions.isLoading}
-        selected={selected}
-        localServerUrl={localServerUrl.data ?? null}
-        onSelect={setSelected}
-        onNewSession={openNewSessionPicker}
-      />
-      {selected ? (
+    <div className="flex h-full flex-col">
+      {deleteDialog.content}
+      <div className="border-border window-drag flex h-10 items-center border-b px-2 py-2">
+        <AssistantAgentPicker
+          agents={agents}
+          activeAgent={activeAgent}
+          localServerUrl={localServerUrl.data ?? null}
+          onSelect={(key) => setChosenAgent(key)}
+        />
+      </div>
+      <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
+        <AssistantSessionPicker
+          entries={selection.agentSessions}
+          isLoading={sessions.isLoading}
+          selected={activeSession}
+          selectedTitle={sessionTitle}
+          isDraft={!activeSession}
+          onSelect={selectSession}
+        />
+        <button onClick={startDraft} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
+          <MessageCirclePlus className="size-3.5" />
+        </button>
+        {activeSession ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="text-muted-foreground hover:text-foreground p-1" title="Chat options">
+                <MoreHorizontal className="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                disabled={!sessionAgentId}
+                onClick={() =>
+                  sessionAgentId &&
+                  navigate({
+                    key: 'agent-session',
+                    serverUrl: activeSession.serverUrl,
+                    agentId: sessionAgentId,
+                    sessionId: activeSession.sessionId,
+                  })
+                }
+              >
+                <Maximize2 className="size-3.5" />
+                Open
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() =>
+                  deleteDialog.open({
+                    sessionTitle,
+                    onConfirm: () => {
+                      if (!accountUid) return
+                      // Drop it from the cached lists first, or the resolver would re-select the
+                      // session being deleted from the still-stale list.
+                      removeOptimisticSessionFromLists(activeSession.serverUrl, accountUid, activeSession.sessionId)
+                      setStored(null)
+                      deleteSession.mutate(activeSession.sessionId)
+                    },
+                  })
+                }
+              >
+                <Trash2 className="size-3.5" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : null}
+      </div>
+      {activeSession ? (
         <AssistantSessionChat
-          key={`${selected.serverUrl}${selected.sessionId}`}
-          sessionRef={selected}
+          key={`${activeSession.serverUrl}${activeSession.sessionId}`}
+          sessionRef={activeSession}
           accountUid={accountUid}
           inputRef={inputRef}
-          onDeleted={() => setSelected(null)}
+        />
+      ) : activeAgent ? (
+        <AssistantDraftChat
+          key={`${activeAgent.serverUrl}${activeAgent.agent.id}`}
+          serverUrl={activeAgent.serverUrl}
+          agentId={activeAgent.agent.id}
+          agentName={activeAgent.agent.definition.name}
+          accountUid={accountUid}
+          inputRef={inputRef}
+          onSessionCreated={selectSession}
         />
       ) : (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
-          {sessions.isLoading ? 'Loading sessions…' : 'Start a chat to begin.'}
+          {sessions.isLoading
+            ? 'Loading…'
+            : 'No agents available yet. Create one from the Agents page, then chat here.'}
         </div>
       )}
     </div>
   )
 }
 
-/** Session switcher listing every session from every configured server, newest first. */
+/**
+ * Agent-context dropdown at the very top of the sidebar.
+ *
+ * Choosing the context up front is what removes the friction of a per-chat agent dialog: every
+ * action below (sessions, new chats) applies to this agent. Agents are grouped under their server
+ * so the same name on two servers stays distinguishable.
+ */
+function AssistantAgentPicker({
+  agents,
+  activeAgent,
+  localServerUrl,
+  onSelect,
+}: {
+  agents: AssistantAgentOption[]
+  activeAgent: AssistantAgentOption | null
+  localServerUrl: string | null
+  onSelect: (key: AssistantAgentKey) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  const groups = useMemo(() => {
+    const byServer = new Map<string, AssistantAgentOption[]>()
+    for (const option of agents) {
+      const list = byServer.get(option.serverUrl)
+      if (list) list.push(option)
+      else byServer.set(option.serverUrl, [option])
+    }
+    return Array.from(byServer, ([serverUrl, options]) => ({serverUrl, options}))
+  }, [agents])
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="no-window-drag hover:bg-muted flex max-w-full min-w-0 items-center gap-2 rounded px-1.5 py-1"
+        >
+          <Bot className="text-muted-foreground size-4 shrink-0" />
+          <SizableText size="sm" className="min-w-0 truncate font-medium">
+            {activeAgent?.agent.definition.name || 'Agents'}
+          </SizableText>
+          <ChevronDown className="text-muted-foreground size-3 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-1">
+        {groups.length === 0 ? (
+          <div className="text-muted-foreground px-2 py-3 text-center text-xs">
+            No agents available yet. Create one from the Agents page.
+          </div>
+        ) : (
+          groups.map((group) => (
+            <div key={group.serverUrl} className="flex flex-col">
+              <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                  {describeAgentServer(group.serverUrl, localServerUrl)}
+                </span>
+                {isLocalAgentServer(group.serverUrl, localServerUrl) ? (
+                  <span className="text-muted-foreground text-[10px]">built-in</span>
+                ) : null}
+              </div>
+              {group.options.map((option) => {
+                const isActive = option.serverUrl === activeAgent?.serverUrl && option.agent.id === activeAgent.agent.id
+                return (
+                  <button
+                    key={`${option.serverUrl}${option.agent.id}`}
+                    type="button"
+                    className={`hover:bg-muted flex w-full flex-col items-start rounded px-2 py-1.5 text-left ${
+                      isActive ? 'bg-muted' : ''
+                    }`}
+                    onClick={() => {
+                      onSelect({serverUrl: option.serverUrl, agentId: option.agent.id})
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="w-full truncate text-xs font-medium">{option.agent.definition.name}</span>
+                    <span className="text-muted-foreground w-full truncate text-[10px]">
+                      {option.agent.definition.model}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          ))
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/** Session dropdown for the active agent context. Most of the row; the "…" menu sits beside it. */
 function AssistantSessionPicker({
   entries,
   isLoading,
   selected,
-  localServerUrl,
+  selectedTitle,
+  isDraft,
   onSelect,
-  onNewSession,
 }: {
   entries: AgentSessionListEntry[]
   isLoading: boolean
   selected: AssistantSessionRef | null
-  localServerUrl: string | null
+  selectedTitle?: string
+  isDraft: boolean
   onSelect: (ref: AssistantSessionRef) => void
-  onNewSession: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const selectedEntry = entries.find(
-    (entry) => entry.serverUrl === selected?.serverUrl && entry.session.id === selected?.sessionId,
-  )
 
   return (
-    <div className="border-border flex items-center gap-1 border-b px-2 py-1.5">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="bg-muted text-foreground flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-xs"
-          >
-            <span className="flex min-w-0 flex-1 flex-col text-left">
-              <span className="truncate">
-                {selectedEntry?.session.title || (selected ? 'Untitled session' : 'Select a session…')}
-              </span>
-              {/* Which agent is answering is not obvious once sessions span several agents and
-                  servers, so it stays visible rather than living only inside the dropdown. */}
-              {selectedEntry ? (
-                <span className="text-muted-foreground truncate text-[10px]">
-                  {selectedEntry.agent?.definition.name || 'Unknown agent'} ·{' '}
-                  {describeAgentServer(selectedEntry.serverUrl, localServerUrl)}
-                </span>
-              ) : null}
-            </span>
-            <ChevronDown className="size-3 shrink-0" />
-          </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="max-h-80 w-80 overflow-y-auto p-1">
-          {isLoading && entries.length === 0 ? (
-            <div className="text-muted-foreground px-2 py-3 text-center text-xs">Loading sessions…</div>
-          ) : entries.length === 0 ? (
-            <div className="text-muted-foreground px-2 py-3 text-center text-xs">No sessions yet.</div>
-          ) : (
-            entries.map((entry) => {
-              const isSelected = entry.serverUrl === selected?.serverUrl && entry.session.id === selected?.sessionId
-              return (
-                <button
-                  key={`${entry.serverUrl}${entry.session.id}`}
-                  type="button"
-                  className={`hover:bg-muted flex w-full flex-col items-start gap-0.5 rounded px-2 py-1.5 text-left ${
-                    isSelected ? 'bg-muted' : ''
-                  }`}
-                  onClick={() => {
-                    onSelect({serverUrl: entry.serverUrl, sessionId: entry.session.id})
-                    setOpen(false)
-                  }}
-                >
-                  <span className="w-full truncate text-xs font-medium">
-                    {entry.session.title || 'Untitled session'}
-                  </span>
-                  <span className="text-muted-foreground w-full truncate text-[10px]">
-                    {entry.agent?.definition.name || 'Unknown agent'} ·{' '}
-                    {describeAgentServer(entry.serverUrl, localServerUrl)}
-                  </span>
-                </button>
-              )
-            })
-          )}
-        </PopoverContent>
-      </Popover>
-      <button onClick={onNewSession} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
-        <MessageCirclePlus className="size-3.5" />
-      </button>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="bg-muted text-foreground flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1 text-xs"
+        >
+          <span className="min-w-0 flex-1 truncate text-left">
+            {isDraft ? 'New chat' : selectedTitle || 'Untitled session'}
+          </span>
+          <ChevronDown className="size-3 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="max-h-80 w-72 overflow-y-auto p-1">
+        {isLoading && entries.length === 0 ? (
+          <div className="text-muted-foreground px-2 py-3 text-center text-xs">Loading sessions…</div>
+        ) : entries.length === 0 ? (
+          <div className="text-muted-foreground px-2 py-3 text-center text-xs">No chats with this agent yet.</div>
+        ) : (
+          entries.map((entry) => {
+            const isSelected = entry.serverUrl === selected?.serverUrl && entry.session.id === selected?.sessionId
+            return (
+              <button
+                key={`${entry.serverUrl}${entry.session.id}`}
+                type="button"
+                className={`hover:bg-muted flex w-full items-center rounded px-2 py-1.5 text-left ${
+                  isSelected ? 'bg-muted' : ''
+                }`}
+                onClick={() => {
+                  onSelect({serverUrl: entry.serverUrl, sessionId: entry.session.id})
+                  setOpen(false)
+                }}
+              >
+                <span className="w-full truncate text-xs">{entry.session.title || 'Untitled session'}</span>
+              </button>
+            )
+          })
+        )}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * Composer-only state for a chat that does not exist yet.
+ *
+ * The session is created on the first send and the message delivered in the same motion, so "new
+ * chat" costs nothing until the user actually says something — and abandoning it leaves no empty
+ * session behind.
+ */
+function AssistantDraftChat({
+  serverUrl,
+  agentId,
+  agentName,
+  accountUid,
+  inputRef,
+  onSessionCreated,
+}: {
+  serverUrl: string
+  agentId: string
+  agentName: string
+  accountUid: string | null | undefined
+  inputRef: React.RefObject<HTMLTextAreaElement>
+  onSessionCreated: (ref: AssistantSessionRef) => void
+}) {
+  const createSession = useCreateAgentSessionOnServer(accountUid)
+  const messageSession = useMessageAgentSession(serverUrl, accountUid)
+  const windowContextLines = useAssistantWindowContextLines()
+  const windowContextLinesRef = useRef(windowContextLines)
+  windowContextLinesRef.current = windowContextLines
+
+  const [input, setInput] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [isSending, setIsSending] = useState(false)
+
+  async function handleSend() {
+    const content = input.trim()
+    if (!content || !accountUid || isSending) return
+    setError(null)
+    setIsSending(true)
+    try {
+      const result = await createSession.mutateAsync({serverUrl, agentId, title: 'New chat'})
+      if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected CreateSession response')
+      setInput('')
+      addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, [{text: content}])
+      messageSession.mutate({
+        sessionId: result.sessionId,
+        message: [{text: content, contextLines: windowContextLinesRef.current}],
+      })
+      onSessionCreated({serverUrl, sessionId: result.sessionId})
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not start the chat')
+    } finally {
+      setIsSending(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
+        {`Send a message to start chatting with ${agentName}`}
+      </div>
+      {error ? <div className="text-destructive px-3 py-1 text-xs">{error}</div> : null}
+      <ChatMessageComposer
+        textareaRef={inputRef}
+        placeholder="Type a message…"
+        value={input}
+        onChange={setInput}
+        onSend={() => void handleSend()}
+        disabled={isSending}
+        sendDisabled={!input.trim() || isSending}
+        className="border-border border-t px-3 py-2"
+      />
     </div>
   )
 }
@@ -242,23 +486,16 @@ function AssistantSessionChat({
   sessionRef,
   accountUid,
   inputRef,
-  onDeleted,
 }: {
   sessionRef: AssistantSessionRef
   accountUid: string | null | undefined
   inputRef: React.RefObject<HTMLTextAreaElement>
-  onDeleted: () => void
 }) {
   const {serverUrl, sessionId} = sessionRef
   const session = useAgentSession(serverUrl, accountUid, sessionId)
   const live = useAgentWebSocketSubscription(serverUrl, accountUid, `sessions/${sessionId}`)
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
-  const deleteSession = useDeleteAgentSession(serverUrl, accountUid)
-  const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
-
-  // Current-window context, re-derived per render so a send always describes what the user is
-  // looking at right now — including queued messages flushed after navigating elsewhere.
   const windowContextLines = useAssistantWindowContextLines()
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
@@ -330,25 +567,6 @@ function AssistantSessionChat({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {deleteDialog.content}
-      <div className="border-border flex items-center justify-end border-b px-2 py-1">
-        <button
-          onClick={() =>
-            deleteDialog.open({
-              sessionTitle: session.data?.session.title,
-              onConfirm: () => {
-                deleteSession.mutate(sessionId)
-                onDeleted()
-              },
-            })
-          }
-          className="text-muted-foreground hover:text-destructive p-1"
-          title="Delete chat"
-        >
-          <Trash2 className="size-3.5" />
-        </button>
-      </div>
-
       <div ref={messagesContainerRef} onScroll={handleScroll} className="relative flex-1 overflow-y-auto px-3 py-2">
         {rows.length === 0 && !isStreaming ? (
           <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
@@ -425,118 +643,8 @@ function AssistantSessionChat({
   )
 }
 
-/**
- * Agent picker for starting a new chat, grouped by server.
- *
- * Exported for tests: it must render inside a plain `Dialog` root, and using alert-dialog
- * primitives here throws at runtime in a way types cannot catch.
- *
- * Choosing the agent is the whole point of this dialog — the sidebar can talk to any agent on any
- * configured server, so there is no sensible default to skip the choice with. Agents are grouped
- * under their server so the same agent name on two servers stays distinguishable.
- */
-export function NewAssistantSessionDialog({
-  onClose,
-  input,
-}: {
-  onClose: () => void
-  input: {onCreated: (ref: AssistantSessionRef) => void}
-}) {
-  const accountUid = useSelectedAccountId()
-  const serverUrls = useAgentServerUrls()
-  const localServerUrl = useLocalAgentServerUrl()
-  const agentLists = useAgentLists(serverUrls.data, accountUid)
-  const createSession = useCreateAgentSessionOnServer(accountUid)
-  const [error, setError] = useState<string | null>(null)
-  const [pendingAgentId, setPendingAgentId] = useState<string | null>(null)
-
-  const groups = (serverUrls.data || []).map((serverUrl, index) => ({
-    serverUrl,
-    label: describeAgentServer(serverUrl, localServerUrl.data),
-    isLocal: isLocalAgentServer(serverUrl, localServerUrl.data),
-    query: agentLists[index],
-    agents: agentLists[index]?.data || [],
-  }))
-  const isLoading = groups.some((group) => group.query?.isLoading)
-  const totalAgents = groups.reduce((count, group) => count + group.agents.length, 0)
-
-  async function startSession(serverUrl: string, agentId: string) {
-    setError(null)
-    setPendingAgentId(agentId)
-    try {
-      const result = await createSession.mutateAsync({serverUrl, agentId, title: 'New chat'})
-      if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected CreateSession response')
-      input.onCreated({serverUrl, sessionId: result.sessionId})
-      onClose()
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not start the chat')
-    } finally {
-      setPendingAgentId(null)
-    }
-  }
-
-  return (
-    <>
-      <DialogTitle>New chat</DialogTitle>
-      <DialogDescription>Choose an agent to talk to.</DialogDescription>
-      <div className="flex max-h-96 flex-col gap-3 overflow-y-auto">
-        {isLoading && totalAgents === 0 ? (
-          <SizableText className="text-muted-foreground text-sm">Loading agents…</SizableText>
-        ) : totalAgents === 0 ? (
-          <SizableText className="text-muted-foreground text-sm">
-            No agents available yet. Create one from the Agents page, then start a chat here.
-          </SizableText>
-        ) : (
-          groups
-            .filter((group) => group.agents.length > 0)
-            .map((group) => (
-              <div key={group.serverUrl} className="flex flex-col gap-1">
-                <div className="flex items-center gap-2 px-2">
-                  <SizableText size="xs" color="muted" className="font-medium tracking-wide uppercase">
-                    {group.label}
-                  </SizableText>
-                  {group.isLocal ? (
-                    <SizableText size="xs" color="muted">
-                      built-in
-                    </SizableText>
-                  ) : null}
-                </div>
-                {group.agents.map((agent) => (
-                  <button
-                    key={`${group.serverUrl}${agent.id}`}
-                    type="button"
-                    disabled={pendingAgentId !== null}
-                    className="hover:bg-muted flex w-full flex-col items-start rounded px-2 py-2 text-left disabled:opacity-60"
-                    onClick={() => void startSession(group.serverUrl, agent.id)}
-                  >
-                    <SizableText size="sm" weight="bold">
-                      {agent.definition.name}
-                      {pendingAgentId === agent.id ? ' — starting…' : ''}
-                    </SizableText>
-                    <SizableText size="xs" color="muted">
-                      {agent.definition.model}
-                    </SizableText>
-                  </button>
-                ))}
-              </div>
-            ))
-        )}
-        {error ? (
-          <SizableText size="sm" className="text-destructive">
-            {error}
-          </SizableText>
-        ) : null}
-      </div>
-      <DialogFooter>
-        <Button onClick={onClose} variant="ghost">
-          Cancel
-        </Button>
-      </DialogFooter>
-    </>
-  )
-}
-
-/** Confirmation dialog for deleting a chat session. Exported for tests; see the note above. */
+/** Confirmation dialog for deleting a chat session. Exported for tests: it must render inside an
+ * AlertDialog root, and mixing dialog families throws at runtime in a way types cannot catch. */
 export function DeleteSessionDialog({
   onClose,
   input,
