@@ -346,7 +346,6 @@ function AgentServerSettingsRow({
           <SizableText size="sm" weight="bold" className="truncate">
             {isLocal ? LOCAL_AGENT_SERVER_LABEL : serverUrl}
           </SizableText>
-          {isLocal ? <Badge variant="secondary">Built-in</Badge> : null}
           {isDefault ? <Badge variant="secondary">Default</Badge> : null}
         </div>
         <SizableText size="xs" className={health.isError ? 'text-destructive' : 'text-muted-foreground'}>

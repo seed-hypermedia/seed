@@ -1,7 +1,6 @@
 import {
   addOptimisticSessionMessage,
   describeAgentServer,
-  isLocalAgentServer,
   removeOptimisticSessionFromLists,
   useAgentLists,
   useAgentServerUrls,
@@ -338,9 +337,6 @@ function AssistantAgentPicker({
                 <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
                   {describeAgentServer(group.serverUrl, localServerUrl)}
                 </span>
-                {isLocalAgentServer(group.serverUrl, localServerUrl) ? (
-                  <span className="text-muted-foreground text-[10px]">built-in</span>
-                ) : null}
               </div>
               {group.options.map((option) => {
                 const isActive = option.serverUrl === activeAgent?.serverUrl && option.agent.id === activeAgent.agent.id

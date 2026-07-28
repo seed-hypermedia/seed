@@ -1,6 +1,7 @@
 import {type AgentDefinition, type ModelProviderType, type SigningIdentity} from '@/agents-client'
 import {
   DEFAULT_AGENT_SERVER_URL,
+  isLocalAgentServer,
   prefetchAgentDetail,
   useCreateAgent,
   useCreateSigningIdentity,
@@ -9,6 +10,7 @@ import {
   useModelProviders,
   useProviderModels,
   useSaveModelProvider,
+  useLocalAgentServerUrl,
   useSigningIdentities,
   useUpdateSigningIdentity,
 } from '@/models/agents'
@@ -601,6 +603,7 @@ export function CreateAgentDialog({
   onClose: () => void
 }) {
   const [selectedServerUrl, setSelectedServerUrl] = useState(input.serverUrls[0] || DEFAULT_AGENT_SERVER_URL)
+  const localServerUrl = useLocalAgentServerUrl()
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
@@ -684,12 +687,14 @@ export function CreateAgentDialog({
   const serverSelector = (
     <label className="flex flex-col gap-1">
       <SizableText size="sm" weight="bold">
-        Agent server
+        Agent Home
       </SizableText>
       <SelectDropdown
         options={input.serverUrls.map((serverUrl) => ({
           value: serverUrl,
-          label: serverUrl.replace(/^https?:\/\//, ''),
+          // The desktop-managed server is a named place; its localhost address is an
+          // implementation detail whose port moves between launches.
+          label: isLocalAgentServer(serverUrl, localServerUrl.data) ? 'Local' : serverUrl.replace(/^https?:\/\//, ''),
         }))}
         value={selectedServerUrl}
         onValue={setSelectedServerUrl}

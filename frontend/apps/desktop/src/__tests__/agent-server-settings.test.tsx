@@ -141,7 +141,8 @@ describe('AgentServersSettings', () => {
     const {container, root} = renderSettings()
 
     expect(container.textContent).toContain('Local Agents')
-    expect(container.textContent).toContain('Built-in')
+    // "Local Agents" alone says it; a "Built-in" tag next to it was redundant.
+    expect(container.textContent).not.toContain('Built-in')
     expect(container.textContent).toContain('https://agentic.seed.hyper.media')
 
     // Exactly one remove control, belonging to the configured server rather than the built-in one.
