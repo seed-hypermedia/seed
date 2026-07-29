@@ -92,7 +92,9 @@ const result = await Bun.build({
   // Bundling `microsandbox` breaks it: its napi binding, `msb` hypervisor helper, and libkrunfw
   // cannot live in the binary's virtual filesystem, so the bundled JS dies at execute_code time
   // with "Cannot find module '../../native/index.cjs'". Kept external and staged on disk below.
-  external: ['microsandbox'],
+  // `canvas` is an optional native dep reached only through linkedom's guarded require — its
+  // fallback shim covers us — and bundling it fails on machines where the binding never compiled.
+  external: ['microsandbox', 'canvas'],
   compile: {target: bunTarget as any, outfile},
 })
 if (!result.success) {

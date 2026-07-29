@@ -24,6 +24,9 @@ const result = await Bun.build({
   publicPath: '/agents/',
   root: './src',
   plugins: [tailwind],
+  // `canvas` is an optional native dep reached only through linkedom's guarded require — its
+  // fallback shim covers us — and bundling it fails on machines where the binding never compiled.
+  external: ['canvas'],
 })
 
 if (!result.success) {
