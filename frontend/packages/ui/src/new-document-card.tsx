@@ -18,7 +18,7 @@ export function NewDocumentCard({onCreateDraft}: NewDocumentCardProps) {
     >
       <div className="flex flex-col items-center gap-2">
         <Plus className="text-muted-foreground size-8" />
-        <span className="text-muted-foreground text-sm font-medium">New Document</span>
+        <span className="text-muted-foreground font-sans text-sm font-medium">New Document</span>
       </div>
     </button>
   )

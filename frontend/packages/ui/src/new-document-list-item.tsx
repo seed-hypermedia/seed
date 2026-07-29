@@ -19,7 +19,7 @@ export function NewDocumentListItem({onCreateDraft}: NewDocumentListItemProps) {
       )}
     >
       <Plus className="text-muted-foreground mr-3 size-7 shrink-0" />
-      <SizableText size="sm" className="text-muted-foreground font-medium">
+      <SizableText size="sm" className="text-muted-foreground font-sans font-medium">
         New Document
       </SizableText>
     </button>
