@@ -17,6 +17,7 @@ import {
   getEffectiveCanEdit,
   getDocumentSyncIsPlaceholderData,
   getOldVersionEditBlockedToastOptions,
+  getCitationsTargetId,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -481,6 +482,40 @@ describe('getDocumentSyncIsPlaceholderData', () => {
         resourceIsPreviousData: true,
       }),
     ).toBe(true)
+  })
+})
+
+describe('getCitationsTargetId', () => {
+  it('skips citations for unpublished draft placeholder documents', () => {
+    expect(
+      getCitationsTargetId({
+        docId: hmId('alice', {path: ['new-doc']}),
+        documentVersion: '',
+      }),
+    ).toBeNull()
+  })
+
+  it('skips citations for pending-space local documents', () => {
+    expect(
+      getCitationsTargetId({
+        docId: hmId('pending-123', {path: []}),
+        documentVersion: 'version-1',
+      }),
+    ).toBeNull()
+  })
+
+  it('fetches citations for published documents without block fragments', () => {
+    expect(
+      getCitationsTargetId({
+        docId: hmId('alice', {
+          path: ['doc'],
+          version: 'version-1',
+          blockRef: 'block-1',
+          blockRange: {expanded: true},
+        }),
+        documentVersion: 'version-1',
+      }),
+    ).toEqual(hmId('alice', {path: ['doc'], version: 'version-1', blockRef: null, blockRange: null}))
   })
 })
 

@@ -608,6 +608,18 @@ export function getDocumentSyncIsPlaceholderData({
   return !!resourceIsPreviousData && resourceFetchId !== null && !hasUnpublishedDraft
 }
 
+/** Returns the published document ID to use for citation queries, or null when citations cannot exist yet. */
+export function getCitationsTargetId({
+  docId,
+  documentVersion,
+}: {
+  docId: UnpackedHypermediaId
+  documentVersion?: string | null
+}) {
+  if (!documentVersion || isPendingSpaceUid(docId.uid)) return null
+  return {...docId, blockRef: null, blockRange: null}
+}
+
 export function getCommentReplyPanelRoute({
   docId,
   comment,
@@ -1688,8 +1700,11 @@ function DocumentBody({
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
     [collaborators.data, isHomeDoc],
   )
-  const citationsDocId = useMemo(() => ({...docId, blockRef: null, blockRange: null}), [docId])
-  const citations = useCitations(isLocalOnlyDoc ? null : citationsDocId)
+  const citationsTargetId = useMemo(
+    () => getCitationsTargetId({docId, documentVersion: document.version}),
+    [docId, document.version],
+  )
+  const citations = useCitations(citationsTargetId)
 
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
