@@ -10,7 +10,9 @@ import {useAccount} from '@shm/shared/models/entity'
 import type {NavRoute} from '@shm/shared/routes'
 import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {X} from 'lucide-react'
 import {useMemo} from 'react'
+import {Button} from './button'
 import {Container} from './container'
 import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
@@ -53,6 +55,7 @@ export function DocumentHeader({
   version,
   showTitle = true,
   children,
+  onRemoveIcon,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -65,6 +68,7 @@ export function DocumentHeader({
   version?: HMDocument['version'] | null
   showTitle?: boolean
   children?: React.ReactNode
+  onRemoveIcon?: () => void
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
@@ -93,12 +97,28 @@ export function DocumentHeader({
       <div className="flex flex-col gap-4">
         {!isHomeDoc && docId && hasIcon ? (
           <div
-            className="flex"
+            className="group/icon relative flex w-fit"
             style={{
               marginTop: hasCover ? -80 : 0,
             }}
           >
             <HMIcon size={100} id={docId} name={docMetadata?.name} icon={docMetadata?.icon} />
+            {onRemoveIcon ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="iconSm"
+                aria-label="Remove document icon"
+                className="absolute -top-2 -right-2 z-20 size-7 rounded-full bg-black/40 text-white opacity-100 shadow-sm backdrop-blur-sm transition-opacity hover:bg-black/60 md:pointer-events-none md:opacity-0 md:group-hover/icon:pointer-events-auto md:group-hover/icon:opacity-100 md:focus-visible:pointer-events-auto md:focus-visible:opacity-100"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onRemoveIcon()
+                }}
+              >
+                <X className="size-3.5" />
+              </Button>
+            ) : null}
           </div>
         ) : null}
         {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}

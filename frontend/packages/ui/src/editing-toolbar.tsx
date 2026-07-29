@@ -156,14 +156,14 @@ export function PublishPopoverBody({
   const absoluteTime = publishedDoc?.updateTime ? formattedDateMedium(publishedDoc.updateTime) : undefined
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-5">
       {/* URL row */}
-      <div className="flex flex-col gap-2">
-        <p className="text-sm font-medium">Your document will be available at</p>
+      <div className="flex flex-col gap-3">
+        <p className="text-base font-medium">Your document will be available at</p>
         {documentUrl ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <span
-              className="text-muted-foreground min-w-0 flex-1 text-xs"
+              className="text-muted-foreground min-w-0 flex-1 text-sm"
               style={{
                 direction: 'rtl',
                 textAlign: 'left',
@@ -176,26 +176,26 @@ export function PublishPopoverBody({
             </span>
             <Tooltip content="Copy URL">
               <Button
-                size="iconSm"
+                size="icon"
                 variant="ghost"
                 className="shrink-0"
                 onClick={() => {
                   copyTextToClipboard(documentUrl).then(() => toast.success('Copied document URL'))
                 }}
               >
-                <Copy size={14} />
+                <Copy size={18} />
               </Button>
             </Tooltip>
           </div>
         ) : (
-          <div className="text-muted-foreground flex items-center gap-2 text-xs">
-            <Spinner className="size-3" />
+          <div className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Spinner className="size-4" />
             <span>Loading…</span>
           </div>
         )}
         {isFirstPublish && slugify && (
-          <div className="flex flex-col gap-1">
-            <p className="text-muted-foreground text-xs">Edit your permalink</p>
+          <div className="flex flex-col gap-2">
+            <p className="text-muted-foreground text-sm">Edit your permalink</p>
             <Input
               value={`/${effectivePathSegment}`}
               disabled={isPrivate}
@@ -212,10 +212,10 @@ export function PublishPopoverBody({
                 }
               }}
               placeholder="/document-path"
-              className="h-8 border-black/10 text-xs dark:border-white/20"
+              className="h-10 border-black/10 text-sm dark:border-white/20"
             />
             {isPrivate ? (
-              <p className="text-muted-foreground text-xs">Private document paths are generated automatically.</p>
+              <p className="text-muted-foreground text-sm">Private document paths are generated automatically.</p>
             ) : null}
           </div>
         )}
@@ -233,18 +233,18 @@ export function PublishPopoverBody({
               onGoToVersions(docId)
             }}
             title={absoluteTime}
-            className="hover:bg-muted -mx-2 flex items-center gap-2 rounded px-2 py-1 text-left text-xs"
+            className="hover:bg-muted -mx-3 flex items-center gap-3 rounded px-3 py-2.5 text-left text-sm"
           >
-            <Clock className="text-muted-foreground size-3.5" />
+            <Clock className="text-muted-foreground size-5" />
             <span className="flex-1">
               <span className="text-foreground">{relativeTime ?? 'Published'}</span>
               {authorName ? <span className="text-muted-foreground"> by {authorName}</span> : null}
             </span>
-            <ChevronRight className="text-muted-foreground size-3.5" />
+            <ChevronRight className="text-muted-foreground size-5" />
           </button>
         ) : (
-          <div title={absoluteTime} className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
-            <Clock className="text-muted-foreground size-3.5" />
+          <div title={absoluteTime} className="-mx-3 flex items-center gap-3 rounded px-3 py-2.5 text-sm">
+            <Clock className="text-muted-foreground size-5" />
             <span className="flex-1">
               <span className="text-foreground">{relativeTime ?? 'Published'}</span>
               {authorName ? <span className="text-muted-foreground"> by {authorName}</span> : null}
@@ -252,22 +252,22 @@ export function PublishPopoverBody({
           </div>
         )
       ) : (
-        <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
-          <Clock className="text-muted-foreground size-3.5" />
+        <div className="-mx-3 flex items-center gap-3 rounded px-3 py-2.5 text-sm">
+          <Clock className="text-muted-foreground size-5" />
           <span className="text-muted-foreground flex-1">Not yet published</span>
         </div>
       )}
 
       {/* Changes count row */}
-      <div className="-mx-2 flex items-center gap-2 rounded px-2 py-1 text-xs">
-        <FileDiff className="text-muted-foreground size-3.5" />
+      <div className="-mx-3 flex items-center gap-3 rounded px-3 py-2.5 text-sm">
+        <FileDiff className="text-muted-foreground size-5" />
         <span className="flex-1">
           {changeCount === 0 ? 'No changes to publish' : `${changeCount} ${changeCount === 1 ? 'change' : 'changes'}`}
         </span>
       </div>
 
       {unpublishedChildCount > 0 ? (
-        <div className="border-warning bg-warning/10 text-warning-foreground -mx-1 rounded border px-3 py-2 text-xs">
+        <div className="border-warning bg-warning/10 text-warning-foreground -mx-2 rounded-md border px-4 py-3 text-sm">
           <p className="font-medium">
             {unpublishedChildCount === 1
               ? 'This document embeds an unpublished draft.'
@@ -281,11 +281,12 @@ export function PublishPopoverBody({
 
       <Separator className="bg-black/10 dark:bg-white/10" />
 
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-2 pt-1">
         <Button
-          size="sm"
+          size="default"
           variant={publishDisabled ? 'ghost' : 'brand'}
           className={cn(
+            'h-11 text-base font-semibold',
             publishDisabled &&
               'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 disabled:opacity-100 dark:bg-neutral-800 dark:text-neutral-400',
           )}
@@ -298,7 +299,7 @@ export function PublishPopoverBody({
         >
           Publish: Make it live now
         </Button>
-        <Button size="sm" variant="ghost" onClick={onClose}>
+        <Button size="default" variant="ghost" className="h-10 text-base" onClick={onClose}>
           Cancel
         </Button>
       </div>
@@ -415,7 +416,7 @@ export function PublishButtonWithPopover({
         <PopoverAnchor asChild>
           <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
         </PopoverAnchor>
-        <PopoverContent align="end" className="w-80">
+        <PopoverContent align="end" className="w-[26rem] max-w-[calc(100vw-2rem)] p-6">
           <PublishPopoverBody
             docId={docId}
             changeCount={changeCount}

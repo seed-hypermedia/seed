@@ -206,6 +206,37 @@ describe('editing-toolbar publish disabled states', () => {
       cleanup(root, container)
     }
   })
+
+  it('uses a roomier publish popover layout', () => {
+    unpublishedChangeCountMock.mockReturnValue(2)
+    const docId = hmId('acct-1', {path: ['my-doc']})
+    const {container, root} = renderNode(
+      <PublishButtonWithPopover docId={docId} existingMenuItems={[]} unpublishedChildCount={0} />,
+    )
+
+    try {
+      const publishTrigger = findButtonByText(container, 'Publish')!
+
+      act(() => {
+        publishTrigger.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+      })
+
+      const popoverContent = document.body.querySelector('[data-slot="popover-content"]')
+      const publishButton = findButtonByText(document.body, 'Publish: Make it live now')
+      const body = popoverContent?.firstElementChild
+      const title = Array.from(document.body.querySelectorAll('p')).find(
+        (node) => node.textContent === 'Your document will be available at',
+      )
+
+      expect(popoverContent?.className).toContain('w-[26rem]')
+      expect(popoverContent?.className).toContain('p-6')
+      expect(body?.className).toContain('gap-5')
+      expect(title?.className).toContain('text-base')
+      expect(publishButton?.className).toContain('h-11')
+    } finally {
+      cleanup(root, container)
+    }
+  })
 })
 
 describe('PublishPopoverBody permalink editing', () => {

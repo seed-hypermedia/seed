@@ -281,8 +281,9 @@ export function resolveDocumentSyncAction(
   prevVersion: string | null,
   seenVersions: Set<string>,
   incomingVersion: string,
+  routeChanged = false,
 ): DocumentSyncAction {
-  if (incomingVersion && seenVersions.has(incomingVersion) && incomingVersion !== prevVersion) {
+  if (!routeChanged && incomingVersion && seenVersions.has(incomingVersion) && incomingVersion !== prevVersion) {
     return 'skip'
   }
   if (prevVersion === null) return 'loaded'
@@ -294,19 +295,23 @@ export function resolveDocumentSyncAction(
 /**
  * Sync a resolved document into the machine.
  * Sends `document.loaded` on first non-null document, then `document.remoteUpdate`
- * whenever the version changes — ignoring reverts to already-seen versions.
+ * whenever the version changes. Same-route reverts to already-seen versions
+ * are ignored, while an explicit route version change may revisit one.
  */
-export function useDocumentSync(document: HMDocument | null | undefined) {
+export function useDocumentSync(document: HMDocument | null | undefined, routeKey?: string, isPlaceholderData = false) {
   const actorRef = useDocumentMachineRef()
   const prevVersionRef = useRef<string | null>(null)
   const seenVersionsRef = useRef<Set<string>>(new Set())
+  const prevRouteKeyRef = useRef(routeKey)
 
   useEffect(() => {
-    if (!document) {
+    if (!document || isPlaceholderData) {
       return
     }
     const version = document.version
-    const action = resolveDocumentSyncAction(prevVersionRef.current, seenVersionsRef.current, version)
+    const routeChanged = prevRouteKeyRef.current !== routeKey
+    const action = resolveDocumentSyncAction(prevVersionRef.current, seenVersionsRef.current, version, routeChanged)
+    prevRouteKeyRef.current = routeKey
     if (version) seenVersionsRef.current.add(version)
     if (action === 'skip') {
       return
@@ -326,7 +331,7 @@ export function useDocumentSync(document: HMDocument | null | undefined) {
     )
     actorRef.send({type: action === 'loaded' ? 'document.loaded' : 'document.remoteUpdate', document})
     prevVersionRef.current = version
-  }, [actorRef, document])
+  }, [actorRef, document, isPlaceholderData, routeKey])
 }
 
 /**
