@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import React, {Suspense, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Markdown} from './markdown'
 
 /** Renders a chat message bubble shared by the assistant panel and Agents session UI. */
@@ -40,6 +41,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({message}
             ) : (
               <Markdown>{message.content || ''}</Markdown>
             )}
+            {message.contextLines?.length ? <MessageContextInfo lines={message.contextLines} /> : null}
           </div>
           {rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
         </div>
@@ -91,6 +93,16 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({message}
             <pre className="bg-muted max-h-[50vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
               {rawMarkdown}
             </pre>
+            {message.contextLines?.length ? (
+              <div className="flex flex-col gap-2">
+                <div className="text-muted-foreground text-xs">
+                  Context shared with the agent (attached to this message, hidden from the chat)
+                </div>
+                <pre className="bg-muted max-h-[30vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+                  {message.contextLines.join('\n')}
+                </pre>
+              </div>
+            ) : null}
           </DialogContent>
         </Dialog>
       ) : null}
@@ -144,6 +156,38 @@ export type ChatBubbleMessage = {
   sessionId?: string
   seq?: number
   shareUrl?: string
+  /** Client context (e.g. the sender's current window) attached to this message for the model. */
+  contextLines?: string[]
+}
+
+/**
+ * Info chip on a user bubble whose send carried window context.
+ *
+ * The context itself never renders as message text — it is model-facing — but the user must be
+ * able to see exactly what the agent was told about what they were looking at. The chip opens a
+ * popover with the verbatim lines.
+ */
+function MessageContextInfo({lines}: {lines: string[]}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground mt-1.5 flex items-center gap-1 rounded-full border border-current/20 px-1.5 py-0.5 text-[10px] opacity-80"
+          title="What the agent was told about your current window"
+        >
+          <Info className="size-3" />
+          Context
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-96 max-w-[90vw] p-3">
+        <div className="text-muted-foreground mb-2 text-xs font-medium">Context shared with the agent</div>
+        <pre className="bg-muted max-h-64 overflow-auto rounded-md p-2 font-mono text-[11px] whitespace-pre-wrap">
+          {lines.join('\n')}
+        </pre>
+      </PopoverContent>
+    </Popover>
+  )
 }
 
 const RichMessageBlocks = React.lazy(async () => {

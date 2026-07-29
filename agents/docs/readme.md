@@ -62,23 +62,25 @@ Important incomplete work:
 2. [Implementation history](./implementation-history.md) — notes on the recent commits that built this feature.
 3. [Operations](./operations.md) — how to run, configure, inspect, and troubleshoot the service locally.
 4. [Desktop UI](./desktop-ui.md) — desktop routes, dialogs, streaming chat UX, and server settings.
-5. [Signed API](./signed-api.md) — HTTP CBOR envelope, actions, responses, idempotency, signing caveats.
-6. [WebSocket subscriptions](./websocket-subscriptions.md) — signed subscribe handshake, live events, partial streaming,
+5. [Desktop agent unification](./desktop-agent-unification.md) — running this service locally as a desktop subprocess
+   and replacing the old assistant runtime with agent sessions.
+6. [Signed API](./signed-api.md) — HTTP CBOR envelope, actions, responses, idempotency, signing caveats.
+7. [WebSocket subscriptions](./websocket-subscriptions.md) — signed subscribe handshake, live events, partial streaming,
    logs.
-7. [Persistence](./persistence.md) — SQLite schema and data lifecycle.
-8. [Model providers](./model-providers.md) — provider records, secrets, OpenAI execution, unsupported providers.
-9. [Tools](./tools.md) — tool-call lifecycle and `read` behavior.
-10. [Prompt injection map](./prompt-injection-map.md) — where hosted-agent and desktop-assistant prompts are defined,
+8. [Persistence](./persistence.md) — SQLite schema and data lifecycle.
+9. [Model providers](./model-providers.md) — provider records, secrets, OpenAI execution, unsupported providers.
+10. [Tools](./tools.md) — tool-call lifecycle and `read` behavior.
+11. [Prompt injection map](./prompt-injection-map.md) — where hosted-agent and desktop-assistant prompts are defined,
     assembled, and sent to providers.
-11. [Security](./security.md) — current security model and hardening gaps.
-12. [Development](./development.md) — safe extension workflow, validation commands, doc-maintenance rules.
-13. [Troubleshooting](./troubleshooting.md) — fast diagnostic paths for streaming, signing, providers, and tools.
-14. [Pi SDK migration project](./pi-sdk-migration.md) — research and implementation plan for using Pi as the agentic
+12. [Security](./security.md) — current security model and hardening gaps.
+13. [Development](./development.md) — safe extension workflow, validation commands, doc-maintenance rules.
+14. [Troubleshooting](./troubleshooting.md) — fast diagnostic paths for streaming, signing, providers, and tools.
+15. [Pi SDK migration project](./pi-sdk-migration.md) — research and implementation plan for using Pi as the agentic
     loop.
-15. [Agent triggers plan](./agent-triggers-plan.md) — proactive triggers that create sessions from HM activity or
+16. [Agent triggers plan](./agent-triggers-plan.md) — proactive triggers that create sessions from HM activity or
     schedules.
-16. [Future projects](./future-projects.md) — larger future work packages.
-17. [Roadmap](./roadmap.md) — prioritized next steps and code-improvement opportunities.
+17. [Future projects](./future-projects.md) — larger future work packages.
+18. [Roadmap](./roadmap.md) — prioritized next steps and code-improvement opportunities.
 
 ## Canonical code entry points
 
@@ -184,6 +186,7 @@ request documentation updates.
 Use this routing table:
 
 - protocol/action changes → `signed-api.md`, `desktop-ui.md`, `development.md`
+- desktop-local-server / sidebar changes → `desktop-agent-unification.md`
 - WebSocket/live streaming changes → `websocket-subscriptions.md`, `operations.md`
 - database/migration changes → `persistence.md`
 - provider/runtime changes → `model-providers.md`, `pi-sdk-migration.md`, `roadmap.md`

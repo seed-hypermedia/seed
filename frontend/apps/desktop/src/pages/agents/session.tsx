@@ -25,6 +25,12 @@ import {
   useStopAgentSession,
   useUpdateAgentSession,
 } from '@/models/agents'
+import {
+  buildAgentSessionChatRows,
+  buildAgentSessionEventUrl,
+  getSharedEventIdFromHash,
+  type AgentSessionChatRow as AgentSessionChatRowData,
+} from '@/models/agent-session-rows'
 import {type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
@@ -740,23 +746,12 @@ function AgentRunStatusBar({
   )
 }
 
-type AgentSessionChatRow =
-  | {
-      key: string
-      kind: 'message'
-      message: ChatBubbleMessage
-      triggerContext?: AgentSessionTriggerContext
-      triggerInstructions?: string
-    }
-  | {key: string; kind: 'error'; message: string}
-  | {key: string; kind: 'raw'; event: SessionEvent}
-
 const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   row,
   serverUrl,
   agentId,
 }: {
-  row: AgentSessionChatRow
+  row: AgentSessionChatRowData
   serverUrl: string
   agentId?: string
 }) {
@@ -796,167 +791,6 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
     </pre>
   )
 })
-
-function buildAgentSessionChatRows(
-  events: SessionEvent[],
-  context: {
-    serverUrl: string
-    agentId?: string
-    sessionId: string
-    triggerContext?: AgentSessionTriggerContext | null
-  },
-): AgentSessionChatRow[] {
-  const rows: AgentSessionChatRow[] = []
-  const toolRowsById = new Map<string, Extract<AgentSessionChatRow, {kind: 'message'}>>()
-  let triggerCardAttached = false
-
-  for (const event of events) {
-    const payload = event.event as {
-      type?: string
-      role?: string
-      content?: string
-      message?: string
-      id?: string
-      toolCallId?: string
-      name?: string
-      input?: unknown
-      output?: unknown
-      error?: string
-      rawMarkdown?: string
-      blocks?: HMBlockNode[]
-    }
-
-    if (payload.type === 'message' && typeof payload.content === 'string') {
-      // The first user message of a triggered session embeds a <trigger_context> block for the model.
-      // Hide it from the bubble and surface a friendly trigger card instead; the full text stays
-      // available through the raw-markdown dialog.
-      const hasTriggerBlock = payload.role === 'user' && payload.content.includes('<trigger_context>')
-      const attachTriggerCard = hasTriggerBlock && !triggerCardAttached
-      if (attachTriggerCard) triggerCardAttached = true
-      const displayContent = hasTriggerBlock ? stripTriggerContextBlock(payload.content) : payload.content
-      const triggerInstructions = attachTriggerCard ? extractTriggerInstructions(payload.content) : undefined
-      rows.push({
-        key: event.id,
-        kind: 'message',
-        message: {
-          role: payload.role,
-          content: displayContent,
-          rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
-          blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
-          eventId: event.id,
-          sessionId: event.sessionId,
-          seq: event.seq,
-          shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
-        },
-        ...(attachTriggerCard && context.triggerContext
-          ? {triggerContext: context.triggerContext, triggerInstructions}
-          : {}),
-      })
-      continue
-    }
-
-    if (payload.type === 'tool_call' && typeof payload.id === 'string' && typeof payload.name === 'string') {
-      const toolPart: ChatToolPart = {
-        type: 'tool',
-        id: payload.id,
-        name: payload.name,
-        args: isRecord(payload.input) ? payload.input : {input: payload.input},
-      }
-      const row: Extract<AgentSessionChatRow, {kind: 'message'}> = {
-        key: event.id,
-        kind: 'message',
-        message: {
-          role: 'assistant',
-          parts: [toolPart],
-          eventId: event.id,
-          sessionId: event.sessionId,
-          seq: event.seq,
-          shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
-        },
-      }
-      rows.push(row)
-      toolRowsById.set(payload.id, row)
-      continue
-    }
-
-    if (payload.type === 'tool_result' && typeof payload.toolCallId === 'string' && typeof payload.name === 'string') {
-      const existingRow = toolRowsById.get(payload.toolCallId)
-      const resultText = payload.error || getToolResultSummary(payload.output)
-      const resultPart: ChatToolPart = {
-        type: 'tool',
-        id: payload.toolCallId,
-        name: payload.name,
-        result: resultText,
-        rawOutput: payload.output,
-      }
-
-      if (existingRow) {
-        existingRow.message = {
-          ...existingRow.message,
-          parts: [{...((existingRow.message.parts?.[0] as ChatToolPart | undefined) || resultPart), ...resultPart}],
-        }
-      } else {
-        rows.push({
-          key: event.id,
-          kind: 'message',
-          message: {
-            role: 'assistant',
-            parts: [resultPart],
-            eventId: event.id,
-            sessionId: event.sessionId,
-            seq: event.seq,
-            shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
-          },
-        })
-      }
-      continue
-    }
-
-    if (payload.type === 'error') {
-      rows.push({
-        key: event.id,
-        kind: 'error',
-        message: payload.message || payload.error || payload.content || 'Unknown agent error',
-      })
-      continue
-    }
-
-    rows.push({key: event.id, kind: 'raw', event})
-  }
-
-  return rows
-}
-
-/** Removes the `<trigger_context>` / `<trigger_instructions>` blocks appended to a trigger's first message. */
-function stripTriggerContextBlock(content: string): string {
-  const index = content.indexOf('<trigger_context>')
-  if (index === -1) return content
-  return content.slice(0, index).trimEnd()
-}
-
-/** Pulls the model-facing `<trigger_instructions>` text out of a trigger's first message, if present. */
-function extractTriggerInstructions(content: string): string | undefined {
-  const match = content.match(/<trigger_instructions>\n?([\s\S]*?)\n?<\/trigger_instructions>/)
-  const text = match?.[1]?.trim()
-  return text ? text : undefined
-}
-
-function buildAgentSessionEventUrl(
-  serverUrl: string,
-  agentId: string | undefined,
-  sessionId: string,
-  eventId: string,
-): string | undefined {
-  if (!agentId) return undefined
-  return `${serverUrl.replace(/\/+$/, '')}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(
-    sessionId,
-  )}#event=${encodeURIComponent(eventId)}`
-}
-
-function getSharedEventIdFromHash(hash: string): string | null {
-  const match = hash.match(/^#event=(.+)$/)
-  return match ? decodeURIComponent(match[1] || '') : null
-}
 
 function getToolResultSummary(output: unknown): string {
   if (isRecord(output)) {

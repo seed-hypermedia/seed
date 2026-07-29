@@ -23,6 +23,7 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'If the user gives a Markdown link, prefer the link destination URL over the visible label because the destination may carry important server or view information such as dev.hyper.media, :profile, or :comments.',
     'Profile/account URLs use `hm://ACCOUNT_UID/:profile` or Seed web URLs ending in `/:profile`. Read these as profiles/accounts, not as normal documents. Profile reads should use the Seed API/SDK account/profile data and should include recent activity from that account plus related keys such as contacts/capabilities when available.',
     'When asked to read a profile or account, preserve the pasted server context. For example, if the user pasted a dev.hyper.media profile URL, pass that URL to the read tool or set dev/server appropriately instead of stripping it to a production hm:// URL.',
+    'Append /:attributes to a document URL (e.g. `hm://z6Mk.../notes/:attributes`) to read only its metadata/attributes without the content. Use it when the user is viewing the attributes view or asks about document metadata.',
     'Use list_activity_feed for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
     'To explore a section of a site, read the directory first, then read each child document.',
   ]
@@ -63,12 +64,24 @@ export type AgentPromptBlock = {
 /** Rich block tree preserved for displaying user-authored session messages. */
 export type AgentMessageBlock = AgentPromptBlock
 
-/** Message content part submitted to a session. */
-export type MessageSessionContentPart = {
-  type: 'text'
-  text: string
-  blocks?: AgentMessageBlock[]
-}
+/**
+ * Message content part submitted to a session.
+ *
+ * `text` parts are the user's words. `context` parts carry ambient client state — the desktop
+ * sidebar sends the current window (open document, view, focused block) so "this document" means
+ * something to the model. Context is model-facing only: the server attaches it to the turn's user
+ * message for the model but keeps it out of the visible transcript content.
+ */
+export type MessageSessionContentPart =
+  | {
+      type: 'text'
+      text: string
+      blocks?: AgentMessageBlock[]
+    }
+  | {
+      type: 'context'
+      lines: string[]
+    }
 
 /** Signed CBOR action envelope accepted by `/api/message` and `/agents/ws`. */
 export type SignedActionEnvelope = {
@@ -107,6 +120,7 @@ export type UnsignedAgentAction =
   | UpdateAgentTrigger
   | DeleteAgentTrigger
   | CreateSession
+  | ListSessions
   | UpdateSession
   | DeleteSession
   | GetSession
@@ -287,6 +301,35 @@ export type CreateSession = {
   clientRequestId?: string
 }
 
+/**
+ * Lists sessions for the signed account across every agent on this server, newest first.
+ *
+ * Backs the desktop assistant sidebar, which shows one merged session list spanning all agents on
+ * all configured servers. Without this the client would have to call `ListAgents` and then
+ * `GetAgent` per agent just to enumerate sessions.
+ */
+export type ListSessions = {
+  _: 'ListSessions'
+  /** Restrict to one agent. Omit for every agent on this server. */
+  agentId?: string
+  /** Maximum sessions to return. Server clamps to a sane bound. */
+  limit?: number
+  /** Continue after a previous page. Pass the `nextCursor` from `ListSessionsResponse` verbatim. */
+  cursor?: SessionListCursor
+}
+
+/**
+ * Keyset pagination cursor for `ListSessions`, ordered by `(updatedAt, id)` descending.
+ *
+ * The session id is part of the cursor because sessions can share an `updatedAt` millisecond — a
+ * trigger firing across a batch of activity events creates several at once. A timestamp-only cursor
+ * would skip every tied row past the page boundary, silently losing sessions from the list.
+ */
+export type SessionListCursor = {
+  updatedBefore: number
+  idBefore: string
+}
+
 /** Updates editable session metadata. */
 export type UpdateSession = {
   _: 'UpdateSession'
@@ -413,6 +456,11 @@ export type SessionEventPayload =
       toolCallId?: string
       rawMarkdown?: string
       blocks?: AgentMessageBlock[]
+      /**
+       * Client context lines (from a `context` content part) that accompanied this user message.
+       * Fed to the model with the message but never part of `content`, so transcripts stay clean.
+       */
+      contextLines?: string[]
     }
   | {type: 'tool_call'; id: string; name: string; input: unknown}
   | {type: 'tool_result'; toolCallId: string; name: string; output?: unknown; error?: string}
@@ -622,6 +670,17 @@ export type CreateSessionResponse = {
   sessionId: string
 }
 
+/** Successful response for `ListSessions`. */
+export type ListSessionsResponse = {
+  _: 'ListSessionsResponse'
+  /** Sessions ordered by `updatedAt` descending. Each carries its `agentId`. */
+  sessions: SessionInfo[]
+  /** Agents referenced by `sessions`, so clients can label rows without a second round trip. */
+  agents: AgentInfo[]
+  /** Cursor for the next page: pass back as `cursor`. Absent when the list is exhausted. */
+  nextCursor?: SessionListCursor
+}
+
 /** Successful response for `UpdateSession`. */
 export type UpdateSessionResponse = {
   _: 'UpdateSessionResponse'
@@ -685,6 +744,7 @@ export type AgentResponse =
   | UpdateAgentTriggerResponse
   | DeleteAgentTriggerResponse
   | CreateSessionResponse
+  | ListSessionsResponse
   | UpdateSessionResponse
   | DeleteSessionResponse
   | GetSessionResponse

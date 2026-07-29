@@ -315,6 +315,11 @@ def main():
         run("pnpm install")
         run("plz build //backend:seed-daemon //:pnpm")
 
+        # The packaged app ships the local agents server, but forge only copies whatever is
+        # already staged in plz-out/bin/agents/ — without this step it silently packages a
+        # stale (or missing) binary.
+        run("cd agents && bun install && bun run build:binary")
+
         # build-desktop always targets mainnet, regardless of the ambient SEED_P2P_TESTNET_NAME.
         os.environ["SEED_P2P_TESTNET_NAME"] = ""
         os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
@@ -326,7 +331,9 @@ def main():
             os.environ["REACT_PROFILER"] = "1"
             args = [a for a in args if a != "--profiler"]
 
-        env_prefix = f"VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL={host_url} VITE_GATEWAY_URL={gateway_url}"
+        # The renderer bundle build needs >4GB of heap (Node's default limit),
+        # matching NODE_OPTIONS in the desktop CI workflows.
+        env_prefix = f"NODE_OPTIONS=--max-old-space-size=8192 VITE_DESKTOP_APPDATA=Seed-local SHOW_OB_RESET_BTN=0 VITE_SEED_HOST_URL={host_url} VITE_GATEWAY_URL={gateway_url}"
         if os.environ.get("REACT_PROFILER"):
             env_prefix = f"REACT_PROFILER=1 {env_prefix}"
         run(f"{env_prefix} pnpm desktop:make")

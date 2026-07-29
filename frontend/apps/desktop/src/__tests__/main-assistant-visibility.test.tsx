@@ -7,8 +7,10 @@ const mockState = vi.hoisted(() => ({
   assistantPanelProps: null as null | Record<string, unknown>,
   footerProps: null as null | Record<string, unknown>,
   ipcSend: vi.fn(),
-  providers: undefined as undefined | Array<{id: string; label?: string; model?: string}>,
-  providersStatus: 'success' as 'pending' | 'success',
+  serverUrls: ['http://localhost:3050'] as undefined | string[],
+  /** Whether every agent list has resolved; 'pending' means we cannot yet say "no agents". */
+  agentsStatus: 'success' as 'pending' | 'success',
+  hasAgents: true,
   currentRoute: {key: 'missing'} as any,
   documentMounts: 0,
   documentUnmounts: 0,
@@ -39,12 +41,17 @@ vi.mock('@/ipc', () => ({
   },
 }))
 
-vi.mock('@/models/ai-config', () => ({
-  useAIProviders: () => ({
-    data: mockState.providers,
-    isLoading: mockState.providersStatus === 'pending',
-    isSuccess: mockState.providersStatus === 'success',
+vi.mock('@/models/agents', () => ({
+  useAgentServerUrls: () => ({data: mockState.serverUrls, isLoading: false, isSuccess: true}),
+  useHasAnyAgent: () => ({
+    hasAgents: mockState.hasAgents,
+    isSettled: mockState.agentsStatus === 'success',
   }),
+}))
+
+// Provisioning is exercised by local-assistant.test.ts; here it must only not interfere.
+vi.mock('@/models/local-assistant', () => ({
+  useEnsureLocalAssistantAgent: () => {},
 }))
 
 vi.mock('@/models/contacts', () => ({
@@ -305,8 +312,8 @@ describe('Main assistant visibility', () => {
     mockState.assistantPanelProps = null
     mockState.footerProps = null
     mockState.ipcSend.mockReset()
-    mockState.providers = []
-    mockState.providersStatus = 'success'
+    mockState.hasAgents = false
+    mockState.agentsStatus = 'success'
     mockState.currentRoute = {key: 'missing'}
     mockState.documentMounts = 0
     mockState.documentUnmounts = 0
@@ -321,7 +328,7 @@ describe('Main assistant visibility', () => {
     delete (window as any).initNavState
   })
 
-  it('hides assistant controls when no providers are configured', async () => {
+  it('hides assistant controls when the account has no agents', async () => {
     const {container, root} = renderMain()
 
     await flushEffects()
@@ -337,9 +344,9 @@ describe('Main assistant visibility', () => {
     cleanupRendered(root, container)
   })
 
-  it('shows assistant controls when at least one provider is configured', async () => {
-    mockState.providers = [{id: 'provider-1', label: 'OpenAI', model: 'gpt-5'}]
-    mockState.providersStatus = 'success'
+  it('shows assistant controls when at least one agent exists', async () => {
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
 
     const {container, root} = renderMain()
 
@@ -354,8 +361,8 @@ describe('Main assistant visibility', () => {
   })
 
   it('opens the assistant panel and requests a new chat from the footer action', async () => {
-    mockState.providers = [{id: 'provider-1', label: 'OpenAI', model: 'gpt-5'}]
-    mockState.providersStatus = 'success'
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
     ;(window as any).initNavState = {
       assistantOpen: false,
       assistantSessionId: 'session-1',
@@ -383,9 +390,9 @@ describe('Main assistant visibility', () => {
     cleanupRendered(root, container)
   })
 
-  it('keeps the saved assistant state while providers are still loading', async () => {
-    mockState.providers = undefined
-    mockState.providersStatus = 'pending'
+  it('keeps the saved assistant state while agent lists are still loading', async () => {
+    mockState.hasAgents = false
+    mockState.agentsStatus = 'pending'
 
     const {container, root} = renderMain()
 
@@ -397,8 +404,8 @@ describe('Main assistant visibility', () => {
       assistantSessionId: 'session-1',
     })
 
-    mockState.providers = [{id: 'provider-1', label: 'OpenAI', model: 'gpt-5'}]
-    mockState.providersStatus = 'success'
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
 
     act(() => {
       root.render(renderMainTree())

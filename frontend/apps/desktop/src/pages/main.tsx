@@ -4,7 +4,6 @@ import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
-import {useAIProviders} from '@/models/ai-config'
 import {useConnectPeer} from '@/models/contacts'
 import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useCreateDraft} from '@/models/documents'
@@ -29,6 +28,8 @@ import React, {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, u
 import {ErrorBoundary} from 'react-error-boundary'
 import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
+import {useAgentServerUrls, useHasAnyAgent} from '@/models/agents'
+import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
 import {AssistantPanel} from '../components/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
@@ -111,9 +112,18 @@ export default function Main({className}: {className?: string}) {
   const [assistantOpen, setAssistantOpen] = useState(initNavState?.assistantOpen || false)
   const [assistantSessionId, setAssistantSessionId] = useState<string | null>(initNavState?.assistantSessionId || null)
   const [assistantNewChatRequest, setAssistantNewChatRequest] = useState(0)
-  const providers = useAIProviders()
-  const hasAssistantProviders = (providers.data?.length || 0) > 0
-  const shouldRenderAssistantPanel = assistantOpen && (hasAssistantProviders || !providers.isSuccess)
+  // The assistant sidebar is a view over the Agents service, so its entry points depend on there
+  // being an agent to talk to — not merely a server. The desktop always runs a local server, so
+  // server availability is always true and would leave the controls visible with nothing to chat
+  // with. While the agent lists are still resolving we treat the assistant as available so a
+  // restored sidebar is not torn down on every launch.
+  const agentServerUrls = useAgentServerUrls()
+  // On a fresh install the local server has no agents, which would keep the assistant hidden
+  // forever — provision the built-in Assistant as soon as a model provider exists.
+  useEnsureLocalAssistantAgent(selectedAccountId)
+  const {hasAgents, isSettled: agentsSettled} = useHasAnyAgent(agentServerUrls.data, selectedAccountId)
+  const isAssistantAvailable = hasAgents || !agentsSettled
+  const shouldRenderAssistantPanel = assistantOpen && isAssistantAvailable
 
   const sendAssistantState = useCallback((open: boolean, sessionId: string | null) => {
     ipc.send('windowAssistantState', {assistantOpen: open, assistantSessionId: sessionId})
@@ -128,9 +138,7 @@ export default function Main({className}: {className?: string}) {
   }, [assistantSessionId, sendAssistantState])
 
   const handleNewAssistantChat = useCallback(() => {
-    if (!hasAssistantProviders) {
-      return
-    }
+    if (!isAssistantAvailable) return
 
     setAssistantOpen((prev: boolean) => {
       if (!prev) {
@@ -139,7 +147,7 @@ export default function Main({className}: {className?: string}) {
       return true
     })
     setAssistantNewChatRequest((prev) => prev + 1)
-  }, [assistantSessionId, hasAssistantProviders, sendAssistantState])
+  }, [assistantSessionId, isAssistantAvailable, sendAssistantState])
 
   const handleSessionChange = useCallback(
     (sessionId: string | null) => {
@@ -150,11 +158,11 @@ export default function Main({className}: {className?: string}) {
   )
 
   useEffect(() => {
-    if (providers.isSuccess && !hasAssistantProviders && assistantOpen) {
+    if (agentsSettled && !hasAgents && assistantOpen) {
       setAssistantOpen(false)
       sendAssistantState(false, assistantSessionId)
     }
-  }, [assistantOpen, assistantSessionId, hasAssistantProviders, providers.isSuccess, sendAssistantState])
+  }, [assistantOpen, assistantSessionId, agentsSettled, hasAgents, sendAssistantState])
 
   const {platform} = useAppContext()
   const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
@@ -250,8 +258,8 @@ export default function Main({className}: {className?: string}) {
 
               <Footer
                 assistantOpen={assistantOpen}
-                onNewAssistantChat={hasAssistantProviders ? handleNewAssistantChat : undefined}
-                onToggleAssistant={hasAssistantProviders ? handleToggleAssistant : undefined}
+                onNewAssistantChat={isAssistantAvailable ? handleNewAssistantChat : undefined}
+                onToggleAssistant={isAssistantAvailable ? handleToggleAssistant : undefined}
               />
 
               <AutoUpdater />

@@ -1,7 +1,7 @@
 import {type AgentDefinition} from '@/agents-client'
+import {describeAgentServer, useLocalAgentServerUrl} from '@/models/agents'
 import {useNavigate} from '@/utils/useNavigate'
 import type {NavRoute} from '@shm/shared/routes'
-import {hostnameStripProtocol} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Button} from '@shm/ui/button'
 import {Badge} from '@shm/ui/components/badge'
@@ -18,7 +18,7 @@ import {
   Settings,
   Wrench,
 } from 'lucide-react'
-import {Fragment, type ReactNode, useRef, useState} from 'react'
+import React, {Fragment, type ReactNode, useRef, useState} from 'react'
 
 export type AgentPageTab = 'sessions' | 'triggers' | 'tools' | 'prompt' | 'settings'
 
@@ -43,6 +43,10 @@ export function AgentBreadcrumb({
   items?: AgentBreadcrumbItem[]
 }) {
   const navigate = useNavigate()
+  const localServerUrl = useLocalAgentServerUrl()
+  // The desktop-managed server is a named place, not an address: its port moves between launches,
+  // so "localhost:3050" in a breadcrumb is noise at best and wrong at worst.
+  const serverLabel = serverUrl ? describeAgentServer(serverUrl, localServerUrl.data) : null
   const serverIsCurrent = !!serverUrl && !agentName && !items.length
   return (
     <nav className="text-muted-foreground flex items-center gap-1 text-xs" aria-label="Agent breadcrumb">
@@ -53,15 +57,13 @@ export function AgentBreadcrumb({
         <>
           <span>&gt;</span>
           {serverIsCurrent ? (
-            <span className="text-foreground max-w-48 truncate rounded px-1 py-0.5">
-              {hostnameStripProtocol(serverUrl)}
-            </span>
+            <span className="text-foreground max-w-48 truncate rounded px-1 py-0.5">{serverLabel}</span>
           ) : (
             <button
               className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5"
               onClick={() => navigate({key: 'agent-server', serverUrl})}
             >
-              {hostnameStripProtocol(serverUrl)}
+              {serverLabel}
             </button>
           )}
         </>

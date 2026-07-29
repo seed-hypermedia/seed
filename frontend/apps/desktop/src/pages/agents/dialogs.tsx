@@ -1,6 +1,7 @@
 import {type AgentDefinition, type ModelProviderType, type SigningIdentity} from '@/agents-client'
 import {
   DEFAULT_AGENT_SERVER_URL,
+  isLocalAgentServer,
   prefetchAgentDetail,
   useCreateAgent,
   useCreateSigningIdentity,
@@ -9,6 +10,7 @@ import {
   useModelProviders,
   useProviderModels,
   useSaveModelProvider,
+  useLocalAgentServerUrl,
   useSigningIdentities,
   useUpdateSigningIdentity,
 } from '@/models/agents'
@@ -588,10 +590,20 @@ export function CreateAgentDialog({
   input,
   onClose,
 }: {
-  input: {serverUrls: string[]; selectedAccountId: string | null | undefined}
+  input: {
+    serverUrls: string[]
+    selectedAccountId: string | null | undefined
+    /**
+     * Where to land after creation. The default navigates to the new agent's full page; the
+     * assistant sidebar passes a handler that selects the agent in place instead, so creating an
+     * agent from the sidebar keeps the user in the sidebar.
+     */
+    onCreated?: (created: {serverUrl: string; agentId: string}) => void
+  }
   onClose: () => void
 }) {
   const [selectedServerUrl, setSelectedServerUrl] = useState(input.serverUrls[0] || DEFAULT_AGENT_SERVER_URL)
+  const localServerUrl = useLocalAgentServerUrl()
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
@@ -662,7 +674,8 @@ export function CreateAgentDialog({
       await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
       toast.success('Agent created')
       onClose()
-      navigate({key: 'agent', agentId: result.agentId, serverUrl: selectedServerUrl})
+      if (input.onCreated) input.onCreated({serverUrl: selectedServerUrl, agentId: result.agentId})
+      else navigate({key: 'agent', agentId: result.agentId, serverUrl: selectedServerUrl})
     } catch (error) {
       // Roll back the just-created account so a failed agent create doesn't leave an orphan.
       void deleteSigningIdentity.mutateAsync(signingKeyName).catch(() => {})
@@ -674,12 +687,14 @@ export function CreateAgentDialog({
   const serverSelector = (
     <label className="flex flex-col gap-1">
       <SizableText size="sm" weight="bold">
-        Agent server
+        Agent Home
       </SizableText>
       <SelectDropdown
         options={input.serverUrls.map((serverUrl) => ({
           value: serverUrl,
-          label: serverUrl.replace(/^https?:\/\//, ''),
+          // The desktop-managed server is a named place; its localhost address is an
+          // implementation detail whose port moves between launches.
+          label: isLocalAgentServer(serverUrl, localServerUrl.data) ? 'Local' : serverUrl.replace(/^https?:\/\//, ''),
         }))}
         value={selectedServerUrl}
         onValue={setSelectedServerUrl}

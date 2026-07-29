@@ -1,6 +1,13 @@
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
-import {DEFAULT_AGENT_SERVER_URL, useAgentSession} from '@/models/agents'
+import {
+  agentRouteServerUrl,
+  DEFAULT_AGENT_SERVER_URL,
+  isLocalAgentServer,
+  LOCAL_AGENT_SERVER_LABEL,
+  useAgentSession,
+  useLocalAgentServerUrl,
+} from '@/models/agents'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -51,6 +58,7 @@ import {
   ArrowLeftFromLine,
   ArrowRightFromLine,
   Bell,
+  Bot,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -651,6 +659,23 @@ function AccountSettingsOmnibarLabel({
 }
 
 /**
+ * Token shown instead of a URL for agents routes on the desktop-managed local server.
+ *
+ * The local server's address is an implementation detail whose port is reassigned every launch, so
+ * there is nothing meaningful to display, select, or copy — the route gets a named place instead.
+ */
+function LocalAgentsOmnibarToken() {
+  return (
+    <div className="flex min-w-0 flex-1 items-center">
+      <div className="bg-muted text-muted-foreground no-select flex items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+        <Bot className="size-3" />
+        <span>{LOCAL_AGENT_SERVER_LABEL}</span>
+      </div>
+    </div>
+  )
+}
+
+/**
  * Hook to construct displayable URL from current route
  * Priority: validated custom siteUrl > gatewayUrl (never hm://)
  * Returns displayUrl (always shown) and copyableUrl (null for new doc drafts)
@@ -662,6 +687,11 @@ function useCurrentRouteUrl(): {
   const route = useNavRoute()
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   const accountUid = useSelectedAccountId()
+  const localAgentServerUrl = useLocalAgentServerUrl()
+  // Agents routes on the desktop-managed server have no usable URL: the port is reassigned every
+  // launch, so displaying or copying "localhost:<port>/agents/…" only misleads. The omnibar shows
+  // the LOCAL_AGENT_SERVER_LABEL token instead.
+  const isLocalAgentsRoute = isLocalAgentServer(agentRouteServerUrl(route) || '', localAgentServerUrl.data)
   const agentSession = useAgentSession(
     route.key === 'agent-session' ? route.serverUrl || DEFAULT_AGENT_SERVER_URL : undefined,
     accountUid,
@@ -741,11 +771,13 @@ function useCurrentRouteUrl(): {
     }
 
     if (route.key === 'agent-server') {
+      if (isLocalAgentsRoute) return {displayUrl: null, copyableUrl: null}
       const url = `${route.serverUrl}/agents`
       return {displayUrl: url, copyableUrl: url}
     }
 
     if (route.key === 'agent') {
+      if (isLocalAgentsRoute) return {displayUrl: null, copyableUrl: null}
       const url =
         route.tab === 'triggers' && route.triggerId
           ? agentTriggerUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.triggerId)
@@ -754,6 +786,7 @@ function useCurrentRouteUrl(): {
     }
 
     if (route.key === 'agent-session') {
+      if (isLocalAgentsRoute) return {displayUrl: null, copyableUrl: null}
       const agentId = route.agentId || agentSession.data?.session.agentId
       if (agentId) {
         const url = agentSessionUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, agentId, route.sessionId)
@@ -804,6 +837,7 @@ function useCurrentRouteUrl(): {
     isLocationOnlyDraft,
     hasPublishedResource,
     agentSession.data,
+    isLocalAgentsRoute,
   ])
 }
 
@@ -937,6 +971,9 @@ export function Omnibar() {
   const route = useNavRoute()
   const navigate = useNavigate()
   const {displayUrl, copyableUrl} = useCurrentRouteUrl()
+  const localAgentServerUrl = useLocalAgentServerUrl()
+  // Mirrors useCurrentRouteUrl: these routes yield no URL, so the idle bar shows a token instead.
+  const isLocalAgentsRoute = isLocalAgentServer(agentRouteServerUrl(route) || '', localAgentServerUrl.data)
   const publishSite = usePublishSite()
   const searchInputRef = useRef<SearchInputHandle>(null)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
@@ -1069,7 +1106,9 @@ export function Omnibar() {
         onClick={handleContainerClick}
       >
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          {route.key === 'account-settings' ? (
+          {isLocalAgentsRoute ? (
+            <LocalAgentsOmnibarToken />
+          ) : route.key === 'account-settings' ? (
             <AccountSettingsOmnibarLabel
               accountUid={route.accountUid}
               tab={route.tab}

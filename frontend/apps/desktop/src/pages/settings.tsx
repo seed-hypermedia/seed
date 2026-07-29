@@ -5,7 +5,9 @@ import {
   DEFAULT_AGENT_SERVER_URL,
   useAgentServerHealth,
   useAgentServerUrl,
-  useAgentServerUrls,
+  LOCAL_AGENT_SERVER_LABEL,
+  useConfiguredAgentServerUrls,
+  useLocalAgentServerUrl,
   useSetAgentServerUrl,
   useSetAgentServerUrls,
 } from '@/models/agents'
@@ -217,7 +219,10 @@ function AgentServersSettingsPage() {
 
 /** Renders the desktop settings UI for managing configured agent servers. */
 export function AgentServersSettings() {
-  const servers = useAgentServerUrls()
+  // Edits apply to the persisted list only. The locally spawned server is shown separately below
+  // because its URL is assigned at startup and must never be written to settings.
+  const servers = useConfiguredAgentServerUrls()
+  const localServerUrl = useLocalAgentServerUrl()
   const defaultServer = useAgentServerUrl()
   const setServers = useSetAgentServerUrls()
   const setDefaultServer = useSetAgentServerUrl()
@@ -261,6 +266,15 @@ export function AgentServersSettings() {
         Connect to different AI agent servers, accessible from Agents page.
       </SizableText>
       <div className="flex flex-col gap-2">
+        {localServerUrl.data ? (
+          <AgentServerSettingsRow
+            key={localServerUrl.data}
+            serverUrl={localServerUrl.data}
+            isDefault={defaultServer.data === localServerUrl.data}
+            isLocal
+            onMakeDefault={() => void makeDefault(localServerUrl.data!)}
+          />
+        ) : null}
         {(servers.data || []).map((serverUrl) => (
           <AgentServerSettingsRow
             key={serverUrl}
@@ -270,7 +284,7 @@ export function AgentServersSettings() {
             onRemove={() => void removeServer(serverUrl)}
           />
         ))}
-        {!servers.data?.length ? (
+        {!servers.data?.length && !localServerUrl.data ? (
           <SizableText size="sm" className="text-muted-foreground">
             No agent servers configured.
           </SizableText>
@@ -313,13 +327,16 @@ export function AgentServersSettings() {
 function AgentServerSettingsRow({
   serverUrl,
   isDefault,
+  isLocal = false,
   onMakeDefault,
   onRemove,
 }: {
   serverUrl: string
   isDefault: boolean
+  /** The desktop-managed server. Always present, so it has no remove action. */
+  isLocal?: boolean
   onMakeDefault: () => void
-  onRemove: () => void
+  onRemove?: () => void
 }) {
   const health = useAgentServerHealth(serverUrl)
   return (
@@ -327,7 +344,7 @@ function AgentServerSettingsRow({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <SizableText size="sm" weight="bold" className="truncate">
-            {serverUrl}
+            {isLocal ? LOCAL_AGENT_SERVER_LABEL : serverUrl}
           </SizableText>
           {isDefault ? <Badge variant="secondary">Default</Badge> : null}
         </div>
@@ -350,34 +367,36 @@ function AgentServerSettingsRow({
             Make default
           </Button>
         )}
-        <AlertDialog>
-          <Tooltip content="Remove agent server">
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Trash className="size-4" />
-                <span className="sr-only">Remove</span>
-              </Button>
-            </AlertDialogTrigger>
-          </Tooltip>
-          <AlertDialogPortal>
-            <AlertDialogContent className="max-w-[500px] gap-4">
-              <AlertDialogTitle className="text-2xl font-bold">Remove Agent Server</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to remove {serverUrl}? You can add it back later.
-              </AlertDialogDescription>
-              <div className="flex justify-end gap-3">
-                <AlertDialogCancel asChild>
-                  <Button variant="ghost">Cancel</Button>
-                </AlertDialogCancel>
-                <AlertDialogAction asChild>
-                  <Button variant="destructive" onClick={onRemove}>
-                    Remove
-                  </Button>
-                </AlertDialogAction>
-              </div>
-            </AlertDialogContent>
-          </AlertDialogPortal>
-        </AlertDialog>
+        {isLocal ? null : (
+          <AlertDialog>
+            <Tooltip content="Remove agent server">
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Trash className="size-4" />
+                  <span className="sr-only">Remove</span>
+                </Button>
+              </AlertDialogTrigger>
+            </Tooltip>
+            <AlertDialogPortal>
+              <AlertDialogContent className="max-w-[500px] gap-4">
+                <AlertDialogTitle className="text-2xl font-bold">Remove Agent Server</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to remove {serverUrl}? You can add it back later.
+                </AlertDialogDescription>
+                <div className="flex justify-end gap-3">
+                  <AlertDialogCancel asChild>
+                    <Button variant="ghost">Cancel</Button>
+                  </AlertDialogCancel>
+                  <AlertDialogAction asChild>
+                    <Button variant="destructive" onClick={onRemove}>
+                      Remove
+                    </Button>
+                  </AlertDialogAction>
+                </div>
+              </AlertDialogContent>
+            </AlertDialogPortal>
+          </AlertDialog>
+        )}
       </div>
     </div>
   )

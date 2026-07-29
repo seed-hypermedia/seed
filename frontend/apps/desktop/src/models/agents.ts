@@ -17,6 +17,7 @@ import {
   type ModelProviderConfig,
   type ModelProviderInfo,
   type ModelProviderType,
+  type SessionInfo,
   type SigningIdentity,
   type SigningIdentityIcon,
 } from '@/agents-client'
@@ -27,7 +28,7 @@ import * as cbor from '@shm/shared/cbor'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
-import {useEffect, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
@@ -122,38 +123,110 @@ function tryNormalizeAgentServerUrl(input: string): string | null {
   }
 }
 
-/** Loads all configured agent server URLs. */
-export function useAgentServerUrls() {
+/**
+ * Display name for the desktop-managed agents server.
+ *
+ * It is presented as a named place rather than a URL: its port is assigned at startup, so the
+ * address is an implementation detail that changes between runs and means nothing to the user.
+ */
+export const LOCAL_AGENT_SERVER_LABEL = 'Local Agents'
+
+/** True when `serverUrl` is the agents server this desktop app runs itself. */
+export function isLocalAgentServer(serverUrl: string, localServerUrl: string | null | undefined): boolean {
+  return !!localServerUrl && serverUrl === localServerUrl
+}
+
+/** The agents-server URL an agents route points at, or null for any other route. */
+export function agentRouteServerUrl(route: {key: string; serverUrl?: string}): string | null {
+  if (route.key !== 'agent-server' && route.key !== 'agent' && route.key !== 'agent-session') return null
+  return route.serverUrl || DEFAULT_AGENT_SERVER_URL
+}
+
+/** Human-readable name for an agent server: the fixed local label, or the remote host. */
+export function describeAgentServer(serverUrl: string, localServerUrl: string | null | undefined): string {
+  if (isLocalAgentServer(serverUrl, localServerUrl)) return LOCAL_AGENT_SERVER_LABEL
+  try {
+    return new URL(serverUrl).host
+  } catch {
+    return serverUrl
+  }
+}
+
+/** Loads the URL of the agents server the desktop runs locally, when there is one. */
+export function useLocalAgentServerUrl() {
   return useQuery({
-    queryKey: ['agents', 'server-urls'],
+    queryKey: ['agents', 'local-server-url'],
+    queryFn: async () => {
+      const result = await client.localAgentsServer.query()
+      return result.url ? tryNormalizeAgentServerUrl(result.url) : null
+    },
+    // The local server boots asynchronously alongside the app, so an early render can legitimately
+    // see null. Keep polling until it reports a URL, then stop.
+    refetchInterval: (data) => (data ? false : AGENT_BACKGROUND_REFETCH_INTERVAL_MS),
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/**
+ * Loads only the agent server URLs persisted in settings.
+ *
+ * This is what the settings UI reads and writes. It deliberately excludes the locally spawned
+ * server: that URL is chosen at startup, so persisting it would leave a dead entry the first time
+ * the port moves. Use {@link useAgentServerUrls} for the list of servers to actually talk to.
+ */
+export function useConfiguredAgentServerUrls() {
+  return useQuery({
+    queryKey: ['agents', 'configured-server-urls'],
     queryFn: async () => {
       const storedList = await client.appSettings.getSetting.query(AGENT_SERVER_URLS_KEY)
       const storedDefault = await client.appSettings.getSetting.query(AGENT_SERVER_URL_KEY)
-      const urls = new Set<string>()
+      const configured = new Set<string>()
       if (Array.isArray(storedList)) {
         for (const value of storedList) {
           if (typeof value === 'string' && value) {
             const normalized = tryNormalizeAgentServerUrl(value)
-            if (normalized) urls.add(normalized)
+            if (normalized) configured.add(normalized)
           }
         }
       }
       if (typeof storedDefault === 'string' && storedDefault) {
         const normalized = tryNormalizeAgentServerUrl(storedDefault)
-        if (normalized) urls.add(normalized)
+        if (normalized) configured.add(normalized)
       }
       // Seed the list with the built-in default the first time the app runs so
       // there is a server to connect to out of the box — the hosted
       // `agentic.seed.hyper.media` in production, `localhost:3050` in dev.
       // Once the list has been configured (even to empty), respect that choice
       // so removing the last server still sticks.
-      if (urls.size === 0 && !Array.isArray(storedList)) {
-        urls.add(DEFAULT_AGENT_SERVER_URL)
+      if (configured.size === 0 && !Array.isArray(storedList)) {
+        configured.add(DEFAULT_AGENT_SERVER_URL)
       }
-      return Array.from(urls)
+      return Array.from(configured)
     },
     useErrorBoundary: false,
   })
+}
+
+/**
+ * All agent servers the app can talk to: the locally spawned one first, then configured servers.
+ *
+ * The local server is always present (when running) and is never persisted, so every consumer —
+ * the Agents page, the assistant sidebar — sees it without the user configuring anything.
+ */
+export function useAgentServerUrls() {
+  const localServerUrl = useLocalAgentServerUrl()
+  const configured = useConfiguredAgentServerUrls()
+
+  const data = useMemo(() => {
+    if (!configured.data) return undefined
+    const urls = new Set<string>()
+    if (localServerUrl.data) urls.add(localServerUrl.data)
+    for (const url of configured.data) urls.add(url)
+    return Array.from(urls)
+  }, [configured.data, localServerUrl.data])
+
+  return {...configured, data}
 }
 
 /** Persists the configured agent server URL list. */
@@ -339,6 +412,24 @@ export function useAgentServerHealths(serverUrls: string[] | undefined) {
       useErrorBoundary: false,
     })),
   })
+}
+
+/**
+ * Whether the account has at least one agent to talk to, across every configured server.
+ *
+ * The assistant entry points key off this rather than off server availability: the desktop always
+ * runs a local server, so "a server exists" is always true and says nothing about whether there is
+ * anything to chat with. A server with no agents cannot start a session.
+ */
+export function useHasAnyAgent(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
+  const agentLists = useAgentLists(serverUrls, accountUid)
+  const hasAgents = agentLists.some((query) => (query.data?.length || 0) > 0)
+  // "No agents" is only meaningful once every server has answered. Treating the in-flight state as
+  // empty would hide the assistant on each launch and discard the restored sidebar state.
+  const isSettled =
+    serverUrls !== undefined &&
+    (agentLists.length === 0 || agentLists.every((query) => query.isSuccess || query.isError))
+  return {hasAgents, isSettled}
 }
 
 /** Lists configured model providers for the selected account on the configured server. */
@@ -774,6 +865,58 @@ export function useAgentSession(
   })
 }
 
+/** One session row in the merged, cross-server sidebar list. */
+export type AgentSessionListEntry = {
+  /** Server the session lives on. Part of its identity — session ids are only unique per server. */
+  serverUrl: string
+  session: SessionInfo
+  /** The agent that owns the session, when the server reported it. */
+  agent?: AgentInfo
+}
+
+/**
+ * Lists sessions from every configured server, merged and sorted newest-first.
+ *
+ * The sidebar shows one list spanning all agents on all servers, so this fans out a single
+ * `ListSessions` per server rather than walking `ListAgents` -> `GetAgent` per agent. Servers are
+ * queried independently and failures are isolated: an unreachable remote server yields an empty
+ * contribution instead of emptying the whole list, which matters because the local server is
+ * reachable far more often than a hosted one.
+ */
+export function useAllAgentSessions(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
+  const queries = useQueries({
+    queries: (serverUrls || []).map((serverUrl) => ({
+      queryKey: ['agents', 'sessions', serverUrl, accountUid],
+      queryFn: async (): Promise<AgentSessionListEntry[]> => {
+        if (!accountUid) return []
+        const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSessions'}})
+        if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
+        const agentsById = new Map(res.agents.map((agent) => [agent.id, agent]))
+        return res.sessions.map((session) => ({
+          serverUrl,
+          session,
+          agent: agentsById.get(session.agentId),
+        }))
+      },
+      enabled: !!accountUid,
+      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
+      retry: false,
+      useErrorBoundary: false,
+    })),
+  })
+
+  const entries = queries.flatMap((query) => query.data ?? []).sort((a, b) => b.session.updatedAt - a.session.updatedAt)
+
+  return {
+    entries,
+    // Loading only while nothing has arrived yet, so one slow server does not blank an already
+    // rendered list.
+    isLoading: queries.length > 0 && queries.every((query) => query.isLoading),
+    isError: queries.length > 0 && queries.every((query) => query.isError),
+  }
+}
+
 /** Updates an existing server-hosted agent. */
 export function useUpdateAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
@@ -798,6 +941,8 @@ export function useUpdateAgent(serverUrl: string | undefined, accountUid: string
 export type AgentSessionDraftMessage = {
   text: string
   blocks?: AgentMessageBlock[]
+  /** Ambient client context (e.g. the sidebar's current window), sent as a `context` part. */
+  contextLines?: string[]
 }
 
 /** Sends a user message and asks the server-hosted agent to respond. */
@@ -812,11 +957,18 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
     }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       const messages = Array.isArray(message) ? message : [message]
-      const content: MessageSessionContentPart[] = messages.map((message) => ({
-        type: 'text',
-        text: message.text,
-        ...(message.blocks ? {blocks: message.blocks} : {}),
-      }))
+      // Context describes the sending window as a whole, so all lines collapse into one part.
+      const contextLines = messages.flatMap((message) => message.contextLines ?? [])
+      const content: MessageSessionContentPart[] = [
+        ...(contextLines.length > 0 ? [{type: 'context', lines: contextLines} as const] : []),
+        ...messages.map(
+          (message): MessageSessionContentPart => ({
+            type: 'text',
+            text: message.text,
+            ...(message.blocks ? {blocks: message.blocks} : {}),
+          }),
+        ),
+      ]
       return sendAgentAction({
         serverUrl,
         accountUid,
@@ -1040,6 +1192,20 @@ export function useAgentWebSocketSubscription(
 }
 
 /** Adds an optimistic user message to the cached session while the signed request is in flight. */
+/**
+ * Optimistically drops a session from the cached cross-server session lists.
+ *
+ * Deletion flows call this before the DeleteSession round trip: anything that re-derives its
+ * selection from the list (the sidebar picks "the agent's newest session" when none is selected)
+ * would otherwise re-select the session that is being deleted from the still-stale cache.
+ */
+export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: string, sessionId: string) {
+  queryClient.setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) => {
+    if (!Array.isArray(old)) return old
+    return old.filter((entry: AgentSessionListEntry) => entry.session.id !== sessionId)
+  })
+}
+
 export function addOptimisticSessionMessage(
   serverUrl: string,
   accountUid: string,
@@ -1064,6 +1230,9 @@ export function addOptimisticSessionMessage(
             content: message.text,
             rawMarkdown: message.text,
             ...(message.blocks ? {blocks: message.blocks} : {}),
+            // Mirrors the durable event shape so the context info chip shows without waiting for
+            // the server round trip.
+            ...(message.contextLines?.length ? {contextLines: message.contextLines} : {}),
           },
           createdAt: now,
         })),

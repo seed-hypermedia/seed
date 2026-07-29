@@ -51,6 +51,7 @@ import {
 } from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon, subscribeDaemonState} from './daemon'
+import {startLocalAgentsServer, stopLocalAgentsServer} from './agents-server-process'
 import {startApiServer, stopApiServer} from './app-http-server'
 import {startLocalServer, stopLocalServer} from './local-server'
 import * as logger from './logger'
@@ -176,6 +177,7 @@ app.on('before-quit', () => {
   // Stop servers when app quits
   stopApiServer()
   stopLocalServer()
+  stopLocalAgentsServer()
 
   // Stop memory monitoring
   memoryMonitor.stopTracking()
@@ -326,9 +328,17 @@ app.whenReady().then(async () => {
   startDaemonWithLoadingWindow()
     .then(() => {
       logger.info('DaemonStarted')
-      startApiServer().catch((err) => {
-        logger.error('[MAIN]: Failed to start API server: ' + (err as Error).message)
-      })
+      startApiServer()
+        .then(() => {
+          // Ordered after the API server on purpose: the agents server is configured to use it as
+          // its HM backend, so starting earlier would just make its first requests fail.
+          return startLocalAgentsServer().then((url) => {
+            logger.info('[MAIN]: Local agents server ' + (url ? `ready at ${url}` : 'not running'))
+          })
+        })
+        .catch((err) => {
+          logger.error('[MAIN]: Failed to start API server: ' + (err as Error).message)
+        })
       return Promise.all([
         initDrafts().then(() => {
           logger.info('Drafts ready')

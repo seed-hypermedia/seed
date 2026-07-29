@@ -45,7 +45,13 @@ import {
 } from '@seed-hypermedia/client'
 import type {DocumentOperation} from '@seed-hypermedia/client'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
-import type {HMSigner, HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {
+  HMSigner,
+  HMBlockNode,
+  HMDocument,
+  HMMetadata,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as pi from '@mariozechner/pi-coding-agent'
 import {CID} from 'multiformats/cid'
@@ -66,6 +72,10 @@ const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
+const DEFAULT_SESSION_PAGE_SIZE = 50
+const MAX_SESSION_PAGE_SIZE = 200
+const MAX_CONTEXT_LINES = 64
+const MAX_CONTEXT_LINE_BYTES = 2 * 1024
 
 /** Result of evaluating one activity event against enabled triggers. */
 export type TriggerProcessingResult = {
@@ -217,6 +227,13 @@ export class Service {
           envelope.action.agentId,
           envelope.action.title,
           envelope.action.clientRequestId,
+        )
+      case 'ListSessions':
+        return this.#listSessions(
+          verified.accountId,
+          envelope.action.agentId,
+          envelope.action.limit,
+          envelope.action.cursor,
         )
       case 'UpdateSession':
         return this.#updateSession(verified.accountId, envelope.action.sessionId, envelope.action.title)
@@ -671,6 +688,61 @@ export class Service {
     return {_: 'GetAgentResponse', agent: agentRowToInfo(agent), sessions: this.#sessionRowsToInfo(accountId, sessions)}
   }
 
+  /**
+   * Lists the account's sessions newest-first across every agent, or one agent when `agentId` is set.
+   *
+   * Returns the referenced agents alongside the sessions so a client rendering a merged, cross-agent
+   * session list can label each row without a follow-up `GetAgent` per session.
+   *
+   * Pagination is keyset on the composite `(updated_at, id)` so that sessions sharing an `updated_at`
+   * millisecond — which triggers produce when one activity batch fires several at once — are not
+   * skipped at a page boundary.
+   */
+  #listSessions(
+    accountId: string,
+    agentId?: string,
+    limit?: number,
+    cursor?: api.SessionListCursor,
+  ): api.ListSessionsResponse {
+    const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
+    const conditions = ['account_id = ?']
+    const params: (string | number)[] = [accountId]
+    if (agentId !== undefined) {
+      conditions.push('agent_id = ?')
+      params.push(normalizeBoundedString(agentId, 'Agent ID', MAX_NAME_BYTES))
+    }
+    if (cursor !== undefined) {
+      if (!isRecord(cursor)) throw new APIError(400, 'Session cursor must be an object')
+      const updatedBefore = normalizeOptionalPositiveInteger(cursor.updatedBefore, 'Cursor updatedBefore')
+      const idBefore = normalizeBoundedString(cursor.idBefore, 'Cursor idBefore', MAX_NAME_BYTES)
+      conditions.push('(updated_at < ? OR (updated_at = ? AND id < ?))')
+      params.push(updatedBefore, updatedBefore, idBefore)
+    }
+    // Over-fetch by one so we can report whether another page exists without a second COUNT query.
+    params.push(pageSize + 1)
+
+    const rows = this.#db
+      .query<SessionRow, (string | number)[]>(
+        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+         FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
+      )
+      .all(...params)
+
+    const hasMore = rows.length > pageSize
+    const page = hasMore ? rows.slice(0, pageSize) : rows
+    const sessions = this.#sessionRowsToInfo(accountId, page)
+    const referencedAgentIds = new Set(sessions.map((session) => session.agentId))
+    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
+    const last = page[page.length - 1]
+
+    return {
+      _: 'ListSessionsResponse',
+      sessions,
+      agents,
+      ...(hasMore && last ? {nextCursor: {updatedBefore: last.updated_at, idBefore: last.id}} : {}),
+    }
+  }
+
   #updateAgent(accountId: string, agentId: string, rawDefinition: api.AgentDefinition): api.GetAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
     const existing = this.#db
@@ -1014,6 +1086,7 @@ export class Service {
         content: firstMessage.text,
         rawMarkdown: firstMessage.text,
         ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
+        ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
       },
       now,
     )
@@ -1491,10 +1564,21 @@ export class Service {
         input?: unknown
         output?: unknown
         error?: string
+        contextLines?: unknown
       }
       if (value.type === 'message' && value.role === 'user' && typeof value.content === 'string') {
         flushPendingAssistant()
-        messages.push({role: 'user', content: value.content, timestamp: event.createdAt})
+        // Client context (e.g. the desktop's current window) rides along to the model inside a
+        // tagged block, mirroring how trigger context reaches it — but stays out of `content`, so
+        // transcripts never render it.
+        const contextLines = Array.isArray(value.contextLines)
+          ? value.contextLines.filter((line): line is string => typeof line === 'string')
+          : []
+        const content =
+          contextLines.length > 0
+            ? `${value.content}\n\n<window_context>\n${contextLines.join('\n')}\n</window_context>`
+            : value.content
+        messages.push({role: 'user', content, timestamp: event.createdAt})
       } else if (value.type === 'message' && value.role === 'assistant' && typeof value.content === 'string') {
         appendPendingAssistantContent({type: 'text', text: value.content}, event.createdAt)
       } else if (value.type === 'tool_call') {
@@ -4216,7 +4300,22 @@ function emptyPiUsage(): {
   }
 }
 
-async function readHypermedia(input: unknown): Promise<Record<string, unknown>> {
+/**
+ * Detects a trailing `:attributes` view term (or its legacy `:metadata` spelling) on a resolved id
+ * and strips it, so the underlying document can be fetched. The caller then returns only the
+ * document's metadata — the same thing the desktop's attributes tab shows.
+ */
+function stripAttributesViewTerm(id: UnpackedHypermediaId): {
+  id: UnpackedHypermediaId
+  attributesOnly: boolean
+} {
+  const lastTerm = id.path?.[id.path.length - 1]
+  if (lastTerm !== ':attributes' && lastTerm !== ':metadata') return {id, attributesOnly: false}
+  return {id: {...id, path: id.path!.slice(0, -1)}, attributesOnly: true}
+}
+
+/** Exported for tests. Implements the agent `read` tool. */
+export async function readHypermedia(input: unknown): Promise<Record<string, unknown>> {
   if (!input || typeof input !== 'object' || Array.isArray(input))
     throw new APIError(400, 'Tool input must be an object')
   const requestedId = normalizeBoundedString((input as {id?: unknown}).id, 'Hypermedia ID', 2048)
@@ -4248,6 +4347,9 @@ async function readHypermedia(input: unknown): Promise<Record<string, unknown>> 
   if (id.path?.[0] === ':profile') {
     return readProfileHypermedia({requestedId, id, client, serverUrl, server, dev})
   }
+  const stripped = stripAttributesViewTerm(id)
+  id = stripped.id
+  const attributesOnly = stripped.attributesOnly
   let resource = await client.request('Resource', id)
   if (
     (resource.type === 'not-found' || resource.type === 'error') &&
@@ -4256,9 +4358,10 @@ async function readHypermedia(input: unknown): Promise<Record<string, unknown>> 
     requestedId.startsWith('hm:')
   ) {
     const devResolved = await resolveIdWithClient(requestedId, {serverUrl: 'https://dev.hyper.media'})
-    const devResource = await devResolved.client.request('Resource', devResolved.id)
+    const devId = stripAttributesViewTerm(devResolved.id).id
+    const devResource = await devResolved.client.request('Resource', devId)
     if (devResource.type !== 'not-found' && devResource.type !== 'error') {
-      id = devResolved.id
+      id = devId
       serverUrl = devResolved.serverUrl
       resource = devResource
     }
@@ -4277,6 +4380,11 @@ async function readHypermedia(input: unknown): Promise<Record<string, unknown>> 
     result.title = resource.document.metadata?.name
     result.version = resource.document.version
     result.metadata = resource.document.metadata
+    if (attributesOnly) {
+      // The :attributes view is exactly the metadata — never the document content.
+      result.view = 'attributes'
+      return result
+    }
     if (outputFormat === 'json') {
       result.resource = resource
     } else {
@@ -4397,26 +4505,53 @@ function canonicalServerUrl(rawUrl: string): string {
   }
 }
 
+/** Validates the `lines` of a `context` content part. Empty lines are allowed as separators. */
+function normalizeContextLines(raw: unknown): string[] {
+  if (!Array.isArray(raw)) throw new APIError(400, 'Context lines must be an array of strings')
+  if (raw.length > MAX_CONTEXT_LINES) throw new APIError(400, 'Too many context lines')
+  return raw.map((line) => {
+    if (typeof line !== 'string') throw new APIError(400, 'Context lines must be an array of strings')
+    if (new TextEncoder().encode(line).byteLength > MAX_CONTEXT_LINE_BYTES) {
+      throw new APIError(400, 'Context line is too large')
+    }
+    return line
+  })
+}
+
 function normalizeMessageContent(
   content: api.MessageSession['content'],
-): Array<{text: string; blocks?: api.AgentMessageBlock[]}> {
+): Array<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}> {
   if (!Array.isArray(content) || content.length === 0) throw new APIError(400, 'Message content is required')
-  const messages = content.map((part) => {
-    if (!part || typeof part !== 'object' || part.type !== 'text' || typeof part.text !== 'string') {
-      throw new APIError(400, 'Only text message content is supported')
-    }
-    const text = part.text.trim()
-    return {
-      text,
-      ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
-    }
-  })
+  const contextLines: string[] = []
+  const messages = content.flatMap<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}>(
+    (part) => {
+      if (!part || typeof part !== 'object') throw new APIError(400, 'Only text message content is supported')
+      if (part.type === 'context') {
+        contextLines.push(...normalizeContextLines(part.lines))
+        return []
+      }
+      if (part.type !== 'text' || typeof part.text !== 'string') {
+        throw new APIError(400, 'Only text message content is supported')
+      }
+      const text = part.text.trim()
+      return [
+        {
+          text,
+          ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
+        },
+      ]
+    },
+  )
+  if (messages.length === 0) throw new APIError(400, 'Message content is required')
   if (messages.some((message) => !message.text)) throw new APIError(400, 'Message content is required')
   if (
     new TextEncoder().encode(messages.map((message) => message.text).join('\n')).byteLength > MAX_MESSAGE_TEXT_BYTES
   ) {
     throw new APIError(400, 'Message content is too large')
   }
+  // Context describes the sending window as a whole, so all context parts collapse onto the first
+  // message of the request — the turn the model reads them with.
+  if (contextLines.length > 0) messages[0]!.contextLines = contextLines
   return messages
 }
 
