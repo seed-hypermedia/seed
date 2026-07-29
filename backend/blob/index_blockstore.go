@@ -28,11 +28,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 	defer release()
 
 	fromNetwork := networkOrigin(ctx)
-	opts := indexOpts{
-		TrackUnreads:            unreadsTrackingEnabled(ctx),
-		FromNetwork:             fromNetwork,
-		DeriveFirstContentImage: idx.firstImageDeriver(),
-	}
+	opts := indexOpts{TrackUnreads: unreadsTrackingEnabled(ctx), FromNetwork: fromNetwork}
 	if fromNetwork {
 		opts.ObservedAt = time.Now()
 	}
@@ -103,10 +99,9 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	// passes it down here — see blob.ContextWithSyncSite.
 	mediaSite := syncSite(ctx)
 	opts := indexOpts{
-		TrackUnreads:            unreadsTrackingEnabled(ctx),
-		DeferPropagation:        true,
-		FromNetwork:             fromNetwork,
-		DeriveFirstContentImage: idx.firstImageDeriver(),
+		TrackUnreads:     unreadsTrackingEnabled(ctx),
+		DeferPropagation: true,
+		FromNetwork:      fromNetwork,
 	}
 
 	for batch := range slices.Chunk(blks, batchSize) {

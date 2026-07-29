@@ -2513,19 +2513,6 @@ export class DocumentInfo extends Message<DocumentInfo> {
    */
   visibility = ResourceVisibility.UNSPECIFIED;
 
-  /**
-   * Output only. Link of the first image block in the document's content
-   * (in reading order), derived by the indexer for documents that have no
-   * explicit cover or icon. Clients use it as a fallback cover on directory
-   * cards without fetching the full document.
-   *
-   * Unset means the indexer hasn't derived it (yet); an empty string means
-   * the document is known to have no content image.
-   *
-   * @generated from field: optional string first_image_in_content = 15;
-   */
-  firstImageInContent?: string;
-
   constructor(data?: PartialMessage<DocumentInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2547,7 +2534,6 @@ export class DocumentInfo extends Message<DocumentInfo> {
     { no: 12, name: "generation_info", kind: "message", T: GenerationInfo },
     { no: 13, name: "redirect_info", kind: "message", T: RefTarget_Redirect },
     { no: 14, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
-    { no: 15, name: "first_image_in_content", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {
@@ -2659,15 +2645,6 @@ export class ActivitySummary extends Message<ActivitySummary> {
    */
   isUnread = false;
 
-  /**
-   * Output only. Number of alive direct child documents.
-   * Only populated in document listings; listing cards show it without
-   * fetching a per-document interaction summary.
-   *
-   * @generated from field: int32 children_count = 6;
-   */
-  childrenCount = 0;
-
   constructor(data?: PartialMessage<ActivitySummary>) {
     super();
     proto3.util.initPartial(data, this);
@@ -2681,7 +2658,6 @@ export class ActivitySummary extends Message<ActivitySummary> {
     { no: 2, name: "comment_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 3, name: "latest_change_time", kind: "message", T: Timestamp },
     { no: 5, name: "is_unread", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
-    { no: 6, name: "children_count", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ActivitySummary {

@@ -156,7 +156,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 			// Full reindex rebuilds the derived tables (incl. the RBSR index) from
 			// scratch, so no incremental hook is needed here — pass nil.
-			err = indexBlob(indexOpts{DeriveFirstContentImage: idx.firstImageDeriver()}, conn, id, c, data, idx.bs, idx.log, reindexWriterCache, nil)
+			err = indexBlob(indexOpts{}, conn, id, c, data, idx.bs, idx.log, reindexWriterCache, nil)
 			blobsIndexed++
 
 			// We batch updates for progress reporting.

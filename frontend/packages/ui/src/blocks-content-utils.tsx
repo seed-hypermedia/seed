@@ -138,7 +138,6 @@ export function DocumentCardGrid({
             titleLinkOnly={titleLinkOnly}
             docId={firstItem.id}
             metadata={firstItem.metadata}
-            firstImageInContent={firstItem.firstImageInContent}
             visibility={firstItem.visibility}
             version={firstItem.version}
             interactionSummary={interactionSummaries?.[firstItem.id.id]}
@@ -165,7 +164,6 @@ export function DocumentCardGrid({
                   navigate={navigateCards ?? true}
                   titleLinkOnly={titleLinkOnly}
                   metadata={item.metadata}
-                  firstImageInContent={item.firstImageInContent}
                   visibility={item.visibility}
                   version={item.version}
                   interactionSummary={interactionSummaries?.[item.id.id]}

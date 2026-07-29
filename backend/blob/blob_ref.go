@@ -23,7 +23,6 @@ import (
 	"github.com/ipfs/go-cid"
 	cbornode "github.com/ipfs/go-ipld-cbor"
 	"github.com/multiformats/go-multicodec"
-	"go.uber.org/zap"
 )
 
 // TypeRef is the type of the Ref blob.
@@ -323,12 +322,6 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	isTombstone := v.IsTombstone()
 	refTime := v.Ts.UnixMilli()
 
-	// Whether this Ref advanced the generation's state (applied at least one
-	// change the generation hadn't seen). Duplicate and out-of-date Refs leave
-	// it false, letting the cover-image derivation below skip its full history
-	// replay when the merged heads are unchanged.
-	var appliedNewChanges bool
-
 	if !isTombstone {
 		var queue []int64
 		for _, h := range v.Heads {
@@ -419,7 +412,6 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 		}
 
 		if len(pendingChanges) > 0 {
-			appliedNewChanges = true
 			last := pendingChanges[len(pendingChanges)-1]
 			if err := touchSpaceStats(conn, v.Space().String(), last.Ts); err != nil {
 				return fmt.Errorf("failed to touch space stats: %w", err)
@@ -443,37 +435,6 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	}
 
 	dg.Metadata.set("$db.visibility", string(v.Visibility), refTime)
-
-	// Derive a fallback cover image (the first image block in reading order) for
-	// documents that carry neither an explicit cover nor icon, so directory cards
-	// can render a thumbnail from fast metadata instead of fetching each child's
-	// full document. Stored under an internal "$db." key (stripped by PublicMap,
-	// so it never pollutes user-authored metadata) and exposed as the typed
-	// DocumentInfo.first_image_in_content field. Best-effort: a derivation
-	// failure is logged but must not fail Ref indexing.
-	//
-	// Derives from the generation's MERGED heads (what the read path renders),
-	// and only when this Ref actually advanced them — duplicate and out-of-date
-	// Refs can't change the result, so they skip the full history replay.
-	if !isTombstone && appliedNewChanges && ictx.deriveFirstContentImage != nil && len(dg.Heads) > 0 {
-		if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
-			headIDs := slices.Collect(maps.Keys(dg.Heads))
-			changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
-			if cerr != nil {
-				ictx.log.Warn("FailedToLoadChangesForCoverImage", zap.String("iri", string(iri)), zap.Error(cerr))
-			} else if firstImage, derr := ictx.deriveFirstContentImage(iri, changes); derr != nil {
-				ictx.log.Warn("FailedToDeriveCoverImage", zap.String("iri", string(iri)), zap.Error(derr))
-			} else {
-				// Always record the result — empty means "derived: no image" — so a
-				// value derived at older heads can never outlive the image's removal,
-				// and clients can skip the fallback document fetch entirely. The
-				// timestamp rides at the generation's latest alive Ref time so that a
-				// late-arriving older Ref which completes the merge still wins the
-				// LWW register over a value derived from fewer heads.
-				dg.Metadata.set(FirstImageInContentAttr, firstImage, max(refTime, dg.LastAliveRefTime))
-			}
-		}
-	}
 
 	if isTombstone {
 		dg.LastTombstoneRefTime = max(dg.LastTombstoneRefTime, refTime)
@@ -813,31 +774,8 @@ type IndexedValue struct {
 	Ts    int64 `json:"t"`
 }
 
-// FirstImageInContentAttr is the internal indexed-attrs key holding the
-// derived fallback cover image (first image block in reading order). The
-// "$db." prefix keeps it out of the public metadata map; it reaches clients
-// as the typed DocumentInfo.first_image_in_content field instead. An empty
-// value means "derived: the document has no content image"; a missing key
-// means derivation hasn't run.
-const FirstImageInContentAttr = "$db.firstImageInContent"
-
 // DocIndexedAttrs is a map of indexed document attributes with CRDT metadata.
 type DocIndexedAttrs map[string]IndexedValue
-
-// hasNonEmptyAttr reports whether the indexed metadata map holds an effective
-// (client-visible, non-empty) value for key k. A key can be present with a nil
-// value (authored removal) or an empty string (cleared via the UI) — both mean
-// "no cover/icon" for the fallback-cover derivation gate.
-func hasNonEmptyAttr(m DocIndexedAttrs, k string) bool {
-	v, ok := m[k]
-	if !ok || v.Value == nil {
-		return false
-	}
-	if s, isStr := v.Value.(string); isStr {
-		return s != ""
-	}
-	return true
-}
 
 func (m DocIndexedAttrs) set(k string, v any, ts int64) {
 	vNew := IndexedValue{Value: v, Ts: ts}

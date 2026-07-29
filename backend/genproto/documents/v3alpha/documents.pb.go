@@ -2808,17 +2808,9 @@ type DocumentInfo struct {
 	// Output only. Redirect information if the document is a republish or a redirect.
 	RedirectInfo *RefTarget_Redirect `protobuf:"bytes,13,opt,name=redirect_info,json=redirectInfo,proto3" json:"redirect_info,omitempty"`
 	// Output only. Visibility of the document.
-	Visibility ResourceVisibility `protobuf:"varint,14,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
-	// Output only. Link of the first image block in the document's content
-	// (in reading order), derived by the indexer for documents that have no
-	// explicit cover or icon. Clients use it as a fallback cover on directory
-	// cards without fetching the full document.
-	//
-	// Unset means the indexer hasn't derived it (yet); an empty string means
-	// the document is known to have no content image.
-	FirstImageInContent *string `protobuf:"bytes,15,opt,name=first_image_in_content,json=firstImageInContent,proto3,oneof" json:"first_image_in_content,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	Visibility    ResourceVisibility `protobuf:"varint,14,opt,name=visibility,proto3,enum=com.seed.documents.v3alpha.ResourceVisibility" json:"visibility,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DocumentInfo) Reset() {
@@ -2942,13 +2934,6 @@ func (x *DocumentInfo) GetVisibility() ResourceVisibility {
 	return ResourceVisibility_RESOURCE_VISIBILITY_UNSPECIFIED
 }
 
-func (x *DocumentInfo) GetFirstImageInContent() string {
-	if x != nil && x.FirstImageInContent != nil {
-		return *x.FirstImageInContent
-	}
-	return ""
-}
-
 // Information about the generation of a document.
 type GenerationInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3018,11 +3003,7 @@ type ActivitySummary struct {
 	// Timestamp of the most recent change.
 	LatestChangeTime *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=latest_change_time,json=latestChangeTime,proto3" json:"latest_change_time,omitempty"`
 	// Whether there's any unread activity on this document/account.
-	IsUnread bool `protobuf:"varint,5,opt,name=is_unread,json=isUnread,proto3" json:"is_unread,omitempty"`
-	// Output only. Number of alive direct child documents.
-	// Only populated in document listings; listing cards show it without
-	// fetching a per-document interaction summary.
-	ChildrenCount int32 `protobuf:"varint,6,opt,name=children_count,json=childrenCount,proto3" json:"children_count,omitempty"`
+	IsUnread      bool `protobuf:"varint,5,opt,name=is_unread,json=isUnread,proto3" json:"is_unread,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3090,13 +3071,6 @@ func (x *ActivitySummary) GetIsUnread() bool {
 		return x.IsUnread
 	}
 	return false
-}
-
-func (x *ActivitySummary) GetChildrenCount() int32 {
-	if x != nil {
-		return x.ChildrenCount
-	}
-	return 0
 }
 
 // Basic information about ancestor documents in the path hierarchy.
@@ -4537,7 +4511,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x12\n" +
 	"\x04deps\x18\x03 \x03(\tR\x04deps\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xaa\x06\n" +
+	"createTime\"\xd5\x05\n" +
 	"\fDocumentInfo\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -4556,21 +4530,18 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\rredirect_info\x18\r \x01(\v2..com.seed.documents.v3alpha.RefTarget.RedirectR\fredirectInfo\x12N\n" +
 	"\n" +
 	"visibility\x18\x0e \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
-	"visibility\x128\n" +
-	"\x16first_image_in_content\x18\x0f \x01(\tH\x00R\x13firstImageInContent\x88\x01\x01B\x19\n" +
-	"\x17_first_image_in_content\"J\n" +
+	"visibility\"J\n" +
 	"\x0eGenerationInfo\x12\x18\n" +
 	"\agenesis\x18\x01 \x01(\tR\agenesis\x12\x1e\n" +
 	"\n" +
 	"generation\x18\x02 \x01(\x03R\n" +
-	"generation\"\xbc\x02\n" +
+	"generation\"\x95\x02\n" +
 	"\x0fActivitySummary\x12J\n" +
 	"\x13latest_comment_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x11latestCommentTime\x12*\n" +
 	"\x11latest_comment_id\x18\x04 \x01(\tR\x0flatestCommentId\x12#\n" +
 	"\rcomment_count\x18\x02 \x01(\x05R\fcommentCount\x12H\n" +
 	"\x12latest_change_time\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x10latestChangeTime\x12\x1b\n" +
-	"\tis_unread\x18\x05 \x01(\bR\bisUnread\x12%\n" +
-	"\x0echildren_count\x18\x06 \x01(\x05R\rchildrenCount\"S\n" +
+	"\tis_unread\x18\x05 \x01(\bR\bisUnread\"S\n" +
 	"\n" +
 	"Breadcrumb\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
@@ -4916,7 +4887,6 @@ func file_documents_v3alpha_documents_proto_init() {
 		(*ListContactsRequest_Account)(nil),
 		(*ListContactsRequest_Subject)(nil),
 	}
-	file_documents_v3alpha_documents_proto_msgTypes[40].OneofWrappers = []any{}
 	file_documents_v3alpha_documents_proto_msgTypes[48].OneofWrappers = []any{
 		(*DocumentChange_SetMetadata_)(nil),
 		(*DocumentChange_MoveBlock_)(nil),

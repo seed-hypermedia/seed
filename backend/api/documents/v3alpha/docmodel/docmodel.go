@@ -693,40 +693,6 @@ func (dm *Document) Hydrate(ctx context.Context) (*documents.Document, error) {
 	return docpb, nil
 }
 
-// FirstContentImage returns the link of the first image block in document
-// reading order, or an empty string if the document contains no image block.
-//
-// It walks the same block tree that Hydrate materializes, but stops at the
-// first image and skips proto materialization entirely. This lets us derive a
-// fallback cover image at index time without paying for a full Hydrate. The
-// "Image" type string and the non-empty-link requirement mirror the client's
-// fallback logic (frontend/packages/shared/src/content.ts getDocumentImage).
-func (dm *Document) FirstContentImage() string {
-	if dm.mut != nil {
-		// A document with uncommitted changes has no stable committed state.
-		return ""
-	}
-
-	treeState := dm.crdt.tree.State()
-	for pair := range treeState.DFT("") {
-		bs := dm.crdt.stateBlocks[pair.Child]
-		if bs == nil {
-			continue
-		}
-
-		_, blk, ok := bs.GetLatestWithID()
-		if !ok {
-			continue
-		}
-
-		if blk.Type == "Image" && blk.Link != "" {
-			return blk.Link
-		}
-	}
-
-	return ""
-}
-
 // BlockFromProto converts a protobuf block into our internal representation.
 // It's largely the same, but we need a separate type for CBOR encoding which we use in the permanent data.
 func BlockFromProto(b *documents.Block) (blob.Block, error) {

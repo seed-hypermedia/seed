@@ -66,7 +66,7 @@ type Server struct {
 
 // NewServer creates a new Documents API v3 server.
 func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
-	srv := &Server{
+	return &Server{
 		cfg:      cfg,
 		keys:     keys,
 		idx:      idx,
@@ -75,50 +75,6 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 		p2p:      p2p,
 		hydrated: newHydrateCache(),
 	}
-
-	// Let the indexer derive a fallback cover image at index time, reusing the
-	// real docmodel so the result matches what the read path renders. This is
-	// how the derived cover field gets populated. The daemon also wires this
-	// earlier (before the backfill reindex task starts); this keeps embedders
-	// and tests that construct the server directly working.
-	idx.SetDeriveFirstContentImage(DeriveFirstContentImage)
-
-	return srv
-}
-
-// DeriveFirstContentImage rebuilds a document in memory from the given changes
-// and returns the link of its first image block in reading order (or "" if it
-// has none). It's injected into the indexer (SetDeriveFirstContentImage) to
-// populate DocumentInfo.first_image_in_content, letting directory
-// cards render a fallback cover from fast metadata instead of fetching each
-// child's full document. It's a pure function so the daemon can wire it before
-// the migration-triggered backfill reindex starts, long before this server
-// exists.
-//
-// The changes are supplied by the indexer (already loaded on its transaction's
-// connection), so this does no database I/O and is safe to call mid-indexing.
-// It mirrors loadDocument's in-memory build but never touches the pool.
-func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (string, error) {
-	if len(changes) == 0 {
-		return "", nil
-	}
-
-	doc, err := docmodel.New(iri, cclock.New())
-	if err != nil {
-		return "", err
-	}
-
-	for _, ch := range changes {
-		doc.SetVisibility(ch.Visibility)
-		if !doc.Generation.IsSet() {
-			doc.Generation = maybe.New(ch.Generation)
-		}
-		if err := doc.ApplyChange(ch.CID, ch.Data); err != nil {
-			return "", err
-		}
-	}
-
-	return doc.FirstContentImage(), nil
 }
 
 // SetTelemetry wires the journeys profiler. Optional; when nil, all
@@ -1266,19 +1222,6 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 			"dg.last_change_time",
 			"dg.last_activity_time",
 			"(SELECT 1 FROM unread_resources WHERE iri = r.iri) AS is_unread",
-			// Alive direct children of the document, so listing cards can show
-			// the subdocument count without a per-document interaction-summary
-			// request. The prefix-range comparison (everything between
-			// 'iri/' and 'iri0', '0' being the character after '/') seeks the
-			// resources.iri index instead of scanning; the instr check drops
-			// grandchildren; the innermost subquery keeps only resources whose
-			// latest generation is alive.
-			`(SELECT count(*)
-			  FROM resources cr
-			  WHERE cr.iri > r.iri || '/' AND cr.iri < r.iri || '0'
-			    AND instr(substr(cr.iri, length(r.iri) + 2), '/') = 0
-			    AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
-			) AS children_count`,
 		).
 		From(
 			"document_generations dg",
@@ -1306,7 +1249,6 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		lastActivityTime  = row.ColumnInt64(inc())
 		_                 = lastActivityTime
 		isUnread          = row.ColumnInt64(inc()) > 0
-		childrenCount     = row.ColumnInt64(inc())
 	)
 
 	iri := blob.IRI(iriRaw)
@@ -1332,17 +1274,6 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			Account:   space.String(),
 			Path:      path,
 			Republish: true,
-		}
-	}
-
-	// Derived fallback cover image, stored under an internal "$db." key (so it
-	// never leaks into the user-authored metadata map) and exposed as a typed
-	// sibling field. Field presence distinguishes "not derived yet" from
-	// "derived: the document has no content image" (empty string).
-	var firstImageInContent *string
-	if v, ok := attrs[blob.FirstImageInContentAttr]; ok {
-		if s, isStr := v.Value.(string); isStr {
-			firstImageInContent = &s
 		}
 	}
 
@@ -1426,23 +1357,21 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	}
 
 	out := &documents.DocumentInfo{
-		Account:             space.String(),
-		Path:                path,
-		Metadata:            metastruct,
-		FirstImageInContent: firstImageInContent,
-		Authors:             authors,
-		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
-		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),
-		Genesis:             genesis,
-		Version:             blob.NewVersion(cids...).String(),
-		Breadcrumbs:         crumbs,
+		Account:     space.String(),
+		Path:        path,
+		Metadata:    metastruct,
+		Authors:     authors,
+		CreateTime:  timestamppb.New(time.UnixMilli(genesisChangeTime)),
+		UpdateTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
+		Genesis:     genesis,
+		Version:     blob.NewVersion(cids...).String(),
+		Breadcrumbs: crumbs,
 		ActivitySummary: &documents.ActivitySummary{
 			CommentCount:      int32(commentCount), //nolint:gosec
 			LatestCommentId:   latestComment,
 			LatestCommentTime: latestCommentTime,
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 			IsUnread:          isUnread,
-			ChildrenCount:     int32(childrenCount), //nolint:gosec
 		},
 		GenerationInfo: &documents.GenerationInfo{
 			Genesis:    genesis,

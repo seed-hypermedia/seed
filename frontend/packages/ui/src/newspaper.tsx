@@ -15,6 +15,7 @@ import {
   useUniversalAppContext,
 } from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {useResource} from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   canShowMoveDocumentAction,
@@ -324,7 +325,6 @@ export function DocumentCard({
   route,
   entity,
   metadata,
-  firstImageInContent,
   visibility,
   version,
   interactionSummary: interactionSummaryProp,
@@ -345,8 +345,6 @@ export function DocumentCard({
   route?: DocumentRoute
   entity: HMResourceFetchResult | null | undefined
   metadata?: HMDocumentInfo['metadata']
-  /** Indexer-derived fallback cover (see HMDocumentInfo.firstImageInContent). */
-  firstImageInContent?: HMDocumentInfo['firstImageInContent']
   visibility?: HMDocumentInfo['visibility']
   version?: string
   interactionSummary?: HMQueryBlockItemSummary | null
@@ -385,26 +383,24 @@ export function DocumentCard({
 
   const explicitCover = resolvedMetadata?.cover
   const explicitIcon = resolvedMetadata?.icon
-  // The indexer precomputes the first content image, delivered as a typed
-  // sibling of the card's fast metadata (listing callers). Entity-bearing
-  // callers already hold the document, so they derive it from content in
-  // hand. Either way a card NEVER fetches a document just for a fallback
-  // cover — a doc the indexer hasn't derived yet simply renders coverless
-  // until the backfill reindex catches up. An icon suppresses the fallback
-  // cover entirely, even if a derived value lingers from before the icon
-  // was set.
-  const indexedFirstImage = explicitIcon ? undefined : firstImageInContent
-  const inHandContent = entity?.document?.content
+  // When the doc has neither a cover nor an explicit icon, fall back to
+  // the first image block in the doc's content.
+  const needsContentFetch = !explicitCover && !explicitIcon && !entity?.document?.content?.length
+  const lazyResource = useResource(needsContentFetch ? docId : null, {
+    enabled: needsContentFetch,
+  })
+  const lazyContent = lazyResource.data?.type === 'document' ? lazyResource.data.document?.content : undefined
+  const fallbackContent = entity?.document?.content ?? lazyContent
   const firstContentImage = useMemo(() => {
-    if (explicitCover || explicitIcon || indexedFirstImage) return undefined
-    if (!inHandContent?.length) return undefined
+    if (explicitCover || explicitIcon) return undefined
+    if (!fallbackContent?.length) return undefined
     const block = findFirstBlock<HMBlockImage>(
-      inHandContent,
+      fallbackContent,
       (b): b is HMBlockImage => b.type === 'Image' && !!(b as any).link,
     )
     return block?.link || undefined
-  }, [explicitCover, explicitIcon, indexedFirstImage, inHandContent])
-  const coverImage = explicitCover || indexedFirstImage || firstContentImage
+  }, [explicitCover, explicitIcon, fallbackContent])
+  const coverImage = explicitCover || firstContentImage
   const iconImage = explicitIcon
   const resolvedVisibility = visibility ?? entity?.document?.visibility
   const isPrivate = resolvedVisibility === 'PRIVATE'

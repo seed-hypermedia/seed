@@ -137,4 +137,3 @@ AGENTS.local.md
 # Python
 __pycache__/
 *.pyc
-.playwright-mcp/

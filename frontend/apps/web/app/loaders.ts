@@ -323,25 +323,58 @@ async function prefetchResourceData(
     ]),
   )
 
-  // Wave 3: interaction summaries for embed cards, which show the target's
-  // comment count via useInteractionSummary. Query-block cards and list
-  // items DON'T need this: their comment/children counts ride on each
-  // listing item's activitySummary and reach them through the payload's
-  // interactionSummaries, with no per-item requests.
+  // Wave 3: per-result interaction summaries. Query-block cards/list items
+  // (and the home page's directory card grid) show subtree comment counts
+  // via useInteractionSummary per item; without prefetch the counts are
+  // absent in SSR and fetched per-card on the client. Only the first
+  // INITIAL_LIST_CHUNK items of a list render before scrolling, so cap the
+  // fetches per source.
   const MAX_RESULT_SUMMARIES = 30
   const resultIds = new Map<string, UnpackedHypermediaId>()
+  // Cards without a cover/icon lazily fetch their doc to find a fallback
+  // content image (DocumentCard); prefetch those resources so the SSR cards
+  // and the hydrated cards agree (and the client skips the fetch).
+  const fallbackImageIds = new Map<string, UnpackedHypermediaId>()
+  const collectResultIds = (
+    items: {id: UnpackedHypermediaId; path: string[]; metadata?: {cover?: string; icon?: string}}[] | undefined | null,
+  ) => {
+    for (const item of (items || []).slice(0, MAX_RESULT_SUMMARIES)) {
+      const id = hmId(item.id.uid, {path: item.path})
+      resultIds.set(id.id, id)
+      if (!item.metadata?.cover && !item.metadata?.icon) {
+        fallbackImageIds.set(item.id.id, item.id)
+      }
+    }
+  }
+  for (const block of queryBlocks) {
+    const input = getQueryBlockInput(hmBlockToEditorBlock(block).props as any)
+    if (!input) continue
+    const payload = prefetchCtx.queryClient.getQueryData(queryQueryBlock(client, input).queryKey) as any
+    collectResultIds(payload?.results)
+  }
+  // Home documents render their child directory as a card grid.
+  if (!docId.path?.length) {
+    const directory = prefetchCtx.queryClient.getQueryData(queryDirectory(client, docId, 'Children').queryKey) as any
+    collectResultIds(directory)
+  }
+  // Embed cards show the target's comment count too.
   for (const ref of refs.slice(0, MAX_RESULT_SUMMARIES)) {
     resultIds.set(ref.refId.id, ref.refId)
   }
-  if (resultIds.size) {
+  if (resultIds.size || fallbackImageIds.size) {
     await instrument(ctx || noopCtx, 'prefetchWave3', () =>
-      Promise.allSettled(
-        Array.from(resultIds.values()).map((id) =>
+      Promise.allSettled([
+        ...Array.from(resultIds.values()).map((id) =>
           instrument(ctx || noopCtx, `prefetchResultSummary(${packHmId(id)})`, () =>
             prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, id)),
           ),
         ),
-      ),
+        ...Array.from(fallbackImageIds.values()).map((id) =>
+          instrument(ctx || noopCtx, `prefetchResultResource(${packHmId(id)})`, () =>
+            prefetchCtx.queryClient.prefetchQuery(queryResource(client, id)),
+          ),
+        ),
+      ]),
     )
   }
 }
