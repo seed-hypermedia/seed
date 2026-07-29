@@ -76,6 +76,7 @@ import {ModelSelect} from './model-select'
 import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
 import {curateProviderModels, pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
+import {AgentsNoAccountPage} from './no-account'
 import {ProviderSelect} from './provider-select'
 
 function AgentDetailPage({
@@ -1597,7 +1598,11 @@ function SessionStatusDot({status}: {status: SessionInfo['status']}) {
 
 export default function AgentDetailRoutePage() {
   const route = useNavRoute()
+  const selectedAccountId = useSelectedAccountId()
   if (route.key !== 'agent') return null
+  // Agent servers reject unauthenticated requests, so without an active account this page cannot
+  // load the agent — gate it entirely (the back stack can land here after a sign-out).
+  if (!selectedAccountId) return <AgentsNoAccountPage />
   return (
     <AgentDetailPage
       agentId={route.agentId}

@@ -19,9 +19,17 @@ import {Bot, CircleUserRound, Settings} from 'lucide-react'
 import React, {useMemo} from 'react'
 import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
+import {AgentsNoAccountPage} from './no-account'
 
 function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
+  // Agent servers reject unauthenticated requests, so without an active account there is nothing
+  // this page can load — gate it entirely rather than showing rows that would all fail.
+  if (!selectedAccountId) return <AgentsNoAccountPage />
+  return <AgentsListContent selectedAccountId={selectedAccountId} />
+}
+
+function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   const navigate = useNavigate()
   const serverUrlsQuery = useAgentServerUrls()
   const serverUrls = serverUrlsQuery.data || []
@@ -39,13 +47,9 @@ function AgentsListPage() {
       ),
     [agentQueries, serverUrls],
   )
-  const isLoadingAgents = !!selectedAccountId && agentQueries.some((query) => query.isFetching && !query.data)
+  const isLoadingAgents = agentQueries.some((query) => query.isFetching && !query.data)
   const agentError = agentQueries.find((query) => query.isError)?.error
-  const createAgentDisabledReason = !selectedAccountId
-    ? 'Select an account before creating an agent.'
-    : !serverUrls.length
-      ? 'Configure an agent server before creating an agent.'
-      : null
+  const createAgentDisabledReason = !serverUrls.length ? 'Configure an agent server before creating an agent.' : null
 
   return (
     <PanelContainer className="overflow-y-auto">
@@ -109,7 +113,6 @@ function AgentsListPage() {
                         event.stopPropagation()
                         manageAccountsDialog.open({serverUrl, selectedAccountId})
                       }}
-                      disabled={!selectedAccountId}
                     >
                       <CircleUserRound className="size-4" />
                       Accounts
@@ -121,7 +124,6 @@ function AgentsListPage() {
                         event.stopPropagation()
                         providersDialog.open({serverUrl, selectedAccountId})
                       }}
-                      disabled={!selectedAccountId}
                     >
                       <Settings className="size-4" />
                       Providers
@@ -153,16 +155,13 @@ function AgentsListPage() {
               </span>
             </Tooltip>
           </div>
-          {!selectedAccountId ? <SizableText color="muted">Select an account to load agents.</SizableText> : null}
           {isLoadingAgents ? <SizableText color="muted">Loading agents…</SizableText> : null}
           {agentError ? (
             <SizableText className="text-destructive">
               {agentError instanceof Error ? agentError.message : 'Could not load agents'}
             </SizableText>
           ) : null}
-          {selectedAccountId && !isLoadingAgents && !agents.length ? (
-            <SizableText color="muted">No agents yet.</SizableText>
-          ) : null}
+          {!isLoadingAgents && !agents.length ? <SizableText color="muted">No agents yet.</SizableText> : null}
           <div className="flex flex-col gap-2">
             {agents.map((agent) => (
               <AgentListRow
@@ -186,14 +185,10 @@ function AgentServerSubscription({
   children,
 }: {
   serverUrl: string
-  selectedAccountId: string | null | undefined
+  selectedAccountId: string
   children: React.ReactNode
 }) {
-  useAgentWebSocketSubscription(
-    serverUrl,
-    selectedAccountId,
-    selectedAccountId ? `account/${selectedAccountId}` : undefined,
-  )
+  useAgentWebSocketSubscription(serverUrl, selectedAccountId, `account/${selectedAccountId}`)
   return <>{children}</>
 }
 

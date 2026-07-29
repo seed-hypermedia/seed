@@ -12,6 +12,8 @@ const mockState = vi.hoisted(() => ({
   serverUrls: ['http://localhost:3051', 'https://agentic.seed.hyper.media'] as string[],
   localServerUrl: 'http://localhost:3051' as string | null,
   healths: [] as Array<{isLoading: boolean; isError: boolean; data?: {uptime: number}}>,
+  selectedAccountId: 'account-1' as string | null,
+  accountIds: ['account-1'] as string[],
 }))
 
 vi.mock('@/models/agents', () => ({
@@ -25,7 +27,13 @@ vi.mock('@/models/agents', () => ({
   useAgentWebSocketSubscription: () => ({text: ''}),
 }))
 
-vi.mock('@/selected-account', () => ({useSelectedAccountId: () => 'account-1'}))
+vi.mock('@/selected-account', () => ({useSelectedAccountId: () => mockState.selectedAccountId}))
+// The signed-out state pulls in the auth dialog, whose real module graph reaches the editor
+// package; only its hook surface matters here.
+vi.mock('@/components/desktop-auth-dialog', () => ({
+  useDesktopAuthDialog: () => ({content: null, open: vi.fn(), close: vi.fn()}),
+}))
+vi.mock('@/models/daemon', () => ({useMyAccountIds: () => ({data: mockState.accountIds})}))
 vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
@@ -98,6 +106,8 @@ describe('agents list — local server presentation', () => {
       {isLoading: false, isError: false, data: {uptime: 60}},
       {isLoading: false, isError: false, data: {uptime: 60}},
     ]
+    mockState.selectedAccountId = 'account-1'
+    mockState.accountIds = ['account-1']
   })
 
   afterEach(() => {
@@ -149,6 +159,50 @@ describe('agents list — local server presentation', () => {
 
     expect(container.textContent).not.toContain('Local Agents')
     expect(statusDots(container)).toHaveLength(2)
+
+    cleanupRendered(root, container)
+  })
+})
+
+describe('agents list — no active account', () => {
+  beforeEach(() => {
+    ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+    mockState.serverUrls = ['http://localhost:3051', 'https://agentic.seed.hyper.media']
+    mockState.localServerUrl = 'http://localhost:3051'
+    mockState.healths = [
+      {isLoading: false, isError: false, data: {uptime: 60}},
+      {isLoading: false, isError: false, data: {uptime: 60}},
+    ]
+    mockState.selectedAccountId = null
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  // Agent servers reject unauthenticated requests, so without an active account the page must not
+  // present servers it cannot talk to.
+  it('hides servers and asks the user to sign in when no accounts exist', () => {
+    mockState.accountIds = []
+
+    const {container, root} = renderList()
+
+    expect(container.textContent).toContain('Sign in to use agents')
+    expect(container.textContent).toContain('Sign in or create an account')
+    expect(container.textContent).not.toContain('Local Agents')
+    expect(container.textContent).not.toContain('agentic.seed.hyper.media')
+    expect(container.textContent).not.toContain('Agent Servers')
+
+    cleanupRendered(root, container)
+  })
+
+  it('asks the user to select an account when accounts exist but none is active', () => {
+    mockState.accountIds = ['account-1']
+
+    const {container, root} = renderList()
+
+    expect(container.textContent).toContain('Select an account')
+    expect(container.textContent).not.toContain('Local Agents')
 
     cleanupRendered(root, container)
   })

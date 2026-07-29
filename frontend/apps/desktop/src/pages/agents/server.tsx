@@ -10,28 +10,26 @@ import {Bot, CircleUserRound, Settings} from 'lucide-react'
 import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
 import {AgentBreadcrumb} from './header'
+import {AgentsNoAccountPage} from './no-account'
 
 export default function AgentServerPage() {
   const route = useNavRoute()
+  const selectedAccountId = useSelectedAccountId()
   if (route.key !== 'agent-server') return null
-  return <AgentServerContent routeServerUrl={route.serverUrl} />
+  // Agent servers reject unauthenticated requests, so without an active account there is nothing
+  // this page can load — gate it entirely rather than showing requests that would all fail.
+  if (!selectedAccountId) return <AgentsNoAccountPage />
+  return <AgentServerContent routeServerUrl={route.serverUrl} selectedAccountId={selectedAccountId} />
 }
 
-function AgentServerContent({routeServerUrl}: {routeServerUrl: string}) {
-  const selectedAccountId = useSelectedAccountId()
+function AgentServerContent({routeServerUrl, selectedAccountId}: {routeServerUrl: string; selectedAccountId: string}) {
   const serverUrlQuery = useAgentServerUrl()
   const serverUrl = routeServerUrl || serverUrlQuery.data || DEFAULT_AGENT_SERVER_URL
   const agents = useAgentList(serverUrl, selectedAccountId)
   const providersDialog = useAppDialog(ModelProvidersDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
   const createAgentDialog = useAppDialog(CreateAgentDialog)
-  useAgentWebSocketSubscription(
-    serverUrl,
-    selectedAccountId,
-    selectedAccountId ? `account/${selectedAccountId}` : undefined,
-  )
-
-  const createAgentDisabledReason = !selectedAccountId ? 'Select an account before creating an agent.' : null
+  useAgentWebSocketSubscription(serverUrl, selectedAccountId, `account/${selectedAccountId}`)
 
   return (
     <PanelContainer className="overflow-y-auto">
@@ -54,30 +52,19 @@ function AgentServerContent({routeServerUrl}: {routeServerUrl: string}) {
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
-            <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
+            <Tooltip content="Create Agent">
               <span>
-                <Button
-                  onClick={() => createAgentDialog.open({serverUrls: [serverUrl], selectedAccountId})}
-                  disabled={!!createAgentDisabledReason}
-                >
+                <Button onClick={() => createAgentDialog.open({serverUrls: [serverUrl], selectedAccountId})}>
                   <Bot className="size-4" />
                   Create Agent
                 </Button>
               </span>
             </Tooltip>
-            <Button
-              variant="outline"
-              onClick={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}
-              disabled={!selectedAccountId}
-            >
+            <Button variant="outline" onClick={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}>
               <CircleUserRound className="size-4" />
               Accounts
             </Button>
-            <Button
-              variant="outline"
-              onClick={() => providersDialog.open({serverUrl, selectedAccountId})}
-              disabled={!selectedAccountId}
-            >
+            <Button variant="outline" onClick={() => providersDialog.open({serverUrl, selectedAccountId})}>
               <Settings className="size-4" />
               Providers
             </Button>
