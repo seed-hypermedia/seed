@@ -114,6 +114,7 @@ describe('QueryBlock.getData', () => {
       interactionSummaries: {
         [docA.id]: {
           comments: 2,
+          children: 0,
           authorUids: [],
         },
       },

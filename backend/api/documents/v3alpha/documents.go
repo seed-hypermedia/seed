@@ -66,7 +66,7 @@ type Server struct {
 
 // NewServer creates a new Documents API v3 server.
 func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex.Pool, log *zap.Logger, p2p *hmnet.Node) *Server {
-	return &Server{
+	srv := &Server{
 		cfg:      cfg,
 		keys:     keys,
 		idx:      idx,
@@ -75,6 +75,64 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 		p2p:      p2p,
 		hydrated: newHydrateCache(),
 	}
+
+	// Let the indexer derive a fallback cover image at index time, reusing the
+	// real docmodel so the result matches what the read path renders. This is
+	// how the derived cover field gets populated. The daemon also wires this
+	// earlier (before the backfill reindex task starts); this keeps embedders
+	// and tests that construct the server directly working.
+	idx.SetDeriveFirstContentImage(DeriveFirstContentImage)
+
+	return srv
+}
+
+// DeriveFirstContentImage rebuilds a document in memory from the given changes
+// and returns the link of its first image block in reading order (or "" if it
+// has none). It's injected into the indexer (SetDeriveFirstContentImage) to
+// populate DocumentInfo.first_image_in_content, letting directory
+// cards render a fallback cover from fast metadata instead of fetching each
+// child's full document. It's a pure function so the daemon can wire it before
+// the migration-triggered backfill reindex starts, long before this server
+// exists.
+//
+// The changes are supplied by the indexer (already loaded on its transaction's
+// connection), so this does no database I/O and is safe to call mid-indexing.
+// It mirrors loadDocument's in-memory build but never touches the pool.
+func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link string, err error) {
+	// The docmodel panics on changes it considers impossible, but such changes
+	// exist in the wild: a single move op with ~5.8k+ blocks overflows the op ID
+	// index (the apply loop advances idx quadratically), which panics ApplyChange.
+	// The indexer calls this for every document Ref — including the boot-time
+	// backfill reindex — so an unrecovered panic crash-loops the whole daemon on
+	// one bad blob. Turn panics into errors: the caller logs them and leaves the
+	// field underived, which clients handle by falling back to a content fetch.
+	defer func() {
+		if r := recover(); r != nil {
+			link = ""
+			err = fmt.Errorf("panic while deriving first content image for %s: %v", iri, r)
+		}
+	}()
+
+	if len(changes) == 0 {
+		return "", nil
+	}
+
+	doc, err := docmodel.New(iri, cclock.New())
+	if err != nil {
+		return "", err
+	}
+
+	for _, ch := range changes {
+		doc.SetVisibility(ch.Visibility)
+		if !doc.Generation.IsSet() {
+			doc.Generation = maybe.New(ch.Generation)
+		}
+		if err := doc.ApplyChange(ch.CID, ch.Data); err != nil {
+			return "", err
+		}
+	}
+
+	return doc.FirstContentImage(), nil
 }
 
 // SetTelemetry wires the journeys profiler. Optional; when nil, all
@@ -483,10 +541,10 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		switch in.SortOptions.Attribute {
 		case documents.SortAttribute_ACTIVITY_TIME:
-			qb.Where("last_activity_time " + paginationCmp + " ?")
+			qb.Where("activity_time " + paginationCmp + " ?")
 			args.Append(cursor.ActivityTime)
 
-			qb.OrderBy("last_activity_time " + order)
+			qb.OrderBy("activity_time " + order)
 		case documents.SortAttribute_NAME:
 			qb.Where("COALESCE(dg.metadata->>'name', '') " + paginationCmp + " ?")
 			args.Append(cursor.NameOrPath)
@@ -527,14 +585,14 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			break
 		}
 
-		item, err := documentInfoFromRow(lookup, row)
+		item, activityTime, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
 		}
 
 		count++
 
-		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
+		cursor.ActivityTime = activityTime
 		cursor.NameOrPath = item.Metadata.Fields["name"].GetStringValue()
 
 		out.Documents = append(out.Documents, item)
@@ -1037,14 +1095,14 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		args  colx.Slice[any]
 	)
 	{
-		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
+		qb := baseListDocumentsQuery().OrderBy("activity_time DESC")
 
 		srv.applyListVisibilityFilter(ctx, qb, &args)
 
 		qb.Where("r.iri GLOB 'hm://*'")
 		qb.Where("r.iri NOT GLOB 'hm://*/*'")
 
-		qb.Where("last_activity_time < ?", "r.iri < ?")
+		qb.Where("activity_time < ?", "r.iri < ?")
 		args.Append(cursor.ActivityTime, cursor.IRI)
 
 		args.Append(in.PageSize)
@@ -1069,14 +1127,14 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			break
 		}
 
-		item, err := documentInfoFromRow(lookup, row)
+		item, activityTime, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
 		}
 
 		count++
 
-		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
+		cursor.ActivityTime = activityTime
 		cursor.IRI = "hm://" + item.Account + "/" + item.Path
 		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
 
@@ -1119,7 +1177,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		args  colx.Slice[any]
 	)
 	{
-		qb := baseListDocumentsQuery().OrderBy("last_activity_time DESC")
+		qb := baseListDocumentsQuery().OrderBy("activity_time DESC")
 
 		if in.Account == "" {
 			srv.applyListVisibilityFilter(ctx, qb, &args)
@@ -1144,7 +1202,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			args.Append(iri, iri+"/*")
 		}
 
-		qb.Where("last_activity_time < ?", "r.iri < ?")
+		qb.Where("activity_time < ?", "r.iri < ?")
 		args.Append(cursor.ActivityTime, cursor.IRI)
 
 		args.Append(in.PageSize)
@@ -1168,14 +1226,14 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			break
 		}
 
-		item, err := documentInfoFromRow(lookup, row)
+		item, activityTime, err := documentInfoFromRow(lookup, row)
 		if err != nil {
 			return nil, err
 		}
 
 		count++
 
-		cursor.ActivityTime = item.ActivitySummary.LatestChangeTime.AsTime().UnixMilli()
+		cursor.ActivityTime = activityTime
 		cursor.IRI = "hm://" + item.Account + "/" + item.Path
 		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
 
@@ -1190,12 +1248,15 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 }
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
-	q := baseListDocumentsQuery().Where("r.iri = ?").String()
-	rows, discard, check := sqlitex.Query(conn, q, iri, 0).All() // 0 is the page size parameter.
+	q := baseSingleDocumentQuery().Where("r.iri = ?").String()
+	// The IRI is bound twice: as the comment aggregation seed, and as the row filter.
+	// 0 is the page size parameter.
+	rows, discard, check := sqlitex.Query(conn, q, iri, iri, 0).All()
 	defer discard(&err)
 
 	for row := range rows {
-		return documentInfoFromRow(lookup, row)
+		info, _, err := documentInfoFromRow(lookup, row)
+		return info, err
 	}
 
 	if err := check(); err != nil {
@@ -1205,7 +1266,133 @@ func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) 
 	return nil, status.Errorf(codes.NotFound, "document with IRI %s is not found", iri)
 }
 
+// qListDocsCommentAgg computes each document's comment activity (count, latest comment)
+// directly from the indexed Comment blobs, deduplicating edits by TSID and dropping
+// deleted comments, and credits every comment both to the resource it targets and to
+// all transitive redirect targets of that resource.
+//
+// It exists because comment blobs record the document path as it was when the comment
+// was written: after a document moves, its comments stay attached to the old path's
+// resource, and the incrementally-maintained document_generations.comment_count of the
+// new path's resource knows nothing about them. Deriving the stats from the blobs at
+// query time keeps listings consistent with what ListComments actually returns for the
+// document (which walks the same redirect relation backwards via redirectAncestorsCTE),
+// no matter in which order the blobs arrived.
+//
+// The recursion is seeded only with the (few) redirecting resources, so every step is
+// an indexed lookup, and it's cheap even on big databases.
+const qListDocsCommentAgg = `(
+	WITH RECURSIVE
+	redirected AS (
+		SELECT
+			dg.resource AS resource,
+			dg.metadata->>'$."$db.redirect".v' AS redirect_iri
+		FROM document_generations dg
+		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+		AND dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
+	),
+	chains(source, target_iri, depth) AS (
+		SELECT rd.resource, rd.redirect_iri, 0 FROM redirected rd
+		UNION ALL
+		SELECT c.source, rd.redirect_iri, c.depth + 1
+		FROM chains c
+		JOIN resources tr ON tr.iri = c.target_iri
+		JOIN redirected rd ON rd.resource = tr.id
+		WHERE c.depth < 16 AND rd.redirect_iri != c.target_iri
+	),
+	credits AS (
+		SELECT DISTINCT c.source, tr.id AS target
+		FROM chains c
+		JOIN resources tr ON tr.iri = c.target_iri
+		WHERE tr.id != c.source
+	),
+	deduped AS (
+		SELECT
+			sb.resource AS resource,
+			sb.id AS id,
+			sb.ts AS ts,
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.id DESC) AS rn,
+			sb.extra_attrs->>'deleted' AS deleted
+		FROM structural_blobs sb
+		WHERE sb.type = 'Comment'
+	),
+	live AS (
+		SELECT resource, id, ts FROM deduped WHERE rn = 1 AND deleted IS NULL
+	),
+	credited AS (
+		SELECT l.resource AS resource, l.id, l.ts FROM live l
+		UNION ALL
+		SELECT cr.target, l.id, l.ts FROM live l JOIN credits cr ON cr.source = l.resource
+	),
+	totals AS (
+		SELECT resource, COUNT(*) AS comment_count FROM credited GROUP BY resource
+	),
+	latest AS (
+		SELECT resource, MAX(ts) AS last_comment_time, id AS last_comment FROM credited GROUP BY resource
+	)
+	SELECT t.resource AS resource, t.comment_count, l.last_comment_time, l.last_comment
+	FROM totals t
+	JOIN latest l ON l.resource = t.resource
+) agg`
+
+// qSingleDocCommentAgg is the single-document counterpart of qListDocsCommentAgg.
+// Instead of aggregating comment activity for every document, it walks the redirect
+// chain backwards from one IRI (bound as the subquery's parameter, same as the outer
+// r.iri filter), exactly like ListComments' redirectAncestorsCTE, and only touches
+// that document's comments. Point lookups like GetDocumentInfo (which gets called in
+// loops by BatchGetDocumentInfo and for accounts' home documents) must use this
+// instead of paying for the global aggregation.
+const qSingleDocCommentAgg = `(
+	WITH RECURSIVE
+	redirect_ancestors(resource, iri, depth) AS (
+		SELECT r.id, r.iri, 0 FROM resources r WHERE r.iri = ?
+
+		UNION ALL
+
+		SELECT dg.resource, res.iri, ra.depth + 1
+		FROM redirect_ancestors ra
+		JOIN document_generations dg ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+		JOIN resources res ON res.id = dg.resource
+		WHERE dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
+		AND res.iri != ra.iri
+		AND ra.depth < 16
+	),
+	deduped AS (
+		SELECT
+			sb.id AS id,
+			sb.ts AS ts,
+			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.id DESC) AS rn,
+			sb.extra_attrs->>'deleted' AS deleted
+		FROM structural_blobs sb
+		WHERE sb.type = 'Comment'
+		AND sb.resource IN (SELECT resource FROM redirect_ancestors)
+	),
+	live AS (
+		SELECT id, ts FROM deduped WHERE rn = 1 AND deleted IS NULL
+	),
+	totals AS (
+		SELECT COUNT(*) AS comment_count FROM live
+	),
+	latest AS (
+		SELECT MAX(ts) AS last_comment_time, id AS last_comment FROM live
+	)
+	SELECT
+		(SELECT resource FROM redirect_ancestors WHERE depth = 0) AS resource,
+		t.comment_count,
+		l.last_comment_time,
+		l.last_comment
+	FROM totals t, latest l
+) agg`
+
 func baseListDocumentsQuery() *dqb.SelectQuery {
+	return baseDocumentsQuery(qListDocsCommentAgg)
+}
+
+func baseSingleDocumentQuery() *dqb.SelectQuery {
+	return baseDocumentsQuery(qSingleDocCommentAgg)
+}
+
+func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
 	// Page size must be the last binding parameter.
 	return dqb.
 		Select(
@@ -1213,26 +1400,48 @@ func baseListDocumentsQuery() *dqb.SelectQuery {
 			"dg.genesis",
 			"dg.generation",
 			"dg.metadata",
-			"dg.comment_count",
+			"COALESCE(agg.comment_count, 0) AS comment_count",
 			"dg.heads",
 			"dg.authors",
 			"dg.genesis_change_time",
-			"dg.last_comment",
-			"dg.last_comment_time",
+			"agg.last_comment",
+			"COALESCE(agg.last_comment_time, 0) AS last_comment_time",
 			"dg.last_change_time",
-			"dg.last_activity_time",
+			// Redirect-aware activity timestamp. Sorting and pagination must use this
+			// instead of dg.last_activity_time, which misses comments made on the
+			// document's previous paths.
+			"MAX(COALESCE(agg.last_comment_time, 0), dg.last_alive_ref_time) AS activity_time",
 			"(SELECT 1 FROM unread_resources WHERE iri = r.iri) AS is_unread",
+			// Alive direct children of the document, so listing cards can show
+			// the subdocument count without a per-document interaction-summary
+			// request. The prefix-range comparison (everything between
+			// 'iri/' and 'iri0', '0' being the character after '/') seeks the
+			// resources.iri index instead of scanning; the instr check drops
+			// grandchildren; the innermost subquery keeps only resources whose
+			// latest generation is alive.
+			`(SELECT count(*)
+			  FROM resources cr
+			  WHERE cr.iri > r.iri || '/' AND cr.iri < r.iri || '0'
+			    AND instr(substr(cr.iri, length(r.iri) + 2), '/') = 0
+			    AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
+			) AS children_count`,
 		).
 		From(
 			"document_generations dg",
 			"resources r",
 		).
+		LeftJoin(commentAggJoin, "agg.resource = dg.resource").
 		Where("r.id = dg.resource").
 		GroupBy("dg.resource HAVING dg.generation = MAX(dg.generation) AND dg.is_deleted = 0").
 		Limit("? + 1")
 }
 
-func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, error) {
+// documentInfoFromRow decodes a row of the base documents query.
+// Alongside the document info it returns the row's activity timestamp
+// (the redirect-aware activity_time column): callers that paginate by
+// activity MUST use it for their page cursors, because it's the same
+// value the query sorts and filters by.
+func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, int64, error) {
 	inc := sqlite.NewIncrementor(0)
 	var (
 		iriRaw            = row.ColumnText(inc())
@@ -1246,20 +1455,20 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		lastCommentID     = row.ColumnInt64(inc())
 		lastCommentTime   = row.ColumnInt64(inc())
 		lastChangeTime    = row.ColumnInt64(inc())
-		lastActivityTime  = row.ColumnInt64(inc())
-		_                 = lastActivityTime
+		activityTime      = row.ColumnInt64(inc())
 		isUnread          = row.ColumnInt64(inc()) > 0
+		childrenCount     = row.ColumnInt64(inc())
 	)
 
 	iri := blob.IRI(iriRaw)
 	space, path, err := iri.SpacePath()
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	var attrs blob.DocIndexedAttrs
 	if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	metadata := attrs.PublicMap()
@@ -1268,7 +1477,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	if redirect, ok := attrs["$db.redirect"]; ok {
 		space, path, err := blob.IRI(redirect.Value.(string)).SpacePath()
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse redirect target %v: %v", redirect.Value, err)
+			return nil, 0, fmt.Errorf("failed to parse redirect target %v: %w", redirect.Value, err)
 		}
 		redirectInfo = &documents.RefTarget_Redirect{
 			Account:   space.String(),
@@ -1277,30 +1486,41 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		}
 	}
 
+	// Derived fallback cover image, stored under an internal "$db." key (so it
+	// never leaks into the user-authored metadata map) and exposed as a typed
+	// sibling field. Field presence distinguishes "not derived yet" from
+	// "derived: the document has no content image" (empty string).
+	var firstImageInContent *string
+	if v, ok := attrs[blob.FirstImageInContentAttr]; ok {
+		if s, isStr := v.Value.(string); isStr {
+			firstImageInContent = &s
+		}
+	}
+
 	var authorIDs []int64
 	if err := json.Unmarshal(authorsJSON, &authorIDs); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	authors := make([]string, len(authorIDs))
 	for i, a := range authorIDs {
 		aa, err := lookup.PublicKey(a)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		authors[i] = aa.String()
 	}
 
 	var headIDs []int64
 	if err := json.Unmarshal(headsJSON, &headIDs); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	cids := make([]cid.Cid, len(headIDs))
 	for i, h := range headIDs {
 		cids[i], err = lookup.CID(h)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 	}
 
@@ -1314,12 +1534,12 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		for i, iri := range crumbIRIs { // Minus one to skip the current document
 			title, found, err := lookup.DocumentTitle(iri)
 			if err != nil {
-				return nil, err
+				return nil, 0, err
 			}
 
 			_, path, err := iri.SpacePath()
 			if err != nil {
-				return nil, err
+				return nil, 0, err
 			}
 
 			crumb := &documents.Breadcrumb{
@@ -1339,12 +1559,12 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	if lastCommentID != 0 {
 		lc, err := lookup.CID(lastCommentID)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		rid, err := lookup.RecordID(lc)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 
 		latestComment = rid.String()
@@ -1353,25 +1573,27 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 
 	metastruct, err := structpb.NewStruct(metadata)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	out := &documents.DocumentInfo{
-		Account:     space.String(),
-		Path:        path,
-		Metadata:    metastruct,
-		Authors:     authors,
-		CreateTime:  timestamppb.New(time.UnixMilli(genesisChangeTime)),
-		UpdateTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
-		Genesis:     genesis,
-		Version:     blob.NewVersion(cids...).String(),
-		Breadcrumbs: crumbs,
+		Account:             space.String(),
+		Path:                path,
+		Metadata:            metastruct,
+		FirstImageInContent: firstImageInContent,
+		Authors:             authors,
+		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
+		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),
+		Genesis:             genesis,
+		Version:             blob.NewVersion(cids...).String(),
+		Breadcrumbs:         crumbs,
 		ActivitySummary: &documents.ActivitySummary{
 			CommentCount:      int32(commentCount), //nolint:gosec
 			LatestCommentId:   latestComment,
 			LatestCommentTime: latestCommentTime,
 			LatestChangeTime:  timestamppb.New(time.UnixMilli(lastChangeTime)),
 			IsUnread:          isUnread,
+			ChildrenCount:     int32(childrenCount), //nolint:gosec
 		},
 		GenerationInfo: &documents.GenerationInfo{
 			Genesis:    genesis,
@@ -1385,7 +1607,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		out.Visibility = docmodel.VisibilityToProto(blob.Visibility(v.Value.(string)))
 	}
 
-	return out, nil
+	return out, activityTime, nil
 }
 
 // DeleteDocument implements Documents API v3.
