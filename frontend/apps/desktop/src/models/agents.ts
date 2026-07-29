@@ -1065,8 +1065,12 @@ export type FileUploadProgress = {sent: number; total: number}
 
 /** Below this size an upload goes as one signed action; above it, in chunks with progress. */
 const SINGLE_SHOT_UPLOAD_BYTES = 2 * 1024 * 1024
-/** Client-side chunk size; the server may cap it lower via BeginFileUploadResponse.maxChunkBytes. */
-const UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024
+/**
+ * Client-side chunk size; the server may cap it lower via BeginFileUploadResponse.maxChunkBytes.
+ * Signing sends the whole CBOR-encoded action to the local daemon over gRPC, whose default max
+ * message size is 4 MiB — chunks must stay comfortably under that including envelope overhead.
+ */
+const UPLOAD_CHUNK_BYTES = 3 * 1024 * 1024
 
 /**
  * Uploads a file to the agent server (agent memory or session attachment). Large files go in
