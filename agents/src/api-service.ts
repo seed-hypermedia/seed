@@ -89,12 +89,30 @@ const MAX_SESSION_PAGE_SIZE = 200
 const MAX_CONTEXT_LINES = 64
 const MAX_CONTEXT_LINE_BYTES = 2 * 1024
 const MAX_MESSAGE_ATTACHMENTS = 16
+/** Largest single AppendFileUploadChunk payload. Small chunks keep client-side signing cheap. */
+const MAX_UPLOAD_CHUNK_BYTES = 8 * 1024 * 1024
+/** Largest total chunked upload into agent memory. */
+const MAX_UPLOAD_TOTAL_BYTES = 2 * 1024 * 1024 * 1024
+/** Staged uploads not touched for this long are discarded. */
+const UPLOAD_TTL_MS = 60 * 60 * 1000
+/** Concurrent staged uploads allowed per account. */
+const MAX_ACTIVE_UPLOADS_PER_ACCOUNT = 8
 /**
  * Largest attachment sent to a vision model as inline image content via `view_attachment`.
  * Anthropic caps images at ~5 MB; larger images degrade to metadata plus guidance to use
  * `attachment_to_memory` + `execute_code` (e.g. to downscale) instead.
  */
 const MAX_INLINE_IMAGE_BYTES = 4_500_000
+
+/** One chunked upload staged on disk until commit. */
+type StagedFileUpload = {
+  accountId: string
+  target: api.FileUploadTarget
+  size: number
+  received: number
+  partPath: string
+  updatedAt: number
+}
 
 /** Result of evaluating one activity event against enabled triggers. */
 export type TriggerProcessingResult = {
@@ -153,6 +171,8 @@ export class Service {
   readonly #runningSessions = new Map<string, RunningSession>()
   /** In-flight background trigger session runs, awaited by {@link drainTriggerSessions} (tests + shutdown). */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
+  /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
+  readonly #uploads = new Map<string, StagedFileUpload>()
 
   constructor(
     db: Database,
@@ -312,6 +332,19 @@ export class Service {
         )
       case 'ReadSessionAttachment':
         return this.#readSessionAttachment(verified.accountId, envelope.action.sessionId, envelope.action.attachmentId)
+      case 'BeginFileUpload':
+        return this.#beginFileUpload(verified.accountId, envelope.action.target, envelope.action.size)
+      case 'AppendFileUploadChunk':
+        return this.#appendFileUploadChunk(
+          verified.accountId,
+          envelope.action.uploadId,
+          envelope.action.offset,
+          envelope.action.content,
+        )
+      case 'CommitFileUpload':
+        return this.#commitFileUpload(verified.accountId, envelope.action.uploadId)
+      case 'AbortFileUpload':
+        return this.#abortFileUpload(verified.accountId, envelope.action.uploadId)
       case 'StopSession':
         return this.#stopSession(verified.accountId, envelope.action.sessionId)
       case 'Subscribe':
@@ -1162,6 +1195,116 @@ export class Service {
       sessionAttachments.readSessionAttachment(stateDir, sessionId, attachmentId),
     )
     return {_: 'ReadSessionAttachmentResponse', attachment: info, data}
+  }
+
+  // ─── Chunked file uploads ──────────────────────────────────────────────────
+  // Large files upload in bounded chunks so each signed action stays small: the client never
+  // hashes hundreds of megabytes in one blocking call, and can report progress per chunk. Bytes
+  // stage under <dataDir>/uploads until commit materializes them at the validated target.
+
+  #cleanupExpiredUploads(): void {
+    const now = Date.now()
+    for (const [uploadId, upload] of this.#uploads) {
+      if (now - upload.updatedAt > UPLOAD_TTL_MS) {
+        this.#uploads.delete(uploadId)
+        fs.rmSync(upload.partPath, {force: true})
+      }
+    }
+  }
+
+  #ownedUpload(accountId: string, uploadId: unknown): {uploadId: string; upload: StagedFileUpload} {
+    if (typeof uploadId !== 'string' || !uploadId) throw new APIError(400, 'Upload id is required')
+    const upload = this.#uploads.get(uploadId)
+    if (!upload || upload.accountId !== accountId) throw new APIError(404, 'Upload not found')
+    return {uploadId, upload}
+  }
+
+  #beginFileUpload(accountId: string, target: api.FileUploadTarget, size: number): api.BeginFileUploadResponse {
+    this.#cleanupExpiredUploads()
+    if (!Number.isInteger(size) || size <= 0) throw new APIError(400, 'Upload size must be a positive integer')
+    if (!isRecord(target)) throw new APIError(400, 'Upload target is required')
+    // Validate the target up front so a long upload cannot fail at the very end on a bad path.
+    if (target.kind === 'memory') {
+      const stateDir = this.#agentMemoryStateDir(accountId, target.agentId)
+      withMemoryErrors(() => agentMemory.resolveMemoryPath(stateDir, target.path))
+      if (size > MAX_UPLOAD_TOTAL_BYTES) throw new APIError(413, 'Upload exceeds the maximum file size')
+    } else if (target.kind === 'session-attachment') {
+      this.#sessionStateDir(accountId, target.sessionId)
+      if (typeof target.name !== 'string' || !target.name.trim()) throw new APIError(400, 'Attachment name is required')
+      if (size > sessionAttachments.MAX_SESSION_ATTACHMENT_BYTES) {
+        throw new APIError(413, 'Upload exceeds the maximum attachment size')
+      }
+    } else {
+      throw new APIError(400, 'Unsupported upload target')
+    }
+    const active = [...this.#uploads.values()].filter((upload) => upload.accountId === accountId).length
+    if (active >= MAX_ACTIVE_UPLOADS_PER_ACCOUNT) throw new APIError(429, 'Too many uploads in progress')
+
+    const uploadId = crypto.randomUUID()
+    const partPath = path.join(this.#dataDir, 'uploads', `${uploadId}.part`)
+    fs.mkdirSync(path.dirname(partPath), {recursive: true})
+    fs.writeFileSync(partPath, new Uint8Array())
+    this.#uploads.set(uploadId, {accountId, target, size, received: 0, partPath, updatedAt: Date.now()})
+    return {_: 'BeginFileUploadResponse', uploadId, maxChunkBytes: MAX_UPLOAD_CHUNK_BYTES}
+  }
+
+  #appendFileUploadChunk(
+    accountId: string,
+    rawUploadId: unknown,
+    offset: number,
+    content: Uint8Array,
+  ): api.AppendFileUploadChunkResponse {
+    const {uploadId, upload} = this.#ownedUpload(accountId, rawUploadId)
+    if (!(content instanceof Uint8Array) || content.byteLength === 0) {
+      throw new APIError(400, 'Chunk content must be non-empty bytes')
+    }
+    if (content.byteLength > MAX_UPLOAD_CHUNK_BYTES) throw new APIError(413, 'Chunk is too large')
+    if (offset !== upload.received) {
+      throw new APIError(409, `Chunk offset ${offset} does not match ${upload.received} bytes received`)
+    }
+    if (upload.received + content.byteLength > upload.size) {
+      throw new APIError(400, 'Upload exceeds its declared size')
+    }
+    fs.appendFileSync(upload.partPath, content)
+    upload.received += content.byteLength
+    upload.updatedAt = Date.now()
+    return {_: 'AppendFileUploadChunkResponse', uploadId, received: upload.received}
+  }
+
+  #commitFileUpload(accountId: string, rawUploadId: unknown): api.CommitFileUploadResponse {
+    const {uploadId, upload} = this.#ownedUpload(accountId, rawUploadId)
+    if (upload.received !== upload.size) {
+      throw new APIError(400, `Upload has ${upload.received} of ${upload.size} bytes; cannot commit`)
+    }
+    this.#uploads.delete(uploadId)
+    const target = upload.target
+    try {
+      const bytes = new Uint8Array(fs.readFileSync(upload.partPath))
+      if (target.kind === 'memory') {
+        const stateDir = this.#agentMemoryStateDir(accountId, target.agentId)
+        const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(stateDir, target.path, bytes))
+        this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: target.agentId})
+        return {_: 'CommitFileUploadResponse', entry}
+      }
+      const {stateDir} = this.#sessionStateDir(accountId, target.sessionId)
+      const attachment = withAttachmentErrors(() =>
+        sessionAttachments.saveSessionAttachment(stateDir, target.sessionId, {
+          name: target.name,
+          mimeType: target.mimeType,
+          content: bytes,
+        }),
+      )
+      return {_: 'CommitFileUploadResponse', attachment}
+    } finally {
+      fs.rmSync(upload.partPath, {force: true})
+    }
+  }
+
+  #abortFileUpload(accountId: string, rawUploadId: unknown): api.AbortFileUploadResponse {
+    const {uploadId, upload} = this.#ownedUpload(accountId, rawUploadId)
+    this.#uploads.delete(uploadId)
+    fs.rmSync(upload.partPath, {force: true})
+    return {_: 'AbortFileUploadResponse', uploadId}
   }
 
   #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {

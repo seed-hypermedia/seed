@@ -286,6 +286,146 @@ describe('api service', () => {
     }
   })
 
+  test('uploads large files in chunks into memory via Begin/Append/Commit', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.example'})
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Big', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt', tools: ['memory_list']},
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = create.agentId
+
+      const data = new Uint8Array(1000)
+      for (let i = 0; i < data.length; i++) data[i] = i % 251
+
+      const begin = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'BeginFileUpload', target: {kind: 'memory', agentId, path: 'big/data.bin'}, size: data.length},
+        }),
+      )
+      if (begin._ !== 'BeginFileUploadResponse') throw new Error('unexpected response')
+      expect(begin.maxChunkBytes).toBeGreaterThan(0)
+
+      // Wrong offset is rejected; correct sequential chunks accumulate.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'AppendFileUploadChunk', uploadId: begin.uploadId, offset: 5, content: data.slice(0, 400)},
+          }),
+        ),
+      ).rejects.toThrow('does not match')
+      for (let offset = 0; offset < data.length; offset += 400) {
+        const appended = await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'AppendFileUploadChunk',
+              uploadId: begin.uploadId,
+              offset,
+              content: data.slice(offset, offset + 400),
+            },
+          }),
+        )
+        expect(appended).toMatchObject({_: 'AppendFileUploadChunkResponse', received: Math.min(offset + 400, data.length)})
+      }
+
+      const commit = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CommitFileUpload', uploadId: begin.uploadId}}),
+      )
+      expect(commit).toMatchObject({_: 'CommitFileUploadResponse', entry: {path: 'big/data.bin', size: data.length}})
+
+      const read = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ReadAgentMemoryFile', agentId, path: 'big/data.bin'},
+        }),
+      )
+      if (read._ !== 'ReadAgentMemoryFileResponse') throw new Error('unexpected response')
+      expect(Array.from(read.file.data ?? [])).toEqual(Array.from(data))
+
+      // Committing an incomplete upload fails, and abort cleans up.
+      const begin2 = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'BeginFileUpload', target: {kind: 'memory', agentId, path: 'big/partial.bin'}, size: 10},
+        }),
+      )
+      if (begin2._ !== 'BeginFileUploadResponse') throw new Error('unexpected response')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'CommitFileUpload', uploadId: begin2.uploadId}}),
+        ),
+      ).rejects.toThrow('cannot commit')
+      const aborted = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'AbortFileUpload', uploadId: begin2.uploadId}}),
+      )
+      expect(aborted).toMatchObject({_: 'AbortFileUploadResponse'})
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('chunked uploads can target session attachments', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.example'})
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'A', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: create.agentId}}),
+      )
+      if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const bytes = new TextEncoder().encode('chunked attachment payload')
+      const begin = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'BeginFileUpload',
+            target: {kind: 'session-attachment', sessionId: session.sessionId, name: 'notes.txt', mimeType: 'text/plain'},
+            size: bytes.length,
+          },
+        }),
+      )
+      if (begin._ !== 'BeginFileUploadResponse') throw new Error('unexpected response')
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'AppendFileUploadChunk', uploadId: begin.uploadId, offset: 0, content: bytes},
+        }),
+      )
+      const commit = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CommitFileUpload', uploadId: begin.uploadId}}),
+      )
+      if (commit._ !== 'CommitFileUploadResponse') throw new Error('unexpected response')
+      expect(commit.attachment).toMatchObject({name: 'notes.txt', mimeType: 'text/plain', size: bytes.length})
+
+      const readBack = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ReadSessionAttachment', sessionId: session.sessionId, attachmentId: commit.attachment!.id},
+        }),
+      )
+      if (readBack._ !== 'ReadSessionAttachmentResponse') throw new Error('unexpected response')
+      expect(new TextDecoder().decode(readBack.data)).toBe('chunked attachment payload')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('reports the code-execution capability from injected executors', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

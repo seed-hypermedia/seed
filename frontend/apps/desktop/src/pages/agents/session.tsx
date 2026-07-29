@@ -22,10 +22,10 @@ import {
   useAgentTriggers,
   useAgentWebSocketSubscription,
   useDeleteAgentSession,
+  uploadFileToAgentServer,
   useMessageAgentSession,
   useStopAgentSession,
   useUpdateAgentSession,
-  useUploadSessionAttachment,
 } from '@/models/agents'
 import type {SessionAttachmentInfo} from '@/agents-client'
 import {
@@ -593,28 +593,39 @@ function AgentRichMessageComposer({
 }) {
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
-  const uploadAttachment = useUploadSessionAttachment(serverUrl, accountId)
+  /** In-flight attachment upload shown as a slim progress bar; null when idle. */
+  const [attachmentUpload, setAttachmentUpload] = useState<{name: string; sent: number; total: number} | null>(null)
   /** Metadata for every attachment uploaded from this composer, keyed by id, so a sent message
    * can carry the infos of the attachments its blocks still reference. */
   const uploadedAttachmentsRef = useRef(new Map<string, SessionAttachmentInfo>())
 
-  // The editor captures handleFileAttachment on creation, so route the mutation through a ref.
-  const uploadRef = useRef(uploadAttachment)
-  uploadRef.current = uploadAttachment
+  // The editor captures handleFileAttachment on creation, so route changing values through a ref.
+  const uploadContextRef = useRef({accountId})
+  uploadContextRef.current = {accountId}
 
   // Dropped/pasted files upload as session-private attachments on the agent server — never to
   // IPFS or agent memory. The agent sees metadata and pulls content on demand (view_attachment);
-  // it can persist or publish one only via its explicit attachment tools.
+  // it can persist or publish one only via its explicit attachment tools. Large files go in
+  // chunks so signing never freezes the renderer, with progress shown above the composer.
   async function handleFileAttachment(file: File) {
+    const {accountId: currentAccountId} = uploadContextRef.current
+    if (!currentAccountId) throw new Error('Select an account first')
     const content = new Uint8Array(await file.arrayBuffer())
-    const attachment = await uploadRef.current.mutateAsync({
-      sessionId,
-      name: file.name,
-      mimeType: file.type || undefined,
-      content,
-    })
-    uploadedAttachmentsRef.current.set(attachment.id, attachment)
-    return {displaySrc: URL.createObjectURL(file), url: `attachment://${attachment.id}`}
+    setAttachmentUpload({name: file.name, sent: 0, total: content.byteLength})
+    try {
+      const {attachment} = await uploadFileToAgentServer({
+        serverUrl,
+        accountUid: currentAccountId,
+        target: {kind: 'session-attachment', sessionId, name: file.name, mimeType: file.type || undefined},
+        data: content,
+        onProgress: (progress) => setAttachmentUpload({name: file.name, ...progress}),
+      })
+      if (!attachment) throw new Error('Upload did not return an attachment')
+      uploadedAttachmentsRef.current.set(attachment.id, attachment)
+      return {displaySrc: URL.createObjectURL(file), url: `attachment://${attachment.id}`}
+    } finally {
+      setAttachmentUpload(null)
+    }
   }
 
   async function submitRichMessage(getContent: CommentEditorGetContent, reset: () => void) {
@@ -633,7 +644,24 @@ function AgentRichMessageComposer({
   }
 
   return (
-    <div className="border-border flex items-end gap-2 border-t px-3 py-2">
+    <div className="border-border border-t">
+      {attachmentUpload ? (
+        <div className="px-3 pt-2">
+          <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[11px]">
+            <span className="min-w-0 truncate">Uploading {attachmentUpload.name}…</span>
+            <span className="flex-none">
+              {Math.floor((attachmentUpload.sent / Math.max(1, attachmentUpload.total)) * 100)}%
+            </span>
+          </div>
+          <div className="bg-muted h-1 w-full overflow-hidden rounded-full">
+            <div
+              className="bg-primary h-full rounded-full transition-[width] duration-200"
+              style={{width: `${(attachmentUpload.sent / Math.max(1, attachmentUpload.total)) * 100}%`}}
+            />
+          </div>
+        </div>
+      ) : null}
+      <div className="flex items-end gap-2 px-3 py-2">
       <div className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans [&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans [&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 [&_.hm-prose]:!text-sm">
         <CommentEditor
           focusOnMount
@@ -664,6 +692,7 @@ function AgentRichMessageComposer({
             <Square className="size-3" />
           </Button>
         ) : null}
+      </div>
       </div>
     </div>
   )

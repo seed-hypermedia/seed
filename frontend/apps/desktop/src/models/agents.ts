@@ -16,6 +16,8 @@ import {
   type MessageSessionContentPart,
   type ModelProviderConfig,
   type ModelProviderInfo,
+  type AgentMemoryEntry,
+  type FileUploadTarget,
   type ModelProviderType,
   type SessionAttachmentInfo,
   type SessionInfo,
@@ -1057,6 +1059,84 @@ export type AgentSessionDraftMessage = {
   contextLines?: string[]
   /** Session attachments (already uploaded) referenced by this message. */
   attachments?: SessionAttachmentInfo[]
+}
+
+export type FileUploadProgress = {sent: number; total: number}
+
+/** Below this size an upload goes as one signed action; above it, in chunks with progress. */
+const SINGLE_SHOT_UPLOAD_BYTES = 2 * 1024 * 1024
+/** Client-side chunk size; the server may cap it lower via BeginFileUploadResponse.maxChunkBytes. */
+const UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024
+
+/**
+ * Uploads a file to the agent server (agent memory or session attachment). Large files go in
+ * bounded chunks so each signed action stays small — signing hashes the whole payload, and a
+ * single 300MB action freezes the renderer for many seconds — and `onProgress` fires per chunk.
+ */
+export async function uploadFileToAgentServer({
+  serverUrl,
+  accountUid,
+  target,
+  data,
+  onProgress,
+}: {
+  serverUrl: string
+  accountUid: string
+  target: FileUploadTarget
+  data: Uint8Array
+  onProgress?: (progress: FileUploadProgress) => void
+}): Promise<{entry?: AgentMemoryEntry; attachment?: SessionAttachmentInfo}> {
+  const total = data.byteLength
+  onProgress?.({sent: 0, total})
+  if (total <= SINGLE_SHOT_UPLOAD_BYTES) {
+    if (target.kind === 'memory') {
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'WriteAgentMemoryFile', agentId: target.agentId, path: target.path, content: data},
+      })
+      if (res._ !== 'WriteAgentMemoryFileResponse') throw new Error('Unexpected WriteAgentMemoryFile response')
+      onProgress?.({sent: total, total})
+      return {entry: res.entry}
+    }
+    const res = await sendAgentAction({
+      serverUrl,
+      accountUid,
+      action: target.mimeType
+        ? {_: 'UploadSessionAttachment', sessionId: target.sessionId, name: target.name, mimeType: target.mimeType, content: data}
+        : {_: 'UploadSessionAttachment', sessionId: target.sessionId, name: target.name, content: data},
+    })
+    if (res._ !== 'UploadSessionAttachmentResponse') throw new Error('Unexpected UploadSessionAttachment response')
+    onProgress?.({sent: total, total})
+    return {attachment: res.attachment}
+  }
+
+  const begin = await sendAgentAction({serverUrl, accountUid, action: {_: 'BeginFileUpload', target, size: total}})
+  if (begin._ !== 'BeginFileUploadResponse') throw new Error('Unexpected BeginFileUpload response')
+  const chunkSize = Math.min(begin.maxChunkBytes, UPLOAD_CHUNK_BYTES)
+  try {
+    let sent = 0
+    while (sent < total) {
+      const chunk = data.subarray(sent, Math.min(sent + chunkSize, total))
+      const appended = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'AppendFileUploadChunk', uploadId: begin.uploadId, offset: sent, content: chunk},
+      })
+      if (appended._ !== 'AppendFileUploadChunkResponse') throw new Error('Unexpected AppendFileUploadChunk response')
+      sent += chunk.byteLength
+      onProgress?.({sent, total})
+    }
+    const commit = await sendAgentAction({serverUrl, accountUid, action: {_: 'CommitFileUpload', uploadId: begin.uploadId}})
+    if (commit._ !== 'CommitFileUploadResponse') throw new Error('Unexpected CommitFileUpload response')
+    return {entry: commit.entry, attachment: commit.attachment}
+  } catch (error) {
+    // Free the server-side staging eagerly; the TTL sweep is only a fallback.
+    void sendAgentAction({serverUrl, accountUid, action: {_: 'AbortFileUpload', uploadId: begin.uploadId}}).catch(
+      () => {},
+    )
+    throw error
+  }
 }
 
 /** Uploads one session-private attachment; the returned id is referenced from a later message. */

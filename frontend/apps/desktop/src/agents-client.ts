@@ -48,6 +48,8 @@ export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 export type AgentMemoryFile = AgentsProtocol.AgentMemoryFile
 /** Metadata for one session-private file attached to a session message. */
 export type SessionAttachmentInfo = AgentsProtocol.SessionAttachmentInfo
+/** Destination of a chunked file upload: agent memory or a session attachment. */
+export type FileUploadTarget = AgentsProtocol.FileUploadTarget
 /** Public metadata for a server-side Seed account key secret. */
 export type SigningIdentity = AgentsProtocol.SigningIdentity
 /** Avatar image payload for updating an agent account profile. */

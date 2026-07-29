@@ -1,5 +1,6 @@
 import type {AgentMemoryEntry, AgentMemoryFile} from '@/agents-client'
 import {
+  uploadFileToAgentServer,
   useAgentMemory,
   useAgentMemoryFile,
   useDeleteAgentMemoryFile,
@@ -7,6 +8,7 @@ import {
   useUploadAgentMemoryFileToIpfs,
   useWriteAgentMemoryFile,
 } from '@/models/agents'
+import {invalidateQueries} from '@shm/shared/models/query-client'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -62,6 +64,8 @@ export function AgentMemoryTab({
   const [webUrl, setWebUrl] = useState('')
   const [webPath, setWebPath] = useState('')
   const [confirmDeletePath, setConfirmDeletePath] = useState<string | null>(null)
+  /** In-flight local file upload shown as a progress bar; null when idle. */
+  const [uploadProgress, setUploadProgress] = useState<{name: string; sent: number; total: number} | null>(null)
   /** Where dragged files would land: '' = memory root, a path = that folder, null = no drag. */
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   /** Last IPFS publish result per memory path, kept so the URL stays visible/copyable. */
@@ -144,18 +148,37 @@ export function AgentMemoryTab({
     }
   }
 
-  /** Uploads local files into memory, optionally inside a target directory. */
+  /** Uploads local files into memory, optionally inside a target directory. Large files go in
+   * chunks (each signed action stays small) with a visible progress bar. */
   async function handleUploadLocalFiles(localFiles: File[], dirPath?: string) {
+    if (!accountUid) {
+      toast.error('Select an account first')
+      return
+    }
     let lastPath: string | null = null
-    for (const localFile of localFiles) {
-      try {
-        const bytes = new Uint8Array(await localFile.arrayBuffer())
-        const path = dirPath ? `${dirPath}/${localFile.name}` : localFile.name
-        await writeFile.mutateAsync({agentId, path, content: bytes})
-        lastPath = path
-      } catch (error) {
-        toast.error(error instanceof Error ? `${localFile.name}: ${error.message}` : 'Could not add the file to memory')
+    try {
+      for (const localFile of localFiles) {
+        try {
+          const bytes = new Uint8Array(await localFile.arrayBuffer())
+          const path = dirPath ? `${dirPath}/${localFile.name}` : localFile.name
+          setUploadProgress({name: localFile.name, sent: 0, total: bytes.byteLength})
+          await uploadFileToAgentServer({
+            serverUrl,
+            accountUid,
+            target: {kind: 'memory', agentId, path},
+            data: bytes,
+            onProgress: (progress) => setUploadProgress({name: localFile.name, ...progress}),
+          })
+          lastPath = path
+        } catch (error) {
+          toast.error(
+            error instanceof Error ? `${localFile.name}: ${error.message}` : 'Could not add the file to memory',
+          )
+        }
       }
+    } finally {
+      setUploadProgress(null)
+      invalidateQueries(['agents', 'memory'])
     }
     if (lastPath) {
       selectFile(lastPath)
@@ -253,6 +276,25 @@ export function AgentMemoryTab({
           </Button>
         </div>
       </div>
+
+      {uploadProgress ? (
+        <div className="border-border bg-card rounded-lg border p-2">
+          <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+            <span className="text-muted-foreground min-w-0 truncate">
+              Uploading {uploadProgress.name}… {formatBytes(uploadProgress.sent)} of {formatBytes(uploadProgress.total)}
+            </span>
+            <span className="text-muted-foreground flex-none">
+              {Math.floor((uploadProgress.sent / Math.max(1, uploadProgress.total)) * 100)}%
+            </span>
+          </div>
+          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+            <div
+              className="bg-primary h-full rounded-full transition-[width] duration-200"
+              style={{width: `${(uploadProgress.sent / Math.max(1, uploadProgress.total)) * 100}%`}}
+            />
+          </div>
+        </div>
+      ) : null}
 
       {addPanel === 'new-file' ? (
         <form

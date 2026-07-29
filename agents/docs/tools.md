@@ -273,7 +273,11 @@ Files a user drops into the desktop session composer upload to the agent server 
 (`agents/src/session-attachments.ts`, stored under `<stateDir>/session-attachments/<sessionId>/`, ids are the SHA-256 of
 the content). They are deliberately not written to agent memory, not published to IPFS, and are deleted with the
 session. The desktop uses the signed `UploadSessionAttachment` / `ReadSessionAttachment` actions to upload before send
-and to render attached images in the chat thread.
+and to render attached images in the chat thread. Files over a couple of MB (attachments and Memory-tab uploads alike)
+go through the chunked `BeginFileUpload` / `AppendFileUploadChunk` / `CommitFileUpload` actions instead of one giant
+signed action — signing hashes the whole payload, so a single 300MB action would freeze the client for many seconds —
+with per-chunk progress shown in the UI and server-side staging under `<dataDir>/uploads` (TTL-swept, abort on client
+failure).
 
 The model sees each message's attachments as a cheap `<attachments>` metadata block (name, MIME type, size, id) — never
 the bytes — so large files cannot flood the context uninvited. Content is pulled on demand:

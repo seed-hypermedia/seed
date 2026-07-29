@@ -158,6 +158,10 @@ export type UnsignedAgentAction =
   | MessageSession
   | UploadSessionAttachment
   | ReadSessionAttachment
+  | BeginFileUpload
+  | AppendFileUploadChunk
+  | CommitFileUpload
+  | AbortFileUpload
   | StopSession
   | Subscribe
 
@@ -490,6 +494,47 @@ export type ReadSessionAttachment = {
   _: 'ReadSessionAttachment'
   sessionId: string
   attachmentId: string
+}
+
+/**
+ * Where a chunked file upload lands when committed: a path in an agent's memory, or a
+ * session-private attachment.
+ */
+export type FileUploadTarget =
+  | {kind: 'memory'; agentId: string; path: string}
+  | {kind: 'session-attachment'; sessionId: string; name: string; mimeType?: string}
+
+/**
+ * Starts a chunked file upload. Large files upload in bounded chunks — each signed action stays
+ * small, so clients never hash hundreds of megabytes in one blocking call and can show progress.
+ * The target is validated up front; bytes stage server-side until `CommitFileUpload`.
+ */
+export type BeginFileUpload = {
+  _: 'BeginFileUpload'
+  target: FileUploadTarget
+  /** Total upload size in bytes; `CommitFileUpload` requires exactly this many bytes staged. */
+  size: number
+}
+
+/** Appends one chunk to a staged upload. Chunks must arrive in order (`offset` = bytes so far). */
+export type AppendFileUploadChunk = {
+  _: 'AppendFileUploadChunk'
+  uploadId: string
+  /** Byte offset of this chunk; must equal the count of bytes already received. */
+  offset: number
+  content: Uint8Array
+}
+
+/** Completes a staged upload, materializing it at its target. */
+export type CommitFileUpload = {
+  _: 'CommitFileUpload'
+  uploadId: string
+}
+
+/** Discards a staged upload. */
+export type AbortFileUpload = {
+  _: 'AbortFileUpload'
+  uploadId: string
 }
 
 /** Stops an in-flight agent response for a session. */
@@ -919,6 +964,37 @@ export type ReadSessionAttachmentResponse = {
   data: Uint8Array
 }
 
+/** Successful response for `BeginFileUpload`. */
+export type BeginFileUploadResponse = {
+  _: 'BeginFileUploadResponse'
+  uploadId: string
+  /** Largest chunk the server accepts per `AppendFileUploadChunk`. */
+  maxChunkBytes: number
+}
+
+/** Successful response for `AppendFileUploadChunk`. */
+export type AppendFileUploadChunkResponse = {
+  _: 'AppendFileUploadChunkResponse'
+  uploadId: string
+  /** Total bytes staged so far. */
+  received: number
+}
+
+/** Successful response for `CommitFileUpload`. */
+export type CommitFileUploadResponse = {
+  _: 'CommitFileUploadResponse'
+  /** The stored memory entry, when the target was agent memory. */
+  entry?: AgentMemoryEntry
+  /** The stored attachment, when the target was a session attachment. */
+  attachment?: SessionAttachmentInfo
+}
+
+/** Successful response for `AbortFileUpload`. */
+export type AbortFileUploadResponse = {
+  _: 'AbortFileUploadResponse'
+  uploadId: string
+}
+
 /** Successful response for `StopSession`. */
 export type StopSessionResponse = {
   _: 'StopSessionResponse'
@@ -966,5 +1042,9 @@ export type AgentResponse =
   | MessageSessionResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse
+  | BeginFileUploadResponse
+  | AppendFileUploadChunkResponse
+  | CommitFileUploadResponse
+  | AbortFileUploadResponse
   | StopSessionResponse
   | ErrorResponse
