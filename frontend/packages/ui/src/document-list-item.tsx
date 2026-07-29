@@ -339,7 +339,9 @@ export function DocumentListItem({
                       }}
                     >
                       <MessageSquare className="size-3.5" />
-                      <SizableText size="xs">{commentCount}</SizableText>
+                      <SizableText size="xs" className="font-sans">
+                        {commentCount}
+                      </SizableText>
                     </Button>
                   </Tooltip>
                 )}
@@ -396,7 +398,7 @@ function DocumentListItemCommentCount({count}: {count: number}) {
   return (
     <div className="flex items-center gap-1">
       <MessageSquare className="text-muted-foreground size-3.5" />
-      <SizableText className="text-muted-foreground text-[10px]">{count}</SizableText>
+      <SizableText className="text-muted-foreground font-sans text-[10px]">{count}</SizableText>
     </div>
   )
 }

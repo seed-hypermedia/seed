@@ -493,7 +493,9 @@ export function DocumentCard({
                   }}
                 >
                   <MessageSquare className="size-3" />
-                  <SizableText size="xs">{commentCount}</SizableText>
+                  <SizableText size="xs" className="font-sans">
+                    {commentCount}
+                  </SizableText>
                 </Button>
               </Tooltip>
             )}
