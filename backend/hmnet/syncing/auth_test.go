@@ -11,6 +11,7 @@ import (
 
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
+	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -109,6 +110,44 @@ func TestComputeAuthInfoResolvesHostsWithoutKeys(t *testing.T) {
 		})
 	}
 }
+
+// TestComputeAuthInfoSkipsSelfAsHost: when we ARE the site server for a space,
+// we must not appear in our own peer set. Beyond being a no-op, counting
+// ourselves as the authority narrows the speculative sample away, so a site
+// daemon would stop syncing its own space and never see anyone else's
+// contributions to it.
+func TestComputeAuthInfoSkipsSelfAsHost(t *testing.T) {
+	ctx := context.Background()
+
+	spaceKey, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	space := spaceKey.Principal()
+
+	self := peer.ID("me")
+	svc := &Service{
+		index: &fakeAuthIndex{
+			siteURLs:  map[string]string{space.String(): "https://site.example"},
+			addrInfos: map[string]peer.AddrInfo{"https://site.example": {ID: self}},
+		},
+		host: &fakeSelfHost{id: self},
+	}
+
+	info := svc.computeAuthInfo(ctx, map[string]entityScope{
+		fmt.Sprintf("hm://%s/doc", space.String()): {Recursive: true},
+	})
+
+	require.Empty(t, info.addrInfos, "we must never be our own sync peer")
+	require.Empty(t, info.peerKeys)
+}
+
+// fakeSelfHost only needs ID(); embedding the interface covers the rest, which
+// computeAuthInfo never touches.
+type fakeSelfHost struct {
+	host.Host
+	id peer.ID
+}
+
+func (f *fakeSelfHost) ID() peer.ID { return f.id }
 
 type fakeAuthKeyStore struct {
 	listKeyPairsCalls int

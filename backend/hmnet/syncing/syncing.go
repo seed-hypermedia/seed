@@ -1853,6 +1853,10 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]entitySco
 	}
 
 	// Where does each space live? No keys involved.
+	var self peer.ID
+	if s.host != nil {
+		self = s.host.ID()
+	}
 	hosts := make(map[core.PrincipalUnsafeString]peer.ID, len(spaces))
 	for key, space := range spaces {
 		siteURL, err := s.index.GetSiteURL(ctx, space)
@@ -1863,6 +1867,14 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]entitySco
 
 		addrInfo, err := s.index.ResolveSiteURL(ctx, siteURL)
 		if err != nil {
+			continue
+		}
+
+		// We are the site server for this space. Syncing with ourselves is a
+		// no-op, and worse, counting it as an authority narrows the speculative
+		// sample away — so a site daemon would stop syncing its own space and
+		// never see anyone else's contributions to it.
+		if addrInfo.ID == self {
 			continue
 		}
 
