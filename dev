@@ -315,6 +315,11 @@ def main():
         run("pnpm install")
         run("plz build //backend:seed-daemon //:pnpm")
 
+        # The packaged app ships the local agents server, but forge only copies whatever is
+        # already staged in plz-out/bin/agents/ — without this step it silently packages a
+        # stale (or missing) binary.
+        run("cd agents && bun install && bun run build:binary")
+
         # build-desktop always targets mainnet, regardless of the ambient SEED_P2P_TESTNET_NAME.
         os.environ["SEED_P2P_TESTNET_NAME"] = ""
         os.environ["VITE_LIGHTNING_API_URL"] = "https://ln.seed.hyper.media"
