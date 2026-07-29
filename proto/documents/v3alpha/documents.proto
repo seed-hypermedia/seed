@@ -713,6 +713,15 @@ message DocumentInfo {
 
   // Output only. Visibility of the document.
   ResourceVisibility visibility = 14;
+
+  // Output only. Link of the first image block in the document's content
+  // (in reading order), derived by the indexer for documents that have no
+  // explicit cover or icon. Clients use it as a fallback cover on directory
+  // cards without fetching the full document.
+  //
+  // Unset means the indexer hasn't derived it (yet); an empty string means
+  // the document is known to have no content image.
+  optional string first_image_in_content = 15;
 }
 
 // Information about the generation of a document.
@@ -742,6 +751,11 @@ message ActivitySummary {
 
   // Whether there's any unread activity on this document/account.
   bool is_unread = 5;
+
+  // Output only. Number of alive direct child documents.
+  // Only populated in document listings; listing cards show it without
+  // fetching a per-document interaction summary.
+  int32 children_count = 6;
 }
 
 // Basic information about ancestor documents in the path hierarchy.
