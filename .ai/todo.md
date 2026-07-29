@@ -214,3 +214,208 @@ Server runs tag `2026.7.4` (verified: no tag contains `dab3f4668`).
 ## Not verified locally (per lessons.md — Go builds freeze this machine)
 
 `go build`, `go test`, `gofmt -l`, and the benchmark were all **not run**. Needs Julio.
+
+---
+
+# Sync phases 1+2 — measured result (2026-07-29, clean profile, 12 min uptime)
+
+Three metric samples at t=216s / 414s / 719s on the live daemon (port 58001).
+This is the first trustworthy run: the previous one sampled the gateways away.
+
+## Verdict: shipped as intended, and the bottleneck moved
+
+| | baseline (41 min) | now | |
+|---|---|---|---|
+| wall throughput | 283 KB/s | **962 KB/s** | 3.4× |
+| catch-up window (t=216→414s) | — | **1.79 MB/s** | 6.3× |
+| pipe rate (weighted transfer) | — | 24.7 MB/s | — |
+| dial failure rate | 57% | **11–13%** | backoff works |
+| dials per fetch (first 216s) | 133:1 | **19.5:1** | 6.8× |
+| peers per wave | uncapped (hundreds) | **exactly 20** | ceiling holds |
+| peers benched | n/a | 136–287 | — |
+
+- Structural blobs **converged at t≈216s** — every `written_bytes_by_kind`
+  except media is byte-identical across all three samples.
+- `seed_syncing_wanted_blobs` reached **0** by t=719s. Full convergence, 12 min.
+- Cold-start `not_found` appeared only in the first 18s, then never again.
+  Both gabo.es and hyper.media render. The regression is fixed.
+- Media is still 98.7% of bytes (683 MB of 692 MB) — deferral reorders it, it
+  doesn't reduce it, which is correct.
+
+## The remaining problem: dialing never stops
+
+Dial is now **80.6% of all peer-seconds**, up from 70.7% — not because it got
+worse, but because everything else got cheaper.
+
+In the last window (t=414→719s), with an **empty wantlist**:
+
+- 9,251 dials in 305s = **30.3 dials/sec**, back at the pre-fix rate
+- 440 discovery waves = 1.44 waves/sec × 20 peers
+- weighted transfer: 0.95% of wall clock; connecting: 73.7%
+- scheduler still pinned 6/6, queue 11, `dispatch_end{saturated}` 630 vs
+  `queue_drained` 7
+
+The ceiling bounded fan-out **per wave**; nothing bounds the **wave rate**. Once
+caught up we spend 30 dials/sec discovering that there is nothing to discover.
+
+### Root cause found (2026-07-29, second pass)
+
+Julio's read of the page was right and mine was too kind: 6/6 busy, connecting
+dominant, exchange > transfer were all unchanged. The arithmetic:
+
+    77 subscriptions × 20 peers ÷ 60s Interval = 25.7 dials/sec
+
+which is exactly what was measured. Capping the **width** of the fan-out did
+nothing to the **rate**, because the fan-out runs on a timer per subscription
+regardless of whether anything changed.
+
+Underneath that, a real bug: `computeAuthInfo` resolves each space's site server
+into `auth.addrInfos`, but `discovery.go` only added `auth.peerKeys` to the sync
+set — the servers we hold a **key** for. For every space we merely follow we
+resolved the host and then dropped it, so we never asked the one peer that
+certainly has the content and left 20 random peers to search for it. A key is
+needed for *private* content; public content needs none.
+
+- [x] Sync with **all** resolved site servers (`auth.addrInfos`), authenticating
+      only where `peerKeys` has an entry — which `syncWithPeer` already did.
+- [x] Register their addresses in the peerstore; often a peer we've never dialed.
+- [x] `len(allPeers) != 0` gate now also accepts a known site server, so a scope
+      with a resolved host doesn't fall through to the DHT.
+- [x] Speculative sample is now conditional: **20 when we don't know the host,
+      2 when we do**. Searching is only worth paying for when there's nowhere
+      authoritative to ask. Gateways and site servers are never subject to it.
+- [x] `seed_discover_peers_source_total{source=site}`.
+
+Expected: ~26 dials/sec → ~6, and the remaining dials go to already-connected
+protected peers instead of random strangers.
+### The cost model, and the three levers
+
+    dials/sec = spaces × peers-per-wave ÷ cadence-per-space
+              =   20   ×       20       ÷      11s          = 36/sec
+
+Measured 38,999 dials in 21m36s. Each factor is a separate lever.
+
+| lever | from | to | factor |
+|---|---|---|---|
+| A. peers per wave | 20 | ~4 (site + gateways + 2) | 5× |
+| B. cadence per space | 11s | 60s (`cfg.Interval`) | 5.5× |
+| C. reconcile per peer | 1 RBSR round | — | not attempted |
+
+A × B ≈ **27×**: ~36 dials/sec → ~1.3/sec. Both are implemented.
+
+**Lever B is width, NOT cadence.** First attempt slowed settled subscriptions to
+`cfg.Interval`. Wrong, and Julio caught it: 60s to see a comment or an edit on an
+open document is a product regression, not an optimisation. **The ~10s check is
+the promise. It stays.** Reverted.
+
+What is negotiable is how many peers each check asks. A random sample is a
+*search*, and a search should cost in proportion to how lost we are:
+
+| state | sample | why |
+|---|---|---|
+| no host known | 20 | no idea who has this |
+| host known, content missing | 2 | ask the server, hedge a stale siteUrl |
+| **host known, content held** | **0** | pure liveness — the host is authoritative |
+
+The third row is the steady state and held all the waste. It costs one RBSR
+round trip to the site server on an already-open stream: no dial, no search.
+
+- [x] `haveLocally` in `discoverObject`: one local `GetResource` decides whether
+      this wave is a search or a liveness check.
+- [x] Three-tier `maxSample` from `haveLocally` × `len(auth.addrInfos)`.
+- [x] Gateways are dropped from the always-set in liveness mode only. They are
+      overhead when we already hold the content and know its host; they stay for
+      the cold start they were added to fix.
+- [x] `samplePeers(always, pool, 0, …)` returns `always` — a zero sample must
+      never drop the authoritative peers, or a settled doc stops updating.
+- [x] `taskHandle.isSettled()` kept, but **observability only**, labelling
+      `seed_sync_scheduler_reschedule_total{cadence=hot_settled|hot_owed|interval}`.
+      It does not gate cadence.
+- [x] `TestScheduler_SettledStaysOnHotCadence` guards against re-introducing the
+      slowdown; `TestScheduler_HotTouchPullsSubscriptionForward` restored intact.
+
+Steady state: ~20 spaces × 1 peer ÷ ~11s ≈ **1.8 dials/sec**, down from 36, with
+the 10s freshness guarantee untouched.
+
+### Measured 2026-07-29 t=374s: the site path was dead — `source="site"` = 0
+
+Converged (`wanted_blobs` 0) and still 0 site peers across 465 waves, sample
+pinned at 19.996/wave, 29.2 dials/sec — i.e. identical to before. Lever A's
+narrowing half had never fired.
+
+Cause: `computeAuthInfo` populated `addrInfos` only *after* four key-dependent
+early returns (`keyStore == nil`, `ListKeyPairs` empty, no local accounts,
+`GetSpacesByAccount` error). That was harmless while the struct was purely about
+authentication; the moment `addrInfos` started driving peer SELECTION it meant a
+node with no local keys resolves no hosts and searches 20 peers forever.
+
+- [x] Split the function: resolve every space's host first, with no key
+      involvement; then, separately, work out which hosts we can authenticate
+      with. `hosts` map carries space→peer between the halves.
+- [x] `TestComputeAuthInfoResolvesHostsWithoutKeys` covers nil keystore and
+      empty keystore.
+
+The new reschedule metric also quantified the treadmill directly:
+`hot_settled` 342 vs `hot_owed` 110 — **76% of hot re-runs had nothing owed**.
+Those are exactly the waves that should now cost one round trip instead of 20
+dials.
+
+### Measured after the fix: site path live, 3.2× on a fully idle daemon
+
+Converged at t=364s; the t=364→716s window moved **zero bytes**, so it is a pure
+treadmill measurement.
+
+| idle window | before | after |
+|---|---|---|
+| dials/sec | 32.2 | **10.1** |
+| reconciles/sec | 26.0 | **6.7** |
+| peers per wave | 20.0 | **6.3** |
+| waves/sec | 1.44 | 1.42 (cadence intact) |
+| `hot_owed` in window | — | **0** (495 settled, 0 owed) |
+
+Also, for the first time, **transfer ≥ exchange** in the weighted stage split
+(16.4% vs 15.6% to convergence). That was Julio's original "INSANE" complaint.
+Logs clean: no `not_found` at all, 4× `ShadowVerifyDrift`, no RBSR fallback.
+
+**The remaining 10 dials/sec was one hole in the tier table.** Source split per
+wave: site 0.68, gateway 0.95, connected 2.98, stored 2.39. The ~68% of waves
+that resolve a host cost ~1 peer. The other ~32% — accounts with no siteUrl,
+the long tail — still ran the full 20-peer search every ~11s forever, finding
+nothing, and accounted for essentially all of it.
+
+- [x] Tier on **content held**, not on host known. Holding the content is what
+      removes the need to search; a hostless space still has an authority (the
+      gateways, already connected).
+- [x] `livenessOnly` now requires `maxSample == 0 && len(auth.addrInfos) > 0`.
+      Dropping gateways whenever the sample is zero would leave a hostless space
+      with an EMPTY peer set — silently never syncing again.
+
+Predicted: 0.68×1 + 0.32×3 ≈ 1.6 peers/wave → **~2.3 dials/sec**, ~14× off the
+original 32.2.
+
+- [ ] **Bench on uselessness, not just failure.** `Succeed()` clears backoff for
+      any completed dial even when the peer served nothing. `ok` outcomes are
+      11,170 against 353 fetches. A peer that connects fine and never has
+      anything should rotate out like one that fails to connect.
+- [ ] `maxSampledPeers` could likely drop 20 → 8; structural converges in 3.6
+      min regardless.
+- [ ] Phase 3 (type priority) still looks unnecessary: structural is 1.3% of
+      bytes and converges first already.
+
+## Fixed this session (uncommitted, needs a build)
+
+- [x] Gateway check now runs **before** the protocol check in `discovery.go`,
+      and uses a weaker test: a protected peer is kept unless the peerstore
+      positively says it is incompatible. `livePeerSupportsProtocol` reads the
+      peerstore, which is empty until Identify lands — so a gateway was dropped
+      from both peer lists during exactly the cold-start window where it is the
+      only peer that can serve us.
+- [x] The weaker test is still a test: `ipfs/bootstrap_peers.go` mixes the Seed
+      gateways with 7 public IPFS DHT bootstrappers, which speak no Hypermedia
+      protocol. Force-dialing those every wave would be pure waste.
+- [x] Added `seed_discover_peers_source_total{source=gateway|connected|stored}`.
+      `seed_discover_peers_sampled` cannot answer whether the always-include
+      path fires — it saturates at the ceiling either way, so "20 sampled, no
+      gateways" and "3 gateways + 17 sampled" both read as exactly 20. Across
+      935 waves the sum was 18,700 = 935 × 20 exactly, which is consistent with
+      both. The new counter settles it on the next run.

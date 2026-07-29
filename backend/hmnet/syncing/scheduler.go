@@ -114,6 +114,37 @@ func (task *taskHandle) IsHot(now time.Time) bool {
 	return now.Before(task.hotDeadline)
 }
 
+// isSettled reports whether the last run already delivered what the caller
+// asked for. Observability only: it labels the reschedule metric so we can see
+// how much of the hot cadence is re-checking things nothing is waiting on.
+//
+// It deliberately does NOT gate the cadence. The desktop polls DiscoverEntity
+// for everything on screen — ~0.78 calls/sec across ~20 subscriptions, one touch
+// each per ~26s, inside the 40s hotTTL — so every subscription is permanently
+// hot. It is tempting to conclude that hotness is meaningless and settled tasks
+// should drop to cfg.Interval, but that would put a comment or an edit on
+// something you are looking at a minute away. The cadence is the product
+// promise; the fan-out per check is the thing that was too expensive.
+func (task *taskHandle) isSettled() bool {
+	if task.lastErr != nil {
+		return false
+	}
+	if task.key.Version != "" {
+		// The caller named a version; only that version settles it.
+		return task.result == task.key.Version
+	}
+	// No version asked for: an empty result means we never resolved one, which
+	// is the "ran before peer bookkeeping caught up" case, not convergence.
+	return task.result != ""
+}
+
+func cadenceLabel(task *taskHandle) string {
+	if task.isSettled() {
+		return rescheduleSettled
+	}
+	return rescheduleHot
+}
+
 // isActivelyProgressing reports whether the task has made discovery progress —
 // fetched a block OR grown a peer's reconciled want-count — within progressGrace,
 // advancing its watermarks as a side effect. It is the shared "don't cancel a
@@ -188,6 +219,13 @@ const (
 	dispatchEndSaturated    = "saturated"
 	dispatchEndPreempted    = "preempted"
 	dispatchEndQueueDrained = "queue_drained"
+
+	// Why a completed task got the next run time it did. Hot tasks always take
+	// the 10s cooldown; the settled/owed split is recorded to show how much of
+	// that cadence is spent re-checking things nothing is waiting on.
+	rescheduleSettled  = "hot_settled" // Hot, nothing owed: a liveness re-check.
+	rescheduleHot      = "hot_owed"    // Hot and still missing content.
+	rescheduleInterval = "interval"    // Cold subscription: cfg.Interval.
 )
 
 var (
@@ -196,6 +234,15 @@ var (
 		Name: "seed_sync_scheduler_dispatch_end_total",
 		Help: "Why each dispatch pass stopped handing out work.",
 	}, []string{"reason"})
+
+	// MSchedulerReschedule counts completed runs by the cadence they were put
+	// back on. "hot" greatly outnumbering "settled" on an idle daemon means
+	// tasks are being re-run at the 10s cooldown with nothing to fetch — the
+	// state that pinned the worker pool at 6/6.
+	MSchedulerReschedule = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_sync_scheduler_reschedule_total",
+		Help: "Completed tasks by the cadence they were rescheduled on.",
+	}, []string{"cadence"})
 
 	// MSchedulerColdBlocked counts cold tasks deferred because the cold lane was
 	// full. The lane is capped at MaxWorkers-1, so a high count means that
@@ -495,6 +542,7 @@ func (s *scheduler) scheduleTaskLocked(key DiscoveryKey, now time.Time, opts sch
 			// next run within the cooldown: content on screen must not wait
 			// out a background cadence. No-op for ephemeral hot tasks, whose
 			// nextRunTime never exceeds the cooldown.
+			//
 			if soonest := now.Add(defaultHotCooldown); task.nextRunTime.After(soonest) {
 				task.nextRunTime = soonest
 			}
@@ -897,8 +945,15 @@ func (s *scheduler) scheduleNext(task *taskHandle, now time.Time, forceImmediate
 	case forceImmediate || task.runCount == 0:
 		task.nextRunTime = now
 	case task.IsHot(now):
+		// Deliberately NOT slowed down when the task is settled. The 10s
+		// cooldown is the promise that a comment or an edit on something you are
+		// looking at shows up in ~10s, and a background interval is an eternity
+		// against that. What a settled task changes is how WIDE the check is, not
+		// how often — see settled handling in discovery.go.
+		MSchedulerReschedule.WithLabelValues(cadenceLabel(task)).Inc()
 		task.nextRunTime = now.Add(defaultHotCooldown)
 	case task.subscription:
+		MSchedulerReschedule.WithLabelValues(rescheduleInterval).Inc()
 		task.nextRunTime = now.Add(s.cfg.Interval)
 	default:
 		if task.queueIndex.IsSet() {

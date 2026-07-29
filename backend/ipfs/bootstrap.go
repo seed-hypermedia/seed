@@ -25,7 +25,11 @@ const (
 	// production-grade anchor on a different release cadence.
 	GaboEsGatewayPID = "12D3KooWKXHnBR2kwtaZTePYKTh3FQuaSQVcpMwSwobLeVkuWjPC"
 
-	bootstrapSupportKey = "bootstrap-support" // This is what we use as a key to protect the connection in ConnManager.
+	// BootstrapSupportKey is the ConnManager protect tag for bootstrap peers.
+	// Exported because it is also how other subsystems recognise a gateway: it is
+	// the only marker distinguishing "peer that holds everything" from an ordinary
+	// connection.
+	BootstrapSupportKey = "bootstrap-support"
 )
 
 // BootstrapResult is a result of the bootstrap process.
@@ -107,7 +111,7 @@ func PeriodicBootstrap(
 						atomic.AddUint32(&res.NumFailedConnections, 1)
 						res.ConnectErrs[i] = fmt.Errorf("bootstrap failed: %s: %w", pinfo.ID, err)
 					}
-					h.ConnManager().Protect(pinfo.ID, bootstrapSupportKey)
+					h.ConnManager().Protect(pinfo.ID, BootstrapSupportKey)
 				}(i, pinfo)
 			}
 

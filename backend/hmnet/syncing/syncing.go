@@ -102,6 +102,49 @@ var (
 		Buckets: diagBuckets,
 	}, []string{"outcome"})
 
+	// MSyncMediaDeferred counts media blobs skipped because the daemon-wide
+	// media slot was busy. They are re-driven next cycle. A large and growing
+	// value means media is starved and the slot count should rise; near zero
+	// means media never contends and the cap costs nothing.
+	MSyncMediaDeferred = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_sync_media_deferred_total",
+		Help: "Media blobs skipped because another sync held the media slot.",
+	})
+
+	// MDiscoverPeersSampled is how many peers a wave actually fanned out to,
+	// after the ceiling and the backoff filter. Read against
+	// seed_syncpeer_phase_seconds{phase="dial"}: the fan-out is the multiplier
+	// on every dial, so this is the dial that controls dial cost.
+	//
+	// Read it together with seed_discover_peers_source_total. A wave that
+	// resolves its site server should now be small — site + gateways + 2 — and a
+	// steady stream of 20s means we are searching for scopes we ought to know
+	// the host of.
+	MDiscoverPeersSampled = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "seed_discover_peers_sampled",
+		Help:    "Peers selected for one discovery wave, after ceiling and backoff.",
+		Buckets: []float64{1, 2, 5, 10, 20, 30, 50, 100, 250, 500, 1000},
+	})
+
+	// MDiscoverPeersSource splits the wave's peer set by where each peer came
+	// from. MDiscoverPeersSampled alone can't answer whether the always-include
+	// path fires: it saturates at the ceiling either way, so "ceiling reached
+	// with no gateways" and "gateways plus a short sample" both read as exactly
+	// maxSampledPeers. The gateway count is the one that matters — it is zero
+	// that turns a cold start into a blank page.
+	MDiscoverPeersSource = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_discover_peers_source_total",
+		Help: "Peers added to a discovery wave, by selection path.",
+	}, []string{"source"})
+
+	// MDiscoverPeersBenched is how many peers are currently sitting out on
+	// backoff. Climbing steadily means the peer set really is mostly dead;
+	// pinned near zero means backoff never engages and dial waste is elsewhere.
+	MDiscoverPeersBenched = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "seed_discover_peers_benched",
+		Help: "Peers currently excluded from sampling by dial backoff.",
+	})
+
 	// MDiscoverPhaseSeconds is per-phase wall-clock of DiscoverObject.
 	MDiscoverPhaseSeconds = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "seed_discover_phase_seconds",
@@ -435,6 +478,10 @@ type Service struct {
 
 	keyStore core.KeyStore
 
+	// peerBackoff benches peers that fail to dial so waves stop re-picking the
+	// dead ones. See peerbackoff.go for why this is in memory.
+	peerBackoff *peerBackoff
+
 	scheduler *scheduler
 
 	// persistFeeder is the daemon-wide single-writer persist queue, shared by all
@@ -489,6 +536,7 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer I
 		host:         net.Libp2p().Host,
 		isConnCached: net.IsConnCached,
 		keyStore:     keyStore,
+		peerBackoff:  newPeerBackoff(),
 	}
 	svc.pc = protocolChecker{
 		checker: net.CheckHyperMediaProtocolVersion,
@@ -1153,8 +1201,18 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	}()
 	MSyncPeerPhaseSeconds.WithLabelValues("dial").Observe(time.Since(dialStart).Seconds())
 	if err != nil {
+		// Only a genuine dial failure benches a peer. A cancelled context means
+		// we tore the wave down, which says nothing about the peer.
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			s.peerBackoff.Fail(pid)
+		}
 		return err
 	}
+	// The dial succeeded, so anything that fails from here on is our side or the
+	// RPC, not reachability. Clearing here (rather than at the end of the sync)
+	// keeps a peer that reconciles fine but returns an RPC error in the pool.
+	s.peerBackoff.Succeed(pid)
+	lastPhase = "auth"
 
 	// Get authorized spaces for the remote peer and filter the store accordingly.
 	requestedIRIs := make([]blob.IRI, 0, len(eids))
@@ -1187,6 +1245,13 @@ func classifySyncOutcome(phase string, err error) string {
 	switch phase {
 	case "dial":
 		return "dial_failed"
+	case "auth":
+		// The dial succeeded and we failed resolving authorized spaces — a
+		// local SQLite error, not a reachability problem. This used to fall
+		// through to dial_failed because lastPhase stayed "dial" until
+		// syncResources wrote its first phase, which inflated the dial failure
+		// rate with our own errors.
+		return "auth_failed"
 	case "putmany":
 		return "putmany_failed"
 	default:
@@ -1559,6 +1624,7 @@ func syncResources(
 	)
 
 	keepGoing := fetchTier(structural, renderCriticalIdle)
+
 	if keepGoing && len(media) > 0 {
 		var chrome, inline, bulk []cid.Cid
 		if classifyMedia != nil {
@@ -1585,6 +1651,23 @@ func syncResources(
 		}
 		if keepGoing {
 			keepGoing = fetchTier(inline, renderCriticalIdle)
+		}
+		// The daemon-wide slot gates BULK only. Chrome (covers, icons, avatars)
+		// and inline images are small and render-critical — gating those was
+		// making fresh spaces come up blank, which is the opposite of the point.
+		// Bulk file payloads are what dominate the byte count and what must not
+		// hold a worker while other spaces still need their Refs and Changes.
+		//
+		// Try-acquire and skip rather than queue: waiting would hold the very
+		// worker slot this exists to free. Skipped bulk is re-driven next cycle,
+		// by which point the CIDs are already blob_links placeholders.
+		if len(bulk) > 0 {
+			if mediaSlot.tryAcquire() {
+				defer mediaSlot.release()
+			} else {
+				MSyncMediaDeferred.Add(float64(len(bulk)))
+				bulk = nil
+			}
 		}
 		switch {
 		case skipBulk:
@@ -1615,6 +1698,41 @@ func syncResources(
 		prog.BlobsFailed.Add(int32(int64(len(allWants)) - downloadedTotal)) //nolint:gosec
 	}
 	return nil
+}
+
+// mediaSlot bounds how many peer-syncs may fetch media at once, daemon-wide.
+//
+// One slot, deliberately: media is ~99% of synced bytes and none of it is
+// needed to render text, so a space with hundreds of megabytes of files must
+// not be able to occupy the worker pool while other spaces still need their
+// Refs and Changes. Callers try-acquire and skip on failure rather than
+// queueing, since waiting would hold the worker slot that this exists to free.
+var mediaSlot = newTrySem(1)
+
+// trySem is a counting semaphore with no blocking acquire — the only operation
+// we want here is "take it if it's free, otherwise carry on".
+type trySem struct {
+	ch chan struct{}
+}
+
+func newTrySem(n int) *trySem {
+	return &trySem{ch: make(chan struct{}, n)}
+}
+
+func (s *trySem) tryAcquire() bool {
+	select {
+	case s.ch <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *trySem) release() {
+	select {
+	case <-s.ch:
+	default:
+	}
 }
 
 // mediaTierFunc classifies media want CIDs into render-priority tiers by their
@@ -1699,18 +1817,65 @@ func (s *Service) classifyMediaTiers(ctx context.Context, cids []cid.Cid) (map[c
 	return tiers, nil
 }
 
-// computeAuthInfo pre-computes authentication information for syncing.
-// For each space being synced:
-// 1. Check if we have the space's siteURL locally.
-// 2. Resolve the siteURL to a peer ID.
-// 3. Check if any local key has access to that space.
-// 4. If so, map the siteURL peer to the keypair.
+// computeAuthInfo resolves, for each space being synced, who hosts it and
+// whether we can authenticate with that host.
+//
+// The two halves are deliberately independent. addrInfos — where a space lives —
+// is resolved for every space regardless of what keys we hold, because it drives
+// peer SELECTION: the host is the authoritative source for its own space whether
+// or not we can authenticate with it, and public content needs no key at all.
+// peerKeys — how to authenticate — is the part that needs keys, and it only
+// unlocks private content on top.
+//
+// Keeping the key checks in front of the host resolution (as this used to) meant
+// a node with no local keys resolved no hosts, so every scope fell back to a
+// 20-peer random search forever. Measured: source="site" was 0 across 465 waves
+// on a converged daemon.
 func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]entityScope) *authInfo {
 	info := &authInfo{
 		peerKeys:  make(map[peer.ID][]*core.KeyPair),
 		addrInfos: make(map[peer.ID]peer.AddrInfo),
 	}
 
+	// Collect unique spaces from entities being synced.
+	spaces := make(map[core.PrincipalUnsafeString]core.Principal)
+	for eid := range eids {
+		iri := blob.IRI(eid)
+		space, _, err := iri.SpacePath()
+		if err != nil {
+			continue
+		}
+		spaces[space.UnsafeString()] = space
+	}
+
+	if len(spaces) == 0 {
+		return info
+	}
+
+	// Where does each space live? No keys involved.
+	hosts := make(map[core.PrincipalUnsafeString]peer.ID, len(spaces))
+	for key, space := range spaces {
+		siteURL, err := s.index.GetSiteURL(ctx, space)
+		if err != nil || siteURL == "" {
+			// No siteURL known locally, skip.
+			continue
+		}
+
+		addrInfo, err := s.index.ResolveSiteURL(ctx, siteURL)
+		if err != nil {
+			continue
+		}
+
+		info.addrInfos[addrInfo.ID] = addrInfo
+		hosts[key] = addrInfo.ID
+	}
+
+	if len(hosts) == 0 {
+		return info
+	}
+
+	// Which of those hosts can we authenticate with? This part needs keys, and
+	// its absence must not cost us the hosts resolved above.
 	if s.keyStore == nil {
 		return info
 	}
@@ -1736,39 +1901,11 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]entitySco
 		return info
 	}
 
-	// Collect unique spaces from entities being synced.
-	spaces := make(map[core.PrincipalUnsafeString]core.Principal)
-	for eid := range eids {
-		iri := blob.IRI(eid)
-		space, _, err := iri.SpacePath()
-		if err != nil {
+	for key, space := range spaces {
+		host, ok := hosts[key]
+		if !ok {
 			continue
 		}
-		spaces[space.UnsafeString()] = space
-	}
-
-	if len(spaces) == 0 {
-		return info
-	}
-
-	// For each space, check siteURL and find keys with access.
-	for _, space := range spaces {
-		// Get siteURL for this space from local database.
-		siteURL, err := s.index.GetSiteURL(ctx, space)
-		if err != nil || siteURL == "" {
-			// No siteURL known locally, skip.
-			continue
-		}
-
-		// Resolve siteURL to peer ID.
-		addrInfo, err := s.index.ResolveSiteURL(ctx, siteURL)
-		if err != nil {
-			continue
-		}
-
-		info.addrInfos[addrInfo.ID] = addrInfo
-
-		// Check which local keys have access to this space.
 		for _, kp := range keyPairs {
 			if kp.KeyPair == nil {
 				continue
@@ -1776,7 +1913,7 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]entitySco
 			for _, authSpace := range spacesByAccount[kp.Principal().UnsafeString()] {
 				if authSpace.Equal(space) {
 					// This key has access to the space. Add to peerKeys.
-					info.peerKeys[addrInfo.ID] = append(info.peerKeys[addrInfo.ID], kp.KeyPair)
+					info.peerKeys[host] = append(info.peerKeys[host], kp.KeyPair)
 					break
 				}
 			}

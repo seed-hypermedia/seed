@@ -932,6 +932,35 @@ func TestScheduler_HotTouchPullsSubscriptionForward(t *testing.T) {
 	s.mu.Unlock()
 }
 
+// TestScheduler_SettledStaysOnHotCadence is the guard on the thing we must not
+// regress: a settled subscription is still re-checked every cooldown. Dropping
+// it to cfg.Interval would make a comment or an edit on an open document take a
+// minute to appear. The saving comes from narrowing the fan-out per check
+// (discovery.go), never from checking less often.
+func TestScheduler_SettledStaysOnHotCadence(t *testing.T) {
+	s := newScheduler(nil, testConfig(time.Minute, 2))
+	now := time.Now()
+
+	task := &taskHandle{
+		key:          DiscoveryKey{IRI: "hm://site/space"},
+		subscription: true,
+		hotDeadline:  now.Add(s.hotTTL),
+		runCount:     1,
+		result:       "v1", // Settled: nothing owed.
+	}
+	s.tasks[task.key] = task
+
+	require.True(t, task.isSettled())
+	s.scheduleNext(task, now, false)
+	require.Equal(t, now.Add(defaultHotCooldown), task.nextRunTime,
+		"a settled hot subscription must keep the interactive cadence")
+
+	task.lastErr = errors.New("sync failed")
+	require.False(t, task.isSettled(), "an error means content is still owed")
+	s.scheduleNext(task, now, false)
+	require.Equal(t, now.Add(defaultHotCooldown), task.nextRunTime)
+}
+
 // TestScheduler_ColdLaneLeavesRoomForHot verifies the worker reservation: cold
 // runs may fill every slot but one, so a hot task always dispatches without
 // waiting for (or preempting) a multi-second background round.

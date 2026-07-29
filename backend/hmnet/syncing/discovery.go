@@ -211,11 +211,80 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		seenPeers[pid] = struct{}{}
 		allPeers = append(allPeers, pid)
 	}
+	// Auth info is computed before peer selection, not after, because whether we
+	// know a host for this scope decides how wide the speculative sample needs
+	// to be. Cheap: key list plus two indexed lookups per space.
+	eidsMap := make(map[string]entityScope)
+	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
+	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
+
+	// haveLocally: the entity already resolves out of our own database, so this
+	// wave is a liveness check ("has anyone published since?"), not a search.
+	// One local read, against a fan-out that otherwise costs tens of dials.
+	haveLocally := false
+	if s.resources != nil {
+		if _, gerr := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
+			Iri: string(entityID),
+		}); gerr == nil {
+			haveLocally = true
+		}
+	}
+
 	peerSelectStart := time.Now()
-	// targetDiscoveryPeers is the fan-out we want from syncWithManyPeers.
-	// Currently-connected peers count first; if we have fewer than this,
-	// we backfill from the most-recently-active stored peers.
-	const targetDiscoveryPeers = 30
+	// Sampling is a CEILING on the speculative fan-out, not a target.
+	//
+	// It used to be a floor: every connected peer supporting the protocol was
+	// added uncapped, and the peers-table query only topped the list up to 30.
+	// With connmgr holding hundreds of connections, one discovery fanned out to
+	// hundreds of peers — times the worker pool, times four waves each. Measured
+	// result: 77k dials produced 577 useful transfers, a 0.75% yield, with 57%
+	// of dials failing outright.
+	//
+	// Capping the width alone did not fix the cost, because the fan-out ran on a
+	// timer for every subscription regardless of whether anything had changed:
+	// ~20 spaces × 20 peers ÷ the ~11s hot cadence is the ~36 dials/sec measured
+	// in steady state, with an empty wantlist.
+	//
+	// The fix is width, NOT cadence. Checking every ~10s is the product promise —
+	// a comment or an edit on something you have open has to show up in seconds,
+	// so slowing the loop down is not on the table. What is negotiable is how
+	// many peers each check asks.
+	//
+	// A random sample is a SEARCH, and a search is only worth paying for in
+	// proportion to how lost we are:
+	//
+	//	content held           → 0. Pure liveness check: ask whoever is
+	//	                       authoritative for this space and stop there. One
+	//	                       RBSR round trip on an already-open stream.
+	//	missing, host known    → 2. Ask the server, keep a little search in case
+	//	                       its siteUrl is stale or it is down.
+	//	missing, no host known → 20. We have no idea who has this.
+	//
+	// Holding the content is what removes the need to search, and that does not
+	// depend on there being a site server. A space with no siteUrl — a plain
+	// account, which is most of the long tail — still has an authority: the
+	// gateways, which hold essentially everything and are already connected.
+	//
+	// Measured: gating this on the site server alone left the ~32% of waves with
+	// no resolvable host on the full 20-peer search every ~11s forever, and that
+	// was ~10 of the remaining 10.1 dials/sec on a completely idle daemon.
+	//
+	// The scope's own siteUrl servers and the gateways are added separately and
+	// are never subject to this cap; it bounds only the speculative sample.
+	const (
+		maxSampledPeers    = 20
+		narrowSampledPeers = 2
+	)
+	maxSample := maxSampledPeers
+	switch {
+	case haveLocally:
+		maxSample = 0
+	case len(auth.addrInfos) > 0:
+		maxSample = narrowSampledPeers
+	default:
+		// Keep the wide search: content missing and nobody authoritative to ask.
+	}
+	MDiscoverPeersSource.WithLabelValues("site").Add(float64(len(auth.addrInfos)))
 	livePeerSupportsProtocol := func(pid peer.ID) bool {
 		if s.pc.checker == nil {
 			return true
@@ -234,12 +303,72 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// here and can be retried by the hot-task scheduler once Identify catches
 	// up or by the persisted peers-table path after the protocol hook stores
 	// them.
+	// Collect candidates rather than committing to them: connected peers are the
+	// best-quality pool, but there can be hundreds, so they are sampled below
+	// like everything else.
+	//
+	// Gateways are the exception and must never be sampled out. They hold
+	// essentially everything, and on a cold start they are the ONLY peer that
+	// can serve a space we have never seen — the siteUrl of such a space is
+	// itself discovered from content we don't have yet, so the auth peer set is
+	// empty exactly when we need it most. Sampling them away is what made a
+	// fresh profile render nothing.
+	//
+	// PeriodicBootstrap protects them in the connection manager
+	// (ipfs/bootstrap.go), so that tag identifies them without threading the
+	// bootstrap config down here.
+	//
+	// Gateways are tested for protection BEFORE protocol support, and with a
+	// weaker test. livePeerSupportsProtocol reads the peerstore, which is only
+	// populated once Identify completes, so for the first moments of a
+	// connection a gateway is indistinguishable from a peer that supports
+	// nothing — and it gets dropped from both lists during exactly the cold
+	// start where it is the only peer that can serve us. A protected peer is
+	// therefore kept unless the peerstore positively says it is incompatible;
+	// silence is not evidence.
+	//
+	// The weaker test still has to be a test, because the bootstrap list mixes
+	// Seed gateways with the public IPFS DHT bootstrappers
+	// (ipfs/bootstrap_peers.go). Those speak no Hypermedia protocol and can
+	// never serve a blob, so force-dialing them every wave would be pure waste.
+	knownIncompatible := func(pid peer.ID) bool {
+		if s.pc.checker == nil {
+			return false
+		}
+		protos, err := s.host.Peerstore().GetProtocols(pid)
+		if err != nil || len(protos) == 0 {
+			return false // Identify hasn't landed; withhold judgement.
+		}
+		return s.pc.checker(ctxLocalPeers, pid, s.pc.version, protos...) != nil
+	}
+	//
+	// Except when a site server can answer instead. Holding the content AND
+	// knowing its host makes the host the only peer that can tell us anything
+	// new about its own space, so the gateways are pure overhead on every 10s
+	// check.
+	//
+	// Both halves of that condition matter. Dropping gateways whenever the
+	// sample is zero would leave a hostless space — an account with no siteUrl —
+	// with an empty peer set, i.e. silently never syncing again. For those the
+	// gateways ARE the authority, and they are the whole point of the liveness
+	// check. They also stay for the case they were originally added for: content
+	// we do NOT have, the cold start that rendered blank.
+	livenessOnly := maxSample == 0 && len(auth.addrInfos) > 0
+	var connectedCandidates, alwaysPeers []peer.ID
+	cm := s.host.ConnManager()
 	for _, pid := range s.host.Network().Peers() {
+		if cm != nil && cm.IsProtected(pid, ipfs.BootstrapSupportKey) {
+			if !knownIncompatible(pid) && !livenessOnly {
+				alwaysPeers = append(alwaysPeers, pid)
+			}
+			continue
+		}
 		if !livePeerSupportsProtocol(pid) {
 			continue
 		}
-		addPeer(pid)
+		connectedCandidates = append(connectedCandidates, pid)
 	}
+	MDiscoverPeersSource.WithLabelValues("gateway").Add(float64(len(alwaysPeers)))
 	// Step 1 — covering-index scan over peers.pid (no addresses, no other
 	// columns). This stays on the unique pid index — verified by EXPLAIN —
 	// so it doesn't touch the main rowid btree or the fat addresses overflow
@@ -254,17 +383,11 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 				return nil
 			}
 			if s.host.Network().Connectedness(peerID) == network.Connected {
-				addPeer(peerID)
+				connectedCandidates = append(connectedCandidates, peerID)
 				return nil
 			}
-			if _, ok := seenPeers[peerID]; ok {
-				return nil
-			}
-			// Collect every disconnected pid so step 2's
-			// ORDER BY updated_at DESC picks the freshest from
-			// the full pool, not just the first scan-order N.
-			// 1100 placeholders is well within SQLite's
-			// SQLITE_MAX_VARIABLE_NUMBER (32766).
+			// Every disconnected pid is a candidate; the sample below draws
+			// from the whole pool rather than scan order.
 			fallbackCandidates = append(fallbackCandidates, pid)
 			return nil
 		})
@@ -273,40 +396,61 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", err
 	}
 
-	// Step 2 — only if we don't have enough connected peers to hit the
-	// target. Fetch addresses for the most-recently-active fallback set
-	// (one batched query, PK-indexed filter, in-memory sort over the
-	// small candidate list). Connected peers don't need addresses from
-	// the DB — libp2p already has them in Peerstore.
-	if need := targetDiscoveryPeers - len(allPeers); need > 0 && len(fallbackCandidates) > 0 {
-		args := make([]any, 0, len(fallbackCandidates)+1)
-		placeholders := make([]string, len(fallbackCandidates))
-		for i, p := range fallbackCandidates {
-			placeholders[i] = "?"
-			args = append(args, p)
+	// Sample connected peers first — they need no dial and no address lookup —
+	// and only reach into the peers table for the shortfall. Both pools are
+	// filtered by backoff and drawn at random, so a peer that keeps failing
+	// rotates out instead of being re-picked every round.
+	for _, pid := range samplePeers(alwaysPeers, connectedCandidates, maxSample, s.peerBackoff.Eligible) {
+		addPeer(pid)
+	}
+	MDiscoverPeersSource.WithLabelValues("connected").Add(float64(max(0, len(allPeers)-len(alwaysPeers))))
+
+	// Step 2 — only if the connected pool didn't fill the sample. Fetch
+	// addresses for a random eligible subset of stored peers (one batched
+	// query, PK-indexed filter). Connected peers don't need addresses from the
+	// DB — libp2p already has them in Peerstore.
+	beforeFallback := len(allPeers)
+	if need := maxSample - len(allPeers); need > 0 && len(fallbackCandidates) > 0 {
+		// Sample the pids before querying, so the IN list carries `need`
+		// placeholders instead of the whole peers table.
+		decoded := make([]peer.ID, 0, len(fallbackCandidates))
+		for _, p := range fallbackCandidates {
+			if pid, decodeErr := peer.Decode(p); decodeErr == nil {
+				decoded = append(decoded, pid)
+			}
 		}
-		args = append(args, need)
-		q := "SELECT addresses, pid FROM peers " +
-			"WHERE pid IN (" + strings.Join(placeholders, ",") + ") " +
-			"ORDER BY updated_at DESC LIMIT ?;"
-		if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
-			return sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
-				addrsStr := stmt.ColumnText(0)
-				pid := stmt.ColumnText(1)
-				info, parseErr := netutil.AddrInfoFromStrings(strings.Split(addrsStr, ",")...)
-				if parseErr != nil {
-					s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(parseErr))
+		picked := samplePeers(nil, decoded, need, s.peerBackoff.Eligible)
+
+		if len(picked) > 0 {
+			args := make([]any, 0, len(picked))
+			placeholders := make([]string, len(picked))
+			for i, p := range picked {
+				placeholders[i] = "?"
+				args = append(args, p.String())
+			}
+			q := "SELECT addresses, pid FROM peers WHERE pid IN (" + strings.Join(placeholders, ",") + ");"
+			if err = s.db.WithSave(ctxLocalPeers, func(conn *sqlite.Conn) error {
+				return sqlitex.Exec(conn, q, func(stmt *sqlite.Stmt) error {
+					addrsStr := stmt.ColumnText(0)
+					pid := stmt.ColumnText(1)
+					info, parseErr := netutil.AddrInfoFromStrings(strings.Split(addrsStr, ",")...)
+					if parseErr != nil {
+						s.log.Warn("Can't discover from peer since it has malformed addresses", zap.String("PID", pid), zap.Error(parseErr))
+						return nil
+					}
+					s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
+					addPeer(info.ID)
 					return nil
-				}
-				s.host.Peerstore().AddAddrs(info.ID, info.Addrs, peerstore.TempAddrTTL)
-				addPeer(info.ID)
-				return nil
-			}, args...)
-		}); err != nil {
-			MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
-			return "", err
+				}, args...)
+			}); err != nil {
+				MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
+				return "", err
+			}
 		}
 	}
+	MDiscoverPeersSource.WithLabelValues("stored").Add(float64(len(allPeers) - beforeFallback))
+	MDiscoverPeersSampled.Observe(float64(len(allPeers)))
+	MDiscoverPeersBenched.Set(float64(s.peerBackoff.Benched()))
 	MDiscoverPhaseSeconds.WithLabelValues("peer_select").Observe(time.Since(peerSelectStart).Seconds())
 
 	// buildStore loads the local RBSR set (the blobs we already have) for a
@@ -381,12 +525,6 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return "", err
 	}
 
-	// Compute auth info once for all peers. This determines which siteURL servers
-	// we should authenticate with based on local siteURL and capability info.
-	eidsMap := make(map[string]entityScope)
-	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
-	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
-
 	// syncConnected reconciles one scope against every connected + auth peer and
 	// records the phase timing. Used for the root-first depthOne pass and the
 	// full-scope pass below.
@@ -399,10 +537,24 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			peers[pid] = eids
 		}
 		// Include siteUrl peers into the set we sync.
-		for pid := range auth.peerKeys {
-			if _, ok := peers[pid]; !ok {
-				peers[pid] = eids
+		//
+		// Keyed on addrInfos, not peerKeys: peerKeys only holds the servers we can
+		// authenticate with, i.e. spaces we hold a key for. For everything we
+		// merely follow, computeAuthInfo resolved the host and we then dropped it
+		// — so for most subscriptions we never asked the one peer that certainly
+		// has the content, and left 20 random peers to find it instead. A key is
+		// needed to read PRIVATE content; public content needs none, and
+		// syncWithPeer already authenticates only where peerKeys has an entry.
+		for pid, info := range auth.addrInfos {
+			if _, ok := peers[pid]; ok {
+				continue
 			}
+			// ResolveSiteURL gives us addresses libp2p may not have yet — this is
+			// often a peer we've never dialed.
+			if len(info.Addrs) > 0 {
+				s.host.Peerstore().AddAddrs(pid, info.Addrs, peerstore.TempAddrTTL)
+			}
+			peers[pid] = eids
 		}
 		start := time.Now()
 		// The root-directory pass only needs to make the page renderable before
@@ -415,7 +567,10 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return res
 	}
 
-	if len(allPeers) != 0 {
+	// auth.addrInfos counts too: a site server we've never dialed is still a peer
+	// worth syncing with, and it is the best one. Gating on allPeers alone would
+	// skip straight to the DHT for a space whose host we already know.
+	if len(allPeers) != 0 || len(auth.addrInfos) != 0 {
 		s.log.Debug("Discovering via already-connected peers first")
 
 		// Root-first directory pass: for a recursive discovery, first reconcile

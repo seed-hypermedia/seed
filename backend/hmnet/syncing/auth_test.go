@@ -65,6 +65,51 @@ func TestComputeAuthInfoUsesListKeyPairs(t *testing.T) {
 	require.Equal(t, peer.ID("peer-1"), info.addrInfos[peer.ID("peer-1")].ID)
 }
 
+// TestComputeAuthInfoResolvesHostsWithoutKeys is the property that peer
+// selection depends on: knowing WHERE a space lives must not require holding a
+// key for it. Public content needs no key, and the host is the authoritative
+// source for its own space either way.
+//
+// This regressed silently once addrInfos started driving peer selection — the
+// key checks sat in front of the host resolution, so a node with no keys
+// resolved no hosts and fell back to a 20-peer random search forever.
+func TestComputeAuthInfoResolvesHostsWithoutKeys(t *testing.T) {
+	ctx := context.Background()
+
+	spaceKey, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+	space := spaceKey.Principal()
+
+	index := &fakeAuthIndex{
+		siteURLs: map[string]string{
+			space.String(): "https://site.example",
+		},
+		addrInfos: map[string]peer.AddrInfo{
+			"https://site.example": {ID: peer.ID("peer-1")},
+		},
+	}
+
+	for _, tt := range []struct {
+		name  string
+		store core.KeyStore
+	}{
+		{"no keystore at all", nil},
+		{"keystore with no keys", &fakeAuthKeyStore{}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := &Service{index: index, keyStore: tt.store}
+
+			info := svc.computeAuthInfo(ctx, map[string]entityScope{
+				fmt.Sprintf("hm://%s/doc", space.String()): {Recursive: true},
+			})
+
+			require.Len(t, info.addrInfos, 1, "the host must resolve without keys")
+			require.Equal(t, peer.ID("peer-1"), info.addrInfos[peer.ID("peer-1")].ID)
+			require.Empty(t, info.peerKeys, "but there is nothing to authenticate with")
+		})
+	}
+}
+
 type fakeAuthKeyStore struct {
 	listKeyPairsCalls int
 	listKeysCalls     int
