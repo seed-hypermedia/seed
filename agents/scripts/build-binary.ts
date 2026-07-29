@@ -85,7 +85,12 @@ const result = await Bun.build({
   entrypoints: ['./src/main.ts'],
   target: 'bun',
   minify: true,
-  define: {'process.env.NODE_ENV': JSON.stringify('production')},
+  define: {
+    'process.env.NODE_ENV': JSON.stringify('production'),
+    // Compiled executables don't reliably set import.meta.main (false on Windows in bun 1.3,
+    // oven-sh/bun#6009) — this tells main.ts to start unconditionally.
+    'process.env.SEED_AGENTS_STANDALONE': JSON.stringify('1'),
+  },
   publicPath: '/agents/',
   root: './src',
   plugins: [tailwind],

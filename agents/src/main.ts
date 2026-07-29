@@ -627,6 +627,8 @@ function isCBORRequest(req: Request): boolean {
   return req.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() === 'application/cbor'
 }
 
-if (import.meta.main) {
+// Compiled executables don't reliably set import.meta.main (false on Windows in bun 1.3,
+// oven-sh/bun#6009), so the binary build injects SEED_AGENTS_STANDALONE via define instead.
+if (import.meta.main || process.env.SEED_AGENTS_STANDALONE === '1') {
   main()
 }
