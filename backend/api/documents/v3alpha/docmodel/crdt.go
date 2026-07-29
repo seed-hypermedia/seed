@@ -25,7 +25,7 @@ import (
 
 type opID struct {
 	Ts    int64
-	Idx   int32
+	Idx   int64
 	Actor core.ActorID
 }
 
@@ -55,23 +55,39 @@ func decodeOpID(s []uint64) (opID, error) {
 	}
 
 	if len(s) == 1 {
-		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int32(s[0])}, nil //nolint:gosec // We know this should not overflow.
+		if s[0] > maxIdx {
+			return opID{}, fmt.Errorf("invalid opID: index %d overflows the maximum %d", s[0], maxIdx)
+		}
+		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int64(s[0])}, nil //nolint:gosec // Bounds-checked above.
 	}
 
 	if len(s) != 3 {
 		return opID{}, fmt.Errorf("invalid opID: %v", s)
 	}
 
+	if s[1] > maxIdx {
+		return opID{}, fmt.Errorf("invalid opID: index %d overflows the maximum %d", s[1], maxIdx)
+	}
+
 	return opID{
 		Ts:    int64(s[0]), //nolint:gosec // We know this should not overflow.
-		Idx:   int32(s[1]), //nolint:gosec // We know this should not overflow.
+		Idx:   int64(s[1]), //nolint:gosec // Bounds-checked above.
 		Actor: core.ActorID(s[2]),
 	}, nil
 }
 
 const (
-	maxTs  = 1<<48 - 1
-	maxIdx = 1<<24 - 1
+	maxTs = 1<<48 - 1
+
+	// maxIdx is a policy bound, not a representation one: op IDs used to be
+	// packed into a fixed 15-byte encoding with a 24-bit index (removed in
+	// 2024's Breaking Change), but today the index is a plain int64 in memory
+	// and a full uint64 on the wire. The apply loop advances the index
+	// quadratically within multi-block ops, so the old 2^24 cap was reached by
+	// a single move op of only ~5.8k blocks — real imported documents exceed
+	// that. 2^31 allows ~65k blocks in one move op while still bounding the
+	// work a hostile change can ask for.
+	maxIdx = 1<<31 - 1
 )
 
 func newOpID(ts int64, actor core.ActorID, idx int) opID {
@@ -90,7 +106,7 @@ func newOpID(ts int64, actor core.ActorID, idx int) opID {
 
 	return opID{
 		Ts:    ts,
-		Idx:   int32(idx),
+		Idx:   int64(idx),
 		Actor: actor,
 	}
 }

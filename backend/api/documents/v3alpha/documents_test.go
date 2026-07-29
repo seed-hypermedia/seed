@@ -1270,14 +1270,14 @@ func TestDeriveFirstContentImageHugeChange(t *testing.T) {
 
 	alice := coretest.NewTester("alice").Account
 
-	// A single move op with this many blocks overflows the docmodel's 24-bit op
-	// ID index when the change is applied (the apply loop advances the index
+	// A single move op with this many blocks overflows the docmodel's op ID
+	// index cap when the change is applied (the apply loop advances the index
 	// quadratically per block). Today's writer would fail authoring such a
 	// change (it re-applies its own ops), but blobs like this exist in the wild
 	// from older writers, and the indexer derives the fallback cover for every
 	// document Ref — including during the boot-time backfill reindex — so the
 	// deriver must surface an error instead of taking down the daemon.
-	const numBlocks = 6000
+	const numBlocks = 70_000
 
 	moved := make([]string, numBlocks)
 	for i := range moved {
