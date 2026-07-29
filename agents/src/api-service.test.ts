@@ -2384,6 +2384,90 @@ describe('api service', () => {
     expect(decoded.account).toEqual(account.principal)
     expect(decoded.nested.bytes).toEqual(new Uint8Array([1, 2, 3]))
   })
+
+  test('accepts a reasoning level the model supports and persists it', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Reasoner',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt-5.6-terra',
+              reasoningLevel: 'xhigh',
+            },
+          },
+        }),
+      )
+      expect(create._).toBe('CreateAgentResponse')
+      const list = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}}))
+      if (list._ !== 'ListAgentsResponse') throw new Error('unexpected response')
+      expect(list.agents[0]?.definition.reasoningLevel).toBe('xhigh')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('rejects reasoning levels the model does not accept', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const createAgent = async (model: string, reasoningLevel: string) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'CreateAgent',
+              definition: {
+                name: 'Reasoner',
+                systemPrompt: 'ok',
+                modelProvider: 'openai',
+                model,
+                reasoningLevel,
+              } as never,
+            },
+          }),
+        )
+      // gpt-5-mini accepts minimal..high but not xhigh.
+      await expect(createAgent('gpt-5-mini', 'xhigh')).rejects.toThrow('does not support reasoning level')
+      // gpt-5.6 dropped minimal.
+      await expect(createAgent('gpt-5.6-terra', 'minimal')).rejects.toThrow('does not support reasoning level')
+      // Non-reasoning models take no level at all.
+      await expect(createAgent('gpt-4.1', 'high')).rejects.toThrow('does not support a reasoning level')
+      // Unknown enum values are rejected before the model check.
+      await expect(createAgent('gpt-5.6-terra', 'maximum')).rejects.toThrow('Reasoning level is invalid')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('restoreReasoningEffort reasserts the validated level on clamped payloads', () => {
+    const definition = {
+      name: 'a',
+      systemPrompt: 'ok',
+      modelProvider: 'openai',
+      model: 'gpt-5.6-terra',
+      reasoningLevel: 'xhigh',
+    } as never
+    expect(
+      apisvc.restoreReasoningEffort({model: 'gpt-5.6-terra', reasoning: {effort: 'high', summary: 'auto'}}, definition),
+    ).toEqual({model: 'gpt-5.6-terra', reasoning: {effort: 'xhigh', summary: 'auto'}})
+    // Payloads without a reasoning object (level off, non-OpenAI providers) pass through untouched.
+    const plain = {model: 'gpt-5.6-terra'}
+    expect(apisvc.restoreReasoningEffort(plain, {...(definition as object), reasoningLevel: undefined} as never)).toBe(
+      plain,
+    )
+    expect(apisvc.restoreReasoningEffort(plain, definition)).toBe(plain)
+  })
 })
 
 async function setDefaultProvider(svc: apisvc.Service, account: blobs.Signer): Promise<void> {

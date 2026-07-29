@@ -1,6 +1,12 @@
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
-import {seedAssistantSystemPrompt, seedToolRegistry, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
+import {
+  isReasoningLevel,
+  modelReasoningSupport,
+  seedAssistantSystemPrompt,
+  seedToolRegistry,
+  type SeedToolMetadata,
+} from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
@@ -263,9 +269,12 @@ export class Service {
   #createAgentOnce(accountId: string, rawDefinition: api.AgentDefinition): api.CreateAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
     const provider = this.#db
-      .query<{name: string}, [string, string]>(`SELECT name FROM model_providers WHERE account_id = ? AND name = ?`)
+      .query<{name: string; type: string}, [string, string]>(
+        `SELECT name, type FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, definition.modelProvider)
     if (!provider) throw new APIError(400, 'Model provider not found')
+    validateReasoningLevel(provider.type, definition)
     this.#validateSigningKeys(accountId, definition)
 
     const now = Date.now()
@@ -669,9 +678,12 @@ export class Service {
       .get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
     const provider = this.#db
-      .query<{name: string}, [string, string]>(`SELECT name FROM model_providers WHERE account_id = ? AND name = ?`)
+      .query<{name: string; type: string}, [string, string]>(
+        `SELECT name, type FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, definition.modelProvider)
     if (!provider) throw new APIError(400, 'Model provider not found')
+    validateReasoningLevel(provider.type, definition)
     this.#validateSigningKeys(accountId, definition)
 
     const now = Date.now()
@@ -1159,7 +1171,7 @@ export class Service {
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
       model,
-      thinkingLevel: 'off',
+      thinkingLevel: definition.reasoningLevel ?? 'off',
       authStorage,
       modelRegistry,
       resourceLoader,
@@ -1197,10 +1209,13 @@ export class Service {
         agentId: session.agentId,
         provider: providerName,
         model: definition.model,
+        reasoningLevel: definition.reasoningLevel,
         activeTools: piSession.getActiveToolNames(),
         payloadTools,
       })
-      return mergeModelDefaults ? mergePiPayloadDefaults(payload, mergeModelDefaults) : payload
+      let next = restoreReasoningEffort(payload, definition)
+      if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
+      return next
     }
     piSession.state.messages = this.#piMessages(sessionId) as never
     let partialId = crypto.randomUUID()
@@ -2384,6 +2399,11 @@ function normalizeDefinition(raw: api.AgentDefinition): api.AgentDefinition {
 
   const definition: api.AgentDefinition = {name, systemPrompt, modelProvider, model}
 
+  if (raw.reasoningLevel !== undefined) {
+    if (!isReasoningLevel(raw.reasoningLevel)) throw new APIError(400, 'Reasoning level is invalid')
+    definition.reasoningLevel = raw.reasoningLevel
+  }
+
   if (raw.signingKey !== undefined) {
     definition.signingKey = normalizeBoundedString(raw.signingKey, 'Signing key', MAX_NAME_BYTES)
   }
@@ -2431,6 +2451,28 @@ function normalizeDefinition(raw: api.AgentDefinition): api.AgentDefinition {
   }
 
   return definition
+}
+
+/**
+ * Rejects a reasoning level the target model does not accept. Providers gate
+ * levels per model generation (e.g. gpt-5 takes `minimal` but not `xhigh`,
+ * gpt-5.2+ the reverse), so this needs the provider type, which callers resolve
+ * from the stored provider record.
+ */
+function validateReasoningLevel(providerType: string, definition: api.AgentDefinition): void {
+  if (!definition.reasoningLevel) return
+  const support = modelReasoningSupport(providerType, definition.model)
+  if (!support) {
+    throw new APIError(400, `Model ${definition.model} does not support a reasoning level`)
+  }
+  if (!support.levels.includes(definition.reasoningLevel)) {
+    throw new APIError(
+      400,
+      `Model ${definition.model} does not support reasoning level '${
+        definition.reasoningLevel
+      }' (valid: ${support.levels.join(', ')})`,
+    )
+  }
 }
 
 function normalizeAgentTriggerInput(
@@ -2621,7 +2663,7 @@ function normalizeOptionalMetadata(raw: Record<string, unknown> | undefined): Re
 }
 
 /** Pi streaming API a provider is routed through. */
-type PiProviderApi = 'openai-completions' | 'anthropic-messages' | 'google-generative-ai'
+type PiProviderApi = 'openai-completions' | 'openai-responses' | 'anthropic-messages' | 'google-generative-ai'
 
 /** Shape of the upstream model-list endpoint a provider exposes. */
 type ProviderModelListStrategy = 'openai' | 'anthropic' | 'google'
@@ -2647,6 +2689,9 @@ type ProviderSpec = {
 
 const PROVIDER_SPECS: Record<string, ProviderSpec> = {
   openai: {
+    // Default path for models without reasoning control. Models that need
+    // reasoning (or whose reasoning must be explicitly disabled, gpt-5.1+) are
+    // rerouted to 'openai-responses' in piModelForDefinition.
     api: 'openai-completions',
     defaultBaseUrl: 'https://api.openai.com/v1',
     modelList: 'openai',
@@ -2810,12 +2855,25 @@ function piModelForDefinition(
   baseUrl: string,
   definition: api.AgentDefinition,
 ): NonNullable<Parameters<pi.ModelRegistry['registerProvider']>[1]['models']>[number] {
+  const support = modelReasoningSupport(type, definition.model)
+  // Pi only sends reasoning parameters for models flagged `reasoning`. The flag
+  // goes on when a level is selected, and also when the model needs an explicit
+  // "no reasoning" value (Pi's openai-responses path sends `effort: 'none'` for
+  // reasoning-flagged models with no level, which such models require before
+  // they accept function tools).
+  const reasoning = Boolean(support && (definition.reasoningLevel || support.supportsEffortNone))
+  // OpenAI's newest chat models (gpt-5.1+) reject function tools on
+  // /v1/chat/completions unless reasoning is explicitly disabled, and reject
+  // tools entirely once a reasoning effort is set there. The Responses API is
+  // OpenAI's supported path for tools + reasoning, so reasoning-flagged OpenAI
+  // models ride it while everything else keeps the plain completions path.
+  const api = type === 'openai' && reasoning ? 'openai-responses' : providerSpec(type).api
   return {
     id: definition.model,
     name: definition.model,
-    api: providerSpec(type).api,
+    api,
     baseUrl,
-    reasoning: false,
+    reasoning,
     input: ['text'],
     cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
     contextWindow: 128000,
@@ -4122,6 +4180,22 @@ function piToolResultOutput(result: {content?: unknown; details?: unknown}): unk
 function mergePiPayloadDefaults(payload: unknown, defaults: Record<string, unknown>): unknown {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload
   return {...(payload as Record<string, unknown>), ...defaults}
+}
+
+/**
+ * Reasserts the agent's validated reasoning level on an OpenAI Responses
+ * payload. Pi clamps levels for models its bundled catalog does not know
+ * (e.g. it downgrades xhigh to high for gpt-5.6+), but the definition's level
+ * was validated against the live per-model matrix and is authoritative.
+ * Exported for tests.
+ */
+export function restoreReasoningEffort(payload: unknown, definition: api.AgentDefinition): unknown {
+  if (!definition.reasoningLevel) return payload
+  if (!isRecord(payload) || !isRecord(payload.reasoning) || typeof payload.reasoning.effort !== 'string') {
+    return payload
+  }
+  if (payload.reasoning.effort === definition.reasoningLevel) return payload
+  return {...payload, reasoning: {...payload.reasoning, effort: definition.reasoningLevel}}
 }
 
 function emptyPiUsage(): {

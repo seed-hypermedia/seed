@@ -36,7 +36,9 @@ import {Camera, ExternalLink, Plus, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
+import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {ModelSelect} from './model-select'
+import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
@@ -601,6 +603,7 @@ export function CreateAgentDialog({
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
   const [name, setName] = useState(generateAgentName)
   const [model, setModel] = useState('')
+  const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
     markdownBlockNodesToHMBlockNodes(parseMarkdown('You are a helpful agent.').tree),
   )
@@ -646,6 +649,7 @@ export function CreateAgentDialog({
         systemPrompt: promptBlocksToMarkdown(systemPrompt),
         modelProvider: providerName,
         model,
+        reasoningLevel: coerceReasoningLevel(selectedProviderType, model, reasoningLevel),
         tools: DEFAULT_AGENT_TOOLS,
         signingKey: signingKeyName,
         signingKeys: [signingKeyName],
@@ -743,13 +747,29 @@ export function CreateAgentDialog({
             models={providerModels.data}
             providerType={selectedProviderType}
             value={model}
-            onChange={setModel}
+            onChange={(nextModel) => {
+              setModel(nextModel)
+              setReasoningLevel((level) => coerceReasoningLevel(selectedProviderType, nextModel, level))
+            }}
             isLoading={providerModels.isLoading}
             isError={providerModels.isError}
             error={providerModels.error}
             disabled={!providerName}
           />
         </label>
+        {selectedProviderType && model && modelReasoningSupport(selectedProviderType, model) ? (
+          <label className="flex flex-col gap-1">
+            <SizableText size="sm" weight="bold">
+              Reasoning
+            </SizableText>
+            <ReasoningSelect
+              providerType={selectedProviderType}
+              model={model}
+              value={reasoningLevel}
+              onChange={setReasoningLevel}
+            />
+          </label>
+        ) : null}
       </div>
       {addProviderDialog.content}
       <div className="flex flex-col gap-1">
