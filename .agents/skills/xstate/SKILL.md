@@ -1,12 +1,9 @@
 ---
 name: xstate
 description:
-  Design, implement, review, and migrate XState v5 state machines and statecharts in TypeScript using modern v5
-  patterns. Use this whenever the user mentions XState, actors, state machines, statecharts, guards, transitions,
-  workflows, or Stately, or is modeling non-trivial UI/app/process logic in a codebase that uses XState. Prefer a short
-  machine sketch before code when requirements are fuzzy. If the problem is too simple for a state machine, say so and
-  recommend @xstate/store instead.
-user-invocable: false
+  Use when designing, implementing, reviewing, or migrating XState v5 state machines, statecharts, actors, invoked
+  services, @xstate/react hooks, or Stately diagrams in TypeScript, especially in a codebase that already imports
+  xstate or @xstate/react.
 ---
 
 # XState v5
@@ -15,6 +12,11 @@ Use this skill for **state machine and statechart engineering first** and API co
 
 This skill is **v5-only**. When examples, blog posts, answers, or local code smell v4-ish, translate them rather than
 mixing versions. Prefer local repo code and official v5 docs over generic memory.
+
+In Seed, the main repo currently uses `xstate@5.19.2` and `@xstate/react@4.1.3`, especially under
+`frontend/packages/shared/src/models/**`. Read nearby Seed machines and hooks before editing them, particularly
+`document-machine.ts`, `document-card-cleanup-machine.ts`, `use-document-machine.ts`, `use-editor-gate.ts`, and React
+usage of `useActorRef(...)`, `useMachine(...)`, and `useSelector(...)`.
 
 Your job:
 
@@ -60,6 +62,9 @@ Prefer `@xstate/store` when the domain is simple event-based state management:
   history
 
 Simple fetching or mutation logic can still fit `@xstate/store` if it does not need machine-level orchestration.
+
+In Seed, verify `@xstate/store` is installed before recommending or importing it. If it is not installed, suggest it
+only when the simpler store model justifies adding a dependency.
 
 Prefer XState when the domain has one or more of these:
 
