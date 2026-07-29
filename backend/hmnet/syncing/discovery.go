@@ -269,22 +269,17 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// no resolvable host on the full 20-peer search every ~11s forever, and that
 	// was ~10 of the remaining 10.1 dials/sec on a completely idle daemon.
 	//
+	// But narrowing needs an authority to narrow TO. Dropping the sample without
+	// one leaves an EMPTY peer set — a node that syncs with nobody, forever, and
+	// silently. Production hides this: bootstrap means there are always gateways,
+	// so "we hold the content" implies somebody can still answer. Two daemons
+	// paired directly with no bootstrap and no site server have neither, and the
+	// speculative sample is the only thing connecting them. Hence the peer
+	// collection below runs FIRST, and the width is chosen from what actually
+	// exists rather than from what we assume exists.
+	//
 	// The scope's own siteUrl servers and the gateways are added separately and
 	// are never subject to this cap; it bounds only the speculative sample.
-	const (
-		maxSampledPeers    = 20
-		narrowSampledPeers = 2
-	)
-	maxSample := maxSampledPeers
-	switch {
-	case haveLocally:
-		maxSample = 0
-	case len(auth.addrInfos) > 0:
-		maxSample = narrowSampledPeers
-	default:
-		// Keep the wide search: content missing and nobody authoritative to ask.
-	}
-	MDiscoverPeersSource.WithLabelValues("site").Add(float64(len(auth.addrInfos)))
 	livePeerSupportsProtocol := func(pid peer.ID) bool {
 		if s.pc.checker == nil {
 			return true
@@ -341,25 +336,12 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 		return s.pc.checker(ctxLocalPeers, pid, s.pc.version, protos...) != nil
 	}
-	//
-	// Except when a site server can answer instead. Holding the content AND
-	// knowing its host makes the host the only peer that can tell us anything
-	// new about its own space, so the gateways are pure overhead on every 10s
-	// check.
-	//
-	// Both halves of that condition matter. Dropping gateways whenever the
-	// sample is zero would leave a hostless space — an account with no siteUrl —
-	// with an empty peer set, i.e. silently never syncing again. For those the
-	// gateways ARE the authority, and they are the whole point of the liveness
-	// check. They also stay for the case they were originally added for: content
-	// we do NOT have, the cold start that rendered blank.
-	livenessOnly := maxSample == 0 && len(auth.addrInfos) > 0
-	var connectedCandidates, alwaysPeers []peer.ID
+	var connectedCandidates, gatewayPeers []peer.ID
 	cm := s.host.ConnManager()
 	for _, pid := range s.host.Network().Peers() {
 		if cm != nil && cm.IsProtected(pid, ipfs.BootstrapSupportKey) {
-			if !knownIncompatible(pid) && !livenessOnly {
-				alwaysPeers = append(alwaysPeers, pid)
+			if !knownIncompatible(pid) {
+				gatewayPeers = append(gatewayPeers, pid)
 			}
 			continue
 		}
@@ -368,6 +350,21 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		}
 		connectedCandidates = append(connectedCandidates, pid)
 	}
+
+	// Now choose the width, knowing what is actually reachable.
+	hasSite := len(auth.addrInfos) > 0
+	maxSample := sampleWidth(haveLocally, hasSite, len(gatewayPeers) > 0)
+
+	// Gateways drop out only when a site server can answer instead — it is
+	// authoritative for its own space, so they are pure overhead on every 10s
+	// check. Without one they ARE the authority and are the whole point of the
+	// liveness check, and they always stay for the case they were added for:
+	// content we do NOT have, the cold start that rendered blank.
+	alwaysPeers := gatewayPeers
+	if maxSample == 0 && hasSite {
+		alwaysPeers = nil
+	}
+	MDiscoverPeersSource.WithLabelValues("site").Add(float64(len(auth.addrInfos)))
 	MDiscoverPeersSource.WithLabelValues("gateway").Add(float64(len(alwaysPeers)))
 	// Step 1 — covering-index scan over peers.pid (no addresses, no other
 	// columns). This stays on the unique pid index — verified by EXPLAIN —

@@ -130,6 +130,40 @@ func (b *peerBackoff) Benched() int {
 	return n
 }
 
+const (
+	// maxSampledPeers is the speculative fan-out when we have no idea who holds
+	// a scope. It used to be a floor rather than a ceiling: every connected peer
+	// joined the wave uncapped, which produced 77k dials for 577 transfers.
+	maxSampledPeers = 20
+
+	// narrowSampledPeers hedges a known host — a stale siteUrl, or a server
+	// that is down — without paying for a real search.
+	narrowSampledPeers = 2
+)
+
+// sampleWidth decides how many peers to speculatively sample for one wave.
+//
+// A random sample is a SEARCH, and a search should cost in proportion to how
+// lost we are. Holding the content already means there is nothing to find, so
+// the wave is a liveness check and one authoritative peer answers it.
+//
+// The invariant that matters more than the tuning: NEVER return 0 without an
+// authority to ask instead. Zero sample plus no site server plus no gateway is
+// an empty peer set — a node that syncs with nobody, forever, and silently.
+// Production hides this, because bootstrap guarantees gateways exist; two
+// daemons paired directly with neither do not, and the sample is the only thing
+// connecting them.
+func sampleWidth(haveLocally, hasSite, hasGateway bool) int {
+	switch {
+	case haveLocally && (hasSite || hasGateway):
+		return 0
+	case hasSite:
+		return narrowSampledPeers
+	default:
+		return maxSampledPeers
+	}
+}
+
 // samplePeers picks the peer set for one wave: everything in always (the
 // authoritative sources for this scope — siteUrl servers and gateways), plus a
 // random sample of eligible peers up to limit.

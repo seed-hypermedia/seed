@@ -126,6 +126,34 @@ func TestSamplePeersNarrowKeepsAuthoritative(t *testing.T) {
 	require.Equal(t, always, got, "a zero sample must still ask the authoritative peers")
 }
 
+// TestSampleWidthNeverStrandsANode is the regression guard for the bug that
+// turned CI red: narrowing to zero without an authority to ask instead leaves an
+// empty peer set, and the node silently stops syncing. Production hides it
+// because bootstrap guarantees gateways; two daemons paired directly do not.
+func TestSampleWidthNeverStrandsANode(t *testing.T) {
+	for _, tt := range []struct {
+		name                            string
+		haveLocally, hasSite, hasGwyway bool
+		want                            int
+	}{
+		{"nothing known, nothing held", false, false, false, maxSampledPeers},
+		{"missing, host known", false, true, false, narrowSampledPeers},
+		{"missing, only gateways", false, false, true, maxSampledPeers},
+		{"held, host known", true, true, false, 0},
+		{"held, only gateways", true, false, true, 0},
+		{"held, but NOBODY to ask", true, false, false, maxSampledPeers},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sampleWidth(tt.haveLocally, tt.hasSite, tt.hasGwyway)
+			require.Equal(t, tt.want, got)
+			if got == 0 {
+				require.True(t, tt.hasSite || tt.hasGwyway,
+					"a zero sample is only safe when somebody authoritative can answer")
+			}
+		})
+	}
+}
+
 // TestSamplePeersSkipsIneligible: benched peers must not be drawn, or backoff
 // accomplishes nothing.
 func TestSamplePeersSkipsIneligible(t *testing.T) {
