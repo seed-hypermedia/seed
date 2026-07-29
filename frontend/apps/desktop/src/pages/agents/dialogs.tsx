@@ -34,7 +34,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Camera, ExternalLink, Plus, Trash2} from 'lucide-react'
+import {Camera, Copy, ExternalLink, Plus, Trash2} from 'lucide-react'
 import {useEffect, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
@@ -871,5 +871,77 @@ export function EditAgentNameDialog({
         </Button>
       </div>
     </form>
+  )
+}
+
+const WHP_ENABLE_COMMAND = 'Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform'
+
+/**
+ * Shown when a Windows user tries to enable execute_code while the Windows Hypervisor Platform
+ * feature is off (health codeExecReasonCode 'whp-disabled' from the local server). Explains the
+ * one-time setup; after the required restart the tool unlocks on its own, so there is no
+ * recheck button.
+ */
+export function EnableWindowsHypervisorDialog({onClose}: {input: Record<string, never>; onClose: () => void}) {
+  async function copyCommand() {
+    await navigator.clipboard.writeText(WHP_ENABLE_COMMAND)
+    toast.success('Command copied')
+  }
+
+  return (
+    <div className="flex max-w-lg flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <DialogTitle>Turn on Windows Hypervisor Platform</DialogTitle>
+        <DialogDescription>
+          Code execution runs this agent’s code inside an isolated virtual machine. That needs a built-in Windows
+          feature that is currently turned off. Enabling it takes about two minutes and one restart.
+        </DialogDescription>
+      </div>
+
+      <ol className="flex list-decimal flex-col gap-2 pl-5">
+        <li>
+          <SizableText size="sm">
+            Press the Windows key and search for{' '}
+            <SizableText size="sm" weight="bold" asChild>
+              <span>Turn Windows features on or off</span>
+            </SizableText>
+            .
+          </SizableText>
+        </li>
+        <li>
+          <SizableText size="sm">
+            Check{' '}
+            <SizableText size="sm" weight="bold" asChild>
+              <span>Windows Hypervisor Platform</span>
+            </SizableText>{' '}
+            in the list and click OK.
+          </SizableText>
+        </li>
+        <li>
+          <SizableText size="sm">Restart your PC — code execution unlocks automatically afterwards.</SizableText>
+        </li>
+      </ol>
+
+      <div className="flex flex-col gap-1.5">
+        <SizableText size="sm" color="muted">
+          Prefer the terminal? Run this in PowerShell as Administrator, then restart:
+        </SizableText>
+        <div className="border-border bg-muted/40 flex items-center gap-2 rounded-lg border px-3 py-2">
+          <code className="min-w-0 flex-1 truncate font-mono text-xs">{WHP_ENABLE_COMMAND}</code>
+          <Button variant="ghost" size="iconSm" aria-label="Copy command" onClick={() => void copyCommand()}>
+            <Copy className="size-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <SizableText size="xs" color="muted">
+        If the feature is greyed out or missing, first enable hardware virtualization (Intel VT-x or AMD-V) in your PC’s
+        BIOS/UEFI settings.
+      </SizableText>
+
+      <div className="flex justify-end">
+        <Button onClick={onClose}>Got it</Button>
+      </div>
+    </div>
   )
 }

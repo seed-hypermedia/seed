@@ -8,10 +8,12 @@ import {
 } from '@/agents-client'
 import {
   DEFAULT_AGENT_SERVER_URL,
+  isLocalAgentServer,
   useAgentDetail,
   useAgentList,
   useAgentServerHealth,
   useAgentServerUrl,
+  useLocalAgentServerUrl,
   useAgentTrigger,
   useAgentTriggers,
   useAgentWebSocketSubscription,
@@ -62,7 +64,12 @@ import {
 } from './agent-tools'
 import {AgentMemoryTab} from './memory'
 import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
-import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
+import {
+  AddModelProviderDialog,
+  EditAgentNameDialog,
+  EnableWindowsHypervisorDialog,
+  type AgentAccountRenameStatus,
+} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {ModelSelect} from './model-select'
@@ -86,6 +93,7 @@ function AgentDetailPage({
   const navigate = useNavigate()
   const clickNavigate = useClickNavigate()
   const serverUrlQuery = useAgentServerUrl()
+  const localServerUrl = useLocalAgentServerUrl()
   const serverUrl = routeServerUrl || serverUrlQuery.data || DEFAULT_AGENT_SERVER_URL
   const serverHealth = useAgentServerHealth(serverUrl)
   const agent = useAgentDetail(serverUrl, selectedAccountId, agentId)
@@ -425,6 +433,9 @@ function AgentDetailPage({
                       ? {
                           ...(serverHealth.data.webTools ?? {search: true, readBrowser: true}),
                           codeExec: serverHealth.data.codeExec,
+                          codeExecReason: serverHealth.data.codeExecReason,
+                          codeExecReasonCode: serverHealth.data.codeExecReasonCode,
+                          local: isLocalAgentServer(serverUrl, localServerUrl.data),
                         }
                       : undefined
                   }
@@ -745,6 +756,7 @@ function AgentToolsTab({
   saving: boolean
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
+  const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
   const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
   const defaultTools = [...AGENT_READ_TOOL_GROUP, ...AGENT_WEB_TOOL_GROUP]
   const [enabledTools, setEnabledTools] = useState<string[]>(definition.tools || defaultTools)
@@ -813,12 +825,15 @@ function AgentToolsTab({
             ...getToolAvailability(name, webCapabilities),
           }))
           const groupAvailable = members.some((member) => member.available)
+          // Unavailability the user can fix locally (e.g. turn on a Windows feature): keep the
+          // checkbox clickable and answer the click with setup instructions instead of a save.
+          const setupAction = members.find((member) => member.action)?.action
           const checked = group.names.some((name) => enabledTools.includes(name))
           return (
             <div
               key={group.names.join('|')}
               className={`border-border bg-card flex flex-col gap-3 rounded-xl border p-4 ${
-                groupAvailable ? '' : 'opacity-60'
+                groupAvailable || setupAction ? '' : 'opacity-60'
               }`}
             >
               <label className="flex items-start gap-3">
@@ -826,8 +841,14 @@ function AgentToolsTab({
                   type="checkbox"
                   className="mt-1 size-4"
                   checked={checked}
-                  disabled={!groupAvailable}
+                  disabled={!groupAvailable && !setupAction}
                   onChange={(event) => {
+                    // Enabling an unavailable-but-fixable tool answers with setup help instead of
+                    // a save; disabling always saves so users can still remove the tool.
+                    if (!groupAvailable && event.target.checked) {
+                      if (setupAction === 'enable-whp') enableWhpDialog.open({})
+                      return
+                    }
                     const nextTools = event.target.checked
                       ? Array.from(new Set([...enabledTools, ...group.names]))
                       : enabledTools.filter((item) => !group.names.includes(item))
@@ -841,7 +862,7 @@ function AgentToolsTab({
                     </SizableText>
                     {!groupAvailable ? (
                       <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                        Unavailable
+                        {setupAction ? 'Setup required' : 'Unavailable'}
                       </span>
                     ) : null}
                   </div>
@@ -853,7 +874,10 @@ function AgentToolsTab({
 
               <div className="border-border/60 ml-7 flex flex-col gap-1.5 border-l pl-3">
                 {members.map((member) => (
-                  <div key={member.name} className={`flex items-start gap-2 ${member.available ? '' : 'opacity-60'}`}>
+                  <div
+                    key={member.name}
+                    className={`flex items-start gap-2 ${member.available || member.action ? '' : 'opacity-60'}`}
+                  >
                     <div className="flex min-w-0 flex-1 flex-col">
                       <div className="flex items-center gap-2">
                         <SizableText size="xs" weight="bold" className="font-mono">
@@ -861,13 +885,22 @@ function AgentToolsTab({
                         </SizableText>
                         {!member.available ? (
                           <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                            Unavailable
+                            {member.action ? 'Setup required' : 'Unavailable'}
                           </span>
                         ) : null}
                       </div>
                       {member.note ? (
                         <SizableText size="xs" color="muted">
-                          {member.note}
+                          {member.note}{' '}
+                          {member.action === 'enable-whp' ? (
+                            <button
+                              type="button"
+                              className="text-primary cursor-pointer underline underline-offset-2"
+                              onClick={() => enableWhpDialog.open({})}
+                            >
+                              Show me how
+                            </button>
+                          ) : null}
                         </SizableText>
                       ) : null}
                     </div>
@@ -887,6 +920,7 @@ function AgentToolsTab({
         })}
       </div>
       {toolInfoDialog.content}
+      {enableWhpDialog.content}
 
       {writeEnabled ? (
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">

@@ -157,8 +157,17 @@ export type SandboxLike = {
   kill(): Promise<void>
 }
 
+/** Machine-readable cause when code execution is unavailable, so clients can offer targeted help. */
+export type CodeExecUnavailableCode =
+  | 'config-disabled'
+  | 'unsupported-platform'
+  | 'whp-disabled'
+  | 'kvm-missing'
+  | 'kvm-forbidden'
+  | 'runtime-error'
+
 /** Result of probing whether code execution can actually work on this host. */
-export type CodeExecAvailability = {available: boolean; reason?: string}
+export type CodeExecAvailability = {available: boolean; reason?: string; code?: CodeExecUnavailableCode}
 
 /** Executes code in sandboxes for agent memory workspaces. */
 export type CodeExecutor = {
@@ -267,18 +276,47 @@ export function createCodeExecutor(
   // all fixed at startup), so the probe result is memoized including failures.
   let availabilityPromise: Promise<CodeExecAvailability> | undefined
   const probeAvailability = async (): Promise<CodeExecAvailability> => {
-    if (config.backend !== 'microsandbox') return {available: false, reason: 'Code execution is disabled by configuration'}
-    if (process.platform === 'darwin' && process.arch !== 'arm64') {
-      return {available: false, reason: 'microsandbox has no native build for Intel macOS'}
+    if (config.backend !== 'microsandbox') {
+      return {available: false, code: 'config-disabled', reason: 'Code execution is disabled by configuration'}
     }
-    if (process.platform === 'linux' && !fs.existsSync('/dev/kvm')) {
-      return {available: false, reason: 'KVM (/dev/kvm) is not available on this host'}
+    if (process.platform === 'darwin' && process.arch !== 'arm64') {
+      return {available: false, code: 'unsupported-platform', reason: 'microsandbox has no native build for Intel macOS'}
+    }
+    if (process.platform === 'win32') {
+      // WinHvPlatform.dll is installed with the "Windows Hypervisor Platform" optional feature,
+      // which microVMs require. Its absence is the actionable signal the desktop UI explains.
+      const winHv = `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\WinHvPlatform.dll`
+      if (!fs.existsSync(winHv)) {
+        return {
+          available: false,
+          code: 'whp-disabled',
+          reason: 'The Windows Hypervisor Platform feature is turned off on this PC',
+        }
+      }
+    }
+    if (process.platform === 'linux') {
+      if (!fs.existsSync('/dev/kvm')) {
+        return {available: false, code: 'kvm-missing', reason: 'KVM (/dev/kvm) is not available on this host'}
+      }
+      try {
+        fs.accessSync('/dev/kvm', fs.constants.R_OK | fs.constants.W_OK)
+      } catch {
+        return {
+          available: false,
+          code: 'kvm-forbidden',
+          reason: 'No permission to use /dev/kvm — add this user to the kvm group and log in again',
+        }
+      }
     }
     try {
       await getSdk()
       return {available: true}
     } catch (error) {
-      return {available: false, reason: error instanceof Error ? error.message : String(error)}
+      return {
+        available: false,
+        code: 'runtime-error',
+        reason: error instanceof Error ? error.message : String(error),
+      }
     }
   }
 

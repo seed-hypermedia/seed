@@ -13,6 +13,7 @@ import {
   CodeExecError,
   createCodeExecutor,
   defaultCodeExecConfig,
+  type CodeExecAvailability,
   type CodeExecConfig,
   type CodeExecutor,
 } from '@/code-exec'
@@ -174,8 +175,8 @@ export class Service {
   }
 
   /** Whether this server offers sandboxed code execution, for client capability display. */
-  async codeExecCapability(): Promise<boolean> {
-    return (await this.#codeExec.availability()).available
+  async codeExecAvailability(): Promise<CodeExecAvailability> {
+    return await this.#codeExec.availability()
   }
 
   /** Verifies and dispatches a signed action envelope. */

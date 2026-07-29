@@ -141,18 +141,22 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 
   const options = () => new Response(null, {status: 204, headers: corsHeaders()})
   const buildInfo = getBuildInfo()
-  const health = async () =>
-    Response.json(
+  const health = async () => {
+    const codeExec = await svc.codeExecAvailability()
+    return Response.json(
       {
         status: 'ok',
         uptime: process.uptime(),
         version: buildInfo.version,
         hmServerUrl: svc.hmServerUrl,
         webTools: svc.webToolCapabilities(),
-        codeExec: await svc.codeExecCapability(),
+        codeExec: codeExec.available,
+        codeExecReason: codeExec.reason,
+        codeExecReasonCode: codeExec.code,
       },
       {headers: corsHeaders()},
     )
+  }
   const version = () => Response.json(buildInfo, {headers: corsHeaders()})
   return {
     '/api/message': {OPTIONS: options, POST: message},

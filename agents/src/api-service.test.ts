@@ -298,7 +298,7 @@ describe('api service', () => {
           },
         },
       })
-      expect(await enabled.codeExecCapability()).toBe(true)
+      expect((await enabled.codeExecAvailability()).available).toBe(true)
       const disabled = new apisvc.Service(db, dataDir, {
         codeExecutor: {
           enabled: false,
@@ -308,7 +308,9 @@ describe('api service', () => {
           },
         },
       })
-      expect(await disabled.codeExecCapability()).toBe(false)
+      const unavailable = await disabled.codeExecAvailability()
+      expect(unavailable.available).toBe(false)
+      expect(unavailable.reason).toBe('disabled')
     } finally {
       db.close()
       cleanup()
