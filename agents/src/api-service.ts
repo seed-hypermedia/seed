@@ -174,8 +174,8 @@ export class Service {
   }
 
   /** Whether this server offers sandboxed code execution, for client capability display. */
-  codeExecCapability(): boolean {
-    return this.#codeExec.enabled
+  async codeExecCapability(): Promise<boolean> {
+    return (await this.#codeExec.availability()).available
   }
 
   /** Verifies and dispatches a signed action envelope. */
@@ -1309,7 +1309,9 @@ export class Service {
       ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory, and memory_upload_ipfs to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content.' +
         (stateDir ? memoryListingPrompt(stateDir) : '')
       : ''
-    const execEnabled = (definition.tools ?? []).includes(seedToolRegistry.execute_code.name)
+    const execEnabled =
+      (definition.tools ?? []).includes(seedToolRegistry.execute_code.name) &&
+      (await this.#codeExec.availability()).available
     const execPrompt = execEnabled
       ? '\n\nYou can run Python or shell code with the execute_code tool. Code runs in an isolated sandbox with your memory mounted at /workspace (the working directory), so reading and writing files there directly reads and writes your persistent memory. Each call is a fresh sandbox: no variables, installed packages, or processes persist between calls — save anything durable as files. The sandbox has internet access, so you can install packages and fetch data, but it cannot reach private/local network addresses. To keep Python packages across calls, install them into the workspace, e.g. `pip install --target /workspace/pylibs <pkg>`, then add that directory to sys.path in later calls.'
       : ''
@@ -1382,6 +1384,9 @@ export class Service {
     const resourceLoader = createSeedPiResourceLoader(
       await this.#agentSystemPrompt(accountId, definition, agentStateDir),
     )
+    // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
+    // (unsupported platform, missing runtime) so the model never sees a tool that can only fail.
+    const codeExecAvailable = (await this.#codeExec.availability()).available
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -1429,7 +1434,7 @@ export class Service {
             tool === seedToolRegistry.memory_delete.name ||
             tool === seedToolRegistry.memory_download.name ||
             tool === seedToolRegistry.memory_upload_ipfs.name ||
-            tool === seedToolRegistry.execute_code.name,
+            (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
         ),
         seedToolRegistry.set_session_title.name,
       ],

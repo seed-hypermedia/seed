@@ -286,20 +286,29 @@ describe('api service', () => {
     }
   })
 
-  test('reports the code-execution capability from config and injected executors', () => {
+  test('reports the code-execution capability from injected executors', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {
-      const enabled = new apisvc.Service(db, dataDir)
-      expect(enabled.codeExecCapability()).toBe(true)
+      const enabled = new apisvc.Service(db, dataDir, {
+        codeExecutor: {
+          enabled: true,
+          availability: async () => ({available: true}),
+          execute: async () => {
+            throw new Error('unused')
+          },
+        },
+      })
+      expect(await enabled.codeExecCapability()).toBe(true)
       const disabled = new apisvc.Service(db, dataDir, {
         codeExecutor: {
           enabled: false,
+          availability: async () => ({available: false, reason: 'disabled'}),
           execute: async () => {
             throw new Error('disabled')
           },
         },
       })
-      expect(disabled.codeExecCapability()).toBe(false)
+      expect(await disabled.codeExecCapability()).toBe(false)
     } finally {
       db.close()
       cleanup()

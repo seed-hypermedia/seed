@@ -141,7 +141,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 
   const options = () => new Response(null, {status: 204, headers: corsHeaders()})
   const buildInfo = getBuildInfo()
-  const health = () =>
+  const health = async () =>
     Response.json(
       {
         status: 'ok',
@@ -149,7 +149,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         version: buildInfo.version,
         hmServerUrl: svc.hmServerUrl,
         webTools: svc.webToolCapabilities(),
-        codeExec: svc.codeExecCapability(),
+        codeExec: await svc.codeExecCapability(),
       },
       {headers: corsHeaders()},
     )
@@ -384,6 +384,28 @@ function toBytes(value: Uint8Array | ArrayBuffer): Uint8Array {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes('--exec-selfcheck')) {
+    // Verifies the microsandbox SDK is loadable through the same path execute_code uses. The SDK
+    // is external to the compiled binary and staged on disk by build-binary.ts, so this catches
+    // packaging regressions (missing node_modules, wrong platform package) in --smoke and CI.
+    try {
+      const {loadMicrosandbox} = await import('@/code-exec')
+      await loadMicrosandbox()
+      // When the staged runtime layout is present (compiled binary), the loader must have
+      // resolved the msb helper from it — otherwise execute_code would fail at sandbox boot.
+      const stagedModules = filepath.join(filepath.dirname(process.execPath), 'node_modules')
+      if (fs.existsSync(stagedModules) && !process.env.MSB_PATH) {
+        console.error('exec-selfcheck: staged node_modules present but no msb helper was found in it')
+        process.exit(1)
+      }
+      console.log(`exec-selfcheck: SDK loaded; msb=${process.env.MSB_PATH ?? '(binding-relative)'}`)
+      process.exit(0)
+    } catch (error) {
+      console.error(`exec-selfcheck: ${error instanceof Error ? error.message : String(error)}`)
+      process.exit(1)
+    }
+  }
+
   const cfg = config.create(config.parseArgs())
   const result = sqlite.open(cfg.dbPath)
 

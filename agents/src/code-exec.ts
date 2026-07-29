@@ -157,10 +157,15 @@ export type SandboxLike = {
   kill(): Promise<void>
 }
 
+/** Result of probing whether code execution can actually work on this host. */
+export type CodeExecAvailability = {available: boolean; reason?: string}
+
 /** Executes code in sandboxes for agent memory workspaces. */
 export type CodeExecutor = {
   /** Whether this server is configured to offer code execution. */
   enabled: boolean
+  /** Whether execution can actually work here: config, platform support, loadable runtime. Memoized. */
+  availability(): Promise<CodeExecAvailability>
   execute(request: CodeExecRequest): Promise<CodeExecResult>
 }
 
@@ -190,7 +195,51 @@ export function defaultCodeExecConfig(): CodeExecConfig {
   }
 }
 
-const loadMicrosandbox = async (): Promise<SandboxSdk> => (await import('microsandbox')) as unknown as SandboxSdk
+/**
+ * Loads the microsandbox SDK. The package is `external` in the compiled binary (its napi binding,
+ * `msb` helper, and libkrunfw cannot live inside the bundle), and build-binary.ts stages it into
+ * `node_modules/` next to the executable. The plain import covers dev mode and cwd-based
+ * resolution; the explicit require covers the compiled binary when the bare specifier resolves
+ * against the bundle's virtual filesystem instead of the staged copy.
+ */
+/**
+ * Points MSB_PATH / MSB_LIBKRUNFW_PATH at the runtime binaries staged next to the executable.
+ * In dev the napi binding finds them inside the platform package on its own; in the compiled
+ * binary that package sits in the staged node_modules, and the env override is the reliable way
+ * to reference it. Explicit env set by the operator always wins.
+ */
+const pointAtStagedRuntime = (path: typeof import('node:path'), stagedModules: string) => {
+  const platformDir = path.join(stagedModules, '@superradcompany')
+  if (!fs.existsSync(platformDir)) return
+  for (const pkg of fs.readdirSync(platformDir)) {
+    const msb = path.join(platformDir, pkg, 'bin', process.platform === 'win32' ? 'msb.exe' : 'msb')
+    if (!process.env.MSB_PATH && fs.existsSync(msb)) process.env.MSB_PATH = msb
+    const libDir = path.join(platformDir, pkg, 'lib')
+    if (!process.env.MSB_LIBKRUNFW_PATH && fs.existsSync(libDir)) {
+      const lib = fs.readdirSync(libDir).find((f) => f.startsWith('libkrunfw'))
+      if (lib) process.env.MSB_LIBKRUNFW_PATH = path.join(libDir, lib)
+    }
+  }
+}
+
+export const loadMicrosandbox = async (): Promise<SandboxSdk> => {
+  const path = await import('node:path')
+  const stagedModules = path.join(path.dirname(process.execPath), 'node_modules')
+  try {
+    if (fs.existsSync(stagedModules)) pointAtStagedRuntime(path, stagedModules)
+    return (await import('microsandbox')) as unknown as SandboxSdk
+  } catch (importError) {
+    // The package declares only an `import` export condition, so the staged copy must be loaded
+    // by file URL (bare-specifier resolution inside the compiled binary stops at the bundle).
+    try {
+      const {pathToFileURL} = await import('node:url')
+      const staged = path.join(stagedModules, 'microsandbox', 'dist', 'index.js')
+      return (await import(pathToFileURL(staged).href)) as unknown as SandboxSdk
+    } catch {
+      throw importError
+    }
+  }
+}
 
 /**
  * Creates the code executor for a service. `loadSdk` is injectable for tests; the real SDK is
@@ -214,8 +263,28 @@ export function createCodeExecutor(
     return sdkPromise
   }
 
+  // Availability cannot change during the process lifetime (platform, staged runtime, config are
+  // all fixed at startup), so the probe result is memoized including failures.
+  let availabilityPromise: Promise<CodeExecAvailability> | undefined
+  const probeAvailability = async (): Promise<CodeExecAvailability> => {
+    if (config.backend !== 'microsandbox') return {available: false, reason: 'Code execution is disabled by configuration'}
+    if (process.platform === 'darwin' && process.arch !== 'arm64') {
+      return {available: false, reason: 'microsandbox has no native build for Intel macOS'}
+    }
+    if (process.platform === 'linux' && !fs.existsSync('/dev/kvm')) {
+      return {available: false, reason: 'KVM (/dev/kvm) is not available on this host'}
+    }
+    try {
+      await getSdk()
+      return {available: true}
+    } catch (error) {
+      return {available: false, reason: error instanceof Error ? error.message : String(error)}
+    }
+  }
+
   return {
     enabled: config.backend === 'microsandbox',
+    availability: () => (availabilityPromise ??= probeAvailability()),
     async execute(request) {
       if (config.backend !== 'microsandbox') {
         throw new CodeExecError(400, 'Code execution is not enabled on this server')

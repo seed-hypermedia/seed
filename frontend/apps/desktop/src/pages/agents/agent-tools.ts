@@ -25,14 +25,16 @@ export const AGENT_MEMORY_TOOL_GROUP = [
 
 /**
  * Tools granted to a newly created agent: full read access, web search/read, persistent
- * memory, and write, so the agent can research, remember, and publish as its own
- * auto-created account without extra setup.
+ * memory, write, and sandboxed code execution, so the agent can research, remember, compute,
+ * and publish as its own auto-created account without extra setup. The server silently drops
+ * execute_code from sessions when the host cannot run sandboxes.
  */
 export const DEFAULT_AGENT_TOOLS = [
   ...AGENT_READ_TOOL_GROUP,
   ...AGENT_WEB_TOOL_GROUP,
   ...AGENT_MEMORY_TOOL_GROUP,
   AGENT_WRITE_TOOL,
+  seedToolRegistry.execute_code.name,
 ]
 
 /** Tool that lets an agent run sandboxed code inside its memory workspace. */
