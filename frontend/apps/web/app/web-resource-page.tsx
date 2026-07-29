@@ -577,7 +577,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   const onRestoreDocumentVersion = useCallback(
     async (id: UnpackedHypermediaId, selectedVersion: HMDocument) => {
-      if (!effectiveCanEdit || !signingAccountId) {
+      if (!effectiveCanEdit || !signingAccountId || !canWriteDocument(id)) {
         toast.error('You do not have permission to restore this document')
         return
       }
@@ -607,7 +607,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         throw error
       }
     },
-    [effectiveCanEdit, effectiveCapabilityCid, route, signingAccountId, universalClient],
+    [canWriteDocument, effectiveCanEdit, effectiveCapabilityCid, route, signingAccountId, universalClient],
   )
 
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)

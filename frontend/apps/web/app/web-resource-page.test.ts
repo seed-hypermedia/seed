@@ -9,6 +9,10 @@ describe('WebResourcePage restore action wiring', () => {
     expect(source).toContain(
       'onRestoreDocumentVersion={effectiveCanEdit && signingAccountId ? onRestoreDocumentVersion : undefined}',
     )
+    expect(source).toContain('if (!effectiveCanEdit || !signingAccountId || !canWriteDocument(id))')
+    expect(source).toContain(
+      '[canWriteDocument, effectiveCanEdit, effectiveCapabilityCid, route, signingAccountId, universalClient]',
+    )
   })
 
   it('opens the move dialog with draft context for unpublished draft routes', () => {

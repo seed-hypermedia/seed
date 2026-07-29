@@ -81,6 +81,7 @@ export function isSelectedDocUpdateVersion(
 export function canShowRestoreVersionButton(input: {
   isSingleResource?: boolean
   selectedAccountUid?: string
+  selectedAccountCanWriteDocument?: boolean
   latestVersion?: string | null
   eventVersion?: string
   hasRestoreAction?: boolean
@@ -88,6 +89,7 @@ export function canShowRestoreVersionButton(input: {
   return !!(
     input.isSingleResource &&
     input.selectedAccountUid &&
+    input.selectedAccountCanWriteDocument &&
     input.latestVersion &&
     input.eventVersion &&
     input.hasRestoreAction &&
@@ -503,9 +505,11 @@ function EventHeaderContent({
 
   if (event.type == 'doc-update') {
     const docUpdateHeadCount = getVersionHeads(event.document.version).length
+    const selectedAccountCanWriteDocument = !!documentActions.canWriteDocument?.(event.docId)
     const canRestore = canShowRestoreVersionButton({
       isSingleResource,
       selectedAccountUid: documentActions.selectedAccountUid,
+      selectedAccountCanWriteDocument,
       latestVersion,
       eventVersion: event.document.version,
       hasRestoreAction: !!documentActions.onRestoreDocumentVersion,

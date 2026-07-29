@@ -80,16 +80,30 @@ describe('restore version action helpers', () => {
     })
   })
 
-  it('allows restore when the provider exposes a selected account and restore action', () => {
+  it('allows restore when the provider exposes a selected account that can write and a restore action', () => {
     expect(
       canShowRestoreVersionButton({
         isSingleResource: true,
         selectedAccountUid: 'writer',
+        selectedAccountCanWriteDocument: true,
         latestVersion: 'latest-version',
         eventVersion: 'old-version',
         hasRestoreAction: true,
       }),
     ).toBe(true)
+  })
+
+  it('does not allow restore when the selected account cannot write the document', () => {
+    expect(
+      canShowRestoreVersionButton({
+        isSingleResource: true,
+        selectedAccountUid: 'reader',
+        selectedAccountCanWriteDocument: false,
+        latestVersion: 'latest-version',
+        eventVersion: 'old-version',
+        hasRestoreAction: true,
+      }),
+    ).toBe(false)
   })
 
   it('keeps version action buttons the same size while making their icons readable', () => {

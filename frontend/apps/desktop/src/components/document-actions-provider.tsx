@@ -221,6 +221,10 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
         toast.error('Select an account before restoring a version')
         return
       }
+      if (!canWriteDocument(id)) {
+        toast.error('You do not have permission to restore this document')
+        return
+      }
       if (!universalClient.publishDocument) {
         toast.error('Restore is not available in this client')
         return
@@ -283,7 +287,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
         throw error
       }
     },
-    [currentRoute, getDraftId, navigate, selectedAccountId, universalClient],
+    [canWriteDocument, currentRoute, getDraftId, navigate, selectedAccountId, universalClient],
   )
 
   const value = useMemo(
