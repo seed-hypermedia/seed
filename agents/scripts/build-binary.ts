@@ -169,9 +169,19 @@ async function smokeTest(binary: string): Promise<void> {
     ],
     {cwd: outdir, stdout: 'pipe', stderr: 'pipe'},
   )
+  let exitCode: number | null = null
+  server.exited.then((code) => {
+    exitCode = code
+  })
   try {
     let lastError: unknown
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    // Windows CI can hold a fresh unsigned exe behind a Defender scan on first launch,
+    // so the window is generous.
+    const deadline = Date.now() + 45_000
+    while (Date.now() < deadline) {
+      if (exitCode !== null) {
+        throw new Error(`Compiled binary exited with code ${exitCode} before becoming healthy`)
+      }
       try {
         const response = await fetch(`http://127.0.0.1:${port}/agents/api/health`)
         const body: any = response.ok ? await response.json() : null
@@ -192,6 +202,7 @@ async function smokeTest(binary: string): Promise<void> {
     const [stdout, stderr] = await Promise.all([new Response(server.stdout).text(), new Response(server.stderr).text()])
     if (stdout.trim()) console.log(stdout.trim())
     if (stderr.trim()) console.error(stderr.trim())
+    if (!stdout.trim() && !stderr.trim()) console.error('(server produced no output)')
     await rm(dataDir, {recursive: true, force: true})
   }
 }
