@@ -1,4 +1,7 @@
 export * from './tool-registry'
+export * from './reasoning'
+
+import type {ReasoningLevel} from './reasoning'
 
 /** Shared options for Seed assistant/agent system prompt construction. */
 export type SeedAssistantPromptOptions = {
@@ -39,6 +42,12 @@ export type AgentDefinition = {
   systemPrompt: string | AgentPromptBlock[]
   modelProvider: string
   model: string
+  /**
+   * Reasoning level for reasoning-capable models. Must be one of the levels
+   * `modelReasoningSupport` reports for the model. Absent means off (or the
+   * provider default when reasoning cannot be disabled).
+   */
+  reasoningLevel?: ReasoningLevel
   tools?: string[]
   signingKey?: string
   signingKeys?: string[]

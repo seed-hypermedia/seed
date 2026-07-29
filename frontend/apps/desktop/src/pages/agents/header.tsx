@@ -6,6 +6,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {Button} from '@shm/ui/button'
 import {Badge} from '@shm/ui/components/badge'
 import {PageTab} from '@shm/ui/page-tabs'
+import {ReasoningBadge} from './reasoning-select'
 import {SizableText} from '@shm/ui/text'
 import {
   ArrowLeft,
@@ -293,6 +294,7 @@ export function AgentHeader({
                 {agent.definition.model}
               </Badge>
             ) : null}
+            {agent ? <ReasoningBadge level={agent.definition.reasoningLevel} /> : null}
             {activeTab === 'sessions' && onCreateSession ? (
               <Button onClick={onCreateSession} disabled={creatingSession}>
                 <MessageSquarePlus className="mr-2 size-4" /> New session

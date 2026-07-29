@@ -61,7 +61,9 @@ import {
 import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
 import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
+import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {ModelSelect} from './model-select'
+import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
 import {curateProviderModels, pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
 import {ProviderSelect} from './provider-select'
@@ -100,6 +102,7 @@ function AgentDetailPage({
   const [name, setName] = useState('')
   const [modelProvider, setModelProvider] = useState('')
   const [model, setModel] = useState('')
+  const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
   const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProvider)
   const selectedProviderType = modelProviders.data?.find((provider) => provider.name === modelProvider)?.type
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>([])
@@ -118,6 +121,7 @@ function AgentDetailPage({
       setName(agent.data.agent.definition.name)
       setModel(agent.data.agent.definition.model)
       setModelProvider(agent.data.agent.definition.modelProvider)
+      setReasoningLevel(agent.data.agent.definition.reasoningLevel)
     }
     if (!promptDirty) {
       const nextPromptKey = agentPromptStableKey(agent.data.agent.definition.systemPrompt)
@@ -141,6 +145,7 @@ function AgentDetailPage({
     if (nextProvider === modelProvider) return
     setModelProvider(nextProvider)
     setModel('') // belongs to the previous provider; the effect above picks a new default
+    setReasoningLevel(undefined)
     setNameModelDirty(true)
   }
 
@@ -194,7 +199,13 @@ function AgentDetailPage({
     const persistedName = currentDefinition.name
     const persistedModel = currentDefinition.model
     const persistedProvider = currentDefinition.modelProvider
-    if (draftName === persistedName && model === persistedModel && modelProvider === persistedProvider) {
+    const draftReasoningLevel = coerceReasoningLevel(selectedProviderType, model, reasoningLevel)
+    if (
+      draftName === persistedName &&
+      model === persistedModel &&
+      modelProvider === persistedProvider &&
+      draftReasoningLevel === currentDefinition.reasoningLevel
+    ) {
       setSettingsSaveState('idle')
       return
     }
@@ -204,10 +215,14 @@ function AgentDetailPage({
     const timer = setTimeout(
       () => {
         setSettingsSaveState('saving')
+        const nextDefinition = {...currentDefinition, name: draftName, model, modelProvider}
+        // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
+        if (draftReasoningLevel) nextDefinition.reasoningLevel = draftReasoningLevel
+        else delete nextDefinition.reasoningLevel
         void updateAgent
           .mutateAsync({
             agentId,
-            definition: {...currentDefinition, name: draftName, model, modelProvider},
+            definition: nextDefinition,
           })
           .then((result) => {
             if (settingsSaveIdRef.current !== saveId) return
@@ -215,6 +230,7 @@ function AgentDetailPage({
             setName(result.agent.definition.name)
             setModel(result.agent.definition.model)
             setModelProvider(result.agent.definition.modelProvider)
+            setReasoningLevel(result.agent.definition.reasoningLevel)
             if (!promptDirty) {
               loadedPromptKeyRef.current = agentPromptStableKey(result.agent.definition.systemPrompt)
               setSystemPrompt(agentPromptToBlocks(result.agent.definition.systemPrompt))
@@ -235,7 +251,17 @@ function AgentDetailPage({
       model === persistedModel ? 600 : 0,
     )
     return () => clearTimeout(timer)
-  }, [agent.data, agentId, model, modelProvider, name, promptDirty, updateAgent.mutateAsync])
+  }, [
+    agent.data,
+    agentId,
+    model,
+    modelProvider,
+    name,
+    reasoningLevel,
+    selectedProviderType,
+    promptDirty,
+    updateAgent.mutateAsync,
+  ])
 
   const promptEditorDisabled = !selectedAccountId || serverHealth.isError || agent.isError
 
@@ -453,6 +479,7 @@ function AgentDetailPage({
                         value={model}
                         onChange={(nextModel) => {
                           setModel(nextModel)
+                          setReasoningLevel((level) => coerceReasoningLevel(selectedProviderType, nextModel, level))
                           setNameModelDirty(true)
                         }}
                         isLoading={providerModels.isLoading}
@@ -460,6 +487,22 @@ function AgentDetailPage({
                         error={providerModels.error}
                       />
                     </label>
+                    {selectedProviderType && model && modelReasoningSupport(selectedProviderType, model) ? (
+                      <label className="flex flex-col gap-1">
+                        <SizableText size="sm" weight="bold">
+                          Reasoning
+                        </SizableText>
+                        <ReasoningSelect
+                          providerType={selectedProviderType}
+                          model={model}
+                          value={reasoningLevel}
+                          onChange={(level) => {
+                            setReasoningLevel(level)
+                            setNameModelDirty(true)
+                          }}
+                        />
+                      </label>
+                    ) : null}
                   </div>
                   <div className="flex flex-col gap-2">
                     <SizableText
