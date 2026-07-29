@@ -280,7 +280,11 @@ export function createCodeExecutor(
       return {available: false, code: 'config-disabled', reason: 'Code execution is disabled by configuration'}
     }
     if (process.platform === 'darwin' && process.arch !== 'arm64') {
-      return {available: false, code: 'unsupported-platform', reason: 'microsandbox has no native build for Intel macOS'}
+      return {
+        available: false,
+        code: 'unsupported-platform',
+        reason: 'microsandbox has no native build for Intel macOS',
+      }
     }
     if (process.platform === 'win32') {
       // WinHvPlatform.dll is installed with the "Windows Hypervisor Platform" optional feature,
