@@ -1265,6 +1265,44 @@ func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
 	require.Empty(t, img, "removing the image must clear the derived value")
 }
 
+func TestDeriveFirstContentImageRecoversFromPanic(t *testing.T) {
+	t.Parallel()
+
+	alice := coretest.NewTester("alice").Account
+
+	// A single move op with this many blocks overflows the docmodel's 24-bit op
+	// ID index when the change is applied (the apply loop advances the index
+	// quadratically per block), which panics deep inside ApplyChange. Today's
+	// writer would panic authoring such a change (it re-applies its own ops),
+	// but blobs like this exist in the wild from older writers, and the indexer
+	// derives the fallback cover for every document Ref — including during the
+	// boot-time backfill reindex — so the deriver must surface an error instead
+	// of letting the panic crash the daemon.
+	const numBlocks = 6000
+
+	moved := make([]string, numBlocks)
+	for i := range moved {
+		moved[i] = fmt.Sprintf("b%d", i)
+	}
+
+	ch := &blob.Change{
+		BaseBlob: blob.BaseBlob{
+			Type:   blob.TypeChange,
+			Signer: alice.Principal(),
+			Ts:     time.Now(),
+		},
+		Body: blob.ChangeBody{
+			Ops: []blob.OpMap{blob.NewOpMoveBlocks("", moved, []uint64{0, 0, 0})},
+		},
+	}
+
+	_, err := DeriveFirstContentImage("hm://alice/huge", []blob.ChangeRecord{{
+		CID:  cid.Undef,
+		Data: ch,
+	}})
+	require.ErrorContains(t, err, "idx too big")
+}
+
 func TestUpdateReadStatus(t *testing.T) {
 	t.Parallel()
 

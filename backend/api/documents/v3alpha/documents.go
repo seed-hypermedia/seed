@@ -98,7 +98,21 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 // The changes are supplied by the indexer (already loaded on its transaction's
 // connection), so this does no database I/O and is safe to call mid-indexing.
 // It mirrors loadDocument's in-memory build but never touches the pool.
-func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (string, error) {
+func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link string, err error) {
+	// The docmodel panics on changes it considers impossible, but such changes
+	// exist in the wild: a single move op with ~5.8k+ blocks overflows the op ID
+	// index (the apply loop advances idx quadratically), which panics ApplyChange.
+	// The indexer calls this for every document Ref — including the boot-time
+	// backfill reindex — so an unrecovered panic crash-loops the whole daemon on
+	// one bad blob. Turn panics into errors: the caller logs them and leaves the
+	// field underived, which clients handle by falling back to a content fetch.
+	defer func() {
+		if r := recover(); r != nil {
+			link = ""
+			err = fmt.Errorf("panic while deriving first content image for %s: %v", iri, r)
+		}
+	}()
+
 	if len(changes) == 0 {
 		return "", nil
 	}
