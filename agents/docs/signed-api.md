@@ -83,6 +83,12 @@ Current `AgentAction` union:
 - `CreateAgentTrigger`
 - `UpdateAgentTrigger`
 - `DeleteAgentTrigger`
+- `ListAgentMemory`
+- `ReadAgentMemoryFile`
+- `WriteAgentMemoryFile`
+- `DeleteAgentMemoryFile`
+- `DownloadAgentMemoryFile`
+- `UploadAgentMemoryFileToIpfs`
 - `CreateSession`
 - `ListSessions`
 - `UpdateSession`
@@ -391,6 +397,50 @@ Actions:
 
 All trigger actions verify account ownership through the owning agent/trigger rows. `CreateAgentTrigger` supports the
 same `clientRequestId` idempotency pattern as other create actions.
+
+### Agent memory actions
+
+Each agent owns a private memory filesystem at `<stateDir>/memory`, shared with the `memory_*` session tools and shown
+on the desktop Memory tab. All actions validate agent ownership for the signed account, and every path is a sandboxed
+relative path (no absolute paths, no `..`, symlinks refused). Files can be UTF-8 text or binary.
+
+```ts
+type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number; mimeType?: string}
+type AgentMemoryFile = {
+  path: string
+  size: number
+  updatedAt: number
+  mimeType?: string
+  encoding: 'utf8' | 'binary'
+  content?: string // present when encoding is 'utf8'
+  data?: Uint8Array // present when encoding is 'binary'
+}
+```
+
+Actions:
+
+- `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes}`
+  with every file and directory sorted by path.
+- `ReadAgentMemoryFile {agentId, path}` returns `{_: 'ReadAgentMemoryFileResponse'; agentId; file: AgentMemoryFile}`.
+  Small clean-UTF-8 files come back as text; everything else comes back as raw bytes for preview/download in the Memory
+  tab.
+- `WriteAgentMemoryFile {agentId, path, content}` returns `{_: 'WriteAgentMemoryFileResponse'; agentId; entry}` after
+  writing the full file content, creating parent directories as needed. `content` may be a string (UTF-8 text) or
+  `Uint8Array` bytes (e.g. a local file uploaded from the Memory tab). Writes, downloads, and deletes emit an
+  `account-change` event with reason `agent-memory-changed`, which is also fanned out to `agents/<agentId>` WebSocket
+  subscribers so open Memory tabs refresh.
+- `DeleteAgentMemoryFile {agentId, path}` returns `{_: 'DeleteAgentMemoryFileResponse'; agentId; path; deleted}` and
+  removes a file, or a directory recursively; `deleted` is false when nothing existed.
+- `DownloadAgentMemoryFile {agentId, url, path?}` server-side fetches a public http(s) URL into memory (streamed,
+  size-capped) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`. Omitting
+  `path` stores the file under `downloads/` named from the URL; extension-less paths gain an extension from the response
+  content type.
+- `UploadAgentMemoryFileToIpfs {agentId, path}` uploads the file to the HM server's `/ipfs/file-upload` endpoint and
+  returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the
+  `ipfs://<cid>` URL usable from Hypermedia content. Publishing makes the file publicly retrievable.
+
+Limits (see `agents/src/agent-memory.ts`): 1 MiB per text write, 100 MiB per file, 1 GiB per agent, 2000 entries,
+512-byte paths, 16 levels of nesting.
 
 ### `CreateSession`
 

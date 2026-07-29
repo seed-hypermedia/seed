@@ -40,6 +40,9 @@ Completed and usable locally:
 - `read` using shared Seed Hypermedia URL resolution;
 - `web_search` and `web_read` web research tools: self-hosted SearXNG search plus a tiered MediaWiki → in-process static
   (Readability + Turndown) → Crawl4AI reader, with no third-party API keys;
+- per-agent persistent memory filesystem: sandboxed `memory_*` session tools (list/read/write/delete plus web download
+  and IPFS publish), binary/media file support, signed agent-memory actions, and a desktop Memory tab with editing,
+  media previews, on-demand downloads, local-file upload, URL download, and IPFS publishing;
 - per-agent tool toggles plus server-side HM account-key creation/selection for signing/publishing tools;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;
@@ -94,6 +97,8 @@ Agents service:
   subscription verification.
 - `agents/src/web-tools.ts` — self-hosted `web_search` (SearXNG) and tiered `web_read` (MediaWiki/static/Crawl4AI)
   implementations.
+- `agents/src/agent-memory.ts` — sandboxed per-agent memory filesystem shared by the `memory_*` tools and the signed
+  agent-memory actions.
 - `agents/src/auth.ts` — signed envelope verification and local account authorization.
 - `agents/src/sqlite.ts` — open/schema validation/migration gate.
 - `agents/src/sqlite-schema.sql` — canonical schema.
@@ -108,7 +113,8 @@ Desktop:
 - `frontend/apps/desktop/src/models/agents.ts` — React Query hooks, server settings, CRUD actions, signed WS
   subscription hook, partial streaming state.
 - `frontend/apps/desktop/src/pages/agents.tsx` — compatibility entry that renders the Agents list route.
-- `frontend/apps/desktop/src/pages/agents/` — separate Agents list, server, detail, session, and shared dialog modules.
+- `frontend/apps/desktop/src/pages/agents/` — separate Agents list, server, detail, session, memory-tab, and shared
+  dialog modules.
 - `frontend/apps/desktop/src/components/assistant-panel.tsx` — desktop assistant panel, also using shared chat
   rendering.
 - `frontend/apps/desktop/src/components/assistant-message-rendering.tsx` — shared user/assistant message, markdown,

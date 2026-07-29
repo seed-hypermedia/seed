@@ -457,6 +457,15 @@ async function main(): Promise<void> {
           key: `account/${event.accountId}`,
           value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId},
         })
+        // Memory writes happen mid-session with no agent-change event, so also notify
+        // agent-page subscribers watching the Memory tab.
+        if (event.reason === 'agent-memory-changed' && event.agentId) {
+          sendIfSubscribed(ws, `agents/${event.agentId}`, {
+            _: 'change',
+            key: `account/${event.accountId}`,
+            value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId},
+          })
+        }
       }
     }
   }
@@ -474,6 +483,8 @@ async function main(): Promise<void> {
   const server = serve({
     port: cfg.http.port,
     hostname: cfg.http.hostname,
+    // Agent memory accepts files of any size, so uploads must not hit Bun's 128MB default cap.
+    maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     development: !isProd && {
       hmr: true,
       console: true,

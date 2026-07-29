@@ -42,6 +42,10 @@ export type ModelProviderInfo = AgentsProtocol.RedactedModelProvider
 export type ModelProviderConfig = AgentsProtocol.ModelProviderConfig
 /** Public model metadata returned by the agents service. */
 export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
+/** One file or directory inside an agent's private memory filesystem. */
+export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
+/** Contents of one agent memory file. */
+export type AgentMemoryFile = AgentsProtocol.AgentMemoryFile
 /** Public metadata for a server-side Seed account key secret. */
 export type SigningIdentity = AgentsProtocol.SigningIdentity
 /** Avatar image payload for updating an agent account profile. */

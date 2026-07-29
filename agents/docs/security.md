@@ -159,6 +159,27 @@ Mitigations present:
 - failures degrade to `tool_result.error` (or a `degraded` flag for partial search), never silent fabrication;
 - no third-party API keys or outbound calls beyond SearXNG, the target site, and the optional Crawl4AI container.
 
+## Agent memory safety
+
+Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory to model-controlled tool input, so path
+handling is strict:
+
+- every path is validated before use: string-only, no null bytes, no `..` segments, backslashes normalized, depth and
+  length bounded, and the resolved absolute path is re-verified to sit inside `<stateDir>/memory`;
+- symlinks are refused as read/write targets and skipped in listings, so memory operations cannot follow a planted link
+  out of the sandbox;
+- size limits (1 MiB per text write, 100 MiB per file, 1 GiB per agent, 2000 entries) bound disk usage from runaway
+  model writes and downloads; downloads are streamed and aborted at the cap;
+- ownership is checked through the agent row before any filesystem operation, so accounts cannot touch other accounts'
+  memory;
+- `memory_download` fetches model-chosen URLs server-side with the same open-fetch policy as `web_read`; it shares that
+  tool's SSRF exposure (no private-address blocking yet), which is tracked as web-tool hardening;
+- binary memory files are never sent to the model — `memory_read` returns metadata only for binary content — but their
+  raw bytes are returned to the owning user over the signed API for preview/download;
+- `memory_upload_ipfs` / `UploadAgentMemoryFileToIpfs` publish the file to IPFS through the HM server, making it
+  publicly retrievable by CID; treat publishing as irreversible disclosure;
+- memory content is model-visible and user-visible by design; do not store secrets in agent memory.
+
 ## Replay protection status
 
 Implemented:

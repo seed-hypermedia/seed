@@ -8,6 +8,7 @@ import {
   type SeedToolMetadata,
 } from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
+import * as agentMemory from '@/agent-memory'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
@@ -221,6 +222,28 @@ export class Service {
         return this.#updateAgentTrigger(verified.accountId, envelope.action.triggerId, envelope.action.patch)
       case 'DeleteAgentTrigger':
         return this.#deleteAgentTrigger(verified.accountId, envelope.action.triggerId)
+      case 'ListAgentMemory':
+        return this.#listAgentMemory(verified.accountId, envelope.action.agentId)
+      case 'ReadAgentMemoryFile':
+        return this.#readAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
+      case 'WriteAgentMemoryFile':
+        return this.#writeAgentMemoryFile(
+          verified.accountId,
+          envelope.action.agentId,
+          envelope.action.path,
+          envelope.action.content,
+        )
+      case 'DeleteAgentMemoryFile':
+        return this.#deleteAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
+      case 'DownloadAgentMemoryFile':
+        return this.#downloadAgentMemoryFile(
+          verified.accountId,
+          envelope.action.agentId,
+          envelope.action.url,
+          envelope.action.path,
+        )
+      case 'UploadAgentMemoryFileToIpfs':
+        return this.#uploadAgentMemoryFileToIpfs(verified.accountId, envelope.action.agentId, envelope.action.path)
       case 'CreateSession':
         return this.#createSession(
           verified.accountId,
@@ -805,6 +828,84 @@ export class Service {
     return {_: 'DeleteAgentResponse', agentId}
   }
 
+  /** Returns the memory state directory for an agent owned by the account, or throws 404. */
+  #agentMemoryStateDir(accountId: string, agentId: string): string {
+    const agent = this.#getAgentInfo(accountId, agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    return agent.stateDir
+  }
+
+  #listAgentMemory(accountId: string, agentId: string): api.ListAgentMemoryResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const {entries, totalBytes} = withMemoryErrors(() => agentMemory.listMemory(stateDir))
+    return {_: 'ListAgentMemoryResponse', agentId, entries, totalBytes}
+  }
+
+  #readAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.ReadAgentMemoryFileResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(stateDir, filePath))
+    return {_: 'ReadAgentMemoryFileResponse', agentId, file}
+  }
+
+  #writeAgentMemoryFile(
+    accountId: string,
+    agentId: string,
+    filePath: string,
+    content: string | Uint8Array,
+  ): api.WriteAgentMemoryFileResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(stateDir, filePath, content))
+    this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    return {_: 'WriteAgentMemoryFileResponse', agentId, entry}
+  }
+
+  async #downloadAgentMemoryFile(
+    accountId: string,
+    agentId: string,
+    url: string,
+    filePath?: string,
+  ): Promise<api.DownloadAgentMemoryFileResponse> {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const result = await withMemoryErrorsAsync(() => agentMemory.downloadToMemory(stateDir, url, filePath))
+    this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    return {
+      _: 'DownloadAgentMemoryFileResponse',
+      agentId,
+      entry: result.entry,
+      finalUrl: result.finalUrl,
+      contentType: result.contentType,
+    }
+  }
+
+  async #uploadAgentMemoryFileToIpfs(
+    accountId: string,
+    agentId: string,
+    filePath: string,
+  ): Promise<api.UploadAgentMemoryFileToIpfsResponse> {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(stateDir, filePath))
+    const bytes =
+      file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
+    const fileName = file.path.split('/').at(-1) || 'file'
+    const {cid, url} = await uploadBytesToHmIpfs(this.#hmServerUrl, bytes, file.mimeType, fileName)
+    return {
+      _: 'UploadAgentMemoryFileToIpfsResponse',
+      agentId,
+      path: file.path,
+      cid,
+      url,
+      size: file.size,
+      mimeType: file.mimeType,
+    }
+  }
+
+  #deleteAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.DeleteAgentMemoryFileResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(stateDir, filePath))
+    if (result.deleted) this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    return {_: 'DeleteAgentMemoryFileResponse', agentId, path: result.path, deleted: result.deleted}
+  }
+
   #listAgentTriggers(accountId: string, agentId: string): api.ListAgentTriggersResponse {
     this.#requireAgent(accountId, agentId)
     const rows = this.#db
@@ -1164,7 +1265,8 @@ export class Service {
     return `${accountId}/${sessionId}`
   }
 
-  async #agentSystemPrompt(accountId: string, definition: api.AgentDefinition): Promise<string> {
+  /** Builds the model-facing system prompt; `stateDir` enables the automatic memory listing. */
+  async #agentSystemPrompt(accountId: string, definition: api.AgentDefinition, stateDir?: string): Promise<string> {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
     const systemPrompt = await promptBlocksToResolvedMarkdown(
       normalizeSystemPromptBlocks(definition.systemPrompt),
@@ -1174,7 +1276,20 @@ export class Service {
       currentTime: new Date().toISOString(),
       includeTitleToolInstruction: true,
     })
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}`
+    const memoryToolNames = [
+      seedToolRegistry.memory_list.name,
+      seedToolRegistry.memory_read.name,
+      seedToolRegistry.memory_write.name,
+      seedToolRegistry.memory_delete.name,
+      seedToolRegistry.memory_download.name,
+      seedToolRegistry.memory_upload_ipfs.name,
+    ]
+    const memoryEnabled = (definition.tools ?? []).some((tool) => memoryToolNames.includes(tool))
+    const memoryPrompt = memoryEnabled
+      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory, and memory_upload_ipfs to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content.' +
+        (stateDir ? memoryListingPrompt(stateDir) : '')
+      : ''
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -1239,7 +1354,10 @@ export class Service {
 
     const cwd = this.#dataDir
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}})
-    const resourceLoader = createSeedPiResourceLoader(await this.#agentSystemPrompt(accountId, definition))
+    const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
+    const resourceLoader = createSeedPiResourceLoader(
+      await this.#agentSystemPrompt(accountId, definition, agentStateDir),
+    )
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -1255,6 +1373,9 @@ export class Service {
         definition,
         hmServerUrl: this.#hmServerUrl,
         web: this.#web,
+        stateDir: agentStateDir,
+        onMemoryChange: () =>
+          this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId}),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
       }),
       tools: [
@@ -1265,7 +1386,13 @@ export class Service {
             tool === seedToolRegistry.list_activity_feed.name ||
             tool === seedToolRegistry.web_search.name ||
             tool === seedToolRegistry.web_read.name ||
-            tool === seedToolRegistry.write.name,
+            tool === seedToolRegistry.write.name ||
+            tool === seedToolRegistry.memory_list.name ||
+            tool === seedToolRegistry.memory_read.name ||
+            tool === seedToolRegistry.memory_write.name ||
+            tool === seedToolRegistry.memory_delete.name ||
+            tool === seedToolRegistry.memory_download.name ||
+            tool === seedToolRegistry.memory_upload_ipfs.name,
         ),
         seedToolRegistry.set_session_title.name,
       ],
@@ -1695,7 +1822,7 @@ export class Service {
       _: 'GetSessionResponse',
       session: sessionRowToInfo(session, triggerContext ?? undefined),
       events: events.map(sessionEventRowToInfo),
-      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, definition),
+      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, definition, agent.state_dir),
       ...(triggerContext ? {triggerContext} : {}),
     }
   }
@@ -2195,23 +2322,42 @@ async function publishSigningIdentityProfile(
 }
 
 /**
- * Uploads raw avatar bytes to the HM node's public IPFS file-upload endpoint and
- * returns the resulting `ipfs://<cid>` URI for use as a profile avatar.
+ * Uploads raw bytes to the HM node's public IPFS file-upload endpoint and returns the resulting
+ * CID plus its `ipfs://<cid>` URI for use in Hypermedia content.
  */
-async function uploadIconToHmNode(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
+async function uploadBytesToHmIpfs(
+  hmServerUrl: string,
+  data: Uint8Array,
+  mimeType?: string,
+  fileName?: string,
+): Promise<{cid: string; url: string}> {
   const formData = new FormData()
-  const blob = new Blob([new Uint8Array(icon.data)], icon.mimeType ? {type: icon.mimeType} : undefined)
-  formData.append('file', blob, icon.fileName || 'icon')
+  const blob = new Blob([new Uint8Array(data)], mimeType ? {type: mimeType} : undefined)
+  formData.append('file', blob, fileName || 'file')
   const response = await fetch(`${hmServerUrl.replace(/\/$/, '')}/ipfs/file-upload`, {
     method: 'POST',
     body: formData,
   })
   if (!response.ok) {
-    throw new Error(`Upload failed with status ${response.status}`)
+    throw new APIError(502, `IPFS upload failed with status ${response.status}`)
   }
   const cid = (await response.text()).trim()
-  if (!cid) throw new Error('Upload returned an empty CID')
-  return `ipfs://${cid}`
+  if (!cid) throw new APIError(502, 'IPFS upload returned an empty CID')
+  return {cid, url: `ipfs://${cid}`}
+}
+
+/**
+ * Uploads raw avatar bytes to the HM node's public IPFS file-upload endpoint and
+ * returns the resulting `ipfs://<cid>` URI for use as a profile avatar.
+ */
+async function uploadIconToHmNode(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
+  const {url} = await uploadBytesToHmIpfs(
+    hmServerUrl,
+    new Uint8Array(icon.data),
+    icon.mimeType,
+    icon.fileName || 'icon',
+  )
+  return url
 }
 
 async function publishSigningIdentityProfileAndHome(
@@ -2249,6 +2395,53 @@ async function publishSigningIdentityProfileAndHome(
       ...refInput.blobs,
     ],
   })
+}
+
+/**
+ * Renders the automatic top-level memory listing appended to memory-enabled system prompts.
+ * Root files and folders only (with contained file counts), so the agent knows what it has
+ * without an explicit memory_list call, while deep folders don't bloat the prompt.
+ */
+function memoryListingPrompt(stateDir: string): string {
+  let summary: ReturnType<typeof agentMemory.summarizeMemoryTopLevel>
+  try {
+    summary = agentMemory.summarizeMemoryTopLevel(stateDir)
+  } catch {
+    return ''
+  }
+  if (!summary.entries.length) {
+    return '\n\n<memory_files>\n(empty)\n</memory_files>\nYour memory is currently empty.'
+  }
+  const lines = summary.entries.map((entry) =>
+    entry.type === 'dir'
+      ? `${entry.name}/ — ${entry.fileCount ?? 0} file${(entry.fileCount ?? 0) === 1 ? '' : 's'}`
+      : `${entry.name} — ${entry.size} bytes`,
+  )
+  return `\n\n<memory_files>\n${lines.join('\n')}\n</memory_files>\nThis is the current top level of your memory (${
+    summary.totalFiles
+  } file${
+    summary.totalFiles === 1 ? '' : 's'
+  } total). Folder contents are not expanded here: use memory_list to see every path and memory_read to read a file.`
+}
+
+/** Reraises agent-memory errors as API errors so they carry an HTTP status. */
+function withMemoryErrors<T>(run: () => T): T {
+  try {
+    return run()
+  } catch (error) {
+    if (error instanceof agentMemory.AgentMemoryError) throw new APIError(error.status, error.message)
+    throw error
+  }
+}
+
+/** Async variant of {@link withMemoryErrors} for downloads. */
+async function withMemoryErrorsAsync<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (error) {
+    if (error instanceof agentMemory.AgentMemoryError) throw new APIError(error.status, error.message)
+    throw error
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -2990,6 +3183,10 @@ type WriteToolContext = {
 type AgentServicePiToolContext = WriteToolContext & {
   setSessionTitle: (title: string) => api.SessionInfo
   web: WebToolsConfig
+  /** Agent state directory holding the private memory filesystem. */
+  stateDir: string
+  /** Called after a memory tool mutates files, so clients watching the Memory tab refresh. */
+  onMemoryChange: () => void
 }
 
 type ResolvedAgentSigner = {
@@ -3135,6 +3332,80 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
       }
     }),
     defineSeedPiTool(seedToolRegistry.write, (params) => writeHypermedia(context, params)),
+    defineSeedPiTool(seedToolRegistry.memory_list, () => {
+      const {entries, totalBytes} = withMemoryErrors(() => agentMemory.listMemory(context.stateDir))
+      const files = entries.filter((entry) => entry.type === 'file')
+      return {
+        summary: files.length
+          ? `Memory holds ${files.length} file${files.length === 1 ? '' : 's'} (${totalBytes} bytes).`
+          : 'Memory is empty.',
+        entries,
+        totalBytes,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_read, (params) => {
+      const input = isRecord(params) ? params : {}
+      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
+      // Raw bytes never go to the model: binary files return metadata only.
+      const {data: _data, ...meta} = file
+      if (file.encoding === 'binary') {
+        return {
+          summary: `${file.path} is a binary file (${file.size} bytes${
+            file.mimeType ? `, ${file.mimeType}` : ''
+          }); content not shown. Use memory_upload_ipfs to publish it for Hypermedia content.`,
+          ...meta,
+        }
+      }
+      return {summary: `Read ${file.path} (${file.size} bytes).`, ...meta}
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_write, (params) => {
+      const input = isRecord(params) ? params : {}
+      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, input.path, input.content))
+      context.onMemoryChange()
+      return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_delete, (params) => {
+      const input = isRecord(params) ? params : {}
+      const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, input.path))
+      if (result.deleted) context.onMemoryChange()
+      return {
+        summary: result.deleted ? `Deleted ${result.path}.` : `Nothing existed at ${result.path}.`,
+        ...result,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_download, async (params) => {
+      const input = isRecord(params) ? params : {}
+      const result = await withMemoryErrorsAsync(() =>
+        agentMemory.downloadToMemory(context.stateDir, input.url, input.path),
+      )
+      context.onMemoryChange()
+      return {
+        summary: `Downloaded ${result.finalUrl} to ${result.entry.path} (${result.entry.size} bytes${
+          result.entry.mimeType ? `, ${result.entry.mimeType}` : ''
+        }).`,
+        path: result.entry.path,
+        size: result.entry.size,
+        mimeType: result.entry.mimeType,
+        finalUrl: result.finalUrl,
+        contentType: result.contentType,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.memory_upload_ipfs, async (params) => {
+      const input = isRecord(params) ? params : {}
+      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
+      const bytes =
+        file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
+      const fileName = file.path.split('/').at(-1) || 'file'
+      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, bytes, file.mimeType, fileName)
+      return {
+        summary: `Uploaded ${file.path} to IPFS as ${url}.`,
+        path: file.path,
+        cid,
+        url,
+        size: file.size,
+        mimeType: file.mimeType,
+      }
+    }),
     defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
       const title = isRecord(params) && typeof params.title === 'string' ? params.title : ''
       console.info('[agents/runtime] set_session_title tool called')

@@ -5,6 +5,33 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Per-agent memory filesystem (`memory_*` tools + Memory tab)
+
+Completed:
+
+- Added `agents/src/agent-memory.ts`: a sandboxed per-agent filesystem at `<stateDir>/memory` with list/read/write/
+  delete operations, strict relative-path validation (no `..`, no absolute paths, symlinks refused), and size limits (1
+  MiB/file, 100 MiB/agent, 2000 entries).
+- Registered a four-tool memory cluster (`memory_list`, `memory_read`, `memory_write`, `memory_delete`) in the shared
+  tool registry and wired it into Pi execution; when enabled, the system prompt tells the model to check memory at task
+  start and store durable learnings.
+- Added signed actions `ListAgentMemory` / `ReadAgentMemoryFile` / `WriteAgentMemoryFile` / `DeleteAgentMemoryFile` so
+  users have the same full access as the agent; writes emit `agent-memory-changed` account-change events, also fanned
+  out to `agents/<agentId>` WebSocket subscribers.
+- Added the desktop Memory tab (`pages/agents/memory.tsx`): file list with inline delete confirmation, monospace editor
+  with Save/Revert, and new-file creation; memory tools are part of `DEFAULT_AGENT_TOOLS` and toggleable as a Tools-tab
+  group.
+- Unit tests for sandboxing/limits (`src/agent-memory.test.ts`) and a signed-action round-trip test including
+  cross-account denial (`src/api-service.test.ts`).
+- Second iteration added binary/media support: files are UTF-8 text or raw bytes (model never receives binary content),
+  `memory_download` streams web files into memory with a 100 MiB cap and content-type-derived naming,
+  `memory_upload_ipfs` publishes memory files through the HM server's `/ipfs/file-upload` endpoint for use in Hypermedia
+  content, matching signed actions (`DownloadAgentMemoryFile`, `UploadAgentMemoryFileToIpfs`) give the user the same
+  powers, and the Memory tab gained media previews, per-file downloads, local-file upload (button and drag-and-drop onto
+  the list or a specific folder row), URL download, and IPFS publishing with copyable `ipfs://` URLs. Memory-enabled
+  system prompts embed an automatic `<memory_files>` top-level listing (root files/folders with file counts, subfolders
+  unexpanded) so agents start sessions already knowing what they remember.
+
 ### Web research tools (`web_search`, `web_read`)
 
 Completed:

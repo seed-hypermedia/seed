@@ -25,6 +25,9 @@ File: `agents/src/api-service.ts`
      resolved Markdown;
   2. `seedAssistantSystemPrompt({includeTitleToolInstruction: true})`;
   3. optional `<available_signing_identities>` JSON plus signing instructions when the agent has selected signing keys.
+- When memory tools are enabled, `#agentSystemPrompt()` also appends memory guidance plus an automatic `<memory_files>`
+  top-level listing built from the agent's memory directory (`memoryListingPrompt()` / `summarizeMemoryTopLevel()`),
+  regenerated for every run.
 - `GetSession` returns this generated prompt as `systemPromptMarkdown` for UI inspection.
 
 ### Pi SDK prompt injection boundary

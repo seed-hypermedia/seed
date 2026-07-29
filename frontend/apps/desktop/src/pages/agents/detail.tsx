@@ -53,11 +53,13 @@ import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedToolMetadata, seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
 import {
+  AGENT_MEMORY_TOOL_GROUP,
   AGENT_READ_TOOL_GROUP,
   AGENT_WEB_TOOL_GROUP,
   getToolAvailability,
   type AgentServerWebCapabilities,
 } from './agent-tools'
+import {AgentMemoryTab} from './memory'
 import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
 import {AddModelProviderDialog, EditAgentNameDialog, type AgentAccountRenameStatus} from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
@@ -408,6 +410,10 @@ function AgentDetailPage({
                 />
               ) : null}
 
+              {tab === 'memory' ? (
+                <AgentMemoryTab serverUrl={serverUrl} accountUid={selectedAccountId ?? null} agentId={agentId} />
+              ) : null}
+
               {tab === 'tools' ? (
                 <AgentToolsTab
                   definition={agent.data.agent.definition}
@@ -695,6 +701,11 @@ const AGENT_TOOL_OPTIONS = [
     names: AGENT_WEB_TOOL_GROUP,
     title: 'Search and read the web',
     description: 'Search the public web and read web pages as markdown. Requires server web backends.',
+  },
+  {
+    names: AGENT_MEMORY_TOOL_GROUP,
+    title: 'Memory',
+    description: 'Read and write private files in this agent’s persistent memory, shown on the Memory tab.',
   },
   {
     names: [seedToolRegistry.write.name],
