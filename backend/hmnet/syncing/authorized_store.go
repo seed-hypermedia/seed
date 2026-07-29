@@ -82,6 +82,12 @@ func (s *authorizedStore) ForEach(start, end int, fn func(int, rbsr.Item) bool) 
 
 // WithFilter returns a shallow clone with the filter set for the given authorized spaces.
 // The clone shares the inner store and visibility data.
+//
+// The receiver must be fully built and sealed before this is called: one sealed
+// store is shared across all the peer goroutines of a sync fan-out, and each of
+// them clones it here. The visibility data is shared read-only (see
+// [btree.Map.ReadOnlyView]) rather than copied, because [btree.Map.Copy] writes
+// to its source and would race across those goroutines.
 func (s *authorizedStore) WithFilter(authorizedSpaces []core.Principal) *authorizedStore {
 	var authSet map[core.PrincipalUnsafeString]struct{}
 	if len(authorizedSpaces) > 0 {
@@ -93,7 +99,7 @@ func (s *authorizedStore) WithFilter(authorizedSpaces []core.Principal) *authori
 
 	return &authorizedStore{
 		Store:       s.Store,
-		privateOnly: s.privateOnly.Copy(),
+		privateOnly: s.privateOnly.ReadOnlyView(),
 		authSet:     authSet,
 	}
 }

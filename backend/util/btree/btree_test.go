@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,4 +58,54 @@ func TestRange(t *testing.T) {
 		i++
 	}
 	require.Equal(t, len(want), i, "range must return all keys in the range")
+}
+
+func TestReadOnlyView(t *testing.T) {
+	bt := New[string, string](8, strings.Compare)
+	bt.Set("a", "A")
+	bt.Set("b", "B")
+
+	view := bt.ReadOnlyView()
+	require.Equal(t, bt.Len(), view.Len(), "view must expose the same elements")
+	require.Equal(t, "A", view.GetMaybe("a"))
+	require.Equal(t, "B", view.GetMaybe("b"))
+}
+
+// TestReadOnlyViewConcurrent is the regression test for the data race that
+// concurrent Copy calls used to cause: Copy stamps a fresh isolation ID onto its
+// source, and our trees carry NoLocks, so N goroutines cloning one shared map
+// wrote the same field at once. ReadOnlyView never touches the source, so this
+// passes under -race. Swapping ReadOnlyView for Copy below makes it fail.
+func TestReadOnlyViewConcurrent(t *testing.T) {
+	bt := New[string, string](8, strings.Compare)
+
+	want := make([]string, 0, 512)
+	for i := range 512 {
+		k := fmt.Sprintf("key-%04d", i)
+		bt.Set(k, k)
+		want = append(want, k)
+	}
+
+	// The source is frozen from here on, which is what makes views legal.
+	const goroutines = 32
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for range goroutines {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start // Maximize the overlap between the cloning calls.
+
+			view := bt.ReadOnlyView()
+
+			got := make([]string, 0, len(want))
+			for k, v := range view.Items() {
+				assert.Equal(t, k, v)
+				got = append(got, k)
+			}
+			assert.Equal(t, want, got, "each view must see the whole source map")
+		}()
+	}
+	close(start)
+	wg.Wait()
 }

@@ -181,9 +181,29 @@ func (b *Map[K, V]) Clear() {
 }
 
 // Copy performs an efficient structural copying of the map.
+//
+// Beware: the underlying copy-on-write clone mutates the source tree (it stamps
+// it with a fresh isolation ID), and our trees are created with NoLocks, so
+// concurrent Copy calls on the same map are a data race. Use ReadOnlyView to
+// hand a frozen map to several goroutines.
 func (b *Map[K, V]) Copy() *Map[K, V] {
 	return &Map[K, V]{
 		tr:  b.tr.Copy(),
+		cmp: b.cmp,
+	}
+}
+
+// ReadOnlyView returns a map sharing the same underlying tree but carrying its
+// own path hint, which is the only thing that makes reads non-thread-safe (see
+// the type comment). Unlike Copy it doesn't write to the source at all, so any
+// number of views can be taken and read concurrently.
+//
+// The source must be frozen for the lifetime of its views: mutating either the
+// source or a view while views are in use is a data race. Use Copy when the
+// clone needs to be writable.
+func (b *Map[K, V]) ReadOnlyView() *Map[K, V] {
+	return &Map[K, V]{
+		tr:  b.tr,
 		cmp: b.cmp,
 	}
 }
