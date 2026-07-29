@@ -65,12 +65,16 @@ func decodeOpID(s []uint64) (opID, error) {
 		return opID{}, fmt.Errorf("invalid opID: %v", s)
 	}
 
+	if s[0] > maxTs {
+		return opID{}, fmt.Errorf("invalid opID: timestamp %d overflows the maximum %d", s[0], maxTs)
+	}
+
 	if s[1] > maxIdx {
 		return opID{}, fmt.Errorf("invalid opID: index %d overflows the maximum %d", s[1], maxIdx)
 	}
 
 	return opID{
-		Ts:    int64(s[0]), //nolint:gosec // We know this should not overflow.
+		Ts:    int64(s[0]), //nolint:gosec // Bounds-checked above.
 		Idx:   int64(s[1]), //nolint:gosec // Bounds-checked above.
 		Actor: core.ActorID(s[2]),
 	}, nil
@@ -400,12 +404,12 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		return fmt.Errorf("change %s: timestamp %d overflows the maximum op ID timestamp %d", c, ts, maxTs)
 	}
 
-	// A change carrying enough ops can push the op ID index past what the
-	// packed opID representation can hold (the index advances quadratically
-	// within multi-block ops). newOpID panics on such values because today's
-	// write path can never produce them, but changes arriving from the network
-	// can — huge imported documents from older writers exist in the wild — and
-	// applying those must fail with an error instead of crashing the process.
+	// A change carrying enough ops can push the op ID index past maxIdx (the
+	// index advances quadratically within multi-block ops — see below). newOpID
+	// panics on such values because today's write path can never produce them,
+	// but changes arriving from the network can — huge imported documents from
+	// older writers exist in the wild — and applying those must fail with an
+	// error instead of crashing the process.
 	checkedOpID := func(i int) (opID, error) {
 		if i > maxIdx {
 			return opID{}, fmt.Errorf("change %s: op ID index %d overflows the maximum %d", c, i, maxIdx)
@@ -413,6 +417,14 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		return newOpID(ts, actorID, i), nil
 	}
 
+	// The multi-block ops below advance idx by i, not by 1, so a single op
+	// carrying n blocks consumes about n²/2 index values. That is wire-visible
+	// behaviour, not an off-by-one: refs in existing changes encode the indexes
+	// this numbering produced, so switching to idx++ would renumber every op ID
+	// in existence and make historical refs fail to resolve ("causality
+	// violation: ref op ... is not found") on documents that load today.
+	// Changing it needs a versioned migration, not a one-line fix. The quadratic
+	// growth is also why maxIdx is where it is — see its comment.
 	idx := -1
 	for op, err := range ch.Ops() {
 		idx++
