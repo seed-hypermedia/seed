@@ -1,0 +1,10 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import '@shm/ui/hm-prose.css';
+@import '@shm/ui/theme.css';
+@import '@shm/ui/base.css';
+
+@plugin '@tailwindcss/typography';
+
+@source '../../src';
+@source '../../../ui/src';

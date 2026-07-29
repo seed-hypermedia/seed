@@ -34,6 +34,13 @@
   background-color: transparent;
 }
 
+/* In read-only mode, suppress the native iOS/Android callout menu so the
+   custom range-selection bubble is the only inline toolbar. Selection still
+   works; only the system menu is hidden. */
+.ProseMirror[contenteditable='false'] {
+  -webkit-touch-callout: none;
+}
+
 /* Font-family rules live in hm-prose.css (ui-serif for docs,
  * ui-sans-serif for editor controls and comments). */
 

@@ -54,7 +54,10 @@ async function clickEmbedBody(page: Page, blockIndex: 0 | 1) {
   // blockIndex 0 = draft card, 1 = published card (fixture order).
   const el = page.locator('[data-content-type="embed"]').nth(blockIndex === 0 ? 0 : 1)
   const box = (await el.boundingBox())!
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+  // With the real web theme loaded, the card center can land on the
+  // published title link. Click the card body gutter so this helper exercises
+  // selection, while link-specific tests can click the title directly.
+  await page.mouse.click(box.x + 8, box.y + box.height / 2)
   await page.waitForTimeout(250)
 }
 

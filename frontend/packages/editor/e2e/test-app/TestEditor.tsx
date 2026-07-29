@@ -490,12 +490,20 @@ function RealModeInner({fixtureName}: {fixtureName: FixtureName}) {
   const publishedParam = sp.get('published') ?? 'all'
   const isBlockInPublishedVersion = publishedParam === 'none' ? () => false : () => true
 
+  // `?badges=1` gives every fixture block a mock citation/comment count so
+  // `.bn-supernumber-badge` widgets render (useful for mobile demos).
+  const badgesParam = sp.get('badges') === '1'
+  const blockCitations = badgesParam
+    ? (Object.fromEntries(fixtures[fixtureName].map((b: any) => [b.id, {citations: 0, comments: 1}])) as any)
+    : undefined
+
   return (
     <div className="test-harness" data-testid="editor-harness">
       <div data-testid="editor-container">
         <DocumentEditor
           blocks={fixtures[fixtureName] as any}
           resourceId={editModeId}
+          blockCitations={blockCitations}
           onEditorReady={setEditor}
           draftCursorPosition={draftCursorPosition}
           isUnpublishedDraft={publishedParam === 'none'}

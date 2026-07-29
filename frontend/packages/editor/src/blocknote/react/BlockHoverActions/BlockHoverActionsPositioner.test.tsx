@@ -5,6 +5,19 @@ import {BlockHoverActionsState} from '../../core/extensions/BlockHoverActions/Bl
 import {BlockHoverActionsPositioner} from './BlockHoverActionsPositioner'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
+if (typeof PointerEvent === 'undefined') {
+  class PolyfillPointerEvent extends MouseEvent {
+    public readonly pointerType: string
+    public readonly pointerId: number
+    constructor(type: string, init?: MouseEventInit & {pointerType?: string; pointerId?: number}) {
+      super(type, init)
+      this.pointerType = init?.pointerType ?? 'mouse'
+      this.pointerId = init?.pointerId ?? 0
+    }
+  }
+  ;(globalThis as any).PointerEvent = PolyfillPointerEvent
+}
+
 vi.mock('@shm/shared/models/use-document-machine', () => ({
   useHideOnDocumentScroll: vi.fn(),
 }))
@@ -325,6 +338,26 @@ describe('BlockHoverActionsPositioner', () => {
 
     expect(container.querySelector('[aria-label="Start comment"]')).not.toBeNull()
     expect(container.querySelector('[aria-label="147 comments"]')?.textContent).toBe('147')
+  })
+
+  it('stops pointer down on the card so touch taps do not propagate to the editor surface', () => {
+    const block = document.createElement('div')
+    block.dataset.id = 'block-1'
+    appendPublishedContent(block)
+    editorDom.appendChild(block)
+
+    const onStartComment = vi.fn()
+    renderPositioner({onStartComment})
+
+    act(() => {
+      listeners[0]({show: true, blockId: 'block-1', referenceRect: rect(30, 100)})
+    })
+
+    const commentButton = container.querySelector('[aria-label="Start comment"]') as HTMLElement
+    const pointerDown = new PointerEvent('pointerdown', {bubbles: true, cancelable: true})
+
+    expect(commentButton.dispatchEvent(pointerDown)).toBe(false)
+    expect(pointerDown.defaultPrevented).toBe(true)
   })
 
   it('hides the comment count when the hovered block has no comments', () => {

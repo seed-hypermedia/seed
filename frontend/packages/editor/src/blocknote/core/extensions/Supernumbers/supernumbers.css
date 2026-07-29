@@ -8,3 +8,6 @@
   cursor: pointer;
   font-variant-numeric: tabular-nums;
 }
+
+/* On narrow viewports the badge stays at its right gutter position; it is
+   already small enough that most mobile margins can accommodate -24px. */
