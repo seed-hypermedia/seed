@@ -59,6 +59,7 @@ import {
   AGENT_MEMORY_TOOL_GROUP,
   AGENT_READ_TOOL_GROUP,
   AGENT_WEB_TOOL_GROUP,
+  AGENT_WRITE_TOOL_GROUP,
   getToolAvailability,
   type AgentServerWebCapabilities,
 } from './agent-tools'
@@ -733,9 +734,9 @@ const AGENT_TOOL_OPTIONS = [
     description: 'Run Python or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
   },
   {
-    names: [seedToolRegistry.write.name],
+    names: AGENT_WRITE_TOOL_GROUP,
     title: seedToolRegistry.write.label,
-    description: 'Create and publish Seed content.',
+    description: 'Create and publish Seed content, and publish files from memory to IPFS.',
   },
 ]
 

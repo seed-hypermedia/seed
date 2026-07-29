@@ -179,7 +179,8 @@ export type SeedToolRegistry = {
   memory_write: SeedToolMetadata
   memory_delete: SeedToolMetadata
   memory_download: SeedToolMetadata
-  memory_upload_ipfs: SeedToolMetadata
+  ipfs_read: SeedToolMetadata
+  ipfs_write: SeedToolMetadata
   execute_code: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
@@ -586,7 +587,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'memory_read',
     label: 'Read Memory',
     description:
-      'Read one file from your private persistent memory by its relative path (for example `notes/project.md`). Text files return their full content; binary files (media, downloads) return size and MIME metadata only — use memory_upload_ipfs to publish binary files for use in Hypermedia content. Use memory_list first when you do not know the exact path.',
+      'Read one file from your private persistent memory by its relative path (for example `notes/project.md`). Text files return their full content; binary files (media, downloads) return size and MIME metadata only — use ipfs_write to publish binary files for use in Hypermedia content. Use memory_list first when you do not know the exact path.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -702,7 +703,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'memory_download',
     label: 'Download to Memory',
     description:
-      'Download a file from a public http(s) URL into your private persistent memory. Works for any file type including binary media (images, audio, video, PDFs); the file is stored verbatim and can then be previewed by your user on the Memory tab or published with memory_upload_ipfs. Omit path to store the file under downloads/ named from the URL; when the path has no extension, one is added from the response content type. Use this instead of web_read when you need the actual file rather than extracted text.',
+      'Download a file from a public http(s) URL into your private persistent memory. Works for any file type including binary media (images, audio, video, PDFs); the file is stored verbatim and can then be previewed by your user on the Memory tab or published with ipfs_write. For ipfs:// URLs use ipfs_read instead. Omit path to store the file under downloads/ named from the URL; when the path has no extension, one is added from the response content type. Use this instead of web_read when you need the actual file rather than extracted text.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -742,9 +743,53 @@ export const seedToolRegistry: SeedToolRegistry = {
     runtimes: ['agent-service'],
     userConfigurable: true,
   },
-  memory_upload_ipfs: {
-    name: 'memory_upload_ipfs',
-    label: 'Upload Memory to IPFS',
+  ipfs_read: {
+    name: 'ipfs_read',
+    label: 'Read from IPFS',
+    description:
+      'Fetch one file from IPFS via the Hypermedia server, by CID or ipfs://<cid> URL, and save it into your private persistent memory. Use this to open ipfs:// links referenced from Hypermedia content, such as images and file attachments in documents. Omit path to store the file under ipfs/<cid>; when the path has no extension, one is added from the response content type. Text files also return their full content; process binary files with memory or code tools after fetching.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        url: {type: 'string', minLength: 1, description: 'The IPFS CID or ipfs://<cid> URL of the file to fetch.'},
+        path: {
+          type: 'string',
+          description: 'Optional target memory path such as media/photo.jpg. Defaults to ipfs/<cid>.',
+        },
+      },
+      required: ['url'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        path: {type: 'string', description: 'The memory path where the file was stored.'},
+        cid: {type: 'string', description: 'The IPFS content identifier that was fetched.'},
+        content: {type: 'string', description: 'The full UTF-8 text content; absent for binary files.'},
+        size: {type: 'integer'},
+        mimeType: {type: 'string'},
+      },
+    },
+    render: {
+      kind: 'read',
+      label: 'Read from IPFS',
+      color: 'emerald',
+      primaryArg: 'url',
+      summaryArg: 'url',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Content', source: 'output', path: 'content', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  ipfs_write: {
+    name: 'ipfs_write',
+    label: 'Publish to IPFS',
     description:
       'Upload one file from your private persistent memory to IPFS via the Hypermedia server, returning an ipfs://<cid> URL. Use that URL to reference the file from Hypermedia content — for example as an image in a document created with the write tool, or as a profile avatar. Works for binary media downloaded with memory_download as well as text files.',
     inputSchema: {
@@ -768,7 +813,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     },
     render: {
       kind: 'write',
-      label: 'Upload Memory to IPFS',
+      label: 'Publish to IPFS',
       color: 'indigo',
       primaryArg: 'path',
       summaryArg: 'path',
@@ -868,8 +913,18 @@ export const seedToolRegistry: SeedToolRegistry = {
 
 export type SeedToolName = keyof typeof seedToolRegistry
 
+/** Renamed tool names still present in stored agent definitions and past session events. */
+export const legacySeedToolAliases: Record<string, SeedToolName> = {
+  memory_upload_ipfs: 'ipfs_write',
+}
+
+/** Resolves a possibly-legacy tool name to its current registry name. */
+export function normalizeSeedToolName(name: string): string {
+  return legacySeedToolAliases[name] ?? name
+}
+
 export function getSeedToolMetadata(name: string): SeedToolMetadata | undefined {
-  return seedToolRegistry[name as SeedToolName]
+  return seedToolRegistry[normalizeSeedToolName(name) as SeedToolName]
 }
 
 export function getSeedToolInputSchema(name: SeedToolName): JsonSchema {

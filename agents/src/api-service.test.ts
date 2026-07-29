@@ -202,7 +202,7 @@ describe('api service', () => {
               systemPrompt: 'ok',
               modelProvider: 'openai',
               model: 'gpt',
-              tools: ['memory_list', 'memory_read', 'memory_write', 'memory_download', 'memory_upload_ipfs'],
+              tools: ['memory_list', 'memory_read', 'memory_write', 'memory_download', 'ipfs_read', 'ipfs_write'],
             },
           },
         }),

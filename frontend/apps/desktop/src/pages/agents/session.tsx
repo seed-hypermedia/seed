@@ -25,6 +25,7 @@ import {
   useMessageAgentSession,
   useStopAgentSession,
   useUpdateAgentSession,
+  useWriteAgentMemoryFile,
 } from '@/models/agents'
 import {
   buildAgentSessionChatRows,
@@ -480,6 +481,9 @@ function AgentSessionPage({
               isBusy={isAgentBusy}
               isStreaming={isAgentStreaming}
               stopPending={stopSession.isPending}
+              serverUrl={serverUrl}
+              accountId={selectedAccountId ?? null}
+              agentId={agentId}
               onSend={(message) => void handleSendMessage(message)}
               onStop={() => void handleStopSession()}
             />
@@ -571,17 +575,41 @@ function AgentRichMessageComposer({
   isBusy,
   isStreaming,
   stopPending,
+  serverUrl,
+  accountId,
+  agentId,
   onSend,
   onStop,
 }: {
   isBusy: boolean
   isStreaming: boolean
   stopPending: boolean
+  serverUrl: string
+  accountId: string | null
+  agentId?: string
   onSend: (message: AgentSessionDraftMessage) => void
   onStop: () => void
 }) {
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
+  const writeMemoryFile = useWriteAgentMemoryFile(serverUrl, accountId)
+
+  // The editor captures handleFileAttachment on creation, so route the values
+  // that change across renders (agentId resolves async) through refs.
+  const attachmentContextRef = useRef({agentId, writeMemoryFile})
+  attachmentContextRef.current = {agentId, writeMemoryFile}
+
+  // Dropped/pasted files go into the agent's memory on the agent server (under
+  // attachments/) rather than to the local daemon's IPFS endpoint, so the agent
+  // can open them with its memory/code tools and nothing is published publicly.
+  async function handleFileAttachment(file: File) {
+    const {agentId: currentAgentId, writeMemoryFile: write} = attachmentContextRef.current
+    if (!currentAgentId) throw new Error('Agent is still loading; try attaching again in a moment')
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    const path = `attachments/${file.name}`
+    await write.mutateAsync({agentId: currentAgentId, path, content: bytes})
+    return {displaySrc: URL.createObjectURL(file), url: `memory://${path}`}
+  }
 
   async function submitRichMessage(getContent: CommentEditorGetContent, reset: () => void) {
     const {blockNodes} = await getContent(async () => ({blobs: [], resultCIDs: []}))
@@ -604,6 +632,7 @@ function AgentRichMessageComposer({
           disableTrailingNode
           submitOnEnter
           submitHandleRef={submitHandleRef}
+          handleFileAttachment={handleFileAttachment}
           initialBlocks={[]}
           onContentChange={(blocks) => setDraftMarkdown(promptBlocksToMarkdown(trimTrailingEmptyBlocks(blocks)))}
           handleSubmit={(getContent, reset) => void submitRichMessage(getContent, reset)}

@@ -1,10 +1,11 @@
 import {seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
 
-/** Tools that let an agent find and read Seed content. */
+/** Tools that let an agent find and read Seed content, including IPFS files it references. */
 export const AGENT_READ_TOOL_GROUP = [
   seedToolRegistry.read.name,
   seedToolRegistry.search.name,
   seedToolRegistry.list_activity_feed.name,
+  seedToolRegistry.ipfs_read.name,
 ]
 
 /** Tools that let an agent search and read the public web. Requires server-side web backends. */
@@ -13,6 +14,9 @@ export const AGENT_WEB_TOOL_GROUP = [seedToolRegistry.web_search.name, seedToolR
 /** Tool that lets an agent create, sign, and publish Seed content. */
 export const AGENT_WRITE_TOOL = seedToolRegistry.write.name
 
+/** Tools that let an agent publish Seed content and files: sign/publish documents plus IPFS file uploads. */
+export const AGENT_WRITE_TOOL_GROUP = [seedToolRegistry.write.name, seedToolRegistry.ipfs_write.name]
+
 /** Tools that let an agent read and write its private persistent memory filesystem. */
 export const AGENT_MEMORY_TOOL_GROUP = [
   seedToolRegistry.memory_list.name,
@@ -20,7 +24,6 @@ export const AGENT_MEMORY_TOOL_GROUP = [
   seedToolRegistry.memory_write.name,
   seedToolRegistry.memory_delete.name,
   seedToolRegistry.memory_download.name,
-  seedToolRegistry.memory_upload_ipfs.name,
 ]
 
 /**
@@ -33,7 +36,7 @@ export const DEFAULT_AGENT_TOOLS = [
   ...AGENT_READ_TOOL_GROUP,
   ...AGENT_WEB_TOOL_GROUP,
   ...AGENT_MEMORY_TOOL_GROUP,
-  AGENT_WRITE_TOOL,
+  ...AGENT_WRITE_TOOL_GROUP,
   seedToolRegistry.execute_code.name,
 ]
 

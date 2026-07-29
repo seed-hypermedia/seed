@@ -60,6 +60,7 @@ export function useCommentEditor(
   }>,
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
+    url?: string
     fileBinary?: Uint8Array
     mediaRef?: {
       draftId: string
@@ -333,6 +334,7 @@ export function CommentEditor({
   }>
   handleFileAttachment?: (file: File) => Promise<{
     displaySrc: string
+    url?: string
     fileBinary?: Uint8Array
     mediaRef?: {
       draftId: string

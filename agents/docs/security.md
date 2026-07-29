@@ -176,8 +176,8 @@ handling is strict:
   tool's SSRF exposure (no private-address blocking yet), which is tracked as web-tool hardening;
 - binary memory files are never sent to the model — `memory_read` returns metadata only for binary content — but their
   raw bytes are returned to the owning user over the signed API for preview/download;
-- `memory_upload_ipfs` / `UploadAgentMemoryFileToIpfs` publish the file to IPFS through the HM server, making it
-  publicly retrievable by CID; treat publishing as irreversible disclosure;
+- `ipfs_write` (formerly `memory_upload_ipfs`) / `UploadAgentMemoryFileToIpfs` publish the file to IPFS through the HM
+  server, making it publicly retrievable by CID; treat publishing as irreversible disclosure;
 - memory content is model-visible and user-visible by design; do not store secrets in agent memory.
 
 ## Code execution safety (`execute_code`)

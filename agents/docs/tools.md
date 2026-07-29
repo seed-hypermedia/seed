@@ -27,7 +27,8 @@ memory_read
 memory_write
 memory_delete
 memory_download
-memory_upload_ipfs
+ipfs_read
+ipfs_write
 execute_code
 ```
 
@@ -224,7 +225,7 @@ backends are configured through its health response (`webTools: {search, readBro
 desktop Tools tab uses this to grey out tools the server cannot run, and exposes each tool's exact model-facing
 description and input/output schemas through a per-tool info dialog (see `desktop-ui.md`).
 
-## Memory tools (`memory_list`, `memory_read`, `memory_write`, `memory_delete`, `memory_download`, `memory_upload_ipfs`)
+## Memory and IPFS tools (`memory_list`, `memory_read`, `memory_write`, `memory_delete`, `memory_download`, `ipfs_read`, `ipfs_write`)
 
 Each agent owns a private persistent filesystem at `<stateDir>/memory`, implemented in `agents/src/agent-memory.ts` and
 shared across all of the agent's sessions. The memory tools give the model access to that directory; the signed
@@ -242,9 +243,16 @@ Key behavior:
 - `memory_download` fetches any public http(s) URL (including binary media) into memory, streamed with a hard size cap.
   When no target path is given the file lands in `downloads/` named from the URL; extension-less paths gain one from the
   response content type. Same open-fetch policy as `web_read`.
-- `memory_upload_ipfs` uploads one memory file to the HM server's `/ipfs/file-upload` endpoint and returns its
-  `ipfs://<cid>` URL, so the agent can reference stored media from Hypermedia content (documents, avatars) created with
-  the `write` tool. Publishing to IPFS makes the file publicly retrievable.
+- `ipfs_read` fetches a file by CID (or `ipfs://<cid>` URL) from the HM server's `/ipfs/` gateway into memory (default
+  path `ipfs/<cid>`), returning text content inline; the agent server is the only side talking to IPFS, so remote agents
+  need no local gateway.
+- `ipfs_write` (renamed from `memory_upload_ipfs`; the old name is still accepted in stored definitions as an alias)
+  uploads one memory file to the HM server's `/ipfs/file-upload` endpoint and returns its `ipfs://<cid>` URL, so the
+  agent can reference stored media from Hypermedia content (documents, avatars) created with the `write` tool.
+  Publishing to IPFS makes the file publicly retrievable.
+- Files the user drops into the desktop session composer are written into memory under `attachments/` via the signed
+  `WriteAgentMemoryFile` action and referenced as `memory://` links in the message text — the client never uploads
+  attachment bytes to IPFS.
 - MIME types are inferred from file extensions (`inferMimeType`) for previews, downloads, and IPFS uploads.
 - Limits: 1 MiB per text write, 100 MiB per file (binary/downloads), 1 GiB per agent, 2000 entries, 512-byte paths, 16
   levels of nesting.

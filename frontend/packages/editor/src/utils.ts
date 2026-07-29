@@ -252,20 +252,26 @@ export async function handleDragMedia(
   }
 
   if (handleFileAttachment) {
-    const result = await handleFileAttachment(file)
+    try {
+      const result = await handleFileAttachment(file)
 
-    // Use metadata from mediaRef if available, otherwise fall back to file object
-    const name = result.mediaRef?.name || file.name
-    const size = result.mediaRef?.size || file.size
+      // Use metadata from mediaRef if available, otherwise fall back to file object
+      const name = result.mediaRef?.name || file.name
+      const size = result.mediaRef?.size || file.size
 
-    return {
-      displaySrc: result.displaySrc,
-      url: result.url,
-      fileBinary: result.fileBinary,
-      mediaRef: result.mediaRef,
-      name: name,
-      size: size.toString(),
-    } as FileType['props']
+      return {
+        displaySrc: result.displaySrc,
+        url: result.url,
+        fileBinary: result.fileBinary,
+        mediaRef: result.mediaRef,
+        name: name,
+        size: size.toString(),
+      } as FileType['props']
+    } catch (error) {
+      console.error('File attachment failed:', error)
+      toast.error(`Failed to attach ${file.name}.`)
+      return null
+    }
   }
 
   const formData = new FormData()
@@ -307,6 +313,7 @@ export function createMediaBlock(file: File, props: Awaited<ReturnType<typeof ha
         type: 'image',
         props: {
           url: props.url,
+          ...(props.displaySrc ? {displaySrc: props.displaySrc} : {}),
           name: props.name,
         },
       }
@@ -318,6 +325,7 @@ export function createMediaBlock(file: File, props: Awaited<ReturnType<typeof ha
         type: 'video',
         props: {
           url: props.url,
+          ...(props.displaySrc ? {displaySrc: props.displaySrc} : {}),
           name: props.name,
         },
       }

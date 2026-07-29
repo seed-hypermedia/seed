@@ -3,6 +3,7 @@ import type * as api from '@/api'
 import {
   isReasoningLevel,
   modelReasoningSupport,
+  normalizeSeedToolName,
   seedAssistantSystemPrompt,
   seedToolRegistry,
   type SeedToolMetadata,
@@ -1297,17 +1298,19 @@ export class Service {
       currentTime: new Date().toISOString(),
       includeTitleToolInstruction: true,
     })
+    const definitionTools = (definition.tools ?? []).map(normalizeSeedToolName)
     const memoryToolNames = [
       seedToolRegistry.memory_list.name,
       seedToolRegistry.memory_read.name,
       seedToolRegistry.memory_write.name,
       seedToolRegistry.memory_delete.name,
       seedToolRegistry.memory_download.name,
-      seedToolRegistry.memory_upload_ipfs.name,
+      seedToolRegistry.ipfs_read.name,
+      seedToolRegistry.ipfs_write.name,
     ]
-    const memoryEnabled = (definition.tools ?? []).some((tool) => memoryToolNames.includes(tool))
+    const memoryEnabled = definitionTools.some((tool) => memoryToolNames.includes(tool))
     const memoryPrompt = memoryEnabled
-      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory, and memory_upload_ipfs to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content.' +
+      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory. Files your user attaches to a chat message are saved into your memory under attachments/ and referenced by memory:// links in the message — read them with memory_read or process them with code. Use ipfs_read to fetch an ipfs:// URL into memory, and ipfs_write to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content.' +
         (stateDir ? memoryListingPrompt(stateDir) : '')
       : ''
     const execEnabled =
@@ -1421,21 +1424,27 @@ export class Service {
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
       }),
       tools: [
-        ...(definition.tools === undefined ? [seedToolRegistry.read.name] : definition.tools).filter(
-          (tool) =>
-            tool === seedToolRegistry.search.name ||
-            tool === seedToolRegistry.read.name ||
-            tool === seedToolRegistry.list_activity_feed.name ||
-            tool === seedToolRegistry.web_search.name ||
-            tool === seedToolRegistry.web_read.name ||
-            tool === seedToolRegistry.write.name ||
-            tool === seedToolRegistry.memory_list.name ||
-            tool === seedToolRegistry.memory_read.name ||
-            tool === seedToolRegistry.memory_write.name ||
-            tool === seedToolRegistry.memory_delete.name ||
-            tool === seedToolRegistry.memory_download.name ||
-            tool === seedToolRegistry.memory_upload_ipfs.name ||
-            (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
+        // Set-dedupe: legacy alias normalization can produce duplicate names.
+        ...new Set(
+          (definition.tools === undefined ? [seedToolRegistry.read.name] : definition.tools)
+            .map(normalizeSeedToolName)
+            .filter(
+              (tool) =>
+                tool === seedToolRegistry.search.name ||
+                tool === seedToolRegistry.read.name ||
+                tool === seedToolRegistry.list_activity_feed.name ||
+                tool === seedToolRegistry.web_search.name ||
+                tool === seedToolRegistry.web_read.name ||
+                tool === seedToolRegistry.write.name ||
+                tool === seedToolRegistry.memory_list.name ||
+                tool === seedToolRegistry.memory_read.name ||
+                tool === seedToolRegistry.memory_write.name ||
+                tool === seedToolRegistry.memory_delete.name ||
+                tool === seedToolRegistry.memory_download.name ||
+                tool === seedToolRegistry.ipfs_read.name ||
+                tool === seedToolRegistry.ipfs_write.name ||
+                (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
+            ),
         ),
         seedToolRegistry.set_session_title.name,
       ],
@@ -2367,6 +2376,21 @@ async function publishSigningIdentityProfile(
 ): Promise<void> {
   const profile = await blobs.createProfile(keyPair, {name, avatar}, Date.now())
   await createSeedClient(hmServerUrl).publish({blobs: [{cid: profile.cid.toString(), data: profile.data}]})
+}
+
+/** Extracts a bare CID from a bare CID, an ipfs://<cid> URI, or a gateway URL containing /ipfs/<cid>. */
+function parseIpfsCid(raw: unknown): string {
+  const input = typeof raw === 'string' ? raw.trim() : ''
+  if (!input) throw new APIError(400, 'An IPFS CID or ipfs:// URL is required')
+  let cid = input
+  if (cid.startsWith('ipfs://')) cid = cid.slice('ipfs://'.length)
+  else {
+    const gatewayMatch = cid.match(/\/ipfs\/([^/?#]+)/)
+    if (gatewayMatch?.[1]) cid = gatewayMatch[1]
+  }
+  cid = cid.split(/[/?#]/, 1)[0] ?? ''
+  if (!/^[A-Za-z0-9]{32,}$/.test(cid)) throw new APIError(400, `Not a valid IPFS CID: ${input}`)
+  return cid
 }
 
 /**
@@ -3404,7 +3428,7 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         return {
           summary: `${file.path} is a binary file (${file.size} bytes${
             file.mimeType ? `, ${file.mimeType}` : ''
-          }); content not shown. Use memory_upload_ipfs to publish it for Hypermedia content.`,
+          }); content not shown. Use ipfs_write to publish it for Hypermedia content.`,
           ...meta,
         }
       }
@@ -3472,7 +3496,28 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         ...result,
       }
     }),
-    defineSeedPiTool(seedToolRegistry.memory_upload_ipfs, async (params) => {
+    defineSeedPiTool(seedToolRegistry.ipfs_read, async (params) => {
+      const input = isRecord(params) ? params : {}
+      const cid = parseIpfsCid(input.url)
+      const gatewayUrl = `${context.hmServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
+      const targetPath = typeof input.path === 'string' && input.path.trim() ? input.path : `ipfs/${cid}`
+      const result = await withMemoryErrorsAsync(() =>
+        agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
+      )
+      context.onMemoryChange()
+      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, result.entry.path))
+      const base = {path: file.path, cid, size: file.size, mimeType: file.mimeType}
+      if (file.encoding === 'binary') {
+        return {
+          summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes${
+            file.mimeType ? `, ${file.mimeType}` : ''
+          }); binary content not shown.`,
+          ...base,
+        }
+      }
+      return {summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes).`, ...base, content: file.content}
+    }),
+    defineSeedPiTool(seedToolRegistry.ipfs_write, async (params) => {
       const input = isRecord(params) ? params : {}
       const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
       const bytes =
