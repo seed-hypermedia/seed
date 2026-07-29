@@ -25,8 +25,9 @@ import {
   useMessageAgentSession,
   useStopAgentSession,
   useUpdateAgentSession,
-  useWriteAgentMemoryFile,
+  useUploadSessionAttachment,
 } from '@/models/agents'
+import type {SessionAttachmentInfo} from '@/agents-client'
 import {
   buildAgentSessionChatRows,
   buildAgentSessionEventUrl,
@@ -483,7 +484,7 @@ function AgentSessionPage({
               stopPending={stopSession.isPending}
               serverUrl={serverUrl}
               accountId={selectedAccountId ?? null}
-              agentId={agentId}
+              sessionId={sessionId}
               onSend={(message) => void handleSendMessage(message)}
               onStop={() => void handleStopSession()}
             />
@@ -577,7 +578,7 @@ function AgentRichMessageComposer({
   stopPending,
   serverUrl,
   accountId,
-  agentId,
+  sessionId,
   onSend,
   onStop,
 }: {
@@ -586,29 +587,34 @@ function AgentRichMessageComposer({
   stopPending: boolean
   serverUrl: string
   accountId: string | null
-  agentId?: string
+  sessionId: string
   onSend: (message: AgentSessionDraftMessage) => void
   onStop: () => void
 }) {
   const [draftMarkdown, setDraftMarkdown] = useState('')
   const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
-  const writeMemoryFile = useWriteAgentMemoryFile(serverUrl, accountId)
+  const uploadAttachment = useUploadSessionAttachment(serverUrl, accountId)
+  /** Metadata for every attachment uploaded from this composer, keyed by id, so a sent message
+   * can carry the infos of the attachments its blocks still reference. */
+  const uploadedAttachmentsRef = useRef(new Map<string, SessionAttachmentInfo>())
 
-  // The editor captures handleFileAttachment on creation, so route the values
-  // that change across renders (agentId resolves async) through refs.
-  const attachmentContextRef = useRef({agentId, writeMemoryFile})
-  attachmentContextRef.current = {agentId, writeMemoryFile}
+  // The editor captures handleFileAttachment on creation, so route the mutation through a ref.
+  const uploadRef = useRef(uploadAttachment)
+  uploadRef.current = uploadAttachment
 
-  // Dropped/pasted files go into the agent's memory on the agent server (under
-  // attachments/) rather than to the local daemon's IPFS endpoint, so the agent
-  // can open them with its memory/code tools and nothing is published publicly.
+  // Dropped/pasted files upload as session-private attachments on the agent server — never to
+  // IPFS or agent memory. The agent sees metadata and pulls content on demand (view_attachment);
+  // it can persist or publish one only via its explicit attachment tools.
   async function handleFileAttachment(file: File) {
-    const {agentId: currentAgentId, writeMemoryFile: write} = attachmentContextRef.current
-    if (!currentAgentId) throw new Error('Agent is still loading; try attaching again in a moment')
-    const bytes = new Uint8Array(await file.arrayBuffer())
-    const path = `attachments/${file.name}`
-    await write.mutateAsync({agentId: currentAgentId, path, content: bytes})
-    return {displaySrc: URL.createObjectURL(file), url: `memory://${path}`}
+    const content = new Uint8Array(await file.arrayBuffer())
+    const attachment = await uploadRef.current.mutateAsync({
+      sessionId,
+      name: file.name,
+      mimeType: file.type || undefined,
+      content,
+    })
+    uploadedAttachmentsRef.current.set(attachment.id, attachment)
+    return {displaySrc: URL.createObjectURL(file), url: `attachment://${attachment.id}`}
   }
 
   async function submitRichMessage(getContent: CommentEditorGetContent, reset: () => void) {
@@ -616,10 +622,14 @@ function AgentRichMessageComposer({
     const trimmedBlocks = trimTrailingEmptyBlocks(blockNodes)
     const markdown = promptBlocksToMarkdown(trimmedBlocks)
     if (!markdown.trim()) return
+    // Only attachments still referenced by a block at submit time ride along with the message.
+    const attachments = collectAttachmentIds(trimmedBlocks)
+      .map((id) => uploadedAttachmentsRef.current.get(id))
+      .filter((info): info is SessionAttachmentInfo => !!info)
     reset()
     setDraftMarkdown('')
     requestAnimationFrame(() => submitHandleRef.current?.focus({moveCursorToEnd: true}))
-    onSend({text: markdown, blocks: trimmedBlocks})
+    onSend({text: markdown, blocks: trimmedBlocks, ...(attachments.length ? {attachments} : {})})
   }
 
   return (
@@ -659,6 +669,25 @@ function AgentRichMessageComposer({
   )
 }
 
+/** Collects attachment ids referenced by attachment:// links anywhere in a message block tree. */
+function collectAttachmentIds(blocks: unknown[]): string[] {
+  const ids: string[] = []
+  const visit = (nodes: unknown[]) => {
+    for (const node of nodes) {
+      if (!node || typeof node !== 'object') continue
+      const {block, children} = node as {block?: {link?: unknown}; children?: unknown}
+      const link = block?.link
+      if (typeof link === 'string' && link.startsWith('attachment://')) {
+        const id = link.slice('attachment://'.length)
+        if (id && !ids.includes(id)) ids.push(id)
+      }
+      if (Array.isArray(children) && children.length) visit(children)
+    }
+  }
+  visit(blocks)
+  return ids
+}
+
 const PartialAssistantRow = React.memo(function PartialAssistantRow({text}: {text: string}) {
   const parts = useMemo<ChatMessagePart[]>(() => [{type: 'text', text}], [text])
 
@@ -683,7 +712,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
       return (
         <div className="flex flex-col gap-1.5">
           {row.message.content?.trim() || row.message.blocks?.length ? (
-            <ChatMessageBubble message={row.message} liveActivity={liveActivity} />
+            <ChatMessageBubble message={row.message} liveActivity={liveActivity} serverUrl={serverUrl} />
           ) : null}
           <TriggerContextView
             context={row.triggerContext}
@@ -694,7 +723,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
         </div>
       )
     }
-    return <ChatMessageBubble message={row.message} liveActivity={liveActivity} />
+    return <ChatMessageBubble message={row.message} liveActivity={liveActivity} serverUrl={serverUrl} />
   }
 
   if (row.kind === 'error') {

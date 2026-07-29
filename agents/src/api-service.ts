@@ -3,6 +3,7 @@ import type * as api from '@/api'
 import {
   isReasoningLevel,
   modelReasoningSupport,
+  modelSupportsImageInput,
   normalizeSeedToolName,
   seedAssistantSystemPrompt,
   seedToolRegistry,
@@ -10,6 +11,7 @@ import {
 } from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import * as agentMemory from '@/agent-memory'
+import * as sessionAttachments from '@/session-attachments'
 import {
   CodeExecError,
   createCodeExecutor,
@@ -86,6 +88,13 @@ const DEFAULT_SESSION_PAGE_SIZE = 50
 const MAX_SESSION_PAGE_SIZE = 200
 const MAX_CONTEXT_LINES = 64
 const MAX_CONTEXT_LINE_BYTES = 2 * 1024
+const MAX_MESSAGE_ATTACHMENTS = 16
+/**
+ * Largest attachment sent to a vision model as inline image content via `view_attachment`.
+ * Anthropic caps images at ~5 MB; larger images degrade to metadata plus guidance to use
+ * `attachment_to_memory` + `execute_code` (e.g. to downscale) instead.
+ */
+const MAX_INLINE_IMAGE_BYTES = 4_500_000
 
 /** Result of evaluating one activity event against enabled triggers. */
 export type TriggerProcessingResult = {
@@ -293,6 +302,16 @@ export class Service {
           envelope.action.content,
           envelope.action.clientMessageId,
         )
+      case 'UploadSessionAttachment':
+        return this.#uploadSessionAttachment(
+          verified.accountId,
+          envelope.action.sessionId,
+          envelope.action.name,
+          envelope.action.mimeType,
+          envelope.action.content,
+        )
+      case 'ReadSessionAttachment':
+        return this.#readSessionAttachment(verified.accountId, envelope.action.sessionId, envelope.action.attachmentId)
       case 'StopSession':
         return this.#stopSession(verified.accountId, envelope.action.sessionId)
       case 'Subscribe':
@@ -1101,8 +1120,48 @@ export class Service {
       this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND id = ?`, [accountId, sessionId])
     })
     transaction()
+    // Attachments are session-private: they die with the session. Cleanup failure (e.g. the agent
+    // was already deleted along with its state dir) must not block the delete itself.
+    try {
+      sessionAttachments.deleteSessionAttachments(this.#agentMemoryStateDir(accountId, existing.agentId), sessionId)
+    } catch {}
     this.#emit({type: 'account-change', accountId, reason: 'session-deleted', agentId: existing.agentId, sessionId})
     return {_: 'DeleteSessionResponse', sessionId, agentId: existing.agentId}
+  }
+
+  /** Resolves a session owned by the account to its agent's state dir, for attachment actions. */
+  #sessionStateDir(accountId: string, sessionId: string): {agentId: string; stateDir: string} {
+    const session = this.#db
+      .query<{agent_id: string}, [string, string]>(`SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    return {agentId: session.agent_id, stateDir: this.#agentMemoryStateDir(accountId, session.agent_id)}
+  }
+
+  #uploadSessionAttachment(
+    accountId: string,
+    sessionId: string,
+    name: string,
+    mimeType: string | undefined,
+    content: Uint8Array,
+  ): api.UploadSessionAttachmentResponse {
+    const {stateDir} = this.#sessionStateDir(accountId, sessionId)
+    const attachment = withAttachmentErrors(() =>
+      sessionAttachments.saveSessionAttachment(stateDir, sessionId, {name, mimeType, content}),
+    )
+    return {_: 'UploadSessionAttachmentResponse', attachment}
+  }
+
+  #readSessionAttachment(
+    accountId: string,
+    sessionId: string,
+    attachmentId: string,
+  ): api.ReadSessionAttachmentResponse {
+    const {stateDir} = this.#sessionStateDir(accountId, sessionId)
+    const {info, data} = withAttachmentErrors(() =>
+      sessionAttachments.readSessionAttachment(stateDir, sessionId, attachmentId),
+    )
+    return {_: 'ReadSessionAttachmentResponse', attachment: info, data}
   }
 
   #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {
@@ -1199,6 +1258,13 @@ export class Service {
     const now = Date.now()
     definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
     const firstMessage = messages[0]!
+    // Attachment parts must reference files already uploaded to this session; resolve them to
+    // metadata here so the durable message event (and the model-facing metadata) carry it.
+    const attachments = (firstMessage.attachmentIds ?? []).map((attachmentId) => {
+      const info = sessionAttachments.getSessionAttachmentInfo(agent.state_dir, sessionId, attachmentId)
+      if (!info) throw new APIError(404, `Attachment not found: ${attachmentId}`)
+      return info
+    })
     this.#appendSessionEvent(
       accountId,
       session.agent_id,
@@ -1210,6 +1276,7 @@ export class Service {
         rawMarkdown: firstMessage.text,
         ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
         ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
+        ...(attachments.length > 0 ? {attachments} : {}),
       },
       now,
     )
@@ -1310,7 +1377,7 @@ export class Service {
     ]
     const memoryEnabled = definitionTools.some((tool) => memoryToolNames.includes(tool))
     const memoryPrompt = memoryEnabled
-      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory. Files your user attaches to a chat message are saved into your memory under attachments/ and referenced by memory:// links in the message — read them with memory_read or process them with code. Use ipfs_read to fetch an ipfs:// URL into memory, and ipfs_write to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content.' +
+      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory. Use ipfs_read to fetch an ipfs:// URL into memory, and ipfs_write to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can open them with view_attachment or save one with attachment_to_memory.' +
         (stateDir ? memoryListingPrompt(stateDir) : '')
       : ''
     const execEnabled =
@@ -1407,6 +1474,8 @@ export class Service {
         hmServerUrl: this.#hmServerUrl,
         web: this.#web,
         stateDir: agentStateDir,
+        sessionId,
+        modelAcceptsImages: model.input.includes('image'),
         codeExec: this.#codeExec,
         onMemoryChange: () =>
           this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId}),
@@ -1443,9 +1512,13 @@ export class Service {
                 tool === seedToolRegistry.memory_download.name ||
                 tool === seedToolRegistry.ipfs_read.name ||
                 tool === seedToolRegistry.ipfs_write.name ||
+                tool === seedToolRegistry.attachment_to_memory.name ||
+                tool === seedToolRegistry.attachment_to_ipfs.name ||
                 (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
             ),
         ),
+        // Always available: attachments are session data the model was already told about.
+        seedToolRegistry.view_attachment.name,
         seedToolRegistry.set_session_title.name,
       ],
       noTools: 'builtin',
@@ -1749,6 +1822,7 @@ export class Service {
         output?: unknown
         error?: string
         contextLines?: unknown
+        attachments?: unknown
       }
       if (value.type === 'message' && value.role === 'user' && typeof value.content === 'string') {
         flushPendingAssistant()
@@ -1758,10 +1832,14 @@ export class Service {
         const contextLines = Array.isArray(value.contextLines)
           ? value.contextLines.filter((line): line is string => typeof line === 'string')
           : []
-        const content =
+        let content =
           contextLines.length > 0
             ? `${value.content}\n\n<window_context>\n${contextLines.join('\n')}\n</window_context>`
             : value.content
+        // Attachments reach the model as cheap metadata only; content is pulled on demand via the
+        // view_attachment tool so images never flood the context uninvited.
+        const attachmentBlock = formatAttachmentMetadata(value.attachments)
+        if (attachmentBlock) content = `${content}\n\n${attachmentBlock}`
         messages.push({role: 'user', content, timestamp: event.createdAt})
       } else if (value.type === 'message' && value.role === 'assistant' && typeof value.content === 'string') {
         appendPendingAssistantContent({type: 'text', text: value.content}, event.createdAt)
@@ -2506,6 +2584,43 @@ function withMemoryErrors<T>(run: () => T): T {
   }
 }
 
+/**
+ * Renders stored message attachments as a model-facing metadata block. Returns null when the
+ * message has none. Content stays out of context until the model asks via `view_attachment`.
+ */
+function formatAttachmentMetadata(attachments: unknown): string | null {
+  if (!Array.isArray(attachments) || attachments.length === 0) return null
+  const lines = attachments
+    .filter((item): item is api.SessionAttachmentInfo => isRecord(item) && typeof (item as {id?: unknown}).id === 'string')
+    .map(
+      (item) =>
+        `- "${item.name}" (${item.mimeType || 'unknown type'}, ${item.size} bytes) — attachment id ${item.id}`,
+    )
+  if (lines.length === 0) return null
+  return `<attachments>\nThe user attached these session-private files. Use view_attachment with an id to see an image or read a text file; use attachment_to_memory to keep one across sessions or attachment_to_ipfs to publish one for Hypermedia content. Only view what you need.\n${lines.join(
+    '\n',
+  )}\n</attachments>`
+}
+
+/** Whether an attachment MIME type is text the model can read directly from a tool result. */
+function isTextMimeType(mimeType: string | undefined): boolean {
+  if (!mimeType) return false
+  if (mimeType.startsWith('text/')) return true
+  return ['application/json', 'application/xml', 'application/x-yaml', 'application/javascript'].includes(
+    mimeType.split(';')[0]?.trim() ?? '',
+  )
+}
+
+/** Maps attachment-store errors to API errors, like {@link withMemoryErrors} for memory. */
+function withAttachmentErrors<T>(run: () => T): T {
+  try {
+    return run()
+  } catch (error) {
+    if (error instanceof sessionAttachments.SessionAttachmentError) throw new APIError(error.status, error.message)
+    throw error
+  }
+}
+
 /** Async variant of {@link withMemoryErrors} for downloads. */
 async function withMemoryErrorsAsync<T>(run: () => Promise<T>): Promise<T> {
   try {
@@ -3223,7 +3338,8 @@ function piModelForDefinition(
     api,
     baseUrl,
     reasoning,
-    input: ['text'],
+    // Image input gates whether view_attachment returns actual image content to the model.
+    input: modelSupportsImageInput(type, definition.model) ? ['text', 'image'] : ['text'],
     cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
     contextWindow: 128000,
     maxTokens: 16384,
@@ -3257,6 +3373,10 @@ type AgentServicePiToolContext = WriteToolContext & {
   web: WebToolsConfig
   /** Agent state directory holding the private memory filesystem. */
   stateDir: string
+  /** Session this run belongs to, scoping the attachment tools. */
+  sessionId: string
+  /** Whether the session's model accepts image content, gating view_attachment image output. */
+  modelAcceptsImages: boolean
   /** Called after a memory tool mutates files, so clients watching the Memory tab refresh. */
   onMemoryChange: () => void
   /** Reports live mid-call progress from a long-running tool, surfaced as run activity to clients. */
@@ -3279,6 +3399,17 @@ type ParsedWriteDocumentContent = {
   blocks: HMBlockNode[]
 }
 
+/**
+ * Rich model-facing content a tool can return alongside its structured output. Used by
+ * `view_attachment` to put image bytes in front of vision models on demand — the image rides the
+ * tool result to the model only, while the durable event and UI keep just the structured output.
+ */
+type PiToolRichOutput = {piContent: Array<{type: 'text'; text: string} | {type: 'image'; data: string; mimeType: string}>}
+
+function hasPiContent(value: unknown): value is PiToolRichOutput & Record<string, unknown> {
+  return isRecord(value) && Array.isArray((value as PiToolRichOutput).piContent)
+}
+
 function defineSeedPiTool(
   metadata: SeedToolMetadata,
   execute: (params: unknown, toolCallId: string) => Promise<unknown> | unknown,
@@ -3289,7 +3420,13 @@ function defineSeedPiTool(
     description: metadata.description,
     parameters: metadata.inputSchema as never,
     execute: async (toolCallId, params) => {
-      const output = jsonSafeToolOutput(await execute(params, toolCallId))
+      const raw = await execute(params, toolCallId)
+      if (hasPiContent(raw)) {
+        const {piContent, ...rest} = raw
+        const output = jsonSafeToolOutput(rest)
+        return {content: piContent, details: output}
+      }
+      const output = jsonSafeToolOutput(raw)
       return {content: [{type: 'text', text: safeJSONStringify(output)}], details: output}
     },
   })
@@ -3531,6 +3668,75 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         url,
         size: file.size,
         mimeType: file.mimeType,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.view_attachment, (params) => {
+      const input = isRecord(params) ? params : {}
+      const attachmentId = typeof input.id === 'string' ? input.id : ''
+      const {info, data} = withAttachmentErrors(() =>
+        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
+      )
+      const meta = {id: info.id, name: info.name, mimeType: info.mimeType, size: info.size}
+      const isImage = !!info.mimeType?.startsWith('image/')
+      if (isImage && context.modelAcceptsImages && info.size <= MAX_INLINE_IMAGE_BYTES) {
+        return {
+          summary: `Viewed ${info.name} (${info.mimeType}, ${info.size} bytes).`,
+          ...meta,
+          shownAsImage: true,
+          piContent: [
+            {type: 'text', text: `Attachment "${info.name}" (${info.mimeType}, ${info.size} bytes):`},
+            {type: 'image', data: Buffer.from(data).toString('base64'), mimeType: info.mimeType!},
+          ],
+        }
+      }
+      if (isTextMimeType(info.mimeType) && data.byteLength <= MAX_TOOL_RESULT_BYTES) {
+        const text = new TextDecoder('utf-8', {fatal: false}).decode(data)
+        return {summary: `Read ${info.name} (${info.size} bytes).`, ...meta, shownAsImage: false, content: text}
+      }
+      const reason = isImage
+        ? context.modelAcceptsImages
+          ? 'the image is too large to view inline'
+          : 'this model does not support image input'
+        : 'the content is not viewable inline'
+      return {
+        summary: `${info.name} (${info.mimeType || 'unknown type'}, ${info.size} bytes); ${reason}. Use attachment_to_memory and execute_code to inspect or process it.`,
+        ...meta,
+        shownAsImage: false,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.attachment_to_memory, (params) => {
+      const input = isRecord(params) ? params : {}
+      const attachmentId = typeof input.id === 'string' ? input.id : ''
+      const {info, data} = withAttachmentErrors(() =>
+        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
+      )
+      const targetPath =
+        typeof input.path === 'string' && input.path.trim() ? input.path.trim() : `attachments/${info.name}`
+      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, targetPath, data))
+      context.onMemoryChange()
+      return {
+        summary: `Saved attachment ${info.name} to memory at ${entry.path} (${entry.size} bytes).`,
+        id: info.id,
+        path: entry.path,
+        size: entry.size,
+        mimeType: entry.mimeType,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.attachment_to_ipfs, async (params) => {
+      const input = isRecord(params) ? params : {}
+      const attachmentId = typeof input.id === 'string' ? input.id : ''
+      const {info, data} = withAttachmentErrors(() =>
+        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
+      )
+      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, data, info.mimeType, info.name)
+      return {
+        summary: `Published attachment ${info.name} to IPFS as ${url}.`,
+        id: info.id,
+        name: info.name,
+        cid,
+        url,
+        size: info.size,
+        mimeType: info.mimeType,
       }
     }),
     defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
@@ -4916,16 +5122,30 @@ function normalizeContextLines(raw: unknown): string[] {
   })
 }
 
-function normalizeMessageContent(
-  content: api.MessageSession['content'],
-): Array<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}> {
+function normalizeMessageContent(content: api.MessageSession['content']): Array<{
+  text: string
+  blocks?: api.AgentMessageBlock[]
+  contextLines?: string[]
+  attachmentIds?: string[]
+}> {
   if (!Array.isArray(content) || content.length === 0) throw new APIError(400, 'Message content is required')
   const contextLines: string[] = []
+  const attachmentIds: string[] = []
   const messages = content.flatMap<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}>(
     (part) => {
       if (!part || typeof part !== 'object') throw new APIError(400, 'Only text message content is supported')
       if (part.type === 'context') {
         contextLines.push(...normalizeContextLines(part.lines))
+        return []
+      }
+      if (part.type === 'attachment') {
+        if (typeof part.id !== 'string' || !/^[0-9a-f]{64}$/.test(part.id)) {
+          throw new APIError(400, 'Invalid attachment id')
+        }
+        if (!attachmentIds.includes(part.id)) attachmentIds.push(part.id)
+        if (attachmentIds.length > MAX_MESSAGE_ATTACHMENTS) {
+          throw new APIError(400, `A message can reference at most ${MAX_MESSAGE_ATTACHMENTS} attachments`)
+        }
         return []
       }
       if (part.type !== 'text' || typeof part.text !== 'string') {
@@ -4948,8 +5168,9 @@ function normalizeMessageContent(
     throw new APIError(400, 'Message content is too large')
   }
   // Context describes the sending window as a whole, so all context parts collapse onto the first
-  // message of the request — the turn the model reads them with.
+  // message of the request — the turn the model reads them with. Attachments do the same.
   if (contextLines.length > 0) messages[0]!.contextLines = contextLines
+  if (attachmentIds.length > 0) (messages[0] as {attachmentIds?: string[]}).attachmentIds = attachmentIds
   return messages
 }
 

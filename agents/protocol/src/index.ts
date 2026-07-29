@@ -1,5 +1,6 @@
 export * from './tool-registry'
 export * from './reasoning'
+export * from './model-capabilities'
 
 import type {ReasoningLevel} from './reasoning'
 
@@ -71,6 +72,12 @@ export type AgentMessageBlock = AgentPromptBlock
  * sidebar sends the current window (open document, view, focused block) so "this document" means
  * something to the model. Context is model-facing only: the server attaches it to the turn's user
  * message for the model but keeps it out of the visible transcript content.
+ *
+ * `attachment` parts reference files previously uploaded with `UploadSessionAttachment`.
+ * Attachments are session-private: they live with the session on the agent server, are shown to
+ * the model inline (images, when the model supports image input) or as metadata, and are deleted
+ * with the session. They are never copied into agent memory or published to IPFS unless the agent
+ * explicitly does so with its attachment tools.
  */
 export type MessageSessionContentPart =
   | {
@@ -82,6 +89,24 @@ export type MessageSessionContentPart =
       type: 'context'
       lines: string[]
     }
+  | {
+      type: 'attachment'
+      /** Attachment id returned by `UploadSessionAttachment`. */
+      id: string
+    }
+
+/** Metadata for one session-private file attached to a session message. */
+export type SessionAttachmentInfo = {
+  /** Content-derived id (SHA-256 hex of the bytes), stable across re-uploads of the same file. */
+  id: string
+  sessionId: string
+  /** Original file name, for display and metadata shown to the model. */
+  name: string
+  /** MIME type reported by the client or inferred from the file name. */
+  mimeType?: string
+  size: number
+  createdAt: number
+}
 
 /** Signed CBOR action envelope accepted by `/api/message` and `/agents/ws`. */
 export type SignedActionEnvelope = {
@@ -131,6 +156,8 @@ export type UnsignedAgentAction =
   | DeleteSession
   | GetSession
   | MessageSession
+  | UploadSessionAttachment
+  | ReadSessionAttachment
   | StopSession
   | Subscribe
 
@@ -444,6 +471,27 @@ export type MessageSession = {
   clientMessageId?: string
 }
 
+/**
+ * Uploads one session-private attachment so a later `MessageSession` can reference it. Uploading
+ * the same bytes twice returns the same attachment id. Attachments are deleted with the session.
+ */
+export type UploadSessionAttachment = {
+  _: 'UploadSessionAttachment'
+  sessionId: string
+  /** Original file name, used for display and model-facing metadata. */
+  name: string
+  /** MIME type reported by the client; inferred from `name` when absent. */
+  mimeType?: string
+  content: Uint8Array
+}
+
+/** Reads one session attachment's metadata and raw bytes (e.g. to render it in the chat thread). */
+export type ReadSessionAttachment = {
+  _: 'ReadSessionAttachment'
+  sessionId: string
+  attachmentId: string
+}
+
 /** Stops an in-flight agent response for a session. */
 export type StopSession = {
   _: 'StopSession'
@@ -547,6 +595,8 @@ export type SessionEventPayload =
        * Fed to the model with the message but never part of `content`, so transcripts stay clean.
        */
       contextLines?: string[]
+      /** Session-private attachments that accompanied this user message. */
+      attachments?: SessionAttachmentInfo[]
     }
   | {type: 'tool_call'; id: string; name: string; input: unknown}
   | {type: 'tool_result'; toolCallId: string; name: string; output?: unknown; error?: string}
@@ -856,6 +906,19 @@ export type MessageSessionResponse = {
   assistantEventId: string
 }
 
+/** Successful response for `UploadSessionAttachment`. */
+export type UploadSessionAttachmentResponse = {
+  _: 'UploadSessionAttachmentResponse'
+  attachment: SessionAttachmentInfo
+}
+
+/** Successful response for `ReadSessionAttachment`. */
+export type ReadSessionAttachmentResponse = {
+  _: 'ReadSessionAttachmentResponse'
+  attachment: SessionAttachmentInfo
+  data: Uint8Array
+}
+
 /** Successful response for `StopSession`. */
 export type StopSessionResponse = {
   _: 'StopSessionResponse'
@@ -901,5 +964,7 @@ export type AgentResponse =
   | DeleteSessionResponse
   | GetSessionResponse
   | MessageSessionResponse
+  | UploadSessionAttachmentResponse
+  | ReadSessionAttachmentResponse
   | StopSessionResponse
   | ErrorResponse

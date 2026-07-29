@@ -1995,6 +1995,7 @@ describe('api service', () => {
         if (openAICallCount === 1) {
           expect(body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name)).toEqual([
             'read',
+            'view_attachment',
             'set_session_title',
           ])
           return openAIStreamResponse([
@@ -2219,7 +2220,7 @@ describe('api service', () => {
       // First provider request advertises exactly the enabled web tool plus the hidden title tool.
       expect(
         (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
-      ).toEqual(['web_search', 'set_session_title'])
+      ).toEqual(['web_search', 'view_attachment', 'set_session_title'])
       // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
       const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
       expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
@@ -2316,6 +2317,7 @@ describe('api service', () => {
           expect(body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name)).toEqual([
             'read',
             'write',
+            'view_attachment',
             'set_session_title',
           ])
           expect(JSON.stringify(body.tools)).toContain('replyCommentId')

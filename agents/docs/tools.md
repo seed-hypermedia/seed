@@ -29,6 +29,8 @@ memory_delete
 memory_download
 ipfs_read
 ipfs_write
+attachment_to_memory
+attachment_to_ipfs
 execute_code
 ```
 
@@ -36,9 +38,10 @@ execute_code
 array can enable or disable user-configurable tools from the autosaving desktop Tools tab. The local desktop assistant
 also uses the same `read` model-facing API; the old local `read` name is only a legacy chat history rendering alias.
 
-Hidden runtime tool:
+Always-available runtime tools (not stored in agent `tools`):
 
 ```text
+view_attachment
 set_session_title
 ```
 
@@ -250,9 +253,6 @@ Key behavior:
   uploads one memory file to the HM server's `/ipfs/file-upload` endpoint and returns its `ipfs://<cid>` URL, so the
   agent can reference stored media from Hypermedia content (documents, avatars) created with the `write` tool.
   Publishing to IPFS makes the file publicly retrievable.
-- Files the user drops into the desktop session composer are written into memory under `attachments/` via the signed
-  `WriteAgentMemoryFile` action and referenced as `memory://` links in the message text — the client never uploads
-  attachment bytes to IPFS.
 - MIME types are inferred from file extensions (`inferMimeType`) for previews, downloads, and IPFS uploads.
 - Limits: 1 MiB per text write, 100 MiB per file (binary/downloads), 1 GiB per agent, 2000 entries, 512-byte paths, 16
   levels of nesting.
@@ -266,6 +266,27 @@ Key behavior:
   files with sizes and root folders with contained file counts, without expanding subfolder contents — built fresh per
   run by `summarizeMemoryTopLevel`. The agent starts every session knowing what it has without an explicit `memory_list`
   call; `memory_list` remains the way to see full nested paths.
+
+## Session attachment tools (`view_attachment`, `attachment_to_memory`, `attachment_to_ipfs`)
+
+Files a user drops into the desktop session composer upload to the agent server as **session-private attachments**
+(`agents/src/session-attachments.ts`, stored under `<stateDir>/session-attachments/<sessionId>/`, ids are the SHA-256 of
+the content). They are deliberately not written to agent memory, not published to IPFS, and are deleted with the
+session. The desktop uses the signed `UploadSessionAttachment` / `ReadSessionAttachment` actions to upload before send
+and to render attached images in the chat thread.
+
+The model sees each message's attachments as a cheap `<attachments>` metadata block (name, MIME type, size, id) — never
+the bytes — so large files cannot flood the context uninvited. Content is pulled on demand:
+
+- `view_attachment` (always available in sessions, like `set_session_title`) returns the actual image content in the
+  tool result for image attachments when the model supports image input (`modelSupportsImageInput`, capped at ~4.5 MB);
+  UTF-8 text attachments return their text; everything else returns metadata plus guidance. Image bytes ride only the
+  model-facing tool result — the durable `tool_result` event stores just the structured summary, so transcripts and the
+  DB stay small, and a later run re-fetches on demand rather than replaying the image.
+- `attachment_to_memory` (memory tool group) copies one attachment into persistent memory (default
+  `attachments/<name>`) when it is worth keeping across sessions.
+- `attachment_to_ipfs` (write tool group) publishes one attachment to the HM server's IPFS endpoint and returns its
+  `ipfs://<cid>` URL for use in Hypermedia content. Publishing makes the file publicly retrievable.
 
 ## `execute_code`
 

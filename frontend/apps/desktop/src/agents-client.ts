@@ -46,6 +46,8 @@ export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
 export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 /** Contents of one agent memory file. */
 export type AgentMemoryFile = AgentsProtocol.AgentMemoryFile
+/** Metadata for one session-private file attached to a session message. */
+export type SessionAttachmentInfo = AgentsProtocol.SessionAttachmentInfo
 /** Public metadata for a server-side Seed account key secret. */
 export type SigningIdentity = AgentsProtocol.SigningIdentity
 /** Avatar image payload for updating an agent account profile. */

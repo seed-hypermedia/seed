@@ -30,6 +30,9 @@ import {
 } from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 
+/** Files above this size skip the inline preview fetch — pulling hundreds of MB stalls the UI. */
+const MAX_MEMORY_PREVIEW_BYTES = 32 * 1024 * 1024
+
 /**
  * The agent Memory tab: a browser/editor for the agent's private persistent filesystem.
  * The same files are read and written by the agent's `memory_*` session tools, so this
@@ -66,7 +69,11 @@ export function AgentMemoryTab({
   /** Directories currently expanded in the tree; everything starts collapsed. */
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
   const uploadInputRef = useRef<HTMLInputElement>(null)
-  const file = useAgentMemoryFile(serverUrl, accountUid, agentId, selectedPath ?? undefined)
+  // Reading a file pulls its full bytes over the wire; very large files (multi-hundred-MB
+  // uploads) would stall or crash the preview, so those render a size card instead of fetching.
+  const selectedEntry = memory.data?.entries.find((entry) => entry.type === 'file' && entry.path === selectedPath)
+  const selectedTooLarge = (selectedEntry?.size ?? 0) > MAX_MEMORY_PREVIEW_BYTES
+  const file = useAgentMemoryFile(serverUrl, accountUid, agentId, selectedTooLarge ? undefined : selectedPath ?? undefined)
 
   const entries = memory.data?.entries ?? []
   const fileCount = entries.filter((entry) => entry.type === 'file').length
@@ -386,6 +393,25 @@ export function AgentMemoryTab({
               <SizableText size="sm" color="muted">
                 Select a file to view and edit it.
               </SizableText>
+            </div>
+          ) : selectedTooLarge && selectedEntry ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
+              <FileText className="text-muted-foreground size-8" />
+              <SizableText size="sm" weight="bold" className="max-w-full truncate font-mono">
+                {selectedPath}
+              </SizableText>
+              <SizableText size="sm" color="muted">
+                {formatBytes(selectedEntry.size)}
+                {selectedEntry.mimeType ? ` · ${selectedEntry.mimeType}` : ''} — too large to preview here.
+              </SizableText>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmDeletePath(selectedPath)}
+                className="mt-2"
+              >
+                <Trash2 className="mr-1 size-3.5" /> Delete
+              </Button>
             </div>
           ) : file.isLoading ? (
             <div className="flex flex-1 items-center justify-center p-6">

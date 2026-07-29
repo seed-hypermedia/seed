@@ -1,4 +1,4 @@
-import {type AgentSessionTriggerContext, type SessionEvent} from '@/agents-client'
+import {type AgentSessionTriggerContext, type SessionAttachmentInfo, type SessionEvent} from '@/agents-client'
 import {type ChatBubbleMessage} from '@/components/assistant-message-rendering'
 import {type ChatToolPart} from '@/models/chat-parts'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
@@ -118,6 +118,7 @@ export function buildAgentSessionChatRows(
       rawMarkdown?: string
       blocks?: HMBlockNode[]
       contextLines?: unknown
+      attachments?: unknown
     }
 
     if (payload.type === 'message' && typeof payload.content === 'string') {
@@ -144,6 +145,9 @@ export function buildAgentSessionChatRows(
           rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
           blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
           contextLines: contextLines?.length ? contextLines : undefined,
+          attachments: Array.isArray(payload.attachments)
+            ? (payload.attachments as SessionAttachmentInfo[])
+            : undefined,
           eventId: event.id,
           sessionId: event.sessionId,
           seq: event.seq,

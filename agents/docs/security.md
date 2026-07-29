@@ -178,7 +178,12 @@ handling is strict:
   raw bytes are returned to the owning user over the signed API for preview/download;
 - `ipfs_write` (formerly `memory_upload_ipfs`) / `UploadAgentMemoryFileToIpfs` publish the file to IPFS through the HM
   server, making it publicly retrievable by CID; treat publishing as irreversible disclosure;
-- memory content is model-visible and user-visible by design; do not store secrets in agent memory.
+- memory content is model-visible and user-visible by design; do not store secrets in agent memory;
+- session attachments (files dropped into the chat composer) are session-private by design: stored under
+  `<stateDir>/session-attachments/<sessionId>/`, never auto-copied into cross-session memory or published to IPFS,
+  deleted with the session, and exposed to the model as metadata only until it calls `view_attachment`. Persisting
+  (`attachment_to_memory`) or publishing (`attachment_to_ipfs`) requires an explicit tool call gated by the memory/write
+  tool groups.
 
 ## Code execution safety (`execute_code`)
 

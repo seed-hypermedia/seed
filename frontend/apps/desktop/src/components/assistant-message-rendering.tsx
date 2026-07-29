@@ -1,7 +1,9 @@
-import {type AgentRunActivity} from '@/agents-client'
+import {type AgentRunActivity, type SessionAttachmentInfo} from '@/agents-client'
 import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {getSeedToolMetadata} from '../../../../../agents/protocol/src/tool-registry'
 import {useOpenUrl} from '@/open-url'
+import {useSessionAttachmentDataUrls} from '@/models/agents'
+import {useSelectedAccountId} from '@/selected-account'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {cn} from '@shm/ui/utils'
@@ -17,7 +19,7 @@ import {
   Search,
   Wrench,
 } from 'lucide-react'
-import React, {Suspense, useState} from 'react'
+import React, {Suspense, useMemo, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Markdown} from './markdown'
@@ -26,24 +28,28 @@ import {Markdown} from './markdown'
 export const ChatMessageBubble = React.memo(function ChatMessageBubble({
   message,
   liveActivity,
+  serverUrl,
 }: {
   message: ChatBubbleMessage
   /** Live run activity, passed so a pending tool call row can show its in-flight progress. */
   liveActivity?: AgentRunActivity
+  /** Agent server URL, needed to resolve session attachment images for display. */
+  serverUrl?: string
 }) {
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
   const isUser = message.role === 'user'
   const rawMarkdown = message.rawMarkdown ?? message.content
+  const resolvedBlocks = useAttachmentResolvedBlocks(serverUrl, message)
 
   return (
     <div className="group/message my-1.5">
       {isUser ? (
         <div className="flex items-start gap-1">
           <div className="ml-6 min-w-0 flex-1 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-[13px] text-slate-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-50 [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
-            {message.blocks?.length ? (
+            {resolvedBlocks?.length ? (
               <div className="text-foreground rounded-md bg-transparent px-1 py-0.5 [&_.ProseMirror]:!bg-transparent [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent [&_.hm-prose]:!font-sans [&_.hm-prose]:!text-base">
                 <Suspense fallback={<Markdown>{message.content || ''}</Markdown>}>
-                  <RichMessageBlocks blocks={message.blocks} />
+                  <RichMessageBlocks blocks={resolvedBlocks} />
                 </Suspense>
               </div>
             ) : (
@@ -169,6 +175,39 @@ export type ChatBubbleMessage = {
   shareUrl?: string
   /** Client context (e.g. the sender's current window) attached to this message for the model. */
   contextLines?: string[]
+  /** Session-private attachments that accompanied this user message. */
+  attachments?: SessionAttachmentInfo[]
+}
+
+/**
+ * Resolves `attachment://<id>` links in a user message's blocks to displayable `data:` URLs by
+ * fetching the session-private attachment bytes from the agent server. Blocks pass through
+ * untouched while the fetch is in flight or when the message has no attachments.
+ */
+function useAttachmentResolvedBlocks(
+  serverUrl: string | undefined,
+  message: ChatBubbleMessage,
+): HMBlockNode[] | undefined {
+  const accountId = useSelectedAccountId()
+  const attachmentIds = useMemo(() => (message.attachments ?? []).map((info) => info.id), [message.attachments])
+  const srcById = useSessionAttachmentDataUrls(serverUrl, accountId, message.sessionId, attachmentIds)
+  return useMemo(() => {
+    if (!message.blocks?.length || Object.keys(srcById).length === 0) return message.blocks
+    return substituteAttachmentLinks(message.blocks, srcById)
+  }, [message.blocks, srcById])
+}
+
+function substituteAttachmentLinks(blocks: HMBlockNode[], srcById: Record<string, string>): HMBlockNode[] {
+  return blocks.map((node) => {
+    let block = node.block
+    const link = (block as {link?: unknown}).link
+    if (typeof link === 'string' && link.startsWith('attachment://')) {
+      const src = srcById[link.slice('attachment://'.length)]
+      if (src) block = {...block, link: src} as typeof node.block
+    }
+    const children = node.children?.length ? substituteAttachmentLinks(node.children, srcById) : node.children
+    return {...node, block, children}
+  })
 }
 
 /**

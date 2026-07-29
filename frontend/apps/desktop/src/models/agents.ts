@@ -17,6 +17,7 @@ import {
   type ModelProviderConfig,
   type ModelProviderInfo,
   type ModelProviderType,
+  type SessionAttachmentInfo,
   type SessionInfo,
   type SigningIdentity,
   type SigningIdentityIcon,
@@ -1054,6 +1055,85 @@ export type AgentSessionDraftMessage = {
   blocks?: AgentMessageBlock[]
   /** Ambient client context (e.g. the sidebar's current window), sent as a `context` part. */
   contextLines?: string[]
+  /** Session attachments (already uploaded) referenced by this message. */
+  attachments?: SessionAttachmentInfo[]
+}
+
+/** Uploads one session-private attachment; the returned id is referenced from a later message. */
+export function useUploadSessionAttachment(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      name,
+      mimeType,
+      content,
+    }: {
+      sessionId: string
+      name: string
+      mimeType?: string
+      content: Uint8Array
+    }) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: mimeType
+          ? {_: 'UploadSessionAttachment', sessionId, name, mimeType, content}
+          : {_: 'UploadSessionAttachment', sessionId, name, content},
+      })
+      if (res._ !== 'UploadSessionAttachmentResponse') throw new Error('Unexpected UploadSessionAttachment response')
+      return res.attachment
+    },
+  })
+}
+
+/**
+ * Resolves session attachment ids to `data:` URLs for rendering attached images in the chat
+ * thread. Each id is fetched once and cached; unknown ids resolve to nothing (the block keeps its
+ * unrenderable `attachment://` URL).
+ */
+export function useSessionAttachmentDataUrls(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  sessionId: string | undefined,
+  attachmentIds: string[],
+): Record<string, string> {
+  const results = useQueries({
+    queries: attachmentIds.map((attachmentId) => ({
+      queryKey: ['agents', 'session-attachment', serverUrl, sessionId, attachmentId],
+      enabled: !!serverUrl && !!accountUid && !!sessionId,
+      staleTime: Infinity,
+      retry: false,
+      queryFn: async () => {
+        const res = await sendAgentAction({
+          serverUrl: serverUrl!,
+          accountUid: accountUid!,
+          action: {_: 'ReadSessionAttachment', sessionId: sessionId!, attachmentId},
+        })
+        if (res._ !== 'ReadSessionAttachmentResponse') throw new Error('Unexpected ReadSessionAttachment response')
+        return {
+          id: attachmentId,
+          dataUrl: `data:${res.attachment.mimeType || 'application/octet-stream'};base64,${uint8ToBase64(res.data)}`,
+        }
+      },
+    })),
+  })
+  return useMemo(() => {
+    const byId: Record<string, string> = {}
+    for (const result of results) {
+      if (result.data) byId[result.data.id] = result.data.dataUrl
+    }
+    return byId
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results.map((result) => (result.data ? result.data.id : '')).join('|')])
+}
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]!)
+  }
+  return btoa(binary)
 }
 
 /** Sends a user message and asks the server-hosted agent to respond. */
@@ -1070,8 +1150,10 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
       const messages = Array.isArray(message) ? message : [message]
       // Context describes the sending window as a whole, so all lines collapse into one part.
       const contextLines = messages.flatMap((message) => message.contextLines ?? [])
+      const attachmentIds = Array.from(new Set(messages.flatMap((m) => (m.attachments ?? []).map((a) => a.id))))
       const content: MessageSessionContentPart[] = [
         ...(contextLines.length > 0 ? [{type: 'context', lines: contextLines} as const] : []),
+        ...attachmentIds.map((id): MessageSessionContentPart => ({type: 'attachment', id})),
         ...messages.map(
           (message): MessageSessionContentPart => ({
             type: 'text',
@@ -1344,6 +1426,7 @@ export function addOptimisticSessionMessage(
             // Mirrors the durable event shape so the context info chip shows without waiting for
             // the server round trip.
             ...(message.contextLines?.length ? {contextLines: message.contextLines} : {}),
+            ...(message.attachments?.length ? {attachments: message.attachments} : {}),
           },
           createdAt: now,
         })),

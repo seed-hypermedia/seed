@@ -621,6 +621,7 @@ function AssistantSessionChat({
                   key={row.key}
                   message={row.message}
                   liveActivity={chatRowHasPendingToolCall(row) ? live.activity : undefined}
+                  serverUrl={serverUrl}
                 />
               )
             if (row.kind === 'error') {

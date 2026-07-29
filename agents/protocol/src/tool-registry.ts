@@ -181,6 +181,9 @@ export type SeedToolRegistry = {
   memory_download: SeedToolMetadata
   ipfs_read: SeedToolMetadata
   ipfs_write: SeedToolMetadata
+  view_attachment: SeedToolMetadata
+  attachment_to_memory: SeedToolMetadata
+  attachment_to_ipfs: SeedToolMetadata
   execute_code: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
@@ -817,6 +820,128 @@ export const seedToolRegistry: SeedToolRegistry = {
       color: 'indigo',
       primaryArg: 'path',
       summaryArg: 'path',
+      summaryOutputPath: 'summary',
+      links: [{source: 'output', path: 'url', label: 'IPFS file'}],
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  view_attachment: {
+    name: 'view_attachment',
+    label: 'View Attachment',
+    description:
+      'Look at one file your user attached to this chat session, by the attachment id listed in the message metadata. Images are returned as actual image content you can see (when your model supports image input); other file types and oversized images return metadata plus guidance. Attachments are private to this session: use attachment_to_memory to keep one across sessions, or attachment_to_ipfs to publish one for use in Hypermedia content. Call this only when you actually need to inspect the content — the message metadata already tells you the name, type, and size.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: {type: 'string', minLength: 1, description: 'The attachment id from the message metadata.'},
+      },
+      required: ['id'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        id: {type: 'string'},
+        name: {type: 'string'},
+        mimeType: {type: 'string'},
+        size: {type: 'integer'},
+        shownAsImage: {type: 'boolean', description: 'True when the image content was returned for viewing.'},
+        content: {type: 'string', description: 'Full text content for UTF-8 text attachments.'},
+      },
+    },
+    render: {
+      kind: 'read',
+      label: 'View Attachment',
+      color: 'emerald',
+      primaryArg: 'id',
+      summaryArg: 'id',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+  },
+  attachment_to_memory: {
+    name: 'attachment_to_memory',
+    label: 'Save Attachment to Memory',
+    description:
+      'Copy one session attachment into your private persistent memory so it survives beyond this session, using the attachment id from the message metadata. Defaults to attachments/<file name>; pass path to store it elsewhere. Do this only when the file is worth keeping across sessions — attachments are session-private by default.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: {type: 'string', minLength: 1, description: 'The attachment id from the message metadata.'},
+        path: {
+          type: 'string',
+          description: 'Optional target memory path such as media/photo.jpg. Defaults to attachments/<file name>.',
+        },
+      },
+      required: ['id'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        id: {type: 'string'},
+        path: {type: 'string', description: 'The memory path where the attachment was stored.'},
+        size: {type: 'integer'},
+        mimeType: {type: 'string'},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Save Attachment to Memory',
+      color: 'violet',
+      primaryArg: 'id',
+      summaryArg: 'id',
+      summaryOutputPath: 'summary',
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  attachment_to_ipfs: {
+    name: 'attachment_to_ipfs',
+    label: 'Publish Attachment to IPFS',
+    description:
+      'Publish one session attachment to IPFS via the Hypermedia server, returning an ipfs://<cid> URL usable from Hypermedia content — for example as an image in a document created with the write tool. Publishing makes the file publicly retrievable, so only do this when the user wants the file used in published content.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        id: {type: 'string', minLength: 1, description: 'The attachment id from the message metadata.'},
+      },
+      required: ['id'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        id: {type: 'string'},
+        name: {type: 'string'},
+        cid: {type: 'string', description: 'The IPFS content identifier.'},
+        url: {type: 'string', description: 'ipfs://<cid> URL usable from Hypermedia content.'},
+        size: {type: 'integer'},
+        mimeType: {type: 'string'},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Publish Attachment to IPFS',
+      color: 'indigo',
+      primaryArg: 'id',
+      summaryArg: 'id',
       summaryOutputPath: 'summary',
       links: [{source: 'output', path: 'url', label: 'IPFS file'}],
       details: [

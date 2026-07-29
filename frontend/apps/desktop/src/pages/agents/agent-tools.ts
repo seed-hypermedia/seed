@@ -15,7 +15,11 @@ export const AGENT_WEB_TOOL_GROUP = [seedToolRegistry.web_search.name, seedToolR
 export const AGENT_WRITE_TOOL = seedToolRegistry.write.name
 
 /** Tools that let an agent publish Seed content and files: sign/publish documents plus IPFS file uploads. */
-export const AGENT_WRITE_TOOL_GROUP = [seedToolRegistry.write.name, seedToolRegistry.ipfs_write.name]
+export const AGENT_WRITE_TOOL_GROUP = [
+  seedToolRegistry.write.name,
+  seedToolRegistry.ipfs_write.name,
+  seedToolRegistry.attachment_to_ipfs.name,
+]
 
 /** Tools that let an agent read and write its private persistent memory filesystem. */
 export const AGENT_MEMORY_TOOL_GROUP = [
@@ -24,6 +28,7 @@ export const AGENT_MEMORY_TOOL_GROUP = [
   seedToolRegistry.memory_write.name,
   seedToolRegistry.memory_delete.name,
   seedToolRegistry.memory_download.name,
+  seedToolRegistry.attachment_to_memory.name,
 ]
 
 /**
