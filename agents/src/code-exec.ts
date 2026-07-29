@@ -5,14 +5,14 @@
  * libkrun on macOS/Linux, WHP on Windows) with the agent's memory directory bind-mounted at
  * `/workspace` as the working directory. Code therefore reads and writes the same files the
  * `memory_*` tools and the desktop Memory tab see, while the VM boundary keeps it away from the
- * host. Each execution uses a fresh ephemeral sandbox with capped CPU, memory, write quota, and
- * wall-clock duration; networking is disabled unless explicitly allowed.
+ * host. Each execution uses a fresh ephemeral sandbox with capped CPU, memory, and wall-clock
+ * duration; networking is disabled unless explicitly allowed.
  *
  * The SDK is loaded lazily and injected in tests, so the service runs fine on hosts without
  * virtualization support — the tool then fails with a clear error instead of breaking the server.
  */
 
-import {MAX_MEMORY_TOTAL_BYTES, listMemory, memoryRootPath} from '@/agent-memory'
+import {listMemory, memoryRootPath} from '@/agent-memory'
 import * as fs from 'node:fs'
 
 /** Guest path where the agent's memory directory is mounted. */
@@ -337,7 +337,6 @@ export function createCodeExecutor(
       const memoryRoot = memoryRootPath(request.stateDir)
       fs.mkdirSync(memoryRoot, {recursive: true})
       const before = snapshotMemory(request.stateDir)
-      const quotaMib = writeQuotaMib(before.totalBytes)
 
       const sdk = await getSdk()
       const startedAt = Date.now()
@@ -352,7 +351,7 @@ export function createCodeExecutor(
           .ephemeral(true)
           .security('restricted')
           .maxDuration(timeoutSecs + 30)
-          .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(memoryRoot).quota(quotaMib))
+          .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(memoryRoot))
         if (config.allowNetwork) {
           // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
           // non-local policy so code can reach the public internet but not the host's private
@@ -493,12 +492,6 @@ function createOutputCollector(): OutputCollector {
       return new TextDecoder().decode(merged)
     },
   }
-}
-
-/** Guest write quota: the remaining memory budget, clamped to a sane range. */
-function writeQuotaMib(usedBytes: number): number {
-  const remainingMib = Math.ceil((MAX_MEMORY_TOTAL_BYTES - usedBytes) / (1024 * 1024))
-  return Math.max(1, Math.min(1024, remainingMib))
 }
 
 type MemorySnapshot = {files: Map<string, string>; totalBytes: number}

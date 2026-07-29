@@ -169,7 +169,7 @@ describe('code exec', () => {
       expect(call.networkPolicy).toBe('nonLocal')
       expect(call.workdir).toBe(EXEC_WORKSPACE_GUEST_PATH)
       expect(call.maxDurationSecs).toBe(90)
-      expect(call.mounts).toEqual([{guest: EXEC_WORKSPACE_GUEST_PATH, host: memoryRootPath(stateDir), quotaMib: 1024}])
+      expect(call.mounts).toEqual([{guest: EXEC_WORKSPACE_GUEST_PATH, host: memoryRootPath(stateDir)}])
       expect(call.exec).toEqual({cmd: 'python', args: ['-c', 'print("hi")'], timeoutMs: 60_000})
       expect(call.stopped).toBe(true)
     })
