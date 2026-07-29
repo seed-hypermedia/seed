@@ -411,6 +411,23 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		panic("BUG: actor wasn't derived when applying change")
 	}
 
+	if ts != math.MaxInt64 && ts >= maxTs {
+		return fmt.Errorf("change %s: timestamp %d overflows the maximum op ID timestamp %d", c, ts, maxTs)
+	}
+
+	// A change carrying enough ops can push the op ID index past what the
+	// packed opID representation can hold (the index advances quadratically
+	// within multi-block ops). newOpID panics on such values because today's
+	// write path can never produce them, but changes arriving from the network
+	// can — huge imported documents from older writers exist in the wild — and
+	// applying those must fail with an error instead of crashing the process.
+	checkedOpID := func(i int) (opID, error) {
+		if i > maxIdx {
+			return opID{}, fmt.Errorf("change %s: op ID index %d overflows the maximum %d", c, i, maxIdx)
+		}
+		return newOpID(ts, actorID, i), nil
+	}
+
 	idx := -1
 	for op, err := range ch.Ops() {
 		idx++
@@ -421,7 +438,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		switch op := op.(type) {
 		case blob.OpSetKey:
 			key := []string{op.Key}
-			opid := newOpID(ts, actorID, idx)
+			opid, err := checkedOpID(idx)
+			if err != nil {
+				return err
+			}
 			e.setMetadata(opid, key, op.Value)
 		case blob.OpReplaceBlock:
 			blk := op.Block
@@ -430,7 +450,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				reg = newMVReg[blob.Block]()
 				e.stateBlocks[blk.ID()] = reg
 			}
-			opid := newOpID(ts, actorID, idx)
+			opid, err := checkedOpID(idx)
+			if err != nil {
+				return err
+			}
 			reg.Set(opid, blk)
 
 			// We now support having detached blocks, so we need to make sure they exist in the tree.
@@ -465,7 +488,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			var lastOp opID
 			for i, blk := range op.Blocks {
 				idx += i
-				opid := newOpID(ts, actorID, idx)
+				opid, err := checkedOpID(idx)
+				if err != nil {
+					return err
+				}
 				if i > 0 {
 					refID = lastOp
 				}
@@ -477,7 +503,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		case blob.OpDeleteBlocks:
 			for i, blk := range op.Blocks {
 				idx += i
-				opid := newOpID(ts, actorID, idx)
+				opid, err := checkedOpID(idx)
+				if err != nil {
+					return err
+				}
 				if err := e.tree.Integrate(opid, TrashNodeID, blk, opID{}); err != nil {
 					return err
 				}
@@ -489,7 +518,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 
 			for i, kv := range op.Attrs {
 				idx += i
-				opid := newOpID(ts, actorID, idx)
+				opid, err := checkedOpID(idx)
+				if err != nil {
+					return err
+				}
 				e.setMetadata(opid, kv.Key, kv.Value)
 			}
 		default:

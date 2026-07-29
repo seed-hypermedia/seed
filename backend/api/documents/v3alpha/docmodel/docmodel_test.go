@@ -1,13 +1,16 @@
 package docmodel
 
 import (
+	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
 	"testing"
+	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -366,4 +369,37 @@ func TestBug_HydratePreservesStructuralParentWithoutBlockState(t *testing.T) {
 	require.Equal(t, "row", hdoc.Content[0].Children[0].Block.Id)
 
 	require.Equal(t, "after", hdoc.Content[1].Block.Id)
+}
+
+func TestApplyChangeOpIndexOverflow(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+
+	// A multi-block op advances the op ID index quadratically per block, so a
+	// single move op with enough blocks overflows the packed 24-bit index.
+	// Today's writer can't author such a change (it re-applies its own ops),
+	// but they exist in the wild from older writers, and applying one — e.g.
+	// serving GetDocument for such a document — must fail with an error
+	// instead of panicking the whole process.
+	const numBlocks = 6000
+
+	moved := make([]string, numBlocks)
+	for i := range moved {
+		moved[i] = fmt.Sprintf("b%d", i)
+	}
+
+	ch := &blob.Change{
+		BaseBlob: blob.BaseBlob{
+			Type:   blob.TypeChange,
+			Signer: alice.Principal(),
+			Ts:     time.Now(),
+		},
+		Body: blob.ChangeBody{
+			Ops: []blob.OpMap{blob.NewOpMoveBlocks("", moved, []uint64{0, 0, 0})},
+		},
+	}
+
+	doc := must.Do2(New("mydoc", cclock.New()))
+	err := doc.ApplyChange(cid.Undef, ch)
+	require.ErrorContains(t, err, "op ID index")
+	require.ErrorContains(t, err, "overflows")
 }
