@@ -10,6 +10,7 @@ import {
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
   WEB_IDENTITY_ORIGIN,
+  WEB_IS_GATEWAY,
 } from '@shm/shared/constants'
 import {SizableText} from '@shm/ui/text'
 // Eager editor document styles: the server-rendered document HTML uses the
@@ -89,6 +90,7 @@ export function Layout({children}: {children: React.ReactNode}) {
               SITE_BASE_URL: siteHost || SITE_BASE_URL,
               WEB_IDENTITY_ORIGIN,
               WEB_IDENTITY_ENABLED,
+              WEB_IS_GATEWAY,
               ENABLE_EMAIL_NOTIFICATIONS,
               SEED_ASSET_HOST,
               NOTIFY_SERVICE_HOST,
