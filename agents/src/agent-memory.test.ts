@@ -4,8 +4,6 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {
   AgentMemoryError,
-  MAX_MEMORY_FILE_BYTES,
-  MAX_MEMORY_TEXT_BYTES,
   deleteMemoryPath,
   downloadToMemory,
   listMemory,
@@ -93,18 +91,17 @@ describe('agent memory', () => {
     })
   })
 
-  test('bounds text writes, binary writes, and reads separately', () => {
+  test('accepts large text and binary writes and reads them back', () => {
     withStateDir((stateDir) => {
-      expect(() => writeMemoryFile(stateDir, 'big.txt', 'x'.repeat(MAX_MEMORY_TEXT_BYTES + 1))).toThrow('byte limit')
-      // Binary content is allowed beyond the text limit.
-      writeMemoryFile(stateDir, 'big.bin', new Uint8Array(MAX_MEMORY_TEXT_BYTES + 1))
-      expect(readMemoryFile(stateDir, 'big.bin').encoding).toBe('binary')
+      // Sizes chosen above the caps that used to exist: memory has no size limits.
+      const bigText = 'x'.repeat(2 * 1024 * 1024)
+      writeMemoryFile(stateDir, 'big.txt', bigText)
+      const readBack = readMemoryFile(stateDir, 'big.txt')
+      expect(readBack.encoding).toBe('utf8')
+      expect(readBack.content?.length).toBe(bigText.length)
 
-      // A sparse file over the hard per-file limit is refused on read.
-      const hugePath = path.join(memoryRootPath(stateDir), 'huge.bin')
-      fs.writeFileSync(hugePath, '')
-      fs.truncateSync(hugePath, MAX_MEMORY_FILE_BYTES + 1)
-      expect(() => readMemoryFile(stateDir, 'huge.bin')).toThrow('too large')
+      writeMemoryFile(stateDir, 'big.bin', new Uint8Array(3 * 1024 * 1024))
+      expect(readMemoryFile(stateDir, 'big.bin').encoding).toBe('binary')
     })
   })
 
@@ -165,15 +162,8 @@ describe('agent memory', () => {
     })
   })
 
-  test('rejects downloads that exceed the file size limit or use bad URLs', async () => {
+  test('rejects bad download URLs', async () => {
     await withStateDir(async (stateDir) => {
-      globalThis.fetch = (async () =>
-        new Response('x', {
-          headers: {'content-type': 'text/plain', 'content-length': String(MAX_MEMORY_FILE_BYTES + 1)},
-        })) as unknown as typeof fetch
-      await expect(downloadToMemory(stateDir, 'https://example.com/huge.bin', undefined)).rejects.toThrow(
-        'byte file limit',
-      )
       await expect(downloadToMemory(stateDir, 'ftp://example.com/x', undefined)).rejects.toThrow('http or https')
       await expect(downloadToMemory(stateDir, 'not a url', undefined)).rejects.toThrow('Invalid download URL')
     })

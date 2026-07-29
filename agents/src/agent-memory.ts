@@ -17,20 +17,12 @@ import * as path from 'node:path'
 /** Name of the memory directory inside an agent's state directory. */
 export const MEMORY_DIR_NAME = 'memory'
 
-/** Maximum size of a text write (model tool or Memory-tab editor) in bytes. */
-export const MAX_MEMORY_TEXT_BYTES = 1024 * 1024
-/** Maximum size of any single memory file (binary uploads, downloads) in bytes. */
-export const MAX_MEMORY_FILE_BYTES = 100 * 1024 * 1024
-/** Maximum total bytes across all files in one agent's memory. */
-export const MAX_MEMORY_TOTAL_BYTES = 1024 * 1024 * 1024
-/** Maximum number of entries (files + directories) in one agent's memory. */
-export const MAX_MEMORY_ENTRIES = 2_000
 /** Maximum length of a normalized relative memory path in bytes. */
 export const MAX_MEMORY_PATH_BYTES = 512
 /** Maximum directory nesting depth of a memory path. */
 export const MAX_MEMORY_PATH_DEPTH = 16
-/** Timeout for one web download into memory. */
-export const MEMORY_DOWNLOAD_TIMEOUT_MS = 60_000
+/** Abort a web download when no bytes arrive for this long (idle timeout, not a total cap). */
+export const MEMORY_DOWNLOAD_IDLE_TIMEOUT_MS = 60_000
 
 /** One file or directory inside an agent's memory. */
 export type AgentMemoryEntry = {
@@ -66,7 +58,7 @@ export type AgentMemoryDownloadResult = {
   contentType?: string
 }
 
-/** Error raised for invalid memory paths or violated memory limits. */
+/** Error raised for invalid memory paths or unusable memory content. */
 export class AgentMemoryError extends Error {
   readonly status: number
 
@@ -175,7 +167,6 @@ export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; tota
       return
     }
     for (const dirent of names) {
-      if (entries.length >= MAX_MEMORY_ENTRIES) return
       const rel = dirRel ? `${dirRel}/${dirent.name}` : dirent.name
       const abs = path.join(dirAbs, dirent.name)
       if (dirent.isSymbolicLink()) continue
@@ -197,7 +188,7 @@ export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; tota
 }
 
 /**
- * Reads one memory file. Small files that decode as clean UTF-8 come back as text
+ * Reads one memory file. Files that decode as clean UTF-8 come back as text
  * (`encoding: 'utf8'`, `content`); everything else comes back as raw bytes
  * (`encoding: 'binary'`, `data`).
  */
@@ -206,7 +197,6 @@ export function readMemoryFile(stateDir: string, rawPath: unknown): AgentMemoryF
   const stat = lstatOrNull(absPath)
   if (!stat || stat.isSymbolicLink()) throw new AgentMemoryError(404, `Memory file not found: ${relPath}`)
   if (stat.isDirectory()) throw new AgentMemoryError(400, `Memory path is a directory, not a file: ${relPath}`)
-  if (stat.size > MAX_MEMORY_FILE_BYTES) throw new AgentMemoryError(400, `Memory file is too large to read: ${relPath}`)
   const bytes = fs.readFileSync(absPath)
   const base = {
     path: relPath,
@@ -214,54 +204,33 @@ export function readMemoryFile(stateDir: string, rawPath: unknown): AgentMemoryF
     updatedAt: Math.round(stat.mtimeMs),
     mimeType: inferMimeType(relPath),
   }
-  const text = bytes.byteLength <= MAX_MEMORY_TEXT_BYTES ? decodeUtf8OrNull(bytes) : null
+  const text = decodeUtf8OrNull(bytes)
   if (text !== null) return {...base, encoding: 'utf8', content: text}
   return {...base, encoding: 'binary', data: new Uint8Array(bytes)}
 }
 
 /**
  * Writes one memory file, creating parent directories as needed. String content is written as
- * UTF-8 text (bounded by {@link MAX_MEMORY_TEXT_BYTES}); `Uint8Array` content is written verbatim
- * (bounded by {@link MAX_MEMORY_FILE_BYTES}).
+ * UTF-8 text; `Uint8Array` content is written verbatim.
  */
 export function writeMemoryFile(stateDir: string, rawPath: unknown, content: unknown): AgentMemoryEntry {
   let contentBytes: Uint8Array
   if (typeof content === 'string') {
     contentBytes = new TextEncoder().encode(content)
-    if (contentBytes.byteLength > MAX_MEMORY_TEXT_BYTES) {
-      throw new AgentMemoryError(400, `Memory text content exceeds the ${MAX_MEMORY_TEXT_BYTES} byte limit`)
-    }
   } else if (content instanceof Uint8Array) {
     contentBytes = content
-    if (contentBytes.byteLength > MAX_MEMORY_FILE_BYTES) {
-      throw new AgentMemoryError(400, `Memory file content exceeds the ${MAX_MEMORY_FILE_BYTES} byte limit`)
-    }
   } else {
     throw new AgentMemoryError(400, 'Memory file content must be a string or bytes')
   }
   const {relPath, absPath} = resolveMemoryPath(stateDir, rawPath)
-  return writeMemoryBytes(stateDir, relPath, absPath, contentBytes)
+  return writeMemoryBytes(relPath, absPath, contentBytes)
 }
 
 /** Shared write path used by text/binary writes and web downloads after content is in hand. */
-function writeMemoryBytes(
-  stateDir: string,
-  relPath: string,
-  absPath: string,
-  contentBytes: Uint8Array,
-): AgentMemoryEntry {
+function writeMemoryBytes(relPath: string, absPath: string, contentBytes: Uint8Array): AgentMemoryEntry {
   const existing = lstatOrNull(absPath)
   if (existing?.isSymbolicLink()) throw new AgentMemoryError(400, `Memory path is not writable: ${relPath}`)
   if (existing?.isDirectory()) throw new AgentMemoryError(400, `Memory path is a directory, not a file: ${relPath}`)
-
-  const {entries, totalBytes} = listMemory(stateDir)
-  const previousSize = existing?.isFile() ? existing.size : 0
-  if (totalBytes - previousSize + contentBytes.byteLength > MAX_MEMORY_TOTAL_BYTES) {
-    throw new AgentMemoryError(400, 'Agent memory is full')
-  }
-  if (!existing && entries.length >= MAX_MEMORY_ENTRIES) {
-    throw new AgentMemoryError(400, 'Agent memory has too many files')
-  }
 
   fs.mkdirSync(path.dirname(absPath), {recursive: true})
   fs.writeFileSync(absPath, contentBytes)
@@ -272,8 +241,8 @@ function writeMemoryBytes(
 /**
  * Downloads a web URL into the agent's memory. When `rawPath` is omitted, the file is stored under
  * `downloads/` named from the URL; when the chosen path has no extension, one is added from the
- * response content type when recognized. The download is streamed and aborted beyond
- * {@link MAX_MEMORY_FILE_BYTES}.
+ * response content type when recognized. Downloads of any size are allowed; the stream is only
+ * aborted when it stalls for {@link MEMORY_DOWNLOAD_IDLE_TIMEOUT_MS}.
  */
 export async function downloadToMemory(
   stateDir: string,
@@ -292,7 +261,11 @@ export async function downloadToMemory(
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), MEMORY_DOWNLOAD_TIMEOUT_MS)
+  let timeout = setTimeout(() => controller.abort(), MEMORY_DOWNLOAD_IDLE_TIMEOUT_MS)
+  const resetIdleTimeout = () => {
+    clearTimeout(timeout)
+    timeout = setTimeout(() => controller.abort(), MEMORY_DOWNLOAD_IDLE_TIMEOUT_MS)
+  }
   let response: Response
   try {
     response = await fetch(url, {
@@ -313,40 +286,26 @@ export async function downloadToMemory(
   }
 
   const contentType = response.headers.get('content-type') ?? undefined
-  const declaredLength = Number(response.headers.get('content-length'))
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_MEMORY_FILE_BYTES) {
-    clearTimeout(timeout)
-    controller.abort()
-    throw new AgentMemoryError(400, `Download exceeds the ${MAX_MEMORY_FILE_BYTES} byte file limit`)
-  }
-
   const chunks: Uint8Array[] = []
   let received = 0
   try {
     if (response.body) {
       const reader = response.body.getReader()
       for (;;) {
+        resetIdleTimeout()
         const {done, value} = await reader.read()
         if (done) break
         if (value) {
           received += value.byteLength
-          if (received > MAX_MEMORY_FILE_BYTES) {
-            controller.abort()
-            throw new AgentMemoryError(400, `Download exceeds the ${MAX_MEMORY_FILE_BYTES} byte file limit`)
-          }
           chunks.push(value)
         }
       }
     } else {
       const bytes = new Uint8Array(await response.arrayBuffer())
       received = bytes.byteLength
-      if (received > MAX_MEMORY_FILE_BYTES) {
-        throw new AgentMemoryError(400, `Download exceeds the ${MAX_MEMORY_FILE_BYTES} byte file limit`)
-      }
       chunks.push(bytes)
     }
   } catch (error) {
-    if (error instanceof AgentMemoryError) throw error
     throw new AgentMemoryError(
       502,
       `Download of ${url} failed: ${error instanceof Error ? error.message : 'stream error'}`,
@@ -362,7 +321,7 @@ export async function downloadToMemory(
     const ext = extensionForMimeType(contentType)
     if (ext) ({relPath, absPath} = resolveMemoryPath(stateDir, `${relPath}.${ext}`))
   }
-  const entry = writeMemoryBytes(stateDir, relPath, absPath, content)
+  const entry = writeMemoryBytes(relPath, absPath, content)
   return {entry, finalUrl: response.url || url.toString(), contentType}
 }
 

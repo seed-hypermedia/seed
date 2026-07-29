@@ -483,6 +483,8 @@ async function main(): Promise<void> {
   const server = serve({
     port: cfg.http.port,
     hostname: cfg.http.hostname,
+    // Agent memory accepts files of any size, so uploads must not hit Bun's 128MB default cap.
+    maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     development: !isProd && {
       hmr: true,
       console: true,
