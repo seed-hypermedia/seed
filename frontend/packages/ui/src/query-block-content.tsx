@@ -165,7 +165,7 @@ function QueryBlockListView({
 
   if (items.length === 0 && !hasPrependItems && isDiscovering) {
     return (
-      <div className="bg-muted text-muted-foreground flex items-center gap-2 rounded-lg p-4">
+      <div className="bg-muted text-muted-foreground flex items-center gap-2 rounded-lg p-4 font-sans">
         <Spinner size="small" />
         <span className="italic">Searching for documents…</span>
       </div>

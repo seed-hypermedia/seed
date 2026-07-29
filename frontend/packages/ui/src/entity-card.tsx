@@ -139,7 +139,7 @@ export function BlankQueryBlockMessage({message, loading = false}: {message: str
   return (
     <div className="bg-muted flex items-center gap-2 rounded-lg p-4">
       {loading ? <Spinner size="small" className="text-muted-foreground" /> : null}
-      <SizableText size="lg" color="muted" weight="bold" className="italic">
+      <SizableText size="lg" color="muted" weight="bold" className="font-sans italic">
         {message}
       </SizableText>
     </div>

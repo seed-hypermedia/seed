@@ -385,7 +385,7 @@ function DocumentListItemBreadcrumbs({breadcrumbs}: {breadcrumbs: HMBreadcrumb[]
             {breadcrumb.name}
           </Button>
           {idx === displayCrumbs.length - 1 ? null : (
-            <SizableText className="text-muted-foreground text-sm">/</SizableText>
+            <SizableText className="text-muted-foreground font-sans text-sm">/</SizableText>
           )}
         </Fragment>
       ))}

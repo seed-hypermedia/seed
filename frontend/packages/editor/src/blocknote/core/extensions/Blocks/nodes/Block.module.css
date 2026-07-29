@@ -470,83 +470,28 @@ NESTED BLOCKS
 
 .blockContent.isFirstEmptyBlock:before {
   font-size: 0.9em;
-  font-family:
-    'Inter',
-    'SF Pro Display',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Open Sans',
-    'Segoe UI',
-    'Roboto',
-    'Oxygen',
-    'Ubuntu',
-    'Cantarell',
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans, sans-serif);
   content: "Enter text or type '/' for commands";
 }
 
 .blockContent.isFilter.hasAnchor:before {
-  font-family:
-    'Inter',
-    'SF Pro Display',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Open Sans',
-    'Segoe UI',
-    'Roboto',
-    'Oxygen',
-    'Ubuntu',
-    'Cantarell',
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans, sans-serif);
   content: 'Type to filter';
 }
 
 .blockContent[data-content-type='heading'].isFirstEmptyBlock:before {
-  font-family:
-    'Inter',
-    'SF Pro Display',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Open Sans',
-    'Segoe UI',
-    'Roboto',
-    'Oxygen',
-    'Ubuntu',
-    'Cantarell',
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans, sans-serif);
   content: 'Heading';
 }
 
 .blockContent[data-content-type='code-block'].isFirstEmptyBlock:before {
-  font-family:
-    'Inter',
-    'SF Pro Display',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Open Sans',
-    'Segoe UI',
-    'Roboto',
-    'Oxygen',
-    'Ubuntu',
-    'Cantarell',
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-sans, sans-serif);
   content: 'Code Block';
   line-height: 1.5;
 }
 
 .isEmpty .blockContent[data-content-type='image'] .inlineContent::before {
+  font-family: var(--font-sans, sans-serif);
   content: 'Image caption';
   position: absolute;
   left: 50%;

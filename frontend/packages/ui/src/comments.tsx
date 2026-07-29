@@ -327,7 +327,7 @@ export const Discussions = memo(function Discussions({
   } else if (discussionsService.error) {
     panelContent = (
       <div className="flex flex-col items-center gap-2 p-4">
-        <SizableText color="muted" size="sm">
+        <SizableText color="muted" size="sm" className="font-sans">
           Failed to load discussions
         </SizableText>
       </div>
@@ -1082,7 +1082,7 @@ function DeletedCommentPreview({comment}: {comment: HMComment}) {
   return (
     <div className="rounded-md border border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950">
       <div className="flex items-center px-3 py-1.5">
-        <SizableText size="xs" className="text-red-800 dark:text-red-200">
+        <SizableText size="xs" className="font-sans text-red-800 dark:text-red-200">
           This comment was deleted
           {comment.updateTime ? ` · ${formattedDateShort(comment.updateTime)}` : ''}
         </SizableText>
@@ -1104,7 +1104,7 @@ function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: ()
   return (
     <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950">
       <div className="flex items-center justify-between px-3 py-1.5">
-        <SizableText size="xs" className="text-yellow-800 dark:text-yellow-200">
+        <SizableText size="xs" className="font-sans text-yellow-800 dark:text-yellow-200">
           Viewing previous version {version.updateTime ? `\u00b7 ${formattedDateShort(version.updateTime)}` : ''}
         </SizableText>
         <Button
@@ -1146,7 +1146,7 @@ function InlineCommentEditor({
     // Fallback: show cancel button if no editor renderer is provided
     return (
       <div className="flex flex-col gap-2">
-        <SizableText size="sm" color="muted">
+        <SizableText size="sm" color="muted" className="font-sans">
           Inline editing is not available.
         </SizableText>
         <Button variant="ghost" size="xs" onClick={onCancel}>
@@ -1164,7 +1164,9 @@ function NoComments({}: {}) {
   return (
     <div className="flex flex-col items-center gap-4 py-4">
       <MessageSquare className="size-25 text-gray-200" size={48} />
-      <SizableText size="md">{tx('No comments here, yet!')}</SizableText>
+      <SizableText size="md" className="font-sans">
+        {tx('No comments here, yet!')}
+      </SizableText>
     </div>
   )
 }

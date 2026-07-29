@@ -91,7 +91,7 @@ export function ActivityTime({activitySummary}: {activitySummary: HMActivitySumm
     latestCommentTime && latestChangeTime && latestCommentTime > latestChangeTime ? latestCommentTime : latestChangeTime
   if (displayTime) {
     return (
-      <SizableText size="xs" color="muted" className="line-clamp-1 shrink-0 opacity-80" weight="light">
+      <SizableText size="xs" color="muted" className="line-clamp-1 shrink-0 font-sans opacity-80" weight="light">
         ({formattedDate(displayTime)})
       </SizableText>
     )

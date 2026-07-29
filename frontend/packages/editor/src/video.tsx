@@ -520,7 +520,7 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
               // @ts-ignore
               type={getSourceType(block.props.name)}
             />
-            <p>Error with the video file.</p>
+            <p className="font-sans">Error with the video file.</p>
           </video>
         ) : block.props.url ? (
           <iframe
@@ -541,7 +541,9 @@ const VideoDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       {editor.isEditable && showSuccess && block.props.name && (
         <div className="flex w-full items-center gap-2 rounded-sm bg-green-50 px-3 py-2 dark:bg-green-950/30">
           <CheckCircle2 className="size-4 shrink-0 text-green-600 dark:text-green-400" />
-          <span className="text-sm text-green-800 dark:text-green-300">{block.props.name} uploaded successfully</span>
+          <span className="font-sans text-sm text-green-800 dark:text-green-300">
+            {block.props.name} uploaded successfully
+          </span>
         </div>
       )}
     </MediaContainer>

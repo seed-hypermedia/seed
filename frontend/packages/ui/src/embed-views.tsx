@@ -99,7 +99,7 @@ export function DeletedEmbedBanner({children, entityLabel = 'document'}: {childr
     <div className="block-content flex flex-col gap-1">
       <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-100 p-2 dark:border-amber-600 dark:bg-amber-900/30">
         <AlertCircle className="size-3 shrink-0 text-amber-600 dark:text-amber-400" />
-        <SizableText className="flex-1 text-sm text-amber-800 dark:text-amber-200">
+        <SizableText className="flex-1 font-sans text-sm text-amber-800 dark:text-amber-200">
           This embedded {entityLabel} has been deleted
         </SizableText>
         {hasContent ? (
@@ -164,7 +164,7 @@ export function BlockEmbedCard({
       return (
         <div className="flex items-center justify-center gap-2 p-4">
           <Spinner className="size-4" />
-          <SizableText className="text-muted-foreground">Looking for this content…</SizableText>
+          <SizableText className="text-muted-foreground font-sans">Looking for this content…</SizableText>
         </div>
       )
     }
@@ -298,12 +298,12 @@ function HmLinkEmbed({
                 e.stopPropagation()
                 titleLink.onClick?.(e)
               }}
-              className="line-clamp-2 max-w-full text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
+              className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
             >
               {title}
             </a>
           ) : (
-            <span className="line-clamp-2 max-w-full text-base font-bold text-blue-600 dark:text-blue-400">
+            <span className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 dark:text-blue-400">
               {title}
             </span>
           )}
@@ -359,7 +359,7 @@ function ExternalLinkEmbed({
       >
         {icon}
         <div className="min-w-0 flex-1 overflow-hidden">
-          <span className="line-clamp-2 max-w-full text-base font-bold text-blue-600 dark:text-blue-400">
+          <span className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 dark:text-blue-400">
             {linkText}
           </span>
         </div>
@@ -387,7 +387,7 @@ function ExternalLinkEmbed({
           }}
           target="_blank"
           rel="noopener noreferrer"
-          className="line-clamp-2 max-w-full text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
+          className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
         >
           {linkText}
         </a>
@@ -483,7 +483,7 @@ export function BlockEmbedContent({
       return (
         <div className="block-content border-border bg-muted/30 flex items-center gap-2 rounded-md border p-4">
           <Spinner className="size-4" />
-          <SizableText className="text-muted-foreground">Looking for this content…</SizableText>
+          <SizableText className="text-muted-foreground font-sans">Looking for this content…</SizableText>
         </div>
       )
     }
@@ -705,7 +705,7 @@ function CommentEmbedHeader({
   const authorIcon = author?.metadata?.icon
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap justify-between p-3">
+      <div className="flex flex-wrap justify-between p-3 font-sans">
         <div className="flex items-center gap-2">
           <HMIcon size={24} id={author?.id || hmId(comment.author)} name={authorName} icon={authorIcon} />
           <SizableText weight="bold">{authorName}</SizableText>
@@ -733,7 +733,7 @@ function CommentEmbedHeader({
       {isStaleVersion ? (
         <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 dark:border-blue-600 dark:bg-blue-900/30">
           <AlertCircle className="size-3 shrink-0 text-blue-600 dark:text-blue-400" />
-          <SizableText size="xs" className="text-blue-800 dark:text-blue-200">
+          <SizableText size="xs" className="font-sans text-blue-800 dark:text-blue-200">
             This is an older version — the comment has been edited since it was embedded
           </SizableText>
         </div>

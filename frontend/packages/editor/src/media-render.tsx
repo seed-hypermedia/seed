@@ -395,18 +395,18 @@ function MediaForm({
       contentEditable={false}
     >
       {drag && !isEmbed && (
-        <div className="absolute top-0 left-0 z-5 flex h-full w-full items-center justify-center rounded-sm bg-white/50">
+        <div className="absolute top-0 left-0 z-5 flex h-full w-full items-center justify-center rounded-sm bg-white/50 font-sans">
           <SizableText weight="bold">DROP MEDIA HERE</SizableText>
         </div>
       )}
       {uploadState.status === 'uploading' && (
-        <div className="bg-background absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 overflow-hidden rounded-sm p-4 text-center">
+        <div className="bg-background absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 overflow-hidden rounded-sm p-4 text-center font-sans">
           <Spinner size="large" />
           <span className="text-muted-foreground truncate text-sm">{uploadState.fileName}</span>
         </div>
       )}
       {uploadState.status === 'error' && (
-        <div className="bg-background absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 overflow-hidden rounded-sm p-4 text-center">
+        <div className="bg-background absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 overflow-hidden rounded-sm p-4 text-center font-sans">
           <div className="flex size-10 items-center justify-center rounded-full bg-red-500">
             <AlertCircle className="size-5 text-white" />
           </div>
@@ -519,7 +519,7 @@ function MediaForm({
               )}
             </div>
             {fileName.color && fileName.color === 'red' && (
-              <SizableText size="sm" color="destructive" className="pt-2">
+              <SizableText size="sm" color="destructive" className="pt-2 font-sans">
                 {fileName.name}
               </SizableText>
             )}

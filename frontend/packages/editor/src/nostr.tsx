@@ -181,7 +181,7 @@ function NostrComponent({
         </Button>
       ) : null}
       <div className="flex">
-        <div className="border-border flex-1 rounded-md border">
+        <div className="border-border flex-1 rounded-md border font-sans">
           <SizableText className="mt-2" size="2xl">
             <div className="flex justify-between">
               <Text>
@@ -349,7 +349,7 @@ function NostrForm({
 
   return (
     <div
-      className="border-border relative flex flex-col rounded border-[2.5px] outline-none"
+      className="border-border relative flex flex-col rounded border-[2.5px] font-sans outline-none"
       // @ts-ignore
       contentEditable={false}
     >

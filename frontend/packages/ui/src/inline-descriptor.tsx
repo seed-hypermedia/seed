@@ -26,7 +26,7 @@ export function Timestamp({time, route}: {time: AnyTimestamp; route?: NavRoute |
 
   return (
     <Tooltip side="top" delay={400} content={formatUTC(date)}>
-      <a {...linkProps} className="ml-1 flex-none text-[11px] hover:underline">
+      <a {...linkProps} className="ml-1 flex-none font-sans text-[11px] hover:underline">
         {formattedDateShort(time)}
       </a>
     </Tooltip>
@@ -34,7 +34,7 @@ export function Timestamp({time, route}: {time: AnyTimestamp; route?: NavRoute |
 }
 
 export function InlineDescriptor({children}: {children: React.ReactNode}) {
-  return <p className="text-muted-foreground text-sm">{children}</p>
+  return <p className="text-muted-foreground font-sans text-sm">{children}</p>
 }
 
 function getSiteContextUid(route: NavRoute | null): string | null {
@@ -89,7 +89,10 @@ export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null;
   const authorName = resolvedName || abbreviateUid(author?.id?.uid)
   const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, author?.id || null, siteUid))
   return (
-    <a className={`text-sm font-bold ${resolvedName ? 'text-foreground' : 'text-muted-foreground'}`} {...linkProps}>
+    <a
+      className={`font-sans text-sm font-bold ${resolvedName ? 'text-foreground' : 'text-muted-foreground'}`}
+      {...linkProps}
+    >
       {authorName}
       {!resolvedName ? (
         <span className="ml-1">
@@ -117,7 +120,7 @@ export function DocumentNameLink({
   const name = draft?.metadata?.name ?? liveMetadata?.name ?? metadata?.name
   return (
     <a
-      className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10"
+      className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] font-sans text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10"
       {...linkProps}
     >
       {name || fallback}
