@@ -88,3 +88,10 @@
   - Do not use random pixel values for spacing or sizing.
   - Use parent `gap` for flex/grid spacing instead of child margins when possible.
 - Run relevant tests, type checks, and linters for touched areas before finishing.
+- Before every commit, make sure the files you touched are Prettier-formatted (`pnpm format:write` in the touched
+  packages, or `./node_modules/.bin/prettier --ignore-unknown --write <files>` from the repo root). CI's `Lint` job runs
+  `prettier --check` across every package plus `agents/` and `vault/`; one unformatted file fails it and blocks the web
+  image build. Formatting produces no local error signal — typecheck and tests pass on unformatted code — so it must be
+  checked explicitly, on the last commit of a session as much as the first. (Claude Code sessions get this automatically
+  via the `.claude/settings.json` PostToolUse hook running `scripts/format-hook.mjs`; other agents and editors without
+  format-on-save must run it themselves.)

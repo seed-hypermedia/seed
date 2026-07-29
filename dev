@@ -423,7 +423,10 @@ def main():
     @cmd(cmds, "frontend-validate", "Formats, Validates")
     def frontend_validate(args):
         run("node scripts/cleanup-desktop.js")
-        run("pnpm validate")
+        # There is no root `validate` script; format the whole workspace, then verify it the same
+        # way CI's Lint job does.
+        run("pnpm format:write")
+        run("pnpm format:check")
 
     @cmd(
         cmds,
