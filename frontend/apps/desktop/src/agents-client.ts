@@ -77,6 +77,12 @@ export type AgentServerHealth = {
   hmServerUrl?: string
   /** Optional capability flags for tools that need server-side backends. Absent on older servers. */
   webTools?: {search: boolean; readBrowser: boolean}
+  /** Whether the server offers sandboxed code execution (execute_code). */
+  codeExec?: boolean
+  /** Human-readable explanation when codeExec is false. */
+  codeExecReason?: string
+  /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
+  codeExecReasonCode?: string
 }
 
 /** Normalizes an agent server URL for storage and fetch calls. */

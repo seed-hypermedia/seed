@@ -133,8 +133,9 @@ Features:
 - Tools tab autosaves Seed-approved tool toggles and the uploaded HM account keys the agent may use for signing and
   publishing tools; the tool groups are the Seed read group (read/search/activity), the **web group**
   (`web_search`/`web_read`, which require server-side web backends), the **memory group**
-  (`memory_list`/`memory_read`/`memory_write`/`memory_delete`/`memory_download`/`memory_upload_ipfs`), and the write
-  group. Tool groups come from `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
+  (`memory_list`/`memory_read`/`memory_write`/`memory_delete`/`memory_download`/`memory_upload_ipfs`), the **execute
+  code** tool (`execute_code`, greyed out when the server reports `codeExec: false`), and the write group. Tool groups
+  come from `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
 - the Tools tab reflects the connected server's abilities: each group lists its individual member tools, and tools the
   server cannot run are greyed out with an explanation. Availability is read from the server health response (`webTools`
   capability flags) via `getToolAvailability`; for example `web_search` is greyed when no SearXNG backend is configured,

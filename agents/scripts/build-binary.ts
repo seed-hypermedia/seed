@@ -16,7 +16,7 @@
  * checks `/agents/api/health` (host-target builds only).
  */
 import tailwind from 'bun-plugin-tailwind'
-import {mkdir, rm, cp, mkdtemp, readdir} from 'node:fs/promises'
+import {mkdir, rm, cp, mkdtemp, readdir, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import * as path from 'node:path'
 import process from 'node:process'
@@ -32,6 +32,16 @@ const BUN_TARGETS: Record<string, string> = {
   'x86_64-unknown-linux-gnu': 'bun-linux-x64',
   'aarch64-unknown-linux-gnu': 'bun-linux-arm64',
   'x86_64-pc-windows-gnu': 'bun-windows-x64',
+}
+
+/** LLVM triple → napi platform package carrying the `msb` helper, libkrunfw, and `.node` binding. */
+const MICROSANDBOX_PLATFORM_PKGS: Record<string, string | null> = {
+  // microsandbox publishes no darwin-x64 build, so Intel Mac apps ship without execute_code.
+  'x86_64-apple-darwin': null,
+  'aarch64-apple-darwin': '@superradcompany/microsandbox-darwin-arm64',
+  'x86_64-unknown-linux-gnu': '@superradcompany/microsandbox-linux-x64-gnu',
+  'aarch64-unknown-linux-gnu': '@superradcompany/microsandbox-linux-arm64-gnu',
+  'x86_64-pc-windows-gnu': '@superradcompany/microsandbox-win32-x64-msvc',
 }
 
 function hostTriple(): string {
@@ -79,6 +89,10 @@ const result = await Bun.build({
   publicPath: '/agents/',
   root: './src',
   plugins: [tailwind],
+  // Bundling `microsandbox` breaks it: its napi binding, `msb` hypervisor helper, and libkrunfw
+  // cannot live in the binary's virtual filesystem, so the bundled JS dies at execute_code time
+  // with "Cannot find module '../../native/index.cjs'". Kept external and staged on disk below.
+  external: ['microsandbox'],
   compile: {target: bunTarget as any, outfile},
 })
 if (!result.success) {
@@ -91,6 +105,32 @@ if (!result.success) {
 // binary only starts with this file alongside — the same layout agents/Dockerfile ships.
 await cp(path.join(agentsDir, 'package.json'), path.join(outdir, 'package.json'))
 
+// Stage the external `microsandbox` package — and the platform package with the native pieces —
+// into node_modules/ next to the binary, where the runtime loader resolves it from.
+const stagedModules = path.join(outdir, 'node_modules')
+await rm(stagedModules, {recursive: true, force: true})
+const sdkDir = await realpath(path.join(agentsDir, 'node_modules', 'microsandbox'))
+await cp(sdkDir, path.join(stagedModules, 'microsandbox'), {recursive: true, dereference: true})
+const platformPkg = MICROSANDBOX_PLATFORM_PKGS[triple]
+if (platformPkg) {
+  const pkgDir = path.dirname(Bun.resolveSync(`${platformPkg}/package.json`, sdkDir))
+  await cp(pkgDir, path.join(stagedModules, platformPkg), {recursive: true, dereference: true})
+  // The compiled binary cannot resolve bare specifiers from disk modules, so the napi loader's
+  // `require('@superradcompany/...')` fallback never works there. Its first attempt is a relative
+  // `require('./microsandbox.<platform>.node')` — satisfy that by copying the binding next to
+  // native/index.cjs. (`msb` and libkrunfw stay in the platform package; the runtime loader
+  // points MSB_PATH/MSB_LIBKRUNFW_PATH at them.)
+  const nodeBinding = (await readdir(path.join(stagedModules, platformPkg))).find((f) => f.endsWith('.node'))
+  if (!nodeBinding) throw new Error(`No .node binding found in ${platformPkg}`)
+  await cp(
+    path.join(stagedModules, platformPkg, nodeBinding),
+    path.join(stagedModules, 'microsandbox', 'native', nodeBinding),
+  )
+  console.log(`Staged microsandbox runtime (${platformPkg})`)
+} else {
+  console.warn(`⚠️ microsandbox has no native build for ${triple} — packaging without execute_code support.`)
+}
+
 console.log(`Built ${outfile}`)
 
 if (process.argv.includes('--smoke')) {
@@ -99,6 +139,18 @@ if (process.argv.includes('--smoke')) {
     process.exit(0)
   }
   await smokeTest(outfile)
+  if (platformPkg) await execSelfcheck(outfile)
+}
+
+/** Runs the compiled binary's `--exec-selfcheck`, which loads the staged microsandbox SDK. */
+async function execSelfcheck(binary: string): Promise<void> {
+  const proc = Bun.spawn([binary, '--exec-selfcheck'], {cwd: outdir, stdout: 'pipe', stderr: 'pipe'})
+  const code = await proc.exited
+  const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()])
+  if (code !== 0) {
+    throw new Error(`exec-selfcheck failed (exit ${code}): ${(stderr || stdout).trim()}`)
+  }
+  console.log(stdout.trim() || 'exec-selfcheck passed')
 }
 
 /** Boots the compiled binary against temp dirs and waits for a healthy `/agents/api/health`. */

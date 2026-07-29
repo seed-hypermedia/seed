@@ -1,3 +1,4 @@
+import {type AgentRunActivity} from '@/agents-client'
 import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {getSeedToolMetadata} from '../../../../../agents/protocol/src/tool-registry'
 import {useOpenUrl} from '@/open-url'
@@ -22,7 +23,14 @@ import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popove
 import {Markdown} from './markdown'
 
 /** Renders a chat message bubble shared by the assistant panel and Agents session UI. */
-export const ChatMessageBubble = React.memo(function ChatMessageBubble({message}: {message: ChatBubbleMessage}) {
+export const ChatMessageBubble = React.memo(function ChatMessageBubble({
+  message,
+  liveActivity,
+}: {
+  message: ChatBubbleMessage
+  /** Live run activity, passed so a pending tool call row can show its in-flight progress. */
+  liveActivity?: AgentRunActivity
+}) {
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
   const isUser = message.role === 'user'
   const rawMarkdown = message.rawMarkdown ?? message.content
@@ -48,6 +56,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({message}
       ) : (
         <AssistantMessageParts
           parts={getAssistantMessageParts(message)}
+          liveActivity={liveActivity}
           rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
         />
       )}
@@ -114,10 +123,12 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({message}
 export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   parts,
   isStreaming = false,
+  liveActivity,
   rawMarkdownButton,
 }: {
   parts: ChatMessagePart[]
   isStreaming?: boolean
+  liveActivity?: AgentRunActivity
   rawMarkdownButton?: React.ReactNode
 }) {
   const rawButtonIndex = rawMarkdownButton
@@ -126,7 +137,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
 
   return parts.map((part, index) => {
     if (part.type === 'tool') {
-      return <ToolCallItem key={`${part.id}:${index}`} item={part} />
+      return <ToolCallItem key={`${part.id}:${index}`} item={part} liveActivity={liveActivity} />
     }
 
     const showCursor = isStreaming && index === parts.length - 1
@@ -296,7 +307,10 @@ function ToolResourceLink({url, label}: {url: string; label: string}) {
     <button
       type="button"
       title={url}
-      onClick={(event) => openUrl(url, event.metaKey || event.shiftKey)}
+      onClick={(event) => {
+        event.stopPropagation()
+        openUrl(url, event.metaKey || event.shiftKey)
+      }}
       className="bg-background/75 hover:bg-background inline-flex max-w-40 items-center gap-1 rounded-full border px-2 py-0.75 text-left text-[10px] font-medium transition-colors"
     >
       <span className="truncate">{label}</span>
@@ -312,7 +326,10 @@ function ToolTextLink({url, children}: {url: string; children: React.ReactNode})
     <button
       type="button"
       title={url}
-      onClick={(event) => openUrl(url, event.metaKey || event.shiftKey)}
+      onClick={(event) => {
+        event.stopPropagation()
+        openUrl(url, event.metaKey || event.shiftKey)
+      }}
       className="text-foreground font-medium decoration-1 underline-offset-2 hover:underline"
     >
       {children}
@@ -1159,7 +1176,88 @@ const toolIcons = {
   hidden: Wrench,
 }
 
-function ToolCallLine({item}: {item: ChatToolPart}) {
+/** Last few non-empty lines of a live output tail. */
+function lastOutputLines(outputTail: string, maxLines: number): string {
+  return outputTail
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .slice(-maxLines)
+    .join('\n')
+}
+
+function formatDurationMs(ms: number): string {
+  return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`
+}
+
+function ToolOutputPre({children, className}: {children: React.ReactNode; className?: string}) {
+  return (
+    <pre
+      className={cn(
+        'bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap',
+        className,
+      )}
+    >
+      {children}
+    </pre>
+  )
+}
+
+/**
+ * Purpose-built expanded view for execute_code: the code as code, output/errors as
+ * terminal-style text with newlines intact, a compact result line — no raw JSON (the
+ * info button's debug dialog still has the raw payloads).
+ */
+function ExecuteCodeDetails({item, liveTail}: {item: ChatToolPart; liveTail?: string}) {
+  const code = getToolString(item.args, 'code')
+  const language = getToolString(item.args, 'language')
+  const output = isRecord(item.rawOutput) ? item.rawOutput : undefined
+  const stdout = typeof output?.stdout === 'string' ? output.stdout : undefined
+  const stderr = typeof output?.stderr === 'string' ? output.stderr : undefined
+  const exitCode = typeof output?.exitCode === 'number' ? output.exitCode : undefined
+  const durationMs = typeof output?.durationMs === 'number' ? output.durationMs : undefined
+  const changedFiles = Array.isArray(output?.changedFiles)
+    ? (output.changedFiles.filter(isRecord) as {path?: unknown; change?: unknown}[])
+    : []
+
+  return (
+    <div className="space-y-3">
+      <ToolDetailSection label={language ? `Code · ${language}` : 'Code'}>
+        <ToolOutputPre className="whitespace-pre">{code || '(no code)'}</ToolOutputPre>
+      </ToolDetailSection>
+      {liveTail ? (
+        <ToolDetailSection label="Output · live">
+          <ToolOutputPre>{liveTail}</ToolOutputPre>
+        </ToolDetailSection>
+      ) : null}
+      {output ? (
+        <>
+          {stdout?.trim() ? (
+            <ToolDetailSection label="Output">
+              <ToolOutputPre>{stdout}</ToolOutputPre>
+            </ToolDetailSection>
+          ) : null}
+          {stderr?.trim() ? (
+            <ToolDetailSection label="Errors">
+              <ToolOutputPre className="text-amber-800 dark:text-amber-200">{stderr}</ToolOutputPre>
+            </ToolDetailSection>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <ToolChip>{output.success === true ? 'Success' : `Failed · exit ${exitCode ?? '?'}`}</ToolChip>
+            {durationMs !== undefined ? <ToolChip>{formatDurationMs(durationMs)}</ToolChip> : null}
+            {output.truncated === true ? <ToolChip>Output truncated</ToolChip> : null}
+            {changedFiles.map((file) => (
+              <ToolChip key={String(file.path)}>
+                {String(file.change)} {String(file.path)}
+              </ToolChip>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
+function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: AgentRunActivity}) {
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const metadata = getSeedToolMetadata(item.name)
@@ -1171,16 +1269,32 @@ function ToolCallLine({item}: {item: ChatToolPart}) {
   const links = getToolLinks(item)
   const colorClass = toolColorClasses[render?.color || 'muted']
   const customView = getToolCustomView(item)
+  // Live progress for this specific call while it runs (matched by call ID, with a
+  // tool-name fallback for servers that don't report the ID yet).
+  const liveTool =
+    isPending &&
+    liveActivity?.phase === 'tool' &&
+    (liveActivity.toolCallId ? liveActivity.toolCallId === item.id : liveActivity.toolName === item.name)
+      ? liveActivity
+      : undefined
+  const liveTailPreview = liveTool?.outputTail ? lastOutputLines(liveTool.outputTail, 10) : ''
 
   return (
     <>
       <div className={cn('my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs', colorClass)}>
-        <div className="flex min-w-0 items-center gap-1.5">
+        {/* The whole header row toggles expansion; inner links/buttons stop propagation. */}
+        <div
+          className="flex min-w-0 cursor-pointer items-center gap-1.5 select-none"
+          onClick={() => setExpanded((current) => !current)}
+        >
           <button
             type="button"
             title={expanded ? 'Hide tool details' : 'Show tool details'}
             aria-expanded={expanded}
-            onClick={() => setExpanded((current) => !current)}
+            onClick={(event) => {
+              event.stopPropagation()
+              setExpanded((current) => !current)
+            }}
             className="hover:bg-background/70 rounded p-0.5"
           >
             {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
@@ -1194,6 +1308,7 @@ function ToolCallLine({item}: {item: ChatToolPart}) {
             <>
               <span className="shrink-0 font-medium">{render?.label || item.name}</span>
               {summary ? <span className="text-foreground/75 min-w-0 truncate">{summary}</span> : null}
+              {liveTool?.detail ? <span className="text-foreground/60 min-w-0 truncate">{liveTool.detail}</span> : null}
               <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1 overflow-hidden">
                 {links.map((link) => (
                   <ToolResourceLink key={link.url} url={link.url} label={link.label} />
@@ -1206,35 +1321,52 @@ function ToolCallLine({item}: {item: ChatToolPart}) {
           <button
             type="button"
             title="View raw tool input/output"
-            onClick={() => setDetailsOpen(true)}
+            onClick={(event) => {
+              event.stopPropagation()
+              setDetailsOpen(true)
+            }}
             className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 ml-auto rounded-full border p-0.75"
           >
             <Info className="size-3" />
           </button>
         </div>
+        {!expanded && liveTailPreview ? (
+          <pre className="bg-background/60 text-foreground/80 mt-1.5 overflow-hidden rounded-md border p-2 font-mono text-[10px] leading-4 break-all whitespace-pre-wrap">
+            {liveTailPreview}
+          </pre>
+        ) : null}
         {expanded ? (
           <div className="mt-2 space-y-2 border-t pt-2">
-            {item.name === 'read' ? (
+            {item.name === 'execute_code' ? (
+              <ExecuteCodeDetails item={item} liveTail={liveTool?.outputTail} />
+            ) : item.name === 'read' ? (
               <ReadToolDetails item={item} />
             ) : customView?.kind === 'write-command' ? (
               <WriteCommandDetails item={item} />
             ) : (
-              details.map((detail) => (
-                <div key={`${detail.label}:${detail.path || detail.source}`} className="space-y-1">
-                  <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">
-                    {detail.label}
-                  </div>
-                  {detail.format === 'markdown' && typeof detail.value === 'string' ? (
-                    <div className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border px-2.5 py-2">
-                      <Markdown>{detail.value}</Markdown>
+              <>
+                {details.map((detail) => (
+                  <div key={`${detail.label}:${detail.path || detail.source}`} className="space-y-1">
+                    <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">
+                      {detail.label}
                     </div>
-                  ) : (
-                    <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
-                      {formatToolDebugValue(detail.value)}
-                    </pre>
-                  )}
-                </div>
-              ))
+                    {detail.format === 'markdown' && typeof detail.value === 'string' ? (
+                      <div className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border px-2.5 py-2">
+                        <Markdown>{detail.value}</Markdown>
+                      </div>
+                    ) : (
+                      <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+                        {formatToolDebugValue(detail.value)}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+                {liveTool?.outputTail ? (
+                  <ToolDetailSection label="Output · live">
+                    <ToolOutputPre>{liveTool.outputTail}</ToolOutputPre>
+                  </ToolDetailSection>
+                ) : null}
+              </>
             )}
           </div>
         ) : null}
@@ -1244,6 +1376,6 @@ function ToolCallLine({item}: {item: ChatToolPart}) {
   )
 }
 
-function ToolCallItem({item}: {item: ChatToolPart}) {
-  return <ToolCallLine item={item} />
+function ToolCallItem({item, liveActivity}: {item: ChatToolPart; liveActivity?: AgentRunActivity}) {
+  return <ToolCallLine item={item} liveActivity={liveActivity} />
 }

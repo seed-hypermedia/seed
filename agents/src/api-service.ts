@@ -9,6 +9,14 @@ import {
 } from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import * as agentMemory from '@/agent-memory'
+import {
+  CodeExecError,
+  createCodeExecutor,
+  defaultCodeExecConfig,
+  type CodeExecAvailability,
+  type CodeExecConfig,
+  type CodeExecutor,
+} from '@/code-exec'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
@@ -131,6 +139,7 @@ export class Service {
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
   readonly #web: WebToolsConfig
+  readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
   /** In-flight background trigger session runs, awaited by {@link drainTriggerSessions} (tests + shutdown). */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
@@ -138,13 +147,20 @@ export class Service {
   constructor(
     db: Database,
     dataDir: string,
-    options: {onEvent?: (event: ServiceEvent) => void; hmServerUrl?: string; web?: WebToolsConfig} = {},
+    options: {
+      onEvent?: (event: ServiceEvent) => void
+      hmServerUrl?: string
+      web?: WebToolsConfig
+      exec?: CodeExecConfig
+      codeExecutor?: CodeExecutor
+    } = {},
   ) {
     this.#db = db
     this.#dataDir = dataDir
     this.#onEvent = options.onEvent
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#web = options.web ?? {}
+    this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
@@ -156,6 +172,11 @@ export class Service {
   /** Reports which optional web-tool backends this server has configured, for client capability display. */
   webToolCapabilities(): {search: boolean; readBrowser: boolean} {
     return {search: Boolean(this.#web.searxngUrl), readBrowser: Boolean(this.#web.crawlerUrl)}
+  }
+
+  /** Whether this server offers sandboxed code execution, for client capability display. */
+  async codeExecAvailability(): Promise<CodeExecAvailability> {
+    return await this.#codeExec.availability()
   }
 
   /** Verifies and dispatches a signed action envelope. */
@@ -1289,7 +1310,13 @@ export class Service {
       ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory, and memory_upload_ipfs to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content.' +
         (stateDir ? memoryListingPrompt(stateDir) : '')
       : ''
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}`
+    const execEnabled =
+      (definition.tools ?? []).includes(seedToolRegistry.execute_code.name) &&
+      (await this.#codeExec.availability()).available
+    const execPrompt = execEnabled
+      ? '\n\nYou can run Python or shell code with the execute_code tool. Code runs in an isolated sandbox with your memory mounted at /workspace (the working directory), so reading and writing files there directly reads and writes your persistent memory. Each call is a fresh sandbox: no variables, installed packages, or processes persist between calls — save anything durable as files. The sandbox has internet access, so you can install packages and fetch data, but it cannot reach private/local network addresses. To keep Python packages across calls, install them into the workspace, e.g. `pip install --target /workspace/pylibs <pkg>`, then add that directory to sys.path in later calls.'
+      : ''
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${execPrompt}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -1358,6 +1385,9 @@ export class Service {
     const resourceLoader = createSeedPiResourceLoader(
       await this.#agentSystemPrompt(accountId, definition, agentStateDir),
     )
+    // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
+    // (unsupported platform, missing runtime) so the model never sees a tool that can only fail.
+    const codeExecAvailable = (await this.#codeExec.availability()).available
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -1374,8 +1404,20 @@ export class Service {
         hmServerUrl: this.#hmServerUrl,
         web: this.#web,
         stateDir: agentStateDir,
+        codeExec: this.#codeExec,
         onMemoryChange: () =>
           this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId}),
+        // emitProgress is declared below in this scope; tools only call this mid-run, after it exists.
+        onToolProgress: (toolName, progress) =>
+          emitProgress({
+            activity: {
+              phase: 'tool',
+              toolName,
+              toolCallId: progress.toolCallId,
+              detail: progress.detail,
+              outputTail: progress.outputTail,
+            },
+          }),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
       }),
       tools: [
@@ -1392,7 +1434,8 @@ export class Service {
             tool === seedToolRegistry.memory_write.name ||
             tool === seedToolRegistry.memory_delete.name ||
             tool === seedToolRegistry.memory_download.name ||
-            tool === seedToolRegistry.memory_upload_ipfs.name,
+            tool === seedToolRegistry.memory_upload_ipfs.name ||
+            (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
         ),
         seedToolRegistry.set_session_title.name,
       ],
@@ -1546,7 +1589,12 @@ export class Service {
           input: summarizeForLog(event.args),
         })
         emitProgress({
-          activity: {phase: 'tool', toolName: event.toolName, detail: summarizeToolArgs(event.args)},
+          activity: {
+            phase: 'tool',
+            toolName: event.toolName,
+            toolCallId: event.toolCallId,
+            detail: summarizeToolArgs(event.args),
+          },
         })
         appendedToolCalls.add(event.toolCallId)
         this.#appendSessionEvent(
@@ -3187,6 +3235,10 @@ type AgentServicePiToolContext = WriteToolContext & {
   stateDir: string
   /** Called after a memory tool mutates files, so clients watching the Memory tab refresh. */
   onMemoryChange: () => void
+  /** Reports live mid-call progress from a long-running tool, surfaced as run activity to clients. */
+  onToolProgress: (toolName: string, progress: {toolCallId?: string; detail?: string; outputTail?: string}) => void
+  /** Sandboxed code execution against the memory workspace. */
+  codeExec: CodeExecutor
 }
 
 type ResolvedAgentSigner = {
@@ -3205,15 +3257,15 @@ type ParsedWriteDocumentContent = {
 
 function defineSeedPiTool(
   metadata: SeedToolMetadata,
-  execute: (params: unknown) => Promise<unknown> | unknown,
+  execute: (params: unknown, toolCallId: string) => Promise<unknown> | unknown,
 ): pi.ToolDefinition {
   return pi.defineTool({
     name: metadata.name,
     label: metadata.label,
     description: metadata.description,
     parameters: metadata.inputSchema as never,
-    execute: async (_toolCallId, params) => {
-      const output = jsonSafeToolOutput(await execute(params))
+    execute: async (toolCallId, params) => {
+      const output = jsonSafeToolOutput(await execute(params, toolCallId))
       return {content: [{type: 'text', text: safeJSONStringify(output)}], details: output}
     },
   })
@@ -3388,6 +3440,36 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         mimeType: result.entry.mimeType,
         finalUrl: result.finalUrl,
         contentType: result.contentType,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.execute_code, async (params, toolCallId) => {
+      const input = isRecord(params) ? params : {}
+      const language = typeof input.language === 'string' ? input.language : 'code'
+      let result
+      try {
+        result = await context.codeExec.execute({
+          stateDir: context.stateDir,
+          language: input.language as never,
+          code: typeof input.code === 'string' ? input.code : '',
+          timeoutSecs: typeof input.timeout_secs === 'number' ? input.timeout_secs : undefined,
+          onProgress: (progress) =>
+            context.onToolProgress(seedToolRegistry.execute_code.name, {
+              toolCallId,
+              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${language} code…`,
+              outputTail: progress.outputTail,
+            }),
+        })
+      } catch (error) {
+        if (error instanceof CodeExecError) throw new APIError(error.status, error.message)
+        throw error
+      }
+      if (result.changedFiles.length) context.onMemoryChange()
+      const changeSummary = result.changedFiles.length
+        ? `, ${result.changedFiles.length} memory file${result.changedFiles.length === 1 ? '' : 's'} changed`
+        : ''
+      return {
+        summary: `Ran ${input.language} code (exit ${result.exitCode}, ${result.durationMs}ms${changeSummary}).`,
+        ...result,
       }
     }),
     defineSeedPiTool(seedToolRegistry.memory_upload_ipfs, async (params) => {

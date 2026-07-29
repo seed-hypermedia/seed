@@ -66,6 +66,17 @@ if (hasAgentsBinary) {
   extraResources.push(agentsDistPath)
 }
 
+/**
+ * Mach-O files inside the staged microsandbox platform package (see agents/scripts/build-binary.ts).
+ * They ship under `<resources>/agents/node_modules/` and must be signed for notarization.
+ */
+function agentsNestedBinaries(): string[] {
+  const platformPkgDir = path.join(agentsDistPath, 'node_modules', '@superradcompany', 'microsandbox-darwin-arm64')
+  return ['bin/msb', 'lib/libkrunfw.5.dylib', 'microsandbox.darwin-arm64.node']
+    .map((rel) => path.join(platformPkgDir, rel))
+    .filter((candidate) => fs.existsSync(candidate))
+}
+
 if (process.platform === 'win32') {
   const winpthreadRuntimePath = path.join(devProjectRoot, 'plz-out/bin/backend/libwinpthread-1.dll')
 
@@ -404,8 +415,10 @@ function notarizeMaybe() {
     hardenedRuntime: true,
     identity: 'Developer ID Application: Mintter Technologies S.L. (XSKC6RJDD8)',
     // Every nested executable must be listed, or notarization ships an unsigned binary that
-    // refuses to launch on other machines.
-    binaries: hasAgentsBinary ? [daemonBinaryPath, agentsBinaryPath] : [daemonBinaryPath],
+    // refuses to launch on other machines. The microsandbox native pieces staged next to the
+    // agents binary are Mach-O files too; re-signing `msb` is safe because entitlements.plist
+    // grants com.apple.security.hypervisor, which msb needs to create microVMs.
+    binaries: hasAgentsBinary ? [daemonBinaryPath, agentsBinaryPath, ...agentsNestedBinaries()] : [daemonBinaryPath],
   }
 }
 

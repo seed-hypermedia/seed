@@ -8,5 +8,10 @@
     <true/>
     <key>com.apple.security.cs.disable-library-validation</key>
     <true/>
+    <!-- The bundled microsandbox `msb` helper creates hardware-isolated microVMs for the agents
+         server's execute_code tool; osx-sign re-signs it with these entitlements, so the
+         hypervisor grant must be here or VM creation fails in the notarized app. -->
+    <key>com.apple.security.hypervisor</key>
+    <true/>
   </dict>
 </plist>

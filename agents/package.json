@@ -31,6 +31,7 @@
     "clsx": "^2.1.1",
     "linkedom": "0.18.12",
     "lucide-react": "^0.545.0",
+    "microsandbox": "^0.6.6",
     "multiformats": "^13.4.1",
     "react": "^19",
     "react-dom": "^19",

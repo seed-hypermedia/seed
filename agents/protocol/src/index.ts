@@ -580,8 +580,12 @@ export type AgentRunActivity = {
   phase: 'starting' | 'thinking' | 'responding' | 'tool' | 'finalizing'
   /** Tool currently executing, when `phase` is `tool`. */
   toolName?: string
+  /** ID of the tool call currently executing, so clients can attach live progress to its chat row. */
+  toolCallId?: string
   /** Optional short human-readable detail (e.g. tool argument summary). */
   detail?: string
+  /** Recent stdout/stderr tail from a long-running tool call (e.g. execute_code), when `phase` is `tool`. */
+  outputTail?: string
 }
 
 /** Server-sent WebSocket event after a signed subscription. */

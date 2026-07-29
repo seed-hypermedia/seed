@@ -1,10 +1,11 @@
 import {
   type AgentRunActivity,
-  type AgentRunUsage,
   type AgentSessionTriggerContext,
   type SessionEvent,
   type SessionInfo,
 } from '@/agents-client'
+import {AgentRunStatusBar, useRunStartedAt} from '@/components/agent-run-status'
+import {useChatAutoScroll} from '@/components/chat-autoscroll'
 import {
   AssistantMessageParts,
   ChatMessageBubble,
@@ -28,6 +29,8 @@ import {
 import {
   buildAgentSessionChatRows,
   buildAgentSessionEventUrl,
+  buildAgentSessionUrl,
+  chatRowHasPendingToolCall,
   getSharedEventIdFromHash,
   type AgentSessionChatRow as AgentSessionChatRowData,
 } from '@/models/agent-session-rows'
@@ -53,7 +56,7 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, ExternalLink, Info, Loader2, ScrollText, Send, Square, Trash2} from 'lucide-react'
+import {ArrowDown, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader} from './header'
 import {promptBlocksToMarkdown} from './prompt-editor'
@@ -195,12 +198,7 @@ function AgentSessionPage({
   const partialAssistantText = liveState.text
   const [titleDraft, setTitleDraft] = useState('')
   const [titleSaveState, setTitleSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [isNearBottom, setIsNearBottom] = useState(true)
-  const [showScrollButton, setShowScrollButton] = useState(false)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const messagesContentRef = useRef<HTMLDivElement>(null)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const scrollingToBottomRef = useRef(false)
+  const autoScroll = useChatAutoScroll()
   const titleSaveIdRef = useRef(0)
   const loadedSessionId = session.data?.session.id
   const persistedTitle = session.data?.session.title || 'Untitled session'
@@ -216,57 +214,11 @@ function AgentSessionPage({
   )
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
-  const [runStartedAt, setRunStartedAt] = useState<number | null>(null)
-  useEffect(() => {
-    // Start the elapsed timer when the agent begins working; clear it when it finishes.
-    if (isAgentBusy) setRunStartedAt((prev) => prev ?? Date.now())
-    else setRunStartedAt(null)
-  }, [isAgentBusy])
+  const runStartedAt = useRunStartedAt(isAgentBusy)
   const triggerActivityRoute = useMemo(
     () => (session.data?.triggerContext ? getTriggerActivityRoute(session.data.triggerContext) : null),
     [session.data?.triggerContext],
   )
-
-  const checkIsNearBottom = useCallback(() => {
-    const container = messagesContainerRef.current
-    if (!container) return true
-    const threshold = 100
-    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-    return distanceFromBottom <= threshold
-  }, [])
-
-  const handleMessagesScroll = useCallback(() => {
-    if (scrollingToBottomRef.current) {
-      const nearBottom = checkIsNearBottom()
-      if (nearBottom) {
-        scrollingToBottomRef.current = false
-        setIsNearBottom(true)
-        setShowScrollButton(false)
-      }
-      return
-    }
-
-    const nearBottom = checkIsNearBottom()
-    setIsNearBottom(nearBottom)
-    setShowScrollButton(!nearBottom)
-  }, [checkIsNearBottom])
-
-  const scrollToBottom = useCallback(() => {
-    scrollingToBottomRef.current = true
-    setShowScrollButton(false)
-    setIsNearBottom(true)
-    messagesEndRef.current?.scrollIntoView({behavior: 'smooth'})
-  }, [])
-
-  const handleMessagesMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target
-    if (
-      target === messagesContainerRef.current ||
-      target === messagesContentRef.current ||
-      target === messagesEndRef.current
-    ) {
-    }
-  }, [])
 
   useEffect(() => {
     if (!partialAssistantText) return
@@ -315,22 +267,8 @@ function AgentSessionPage({
   }, [loadedSessionId, persistedTitle, titleDraft])
 
   useEffect(() => {
-    setIsNearBottom(true)
-    setShowScrollButton(false)
-    requestAnimationFrame(() => {
-      const container = messagesContainerRef.current
-      if (container) container.scrollTop = container.scrollHeight
-    })
+    autoScroll.resetToBottom()
   }, [sessionId])
-
-  useEffect(() => {
-    if (isNearBottom) {
-      const container = messagesContainerRef.current
-      if (container) container.scrollTop = container.scrollHeight
-    } else if (partialAssistantText || isAgentBusy || chatRows.length) {
-      setShowScrollButton(true)
-    }
-  }, [chatRows.length, partialAssistantText, isAgentBusy, isNearBottom])
 
   useEffect(() => {
     const eventId = getSharedEventIdFromHash(window.location.hash)
@@ -438,6 +376,18 @@ function AgentSessionPage({
               align="end"
               menuItems={[
                 {
+                  key: 'copy-session-url',
+                  icon: <Link2 className="size-4" />,
+                  label: 'Copy session URL',
+                  disabled: !agentId,
+                  onClick: () => {
+                    const url = buildAgentSessionUrl(serverUrl, agentId, sessionId)
+                    if (!url) return
+                    void navigator.clipboard?.writeText(url)
+                    toast.success('Session URL copied')
+                  },
+                },
+                {
                   key: 'delete-session',
                   icon: <Trash2 className="size-4" />,
                   label: 'Delete session',
@@ -487,12 +437,11 @@ function AgentSessionPage({
         {session.data ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <div
-              ref={messagesContainerRef}
-              onScroll={handleMessagesScroll}
-              onMouseDown={handleMessagesMouseDown}
+              ref={autoScroll.containerRef}
+              onScroll={autoScroll.handleScroll}
               className="min-h-0 flex-1 overflow-y-auto pr-1"
             >
-              <div ref={messagesContentRef} className="flex min-h-full flex-col gap-3 pt-4">
+              <div ref={autoScroll.contentRef} className="flex min-h-full flex-col gap-3 pt-4">
                 {!chatRows.length ? <SizableText color="muted">No messages yet.</SizableText> : null}
                 {chatRows.map((row) => (
                   <div
@@ -500,18 +449,23 @@ function AgentSessionPage({
                     id={`event-${row.key}`}
                     className="target:ring-primary/40 scroll-mt-24 rounded-lg target:ring-2"
                   >
-                    <AgentSessionChatRow row={row} serverUrl={serverUrl} agentId={agentId} />
+                    <AgentSessionChatRow
+                      row={row}
+                      serverUrl={serverUrl}
+                      agentId={agentId}
+                      liveActivity={chatRowHasPendingToolCall(row) ? liveState.activity : undefined}
+                    />
                   </div>
                 ))}
                 {partialAssistantText ? <PartialAssistantRow text={partialAssistantText} /> : null}
-                {isAgentBusy ? (
+                {isAgentBusy && !(liveState.activity?.phase === 'tool' && chatRows.some(chatRowHasPendingToolCall)) ? (
+                  // Hidden while a pending tool row is showing its own live status, to avoid two spinners.
                   <AgentRunStatusBar startedAt={runStartedAt} activity={liveState.activity} usage={liveState.usage} />
                 ) : null}
-                <div ref={messagesEndRef} />
-                {showScrollButton ? (
+                {autoScroll.showScrollButton ? (
                   <div className="pointer-events-none sticky bottom-2 flex justify-center">
                     <button
-                      onClick={scrollToBottom}
+                      onClick={autoScroll.scrollToBottom}
                       className="bg-muted border-border text-foreground pointer-events-auto rounded-full border p-1.5 shadow-lg"
                       aria-label="Scroll to latest message"
                     >
@@ -682,78 +636,16 @@ const PartialAssistantRow = React.memo(function PartialAssistantRow({text}: {tex
   return <AssistantMessageParts parts={parts} isStreaming />
 })
 
-/** Formats elapsed milliseconds as m:ss for the live run timer. */
-function formatElapsed(ms: number): string {
-  const totalSeconds = Math.floor(ms / 1000)
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
-/** Formats a token count compactly (e.g. 1234 → "1.2k"). */
-function formatTokenCount(count: number): string {
-  if (count >= 10_000) return `${Math.round(count / 1000)}k`
-  if (count >= 1_000) return `${(count / 1000).toFixed(1)}k`
-  return String(count)
-}
-
-/** Human-readable label for the agent's current activity phase. */
-function activityLabel(activity?: AgentRunActivity): string {
-  switch (activity?.phase) {
-    case 'starting':
-      return 'Starting…'
-    case 'responding':
-      return 'Responding…'
-    case 'tool':
-      return activity.toolName ? `Running ${activity.toolName}…` : 'Running tool…'
-    case 'finalizing':
-      return 'Finishing…'
-    case 'thinking':
-      return 'Thinking…'
-    default:
-      return 'Working…'
-  }
-}
-
-/** Live status row shown while the agent is working: activity, elapsed time, and token count. */
-function AgentRunStatusBar({
-  startedAt,
-  activity,
-  usage,
-}: {
-  startedAt: number | null
-  activity?: AgentRunActivity
-  usage?: AgentRunUsage
-}) {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    if (startedAt === null) return
-    setNow(Date.now())
-    const interval = setInterval(() => setNow(Date.now()), 1000)
-    return () => clearInterval(interval)
-  }, [startedAt])
-  const elapsed = startedAt === null ? 0 : Math.max(0, now - startedAt)
-  return (
-    <div className="text-muted-foreground flex items-center gap-2 py-2 text-xs" aria-live="polite">
-      <Loader2 className="size-3.5 shrink-0 animate-spin" />
-      <span className="font-medium">{activityLabel(activity)}</span>
-      {activity?.detail ? <span className="max-w-64 min-w-0 truncate opacity-75">{activity.detail}</span> : null}
-      <span className="ml-auto flex shrink-0 items-center gap-3 tabular-nums">
-        <span aria-label="Elapsed time">{formatElapsed(elapsed)}</span>
-        {usage && usage.total > 0 ? <span aria-label="Tokens used">{formatTokenCount(usage.total)} tokens</span> : null}
-      </span>
-    </div>
-  )
-}
-
 const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   row,
   serverUrl,
   agentId,
+  liveActivity,
 }: {
   row: AgentSessionChatRowData
   serverUrl: string
   agentId?: string
+  liveActivity?: AgentRunActivity
 }) {
   if (row.kind === 'message') {
     if (row.triggerContext) {
@@ -762,7 +654,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
       return (
         <div className="flex flex-col gap-1.5">
           {row.message.content?.trim() || row.message.blocks?.length ? (
-            <ChatMessageBubble message={row.message} />
+            <ChatMessageBubble message={row.message} liveActivity={liveActivity} />
           ) : null}
           <TriggerContextView
             context={row.triggerContext}
@@ -773,7 +665,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
         </div>
       )
     }
-    return <ChatMessageBubble message={row.message} />
+    return <ChatMessageBubble message={row.message} liveActivity={liveActivity} />
   }
 
   if (row.kind === 'error') {

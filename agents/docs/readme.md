@@ -43,6 +43,9 @@ Completed and usable locally:
 - per-agent persistent memory filesystem: sandboxed `memory_*` session tools (list/read/write/delete plus web download
   and IPFS publish), binary/media file support, signed agent-memory actions, and a desktop Memory tab with editing,
   media previews, on-demand downloads, local-file upload, URL download, and IPFS publishing;
+- sandboxed `execute_code` tool: Python/shell in ephemeral hardware-isolated microVMs (embedded microsandbox runtime)
+  with the agent's memory bind-mounted as the working directory, size/time/network-capped, reporting changed memory
+  files;
 - per-agent tool toggles plus server-side HM account-key creation/selection for signing/publishing tools;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;
@@ -99,6 +102,7 @@ Agents service:
   implementations.
 - `agents/src/agent-memory.ts` — sandboxed per-agent memory filesystem shared by the `memory_*` tools and the signed
   agent-memory actions.
+- `agents/src/code-exec.ts` — sandboxed code execution (microsandbox microVMs) against the agent memory workspace.
 - `agents/src/auth.ts` — signed envelope verification and local account authorization.
 - `agents/src/sqlite.ts` — open/schema validation/migration gate.
 - `agents/src/sqlite-schema.sql` — canonical schema.

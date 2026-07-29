@@ -31,6 +31,22 @@ export type Config = {
     /** Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). */
     crawlerToken?: string
   }
+  exec: {
+    /** Code-execution backend: 'microsandbox' or '' to disable. */
+    backend: '' | 'microsandbox'
+    /** OCI image for sandbox rootfs. */
+    image: string
+    /** Virtual CPUs per sandbox. */
+    cpus: number
+    /** Guest memory per sandbox in MiB. */
+    memoryMib: number
+    /** Default per-execution timeout in seconds. */
+    timeoutSecs: number
+    /** Allow outbound network access from sandboxes. */
+    allowNetwork: boolean
+    /** Upstream DNS nameservers for sandbox name resolution. */
+    dnsServers: string[]
+  }
 }
 
 /** Parsed command-line flags accepted by the Agents service. */
@@ -46,6 +62,13 @@ export type Flags = {
   'searxng-url': string
   'crawler-url': string
   'crawler-token': string
+  'exec-backend': string
+  'exec-image': string
+  'exec-cpus': number
+  'exec-memory-mib': number
+  'exec-timeout-secs': number
+  'exec-allow-network': string
+  'exec-dns': string
 }
 
 /** Creates default flag values from the current environment. */
@@ -62,6 +85,13 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'searxng-url': env.SEED_AGENTS_SEARXNG_URL || '',
     'crawler-url': env.SEED_AGENTS_CRAWLER_URL || '',
     'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
+    'exec-backend': env.SEED_AGENTS_EXEC_BACKEND ?? 'microsandbox',
+    'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
+    'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
+    'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
+    'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
+    'exec-allow-network': env.SEED_AGENTS_EXEC_ALLOW_NETWORK ?? '',
+    'exec-dns': env.SEED_AGENTS_EXEC_DNS || '',
   }
 }
 
@@ -89,7 +119,14 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
 
     if (key === 'server-port') {
       parsed[key] = parsePort(value)
-    } else if (key === 'activity-poll-interval-ms' || key === 'activity-page-size' || key === 'activity-max-pages') {
+    } else if (
+      key === 'activity-poll-interval-ms' ||
+      key === 'activity-page-size' ||
+      key === 'activity-max-pages' ||
+      key === 'exec-cpus' ||
+      key === 'exec-memory-mib' ||
+      key === 'exec-timeout-secs'
+    ) {
       parsed[key] = parsePositiveInteger(value, key)
     } else {
       parsed[key] = value as never
@@ -123,7 +160,40 @@ export function create(pflags: Flags): Config {
       crawlerUrl: optionalHttpUrl(pflags['crawler-url'], 'Crawler URL'),
       crawlerToken: pflags['crawler-token'].trim() || undefined,
     },
+    exec: {
+      backend: parseExecBackend(pflags['exec-backend']),
+      image: pflags['exec-image'].trim() || 'python',
+      cpus: parsePositiveInteger(String(pflags['exec-cpus']), 'exec-cpus'),
+      memoryMib: parsePositiveInteger(String(pflags['exec-memory-mib']), 'exec-memory-mib'),
+      timeoutSecs: parsePositiveInteger(String(pflags['exec-timeout-secs']), 'exec-timeout-secs'),
+      allowNetwork: isNetworkEnabled(pflags['exec-allow-network']),
+      dnsServers: parseDnsServers(pflags['exec-dns']),
+    },
   }
+}
+
+/** Parses a comma-separated DNS server list; empty falls back to the executor default resolvers. */
+function parseDnsServers(value: string): string[] {
+  return value
+    .split(',')
+    .map((server) => server.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Interprets the exec network flag. Network is ON by default (agents commonly need to install
+ * packages and fetch data); set the flag to a falsy value to disable it.
+ */
+function isNetworkEnabled(value: string): boolean {
+  return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase())
+}
+
+/** Parses the code-execution backend flag; empty disables execution. */
+function parseExecBackend(value: string): '' | 'microsandbox' {
+  const trimmed = value.trim()
+  if (trimmed === '' || trimmed === 'off' || trimmed === 'none') return ''
+  if (trimmed === 'microsandbox') return 'microsandbox'
+  throw new Error(`Invalid exec backend: ${value} (expected "microsandbox" or empty)`)
 }
 
 /** Normalizes an optional http(s) URL flag; returns undefined when unset. */

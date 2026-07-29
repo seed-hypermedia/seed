@@ -141,17 +141,22 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
 
   const options = () => new Response(null, {status: 204, headers: corsHeaders()})
   const buildInfo = getBuildInfo()
-  const health = () =>
-    Response.json(
+  const health = async () => {
+    const codeExec = await svc.codeExecAvailability()
+    return Response.json(
       {
         status: 'ok',
         uptime: process.uptime(),
         version: buildInfo.version,
         hmServerUrl: svc.hmServerUrl,
         webTools: svc.webToolCapabilities(),
+        codeExec: codeExec.available,
+        codeExecReason: codeExec.reason,
+        codeExecReasonCode: codeExec.code,
       },
       {headers: corsHeaders()},
     )
+  }
   const version = () => Response.json(buildInfo, {headers: corsHeaders()})
   return {
     '/api/message': {OPTIONS: options, POST: message},
@@ -383,6 +388,28 @@ function toBytes(value: Uint8Array | ArrayBuffer): Uint8Array {
 }
 
 async function main(): Promise<void> {
+  if (process.argv.includes('--exec-selfcheck')) {
+    // Verifies the microsandbox SDK is loadable through the same path execute_code uses. The SDK
+    // is external to the compiled binary and staged on disk by build-binary.ts, so this catches
+    // packaging regressions (missing node_modules, wrong platform package) in --smoke and CI.
+    try {
+      const {loadMicrosandbox} = await import('@/code-exec')
+      await loadMicrosandbox()
+      // When the staged runtime layout is present (compiled binary), the loader must have
+      // resolved the msb helper from it — otherwise execute_code would fail at sandbox boot.
+      const stagedModules = filepath.join(filepath.dirname(process.execPath), 'node_modules')
+      if (fs.existsSync(stagedModules) && !process.env.MSB_PATH) {
+        console.error('exec-selfcheck: staged node_modules present but no msb helper was found in it')
+        process.exit(1)
+      }
+      console.log(`exec-selfcheck: SDK loaded; msb=${process.env.MSB_PATH ?? '(binding-relative)'}`)
+      process.exit(0)
+    } catch (error) {
+      console.error(`exec-selfcheck: ${error instanceof Error ? error.message : String(error)}`)
+      process.exit(1)
+    }
+  }
+
   const cfg = config.create(config.parseArgs())
   const result = sqlite.open(cfg.dbPath)
 
@@ -473,6 +500,7 @@ async function main(): Promise<void> {
     onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
     web: cfg.web,
+    exec: cfg.exec,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
