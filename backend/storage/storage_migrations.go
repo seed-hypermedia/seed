@@ -63,18 +63,6 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
-	// Add an expression index on the redirect target of document generations, so
-	// that the comment-activity aggregation in document listings can walk redirect
-	// chains with indexed lookups instead of scanning the whole table. DDL must
-	// stay in lock-step with schema.sql (the migration snapshot test compares).
-	// Drop-first because data dirs fresh-initialized from a pre-merge branch
-	// build already have this index from schema.sql.
-	{Version: "2026-07-28.193121", Run: func(_ *Store, conn *sqlite.Conn) error {
-		return sqlitex.ExecScript(conn, sqlfmt(`
-			DROP INDEX IF EXISTS document_generations_by_redirect;
-			CREATE INDEX document_generations_by_redirect ON document_generations ((metadata->>'$."$db.redirect".v')) WHERE metadata->>'$."$db.redirect".v' IS NOT NULL;
-		`))
-	}},
 	// Reindex to backfill the derived fallback-cover image (see
 	// blob.FirstImageInContentAttr), so directory cards can render a thumbnail
 	// from fast metadata instead of fetching each child's full document.

@@ -197,10 +197,6 @@ CREATE TABLE document_generations (
 -- Index to fullfill the rule of having an index on all foreign keys.
 CREATE INDEX document_generations_by_last_comment ON document_generations (last_comment) WHERE last_comment IS NOT NULL;
 
--- Index to quickly find resources whose generation redirects to a given IRI.
--- Used to walk redirect chains when aggregating comment activity for document listings.
-CREATE INDEX document_generations_by_redirect ON document_generations ((metadata->>'$."$db.redirect".v')) WHERE metadata->>'$."$db.redirect".v' IS NOT NULL;
-
 -- Stores content-addressable links between blobs.
 -- Links are typed (rel) and directed.
 CREATE TABLE blob_links (
