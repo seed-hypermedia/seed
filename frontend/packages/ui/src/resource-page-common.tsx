@@ -55,11 +55,15 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
   DocumentMachineProvider,
+  selectCanEditCurrentRoute,
   selectContext,
+  selectDraftOverlayAllowed,
   selectIsEditing,
   selectIsUnpublishedDraft,
   selectPublishedVersion,
   selectRenderableBlocks,
+  selectShouldFocusDraftTitle,
+  selectShouldUseDraftOverlay,
   useAccountSync,
   useAutoRebase,
   useCapabilitySync,
@@ -567,6 +571,32 @@ export function hasUnpublishedDraftForResourceState({
   )
 }
 
+export function getEffectiveCanEdit({
+  canEdit,
+  resourceFetchId,
+  existingDraft,
+  reservedDraftId,
+}: {
+  canEdit: boolean
+  resourceFetchId: UnpackedHypermediaId | null
+  existingDraft?: HMExistingDraft | false
+  reservedDraftId?: string | null
+}) {
+  return canEdit || (resourceFetchId === null && (!!existingDraft || !!reservedDraftId))
+}
+
+export function getDocumentSyncIsPlaceholderData({
+  resourceFetchId,
+  hasUnpublishedDraft,
+  resourceIsPreviousData,
+}: {
+  resourceFetchId: UnpackedHypermediaId | null
+  hasUnpublishedDraft: boolean
+  resourceIsPreviousData?: boolean
+}) {
+  return !!resourceIsPreviousData && resourceFetchId !== null && !hasUnpublishedDraft
+}
+
 export function getCommentReplyPanelRoute({
   docId,
   comment,
@@ -804,15 +834,15 @@ export function ResourcePage({
   const documentResourceRouteKey = getDocumentResourceRouteKey(docId)
   const lastGoodRouteIdRef = useRef(documentResourceRouteKey)
   const hasEverLoadedRef = useRef(false)
-  const lastGoodDocumentRef = useRef<HMDocument | null>(null)
+  const lastLoadedDocumentRef = useRef<HMDocument | null>(null)
   if (lastGoodRouteIdRef.current !== documentResourceRouteKey) {
     lastGoodRouteIdRef.current = documentResourceRouteKey
     hasEverLoadedRef.current = false
-    lastGoodDocumentRef.current = null
+    lastLoadedDocumentRef.current = null
   }
   if (resourceFetchId && resource.data?.type === 'document' && resource.data.id.id === resourceFetchId.id) {
     hasEverLoadedRef.current = true
-    lastGoodDocumentRef.current = resource.data.document
+    lastLoadedDocumentRef.current = resource.data.document
   }
 
   // docId.uid determines the site header — for site-profile, docId IS the site context
@@ -1030,10 +1060,10 @@ export function ResourcePage({
   const renderedDocId = getRenderedDocumentId(docId, resource.data, resourceFetchId)
   if (resourceFetchId && resource.data?.type === 'document') {
     document = resource.data.document
-  } else if (lastGoodDocumentRef.current) {
+  } else if (lastLoadedDocumentRef.current) {
     // Transient refetch failure / not-found / discovery flap — keep showing the last
     // good document. The banner in PageWrapper informs the user.
-    document = lastGoodDocumentRef.current
+    document = lastLoadedDocumentRef.current
   } else if (hasUnpublishedDraft) {
     document = {
       account: docId.uid,
@@ -1056,18 +1086,7 @@ export function ResourcePage({
     )
   }
 
-  const shouldUseDraft = shouldUseDraftForRenderedDocument({docId: renderedDocId, existingDraft, isLatest})
-  const effectiveCanEdit =
-    (canEdit || (resourceFetchId === null && !!existingDraft)) && (!renderedDocId.version || isLatest || shouldUseDraft)
-  // Preserve `undefined` (draft still loading) so the machine's one-shot
-  // `draft.resolved` doesn't latch to "no draft". See helper doc.
-  const effectiveExistingDraft = resolveEffectiveExistingDraft(existingDraft, shouldUseDraft)
-  const effectiveExistingDraftVisibility = shouldUseDraft ? existingDraftVisibility : undefined
-  const effectiveExistingDraftContent = shouldUseDraft ? existingDraftContent : undefined
-  const effectiveExistingDraftCursorPosition = shouldUseDraft ? existingDraftCursorPosition : undefined
-  const effectiveExistingDraftMineTouchedIds = shouldUseDraft ? existingDraftMineTouchedIds : undefined
-  const effectiveExistingDraftBaseBlocks = shouldUseDraft ? existingDraftBaseBlocks : undefined
-  const effectiveExistingDraftDeps = shouldUseDraft ? existingDraftDeps : undefined
+  const effectiveCanEdit = getEffectiveCanEdit({canEdit, resourceFetchId, existingDraft, reservedDraftId})
   const draftVersionEntry = existingDraft
     ? {
         docId: renderedDocId,
@@ -1090,7 +1109,8 @@ export function ResourcePage({
         documentId: renderedDocId,
         canEdit: effectiveCanEdit,
         isLatest,
-        deps: effectiveExistingDraftDeps,
+        routeVersion: renderedDocId.version ?? null,
+        deps: existingDraftDeps,
         reservedDraftId: reservedDraftId ?? undefined,
         editUid: renderedDocId.uid,
         editPath: renderedDocId.path ?? undefined,
@@ -1113,21 +1133,25 @@ export function ResourcePage({
           docId={renderedDocId}
           document={document}
           documentSyncRouteKey={documentResourceRouteKey}
-          documentIsPlaceholderData={resource.isPreviousData}
+          documentIsPlaceholderData={getDocumentSyncIsPlaceholderData({
+            resourceFetchId,
+            hasUnpublishedDraft,
+            resourceIsPreviousData: resource.isPreviousData,
+          })}
           activeView={getActiveView(route.key)}
           isLatest={isLatest}
           siteUrl={siteHomeDocument?.metadata?.siteUrl}
           CommentEditor={CommentEditor}
           optionsMenuItems={optionsMenuItems}
           extraMenuItems={extraMenuItems}
-          existingDraft={effectiveExistingDraft}
+          existingDraft={existingDraft}
           reservedDraftId={reservedDraftId}
-          existingDraftVisibility={effectiveExistingDraftVisibility}
-          existingDraftContent={effectiveExistingDraftContent}
-          existingDraftCursorPosition={effectiveExistingDraftCursorPosition}
-          existingDraftMineTouchedIds={effectiveExistingDraftMineTouchedIds}
-          existingDraftBaseBlocks={effectiveExistingDraftBaseBlocks}
-          existingDraftDeps={effectiveExistingDraftDeps}
+          existingDraftVisibility={existingDraftVisibility}
+          existingDraftContent={existingDraftContent}
+          existingDraftCursorPosition={existingDraftCursorPosition}
+          existingDraftMineTouchedIds={existingDraftMineTouchedIds}
+          existingDraftBaseBlocks={existingDraftBaseBlocks}
+          existingDraftDeps={existingDraftDeps}
           draftVersionEntry={draftVersionEntry}
           floatingButtons={floatingButtons}
           pageFooter={pageFooter}
@@ -1414,7 +1438,7 @@ function DocumentBody({
   // Sync canEdit changes into the machine (for account switching)
   useCapabilitySync(canEdit)
   // Sync isLatest changes into the machine (for old-version edit guard)
-  useVersionLatestSync(isLatest)
+  useVersionLatestSync(isLatest, docId.version ?? null)
   // Sync account IDs into the machine (for draft saving / publishing)
   useAccountSync(signingAccountId, publishAccountUid)
   // Forward scroll events from the scroll container to the machine
@@ -1466,12 +1490,18 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
+  const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
+  const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = useMemo(
-    () => ({...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}),
-    [ctx.document?.metadata, document.metadata, ctx.metadata],
+    () =>
+      draftOverlayAllowed
+        ? {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+        : ctx.document?.metadata || document.metadata || {},
+    [draftOverlayAllowed, ctx.document?.metadata, document.metadata, ctx.metadata],
   )
   const effectiveContent = useDocumentSelector(selectRenderableBlocks)
   // Set of block ids present in the currently published version of the document.
@@ -1630,7 +1660,7 @@ function DocumentBody({
 
   const homeDraftOverride = useIsHomeDraftOverride()
   const isHomeDoc = homeDraftOverride ?? !docId.path?.length
-  const draftVisibility = existingDraft ? existingDraftVisibility : undefined
+  const draftVisibility = shouldUseDraftOverlay && existingDraft ? existingDraftVisibility : undefined
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
@@ -2088,7 +2118,7 @@ function DocumentBody({
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
   const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!canEdit) return null
+    if (!canEditCurrentRoute) return null
     return {
       key: 'options',
       label: 'Document Settings',
@@ -2098,7 +2128,7 @@ function DocumentBody({
         replaceRoute({...route, panel: newPanel} as any)
       },
     }
-  }, [canEdit, panelKey, route, replaceRoute])
+  }, [canEditCurrentRoute, panelKey, route, replaceRoute])
   const citationFragmentToggleMenuItem = useMemo<MenuItemType>(
     () => ({
       key: 'citation-fragments-toggle',
@@ -2185,9 +2215,9 @@ function DocumentBody({
   const documentContentAction = getDocumentContentAction({
     activeView,
     isEditing,
-    hasDraft: ctx.draftId !== null,
-    editingFloatingActions,
-    draftActions,
+    hasDraft: draftOverlayAllowed && ctx.draftId !== null,
+    editingFloatingActions: draftOverlayAllowed ? editingFloatingActions : undefined,
+    draftActions: draftOverlayAllowed ? draftActions : undefined,
     actionButtons,
     allMenuItems,
   })
@@ -2212,10 +2242,10 @@ function DocumentBody({
     >
       <DocumentCover
         cover={metadata?.cover}
-        onRemove={canEdit && metadata?.cover ? removeCover : undefined}
-        onChangeCover={canEdit && metadata?.cover && fileUpload ? changeCover : undefined}
+        onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
+        onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
       />
-      {isHomeDoc && canEdit && activeView === 'content' ? (
+      {isHomeDoc && canEditCurrentRoute && activeView === 'content' ? (
         <HomeDocumentMetadataControls metadata={metadata as any} fileUpload={fileUpload} />
       ) : null}
 
@@ -2259,7 +2289,7 @@ function DocumentBody({
               </div>
             )}
             {!isHomeDoc &&
-              (canEdit ? (
+              (canEditCurrentRoute ? (
                 <EditableDocumentHeader
                   docId={docId}
                   docMetadata={metadata}
@@ -2322,7 +2352,7 @@ function DocumentBody({
             </div>
           )}
           {!isHomeDoc &&
-            (canEdit ? (
+            (canEditCurrentRoute ? (
               <EditableDocumentHeader
                 docId={docId}
                 docMetadata={metadata}
@@ -2374,7 +2404,7 @@ function DocumentBody({
                   : activeView
             }
             currentPanel={panelRoute}
-            existingDraft={isEditing ? undefined : existingDraft}
+            existingDraft={isEditing || !shouldUseDraftOverlay ? undefined : existingDraft}
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
@@ -2606,6 +2636,7 @@ function EditableDocumentHeader({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const isEditing = useDocumentSelector(selectIsEditing)
+  const focusTitleOnMount = useDocumentSelector(selectShouldFocusDraftTitle)
   const send = useDocumentSend()
 
   // Use machine context metadata if it has been changed, otherwise fall back to document metadata
@@ -2637,6 +2668,7 @@ function EditableDocumentHeader({
         summary={summary}
         metadata={metadata as any}
         fileUpload={fileUpload}
+        focusTitleOnMount={focusTitleOnMount}
         onBeginEdit={() => {
           if (!isEditing) send({type: 'edit.start'})
         }}
@@ -2877,7 +2909,8 @@ function DocumentMetadataPage({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
-  const {canEdit, beginEditIfNeeded} = useEditorGate()
+  const {beginEditIfNeeded} = useEditorGate()
+  const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const openUrl = useOpenUrl()
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
@@ -2892,8 +2925,9 @@ function DocumentMetadataPage({
   return (
     <DocumentMetadataView
       metadata={metadata as any}
-      canEdit={canEdit}
+      canEdit={canEditCurrentRoute}
       onMetadata={(patch) => {
+        if (!canEditCurrentRoute) return
         beginEditIfNeeded()
         send({type: 'change', metadata: patch as any})
       }}

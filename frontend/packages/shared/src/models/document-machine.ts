@@ -37,6 +37,11 @@ type QueryInclude = {
   [key: string]: unknown
 }
 
+/** Whether draft data may overlay published content for the current route version. */
+export function shouldAllowDraftOverlay(isLatest: boolean, routeVersion: string | null | undefined) {
+  return isLatest || !routeVersion
+}
+
 function includeTargetsDocument(include: QueryInclude, documentId: UnpackedHypermediaId) {
   if (include.space !== documentId.uid) return false
   const includePath = entityQueryPathToHmIdPath(typeof include.path === 'string' ? include.path : '')
@@ -129,6 +134,7 @@ export type DocumentMachineInput = {
   documentId: UnpackedHypermediaId
   canEdit: boolean
   isLatest?: boolean
+  routeVersion?: string | null
   reservedDraftId?: string
   existingDraftId?: string
   editUid?: string
@@ -157,7 +163,6 @@ export type DocumentMachineContext = {
   metadata: HMDraft['metadata']
   deps: string[]
   publishedVersion: string | null
-  pendingRemoteVersion: string | null
   isLatestVersion: boolean
   navigation: HMNavigationItem[] | undefined
   locationUid: string
@@ -165,6 +170,7 @@ export type DocumentMachineContext = {
   editUid: string
   editPath: string[]
   canEdit: boolean
+  routeVersion: string | null
   hasChangedWhileSaving: boolean
   draftCreated: boolean
   /** True when machine should enter editing after loading (existing or route-reserved draft). Cleared after first use. */
@@ -208,15 +214,8 @@ export type DocumentMachineContext = {
    * Cleared on entry to `publishing` so a second publish click does not double-fire.
    */
   pendingPublish: boolean
+  pendingExitEditingAfterSave: boolean
   error: unknown
-  /**
-   * Last document payload seen via `document.loaded` or `document.remoteUpdate`. Survives
-   * subsequent transient resource failures so UI can keep rendering the document while a
-   * background refetch is errored / discovering / not-found.
-   */
-  lastGoodDocument: HMDocument | null
-  /** Version string for {@link lastGoodDocument}; mirrors `publishedVersion` at the time of capture. */
-  lastGoodVersion: string | null
   /**
    * Non-fatal resource fetch state surfaced by the consumer (`useResource`). Drives a banner
    * in the page header without changing the machine's top-level state. `null` when the
@@ -260,7 +259,7 @@ export type DocumentMachineEvent =
   | {type: 'childDraftRefs.changed'; draftIds: string[]}
   | {type: 'capability.changed'; canEdit: boolean}
   | {type: 'account.changed'; signingAccountId?: string; publishAccountUid?: string}
-  | {type: 'version.changed'; isLatest: boolean}
+  | {type: 'version.changed'; isLatest: boolean; routeVersion?: string | null}
   | {type: 'draft.existing'; draftId: string}
   | {
       type: 'draft.resolved'
@@ -383,18 +382,6 @@ export const documentMachine = setup({
         }
         return null
       },
-      lastGoodDocument: ({context, event}) => {
-        if (event.type === 'document.loaded' || event.type === 'document.remoteUpdate') {
-          return event.document
-        }
-        return context.lastGoodDocument
-      },
-      lastGoodVersion: ({context, event}) => {
-        if (event.type === 'document.loaded' || event.type === 'document.remoteUpdate') {
-          return event.document.version
-        }
-        return context.lastGoodVersion
-      },
     }),
     setTransientResourceError: assign({
       transientResourceError: ({context, event}) => {
@@ -428,14 +415,6 @@ export const documentMachine = setup({
       deps: ({context}) => {
         if (context.draftId && context.deps.length) return context.deps
         return context.publishedVersion ? [context.publishedVersion] : context.deps
-      },
-    }),
-    setPendingRemoteVersion: assign({
-      pendingRemoteVersion: ({event}) => {
-        if (event.type === 'document.remoteUpdate') {
-          return event.document.version
-        }
-        return null
       },
     }),
     setDraftIdFromResult: assign({
@@ -485,14 +464,17 @@ export const documentMachine = setup({
         return false
       },
     }),
-    setIsLatestVersion: assign({
+    setRouteVersionState: assign({
       isLatestVersion: ({event}) => (event.type === 'version.changed' ? event.isLatest : true),
+      routeVersion: ({context, event}) => {
+        if (event.type !== 'version.changed') return context.routeVersion
+        return event.routeVersion !== undefined ? event.routeVersion : context.routeVersion
+      },
     }),
     clearDraftState: assign({
       draftId: null,
       draftCreated: false,
       hasChangedWhileSaving: false,
-      pendingRemoteVersion: null,
       draftContent: null,
       draftCursorPosition: null,
       pendingEditCursorPosition: null,
@@ -504,6 +486,7 @@ export const documentMachine = setup({
       pendingRebase: null,
       pendingPathOverride: null,
       pendingPublish: false,
+      pendingExitEditingAfterSave: false,
       referencedChildDraftIds: [],
       pendingDeletedChildDraftIds: [],
     }),
@@ -511,7 +494,6 @@ export const documentMachine = setup({
       // Preserve draftId and metadata so re-entering editing reuses the same draft
       // and title/summary changes remain visible outside editing mode.
       hasChangedWhileSaving: false,
-      pendingRemoteVersion: null,
       pendingEditCursorPosition: null,
       baseBlocks: null,
       mineTouchedIds: [],
@@ -519,6 +501,21 @@ export const documentMachine = setup({
       pendingRebase: null,
       pendingPathOverride: null,
       pendingPublish: false,
+      pendingExitEditingAfterSave: false,
+    }),
+    promotePendingRemoteDocument: assign({
+      document: ({context}) =>
+        context.pendingRemoteDocument?.version === context.routeVersion
+          ? context.pendingRemoteDocument
+          : context.document,
+      publishedVersion: ({context}) =>
+        context.pendingRemoteDocument?.version === context.routeVersion
+          ? context.pendingRemoteDocument.version
+          : context.publishedVersion,
+      editorBaseline: ({context}) => {
+        if (context.pendingRemoteDocument?.version !== context.routeVersion) return context.editorBaseline
+        return hmBlocksToEditorContent(context.pendingRemoteDocument.content ?? [], {childrenType: 'Group'})
+      },
     }),
     snapshotBaseBlocks: assign({
       baseBlocks: ({context}) => {
@@ -600,17 +597,8 @@ export const documentMachine = setup({
         if (event.type !== 'rebase.apply') return context.baseBlocks
         return event.mergedBlocks
       },
-      lastGoodDocument: ({context, event}) => {
-        if (event.type !== 'rebase.apply') return context.lastGoodDocument
-        return event.newDocument
-      },
-      lastGoodVersion: ({context, event}) => {
-        if (event.type !== 'rebase.apply') return context.lastGoodVersion
-        return event.newDocument.version ?? context.lastGoodVersion
-      },
       mineTouchedIds: [],
       pendingRemoteDocument: null,
-      pendingRemoteVersion: null,
       pendingRebase: null,
     }),
     setRebaseConflict: assign({
@@ -627,7 +615,6 @@ export const documentMachine = setup({
       pendingRebase: null,
     }),
     clearPendingRemoteUpdate: assign({
-      pendingRemoteVersion: null,
       pendingRemoteDocument: null,
       pendingRebase: null,
     }),
@@ -647,6 +634,12 @@ export const documentMachine = setup({
     }),
     clearPendingPublish: assign({
       pendingPublish: false,
+    }),
+    markPendingExitEditingAfterSave: assign({
+      pendingExitEditingAfterSave: true,
+    }),
+    clearPendingExitEditingAfterSave: assign({
+      pendingExitEditingAfterSave: false,
     }),
     updateChildDraftRefs: assign({
       referencedChildDraftIds: ({event, context}) => {
@@ -772,14 +765,6 @@ export const documentMachine = setup({
         const doc = (event as any).output as HMDocument
         if (!doc) return null
         return hmBlocksToEditorContent(doc.content ?? [], {childrenType: 'Group'})
-      },
-      lastGoodDocument: ({context, event}) => {
-        const doc = (event as any).output as HMDocument
-        return doc ?? context.lastGoodDocument
-      },
-      lastGoodVersion: ({context, event}) => {
-        const doc = (event as any).output as HMDocument
-        return doc?.version ?? context.lastGoodVersion
       },
     }),
     setEditorBaselineFromSnapshot: assign({
@@ -943,7 +928,10 @@ export const documentMachine = setup({
   },
   guards: {
     canTransitionToEditing: ({context}) => {
-      const result = context.canEdit && (context.isLatestVersion || !!context.draftId)
+      const result =
+        context.canEdit &&
+        shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
+        (context.isLatestVersion || !!context.draftId)
       // console.log('[DocMachine] guard canTransitionToEditing', {
       //   canEdit: context.canEdit,
       //   isLatestVersion: context.isLatestVersion,
@@ -953,16 +941,27 @@ export const documentMachine = setup({
       return result
     },
     canOpenExistingDraft: ({context, event}) => {
-      return context.canEdit && (context.isLatestVersion || (event.type === 'draft.existing' && !!event.draftId))
+      return (
+        context.canEdit &&
+        shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
+        (context.isLatestVersion || (event.type === 'draft.existing' && !!event.draftId))
+      )
     },
     didChangeWhileSaving: ({context}) => context.hasChangedWhileSaving,
     hasDraftId: ({context}) => context.draftId !== null,
     hasPersistedDraft: ({context}) => context.draftId !== null && context.draftCreated,
+    hasPersistedDraftAndNoRebaseConflict: ({context}) =>
+      context.draftId !== null && context.draftCreated && context.pendingRebase?.kind !== 'conflict',
     hasExistingDraft: ({context}) => context.shouldAutoEdit,
-    hasRemoteUpdate: ({context}) => context.pendingRemoteVersion !== null,
+    hasRemoteUpdate: ({context}) => context.pendingRemoteDocument !== null,
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
     capabilityLost: ({event}) => event.type === 'capability.changed' && !event.canEdit,
     hasPendingPublish: ({context}) => context.pendingPublish,
+    hasPendingExitEditingAfterSave: ({context}) => context.pendingExitEditingAfterSave,
+    noRebaseConflict: ({context}) => context.pendingRebase?.kind !== 'conflict',
+    routeDisallowsDraftOverlay: ({context, event}) =>
+      event.type === 'version.changed' &&
+      !shouldAllowDraftOverlay(event.isLatest, event.routeVersion ?? context.routeVersion),
   },
   actors: {
     writeDraft: fromPromise<WriteDraftOutput, WriteDraftInput>(async () => {
@@ -1014,8 +1013,8 @@ export const documentMachine = setup({
     metadata: {},
     deps: input.deps ?? [],
     publishedVersion: null,
-    pendingRemoteVersion: null,
     isLatestVersion: input.isLatest ?? true,
+    routeVersion: input.routeVersion ?? input.documentId.version ?? null,
     navigation: undefined,
     locationUid: input.locationUid ?? '',
     locationPath: input.locationPath ?? [],
@@ -1039,11 +1038,10 @@ export const documentMachine = setup({
     pendingRebase: null,
     pendingPathOverride: null,
     pendingPublish: false,
+    pendingExitEditingAfterSave: false,
     referencedChildDraftIds: [],
     pendingDeletedChildDraftIds: [],
     error: null,
-    lastGoodDocument: null,
-    lastGoodVersion: null,
     transientResourceError: null,
   }),
   initial: 'loading',
@@ -1072,7 +1070,7 @@ export const documentMachine = setup({
           actions: ['setExistingDraft'],
         },
         'version.changed': {
-          actions: ['setIsLatestVersion'],
+          actions: ['setRouteVersionState'],
         },
       },
       always: {
@@ -1114,7 +1112,7 @@ export const documentMachine = setup({
           actions: ['setAccountIds'],
         },
         'version.changed': {
-          actions: ['setIsLatestVersion'],
+          actions: ['setRouteVersionState'],
         },
         'draft.existing': [
           {
@@ -1130,7 +1128,10 @@ export const documentMachine = setup({
       always: {
         target: 'editing',
         guard: ({context}) =>
-          context.shouldAutoEdit && context.canEdit && (context.isLatestVersion || !!context.draftId),
+          context.shouldAutoEdit &&
+          context.canEdit &&
+          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
+          (context.isLatestVersion || !!context.draftId),
         actions: ['clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
       },
     },
@@ -1187,13 +1188,13 @@ export const documentMachine = setup({
           actions: ['setAccountIds'],
         },
         'document.remoteUpdate': {
-          actions: ['logRemoteUpdateWhileEditing', 'setPendingRemoteVersion', 'setPendingRemoteDocument'],
+          actions: ['logRemoteUpdateWhileEditing', 'setPendingRemoteDocument'],
         },
         'document.loaded': {
           actions: ['setDocumentData', 'markDocumentReady'],
         },
         'version.changed': {
-          actions: ['setIsLatestVersion'],
+          actions: ['setRouteVersionState'],
         },
         'rebase.blockTouched': {
           actions: ['appendMineTouched'],
@@ -1231,9 +1232,24 @@ export const documentMachine = setup({
                 },
                 'publish.start': {
                   target: '#DocumentLifecycle.publishing',
-                  guard: 'hasPersistedDraft',
+                  guard: 'hasPersistedDraftAndNoRebaseConflict',
                   actions: ['setPathOverrideFromEvent'],
                 },
+                'version.changed': [
+                  {
+                    target: '#DocumentLifecycle.loaded',
+                    guard: 'routeDisallowsDraftOverlay',
+                    actions: [
+                      'setRouteVersionState',
+                      'promotePendingRemoteDocument',
+                      'clearEditingState',
+                      'pushContentToEditor',
+                    ],
+                  },
+                  {
+                    actions: ['setRouteVersionState'],
+                  },
+                ],
                 // A `publish.start` queued during a previous saving/creating
                 // raises `_save.completed` from the actor's onDone, lands here,
                 // and immediately flushes into `publishing`.
@@ -1265,12 +1281,32 @@ export const documentMachine = setup({
                 'publish.start': [
                   {
                     target: 'saving',
-                    guard: 'hasPersistedDraft',
+                    guard: 'hasPersistedDraftAndNoRebaseConflict',
                     actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
                   },
                   {
                     target: 'creating',
+                    guard: 'noRebaseConflict',
                     actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
+                  },
+                ],
+                'version.changed': [
+                  {
+                    target: 'saving',
+                    guard: ({context, event}) =>
+                      context.draftId !== null &&
+                      context.draftCreated &&
+                      event.type === 'version.changed' &&
+                      !shouldAllowDraftOverlay(event.isLatest, event.routeVersion ?? context.routeVersion),
+                    actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    target: 'creating',
+                    guard: 'routeDisallowsDraftOverlay',
+                    actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    actions: ['setRouteVersionState'],
                   },
                 ],
               },
@@ -1301,8 +1337,18 @@ export const documentMachine = setup({
                 // Queue the publish; flushed when the in-flight create resolves
                 // and onDone raises `_save.completed` in idle.
                 'publish.start': {
+                  guard: 'noRebaseConflict',
                   actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
                 },
+                'version.changed': [
+                  {
+                    guard: 'routeDisallowsDraftOverlay',
+                    actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    actions: ['setRouteVersionState'],
+                  },
+                ],
               },
               invoke: {
                 id: 'writeDraft',
@@ -1341,6 +1387,26 @@ export const documentMachine = setup({
                       'logSaveCompleted',
                     ],
                     reenter: true,
+                  },
+                  {
+                    target: '#DocumentLifecycle.loaded',
+                    guard: 'hasPendingExitEditingAfterSave',
+                    actions: [
+                      'setDraftCreated',
+                      {
+                        type: 'setDraftIdFromResult',
+                        params: ({event}: {event: any}) => event.output,
+                      },
+                      {
+                        type: 'setDraftSavedSnapshotFromResult',
+                        params: ({event}: {event: any}) => event.output,
+                      },
+                      'logSaveCompleted',
+                      'promotePendingRemoteDocument',
+                      'clearEditingState',
+                      'pushContentToEditor',
+                      raise({type: '_save.completed'}),
+                    ],
                   },
                   {
                     target: 'idle',
@@ -1391,8 +1457,18 @@ export const documentMachine = setup({
                 // idempotent thanks to `markPendingPublish` being a constant
                 // assign.
                 'publish.start': {
+                  guard: 'noRebaseConflict',
                   actions: ['markPendingPublish', 'setPathOverrideFromEvent'],
                 },
+                'version.changed': [
+                  {
+                    guard: 'routeDisallowsDraftOverlay',
+                    actions: ['setRouteVersionState', 'markPendingExitEditingAfterSave'],
+                  },
+                  {
+                    actions: ['setRouteVersionState'],
+                  },
+                ],
               },
               invoke: {
                 id: 'writeDraft',
@@ -1425,6 +1501,21 @@ export const documentMachine = setup({
                       },
                     ],
                     reenter: true,
+                  },
+                  {
+                    target: '#DocumentLifecycle.loaded',
+                    guard: 'hasPendingExitEditingAfterSave',
+                    actions: [
+                      {
+                        type: 'setDraftSavedSnapshotFromResult',
+                        params: ({event}: {event: any}) => event.output,
+                      },
+                      'logSaveCompleted',
+                      'promotePendingRemoteDocument',
+                      'clearEditingState',
+                      'pushContentToEditor',
+                      raise({type: '_save.completed'}),
+                    ],
                   },
                   {
                     target: 'idle',
@@ -1501,7 +1592,8 @@ export const documentMachine = setup({
               },
               on: {
                 'rebase.detectConflict': {
-                  actions: ['clearPendingRemoteUpdate'],
+                  target: 'conflict',
+                  actions: ['setRebaseConflict'],
                 },
                 // Auto-merge applied from idle stays in idle; the action
                 // updates context (document/deps/baseBlocks) and clears
@@ -1614,7 +1706,7 @@ export const documentMachine = setup({
           actions: ['setAccountIds'],
         },
         'version.changed': {
-          actions: ['setIsLatestVersion'],
+          actions: ['setRouteVersionState'],
         },
       },
     },

@@ -30,6 +30,7 @@ export type EditableDocumentMetadataFieldsProps = {
   className?: string
   titleClassName?: string
   summaryClassName?: string
+  focusTitleOnMount?: boolean
   onCancelEdit?: () => void
   onSummaryEnter?: () => void
 }
@@ -180,6 +181,7 @@ export function EditableDocumentMetadataFields({
   className,
   titleClassName,
   summaryClassName,
+  focusTitleOnMount,
   onCancelEdit,
   onSummaryEnter,
 }: EditableDocumentMetadataFieldsProps) {
@@ -195,6 +197,10 @@ export function EditableDocumentMetadataFields({
   useEffect(() => {
     if (titleRef.current) resizeTextarea(titleRef.current)
   }, [name])
+
+  useEffect(() => {
+    if (focusTitleOnMount) titleRef.current?.focus()
+  }, [focusTitleOnMount])
 
   useEffect(() => {
     if (summaryRef.current) resizeTextarea(summaryRef.current)

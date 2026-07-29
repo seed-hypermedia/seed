@@ -7,7 +7,13 @@ import {
   retargetQueryBlockIncludesForPublish,
   WriteDraftOutput,
 } from '../document-machine'
-import {selectRenderableBlocks} from '../use-document-machine'
+import {
+  selectCanEditCurrentRoute,
+  selectPendingRemoteVersion,
+  selectRenderableBlocks,
+  selectShouldFocusDraftTitle,
+  selectShouldUseDraftOverlay,
+} from '../use-document-machine'
 import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 
@@ -431,7 +437,7 @@ describe('DocumentLifecycle machine', () => {
     expect(ctx.document).toBe(mockDocument)
     expect(ctx.publishedVersion).toBe(mockDocument.version)
     expect(ctx.pendingRemoteDocument).toBeNull()
-    expect(ctx.pendingRemoteVersion).toBeNull()
+    expect(selectPendingRemoteVersion(actor.getSnapshot())).toBeNull()
     expect(actor.getSnapshot().matches({editing: {rebase: 'idle'}})).toBe(true)
     actor.stop()
   })
@@ -1026,7 +1032,7 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('document.remoteUpdate in editing → updates pendingRemoteVersion only', () => {
+  it('document.remoteUpdate in editing → stashes pending remote document only', () => {
     const updatedDoc = {...mockDocument, version: 'bafynewer'}
     const actor = createTestActor()
     actor.start()
@@ -1034,9 +1040,54 @@ describe('DocumentLifecycle machine', () => {
     actor.send({type: 'edit.start'})
     actor.send({type: 'document.remoteUpdate', document: updatedDoc})
     expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
-    expect(actor.getSnapshot().context.pendingRemoteVersion).toBe('bafynewer')
+    expect(actor.getSnapshot().context.pendingRemoteDocument).toBe(updatedDoc)
+    expect(selectPendingRemoteVersion(actor.getSnapshot())).toBe('bafynewer')
     // publishedVersion stays the same
     expect(actor.getSnapshot().context.publishedVersion).toBe('bafyabc.bafydef')
+    actor.stop()
+  })
+
+  it('route version change to old version promotes a pending route document before leaving editing', () => {
+    const previousDoc = {...mockDocument, version: 'latest-version'} as HMDocument
+    const oldVersionDoc = {
+      ...mockDocument,
+      version: 'old-version',
+      content: [{block: {id: 'old', type: 'Paragraph', text: 'old version', attributes: {}}, children: []}],
+    } as HMDocument
+    const actor = createTestActor()
+    actor.start()
+    loadDocument(actor, previousDoc)
+    actor.send({type: 'edit.start'})
+
+    // React effects can deliver the document update before the route-version update.
+    actor.send({type: 'document.remoteUpdate', document: oldVersionDoc})
+    actor.send({type: 'version.changed', isLatest: false, routeVersion: 'old-version'})
+
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.value).toBe('loaded')
+    expect(snapshot.context.document).toBe(oldVersionDoc)
+    expect(snapshot.context.publishedVersion).toBe('old-version')
+    expect(snapshot.context.pendingRemoteDocument).toBeNull()
+    expect(selectRenderableBlocks(snapshot)).toBe(oldVersionDoc.content)
+    actor.stop()
+  })
+
+  it('route version change does not promote an unrelated pending remote document', () => {
+    const previousDoc = {...mockDocument, version: 'latest-version'} as HMDocument
+    const unrelatedRemoteDoc = {...mockDocument, version: 'newer-remote-version'} as HMDocument
+    const actor = createTestActor()
+    actor.start()
+    loadDocument(actor, previousDoc)
+    actor.send({type: 'edit.start'})
+
+    actor.send({type: 'document.remoteUpdate', document: unrelatedRemoteDoc})
+    actor.send({type: 'version.changed', isLatest: false, routeVersion: 'old-version'})
+
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.value).toBe('loaded')
+    expect(snapshot.context.document).toBe(previousDoc)
+    expect(snapshot.context.publishedVersion).toBe('latest-version')
+    expect(snapshot.context.pendingRemoteDocument).toBeNull()
     actor.stop()
   })
 
@@ -1337,8 +1388,8 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('edit.start with stale existing draft → enters editing', () => {
-    const actor = createTestActor({isLatest: false})
+  it('edit.start with draft on explicit old-version route → stays loaded', () => {
+    const actor = createTestActor({isLatest: false, routeVersion: 'old-version'})
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
     actor.send({
@@ -1347,8 +1398,102 @@ describe('DocumentLifecycle machine', () => {
       content: [],
       cursorPosition: null,
     })
-    expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+    expect(actor.getSnapshot().value).toBe('loaded')
     expect(actor.getSnapshot().context.draftId).toBe('existing-draft')
+    actor.stop()
+  })
+
+  it('explicit old-version route preserves draft data but renders published blocks', () => {
+    const publishedBlocks: HMBlockNode[] = [
+      {block: {id: 'published', type: 'Paragraph', text: 'published text', attributes: {}}, children: []},
+    ]
+    const draftBlocks: HMBlockNode[] = [
+      {block: {id: 'draft', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []},
+    ]
+    const actor = createTestActor({isLatest: false, routeVersion: 'old-version'})
+    actor.start()
+    actor.send({type: 'document.loaded', document: {...mockDocument, content: publishedBlocks}})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'existing-draft',
+      content: draftBlocks,
+      cursorPosition: null,
+    })
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.value).toBe('loaded')
+    expect(snapshot.context.draftContent).toBe(draftBlocks)
+    expect(selectShouldUseDraftOverlay(snapshot)).toBe(false)
+    expect(selectRenderableBlocks(snapshot)).toBe(publishedBlocks)
+    actor.stop()
+  })
+
+  it('returning from old version to latest re-enables saved draft overlay and auto-edit', () => {
+    const publishedBlocks: HMBlockNode[] = [
+      {block: {id: 'published', type: 'Paragraph', text: 'published text', attributes: {}}, children: []},
+    ]
+    const draftBlocks: HMBlockNode[] = [
+      {block: {id: 'draft', type: 'Paragraph', text: 'draft text', attributes: {}}, children: []},
+    ]
+    const actor = createTestActor({isLatest: false, routeVersion: 'old-version'})
+    actor.start()
+    actor.send({type: 'document.loaded', document: {...mockDocument, content: publishedBlocks}})
+    actor.send({
+      type: 'draft.resolved',
+      draftId: 'existing-draft',
+      content: draftBlocks,
+      cursorPosition: null,
+    })
+    expect(selectRenderableBlocks(actor.getSnapshot())).toBe(publishedBlocks)
+    actor.send({type: 'version.changed', isLatest: true, routeVersion: null})
+    const snapshot = actor.getSnapshot()
+    expect(snapshot.value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+    expect(selectShouldUseDraftOverlay(snapshot)).toBe(true)
+    expect(selectRenderableBlocks(snapshot)).toBe(draftBlocks)
+    actor.stop()
+  })
+
+  it('navigating to explicit old version while dirty saves before leaving editing', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {
+            id: 'draft-safe',
+            content: [{block: {id: 'saved', type: 'Paragraph', text: 'saved', attributes: {}}, children: []}],
+          }
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true, isLatest: true, routeVersion: null},
+    })
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change', metadata: {name: 'Unsaved title'}})
+    actor.send({type: 'version.changed', isLatest: false, routeVersion: 'old-version'})
+    await new Promise((r) => setTimeout(r, 80))
+    const snapshot = actor.getSnapshot()
+    expect(writeInputs).toHaveLength(1)
+    expect(writeInputs[0].metadata).toMatchObject({name: 'Unsaved title'})
+    expect(snapshot.value).toBe('loaded')
+    expect(snapshot.context.draftId).toBe('draft-safe')
+    expect(snapshot.context.draftCreated).toBe(true)
+    expect(selectShouldUseDraftOverlay(snapshot)).toBe(false)
+    actor.stop()
+  })
+
+  it('old version route is not edit-capable even when the account can edit', () => {
+    const actor = createTestActor({isLatest: false, routeVersion: 'old-version'})
+    actor.start()
+    loadDocument(actor)
+
+    expect(selectCanEditCurrentRoute(actor.getSnapshot())).toBe(false)
+
     actor.stop()
   })
 
@@ -1395,8 +1540,8 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('auto-edit with stale draft → enters editing', () => {
-    const actor = createTestActor({isLatest: false})
+  it('auto-edit with stale draft on unpinned stale-latest route → enters editing', () => {
+    const actor = createTestActor({isLatest: false, routeVersion: null})
     actor.start()
     actor.send({
       type: 'draft.resolved',
@@ -1679,6 +1824,22 @@ describe('DocumentLifecycle machine', () => {
       actor.stop()
     })
 
+    it('asks the UI to focus the title for a brand-new reserved draft', () => {
+      const actor = createTestActor({reservedDraftId: 'reserved-draft'})
+      const placeholderDocument = {...mockDocument, version: '', metadata: {}} as HMDocument
+
+      actor.start()
+      actor.send({type: 'document.loaded', document: placeholderDocument})
+
+      expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
+      expect(selectShouldFocusDraftTitle(actor.getSnapshot())).toBe(true)
+
+      actor.send({type: 'change', metadata: {name: 'New title'}})
+
+      expect(selectShouldFocusDraftTitle(actor.getSnapshot())).toBe(false)
+      actor.stop()
+    })
+
     it('discarding a reserved draft before the first save does not call delete', async () => {
       const discardCalls: any[] = []
       const machine = documentMachine.provide({
@@ -1768,25 +1929,29 @@ describe('DocumentLifecycle machine', () => {
       actor.stop()
     })
 
-    it('document.loaded populates lastGoodDocument and lastGoodVersion', () => {
+    it('stores accepted document state without duplicate last-good context fields', () => {
       const actor = createTestActor()
       actor.start()
       loadDocument(actor)
       const snap = actor.getSnapshot()
-      expect(snap.context.lastGoodDocument).toBe(mockDocument)
-      expect(snap.context.lastGoodVersion).toBe('bafyabc.bafydef')
+      expect(snap.context.document).toBe(mockDocument)
+      expect(snap.context.publishedVersion).toBe('bafyabc.bafydef')
+      expect(Object.prototype.hasOwnProperty.call(snap.context, 'lastGoodDocument')).toBe(false)
+      expect(Object.prototype.hasOwnProperty.call(snap.context, 'lastGoodVersion')).toBe(false)
       actor.stop()
     })
 
-    it('document.remoteUpdate refreshes lastGoodDocument and lastGoodVersion', () => {
+    it('derives pending remote version from the pending remote document', () => {
       const actor = createTestActor()
       actor.start()
       loadDocument(actor)
+      actor.send({type: 'edit.start'})
       const updated = {...mockDocument, version: 'bafyabc.bafyupdated'} as HMDocument
       actor.send({type: 'document.remoteUpdate', document: updated})
       const snap = actor.getSnapshot()
-      expect(snap.context.lastGoodDocument).toBe(updated)
-      expect(snap.context.lastGoodVersion).toBe('bafyabc.bafyupdated')
+      expect(snap.context.pendingRemoteDocument).toBe(updated)
+      expect(selectPendingRemoteVersion(snap)).toBe('bafyabc.bafyupdated')
+      expect(Object.prototype.hasOwnProperty.call(snap.context, 'pendingRemoteVersion')).toBe(false)
       actor.stop()
     })
 

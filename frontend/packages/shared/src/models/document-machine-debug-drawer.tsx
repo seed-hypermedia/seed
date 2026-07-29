@@ -36,7 +36,7 @@ function selectDebugContext(snapshot: DocumentMachineSnapshot) {
     draftCursorPosition: ctx.draftCursorPosition,
     shouldAutoEdit: ctx.shouldAutoEdit,
     publishedVersion: ctx.publishedVersion,
-    pendingRemoteVersion: ctx.pendingRemoteVersion,
+    pendingRemoteDocumentVersion: ctx.pendingRemoteDocument?.version ?? null,
     hasChangedWhileSaving: ctx.hasChangedWhileSaving,
     documentId: ctx.documentId ? `${ctx.documentId.uid}/${ctx.documentId.path?.join('/')}` : null,
     document: ctx.document ? `v:${ctx.document.version?.slice(0, 12)}` : 'null',

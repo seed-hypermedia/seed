@@ -2,6 +2,7 @@ import {HMDocument, HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
 import {documentMachine, DocumentMachineInput} from '../document-machine'
+import {selectPendingRemoteVersion} from '../use-document-machine'
 
 const documentId = {
   id: 'hm://z6Mktest/doc',
@@ -83,7 +84,7 @@ describe('documentMachine rebase transitions', () => {
     actor.send({type: 'document.remoteUpdate', document: remoteDocument})
     const ctx = actor.getSnapshot().context
     expect(ctx.pendingRemoteDocument).toBe(remoteDocument)
-    expect(ctx.pendingRemoteVersion).toBe('remoteVersion')
+    expect(selectPendingRemoteVersion(actor.getSnapshot())).toBe('remoteVersion')
     // Still in editing (rebase detection/apply happens outside machine)
     expect(actor.getSnapshot().value).toEqual({editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle'}})
     actor.stop()
@@ -103,12 +104,12 @@ describe('documentMachine rebase transitions', () => {
     expect(ctx.baseBlocks).toBe(merged)
     expect(ctx.mineTouchedIds).toEqual([])
     expect(ctx.pendingRemoteDocument).toBeNull()
-    expect(ctx.pendingRemoteVersion).toBeNull()
+    expect(selectPendingRemoteVersion(actor.getSnapshot())).toBeNull()
     expect(ctx.pendingRebase).toBeNull()
     actor.stop()
   })
 
-  it('rebase.detectConflict clears pending remote update and stays idle', () => {
+  it('rebase.detectConflict preserves pending remote update and enters conflict state', () => {
     const actor = createTestActor()
     enterEditing(actor)
     actor.send({type: 'document.remoteUpdate', document: remoteDocument})
@@ -119,10 +120,14 @@ describe('documentMachine rebase transitions', () => {
     })
     const snapshot = actor.getSnapshot()
     const ctx = snapshot.context
-    expect(ctx.pendingRebase).toBeNull()
-    expect(ctx.pendingRemoteDocument).toBeNull()
-    expect(ctx.pendingRemoteVersion).toBeNull()
-    expect(snapshot.matches({editing: {rebase: 'idle'}})).toBe(true)
+    expect(ctx.pendingRebase).toEqual({
+      kind: 'conflict',
+      conflictedBlockIds: ['b1'],
+      author: 'Alice',
+    })
+    expect(ctx.pendingRemoteDocument).toBe(remoteDocument)
+    expect(selectPendingRemoteVersion(actor.getSnapshot())).toBe('remoteVersion')
+    expect(snapshot.matches({editing: {rebase: 'conflict'}})).toBe(true)
     actor.stop()
   })
 
@@ -139,7 +144,7 @@ describe('documentMachine rebase transitions', () => {
     const ctx = actor.getSnapshot().context
     expect(ctx.pendingRebase).toBeNull()
     expect(ctx.pendingRemoteDocument).toBeNull()
-    expect(ctx.pendingRemoteVersion).toBeNull()
+    expect(selectPendingRemoteVersion(actor.getSnapshot())).toBeNull()
     actor.stop()
   })
 
@@ -162,7 +167,7 @@ describe('documentMachine rebase transitions', () => {
     actor.stop()
   })
 
-  it('publish.start succeeds after conflict is ignored and cleared', async () => {
+  it('publish.start is blocked while a rebase conflict is unresolved', async () => {
     const actor = createTestActor()
     enterEditing(actor)
     actor.send({type: 'document.remoteUpdate', document: remoteDocument})
@@ -175,10 +180,11 @@ describe('documentMachine rebase transitions', () => {
       conflictedBlockIds: ['b1'],
       author: 'Alice',
     })
-    expect(actor.getSnapshot().matches({editing: {rebase: 'idle'}})).toBe(true)
-    expect(actor.getSnapshot().context.pendingRemoteDocument).toBeNull()
+    expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
+    expect(actor.getSnapshot().context.pendingRemoteDocument).toBe(remoteDocument)
     actor.send({type: 'publish.start'})
-    expect(actor.getSnapshot().matches('publishing')).toBe(true)
+    expect(actor.getSnapshot().matches('publishing')).toBe(false)
+    expect(actor.getSnapshot().matches({editing: {rebase: 'conflict'}})).toBe(true)
     actor.stop()
   })
 

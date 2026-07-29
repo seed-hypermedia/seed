@@ -155,6 +155,14 @@ describe('EditableDocumentMetadataFields', () => {
     expect(affordanceRow.className).toContain('md:opacity-0')
   })
 
+  it('focuses the title when requested by the document machine', async () => {
+    await renderFields({focusTitleOnMount: true})
+
+    expect(document.activeElement).toBe(
+      container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Document title"]'),
+    )
+  })
+
   it('reserves affordance space and only fades visibility', async () => {
     await renderFields({fileUpload: vi.fn()})
     const affordanceRow = container.querySelector('[data-document-metadata-affordances]')!

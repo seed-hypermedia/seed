@@ -14,6 +14,8 @@ import {
   getOlderVersionToastId,
   shouldShowOlderVersionToast,
   resolveEffectiveExistingDraft,
+  getEffectiveCanEdit,
+  getDocumentSyncIsPlaceholderData,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -418,6 +420,52 @@ describe('hasUnpublishedDraftForResourceState', () => {
         resourceData: undefined,
       }),
     ).toBe(false)
+  })
+})
+
+describe('getEffectiveCanEdit', () => {
+  it('allows editing a local-only reserved draft before the draft record exists', () => {
+    expect(
+      getEffectiveCanEdit({
+        canEdit: false,
+        resourceFetchId: null,
+        existingDraft: undefined,
+        reservedDraftId: 'draft-1',
+      }),
+    ).toBe(true)
+  })
+
+  it('does not let a reserved draft unlock a published resource route', () => {
+    expect(
+      getEffectiveCanEdit({
+        canEdit: false,
+        resourceFetchId: hmId('alice', {path: ['doc']}),
+        existingDraft: undefined,
+        reservedDraftId: 'draft-1',
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('getDocumentSyncIsPlaceholderData', () => {
+  it('does not treat a fabricated local draft document as stale React Query placeholder data', () => {
+    expect(
+      getDocumentSyncIsPlaceholderData({
+        resourceFetchId: null,
+        hasUnpublishedDraft: true,
+        resourceIsPreviousData: true,
+      }),
+    ).toBe(false)
+  })
+
+  it('still skips retained published-resource data while a version route is loading', () => {
+    expect(
+      getDocumentSyncIsPlaceholderData({
+        resourceFetchId: hmId('alice', {path: ['doc']}),
+        hasUnpublishedDraft: false,
+        resourceIsPreviousData: true,
+      }),
+    ).toBe(true)
   })
 })
 

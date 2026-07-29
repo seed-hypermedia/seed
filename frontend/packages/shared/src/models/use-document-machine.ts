@@ -14,6 +14,7 @@ import {
   DiscardDraftInput,
   PendingRebase,
   PublishInput,
+  shouldAllowDraftOverlay,
   TransientResourceError,
   WriteDraftOutput,
   WriteDraftInput,
@@ -371,20 +372,23 @@ export function useAccountSync(signingAccountId: string | undefined, publishAcco
 }
 
 /**
- * Sync isLatest prop changes into the machine as `version.changed` events.
+ * Sync route version facts into the machine as `version.changed` events.
  * Call this inside DocumentBody when the isLatest value may change
  * (e.g. when React Query detects a newer published version).
  */
-export function useVersionLatestSync(isLatest: boolean) {
+export function useVersionLatestSync(isLatest: boolean, routeVersion?: string | null) {
   const actorRef = useDocumentMachineRef()
   const prevRef = useRef(isLatest)
+  const prevRouteVersionRef = useRef(routeVersion ?? null)
 
   useEffect(() => {
-    if (isLatest !== prevRef.current) {
+    const nextRouteVersion = routeVersion ?? null
+    if (isLatest !== prevRef.current || nextRouteVersion !== prevRouteVersionRef.current) {
       prevRef.current = isLatest
-      actorRef.send({type: 'version.changed', isLatest})
+      prevRouteVersionRef.current = nextRouteVersion
+      actorRef.send({type: 'version.changed', isLatest, routeVersion: nextRouteVersion})
     }
-  }, [actorRef, isLatest])
+  }, [actorRef, isLatest, routeVersion])
 }
 
 /**
@@ -553,7 +557,7 @@ export function selectIsUnpublishedDraft(snapshot: DocumentMachineSnapshot): boo
 
 /** A new version received while editing (not yet applied). */
 export function selectPendingRemoteVersion(snapshot: DocumentMachineSnapshot): string | null {
-  return snapshot.context.pendingRemoteVersion
+  return snapshot.context.pendingRemoteDocument?.version ?? null
 }
 
 /** The current draft ID, if any. */
@@ -581,17 +585,6 @@ export function selectNavigation(snapshot: DocumentMachineSnapshot): HMNavigatio
   return snapshot.context.navigation
 }
 
-/** The current error, if any (available in both loading and error states). */
-/** Last document payload the machine accepted; survives transient resource refetch failures. */
-export function selectLastGoodDocument(snapshot: DocumentMachineSnapshot): HMDocument | null {
-  return snapshot.context.lastGoodDocument
-}
-
-/** Version of {@link selectLastGoodDocument}. */
-export function selectLastGoodVersion(snapshot: DocumentMachineSnapshot): string | null {
-  return snapshot.context.lastGoodVersion
-}
-
 /** Non-fatal resource fetch state surfaced by the consumer; `null` when the resource is healthy. */
 export function selectTransientResourceError(snapshot: DocumentMachineSnapshot): TransientResourceError {
   return snapshot.context.transientResourceError
@@ -606,10 +599,33 @@ export function selectContext(snapshot: DocumentMachineSnapshot): DocumentMachin
   return snapshot.context
 }
 
+/** Whether draft content is allowed to overlay the published document for the current route. */
+export function selectDraftOverlayAllowed(snapshot: DocumentMachineSnapshot): boolean {
+  return shouldAllowDraftOverlay(snapshot.context.isLatestVersion, snapshot.context.routeVersion)
+}
+
+/** Whether the current route can start or continue document edits. */
+export function selectCanEditCurrentRoute(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.context.canEdit && selectDraftOverlayAllowed(snapshot)
+}
+
+/** Whether draft content should overlay the published document for rendering. */
+export function selectShouldUseDraftOverlay(snapshot: DocumentMachineSnapshot): boolean {
+  return selectDraftOverlayAllowed(snapshot) && !!snapshot.context.draftContent
+}
+
+/** Whether a brand-new reserved draft should initially focus the title field. */
+export function selectShouldFocusDraftTitle(snapshot: DocumentMachineSnapshot): boolean {
+  const ctx = snapshot.context
+  return (
+    snapshot.matches('editing') && !!ctx.draftId && !ctx.draftCreated && !ctx.document?.version && !ctx.metadata?.name
+  )
+}
+
 /** The blocks the editor should render from the document machine's current source of truth. */
 export function selectRenderableBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] {
   const ctx = snapshot.context
-  if (ctx.draftContent) return ctx.draftContent
+  if (selectShouldUseDraftOverlay(snapshot)) return ctx.draftContent ?? []
   return ctx.document?.content ?? []
 }
 
@@ -859,7 +875,7 @@ export function useAutoRebase({
         isEditing,
         isIdle,
         hasPendingRemote: !!pendingRemoteDocument,
-        pendingRemoteVersion: pendingRemoteDocument?.version,
+        pendingRemoteDocumentVersion: pendingRemoteDocument?.version,
         pendingRebase: pendingRebase?.kind ?? null,
         hasEditor: !!editor,
         hasBaseBlocks: !!ctx.baseBlocks,
