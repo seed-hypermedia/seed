@@ -265,6 +265,28 @@ export function useHideOnDocumentScroll(onScroll: () => void) {
   }, [actorRef])
 }
 
+/**
+ * Subscribe to the document machine's emitted old-version edit-blocked event.
+ *
+ * The machine decides when the notice is allowed to fire; consumers only render
+ * the user-facing feedback.
+ */
+export function useOldVersionEditBlocked(onBlocked: () => void) {
+  const actorRef = useDocumentMachineRefOptional()
+  const callbackRef = useRef(onBlocked)
+  callbackRef.current = onBlocked
+
+  useEffect(() => {
+    if (!actorRef) return
+    const sub = actorRef.on('oldVersionEditBlocked', () => {
+      callbackRef.current()
+    })
+    return () => {
+      sub.unsubscribe()
+    }
+  }, [actorRef])
+}
+
 export type DocumentSyncAction = 'loaded' | 'remoteUpdate' | 'skip'
 
 /**

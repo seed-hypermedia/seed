@@ -72,6 +72,7 @@ import {
   useDocumentSend,
   useDocumentSync,
   useDraftResolutionSync,
+  useOldVersionEditBlocked,
   useResourceTransientSync,
   useScrollSync,
   useVersionLatestSync,
@@ -348,6 +349,16 @@ export function shouldShowOlderVersionToast({
 /** Returns the stable toast ID for a document's older-version warning. */
 export function getOlderVersionToastId(docId: UnpackedHypermediaId): string {
   return `older-version-linked:${docId.id}`
+}
+
+/** Returns the toast options for a blocked old-version edit attempt. */
+export function getOldVersionEditBlockedToastOptions(docId: UnpackedHypermediaId) {
+  return {
+    id: `old-version-edit-blocked:${docId.id}`,
+    description: 'Go to the latest version to make changes.',
+    duration: 3000,
+    position: 'bottom-center' as const,
+  }
 }
 
 /** Returns the current route pointed at the latest document version while preserving route UI state. */
@@ -1586,6 +1597,9 @@ function DocumentBody({
       },
     })
   }, [olderVersionToastId, replaceRoute, route, showOlderVersionToast])
+  useOldVersionEditBlocked(() => {
+    toast('This version is read-only', getOldVersionEditBlockedToastOptions(docId))
+  })
 
   // Extract panel from route (only document/feed routes have panels)
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null

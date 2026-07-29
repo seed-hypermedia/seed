@@ -16,6 +16,7 @@ import {
   resolveEffectiveExistingDraft,
   getEffectiveCanEdit,
   getDocumentSyncIsPlaceholderData,
+  getOldVersionEditBlockedToastOptions,
 } from '../resource-page-common'
 
 describe('getDocumentResourceRouteKey', () => {
@@ -55,6 +56,20 @@ describe('older version toast helpers', () => {
     const secondVersion = hmId('alice', {path: ['doc'], version: 'old-version-2', latest: false})
 
     expect(getOlderVersionToastId(firstVersion)).toBe(getOlderVersionToastId(secondVersion))
+  })
+
+  it('uses a separate short bottom-center toast for blocked old-version edit attempts', () => {
+    const docId = hmId('alice', {path: ['doc'], version: 'old-version', latest: false})
+    const options = getOldVersionEditBlockedToastOptions(docId)
+
+    expect(options).toMatchObject({
+      id: 'old-version-edit-blocked:hm://alice/doc',
+      description: 'Go to the latest version to make changes.',
+      duration: 3000,
+      position: 'bottom-center',
+    })
+    expect(options.id).not.toBe(getOlderVersionToastId(docId))
+    expect('action' in options).toBe(false)
   })
 })
 

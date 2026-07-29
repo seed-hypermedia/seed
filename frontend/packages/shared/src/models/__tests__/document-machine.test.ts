@@ -1379,6 +1379,22 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
+  it('edit.start on explicit old-version route emits one blocked edit notice', () => {
+    const actor = createTestActor({isLatest: false, routeVersion: 'old-version'})
+    const blockedEvents: unknown[] = []
+    const subscription = actor.on('oldVersionEditBlocked', (event) => blockedEvents.push(event))
+
+    actor.start()
+    loadDocument(actor)
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'edit.start'})
+
+    expect(actor.getSnapshot().value).toBe('loaded')
+    expect(blockedEvents).toEqual([{type: 'oldVersionEditBlocked'}])
+    subscription.unsubscribe()
+    actor.stop()
+  })
+
   it('edit.start on old version with canEdit=false → stays loaded', () => {
     const actor = createTestActor({canEdit: false, isLatest: false})
     actor.start()

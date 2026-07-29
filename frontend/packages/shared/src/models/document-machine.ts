@@ -222,6 +222,8 @@ export type DocumentMachineContext = {
    * resource fetch is in a healthy state.
    */
   transientResourceError: TransientResourceError
+  /** True after this old-version visit has already warned about blocked edit attempts. */
+  oldVersionEditNoticeShown: boolean
 }
 
 /**
@@ -360,7 +362,7 @@ export const documentMachine = setup({
     input: {} as DocumentMachineInput,
     context: {} as DocumentMachineContext,
     events: {} as DocumentMachineEvent,
-    emitted: {} as {type: 'scrolling'},
+    emitted: {} as {type: 'scrolling'} | {type: 'oldVersionEditBlocked'},
   },
   actions: {
     setDocumentData: assign({
@@ -391,6 +393,9 @@ export const documentMachine = setup({
     }),
     clearTransientResourceError: assign({
       transientResourceError: null,
+    }),
+    markOldVersionEditNoticeShown: assign({
+      oldVersionEditNoticeShown: true,
     }),
     setMetadata: assign({
       metadata: ({context, event}) => {
@@ -469,6 +474,11 @@ export const documentMachine = setup({
       routeVersion: ({context, event}) => {
         if (event.type !== 'version.changed') return context.routeVersion
         return event.routeVersion !== undefined ? event.routeVersion : context.routeVersion
+      },
+      oldVersionEditNoticeShown: ({context, event}) => {
+        if (event.type !== 'version.changed') return context.oldVersionEditNoticeShown
+        const routeVersion = event.routeVersion !== undefined ? event.routeVersion : context.routeVersion
+        return shouldAllowDraftOverlay(event.isLatest, routeVersion) ? false : context.oldVersionEditNoticeShown
       },
     }),
     clearDraftState: assign({
@@ -940,6 +950,10 @@ export const documentMachine = setup({
       // })
       return result
     },
+    shouldNotifyOldVersionEditBlocked: ({context}) =>
+      context.canEdit &&
+      !context.oldVersionEditNoticeShown &&
+      !shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion),
     canOpenExistingDraft: ({context, event}) => {
       return (
         context.canEdit &&
@@ -1043,6 +1057,7 @@ export const documentMachine = setup({
     pendingDeletedChildDraftIds: [],
     error: null,
     transientResourceError: null,
+    oldVersionEditNoticeShown: false,
   }),
   initial: 'loading',
   states: {
@@ -1086,11 +1101,17 @@ export const documentMachine = setup({
 
     loaded: {
       on: {
-        'edit.start': {
-          target: 'editing',
-          guard: 'canTransitionToEditing',
-          actions: ['setPendingEditCursorPosition', 'setDepsFromPublished', 'snapshotBaseBlocks'],
-        },
+        'edit.start': [
+          {
+            target: 'editing',
+            guard: 'canTransitionToEditing',
+            actions: ['setPendingEditCursorPosition', 'setDepsFromPublished', 'snapshotBaseBlocks'],
+          },
+          {
+            guard: 'shouldNotifyOldVersionEditBlocked',
+            actions: ['markOldVersionEditNoticeShown', emit({type: 'oldVersionEditBlocked'})],
+          },
+        ],
         'edit.discard': [
           {
             target: 'discarding',
