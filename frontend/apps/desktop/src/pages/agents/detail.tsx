@@ -736,7 +736,8 @@ const AGENT_TOOL_OPTIONS = [
   {
     names: AGENT_WRITE_TOOL_GROUP,
     title: seedToolRegistry.write.label,
-    description: 'Create and publish Seed content, and publish files from memory to IPFS.',
+    description:
+      'Create and publish Seed content, publish markdown files from memory as documents, and publish files to IPFS.',
   },
 ]
 

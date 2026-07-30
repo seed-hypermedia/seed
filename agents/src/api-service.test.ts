@@ -296,7 +296,13 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {
           action: {
             _: 'CreateAgent',
-            definition: {name: 'Big', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt', tools: ['memory_list']},
+            definition: {
+              name: 'Big',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: ['memory_list'],
+            },
           },
         }),
       )
@@ -333,7 +339,10 @@ describe('api service', () => {
             },
           }),
         )
-        expect(appended).toMatchObject({_: 'AppendFileUploadChunkResponse', received: Math.min(offset + 400, data.length)})
+        expect(appended).toMatchObject({
+          _: 'AppendFileUploadChunkResponse',
+          received: Math.min(offset + 400, data.length),
+        })
       }
 
       const commit = await svc.message(
@@ -396,7 +405,12 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {
           action: {
             _: 'BeginFileUpload',
-            target: {kind: 'session-attachment', sessionId: session.sessionId, name: 'notes.txt', mimeType: 'text/plain'},
+            target: {
+              kind: 'session-attachment',
+              sessionId: session.sessionId,
+              name: 'notes.txt',
+              mimeType: 'text/plain',
+            },
             size: bytes.length,
           },
         }),
@@ -2853,6 +2867,211 @@ describe('api service', () => {
         .find((event) => event.type === 'tool_result' && event.name === 'write')
       expect(writeResult?.error).toBeTruthy()
       expect(writeResult?.error).toContain('parent path /parent does not exist')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('publishes a markdown memory file as a seed document, uploading memory images and updating in place', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      let openAICallCount = 0
+      let signerPublicKey = ''
+      let existingVersion = ''
+      const publishedBodies: Uint8Array[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
+          return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
+        }
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/Resource')) {
+          const resolvedId = unpackHmId(`hm://${signerPublicKey}/weekly-report`)
+          if (!resolvedId) throw new Error('bad target id')
+          if (!existingVersion) return Response.json(serialize({type: 'not-found', id: resolvedId}))
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: resolvedId,
+              document: {
+                content: [{block: {id: 'b1', type: 'Paragraph', text: 'Old body'}, children: []}],
+                version: existingVersion,
+                account: signerPublicKey,
+                authors: [signerPublicKey],
+                path: '/weekly-report',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Weekly Report'},
+                genesis: existingVersion,
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        if (!href.includes('/chat/completions') && !href.includes('/responses')) {
+          throw new Error(`Unexpected fetch: ${href}`)
+        }
+        openAICallCount += 1
+        if (openAICallCount === 1 || openAICallCount === 3) {
+          return openAIStreamResponse([
+            {
+              id: `chat-${openAICallCount}`,
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: `call-${openAICallCount}`,
+                        type: 'function',
+                        function: {
+                          name: 'memory_publish_document',
+                          arguments: JSON.stringify({path: 'reports/weekly.md'}),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: `chat-${openAICallCount}`, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: `chat-${openAICallCount}`, choices: [{delta: {content: 'Published.'}}]},
+          {id: `chat-${openAICallCount}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'publisher'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Publisher',
+              systemPrompt: 'Publish memory docs.',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['memory_list', 'memory_read', 'memory_publish_document'],
+              signingKeys: [identity.identity.name],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      // Seed the agent's memory: a markdown file with frontmatter plus a relative image link,
+      // and the binary image it points at (invalid UTF-8 so it reads back as binary).
+      const memoryRoot = path.join(dataDir, 'agents', createdAgent.agentId, 'memory')
+      fs.mkdirSync(path.join(memoryRoot, 'reports', 'images'), {recursive: true})
+      fs.writeFileSync(
+        path.join(memoryRoot, 'reports', 'weekly.md'),
+        '---\nname: Weekly Report\nsummary: Week in review\n---\n# Weekly Report\n\nHello world from memory.\n\n![chart](images/chart.png)\n',
+      )
+      fs.writeFileSync(
+        path.join(memoryRoot, 'reports', 'images', 'chart.png'),
+        new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xff, 0x00, 0x01, 0xfe]),
+      )
+
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const publishesBeforeMessage = publishedBodies.length
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Publish the weekly report'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+      expect(publishedBodies.length).toBe(publishesBeforeMessage + 1)
+
+      const loadPublishResult = async () => {
+        const loadedSession = await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'GetSession', sessionId: createdSession.sessionId},
+          }),
+        )
+        if (loadedSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+        return loadedSession.events
+          .map(
+            (event) =>
+              event.event as {
+                type?: string
+                name?: string
+                output?: {command?: string; id?: string; version?: string; imagesUploaded?: number; summary?: string}
+              },
+          )
+          .filter((event) => event.type === 'tool_result' && event.name === 'memory_publish_document')
+      }
+
+      const [createResult] = await loadPublishResult()
+      expect(createResult?.output?.command).toBe('document.create')
+      expect(createResult?.output?.id).toBe(`hm://${signerPublicKey}/weekly-report`)
+      expect(createResult?.output?.imagesUploaded).toBe(1)
+      expect(createResult?.output?.summary).toContain('Published reports/weekly.md')
+      expect(createResult?.output?.version).toBeTruthy()
+
+      // Published blobs hold genesis + change + ref + the image's UnixFS blob, with the
+      // image link rewritten from file:// to ipfs://.
+      const createBody = publishedBodies.at(-1)!
+      expect(cbor.decode<{blobs: unknown[]}>(createBody).blobs.length).toBeGreaterThanOrEqual(4)
+      const createBodyText = new TextDecoder('utf-8', {fatal: false}).decode(createBody)
+      expect(createBodyText).toContain('Hello world from memory.')
+      expect(createBodyText).toContain('ipfs://')
+      expect(createBodyText).not.toContain('file://')
+
+      // Second publish of the same file: the document now exists, so it updates in place.
+      existingVersion = createResult!.output!.version!
+      const followUp = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Publish it again'}],
+          },
+        }),
+      )
+      expect(followUp._).toBe('MessageSessionResponse')
+      const results = await loadPublishResult()
+      expect(results).toHaveLength(2)
+      expect(results[1]?.output?.command).toBe('document.update')
+      expect(results[1]?.output?.id).toBe(`hm://${signerPublicKey}/weekly-report`)
     } finally {
       globalThis.fetch = originalFetch
       db.close()

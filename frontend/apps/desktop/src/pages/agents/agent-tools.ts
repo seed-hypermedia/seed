@@ -14,9 +14,14 @@ export const AGENT_WEB_TOOL_GROUP = [seedToolRegistry.web_search.name, seedToolR
 /** Tool that lets an agent create, sign, and publish Seed content. */
 export const AGENT_WRITE_TOOL = seedToolRegistry.write.name
 
-/** Tools that let an agent publish Seed content and files: sign/publish documents plus IPFS file uploads. */
+/**
+ * Tools that let an agent publish Seed content and files: sign/publish documents (including
+ * markdown files straight from memory) plus IPFS file uploads. Grouped together because they
+ * all publish publicly under a signing identity.
+ */
 export const AGENT_WRITE_TOOL_GROUP = [
   seedToolRegistry.write.name,
+  seedToolRegistry.memory_publish_document.name,
   seedToolRegistry.ipfs_write.name,
   seedToolRegistry.attachment_to_ipfs.name,
 ]

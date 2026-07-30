@@ -48,6 +48,8 @@ import {
   markdownBlockNodesToHMBlockNodes,
   packHmId,
   parseMarkdown,
+  fileToIpfsBlobs,
+  resolveFileLinksInBlocks,
   resolveCapability,
   resolveDocumentState,
   resolveIdWithClient,
@@ -55,7 +57,7 @@ import {
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
-import type {DocumentOperation} from '@seed-hypermedia/client'
+import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import type {
   HMSigner,
@@ -1517,10 +1519,11 @@ export class Service {
       seedToolRegistry.memory_download.name,
       seedToolRegistry.ipfs_read.name,
       seedToolRegistry.ipfs_write.name,
+      seedToolRegistry.memory_publish_document.name,
     ]
     const memoryEnabled = definitionTools.some((tool) => memoryToolNames.includes(tool))
     const memoryPrompt = memoryEnabled
-      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory. Use ipfs_read to fetch an ipfs:// URL into memory, and ipfs_write to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can open them with view_attachment or save one with attachment_to_memory.' +
+      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory. Use ipfs_read to fetch an ipfs:// URL into memory, and ipfs_write to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content. Use memory_publish_document to publish a markdown memory file as a Seed Hypermedia document: frontmatter becomes metadata and relative image links are resolved from memory automatically. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can open them with view_attachment or save one with attachment_to_memory.' +
         (stateDir ? memoryListingPrompt(stateDir) : '')
       : ''
     const execEnabled =
@@ -1657,6 +1660,7 @@ export class Service {
                 tool === seedToolRegistry.ipfs_write.name ||
                 tool === seedToolRegistry.attachment_to_memory.name ||
                 tool === seedToolRegistry.attachment_to_ipfs.name ||
+                tool === seedToolRegistry.memory_publish_document.name ||
                 (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
             ),
         ),
@@ -2734,10 +2738,11 @@ function withMemoryErrors<T>(run: () => T): T {
 function formatAttachmentMetadata(attachments: unknown): string | null {
   if (!Array.isArray(attachments) || attachments.length === 0) return null
   const lines = attachments
-    .filter((item): item is api.SessionAttachmentInfo => isRecord(item) && typeof (item as {id?: unknown}).id === 'string')
+    .filter(
+      (item): item is api.SessionAttachmentInfo => isRecord(item) && typeof (item as {id?: unknown}).id === 'string',
+    )
     .map(
-      (item) =>
-        `- "${item.name}" (${item.mimeType || 'unknown type'}, ${item.size} bytes) — attachment id ${item.id}`,
+      (item) => `- "${item.name}" (${item.mimeType || 'unknown type'}, ${item.size} bytes) — attachment id ${item.id}`,
     )
   if (lines.length === 0) return null
   return `<attachments>\nThe user attached these session-private files. Use view_attachment with an id to see an image or read a text file; use attachment_to_memory to keep one across sessions or attachment_to_ipfs to publish one for Hypermedia content. Only view what you need.\n${lines.join(
@@ -3547,7 +3552,9 @@ type ParsedWriteDocumentContent = {
  * `view_attachment` to put image bytes in front of vision models on demand — the image rides the
  * tool result to the model only, while the durable event and UI keep just the structured output.
  */
-type PiToolRichOutput = {piContent: Array<{type: 'text'; text: string} | {type: 'image'; data: string; mimeType: string}>}
+type PiToolRichOutput = {
+  piContent: Array<{type: 'text'; text: string} | {type: 'image'; data: string; mimeType: string}>
+}
 
 function hasPiContent(value: unknown): value is PiToolRichOutput & Record<string, unknown> {
   return isRecord(value) && Array.isArray((value as PiToolRichOutput).piContent)
@@ -3813,6 +3820,7 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         mimeType: file.mimeType,
       }
     }),
+    defineSeedPiTool(seedToolRegistry.memory_publish_document, (params) => publishMemoryDocument(context, params)),
     defineSeedPiTool(seedToolRegistry.view_attachment, (params) => {
       const input = isRecord(params) ? params : {}
       const attachmentId = typeof input.id === 'string' ? input.id : ''
@@ -3842,7 +3850,9 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
           : 'this model does not support image input'
         : 'the content is not viewable inline'
       return {
-        summary: `${info.name} (${info.mimeType || 'unknown type'}, ${info.size} bytes); ${reason}. Use attachment_to_memory and execute_code to inspect or process it.`,
+        summary: `${info.name} (${info.mimeType || 'unknown type'}, ${
+          info.size
+        } bytes); ${reason}. Use attachment_to_memory and execute_code to inspect or process it.`,
         ...meta,
         shownAsImage: false,
       }
@@ -4297,6 +4307,7 @@ async function writeDocumentCreate(
   client: ReturnType<typeof createSeedClient>,
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
+  extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input, {name: 'Untitled'})
@@ -4332,6 +4343,7 @@ async function writeDocumentCreate(
       {data: new Uint8Array(genesisBlock.bytes), cid: genesisBlock.cid.toString()},
       {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
       ...refInput.blobs,
+      ...extraBlobs,
     ],
   })
   return writeToolResult(request.command, signer, {
@@ -4345,6 +4357,7 @@ async function writeDocumentUpdate(
   client: ReturnType<typeof createSeedClient>,
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
+  extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
   const edit = normalizeBoundedString(request.input.edit ?? request.input.id, 'Document edit target', 2048)
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
@@ -4385,7 +4398,11 @@ async function writeDocumentUpdate(
     signer.signer,
   )
   const published = await client.publish({
-    blobs: [{data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()}, ...refInput.blobs],
+    blobs: [
+      {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
+      ...refInput.blobs,
+      ...extraBlobs,
+    ],
   })
   return writeToolResult(request.command, signer, {
     id: packHmId(id),
@@ -4771,6 +4788,158 @@ async function writeDraftPublish(
     ],
   )
   return {...result, command: request.command, draftId}
+}
+
+/**
+ * memory_publish_document: publish one markdown memory file as a Seed document.
+ *
+ * Mirrors `seed-cli document create`: frontmatter becomes document metadata, and relative
+ * image links (parsed into file:// links by the shared markdown parser) are read from memory,
+ * chunked into UnixFS blobs, and rewritten to ipfs:// URLs published alongside the change.
+ * When a document already exists at the target path it is updated in place so its history,
+ * comments, and citations survive; otherwise a new document is created.
+ */
+async function publishMemoryDocument(
+  context: WriteToolContext & {stateDir: string},
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const dryRun = input.dryRun === undefined ? false : normalizeBoolean(input.dryRun, 'dryRun')
+  const signerSelector = input.signer as {profileName?: string; publicKey?: string} | undefined
+  if (signerSelector !== undefined && !isRecord(signerSelector)) throw new APIError(400, 'Signer must be an object')
+
+  const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
+  if (file.encoding !== 'utf8')
+    throw new APIError(400, `Memory file ${file.path} is not UTF-8 text; only markdown files can be published`)
+  if (file.size > MAX_WRITE_CONTENT_BYTES) throw new APIError(400, `Memory file ${file.path} is too large to publish`)
+
+  const {tree, metadata: frontmatter} = parseMarkdown(file.content ?? '')
+  const parsedNodes = markdownBlockNodesToHMBlockNodes(tree)
+  const imagesUploaded = countFileLinkBlocks(parsedNodes)
+  const baseDir = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : ''
+  const {nodes, blobs: fileBlobs} = await resolveFileLinksInBlocks(parsedNodes, (linkPath) =>
+    readMemoryLinkBytes(context.stateDir, baseDir, linkPath),
+  )
+  // Frontmatter media (icon, cover, logo) referencing memory files gets the same treatment
+  // as body images: read from memory, chunk to UnixFS, and rewrite to ipfs://.
+  for (const key of ['icon', 'cover', 'seedExperimentalLogo'] as const) {
+    const value = frontmatter[key]
+    if (typeof value !== 'string' || !value) continue
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value) && !value.startsWith('file://')) continue
+    const bytes = readMemoryLinkBytes(context.stateDir, baseDir, value.replace(/^file:\/\//, ''))
+    const chunked = await fileToIpfsBlobs(bytes)
+    frontmatter[key] = `ipfs://${chunked.cid}`
+    fileBlobs.push(...chunked.blobs)
+  }
+
+  const signer = await resolveWriteSigner(context, signerSelector)
+  const account = normalizeOptionalBoundedString(input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
+  const nameOverride = normalizeOptionalBoundedString(input.name, 'Document name', MAX_NAME_BYTES)
+  const title = nameOverride || frontmatter.name || titleFromMemoryPath(file.path)
+  const docPath = normalizeDocumentPath(input.documentPath, title)
+  const target = `hm://${account}${docPath}`
+
+  const client = createSeedClient(context.hmServerUrl)
+  const {id: targetId} = await resolveIdWithClient(target, {serverUrl: client.baseUrl})
+  const existingResource = await client.request('Resource', targetId).catch(() => undefined)
+  const existing = existingResource?.type === 'document'
+
+  const command = existing ? 'document.update' : 'document.create'
+  const publishRequest = {
+    command,
+    server: undefined,
+    dev: undefined,
+    dryRun,
+    input: existing
+      ? {
+          edit: target,
+          content: nodes,
+          format: 'json',
+          metadata: frontmatter,
+          ...(nameOverride ? {name: nameOverride} : {}),
+        }
+      : {
+          account,
+          path: docPath || '/',
+          content: nodes,
+          format: 'json',
+          metadata: frontmatter,
+          name: title,
+        },
+  }
+  const result = existing
+    ? await writeDocumentUpdate(client, signer, publishRequest, fileBlobs)
+    : await writeDocumentCreate(client, signer, publishRequest, fileBlobs)
+
+  const imagesNote = imagesUploaded ? ` with ${imagesUploaded} image${imagesUploaded === 1 ? '' : 's'}` : ''
+  const summary = dryRun
+    ? `Validated ${file.path} for publishing to ${target}${imagesNote}.`
+    : `${existing ? 'Updated' : 'Published'} ${file.path} ${existing ? 'at' : 'as'} ${target}${imagesNote}.`
+  return {
+    ...result,
+    summary,
+    memoryPath: file.path,
+    url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
+    ...(imagesUploaded ? {imagesUploaded} : {}),
+  }
+}
+
+/** Counts blocks whose link points at a local file, for reporting how many images get uploaded. */
+function countFileLinkBlocks(nodes: HMBlockNode[]): number {
+  let count = 0
+  for (const node of nodes) {
+    const link = (node.block as Record<string, unknown>).link
+    if (typeof link === 'string' && link.startsWith('file://')) count += 1
+    if (node.children?.length) count += countFileLinkBlocks(node.children)
+  }
+  return count
+}
+
+/**
+ * Reads bytes for a file link inside a published markdown file. Relative links resolve against
+ * the markdown file's own directory first, then the memory root; `..` segments are collapsed
+ * but never allowed to escape the memory root.
+ */
+function readMemoryLinkBytes(stateDir: string, baseDir: string, linkPath: string): Uint8Array {
+  const rootRelative = linkPath.startsWith('/')
+  const candidates = (
+    rootRelative || !baseDir
+      ? [collapseMemoryPath(linkPath)]
+      : [collapseMemoryPath(`${baseDir}/${linkPath}`), collapseMemoryPath(linkPath)]
+  ).filter((candidate, index, all): candidate is string => !!candidate && all.indexOf(candidate) === index)
+  for (const candidate of candidates) {
+    let file: agentMemory.AgentMemoryFileData
+    try {
+      file = agentMemory.readMemoryFile(stateDir, candidate)
+    } catch {
+      continue
+    }
+    return file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
+  }
+  throw new APIError(400, `Linked file not found in memory: ${linkPath}`)
+}
+
+/** Collapses `.` and `..` segments; returns undefined when the path escapes the memory root. */
+function collapseMemoryPath(rawPath: string): string | undefined {
+  const segments: string[] = []
+  for (const segment of rawPath.replaceAll('\\', '/').split('/')) {
+    if (!segment || segment === '.') continue
+    if (segment === '..') {
+      if (!segments.length) return undefined
+      segments.pop()
+    } else {
+      segments.push(segment)
+    }
+  }
+  return segments.length ? segments.join('/') : undefined
+}
+
+/** Derives a human-readable document title from a memory file name, e.g. notes/weekly-update.md → "Weekly update". */
+function titleFromMemoryPath(memoryPath: string): string {
+  const base = memoryPath.split('/').at(-1) ?? memoryPath
+  const stem = base.replace(/\.[a-z0-9]+$/i, '')
+  const words = stem.replace(/[-_]+/g, ' ').trim()
+  return words ? words[0]!.toUpperCase() + words.slice(1) : 'Untitled'
 }
 
 function getDraftRow(context: WriteToolContext, draftId: string) {

@@ -184,6 +184,7 @@ export type SeedToolRegistry = {
   view_attachment: SeedToolMetadata
   attachment_to_memory: SeedToolMetadata
   attachment_to_ipfs: SeedToolMetadata
+  memory_publish_document: SeedToolMetadata
   execute_code: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
@@ -949,6 +950,74 @@ export const seedToolRegistry: SeedToolRegistry = {
         {label: 'Output', source: 'output'},
       ],
     },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  memory_publish_document: {
+    name: 'memory_publish_document',
+    label: 'Publish Memory Document',
+    description:
+      'Publish one markdown file from your private persistent memory as a Seed Hypermedia document. YAML frontmatter becomes document metadata (name, summary, icon, cover); headings, lists, tables, and code blocks become document blocks; relative image links are resolved against your memory files and uploaded to IPFS automatically. If a document already exists at the target path it is updated in place, preserving its history; otherwise a new document is created. Do not publish to a nested path unless the parent path already exists as a published document. Prefer this over the write tool when the content already lives in a memory file.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: {
+          type: 'string',
+          minLength: 1,
+          description: 'Relative memory path of the markdown file to publish, for example reports/weekly.md.',
+        },
+        documentPath: {
+          type: 'string',
+          description:
+            'Target document path on the account, for example "reports/weekly", or "/" for the account home document. Defaults to a slug of the document title.',
+        },
+        account: {
+          type: 'string',
+          description:
+            'Target space/account public key to publish under (requires a capability). Defaults to the signing identity account.',
+        },
+        name: {
+          type: 'string',
+          description:
+            'Document title override. Defaults to the frontmatter name, or to a title derived from the file name when creating a new document.',
+        },
+        signer: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {profileName: {type: 'string'}, publicKey: {type: 'string'}},
+          description: 'Signing identity selector; optional when exactly one signing identity is enabled.',
+        },
+        dryRun: {type: 'boolean', description: 'Parse and validate the file without publishing.'},
+      },
+      required: ['path'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: {type: 'string'},
+        command: {type: 'string', enum: ['document.create', 'document.update']},
+        id: {type: 'string', description: 'The hm:// ID of the published document.'},
+        url: {type: 'string', description: 'Web URL of the published document.'},
+        version: {type: 'string'},
+        memoryPath: {type: 'string', description: 'The memory path that was published.'},
+        imagesUploaded: {type: 'integer', description: 'Number of memory image files uploaded to IPFS.'},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Publish Memory Document',
+      color: 'indigo',
+      primaryArg: 'path',
+      summaryArg: 'path',
+      summaryOutputPath: 'summary',
+      links: [{source: 'output', path: 'url', label: 'Open document'}],
+      details: [
+        {label: 'Input', source: 'input'},
+        {label: 'Output', source: 'output'},
+      ],
+    },
+    getReferencedUrls: ({output}) => urlList(record(output).id),
     runtimes: ['agent-service'],
     userConfigurable: true,
   },
