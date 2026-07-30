@@ -1,8 +1,13 @@
 diff --git a/resources/spec.ejs b/resources/spec.ejs
-index e07a8a3dac52b7ac5e165d203bc26d0ac336c6ec..112ec7dab91ae8c98cec935c42d631a311bf7044 100644
+index e07a8a3dac52b7ac5e165d203bc26d0ac336c6ec..743775d064ec04c3cf01ab722d9c7bf3c2098c68 100644
 --- a/resources/spec.ejs
 +++ b/resources/spec.ejs
-@@ -23,6 +23,11 @@ print('\n\n\n') }
+@@ -1 +1,4 @@
+ %define _binary_payload w<%= compressionLevel %>.xzdio
++
++# Bundled ELF files may also be shipped by other Electron apps.
++%global _build_id_links none
+@@ -23,6 +27,11 @@ print('\n\n\n') }
  
  
  %>%install

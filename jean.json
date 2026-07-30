@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "setup": "direnv allow && pnpm i",
+    "setup": "pnpm i",
     "teardown": null,
-    "run": "./dev run-desktop"
+    "run": null
   }
 }

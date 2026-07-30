@@ -167,7 +167,7 @@ overrides:
 
 patchedDependencies:
   electron-installer-redhat:
-    hash: 729c9f9016cac23a95b48469d571e0289a177dc15296dd8451fae5bdaa024555
+    hash: ebf5ae25df29fe4a01c0ddcc58dd76f075c3833a1a269e8c26ef44d19613a2b1
     path: patches/electron-installer-redhat.patch
 
 importers:
@@ -18391,7 +18391,7 @@ snapshots:
       '@electron-forge/maker-base': 7.11.2
       '@electron-forge/shared-types': 7.11.2
     optionalDependencies:
-      electron-installer-redhat: 3.4.0(patch_hash=729c9f9016cac23a95b48469d571e0289a177dc15296dd8451fae5bdaa024555)
+      electron-installer-redhat: 3.4.0(patch_hash=ebf5ae25df29fe4a01c0ddcc58dd76f075c3833a1a269e8c26ef44d19613a2b1)
     transitivePeerDependencies:
       - bluebird
       - supports-color
@@ -26998,7 +26998,7 @@ snapshots:
       - supports-color
     optional: true
 
-  electron-installer-redhat@3.4.0(patch_hash=729c9f9016cac23a95b48469d571e0289a177dc15296dd8451fae5bdaa024555):
+  electron-installer-redhat@3.4.0(patch_hash=ebf5ae25df29fe4a01c0ddcc58dd76f075c3833a1a269e8c26ef44d19613a2b1):
     dependencies:
       '@malept/cross-spawn-promise': 1.1.1
       debug: 4.4.1
