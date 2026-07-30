@@ -470,14 +470,16 @@ function AgentDetailPage({
                       Connect to the agent server to edit this prompt.
                     </div>
                   ) : (
-                    <AgentPromptEditor
-                      key={promptEditorKey}
-                      initialBlocks={systemPrompt}
-                      onChange={(blocks) => {
-                        setSystemPrompt(blocks)
-                        setPromptDirty(true)
-                      }}
-                    />
+                    <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-4">
+                      <AgentPromptEditor
+                        key={promptEditorKey}
+                        initialBlocks={systemPrompt}
+                        onChange={(blocks) => {
+                          setSystemPrompt(blocks)
+                          setPromptDirty(true)
+                        }}
+                      />
+                    </div>
                   )}
                 </section>
               ) : null}
