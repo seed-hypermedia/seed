@@ -86,6 +86,7 @@ import {
   activityFilterToSlug,
   getCommentTargetId,
   hmIdToURL,
+  latestId,
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
@@ -337,13 +338,13 @@ export function getDocumentResourceRouteKey(id: UnpackedHypermediaId): string {
 
 /** Returns true when the route should warn that it is pinned to an older document version. */
 export function shouldShowOlderVersionToast({
-  docId,
-  isLatest,
+  routeDocId,
+  latestVersion,
 }: {
-  docId: UnpackedHypermediaId
-  isLatest: boolean
+  routeDocId: UnpackedHypermediaId
+  latestVersion?: string | null
 }): boolean {
-  return !!docId.version && !isLatest
+  return !!routeDocId.version && !!latestVersion && routeDocId.version !== latestVersion
 }
 
 /** Returns the stable toast ID for a document's older-version warning. */
@@ -871,6 +872,9 @@ export function ResourcePage({
   // docId.uid determines the site header — for site-profile, docId IS the site context
   const siteHomeId = hmId(docId.uid, {latest: true})
   const siteHomeResource = useResource(siteHomeId, {subscribed: true})
+  const latestDocumentResource = useResource(resourceFetchId ? latestId(resourceFetchId) : null, {subscribed: true})
+  const latestDocumentVersion =
+    latestDocumentResource.data?.type === 'document' ? latestDocumentResource.data.document.version : null
   const isLatest = useIsLatest(resourceFetchId, resource)
 
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
@@ -1058,9 +1062,11 @@ export function ResourcePage({
           rightActions={rightActions}
         >
           <DocumentBody
+            routeDocId={targetDocId}
             docId={targetDocId}
             document={targetDocument}
             activeView="comments"
+            latestVersion={targetDocument.version}
             openComment={comment.id}
             existingDraft={false}
             CommentEditor={CommentEditor}
@@ -1153,6 +1159,7 @@ export function ResourcePage({
         transientResourceError={transientResourceError}
       >
         <DocumentBody
+          routeDocId={docId}
           docId={renderedDocId}
           document={document}
           documentSyncRouteKey={documentResourceRouteKey}
@@ -1163,6 +1170,7 @@ export function ResourcePage({
           })}
           activeView={getActiveView(route.key)}
           isLatest={isLatest}
+          latestVersion={latestDocumentVersion}
           siteUrl={siteHomeDocument?.metadata?.siteUrl}
           CommentEditor={CommentEditor}
           optionsMenuItems={optionsMenuItems}
@@ -1366,12 +1374,14 @@ function TransientResourceBanner({error}: {error: TransientResourceError}) {
 
 // Document body with content
 function DocumentBody({
+  routeDocId,
   docId,
   document,
   documentSyncRouteKey,
   documentIsPlaceholderData,
   activeView,
   isLatest = true,
+  latestVersion,
   siteUrl,
   CommentEditor,
   optionsMenuItems,
@@ -1403,6 +1413,7 @@ function DocumentBody({
   linkExtensionOptions,
   transientResourceError,
 }: {
+  routeDocId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
   document: HMDocument
   /** Identifies intentional route-level version changes for document synchronization. */
@@ -1412,6 +1423,7 @@ function DocumentBody({
   /** Which tab/view to display */
   activeView: ActiveView
   isLatest?: boolean
+  latestVersion?: string | null
   siteUrl?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
   optionsMenuItems?: MenuItemType[]
@@ -1589,11 +1601,20 @@ function DocumentBody({
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
-  const showOlderVersionToast = shouldShowOlderVersionToast({docId, isLatest})
-  const olderVersionToastId = getOlderVersionToastId(docId)
+  const showOlderVersionToast = shouldShowOlderVersionToast({routeDocId, latestVersion})
+  const olderVersionToastId = getOlderVersionToastId(routeDocId)
 
   useEffect(() => {
-    if (!showOlderVersionToast) return
+    return () => {
+      toast.dismiss(olderVersionToastId)
+    }
+  }, [olderVersionToastId])
+
+  useEffect(() => {
+    if (!showOlderVersionToast) {
+      toast.dismiss(olderVersionToastId)
+      return
+    }
 
     toast('Older version linked', {
       id: olderVersionToastId,
@@ -1610,7 +1631,7 @@ function DocumentBody({
     })
   }, [olderVersionToastId, replaceRoute, route, showOlderVersionToast])
   useOldVersionEditBlocked(() => {
-    toast('This version is read-only', getOldVersionEditBlockedToastOptions(docId))
+    toast('This version is read-only', getOldVersionEditBlockedToastOptions(routeDocId))
   })
 
   // Extract panel from route (only document/feed routes have panels)

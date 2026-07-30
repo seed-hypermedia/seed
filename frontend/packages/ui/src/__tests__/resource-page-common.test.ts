@@ -31,23 +31,37 @@ describe('getDocumentResourceRouteKey', () => {
 
 describe('older version toast helpers', () => {
   it('does not show the toast when the route has no explicit version', () => {
-    expect(shouldShowOlderVersionToast({docId: hmId('alice', {path: ['doc']}), isLatest: false})).toBe(false)
+    expect(
+      shouldShowOlderVersionToast({
+        routeDocId: hmId('alice', {path: ['doc']}),
+        latestVersion: 'latest-version',
+      }),
+    ).toBe(false)
   })
 
   it('shows the toast for an explicit old-version route', () => {
     expect(
       shouldShowOlderVersionToast({
-        docId: hmId('alice', {path: ['doc'], version: 'old-version', latest: false}),
-        isLatest: false,
+        routeDocId: hmId('alice', {path: ['doc'], version: 'old-version', latest: false}),
+        latestVersion: 'latest-version',
       }),
     ).toBe(true)
   })
 
-  it('does not show the toast when an explicit route version resolves to latest', () => {
+  it('does not show the toast when an explicit route version matches the latest known version', () => {
     expect(
       shouldShowOlderVersionToast({
-        docId: hmId('alice', {path: ['doc'], version: 'latest-version', latest: false}),
-        isLatest: true,
+        routeDocId: hmId('alice', {path: ['doc'], version: 'latest-version', latest: false}),
+        latestVersion: 'latest-version',
+      }),
+    ).toBe(false)
+  })
+
+  it('does not show the toast before the latest version is known', () => {
+    expect(
+      shouldShowOlderVersionToast({
+        routeDocId: hmId('alice', {path: ['doc'], version: 'old-version', latest: false}),
+        latestVersion: null,
       }),
     ).toBe(false)
   })
