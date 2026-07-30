@@ -662,37 +662,41 @@ function AgentRichMessageComposer({
         </div>
       ) : null}
       <div className="flex items-end gap-2 px-3 py-2">
-      <div className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans [&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans [&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 [&_.hm-prose]:!text-sm">
-        <CommentEditor
-          focusOnMount
-          hideAvatar
-          hideSubmitToolbar
-          disableTrailingNode
-          submitOnEnter
-          submitHandleRef={submitHandleRef}
-          handleFileAttachment={handleFileAttachment}
-          initialBlocks={[]}
-          onContentChange={(blocks) => setDraftMarkdown(promptBlocksToMarkdown(trimTrailingEmptyBlocks(blocks)))}
-          handleSubmit={(getContent, reset) => void submitRichMessage(getContent, reset)}
-          submitButton={() => <></>}
-        />
-      </div>
-      <div className="flex shrink-0 gap-1 pb-1">
-        {draftMarkdown.trim() ? (
-          <Button size="sm" onClick={() => submitHandleRef.current?.submit()} title={isBusy ? 'Queue message' : 'Send'}>
-            <Send className="size-3.5" />
-          </Button>
-        ) : !isBusy ? (
-          <Button size="sm" disabled>
-            <Send className="size-3.5" />
-          </Button>
-        ) : null}
-        {isStreaming ? (
-          <Button size="sm" variant="destructive" onClick={onStop} disabled={stopPending}>
-            <Square className="size-3" />
-          </Button>
-        ) : null}
-      </div>
+        <div className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans [&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans [&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 [&_.hm-prose]:!text-sm">
+          <CommentEditor
+            focusOnMount
+            hideAvatar
+            hideSubmitToolbar
+            disableTrailingNode
+            submitOnEnter
+            submitHandleRef={submitHandleRef}
+            handleFileAttachment={handleFileAttachment}
+            initialBlocks={[]}
+            onContentChange={(blocks) => setDraftMarkdown(promptBlocksToMarkdown(trimTrailingEmptyBlocks(blocks)))}
+            handleSubmit={(getContent, reset) => void submitRichMessage(getContent, reset)}
+            submitButton={() => <></>}
+          />
+        </div>
+        <div className="flex shrink-0 gap-1 pb-1">
+          {draftMarkdown.trim() ? (
+            <Button
+              size="sm"
+              onClick={() => submitHandleRef.current?.submit()}
+              title={isBusy ? 'Queue message' : 'Send'}
+            >
+              <Send className="size-3.5" />
+            </Button>
+          ) : !isBusy ? (
+            <Button size="sm" disabled>
+              <Send className="size-3.5" />
+            </Button>
+          ) : null}
+          {isStreaming ? (
+            <Button size="sm" variant="destructive" onClick={onStop} disabled={stopPending}>
+              <Square className="size-3" />
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   )

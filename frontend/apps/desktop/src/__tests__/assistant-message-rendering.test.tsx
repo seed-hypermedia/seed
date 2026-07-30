@@ -60,6 +60,11 @@ vi.mock('@shm/shared/models/entity', () => ({
   useResource: () => ({data: null}),
 }))
 
+// models/agents creates the tRPC client at import time, which needs the electronTRPC preload global.
+vi.mock('@/models/agents', () => ({
+  useSessionAttachmentDataUrls: () => ({}),
+}))
+
 import {ChatMessageBubble} from '../components/assistant-message-rendering'
 
 /** Renders one assistant bubble carrying the given tool part. */

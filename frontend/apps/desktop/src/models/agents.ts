@@ -1107,7 +1107,13 @@ export async function uploadFileToAgentServer({
       serverUrl,
       accountUid,
       action: target.mimeType
-        ? {_: 'UploadSessionAttachment', sessionId: target.sessionId, name: target.name, mimeType: target.mimeType, content: data}
+        ? {
+            _: 'UploadSessionAttachment',
+            sessionId: target.sessionId,
+            name: target.name,
+            mimeType: target.mimeType,
+            content: data,
+          }
         : {_: 'UploadSessionAttachment', sessionId: target.sessionId, name: target.name, content: data},
     })
     if (res._ !== 'UploadSessionAttachmentResponse') throw new Error('Unexpected UploadSessionAttachment response')
@@ -1131,7 +1137,11 @@ export async function uploadFileToAgentServer({
       sent += chunk.byteLength
       onProgress?.({sent, total})
     }
-    const commit = await sendAgentAction({serverUrl, accountUid, action: {_: 'CommitFileUpload', uploadId: begin.uploadId}})
+    const commit = await sendAgentAction({
+      serverUrl,
+      accountUid,
+      action: {_: 'CommitFileUpload', uploadId: begin.uploadId},
+    })
     if (commit._ !== 'CommitFileUploadResponse') throw new Error('Unexpected CommitFileUpload response')
     return {entry: commit.entry, attachment: commit.attachment}
   } catch (error) {
