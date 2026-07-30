@@ -42,7 +42,7 @@ import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agent
 import {ModelSelect} from './model-select'
 import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
 import {pickDefaultProviderModel} from './model-utils'
-import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
+import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
 import {ProviderSelect} from './provider-select'
@@ -658,7 +658,7 @@ export function CreateAgentDialog({
     try {
       const definition: AgentDefinition = {
         name: agentName,
-        systemPrompt: promptBlocksToMarkdown(systemPrompt),
+        systemPrompt: promptBlocksForRequest(systemPrompt),
         modelProvider: providerName,
         model,
         reasoningLevel: coerceReasoningLevel(selectedProviderType, model, reasoningLevel),

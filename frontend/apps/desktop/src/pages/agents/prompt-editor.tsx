@@ -1,13 +1,23 @@
-import {blocksToMarkdown} from '@seed-hypermedia/client'
+import {blocksToMarkdown, trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
+import type {AgentPromptBlock} from '@seed-hypermedia/agents-protocol'
 import {CommentEditor} from '@shm/editor/comment-editor'
 
-/** Converts rich prompt blocks to the markdown sent to the agents service. */
+/** Converts rich prompt blocks to display/draft markdown (embeds stay as links). */
 export function promptBlocksToMarkdown(blocks: HMBlockNode[]): string {
   return blocksToMarkdown({metadata: {}, content: blocks} as HMDocument, {ipfsGateway: true})
     .replace(/^---\n---\n\n?/, '')
     .replace(/[ \t]*<!-- id:[^>]+ -->/g, '')
     .trim()
+}
+
+/**
+ * Prepares rich prompt blocks for an agents-service request. Prompts are sent
+ * as blocks (not flattened markdown) so Embed blocks survive and the service
+ * can inline the referenced hypermedia content into the model-facing prompt.
+ */
+export function promptBlocksForRequest(blocks: HMBlockNode[]): AgentPromptBlock[] {
+  return trimTrailingEmptyBlocks(blocks) as unknown as AgentPromptBlock[]
 }
 
 /** Rich-text prompt editor used for agent and trigger prompts. */

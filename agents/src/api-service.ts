@@ -1474,6 +1474,10 @@ export class Service {
 
     const now = Date.now()
     definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
+    // The stored `content` is what the model reads; rich messages resolve embeds
+    // into inline markdown here while `blocks`/`rawMarkdown` keep the original
+    // for transcript display.
+    const modelTexts = await Promise.all(messages.map((message) => this.#resolveMessageText(message)))
     const firstMessage = messages[0]!
     // Attachment parts must reference files already uploaded to this session; resolve them to
     // metadata here so the durable message event (and the model-facing metadata) carry it.
@@ -1489,7 +1493,7 @@ export class Service {
       {
         type: 'message',
         role: 'user',
-        content: firstMessage.text,
+        content: modelTexts[0]!,
         rawMarkdown: firstMessage.text,
         ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
         ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
@@ -1497,7 +1501,7 @@ export class Service {
       },
       now,
     )
-    for (const message of messages.slice(1)) {
+    for (const [index, message] of messages.slice(1).entries()) {
       this.#appendSessionEvent(
         accountId,
         session.agent_id,
@@ -1505,7 +1509,7 @@ export class Service {
         {
           type: 'message',
           role: 'user',
-          content: message.text,
+          content: modelTexts[index + 1]!,
           rawMarkdown: message.text,
           ...(message.blocks ? {blocks: message.blocks} : {}),
         },
@@ -1569,6 +1573,24 @@ export class Service {
 
   #runningSessionKey(accountId: string, sessionId: string): string {
     return `${accountId}/${sessionId}`
+  }
+
+  /**
+   * Model-facing text for a user message. When the client sent rich blocks,
+   * embeds resolve to the referenced hypermedia content inlined as markdown;
+   * otherwise (or when the blocks are malformed) the flattened text is used.
+   */
+  async #resolveMessageText(message: {text: string; blocks?: api.AgentMessageBlock[]}): Promise<string> {
+    if (!message.blocks?.length) return message.text
+    try {
+      const resolved = await promptBlocksToResolvedMarkdown(
+        message.blocks as HMBlockNode[],
+        createSeedClient(this.#hmServerUrl),
+      )
+      return resolved || message.text
+    } catch {
+      return message.text
+    }
   }
 
   /** Builds the model-facing system prompt; `stateDir` enables the automatic memory listing. */
@@ -3014,6 +3036,7 @@ function normalizePromptBlocks(raw: string | api.AgentPromptBlock[], label: stri
   }
 
   const markdown = promptBlocksToMarkdown(blocks)
+  if (!markdown.trim()) throw new APIError(400, `${label} is required`)
   const byteLength = new TextEncoder().encode(markdown).byteLength
   if (byteLength > MAX_PROMPT_BYTES) throw new APIError(400, `${label} is too large`)
   return blocks

@@ -76,7 +76,7 @@ import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agent
 import {ModelSelect} from './model-select'
 import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
 import {curateProviderModels, pickDefaultProviderModel} from './model-utils'
-import {AgentPromptEditor, promptBlocksToMarkdown} from './prompt-editor'
+import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
 import {ProviderSelect} from './provider-select'
 
@@ -300,7 +300,7 @@ function AgentDetailPage({
       void updateAgent
         .mutateAsync({
           agentId,
-          definition: {...currentDefinition, systemPrompt: promptBlocksToMarkdown(systemPrompt)},
+          definition: {...currentDefinition, systemPrompt: promptBlocksForRequest(systemPrompt)},
         })
         .then((result) => {
           if (promptSaveIdRef.current !== saveId) return
@@ -1171,7 +1171,7 @@ function AgentTriggersTab({
       void updateTrigger
         .mutateAsync({
           triggerId: selectedTriggerId,
-          patch: {prompt: promptBlocksToMarkdown(prompt), source},
+          patch: {prompt: promptBlocksForRequest(prompt), source},
         })
         .then((result) => {
           if (detailsSaveIdRef.current !== saveId) return
@@ -1394,7 +1394,7 @@ function CreateAgentTriggerDialog({
         name,
         enabled: true,
         source,
-        prompt: promptBlocksToMarkdown(prompt),
+        prompt: promptBlocksForRequest(prompt),
       }
       const result = await createTrigger.mutateAsync({agentId: input.agentId, trigger})
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')

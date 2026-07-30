@@ -1855,6 +1855,119 @@ describe('api service', () => {
     }
   })
 
+  test('resolves message block embeds into the model-facing content', async () => {
+    // A rich message can embed a hypermedia document. The model must read the embedded
+    // content inline, not a `> [Embed: …]` placeholder link, while the transcript keeps
+    // the original blocks and raw markdown for display.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'You reply.', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const embeddedId = unpackHmId('hm://z6Mkdoc/embedded')
+      if (!embeddedId) throw new Error('bad test id')
+      let modelSawEmbeddedBody = false
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/Resource')) {
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: embeddedId,
+              document: {
+                content: [
+                  {
+                    block: {id: 'embedded-paragraph', type: 'Paragraph', text: 'Embedded doc body', attributes: {}},
+                    children: [],
+                  },
+                ],
+                version: 'v1',
+                account: 'z6Mkdoc',
+                authors: [],
+                path: '/embedded',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Embedded Doc'},
+                genesis: 'genesis',
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        const body = JSON.parse(String(init?.body))
+        modelSawEmbeddedBody = JSON.stringify(body.messages).includes('Embedded doc body')
+        return openAIStreamResponse([
+          {id: 'chat-1', choices: [{delta: {content: 'Read it'}}]},
+          {id: 'chat-1', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const messageBlocks = [
+        {block: {id: 'message-paragraph', type: 'Paragraph', text: 'Summarize this:', attributes: {}}, children: []},
+        {block: {id: 'message-embed', type: 'Embed', link: 'hm://z6Mkdoc/embedded', attributes: {}}, children: []},
+      ]
+      const message = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [
+              {
+                type: 'text',
+                text: 'Summarize this:\n\n> [Embed: hm://z6Mkdoc/embedded](hm://z6Mkdoc/embedded)',
+                blocks: messageBlocks,
+              },
+            ],
+          },
+        }),
+      )
+      expect(message._).toBe('MessageSessionResponse')
+      expect(modelSawEmbeddedBody).toBe(true)
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const userEvent = session.events[0]?.event as {content?: string; rawMarkdown?: string; blocks?: unknown}
+      expect(userEvent.content).toContain('Embedded doc body')
+      expect(userEvent.content).not.toContain('[Embed:')
+      expect(userEvent.rawMarkdown).toContain('[Embed: hm://z6Mkdoc/embedded]')
+      expect(userEvent.blocks).toEqual(messageBlocks)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('feeds context content parts to the model but keeps them out of the transcript', async () => {
     // The desktop sidebar attaches the current window (document URL, view, focused block) as a
     // `context` part so "this document" means something to the model. The regression this guards:
