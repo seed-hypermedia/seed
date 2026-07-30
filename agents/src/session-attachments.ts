@@ -56,7 +56,7 @@ function attachmentPaths(stateDir: string, sessionId: string, id: string): {bin:
 /** Normalizes a client-supplied file name into a safe display name. */
 function normalizeAttachmentName(rawName: unknown): string {
   const base = typeof rawName === 'string' ? rawName.trim().split(/[\\/]/).pop() ?? '' : ''
-  const cleaned = base.replace(/[\u0000-\u001f\u007f]/g, "").trim()
+  const cleaned = base.replace(/[\u0000-\u001f\u007f]/g, '').trim()
   if (!cleaned) return 'file'
   return Buffer.byteLength(cleaned) > MAX_ATTACHMENT_NAME_BYTES ? cleaned.slice(-64) : cleaned
 }

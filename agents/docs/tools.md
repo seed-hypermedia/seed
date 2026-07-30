@@ -287,8 +287,8 @@ the bytes — so large files cannot flood the context uninvited. Content is pull
   UTF-8 text attachments return their text; everything else returns metadata plus guidance. Image bytes ride only the
   model-facing tool result — the durable `tool_result` event stores just the structured summary, so transcripts and the
   DB stay small, and a later run re-fetches on demand rather than replaying the image.
-- `attachment_to_memory` (memory tool group) copies one attachment into persistent memory (default
-  `attachments/<name>`) when it is worth keeping across sessions.
+- `attachment_to_memory` (memory tool group) copies one attachment into persistent memory (default `attachments/<name>`)
+  when it is worth keeping across sessions.
 - `attachment_to_ipfs` (write tool group) publishes one attachment to the HM server's IPFS endpoint and returns its
   `ipfs://<cid>` URL for use in Hypermedia content. Publishing makes the file publicly retrievable.
 

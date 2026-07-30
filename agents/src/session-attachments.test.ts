@@ -26,7 +26,12 @@ describe('session attachments', () => {
       content,
     })
     expect(saved.id).toMatch(/^[0-9a-f]{64}$/)
-    expect(saved).toMatchObject({sessionId: 'session-1', name: 'notes.txt', mimeType: 'text/plain', size: content.length})
+    expect(saved).toMatchObject({
+      sessionId: 'session-1',
+      name: 'notes.txt',
+      mimeType: 'text/plain',
+      size: content.length,
+    })
 
     // Same bytes → same id, original metadata kept even with a different name.
     const again = sessionAttachments.saveSessionAttachment(stateDir, 'session-1', {
