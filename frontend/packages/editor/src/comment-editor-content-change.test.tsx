@@ -96,7 +96,11 @@ let fake: ReturnType<typeof createFakeEditor>
 let onContentChange: ReturnType<typeof vi.fn>
 let submitHandleRef: {current: CommentEditorSubmitHandle | null}
 
-function renderCommentEditor() {
+function renderCommentEditor({
+  submitButton = () => <></>,
+}: {
+  submitButton?: React.ComponentProps<typeof CommentEditor>['submitButton']
+} = {}) {
   act(() => {
     root.render(
       <UniversalAppProvider
@@ -108,7 +112,7 @@ function renderCommentEditor() {
       >
         <CommentEditor
           handleSubmit={vi.fn()}
-          submitButton={() => <></>}
+          submitButton={submitButton}
           onContentChange={onContentChange}
           submitHandleRef={submitHandleRef as any}
         />
@@ -135,6 +139,22 @@ afterEach(() => {
   })
   container.remove()
   vi.useRealTimers()
+})
+
+describe('CommentEditor idle composer controls', () => {
+  it('renders the submit button disabled before the editor is focused', () => {
+    renderCommentEditor({
+      submitButton: ((opts: any) => (
+        <button type="button" data-testid="comment-submit" disabled={opts.disabled}>
+          Submit
+        </button>
+      )) as React.ComponentProps<typeof CommentEditor>['submitButton'],
+    })
+
+    const submit = container.querySelector('[data-testid="comment-submit"]') as HTMLButtonElement | null
+    expect(submit).not.toBeNull()
+    expect(submit?.disabled).toBe(true)
+  })
 })
 
 describe('CommentEditor content change emission (#884)', () => {

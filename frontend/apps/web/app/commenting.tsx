@@ -445,7 +445,7 @@ export default function WebCommenting({
             return null
           }
         }}
-        submitButton={({getContent, reset}) => {
+        submitButton={({getContent, reset, disabled}) => {
           return (
             <Tooltip
               content={tx(
@@ -455,12 +455,12 @@ export default function WebCommenting({
               )}
             >
               <button
-                disabled={isSubmitting}
+                disabled={isSubmitting || disabled}
                 className={cn(
-                  buttonVariants({size: 'icon', variant: 'ghost'}),
+                  buttonVariants({size: 'icon', variant: 'default'}),
                   publishButtonEventClass,
-                  'flex items-center justify-center rounded-sm p-2 text-neutral-800 hover:bg-neutral-200 dark:text-neutral-200 dark:hover:bg-neutral-700',
-                  isSubmitting && 'cursor-not-allowed opacity-50',
+                  'flex items-center justify-center rounded-sm p-2',
+                  (isSubmitting || disabled) && 'cursor-not-allowed opacity-50',
                 )}
                 onClick={() => handleSubmit(getContent, reset)}
               >
@@ -756,19 +756,20 @@ export function WebInlineEditBox({comment, onSave, onCancel, isSaving}: InlineEd
         handleFileAttachment={(file) => handleFileAttachment(file)}
         universalClient={client}
         hideAvatar
-        submitButton={({getContent, reset}) => (
+        submitButton={({getContent, reset, disabled}) => (
           <>
             <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>
               <X className="size-4" />
             </Button>
             <Tooltip content="Save edit">
               <Button
+                variant="default"
                 size="icon"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleSubmit(getContent, reset)
                 }}
-                disabled={isSaving}
+                disabled={isSaving || disabled}
               >
                 <Check className="size-4" />
               </Button>

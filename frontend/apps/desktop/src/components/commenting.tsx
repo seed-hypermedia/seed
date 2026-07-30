@@ -497,17 +497,18 @@ function CommentBoxImpl(props: {
             : undefined
         }
         perspectiveAccountUid={selectedAccountId}
-        submitButton={({getContent, reset}) => (
+        submitButton={({getContent, reset, disabled}) => (
           <Tooltip
             content={account ? `Publish Comment as "${account.metadata?.name}"` : 'Create an account to comment'}
           >
             <Button
+              variant="default"
               size="icon"
               onClick={(e) => {
                 e.stopPropagation()
                 handleSubmit(getContent, reset)
               }}
-              disabled={isSubmitting}
+              disabled={isSubmitting || disabled}
             >
               <SendHorizonal className="size-4" />
             </Button>
@@ -576,19 +577,20 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
         domainResolver={domainResolver}
         account={account ? {id: account.id, metadata: account.metadata} : undefined}
         perspectiveAccountUid={selectedAccountId}
-        submitButton={({getContent, reset}) => (
+        submitButton={({getContent, reset, disabled}) => (
           <>
             <Button variant="ghost" size="icon" onClick={onCancel} disabled={isSaving}>
               <X className="size-4" />
             </Button>
             <Tooltip content="Save edit">
               <Button
+                variant="default"
                 size="icon"
                 onClick={(e) => {
                   e.stopPropagation()
                   handleSubmit(getContent, reset)
                 }}
-                disabled={isSaving}
+                disabled={isSaving || disabled}
               >
                 <Check className="size-4" />
               </Button>

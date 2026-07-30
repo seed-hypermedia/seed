@@ -296,6 +296,7 @@ export function CommentEditor({
 }: {
   submitButton: (opts: {
     reset: () => void
+    disabled?: boolean
     getContent: (
       prepareAttachments: (binaries: Uint8Array[]) => Promise<{
         blobs: {cid: string; data: Uint8Array}[]
@@ -979,7 +980,7 @@ export function CommentEditor({
         )}
         <div
           className={cn(
-            'bg-muted w-full min-w-0 flex-1 rounded-lg border border-transparent transition-[filter,border-color,background-color]',
+            'bg-muted border-border dark:border-muted-foreground/20 focus-within:border-ring/60 w-full min-w-0 flex-1 rounded-lg border transition-[filter,border-color,background-color]',
             isExpanded
               ? ''
               : 'hover:border-black/10 hover:brightness-[1.01] active:brightness-95 dark:hover:border-white/10',
@@ -1086,9 +1087,9 @@ export function CommentEditor({
               </Button>
             )}
           </div>
-          {isExpanded && !hideSubmitToolbar ? (
+          {!hideSubmitToolbar ? (
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
-              {isMobile && (
+              {isExpanded && isMobile && (
                 <div className="flex items-center gap-2">
                   <Button size="icon" variant="ghost" className="size-8" onClick={() => setIsMentionsDialogOpen(true)}>
                     <AtSignIcon className="size-4" />
@@ -1107,6 +1108,7 @@ export function CommentEditor({
               <div className="flex gap-2">
                 {submitButton({
                   reset,
+                  disabled: !isExpanded,
                   getContent,
                 })}
               </div>
