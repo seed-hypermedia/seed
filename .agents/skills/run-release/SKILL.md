@@ -23,11 +23,15 @@ and push the release tag, but confirm the version number with the user before pu
    `gh run list --workflow "Dev - Docker Images" --branch main --limit 5 --json headSha,status,conclusion,databaseId`
    - Green for the commit → proceed.
    - Red → diagnose with `gh run view <id>`; fix on `main` first, then restart at step 1.
-   - Still running or missing → verify locally before tagging: root `pnpm format:check` (the root
-     script chains pnpm workspaces, then `agents/`, then `vault/` with `&&` — later groups are
-     masked until earlier ones pass, so only the root script proves all of them) and the unit
-     tests for any recently touched packages (e.g.
-     `cd frontend/apps/desktop && pnpm exec vitest run`).
+   - Still running or missing → don't wait for it; releases are often cut in a rush. Instead run
+     the most obvious, fastest checks locally and then tag. In order of cost-effectiveness:
+     - Root `pnpm format:check` (~1 min; the most common release-killer). The root script chains
+       pnpm workspaces, then `agents/`, then `vault/` with `&&` — later groups are masked until
+       earlier ones pass, so only the root script proves all of them.
+     - Unit tests for packages touched since the last green CI run (e.g.
+       `cd frontend/apps/desktop && pnpm exec vitest run`; `cd agents && bun test`).
+     - Skip slow suites (e2e, backend, builds) — the release workflow runs full CI anyway; the
+       local pass only exists to avoid tagging a commit that is dead on arrival.
 4. **Confirm** the version and the commit to be tagged with the user.
 5. **Tag and push**: `git tag <version> && git push origin <version>`.
 6. **Wait for the release workflows** (`Release - Desktop App`, `Release - Docker Images`) to go
