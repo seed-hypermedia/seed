@@ -16,21 +16,33 @@ and push the release tag, but confirm the version number with the user before pu
 2. **Determine the version** (`YYYY.M.N`, see `docs/releasing.md`): check
    `git tag --sort=-creatordate | head -5`. If the latest tag is from the current month, increment
    its last number; otherwise start at `.1` for the current month.
-3. **Confirm** the version and the commit to be tagged with the user.
-4. **Tag and push**: `git tag <version> && git push origin <version>`.
-5. **Wait for the release workflows** (`Release - Desktop App`, `Release - Docker Images`) to go
+3. **Verify CI is green for the commit BEFORE tagging.** The release workflows gate on the same
+   `frontend-tests` (Lint, unit tests, e2e), so a red commit means a doomed release run and a
+   re-tag. Check the existing result first — a push to `main` already triggered `Dev - Docker
+   Images` on this exact commit:
+   `gh run list --workflow "Dev - Docker Images" --branch main --limit 5 --json headSha,status,conclusion,databaseId`
+   - Green for the commit → proceed.
+   - Red → diagnose with `gh run view <id>`; fix on `main` first, then restart at step 1.
+   - Still running or missing → verify locally before tagging: root `pnpm format:check` (the root
+     script chains pnpm workspaces, then `agents/`, then `vault/` with `&&` — later groups are
+     masked until earlier ones pass, so only the root script proves all of them) and the unit
+     tests for any recently touched packages (e.g.
+     `cd frontend/apps/desktop && pnpm exec vitest run`).
+4. **Confirm** the version and the commit to be tagged with the user.
+5. **Tag and push**: `git tag <version> && git push origin <version>`.
+6. **Wait for the release workflows** (`Release - Desktop App`, `Release - Docker Images`) to go
    green: `gh run list --workflow release-desktop.yml`, then `gh run watch <run-id>`. Builds take
    tens of minutes — keep waiting, don't proceed early. If a workflow fails, stop and report.
-6. **Draft release notes** for `<prev-tag>..<version>` following the voice, grouping, and
+7. **Draft release notes** for `<prev-tag>..<version>` following the voice, grouping, and
    exclusion rules in the `releasenotes` skill, but match the exact format of the last few
    published releases (`gh release view <prev-tag>`). Key rules from `docs/releasing.md`:
    - Very short feature entries; many commits often collapse into one line.
    - No entries for regressions introduced and fixed since the previous tag — never released,
      users never saw them.
    - End with the `**Full Changelog**` compare link.
-7. **Show the draft to the user** and apply their edits, then publish:
+8. **Show the draft to the user** and apply their edits, then publish:
    `gh release edit <version> --notes-file <tmpfile> --prerelease=false --latest`
    (the workflow creates the release as a prerelease; this promotes it).
-8. **Publish latest.json** so desktop auto-update sees the release:
+9. **Publish latest.json** so desktop auto-update sees the release:
    `gh workflow run "Generate latest.json (prod)"` and confirm the run succeeds.
-9. **Report**: version, release URL, and the state of each step.
+10. **Report**: version, release URL, and the state of each step.
