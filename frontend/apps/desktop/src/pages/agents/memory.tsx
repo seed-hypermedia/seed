@@ -77,7 +77,12 @@ export function AgentMemoryTab({
   // uploads) would stall or crash the preview, so those render a size card instead of fetching.
   const selectedEntry = memory.data?.entries.find((entry) => entry.type === 'file' && entry.path === selectedPath)
   const selectedTooLarge = (selectedEntry?.size ?? 0) > MAX_MEMORY_PREVIEW_BYTES
-  const file = useAgentMemoryFile(serverUrl, accountUid, agentId, selectedTooLarge ? undefined : selectedPath ?? undefined)
+  const file = useAgentMemoryFile(
+    serverUrl,
+    accountUid,
+    agentId,
+    selectedTooLarge ? undefined : selectedPath ?? undefined,
+  )
 
   const entries = memory.data?.entries ?? []
   const fileCount = entries.filter((entry) => entry.type === 'file').length
@@ -150,30 +155,30 @@ export function AgentMemoryTab({
 
   /** Uploads local files into memory, optionally inside a target directory. Large files go in
    * chunks (each signed action stays small) with a visible progress bar. */
-  async function handleUploadLocalFiles(localFiles: File[], dirPath?: string) {
+  async function handleUploadLocalFiles(localFiles: DroppedFile[], dirPath?: string) {
     if (!accountUid) {
       toast.error('Select an account first')
       return
     }
     let lastPath: string | null = null
+    let uploaded = 0
     try {
-      for (const localFile of localFiles) {
+      for (const {path: relativePath, file: localFile} of localFiles) {
         try {
           const bytes = new Uint8Array(await localFile.arrayBuffer())
-          const path = dirPath ? `${dirPath}/${localFile.name}` : localFile.name
-          setUploadProgress({name: localFile.name, sent: 0, total: bytes.byteLength})
+          const path = dirPath ? `${dirPath}/${relativePath}` : relativePath
+          setUploadProgress({name: relativePath, sent: 0, total: bytes.byteLength})
           await uploadFileToAgentServer({
             serverUrl,
             accountUid,
             target: {kind: 'memory', agentId, path},
             data: bytes,
-            onProgress: (progress) => setUploadProgress({name: localFile.name, ...progress}),
+            onProgress: (progress) => setUploadProgress({name: relativePath, ...progress}),
           })
           lastPath = path
+          uploaded++
         } catch (error) {
-          toast.error(
-            error instanceof Error ? `${localFile.name}: ${error.message}` : 'Could not add the file to memory',
-          )
+          toast.error(error instanceof Error ? `${relativePath}: ${error.message}` : 'Could not add the file to memory')
         }
       }
     } finally {
@@ -183,10 +188,20 @@ export function AgentMemoryTab({
     if (lastPath) {
       selectFile(lastPath)
       toast.success(
-        localFiles.length === 1
+        uploaded === 1
           ? `Added ${lastPath} to memory`
-          : `Added ${localFiles.length} files to memory${dirPath ? ` in ${dirPath}/` : ''}`,
+          : `Added ${uploaded} files to memory${dirPath ? ` in ${dirPath}/` : ''}`,
       )
+    }
+  }
+
+  /** Handles a drop of OS files and/or folders, walking folders so their contents land as nested paths. */
+  async function handleDroppedItems(dataTransfer: DataTransfer, dirPath?: string) {
+    try {
+      const dropped = await collectDroppedFiles(dataTransfer)
+      if (dropped.length) await handleUploadLocalFiles(dropped, dirPath)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not read the dropped files')
     }
   }
 
@@ -249,7 +264,7 @@ export function AgentMemoryTab({
             onChange={(event) => {
               const localFiles = Array.from(event.currentTarget.files ?? [])
               event.currentTarget.value = ''
-              if (localFiles.length) void handleUploadLocalFiles(localFiles)
+              if (localFiles.length) void handleUploadLocalFiles(localFiles.map((file) => ({path: file.name, file})))
             }}
           />
           <Button
@@ -370,8 +385,7 @@ export function AgentMemoryTab({
             if (!hasDraggedFiles(event)) return
             event.preventDefault()
             setDropTarget(null)
-            const localFiles = Array.from(event.dataTransfer.files)
-            if (localFiles.length) void handleUploadLocalFiles(localFiles)
+            void handleDroppedItems(event.dataTransfer)
           }}
         >
           {memory.isLoading ? (
@@ -419,8 +433,7 @@ export function AgentMemoryTab({
                         event.preventDefault()
                         event.stopPropagation()
                         setDropTarget(null)
-                        const localFiles = Array.from(event.dataTransfer.files)
-                        if (localFiles.length) void handleUploadLocalFiles(localFiles, entry.path)
+                        void handleDroppedItems(event.dataTransfer, entry.path)
                       }
                     : undefined
                 }
@@ -446,12 +459,7 @@ export function AgentMemoryTab({
                 {formatBytes(selectedEntry.size)}
                 {selectedEntry.mimeType ? ` · ${selectedEntry.mimeType}` : ''} — too large to preview here.
               </SizableText>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setConfirmDeletePath(selectedPath)}
-                className="mt-2"
-              >
+              <Button variant="outline" size="sm" onClick={() => setConfirmDeletePath(selectedPath)} className="mt-2">
                 <Trash2 className="mr-1 size-3.5" /> Delete
               </Button>
             </div>
@@ -728,6 +736,43 @@ function isPathVisible(path: string, expandedDirs: Set<string>): boolean {
 /** True when a drag event carries OS files (rather than in-app text/element drags). */
 function hasDraggedFiles(event: React.DragEvent): boolean {
   return Array.from(event.dataTransfer.types).includes('Files')
+}
+
+/** A local file to upload, with its memory-relative path (includes folder names for folder drops). */
+type DroppedFile = {path: string; file: File}
+
+/**
+ * Collects the files carried by a drop, recursing into dropped folders so nested files keep
+ * their relative paths. Must be called synchronously from the drop event: `webkitGetAsEntry`
+ * only works while the DataTransfer is live.
+ */
+async function collectDroppedFiles(dataTransfer: DataTransfer): Promise<DroppedFile[]> {
+  const entries = Array.from(dataTransfer.items).map((item) => item.webkitGetAsEntry?.() ?? null)
+  if (!entries.some(Boolean)) {
+    // No entries API (or a non-filesystem drag): fall back to the flat file list.
+    return Array.from(dataTransfer.files).map((file) => ({path: file.name, file}))
+  }
+  const collected: DroppedFile[] = []
+  for (const entry of entries) {
+    if (entry) await collectEntry(entry, collected)
+  }
+  return collected
+}
+
+async function collectEntry(entry: FileSystemEntry, out: DroppedFile[]): Promise<void> {
+  if (entry.isFile) {
+    if (entry.name === '.DS_Store') return
+    const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject))
+    out.push({path: entry.fullPath.replace(/^\/+/, ''), file})
+  } else if (entry.isDirectory) {
+    const reader = (entry as FileSystemDirectoryEntry).createReader()
+    // readEntries returns results in batches (~100 in Chromium) until an empty batch.
+    while (true) {
+      const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject))
+      if (!batch.length) break
+      for (const child of batch) await collectEntry(child, out)
+    }
+  }
 }
 
 /** Saves a memory file to the user's computer via a browser download. */
