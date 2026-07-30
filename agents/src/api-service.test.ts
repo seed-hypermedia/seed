@@ -2150,6 +2150,7 @@ describe('api service', () => {
           expect(body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name)).toEqual([
             'read',
             'view_attachment',
+            'start_session',
             'set_session_title',
           ])
           return openAIStreamResponse([
@@ -2374,7 +2375,7 @@ describe('api service', () => {
       // First provider request advertises exactly the enabled web tool plus the hidden title tool.
       expect(
         (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
-      ).toEqual(['web_search', 'view_attachment', 'set_session_title'])
+      ).toEqual(['web_search', 'view_attachment', 'start_session', 'set_session_title'])
       // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
       const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
       expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
@@ -2472,6 +2473,7 @@ describe('api service', () => {
             'read',
             'write',
             'view_attachment',
+            'start_session',
             'set_session_title',
           ])
           expect(JSON.stringify(body.tools)).toContain('replyCommentId')
@@ -3072,6 +3074,156 @@ describe('api service', () => {
       expect(results).toHaveLength(2)
       expect(results[1]?.output?.command).toBe('document.update')
       expect(results[1]?.output?.id).toBe(`hm://${signerPublicKey}/weekly-report`)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('start_session tool starts a new session of the same agent that auto-runs the provided prompt', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      let openAICallCount = 0
+      globalThis.fetch = mock(async (url: string | URL | Request) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (!href.includes('/chat/completions') && !href.includes('/responses')) {
+          throw new Error(`Unexpected fetch: ${href}`)
+        }
+        openAICallCount += 1
+        if (openAICallCount === 1) {
+          // Parent turn: delegate twice — default title from the prompt's first line, and explicit title.
+          return openAIStreamResponse([
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {
+                          name: 'start_session',
+                          arguments: JSON.stringify({
+                            prompt: 'Research the flux capacitor and write notes.\nCover the 1985 archives.',
+                          }),
+                        },
+                      },
+                      {
+                        index: 1,
+                        id: 'call-2',
+                        type: 'function',
+                        function: {
+                          name: 'start_session',
+                          arguments: JSON.stringify({prompt: 'Summarize the archives.', title: 'Archive summary'}),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: `chat-${openAICallCount}`, choices: [{delta: {content: 'Done.'}}]},
+          {id: `chat-${openAICallCount}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Delegator',
+              systemPrompt: 'Delegate work.',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['read'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Delegate the research'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+
+      // Both tool results carry the new session ids before the background runs finish.
+      const parentSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (parentSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const startResults = parentSession.events
+        .map((event) => event.event as {type?: string; name?: string; output?: {sessionId?: string; title?: string}})
+        .filter((event) => event.type === 'tool_result' && event.name === 'start_session')
+      expect(startResults).toHaveLength(2)
+      expect(startResults[0]?.output?.title).toBe('Research the flux capacitor and write notes.')
+      expect(startResults[1]?.output?.title).toBe('Archive summary')
+      const childIds = startResults.map((result) => result.output?.sessionId)
+      expect(childIds[0]).toBeTruthy()
+      expect(childIds[1]).toBeTruthy()
+      expect(childIds[0]).not.toBe(childIds[1])
+
+      // The spawned sessions auto-run: after draining background runs, each child holds the
+      // provided prompt as its first user message plus a completed assistant reply.
+      await svc.drainTriggerSessions()
+      expect(openAICallCount).toBe(4)
+      for (const [index, childId] of childIds.entries()) {
+        const child = await svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: childId!}}),
+        )
+        if (child._ !== 'GetSessionResponse') throw new Error('unexpected response')
+        expect(child.session.agentId).toBe(createdAgent.agentId)
+        expect(child.session.status).toBe('idle')
+        const events = child.events.map((event) => event.event as {type?: string; role?: string; content?: string})
+        expect(events[0]).toMatchObject({
+          type: 'message',
+          role: 'user',
+          content:
+            index === 0
+              ? 'Research the flux capacitor and write notes.\nCover the 1985 archives.'
+              : 'Summarize the archives.',
+        })
+        expect(events.some((event) => event.type === 'message' && event.role === 'assistant')).toBe(true)
+      }
+
+      const listed = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions'}}))
+      if (listed._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(listed.sessions).toHaveLength(3)
     } finally {
       globalThis.fetch = originalFetch
       db.close()

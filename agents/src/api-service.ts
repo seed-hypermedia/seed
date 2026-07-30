@@ -82,6 +82,10 @@ const MAX_TOOL_NAME_BYTES = 128
 const MAX_TOOLS_TOTAL_BYTES = 4 * 1024
 const MAX_SECRET_BYTES = 64 * 1024
 const MAX_MESSAGE_TEXT_BYTES = 64 * 1024
+/** Longest chain of agent-started sessions (A starts B starts C…) before start_session refuses. */
+const MAX_SESSION_SPAWN_DEPTH = 3
+/** Most sessions one session may start with start_session, a backstop against runaway spawning. */
+const MAX_SESSION_SPAWNS_PER_SESSION = 10
 const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
@@ -171,8 +175,15 @@ export class Service {
   readonly #web: WebToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
-  /** In-flight background trigger session runs, awaited by {@link drainTriggerSessions} (tests + shutdown). */
+  /** In-flight background session runs (trigger + agent-started), awaited by {@link drainTriggerSessions} (tests + shutdown). */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
+  /**
+   * Spawn-chain depth per agent-started session, and spawn counts per starting session. Both are
+   * in-memory backstops against runaway start_session loops, not durable state: a server restart
+   * resets them, which only relaxes the limits until the next chain builds up again.
+   */
+  readonly #sessionSpawnDepth = new Map<string, number>()
+  readonly #sessionSpawnCounts = new Map<string, number>()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
 
@@ -1160,6 +1171,8 @@ export class Service {
     try {
       sessionAttachments.deleteSessionAttachments(this.#agentMemoryStateDir(accountId, existing.agentId), sessionId)
     } catch {}
+    this.#sessionSpawnDepth.delete(sessionId)
+    this.#sessionSpawnCounts.delete(sessionId)
     this.#emit({type: 'account-change', accountId, reason: 'session-deleted', agentId: existing.agentId, sessionId})
     return {_: 'DeleteSessionResponse', sessionId, agentId: existing.agentId}
   }
@@ -1339,6 +1352,65 @@ export class Service {
       })
     }
     return session
+  }
+
+  /**
+   * start_session tool: creates a new session of the calling agent and starts its first run in
+   * the background, detached from the calling session's run (same pattern as trigger sessions,
+   * sharing {@link drainTriggerSessions}). Returns as soon as the session exists and the run is
+   * dispatched — the caller never receives the new session's results. Chain depth and per-session
+   * spawn counts are bounded so an agent cannot fork-bomb the server.
+   */
+  #startSessionFromAgent(
+    accountId: string,
+    parentSessionId: string,
+    agentId: string,
+    raw: unknown,
+  ): {sessionId: string; title: string} {
+    const input = isPlainRecord(raw) ? raw : {}
+    const prompt = normalizeBoundedString(input.prompt, 'Session prompt', MAX_MESSAGE_TEXT_BYTES)
+    const depth = this.#sessionSpawnDepth.get(parentSessionId) ?? 0
+    if (depth >= MAX_SESSION_SPAWN_DEPTH) {
+      throw new APIError(
+        400,
+        `Session spawn chain limit reached (${MAX_SESSION_SPAWN_DEPTH}); this session was itself started by a chain of agent-started sessions. Finish the work here instead.`,
+      )
+    }
+    const spawned = this.#sessionSpawnCounts.get(parentSessionId) ?? 0
+    if (spawned >= MAX_SESSION_SPAWNS_PER_SESSION) {
+      throw new APIError(
+        400,
+        `This session already started ${MAX_SESSION_SPAWNS_PER_SESSION} sessions; finish the remaining work here instead.`,
+      )
+    }
+    const title =
+      input.title === undefined || input.title === null || input.title === ''
+        ? sessionTitleFromPrompt(prompt)
+        : normalizeBoundedString(input.title, 'Session title', MAX_NAME_BYTES)
+    const session = this.#createSessionOnce(accountId, agentId, title)
+    this.#sessionSpawnCounts.set(parentSessionId, spawned + 1)
+    this.#sessionSpawnDepth.set(session.sessionId, depth + 1)
+    console.info('[agents/runtime] agent started session', {
+      accountId,
+      parentSessionId,
+      sessionId: session.sessionId,
+      agentId,
+      depth: depth + 1,
+    })
+    const run = (async () => {
+      try {
+        await this.#messageSessionOnce(accountId, session.sessionId, [{type: 'text', text: prompt}])
+      } catch (error) {
+        console.error('[agents/runtime] agent-started session run failed', {
+          accountId,
+          sessionId: session.sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    })()
+    this.#pendingTriggerSessions.add(run)
+    void run.finally(() => this.#pendingTriggerSessions.delete(run))
+    return {sessionId: session.sessionId, title}
   }
 
   async #messageSession(
@@ -1532,7 +1604,9 @@ export class Service {
     const execPrompt = execEnabled
       ? '\n\nYou can run Python or shell code with the execute_code tool. Code runs in an isolated sandbox with your memory mounted at /workspace (the working directory), so reading and writing files there directly reads and writes your persistent memory. Each call is a fresh sandbox: no variables, installed packages, or processes persist between calls — save anything durable as files. The sandbox has internet access, so you can install packages and fetch data, but it cannot reach private/local network addresses. To keep Python packages across calls, install them into the workspace, e.g. `pip install --target /workspace/pylibs <pkg>`, then add that directory to sys.path in later calls.'
       : ''
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${execPrompt}`
+    const startSessionPrompt =
+      '\n\nYou can start a new independent session of yourself with the start_session tool, providing its first message; it begins running immediately in the background. Use it to delegate follow-up or parallel work. The new session does not share this conversation and you will not receive its results, so include all needed context in the prompt.'
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${execPrompt}${startSessionPrompt}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -1637,6 +1711,7 @@ export class Service {
             },
           }),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
+        startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input),
       }),
       tools: [
         // Set-dedupe: legacy alias normalization can produce duplicate names.
@@ -1666,6 +1741,7 @@ export class Service {
         ),
         // Always available: attachments are session data the model was already told about.
         seedToolRegistry.view_attachment.name,
+        seedToolRegistry.start_session.name,
         seedToolRegistry.set_session_title.name,
       ],
       noTools: 'builtin',
@@ -3531,6 +3607,8 @@ type AgentServicePiToolContext = WriteToolContext & {
   onToolProgress: (toolName: string, progress: {toolCallId?: string; detail?: string; outputTail?: string}) => void
   /** Sandboxed code execution against the memory workspace. */
   codeExec: CodeExecutor
+  /** start_session tool: creates a new session of this agent and dispatches its first run in the background. */
+  startSession: (input: unknown) => {sessionId: string; title: string}
 }
 
 type ResolvedAgentSigner = {
@@ -3890,6 +3968,13 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         url,
         size: info.size,
         mimeType: info.mimeType,
+      }
+    }),
+    defineSeedPiTool(seedToolRegistry.start_session, (params) => {
+      const started = context.startSession(params)
+      return {
+        summary: `Started session "${started.title}"; it is now running in the background.`,
+        ...started,
       }
     }),
     defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
@@ -4935,6 +5020,13 @@ function collapseMemoryPath(rawPath: string): string | undefined {
 }
 
 /** Derives a human-readable document title from a memory file name, e.g. notes/weekly-update.md → "Weekly update". */
+/** Derives a session title from the first line of a start_session prompt. */
+function sessionTitleFromPrompt(prompt: string): string {
+  const firstLine = prompt.split('\n', 1)[0]!.replace(/\s+/g, ' ').trim()
+  if (!firstLine) return 'Agent-started session'
+  return firstLine.length > 80 ? `${firstLine.slice(0, 79)}…` : firstLine
+}
+
 function titleFromMemoryPath(memoryPath: string): string {
   const base = memoryPath.split('/').at(-1) ?? memoryPath
   const stem = base.replace(/\.[a-z0-9]+$/i, '')
