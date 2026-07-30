@@ -2794,7 +2794,7 @@ function memoryListingPrompt(stateDir: string): string {
     summary.totalFiles
   } file${
     summary.totalFiles === 1 ? '' : 's'
-  } total). Folder contents are not expanded here: use memory_list to see every path and memory_read to read a file.`
+  } total). Folder contents are not expanded here: use memory_list with a directory path to look inside a folder and memory_read to read a file.`
 }
 
 /** Reraises agent-memory errors as API errors so they carry an HTTP status. */
@@ -3773,15 +3773,20 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
       }
     }),
     defineSeedPiTool(seedToolRegistry.write, (params) => writeHypermedia(context, params)),
-    defineSeedPiTool(seedToolRegistry.memory_list, () => {
-      const {entries, totalBytes} = withMemoryErrors(() => agentMemory.listMemory(context.stateDir))
-      const files = entries.filter((entry) => entry.type === 'file')
+    defineSeedPiTool(seedToolRegistry.memory_list, (params) => {
+      const input = isRecord(params) ? params : {}
+      const level = withMemoryErrors(() => agentMemory.listMemoryDir(context.stateDir, input.path))
+      const fileCount = level.entries.filter((entry) => entry.type === 'file').length
+      const dirCount = level.entries.length - fileCount
+      const where = level.path ? `${level.path}/` : 'Memory root'
+      const dirNote = dirCount
+        ? ` and ${dirCount} director${dirCount === 1 ? 'y' : 'ies'} (list a directory path to see inside)`
+        : ''
       return {
-        summary: files.length
-          ? `Memory holds ${files.length} file${files.length === 1 ? '' : 's'} (${totalBytes} bytes).`
-          : 'Memory is empty.',
-        entries,
-        totalBytes,
+        summary: level.entries.length
+          ? `${where} holds ${fileCount} file${fileCount === 1 ? '' : 's'} (${level.totalBytes} bytes)${dirNote}.`
+          : `${where} is empty.`,
+        ...level,
       }
     }),
     defineSeedPiTool(seedToolRegistry.memory_read, (params) => {

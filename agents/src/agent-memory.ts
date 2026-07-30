@@ -35,6 +35,8 @@ export type AgentMemoryEntry = {
   updatedAt: number
   /** MIME type inferred from the file extension, when recognized. */
   mimeType?: string
+  /** For directories in single-level listings: how many entries the directory holds. */
+  entryCount?: number
 }
 
 /** Contents of one memory file: UTF-8 text or raw binary bytes. */
@@ -185,6 +187,53 @@ export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; tota
   walk(root, '')
   entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   return {entries, totalBytes}
+}
+
+/**
+ * Lists one directory level of the agent's memory: the entries directly inside `rawPath`
+ * (or the memory root when omitted), without descending. Directory entries carry
+ * `entryCount` so callers know whether descending is worthwhile. `totalBytes` sums only
+ * the files at this level.
+ */
+export function listMemoryDir(
+  stateDir: string,
+  rawPath?: unknown,
+): {path: string; entries: AgentMemoryEntry[]; totalBytes: number} {
+  const atRoot = rawPath === undefined || rawPath === null || rawPath === '' || rawPath === '/'
+  const {relPath, absPath} = atRoot
+    ? {relPath: '', absPath: memoryRootPath(stateDir)}
+    : resolveMemoryPath(stateDir, rawPath)
+  if (!atRoot) {
+    const stat = lstatOrNull(absPath)
+    if (!stat || stat.isSymbolicLink()) throw new AgentMemoryError(404, `Memory directory not found: ${relPath}`)
+    if (!stat.isDirectory())
+      throw new AgentMemoryError(400, `Memory path is a file, not a directory: ${relPath}. Use memory_read for files.`)
+  }
+  let names: fs.Dirent[] = []
+  try {
+    names = fs.readdirSync(absPath, {withFileTypes: true})
+  } catch {}
+  const entries: AgentMemoryEntry[] = []
+  let totalBytes = 0
+  for (const dirent of names) {
+    if (dirent.isSymbolicLink()) continue
+    const rel = relPath ? `${relPath}/${dirent.name}` : dirent.name
+    const abs = path.join(absPath, dirent.name)
+    const stat = statOrNull(abs)
+    if (!stat) continue
+    if (dirent.isDirectory()) {
+      let entryCount = 0
+      try {
+        entryCount = fs.readdirSync(abs).length
+      } catch {}
+      entries.push({path: rel, type: 'dir', size: 0, updatedAt: Math.round(stat.mtimeMs), entryCount})
+    } else if (dirent.isFile()) {
+      totalBytes += stat.size
+      entries.push(fileEntry(rel, stat))
+    }
+  }
+  entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+  return {path: relPath, entries, totalBytes}
 }
 
 /**

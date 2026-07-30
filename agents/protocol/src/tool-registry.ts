@@ -554,12 +554,22 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'memory_list',
     label: 'List Memory',
     description:
-      'List every file and directory in your private persistent memory. Memory is a filesystem owned by this agent, shared across all of your sessions and visible to your user. Use it to recall notes, learnings, and state you stored earlier. Call this before reading or writing when you are unsure what already exists.',
-    inputSchema: {type: 'object', additionalProperties: false, properties: {}},
+      'List one directory level of your private persistent memory: the files and directories directly inside the given path, without descending. Omit path to list the memory root; pass a directory path (for example `notes`) to look inside it. Directory entries include entryCount — call memory_list again with that path to see their contents. Memory is a filesystem owned by this agent, shared across all of your sessions and visible to your user. Call this before reading or writing when you are unsure what already exists.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Directory to list, relative to the memory root. Omit for the root level.',
+        },
+      },
+    },
     outputSchema: {
       type: 'object',
       properties: {
-        summary: {type: 'string', description: 'One-line summary of the memory contents.'},
+        summary: {type: 'string', description: 'One-line summary of the listed level.'},
+        path: {type: 'string', description: 'The listed directory; empty string for the memory root.'},
         entries: {
           type: 'array',
           items: {
@@ -569,10 +579,11 @@ export const seedToolRegistry: SeedToolRegistry = {
               type: {type: 'string', enum: ['file', 'dir']},
               size: {type: 'integer', description: 'File size in bytes; 0 for directories.'},
               updatedAt: {type: 'integer', description: 'Last modification time in Unix epoch milliseconds.'},
+              entryCount: {type: 'integer', description: 'For directories: how many entries are directly inside.'},
             },
           },
         },
-        totalBytes: {type: 'integer'},
+        totalBytes: {type: 'integer', description: 'Total bytes of the files at this level only.'},
       },
     },
     render: {

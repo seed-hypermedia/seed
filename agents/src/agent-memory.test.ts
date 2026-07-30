@@ -7,6 +7,7 @@ import {
   deleteMemoryPath,
   downloadToMemory,
   listMemory,
+  listMemoryDir,
   memoryRootPath,
   readMemoryFile,
   resolveMemoryPath,
@@ -55,6 +56,35 @@ describe('agent memory', () => {
       expect(deleteMemoryPath(stateDir, 'notes')).toEqual({path: 'notes', deleted: true})
       expect(deleteMemoryPath(stateDir, 'notes')).toEqual({path: 'notes', deleted: false})
       expect(listMemory(stateDir).entries.map((entry) => entry.path)).toEqual(['MEMORY.md'])
+    })
+  })
+
+  test('lists one directory level at a time with entry counts', () => {
+    withStateDir((stateDir) => {
+      writeMemoryFile(stateDir, 'MEMORY.md', 'index')
+      writeMemoryFile(stateDir, 'notes/todo.md', 'todo')
+      writeMemoryFile(stateDir, 'notes/deep/nested.md', 'nested')
+      writeMemoryFile(stateDir, 'notes/deep/other.md', 'other')
+
+      // Root level: the nested files are not listed, only the top-level dir with its count.
+      const root = listMemoryDir(stateDir)
+      expect(root.path).toBe('')
+      expect(root.entries.map((entry) => `${entry.type}:${entry.path}`)).toEqual(['file:MEMORY.md', 'dir:notes'])
+      expect(root.entries.find((entry) => entry.path === 'notes')?.entryCount).toBe(2)
+      expect(root.totalBytes).toBe(5)
+
+      const notes = listMemoryDir(stateDir, 'notes')
+      expect(notes.path).toBe('notes')
+      expect(notes.entries.map((entry) => `${entry.type}:${entry.path}`)).toEqual([
+        'dir:notes/deep',
+        'file:notes/todo.md',
+      ])
+      expect(notes.entries.find((entry) => entry.path === 'notes/deep')?.entryCount).toBe(2)
+
+      // '/' means the root; a missing dir 404s; a file path is rejected with guidance.
+      expect(listMemoryDir(stateDir, '/').entries).toHaveLength(2)
+      expect(() => listMemoryDir(stateDir, 'nope')).toThrow(AgentMemoryError)
+      expect(() => listMemoryDir(stateDir, 'MEMORY.md')).toThrow('not a directory')
     })
   })
 
