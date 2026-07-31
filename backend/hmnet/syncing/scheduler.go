@@ -424,6 +424,13 @@ func (s *scheduler) executeTask(task *taskHandle) {
 		task.runningCold = false
 		s.inProgressCold--
 	}
+	// Publish the release. Without this the occupancy gauges are only ever
+	// written at the end of a dispatch pass — and a pass ends WHEN IT
+	// SATURATES, so they record the peak of every pass and never the trough.
+	// They sat pinned at MaxWorkers on a daemon that was idle 6 samples out of
+	// 8, which reads as permanent worker starvation and is why the pool looked
+	// like the bottleneck for far longer than it was.
+	s.publishOccupancyLocked()
 
 	now := time.Now()
 
@@ -736,10 +743,8 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 	// Occupancy is recorded after the re-enqueue and cleanup so it describes the
 	// settled state, not a mid-pass one where deferred tasks are still out of
 	// the queue and would undercount its depth.
-	MSchedulerSlotsBusy.Set(float64(s.inProgress))
-	MSchedulerSlotsBusyCold.Set(float64(s.inProgressCold))
+	s.publishOccupancyLocked()
 	MSchedulerColdCap.Set(float64(coldCap))
-	MSchedulerQueueDepth.Set(float64(s.queue.Len()))
 
 	// Sleep forever unless an in-progress hot task's heartbeat is about to
 	// expire (so we can cancel it promptly), or a queued cold task becomes due.
@@ -759,6 +764,16 @@ func (s *scheduler) dispatchReadyTasks(ctx context.Context) (nextWake time.Durat
 		// completion to wake us.
 	}
 	return s.boundedWake(wake, now)
+}
+
+// publishOccupancyLocked mirrors the live scheduler occupancy into the gauges.
+// Called both when a pass hands work out and when a worker gives a slot back,
+// so the numbers track reality rather than only the busiest instant of each
+// pass. Caller must hold s.mu.
+func (s *scheduler) publishOccupancyLocked() {
+	MSchedulerSlotsBusy.Set(float64(s.inProgress))
+	MSchedulerSlotsBusyCold.Set(float64(s.inProgressCold))
+	MSchedulerQueueDepth.Set(float64(s.queue.Len()))
 }
 
 // enqueueLocked inserts or reorders the task in the queue. Caller must hold
