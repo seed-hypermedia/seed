@@ -27,14 +27,17 @@ rollback targets.
 
 ## Upstream sync (automated)
 
-The `Custom - Sync Fork From Upstream` workflow (`.github/workflows/custom-rebase-main.yml`) lives on `custom-images`
-and runs every 6 hours (and on demand). Scheduled workflows only run from the default branch, which is why
-`custom-images` — not `main` — is the fork's default branch. It:
+The `Custom - Sync Fork From Upstream` workflow (`.github/workflows/custom-sync-upstream.yml`) lives on `custom-images`
+and runs daily (and on demand). Scheduled workflows only run from the default branch, which is why `custom-images` — not
+`main` — is the fork's default branch. It:
 
 1. Force pushes `upstream/main` onto `main`, so `main` is byte-identical to upstream.
 2. Mirrors new upstream tags.
-3. Rebases `custom-images` onto the freshly mirrored `main` and force-with-lease pushes `custom-images`.
-4. Tags `custom-images` as `<version>-custom` for the newest mirrored release, which triggers the GHCR image build.
+3. Only when a new `X.Y.Z` release tag was mirrored: rebases `custom-images` onto that tag, force-with-lease pushes it,
+   and tags it `<version>-custom`, which triggers the GHCR image build.
+
+So `main` follows upstream continuously while `custom-images` moves release by release. A manual run can name a
+`rebase_tag` to redo the rebase for an already mirrored release.
 
 If the rebase hits a conflict, the workflow opens (or comments on) a tracking issue and stops so it can be resolved
 manually.
@@ -42,12 +45,14 @@ manually.
 To reproduce it locally:
 
 ```sh
-git fetch upstream main
+git fetch upstream main '+refs/tags/*:refs/tags/*'
 git push --force origin refs/remotes/upstream/main:refs/heads/main
 
 git switch custom-images
-git rebase origin/main
+git rebase <version>
 git push --force-with-lease origin custom-images
+git tag -a <version>-custom -m "custom-images rebased onto <version>"
+git push origin refs/tags/<version>-custom
 ```
 
 If rebase conflicts occur, stop and resolve them manually. Do not push a conflicted or unverified rebase. After the
