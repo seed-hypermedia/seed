@@ -2,9 +2,14 @@ name: Custom - Sync Fork From Upstream
 
 on:
   workflow_dispatch:
+    inputs:
+      rebase_tag:
+        description: 'Release tag to rebase custom-images onto, even if it was already mirrored (e.g. 2026.7.1).'
+        required: false
+        type: string
   schedule:
-    # Keep the fork close to upstream every 6 hours.
-    - cron: '17 */6 * * *'
+    # Mirror upstream once a day.
+    - cron: '17 5 * * *'
 
 permissions:
   contents: write
@@ -19,6 +24,8 @@ jobs:
     name: Mirror upstream/main into main
     runs-on: ubuntu-latest
     if: github.repository == 'horacioh/seed'
+    outputs:
+      release_tag: ${{ steps.mirror-tags.outputs.release_tag }}
     steps:
       - name: Checkout custom-images
         uses: actions/checkout@v4
@@ -45,20 +52,30 @@ jobs:
           git push --force origin refs/remotes/upstream/main:refs/heads/main
 
       - name: Mirror new upstream tags
+        id: mirror-tags
+        env:
+          FORCED_TAG: ${{ inputs.rebase_tag }}
         run: |
           # Compare local tags (the snapshot fetched from upstream) against origin, so every
           # tag pushed below is guaranteed to exist locally even if upstream tags mid-run.
           git tag --list | sort -u > /tmp/upstream-tags
           git ls-remote --tags origin | awk '{print $2}' | sed 's#^refs/tags/##' | { grep -v '\^{}$' || true; } | sort -u > /tmp/origin-tags
           new_tags=$(comm -23 /tmp/upstream-tags /tmp/origin-tags)
-          if [ -z "$new_tags" ]; then
+          if [ -n "$new_tags" ]; then
+            echo "New upstream tags:"
+            echo "$new_tags"
+            # shellcheck disable=SC2046
+            git push origin $(echo "$new_tags" | sed 's#^#refs/tags/#')
+          else
             echo 'No new upstream tags.'
-            exit 0
           fi
-          echo "New upstream tags:"
-          echo "$new_tags"
-          # shellcheck disable=SC2046
-          git push origin $(echo "$new_tags" | sed 's#^#refs/tags/#')
+          # custom-images tracks releases, not every upstream commit, so only a newly
+          # mirrored X.Y.Z tag (or one named on a manual run) triggers the rebase below.
+          release_tag=$(echo "$new_tags" | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -1)
+          if [ -n "$FORCED_TAG" ]; then
+            release_tag=$FORCED_TAG
+          fi
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
       - name: Open or update failure issue
         if: failure()
@@ -78,10 +95,12 @@ jobs:
           fi
 
   rebase-custom-images:
-    name: Rebase custom-images onto main
+    name: Rebase custom-images onto the new release
     needs: sync-main
     runs-on: ubuntu-latest
-    if: github.repository == 'horacioh/seed'
+    if: github.repository == 'horacioh/seed' && needs.sync-main.outputs.release_tag != ''
+    env:
+      RELEASE_TAG: ${{ needs.sync-main.outputs.release_tag }}
     steps:
       - name: Checkout custom-images
         uses: actions/checkout@v4
@@ -95,15 +114,15 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: Fetch updated main
-        run: git fetch --prune origin main
+      - name: Fetch the release tag
+        run: git fetch --prune origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
 
       - name: Record starting HEAD
         id: before
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Rebase custom-images onto origin/main
-        run: git rebase origin/main
+      - name: Rebase custom-images onto the release tag
+        run: git rebase "$RELEASE_TAG"
 
       - name: Record rebased HEAD
         id: after
@@ -113,22 +132,15 @@ jobs:
         if: steps.after.outputs.sha != steps.before.outputs.sha
         run: git push --force-with-lease origin HEAD:custom-images
 
-      - name: Tag custom-images for the newest mirrored release
+      - name: Tag custom-images for the release
         run: |
-          # Derived from origin rather than from what this run mirrored, so a failed run
-          # is recovered by the next scheduled one instead of losing the marker forever.
-          tags=$(git ls-remote --tags origin | awk '{print $2}' | sed 's#^refs/tags/##' | { grep -v '\^{}$' || true; })
-          latest=$(echo "$tags" | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -1)
-          if [ -z "$latest" ]; then
-            echo 'No release tags on origin yet.'
-            exit 0
+          # The tag is what triggers the GHCR image build, so a manual re-run of an already
+          # mirrored release has to move it onto the freshly rebased commit.
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG-custom" >/dev/null 2>&1; then
+            git push --delete origin "refs/tags/$RELEASE_TAG-custom"
           fi
-          if echo "$tags" | grep -qFx "$latest-custom"; then
-            echo "Tag $latest-custom already exists on origin."
-            exit 0
-          fi
-          git tag -a "$latest-custom" -m "custom-images rebased onto $latest"
-          git push origin "refs/tags/$latest-custom"
+          git tag -f -a "$RELEASE_TAG-custom" -m "custom-images rebased onto $RELEASE_TAG"
+          git push origin "refs/tags/$RELEASE_TAG-custom"
 
       - name: Open or update failure issue
         if: failure()
@@ -137,7 +149,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title='Rebase of custom-images failed'
-          body="The scheduled rebase of \`custom-images\` onto the freshly synced \`main\` failed (most likely a conflict with the fork's custom commits), or the \`<version>-custom\` tag could not be pushed. Check the failed step in the run below, resolve it manually, then re-run the workflow.
+          body="The rebase of \`custom-images\` onto the newly mirrored release tag failed (most likely a conflict with the fork's custom commits), or the \`<version>-custom\` tag could not be pushed. Check the failed step in the run below, resolve it manually, then re-run the workflow.
 
           Failed run: $RUN_URL"
           existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
