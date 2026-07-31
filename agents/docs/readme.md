@@ -62,6 +62,12 @@ Important incomplete work:
 - WebSocket server-to-client messages are JSON and not individually signed.
 - Tool permissions are coarse; `read` is always available in OpenAI execution.
 
+## Research playground
+
+Next-generation design work (orchestration, modular Onyx-typed actions, progressive tool discovery,
+self-configuration, and the self-managing one-input surface) lives in [research/](./research/readme.md). Nothing in
+that directory describes shipped behavior; this directory remains the source of truth for what exists.
+
 ## Start here reading order
 
 1. [System overview](./system-overview.md) — architecture, boundaries, lifecycle, completed/incomplete status.
