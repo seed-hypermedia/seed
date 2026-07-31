@@ -40,27 +40,40 @@ func TestPeerBackoffSuccessClears(t *testing.T) {
 
 // TestPeerBackoffGrowsWithFailures: repeated failures must lengthen the bench
 // time, otherwise a permanently dead peer is retried as often as a flaky one.
+//
+// Asserted on the ceiling, not on the wait actually served. Full jitter draws
+// uniformly from [0, ceiling), so a 7th failure routinely draws a shorter wait
+// than the 1st — comparing two drawn values is a ~2.5% flake, which is exactly
+// how this test failed before.
 func TestPeerBackoffGrowsWithFailures(t *testing.T) {
+	require.Equal(t, backoffBase, backoffCeiling(1))
+	require.Equal(t, 2*backoffBase, backoffCeiling(2))
+	require.Equal(t, 4*backoffBase, backoffCeiling(3))
+
+	for n := 2; n < 6; n++ {
+		require.Greater(t, backoffCeiling(n), backoffCeiling(n-1),
+			"a peer that keeps failing must wait longer than a flaky one")
+	}
+
+	require.Equal(t, backoffMax, backoffCeiling(99), "the ladder must cap")
+	require.Equal(t, backoffMax, backoffCeiling(1<<20), "and not overflow past the cap")
+}
+
+// TestPeerBackoffRecordsFailuresWithinBounds covers what Fail actually stores:
+// the count climbs, and whatever jitter lands stays inside the ceiling.
+func TestPeerBackoffRecordsFailuresWithinBounds(t *testing.T) {
 	b := newPeerBackoff()
 	p := testPeer(1)
 
-	b.Fail(p)
-	b.mu.Lock()
-	first := b.state[p].until
-	b.mu.Unlock()
-
-	for range 6 {
+	for range 7 {
 		b.Fail(p)
 	}
-	b.mu.Lock()
-	later := b.state[p].until
-	failures := b.state[p].failures
-	b.mu.Unlock()
 
-	require.Equal(t, 7, failures)
-	require.True(t, later.After(first), "backoff must extend with repeated failures")
-	require.LessOrEqual(t, time.Until(later), backoffBase+backoffMax,
-		"backoff must stay capped")
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	require.Equal(t, 7, b.state[p].failures)
+	require.LessOrEqual(t, time.Until(b.state[p].until), backoffBase+backoffCeiling(7))
+	require.Greater(t, time.Until(b.state[p].until), time.Duration(0))
 }
 
 // TestPeerBackoffExpiryRestoresEligibility: when the timer runs out the peer
@@ -248,15 +261,27 @@ func TestSamplePeersRotates(t *testing.T) {
 		"repeated waves must reach beyond a single fixed subset")
 }
 
-// TestMediaSlotIsExclusive: the second concurrent sync must be turned away
-// rather than queued, since queueing would hold the worker slot this cap exists
-// to protect.
-func TestMediaSlotIsExclusive(t *testing.T) {
-	s := newTrySem(1)
+// TestMediaSlotRefusesRatherThanQueues: past the cap the next sync must be
+// turned away, not blocked, since queueing would hold the worker slot the cap
+// exists to protect.
+func TestMediaSlotRefusesRatherThanQueues(t *testing.T) {
+	s := newTrySem(mediaSlots)
 
-	require.True(t, s.tryAcquire())
-	require.False(t, s.tryAcquire(), "a second holder must be refused, not blocked")
+	for i := range mediaSlots {
+		require.True(t, s.tryAcquire(), "slot %d must be available", i)
+	}
+	require.False(t, s.tryAcquire(), "past the cap a holder must be refused, not blocked")
 
 	s.release()
 	require.True(t, s.tryAcquire(), "releasing lets the next sync through")
+}
+
+// TestMediaSlotsLeaveRoomForStructural: the whole point of the cap is that bulk
+// media cannot occupy every worker while other spaces still need their Refs and
+// Changes — nor compete for bandwidth with a fetch a user is waiting on. Raising
+// this to 2 improved background convergence and made page load slower, so it
+// stays small until the cap is made conditional on interactive work instead.
+func TestMediaSlotsLeaveRoomForStructural(t *testing.T) {
+	require.Less(t, mediaSlots, 6, "must leave workers free at the default MaxWorkers=6")
+	require.Positive(t, mediaSlots)
 }

@@ -71,8 +71,21 @@ func (b *peerBackoff) Fail(pid peer.ID) {
 
 	// Exponential with full jitter: without it, a batch of peers that failed
 	// together comes back together and re-fails together.
-	d := min(backoffBase<<min(e.failures-1, 16), backoffMax)
-	e.until = now.Add(backoffBase + time.Duration(rand.Int64N(int64(d))))
+	e.until = now.Add(backoffBase + time.Duration(rand.Int64N(int64(backoffCeiling(e.failures)))))
+}
+
+// backoffCeiling is the upper bound on the jittered wait after n failures.
+//
+// This is the part that grows monotonically. The wait actually served is drawn
+// uniformly from [0, ceiling) on top of backoffBase, so a later failure can and
+// does draw a shorter wait than an earlier one — that is what full jitter is
+// for. Only the ceiling is a property worth asserting.
+func backoffCeiling(failures int) time.Duration {
+	if failures < 1 {
+		return backoffBase
+	}
+	// Cap the shift before it can overflow the duration.
+	return min(backoffBase<<min(failures-1, 16), backoffMax)
 }
 
 // Succeed clears any backoff. Eligibility is the only state we keep, so there

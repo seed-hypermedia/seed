@@ -25,6 +25,7 @@ import (
 	blocks "github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/protocol"
 	"github.com/multiformats/go-multiaddr"
@@ -125,6 +126,15 @@ var (
 		Help:    "Peers selected for one discovery wave, after ceiling and backoff.",
 		Buckets: []float64{1, 2, 5, 10, 20, 30, 50, 100, 250, 500, 1000},
 	})
+
+	// MSyncTierRun counts how far each wave had to escalate. A healthy steady
+	// state runs "authority" almost exclusively; a rising "cold" share means we
+	// are paying 1-6s handshakes to strangers because the good peers could not
+	// answer.
+	MSyncTierRun = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_sync_tier_run_total",
+		Help: "Peer tiers a discovery wave actually had to run.",
+	}, []string{"tier"})
 
 	// MDiscoverPeersSource splits the wave's peer set by where each peer came
 	// from. MDiscoverPeersSampled alone can't answer whether the always-include
@@ -737,13 +747,85 @@ type SyncResult struct {
 	Errs          []error
 }
 
-// maxPeerConcurrency bounds the number of peers a single discovery task syncs
-// with simultaneously. The per-task peer pool is a rolling sliding window:
-// gateways fill the first slots, then the remaining slots stream non-gateway
-// peers in, with a new peer dispatched the moment any in-flight peer returns
-// (see errgroup.SetLimit usage in syncWithManyPeers). With MaxWorkers=6 tasks
-// and 20 peers each, the system-wide concurrent peer syncs are bounded at 120.
+// maxPeerConcurrency bounds the number of peers a single TIER of a discovery
+// task syncs with simultaneously (see errgroup.SetLimit usage in
+// syncWithManyPeers). With MaxWorkers=6 tasks the system-wide concurrent peer
+// syncs are bounded at 120.
+//
+// Note this is a concurrency cap, not a gate: it only orders anything when a
+// tier holds more peers than the cap. Ordering peers within one errgroup — as
+// this function used to, dispatching gateways "first" — therefore did nothing
+// at all, because waves carry ~11 peers against a cap of 20 and every peer
+// started at once. Priority now comes from running tiers in sequence.
 const maxPeerConcurrency = 20
+
+// Peer tiers, ordered by what a sync with them costs us.
+//
+// The distinction that matters is the dial. Measured on a live daemon: dial
+// latency is bimodal — 54% of dials finish under 8ms because the connection is
+// already open, and the other 46% take 1-6 seconds because they are not. That
+// slow half consumed 4,753 peer-seconds against 657s of actual transfer, i.e.
+// we spent 7x longer opening connections than moving bytes.
+//
+// So a stranger has to be worth it. A tier only runs if the one before it left
+// something owed.
+// Named with a peerTier prefix to stay clear of the scheduler's queue tiers
+// (tierHot/tierCold in scheduler.go), which are a different axis entirely.
+const (
+	// peerTierAuthority: the space's own site server, and the gateways. Already
+	// connected, and between them they hold essentially everything.
+	peerTierAuthority = iota
+	// peerTierConnected: any other peer we already have a live connection to.
+	// Costs a reconcile RTT and no dial.
+	peerTierConnected
+	// peerTierCold: peers from the peers table we are not connected to. Every
+	// one is a full handshake to a node that may have been gone for months.
+	peerTierCold
+
+	numPeerTiers
+)
+
+// peerTierNames labels the tier metric; index must mirror the constants above.
+var peerTierNames = [numPeerTiers]string{"authority", "connected", "cold"}
+
+// peerTier classifies a peer by what syncing with it will cost.
+func (s *Service) peerTier(pid peer.ID, auth *authInfo) int {
+	if auth != nil {
+		if _, ok := auth.addrInfos[pid]; ok {
+			return peerTierAuthority
+		}
+	}
+	if gatewayPIDs[pid] {
+		return peerTierAuthority
+	}
+	if cm := s.host.ConnManager(); cm != nil && cm.IsProtected(pid, ipfs.BootstrapSupportKey) {
+		return peerTierAuthority
+	}
+	if s.host.Network().Connectedness(pid) == network.Connected {
+		return peerTierConnected
+	}
+	return peerTierCold
+}
+
+// tierSatisfied reports whether a finished tier answered the wave, so the next
+// one can be skipped.
+//
+// Two conditions, and the first is the one that is easy to get wrong: if every
+// peer in the tier failed, nothing was reconciled, so nothing is outstanding —
+// which looks identical to "we are fully in sync". Requiring that we actually
+// reached somebody keeps an all-failed tier escalating instead of silently
+// ending the wave.
+//
+// The outstanding test is deliberately the same expression shouldDropStragglers
+// uses for its warm fast-path cut, so the two notions of "nothing left owed"
+// cannot drift apart.
+func tierSatisfied(res *SyncResult, prog *Progress) bool {
+	if atomic.LoadInt64(&res.NumSyncOK) == 0 {
+		return false
+	}
+	outstanding := int64(prog.MaxReconciledWants.Load()) - int64(prog.BlobsDownloaded.Load())
+	return outstanding <= 0
+}
 
 // gatewayPIDs is the set of well-known gateway peer IDs. Gateways are
 // well-connected infrastructure peers that are most likely to have content,
@@ -762,6 +844,14 @@ var gatewayPIDs = func() map[peer.ID]bool {
 	}
 	return m
 }()
+
+// dialTimeout bounds how long one peer-sync may sit in StageConnecting.
+//
+// Was 10s, which is well past useful: measured over 3,998 dials, 99.6% complete
+// within 5.8s and the mass is at 1-3s, so the last four seconds only ever bought
+// stragglers. It matters most for peerTierCold, where a peer gone for
+// months would otherwise hold a slot for the full ten.
+const dialTimeout = 6 * time.Second
 
 const (
 	// stragglerGrace is how long downloads must be idle before the straggler
@@ -1049,111 +1139,152 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 	// are persisted before it returns, so the shared feeder is never stopped here.
 	pf := s.globalPersistFeeder()
 
-	var g errgroup.Group
-	g.SetLimit(maxPeerConcurrency)
-
-	total := len(subsMap)
-	var completed atomic.Int64
-
-	dispatch := func(i int, pid peer.ID, eids map[string]entityScope) {
-		res.Peers[i] = pid
-		g.Go(func() error {
-			defer completed.Add(1)
-			var err error
-			s.log.Debug("Syncing with peer", zap.String("PID", pid.String()))
-			if xerr := s.syncWithPeer(ctx, pid, eids, store, prog, auth, blobTypes, bswap, &claimedBlocks, pf); xerr != nil {
-				s.log.Debug("Could not sync with content", zap.String("PID", pid.String()), zap.Error(xerr))
-				err = fmt.Errorf("failed to sync objects: %w", xerr)
-			}
-
-			res.Errs[i] = err
-			if err == nil {
-				atomic.AddInt64(&res.NumSyncOK, 1)
-				prog.PeersSyncedOK.Add(1)
-			} else {
-				atomic.AddInt64(&res.NumSyncFailed, 1)
-				prog.PeersFailed.Add(1)
-			}
-			return nil
-		})
+	// Partition into tiers up front. res.Peers/res.Errs stay indexed over the
+	// whole wave so each peer keeps a stable slot regardless of which tier runs.
+	//
+	// A tier we never reach therefore leaves its slots zeroed: an empty peer ID
+	// and a nil error. Callers today only read NumSyncOK, but anyone who starts
+	// reading Errs must not take nil to mean success — it also means "never
+	// attempted, because the good peers already answered".
+	type tieredPeer struct {
+		idx  int
+		pid  peer.ID
+		eids map[string]entityScope
 	}
-
-	// First pass: gateways get the first concurrency slots.
-	var i int
-	for pid, eids := range subsMap {
-		if gatewayPIDs[pid] {
-			dispatch(i, pid, eids)
-			i++
-		}
-	}
-	// Second pass: everyone else.
-	for pid, eids := range subsMap {
-		if !gatewayPIDs[pid] {
-			dispatch(i, pid, eids)
+	tiers := make([][]tieredPeer, numPeerTiers)
+	{
+		var i int
+		for pid, eids := range subsMap {
+			t := s.peerTier(pid, auth)
+			tiers[t] = append(tiers[t], tieredPeer{idx: i, pid: pid, eids: eids})
 			i++
 		}
 	}
 
-	// Straggler watcher (see the rationale at the top of the function). Drops
-	// the slow tail once a quorum has finished and downloads have gone idle for
-	// the grace window; the download-idle check makes it cold-safe. Interactive
-	// (hot-task) waves additionally cut on a success quorum (shouldCutHotWave):
-	// the completion quorum counts failures, so it is otherwise reached at the
-	// pace of dead peers' dial timeouts.
 	hot := isHotDiscovery(ctx)
-	watcherDone := make(chan struct{})
-	go func() {
-		const (
-			quorumNum = 7
-			quorumDen = 10
-		)
-		quorum := max(int64(total)*quorumNum/quorumDen, 1)
-		ticker := time.NewTicker(500 * time.Millisecond)
-		defer ticker.Stop()
-		lastDownloaded := int32(-1)
-		var idleSince time.Time
-		for {
-			select {
-			case <-watcherDone:
-				return
-			case <-ctx.Done():
-				return
-			case now := <-ticker.C:
-				if dl := prog.BlobsDownloaded.Load(); dl != lastDownloaded {
-					// New content arriving (or first sample) — reset idle timer
-					// so an actively-downloading (cold) sync is never cut.
-					lastDownloaded = dl
-					idleSince = now
-					continue
+
+	// runTier syncs one tier to completion. Each tier gets its own cancellable
+	// context and its own straggler watcher, so cutting a tier's slow tail
+	// doesn't tear down the wave — the next tier may still need to run.
+	runTier := func(peers []tieredPeer) {
+		tierCtx, tierCancel := context.WithCancel(ctx)
+		defer tierCancel()
+
+		var g errgroup.Group
+		g.SetLimit(maxPeerConcurrency)
+
+		total := len(peers)
+		var completed atomic.Int64
+
+		for _, p := range peers {
+			res.Peers[p.idx] = p.pid
+			g.Go(func() error {
+				defer completed.Add(1)
+				var err error
+				s.log.Debug("Syncing with peer", zap.String("PID", p.pid.String()))
+				if xerr := s.syncWithPeer(tierCtx, p.pid, p.eids, store, prog, auth, blobTypes, bswap, &claimedBlocks, pf); xerr != nil {
+					s.log.Debug("Could not sync with content", zap.String("PID", p.pid.String()), zap.Error(xerr))
+					err = fmt.Errorf("failed to sync objects: %w", xerr)
 				}
-				if idleSince.IsZero() {
-					continue
+
+				res.Errs[p.idx] = err
+				if err == nil {
+					atomic.AddInt64(&res.NumSyncOK, 1)
+					prog.PeersSyncedOK.Add(1)
+				} else {
+					atomic.AddInt64(&res.NumSyncFailed, 1)
+					prog.PeersFailed.Add(1)
 				}
-				idle := now.Sub(idleSince)
-				maxRec := prog.MaxReconciledWants.Load()
-				outstanding := int64(maxRec) - int64(lastDownloaded)
-				if hot && shouldCutHotWave(atomic.LoadInt64(&res.NumSyncOK), total, idle, outstanding) {
-					cancel()
+				return nil
+			})
+		}
+
+		// Straggler watcher (see the rationale at the top of the function). Drops
+		// the slow tail once a quorum has finished and downloads have gone idle for
+		// the grace window; the download-idle check makes it cold-safe. Interactive
+		// (hot-task) waves additionally cut on a success quorum (shouldCutHotWave):
+		// the completion quorum counts failures, so it is otherwise reached at the
+		// pace of dead peers' dial timeouts.
+		watcherDone := make(chan struct{})
+		go func() {
+			const (
+				quorumNum = 7
+				quorumDen = 10
+			)
+			quorum := max(int64(total)*quorumNum/quorumDen, 1)
+			ticker := time.NewTicker(500 * time.Millisecond)
+			defer ticker.Stop()
+			lastDownloaded := int32(-1)
+			var idleSince time.Time
+			for {
+				select {
+				case <-watcherDone:
+					return
+				case <-tierCtx.Done():
+					return
+				case now := <-ticker.C:
+					if dl := prog.BlobsDownloaded.Load(); dl != lastDownloaded {
+						// New content arriving (or first sample) — reset idle timer
+						// so an actively-downloading (cold) sync is never cut.
+						lastDownloaded = dl
+						idleSince = now
+						continue
+					}
+					if idleSince.IsZero() {
+						continue
+					}
+					idle := now.Sub(idleSince)
+					maxRec := prog.MaxReconciledWants.Load()
+					outstanding := int64(maxRec) - int64(lastDownloaded)
+					if hot && shouldCutHotWave(atomic.LoadInt64(&res.NumSyncOK), total, idle, outstanding) {
+						tierCancel()
+						return
+					}
+					// Keep the wave draining while a peer still owes us a large
+					// reconciled backlog (the bulk still streaming from a complete
+					// peer, gapped under load — not a straggler tail). Cut only when
+					// the backlog is nearly gone or the wave has genuinely stalled.
+					//
+					// Keeping this ungated on tier size, deliberately. Gating it
+					// (minStragglerTier) was tried to cut ctx_done waste and made
+					// things worse on both counts: ctx_done rose 46% -> 53%, because
+					// the real canceller is preemption, and page load got slower,
+					// because a small tier with one slow peer then had nothing to cut
+					// it — shouldCutHotWave needs min(3,total) successes, which a
+					// 2-peer tier can only reach when both are already done.
+					if !shouldDropStragglers(completed.Load(), quorum, idle, maxRec, lastDownloaded, quickDrain) {
+						continue
+					}
+					tierCancel()
 					return
 				}
-				// Keep the wave draining while a peer still owes us a large
-				// reconciled backlog (the bulk still streaming from a complete
-				// peer, gapped under load — not a straggler tail). Cut only when
-				// the backlog is nearly gone or the wave has genuinely stalled.
-				if !shouldDropStragglers(completed.Load(), quorum, idle, maxRec, lastDownloaded, quickDrain) {
-					continue
-				}
-				cancel()
-				return
 			}
-		}
-	}()
+		}()
 
-	_ = g.Wait()
-	close(watcherDone)
+		_ = g.Wait()
+		close(watcherDone)
+	}
+
+	for t, peers := range tiers {
+		if len(peers) == 0 {
+			continue
+		}
+		runTier(peers)
+		MSyncTierRun.WithLabelValues(peerTierNames[t]).Inc()
+		if tierSatisfied(&res, prog) {
+			// The good peers answered. Opening connections to strangers now
+			// cannot produce anything, and would hold worker slots for seconds
+			// doing it.
+			break
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+
 	// No feeder teardown here: it's the shared daemon-wide feeder. Each peer's
 	// per-tier WaitGroup barrier already waited for its batches to be persisted
-	// before the peer goroutine returned, so by g.Wait() this discovery's blocks
+	// before the peer goroutine returned, so by now this discovery's blocks
 	// are all on disk.
 
 	return res
@@ -1200,7 +1331,7 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	c, err := func() (p2p.SyncingClient, error) {
 		leaveStage := syncperf.Default.EnterStage(syncperf.StageConnecting, commonSpace(eids))
 		defer leaveStage()
-		dialCtx, dialCancel := context.WithTimeout(ctx, 10*time.Second)
+		dialCtx, dialCancel := context.WithTimeout(ctx, dialTimeout)
 		defer dialCancel()
 		return s.rbsrClient(dialCtx, pid)
 	}()
@@ -1705,14 +1836,29 @@ func syncResources(
 	return nil
 }
 
-// mediaSlot bounds how many peer-syncs may fetch media at once, daemon-wide.
+// mediaSlot bounds how many peer-syncs may fetch bulk media at once,
+// daemon-wide. Callers try-acquire and skip on failure rather than queueing,
+// since waiting would hold the worker slot that this exists to free.
 //
-// One slot, deliberately: media is ~99% of synced bytes and none of it is
-// needed to render text, so a space with hundreds of megabytes of files must
-// not be able to occupy the worker pool while other spaces still need their
-// Refs and Changes. Callers try-acquire and skip on failure rather than
-// queueing, since waiting would hold the worker slot that this exists to free.
-var mediaSlot = newTrySem(1)
+// This was 1, which was far too tight. Media is ~99% of synced bytes, so a
+// single slot serialises essentially the entire payload: measured over one
+// cold start, 17,826 media blobs were deferred against 3,047 fetched — we
+// refused media 6x more often than we took it — and bulk fetching was active
+// for only ~190s of the 531s to convergence, a 36% duty cycle. Convergence was
+// gate-bound, not link-bound.
+//
+// Raising this to 2 was tried and reverted. It did what it was meant to —
+// convergence 531s -> 431s, deferrals 17,826 -> 2,965, completeness 0.24 ->
+// 0.50 — but page load got slower in the same build, and bulk media competing
+// for bandwidth and worker slots with the fetch a user is waiting on is the
+// obvious way that happens. Background convergence is not worth interactive
+// latency.
+//
+// If this is revisited, the way to get both is to make the cap conditional on
+// there being no interactive work in flight, rather than a bigger fixed number.
+const mediaSlots = 1
+
+var mediaSlot = newTrySem(mediaSlots)
 
 // trySem is a counting semaphore with no blocking acquire — the only operation
 // we want here is "take it if it's free, otherwise carry on".
