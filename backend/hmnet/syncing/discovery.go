@@ -129,6 +129,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	outcome := "notfound"
 	defer func() {
 		endSession()
+		s.recordWaveYield(entityID, recursive, prog.BlobsDownloaded.Load())
 		if resultErr != nil {
 			outcome = "error"
 		}
@@ -218,11 +219,23 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	eidsMap[string(entityID)] = entityScope{Recursive: recursive, DepthOne: depthOne}
 	auth := s.computeAuthInfo(ctxLocalPeers, eidsMap)
 
-	// haveLocally: the entity already resolves out of our own database, so this
-	// wave is a liveness check ("has anyone published since?"), not a search.
-	// One local read, against a fan-out that otherwise costs tens of dials.
-	haveLocally := false
-	if s.resources != nil {
+	// Is this wave a liveness check ("has anyone published since?") or a real
+	// search? Two independent signals, because either alone has a blind spot.
+	//
+	// The entity resolving locally is the direct evidence. But resolving means
+	// "there is a document here", which is not the same as "we have this space's
+	// content": an account that has only ever published a Profile and some
+	// Capabilities has no Ref, so it never resolves, and gating on this alone
+	// left every such space searching 20 peers every ~11s forever. That is most
+	// of the long tail — measured at ~6 of the remaining speculative peers per
+	// wave.
+	//
+	// So also: has this scope gone quiet? A scope whose last few waves fetched
+	// nothing is settled whatever the index says about it. That signal cannot
+	// lie the way the resolve check can, because it measures the thing we
+	// actually care about.
+	haveLocally := s.scopeIsQuiet(entityID)
+	if !haveLocally && s.resources != nil {
 		if _, gerr := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
 			Iri: string(entityID),
 		}); gerr == nil {

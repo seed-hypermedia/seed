@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"seed/backend/blob"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -152,6 +154,50 @@ func TestSampleWidthNeverStrandsANode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestScopeQuietTracking covers the signal that replaces "does this resolve as
+// a document". An account that only ever published a Profile and some
+// Capabilities has no Ref, so it never resolves, and the resolve check alone
+// left every such space searching 20 peers every ~11s forever.
+func TestScopeQuietTracking(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkExample")
+	s := &Service{}
+
+	require.False(t, s.scopeIsQuiet(scope), "unknown scopes must search")
+
+	s.recordWaveYield(scope, true, 0)
+	require.False(t, s.scopeIsQuiet(scope),
+		"one empty wave is not enough — a dropped peer must not narrow a catch-up")
+
+	s.recordWaveYield(scope, true, 0)
+	require.True(t, s.scopeIsQuiet(scope), "consistently empty means settled")
+
+	// Anything arriving puts the full search back immediately.
+	s.recordWaveYield(scope, true, 3)
+	require.False(t, s.scopeIsQuiet(scope))
+}
+
+// TestScopeQuietIgnoresOneShots: a non-recursive discovery never runs a second
+// wave, so recording it only grows the map.
+func TestScopeQuietIgnoresOneShots(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkOneShot")
+	s := &Service{}
+
+	s.recordWaveYield(scope, false, 0)
+	s.recordWaveYield(scope, false, 0)
+
+	require.False(t, s.scopeIsQuiet(scope))
+	require.Empty(t, s.quiet)
+}
+
+// TestScopeQuietRespectsCap keeps the tracker bounded.
+func TestScopeQuietRespectsCap(t *testing.T) {
+	s := &Service{}
+	for i := range maxQuietScopes + 50 {
+		s.recordWaveYield(blob.IRI(fmt.Sprintf("hm://scope%d", i)), true, 0)
+	}
+	require.Len(t, s.quiet, maxQuietScopes)
 }
 
 // TestSamplePeersSkipsIneligible: benched peers must not be drawn, or backoff

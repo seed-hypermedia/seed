@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"seed/backend/blob"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -140,6 +142,59 @@ const (
 	// that is down — without paying for a real search.
 	narrowSampledPeers = 2
 )
+
+// quietWavesBeforeNarrowing is how many consecutive empty waves mark a scope as
+// settled. More than one so a single unlucky wave — a peer that dropped, a
+// cancelled fetch — doesn't narrow a scope that is still catching up.
+const quietWavesBeforeNarrowing = 2
+
+// maxQuietScopes bounds the tracker. Only recursive (subscription) scopes are
+// recorded, so in practice this is the subscription count; the cap only exists
+// so a pathological caller can't grow it without limit.
+const maxQuietScopes = 10000
+
+// scopeIsQuiet reports whether this scope's recent waves have all come back
+// empty, meaning there is nothing left to search for.
+func (s *Service) scopeIsQuiet(entityID blob.IRI) bool {
+	s.quietMu.Lock()
+	defer s.quietMu.Unlock()
+	return s.quiet[entityID] >= quietWavesBeforeNarrowing
+}
+
+// recordWaveYield folds one wave's result into the quiet counter. Anything
+// fetched resets it, so a scope that starts producing again immediately gets the
+// full search back.
+//
+// Only recursive scopes are tracked: a one-shot discovery never runs a second
+// wave, so there is nothing for the counter to inform, and recording it would
+// grow the map for no benefit.
+func (s *Service) recordWaveYield(entityID blob.IRI, recursive bool, blobs int32) {
+	if !recursive {
+		return
+	}
+
+	s.quietMu.Lock()
+	defer s.quietMu.Unlock()
+
+	if s.quiet == nil {
+		s.quiet = make(map[blob.IRI]int)
+	}
+	if blobs > 0 {
+		delete(s.quiet, entityID)
+		return
+	}
+	if n, ok := s.quiet[entityID]; ok {
+		// Saturate rather than climb forever; only the threshold is read.
+		if n < quietWavesBeforeNarrowing {
+			s.quiet[entityID] = n + 1
+		}
+		return
+	}
+	if len(s.quiet) >= maxQuietScopes {
+		return
+	}
+	s.quiet[entityID] = 1
+}
 
 // sampleWidth decides how many peers to speculatively sample for one wave.
 //

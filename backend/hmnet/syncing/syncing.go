@@ -482,6 +482,11 @@ type Service struct {
 	// dead ones. See peerbackoff.go for why this is in memory.
 	peerBackoff *peerBackoff
 
+	// quiet counts consecutive empty waves per recursive scope, so a settled
+	// subscription stops paying for a speculative search. See scopeIsQuiet.
+	quietMu sync.Mutex
+	quiet   map[blob.IRI]int
+
 	scheduler *scheduler
 
 	// persistFeeder is the daemon-wide single-writer persist queue, shared by all
