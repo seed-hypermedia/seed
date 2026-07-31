@@ -2584,7 +2584,10 @@ function DocumentBody({
                     rootReplyCommentVersion={
                       panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
                     }
-                    focusOnMount
+                    // On mobile, opening the keyboard during the sheet entrance
+                    // causes visible viewport jumps. Let the drawer settle and
+                    // let users tap the composer when they are ready to type.
+                    focusOnMount={false}
                   />
                 ) : undefined
               }
