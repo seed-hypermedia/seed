@@ -12,6 +12,7 @@ on:
     - cron: '17 5 * * *'
 
 permissions:
+  actions: write
   contents: write
   issues: write
 
@@ -134,13 +135,21 @@ jobs:
 
       - name: Tag custom-images for the release
         run: |
-          # The tag is what triggers the GHCR image build, so a manual re-run of an already
-          # mirrored release has to move it onto the freshly rebased commit.
+          # A manual re-run of an already mirrored release has to move the tag onto the
+          # freshly rebased commit.
           if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG-custom" >/dev/null 2>&1; then
             git push --delete origin "refs/tags/$RELEASE_TAG-custom"
           fi
           git tag -f -a "$RELEASE_TAG-custom" -m "custom-images rebased onto $RELEASE_TAG"
           git push origin "refs/tags/$RELEASE_TAG-custom"
+
+      - name: Build the images for the tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Pushes made with GITHUB_TOKEN never trigger workflows, so the tag push above
+          # cannot start the image build on its own; dispatch it explicitly at the tag.
+          gh workflow run custom-ghcr-images.yml --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_TAG-custom"
 
       - name: Open or update failure issue
         if: failure()
