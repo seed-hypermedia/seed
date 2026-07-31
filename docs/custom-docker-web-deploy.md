@@ -34,7 +34,8 @@ and runs daily (and on demand). Scheduled workflows only run from the default br
 1. Force pushes `upstream/main` onto `main`, so `main` is byte-identical to upstream.
 2. Mirrors new upstream tags.
 3. Only when a new `X.Y.Z` release tag was mirrored: rebases `custom-images` onto that tag, force-with-lease pushes it,
-   and tags it `<version>-custom`, which triggers the GHCR image build.
+   tags it `<version>-custom`, and dispatches the GHCR image build at that tag. (The dispatch is explicit because pushes
+   made with `GITHUB_TOKEN` never trigger workflows.)
 
 So `main` follows upstream continuously while `custom-images` moves release by release. A manual run can name a
 `rebase_tag` to redo the rebase for an already mirrored release.
