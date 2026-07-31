@@ -26,6 +26,7 @@ export function OpenInPanelButton({
       <Button
         variant={nested ? 'ghost' : accent ? 'accent' : 'ghost'}
         className={cn(
+          'hidden md:inline-flex',
           nested ? 'h-9 rounded-l-none rounded-r-full px-3 hover:bg-black/5 dark:hover:bg-white/10' : 'rounded-full',
         )}
         onClick={() => {
