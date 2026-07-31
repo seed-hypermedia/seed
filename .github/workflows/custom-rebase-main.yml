@@ -16,14 +16,14 @@ concurrency:
 
 jobs:
   sync-main:
-    name: Rebase main onto upstream/main
+    name: Mirror upstream/main into main
     runs-on: ubuntu-latest
     if: github.repository == 'horacioh/seed'
     steps:
-      - name: Checkout main
+      - name: Checkout custom-images
         uses: actions/checkout@v4
         with:
-          ref: main
+          ref: custom-images
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -32,26 +32,17 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 
-      - name: Record starting HEAD
-        id: before
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
       - name: Add and fetch upstream
         run: |
           git remote add upstream https://github.com/seed-hypermedia/seed.git
           git fetch --prune upstream main
           git fetch upstream '+refs/tags/*:refs/tags/*'
 
-      - name: Rebase main onto upstream/main
-        run: git rebase upstream/main
-
-      - name: Record rebased HEAD
-        id: after
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Push rebased main
-        if: steps.after.outputs.sha != steps.before.outputs.sha
-        run: git push --force-with-lease origin HEAD:main
+      - name: Mirror upstream/main into main
+        run: |
+          # main is a verbatim mirror of upstream: never carry fork commits, so a plain
+          # force push is enough and `git pull` on a fork clone always fast-forwards.
+          git push --force origin refs/remotes/upstream/main:refs/heads/main
 
       - name: Mirror new upstream tags
         run: |
@@ -76,7 +67,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           title='Upstream sync of main failed'
-          body="The scheduled sync with \`seed-hypermedia/seed\` failed — either the rebase of \`main\` or the mirroring of upstream tags. Check the failed step in the run below, resolve it manually, then re-run the workflow.
+          body="The scheduled sync with \`seed-hypermedia/seed\` failed — either the mirroring of \`main\` or of the upstream tags. Check the failed step in the run below, resolve it manually, then re-run the workflow.
 
           Failed run: $RUN_URL"
           existing=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$title\"" --json number --jq '.[0].number')
