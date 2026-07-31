@@ -6,10 +6,11 @@ Operator notes for running the Horacio fork deployment while tracking upstream S
 
 Two branches keep the fork clean while still shipping custom images:
 
-- `main`: a clean mirror of `seed-hypermedia/seed:main` plus a single sync workflow commit. It carries no product
-  customizations, so pulling upstream stays trivial.
-- `custom-images`: rebased on top of `main`, it holds every fork customization (custom web/site images, the
-  fork-hosted `deploy.js` updater, and the query-block filters). The GHCR image build runs from this branch.
+- `main`: a verbatim mirror of `seed-hypermedia/seed:main`, commit for commit. It carries nothing of the fork's own —
+  not even the sync workflow — so `git pull` always fast-forwards to the exact upstream state.
+- `custom-images`: the fork's default branch, rebased on top of `main`. It holds every fork customization (the sync and
+  GHCR workflows, custom web/site images, the fork-hosted `deploy.js` updater, and the query-block filters). The GHCR
+  image build runs from this branch.
 
 Other pointers:
 
@@ -26,34 +27,34 @@ rollback targets.
 
 ## Upstream sync (automated)
 
-The `Custom - Sync Fork From Upstream` workflow (`.github/workflows/custom-rebase-main.yml`) runs every 6 hours (and on
-demand) from `main`. It:
+The `Custom - Sync Fork From Upstream` workflow (`.github/workflows/custom-rebase-main.yml`) lives on `custom-images`
+and runs every 6 hours (and on demand). Scheduled workflows only run from the default branch, which is why
+`custom-images` — not `main` — is the fork's default branch. It:
 
-1. Rebases `main` onto `seed-hypermedia/seed:main` and force-with-lease pushes `main`.
-2. Rebases `custom-images` onto the freshly synced `main` and force-with-lease pushes `custom-images`.
-3. Dispatches the GHCR image build for `custom-images`.
+1. Force pushes `upstream/main` onto `main`, so `main` is byte-identical to upstream.
+2. Mirrors new upstream tags.
+3. Rebases `custom-images` onto the freshly mirrored `main` and force-with-lease pushes `custom-images`.
+4. Tags `custom-images` as `<version>-custom` for the newest mirrored release, which triggers the GHCR image build.
 
-If either rebase hits a conflict, the workflow opens (or comments on) a tracking issue and stops so it can be resolved
+If the rebase hits a conflict, the workflow opens (or comments on) a tracking issue and stops so it can be resolved
 manually.
 
 To reproduce it locally:
 
 ```sh
 git fetch upstream main
-git switch main
-git rebase upstream/main
-git push --force-with-lease origin main
+git push --force origin refs/remotes/upstream/main:refs/heads/main
 
 git switch custom-images
 git rebase origin/main
 git push --force-with-lease origin custom-images
 ```
 
-If rebase conflicts occur, stop and resolve them manually. Do not push a conflicted or unverified rebase. After the push,
-confirm the image build workflow publishes fresh `main` and SHA tags before expecting servers to update.
+If rebase conflicts occur, stop and resolve them manually. Do not push a conflicted or unverified rebase. After the
+push, confirm the image build workflow publishes fresh `main` and SHA tags before expecting servers to update.
 
-Caveat: branch protection that blocks force pushes is incompatible with this rebase model. Allow the actions bot to
-force-with-lease push `main` and `custom-images`.
+Caveat: branch protection that blocks force pushes is incompatible with this model. Allow the actions bot to force push
+`main` and force-with-lease push `custom-images`.
 
 ## One-time branch migration
 
@@ -80,17 +81,17 @@ curl -fsSL https://raw.githubusercontent.com/horacioh/seed/custom-images/ops/dep
 
 For an existing install, first take a backup, then re-run the fork bootstrap. The deploy script stores state under the
 seed directory, installs/updates `/usr/local/bin/seed-deploy` when allowed, detects legacy installs, writes
-`config.json`, and runs the deploy wizard when configuration is missing or `--reconfigure` is requested.
-The persisted `deploy_url` also controls `deploy.js` self-updates, so cron keeps the fork-specific custom image support
-instead of replacing it with upstream's S3 build.
+`config.json`, and runs the deploy wizard when configuration is missing or `--reconfigure` is requested. The persisted
+`deploy_url` also controls `deploy.js` self-updates, so cron keeps the fork-specific custom image support instead of
+replacing it with upstream's S3 build.
 
 ```sh
 seed-deploy backup
 SEED_DEPLOY_URL=https://raw.githubusercontent.com/horacioh/seed/custom-images/ops seed-deploy deploy --reconfigure
 ```
 
-When prompted for a custom Docker image tag, use `main` for the normal moving channel. Full GHCR image refs are
-stored in `config.json` as shown below.
+When prompted for a custom Docker image tag, use `main` for the normal moving channel. Full GHCR image refs are stored
+in `config.json` as shown below.
 
 ## Custom image references
 
