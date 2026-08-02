@@ -186,6 +186,8 @@ export type SeedToolRegistry = {
   attachment_to_ipfs: SeedToolMetadata
   memory_publish_document: SeedToolMetadata
   execute_code: SeedToolMetadata
+  sub_session: SeedToolMetadata
+  return_result: SeedToolMetadata
   start_session: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
@@ -1094,6 +1096,85 @@ export const seedToolRegistry: SeedToolRegistry = {
     },
     runtimes: ['agent-service'],
     userConfigurable: true,
+  },
+  sub_session: {
+    name: 'sub_session',
+    label: 'Sub-session',
+    description:
+      "Delegate one task to a sub-session that runs to completion and returns its result to you as this tool call's result. Use it to decompose challenging work: fan out research, run a long side-task, or get an isolated second pass. You may call it several times in one reply to run sub-sessions in parallel; your turn pauses (cheaply, resumable after restarts) until every spawned sub-session resolves as success or failure. The sub-session is a fresh context: it sees ONLY the prompt and input you pass (plus shared persistent memory when it is you), never this conversation — include everything it needs. Declare an `output` JSON schema when you need a structured, validated result; otherwise you get the sub-session's final text. Do NOT use this for work you can simply do yourself in this session, and do not spawn a sub-session just to call one tool.",
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Short label for the sub-session, shown in the sessions list and progress card.',
+        },
+        prompt: {
+          type: 'string',
+          description:
+            'System prompt for an anonymous worker using your model and provider. Provide exactly one of prompt or agentId; omitting both runs the sub-session as yourself (your own system prompt).',
+        },
+        agentId: {
+          type: 'string',
+          description: 'Run the sub-session under another of your agents by id instead of an inline prompt.',
+        },
+        input: {
+          description:
+            "The task payload, rendered as the sub-session's first user message. A string is passed verbatim; an object is passed as fenced JSON.",
+        },
+        tools: {
+          type: 'array',
+          items: {type: 'string'},
+          description: 'Restrict the sub-session to these tools (intersected with the tools its agent has enabled).',
+        },
+        output: {
+          type: 'object',
+          description:
+            'JSON schema for the required result. The sub-session must deliver a matching payload via its return_result tool; validation errors bounce back to it for self-correction.',
+        },
+      },
+      required: ['input'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        status: {type: 'string', enum: ['succeeded', 'failed', 'canceled']},
+        sessionId: {type: 'string'},
+        output: {description: 'The validated result payload, or {text} when no output schema was declared.'},
+        error: {type: 'object', properties: {code: {type: 'string'}, message: {type: 'string'}}},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Sub-session',
+      pendingLabel: 'Running sub-session',
+      color: 'violet',
+      primaryArg: 'title',
+      summaryArg: 'title',
+      details: [
+        {label: 'Prompt', source: 'input', path: 'prompt', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Result', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  return_result: {
+    name: 'return_result',
+    label: 'Return Result',
+    description:
+      'Deliver the final structured result of this sub-session. Call this exactly once when the task is complete; the payload must match the required schema. This ends your task.',
+    // The real parameters are the spawner-declared output schema, swapped in at session start.
+    inputSchema: {type: 'object'},
+    render: {
+      kind: 'generic',
+      label: 'Return Result',
+      color: 'emerald',
+      details: [{label: 'Result', source: 'input'}],
+    },
+    runtimes: ['agent-service'],
   },
   start_session: {
     name: 'start_session',
