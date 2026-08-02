@@ -29,6 +29,7 @@ import {
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
 } from '@/models/agents'
+import {SessionStatusDot, SubSessionsDisclosure} from '@/components/session-children'
 import {useSelectedAccountId} from '@/selected-account'
 import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -385,8 +386,15 @@ function AgentDetailPage({
                         key={session.id}
                         session={session}
                         serverUrl={serverUrl}
+                        accountUid={selectedAccountId}
                         onOpen={(event) =>
                           clickNavigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl}, event)
+                        }
+                        onOpenSession={(child, event) =>
+                          clickNavigate(
+                            {key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl},
+                            event,
+                          )
                         }
                         onOpenTrigger={() =>
                           session.startedByTrigger
@@ -1299,7 +1307,11 @@ function AgentTriggersTab({
                     key={session.id}
                     session={session}
                     serverUrl={serverUrl}
+                    accountUid={selectedAccountId}
                     onOpen={() => navigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl})}
+                    onOpenSession={(child) =>
+                      navigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl})
+                    }
                     onOpenTrigger={() =>
                       navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.id})
                     }
@@ -1555,12 +1567,18 @@ function StartSessionInput({
 
 function SessionListItem({
   session,
+  serverUrl,
+  accountUid,
   onOpen,
+  onOpenSession,
   onOpenTrigger,
 }: {
   session: SessionInfo
   serverUrl: string
+  accountUid: string | null | undefined
   onOpen: (event: React.MouseEvent<HTMLButtonElement>) => void
+  /** Opens a sub-session listed under this one. */
+  onOpenSession?: (session: SessionInfo, event: React.MouseEvent<HTMLButtonElement>) => void
   onOpenTrigger?: () => void
 }) {
   return (
@@ -1586,18 +1604,19 @@ function SessionListItem({
           Triggered by {session.startedByTrigger.triggerName}
         </button>
       ) : null}
+      {session.childSessionCount && onOpenSession ? (
+        <div className="mt-1 w-full pl-5">
+          <SubSessionsDisclosure
+            serverUrl={serverUrl}
+            accountUid={accountUid}
+            parentSessionId={session.id}
+            childSessionCount={session.childSessionCount}
+            onOpenSession={onOpenSession}
+          />
+        </div>
+      ) : null}
     </div>
   )
-}
-
-function SessionStatusDot({status}: {status: SessionInfo['status']}) {
-  const className =
-    status === 'error'
-      ? 'bg-destructive'
-      : status === 'streaming'
-        ? 'bg-muted-foreground animate-pulse'
-        : 'bg-green-500'
-  return <span className={`${className} size-2.5 flex-none rounded-full`} aria-label={status} title={status} />
 }
 
 export default function AgentDetailRoutePage() {
