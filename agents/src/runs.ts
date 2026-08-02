@@ -673,10 +673,19 @@ export class RunQueue {
 
   #claimSpecific(runId: string): RunRecord | null {
     const now = Date.now()
+    // Same-session exclusion mirrors #claimNext: the interactive path must not start a second
+    // executor on a session another live run owns (guard TOCTOU upstream is not sufficient).
     const row = this.#db
       .query<RunRow, [string, number, number, string]>(
         `UPDATE runs SET status = 'claimed', lease_owner = ?1, lease_expires_at = ?2, attempt = attempt + 1, updated_at = ?3
-         WHERE id = ?4 AND status = 'queued' RETURNING ${RUN_COLUMNS}`,
+         WHERE id = ?4 AND status = 'queued'
+           AND NOT (
+             kind = 'agent' AND session_id IS NOT NULL AND EXISTS (
+               SELECT 1 FROM runs r2 WHERE r2.session_id = runs.session_id AND r2.id != runs.id
+                 AND r2.status IN ('claimed', 'running', 'waiting')
+             )
+           )
+         RETURNING ${RUN_COLUMNS}`,
       )
       .get(this.#instanceId, now + LEASE_MS, now, runId)
     return row ? rowToRun(row) : null

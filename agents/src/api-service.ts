@@ -380,8 +380,42 @@ export class Service {
       },
     })
     // Crash recovery: runs a dead process left claimed/running go back to queued (the sweep wakes
-    // the loop when it found any); their sessions' dangling tool calls are repaired on resume.
+    // the loop when it found any); their sessions' dangling tool calls are repaired on resume, and
+    // parked parents whose children finalized before the crash get their resolutions replayed.
     this.#runQueue.sweepAtBoot()
+    this.#reconcileWaitingRunsAtBoot()
+  }
+
+  /**
+   * Boot pass closing the crash window between a child's terminal commit and its parent's
+   * wait-resolution (separate transactions): any waiting-on-children run whose child already
+   * finished gets the resolution replayed now, so no run stays `waiting` forever.
+   */
+  #reconcileWaitingRunsAtBoot(): void {
+    const waiting = this.#db
+      .query<{id: string; account_id: string}, []>(
+        `SELECT id, account_id FROM runs WHERE status = 'waiting' AND not_before IS NULL`,
+      )
+      .all()
+    for (const row of waiting) {
+      const run = runs.getRun(this.#db, row.account_id, row.id)
+      if (!run || run.wait?.reason !== 'children') continue
+      const children = this.#db.query<{id: string}, [string]>(`SELECT id FROM runs WHERE parent_run_id = ?`).all(run.id)
+      for (const childRow of children) {
+        const child = runs.getRun(this.#db, run.accountId, childRow.id)
+        if (!child || !runs.TERMINAL_RUN_STATUSES.includes(child.status)) continue
+        const input = child.input as {parentToolCallId?: string; parentToolName?: string} | null
+        if (typeof input?.parentToolCallId === 'string' && run.wait.toolCallIds.includes(input.parentToolCallId)) {
+          console.info('[agents/runs] boot reconcile: replaying finished child into parked parent', {
+            parentRunId: run.id,
+            childRunId: child.id,
+          })
+          this.#resolveSubSessionResult(child, input.parentToolCallId, input.parentToolName)
+        }
+      }
+      const refreshed = runs.getRun(this.#db, run.accountId, run.id)
+      if (refreshed?.status === 'waiting') this.#reconcileParkedRun(refreshed)
+    }
   }
 
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
@@ -1022,8 +1056,10 @@ export class Service {
       // Children of one parent; the top-level exclusion below does not apply.
       conditions.push('parent_session_id = ?')
       params.push(normalizeBoundedString(parentSessionId, 'Parent session ID', MAX_NAME_BYTES))
-    } else if (includeChildren !== true) {
-      // Top-level listing: children render nested under their parent, fetched on demand.
+    } else if (includeChildren === false) {
+      // Top-level listing for lineage-aware clients (they nest children under parents themselves).
+      // The default (field absent) keeps returning everything: older deployed desktops cannot send
+      // this field, and hiding agent-started sessions from them would be a silent regression.
       conditions.push('parent_session_id IS NULL')
     }
     if (cursor !== undefined) {
@@ -1096,10 +1132,37 @@ export class Service {
       .query<{id: string}, [string, string]>(`SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?`)
       .all(accountId, agentId)
     const sessionIds = sessions.map((session) => session.id)
+    // Cancel live work first so no executor streams into rows the transaction is about to delete.
+    const liveRuns = this.#db
+      .query<{id: string}, [string, string]>(
+        `SELECT id FROM runs WHERE account_id = ? AND agent_id = ?
+         AND status IN ('queued', 'claimed', 'running', 'waiting')`,
+      )
+      .all(accountId, agentId)
+    for (const liveRun of liveRuns) this.#runQueue.cancelTree(accountId, liveRun.id)
     const transaction = this.#db.transaction(() => {
       for (const sessionId of sessionIds) {
         this.#db.run(`DELETE FROM session_events WHERE session_id = ?`, [sessionId])
       }
+      // Run history survives agent deletion detached; FK columns must be cleared before the
+      // referenced rows go (runs.agent_id/session_id/trigger_firing_id are enforced FKs).
+      this.#db.run(
+        `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
+           SELECT id FROM trigger_firings WHERE account_id = ? AND agent_id = ?)`,
+        [accountId, agentId],
+      )
+      this.#db.run(
+        `UPDATE runs SET session_id = NULL WHERE session_id IN (
+           SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?)`,
+        [accountId, agentId],
+      )
+      this.#db.run(`UPDATE runs SET agent_id = NULL WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
+      // Sub-sessions of OTHER agents may hang off this agent's sessions: promote them to top level.
+      this.#db.run(
+        `UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id IN (
+           SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?)`,
+        [accountId, agentId],
+      )
       this.#db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
@@ -1386,6 +1449,12 @@ export class Service {
   #deleteSession(accountId: string, sessionId: string): api.DeleteSessionResponse {
     const existing = this.#getSessionInfo(accountId, sessionId)
     if (!existing) throw new APIError(404, 'Session not found')
+    // Cancel live run trees first: detaching a parked parent's session would otherwise strand it
+    // in 'waiting' forever (its child resolutions early-return without a parent session), and a
+    // streaming executor would crash appending to deleted rows.
+    for (const liveRun of runs.listLiveSessionRuns(this.#db, accountId, sessionId)) {
+      this.#runQueue.cancelTree(accountId, liveRun.id)
+    }
     const transaction = this.#db.transaction(() => {
       this.#db.run(`UPDATE trigger_firings SET session_id = NULL WHERE account_id = ? AND session_id = ?`, [
         accountId,
@@ -1810,6 +1879,12 @@ export class Service {
     if (opts.background) return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
 
     const final = await this.#runQueue.runInline(run.id)
+    if (final.status === 'queued') {
+      // The inline claim was refused: another live run owns this session (a concurrent send won the
+      // race while this request resolved message embeds). Withdraw our duplicate run and 409.
+      this.#runQueue.cancelTree(accountId, run.id)
+      throw new APIError(409, 'Session is already streaming')
+    }
     if (final.status === 'succeeded' || final.status === 'canceled') {
       const output = (final.output ?? {}) as {assistantEventId?: string}
       return {_: 'MessageSessionResponse', sessionId, assistantEventId: output.assistantEventId ?? ''}
@@ -2234,14 +2309,17 @@ export class Service {
         error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-session failed'},
       }
     }
-    if (this.#sessionHasToolResult(parent.sessionId, parentToolCallId)) return
-    this.#appendSessionEvent(
-      child.accountId,
-      parent.agentId ?? '',
-      parent.sessionId,
-      {type: 'tool_result', toolCallId: parentToolCallId, name: toolName, output: result},
-      Date.now(),
-    )
+    // Append the durable result at most once, but ALWAYS resolve the wait: a crash (or double
+    // resolution) can leave the tool_result written while the parent still parks on the call.
+    if (!this.#sessionHasToolResult(parent.sessionId, parentToolCallId)) {
+      this.#appendSessionEvent(
+        child.accountId,
+        parent.agentId ?? '',
+        parent.sessionId,
+        {type: 'tool_result', toolCallId: parentToolCallId, name: toolName, output: result},
+        Date.now(),
+      )
+    }
     const resolution = this.#runQueue.resolveChildWait(parent.id, parentToolCallId)
     console.info('[agents/runtime] sub-session resolved', {
       childRunId: child.id,

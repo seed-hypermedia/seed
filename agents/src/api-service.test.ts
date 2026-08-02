@@ -1129,11 +1129,34 @@ describe('api service', () => {
         ],
       )
 
+      // Run rows reference the agent, its session, AND its trigger firing — the real post-execution
+      // state (FKs are enforced, so DeleteAgent must detach them or it 500s forever).
+      db.run(
+        `INSERT INTO runs (id, account_id, root_run_id, depth, kind, agent_id, session_id, trigger_firing_id,
+           origin, input_cbor, status, attempt, max_attempts, queue, created_at, updated_at)
+         VALUES ('run-1', ?, 'run-1', 0, 'agent', ?, ?, 'firing-1', 'trigger', ?, 'succeeded', 1, 1, 'background', ?, ?)`,
+        [
+          blobs.principalToString(account.principal),
+          createdAgent.agentId,
+          createdSession.sessionId,
+          cbor.encode({}),
+          Date.now(),
+          Date.now(),
+        ],
+      )
+
       const deleted = await svc.message(
         await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteAgent', agentId: createdAgent.agentId}}),
       )
 
       expect(deleted).toEqual({_: 'DeleteAgentResponse', agentId: createdAgent.agentId})
+      // Run history survives, fully detached.
+      const runRow = db
+        .query<{agent_id: string | null; session_id: string | null; trigger_firing_id: string | null}, [string]>(
+          `SELECT agent_id, session_id, trigger_firing_id FROM runs WHERE id = ?`,
+        )
+        .get('run-1')
+      expect(runRow).toEqual({agent_id: null, session_id: null, trigger_firing_id: null})
       expect(fs.existsSync(agentDir)).toBe(false)
       expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM agents`).get()?.count).toBe(0)
       expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM sessions`).get()?.count).toBe(0)
@@ -3338,15 +3361,17 @@ describe('api service', () => {
 
       // Agent-started sessions carry durable lineage now: the top-level list shows only the parent
       // (with a child count); children list under it or via includeChildren.
+      // Default (legacy clients): every session, so older desktops keep seeing agent-started work.
       const listed = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions'}}))
       if (listed._ !== 'ListSessionsResponse') throw new Error('unexpected response')
-      expect(listed.sessions).toHaveLength(1)
-      expect(listed.sessions[0]?.childSessionCount).toBe(2)
-      const includingChildren = await svc.message(
-        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', includeChildren: true}}),
+      expect(listed.sessions).toHaveLength(3)
+      // Lineage-aware clients exclude children explicitly and nest them via childSessionCount.
+      const topOnly = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', includeChildren: false}}),
       )
-      if (includingChildren._ !== 'ListSessionsResponse') throw new Error('unexpected response')
-      expect(includingChildren.sessions).toHaveLength(3)
+      if (topOnly._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(topOnly.sessions).toHaveLength(1)
+      expect(topOnly.sessions[0]?.childSessionCount).toBe(2)
     } finally {
       globalThis.fetch = originalFetch
       db.close()
@@ -3737,7 +3762,9 @@ describe('api service', () => {
       expect(parentRequests).toHaveLength(2)
 
       // Lineage: children exist, are excluded from the top-level list, and list under their parent.
-      const topLevel = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions'}}))
+      const topLevel = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', includeChildren: false}}),
+      )
       if (topLevel._ !== 'ListSessionsResponse') throw new Error('unexpected response')
       expect(topLevel.sessions).toHaveLength(1)
       expect(topLevel.sessions[0]?.childSessionCount).toBe(2)
