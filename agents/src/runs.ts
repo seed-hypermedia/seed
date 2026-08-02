@@ -244,6 +244,27 @@ export function sessionHasLiveRun(db: Database, sessionId: string): boolean {
   )
 }
 
+/** Non-terminal runs referencing a session (stop/cancel targets). */
+export function listLiveSessionRuns(db: Database, accountId: string, sessionId: string): RunRecord[] {
+  return db
+    .query<RunRow, [string, string]>(
+      `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND session_id = ?
+       AND status IN ('queued', 'claimed', 'running', 'waiting') ORDER BY created_at ASC`,
+    )
+    .all(accountId, sessionId)
+    .map(rowToRun)
+}
+
+/** Runs of one agent, newest first. */
+export function listAgentRuns(db: Database, accountId: string, agentId: string, limit: number): RunRecord[] {
+  return db
+    .query<RunRow, [string, string, number]>(
+      `SELECT ${RUN_COLUMNS} FROM runs WHERE account_id = ? AND agent_id = ? ORDER BY created_at DESC LIMIT ?`,
+    )
+    .all(accountId, agentId, limit)
+    .map(rowToRun)
+}
+
 /** Latest run referencing the session (for deriving the legacy status mirror). */
 export function latestSessionRun(db: Database, sessionId: string): RunRecord | null {
   const row = db
@@ -312,8 +333,9 @@ export class RunQueue {
       .all(now)
     if (swept.length > 0) {
       console.info('[agents/runs] boot sweep requeued interrupted runs', {count: swept.length})
-      this.wake()
     }
+    // Queued work may predate this boot (crash before dispatch, backoff timers): always resume it.
+    if (this.#hasFutureWork()) this.wake()
     return swept.length
   }
 
@@ -395,6 +417,30 @@ export class RunQueue {
     this.#onRunChanged?.(run)
     this.wake()
     return run
+  }
+
+  /**
+   * Marks one pending child tool call of a parked parent resolved. Requeues the parent when the
+   * last one resolves; otherwise persists the shrunken wait set. Returns what happened so callers
+   * can log/react; `not-waiting` covers parents that have not parked yet (the post-park reconcile
+   * pass closes that race).
+   */
+  resolveChildWait(parentRunId: string, toolCallId: string): 'requeued' | 'updated' | 'not-waiting' {
+    const parent = this.#getRunAnyAccount(parentRunId)
+    if (!parent || parent.status !== 'waiting' || parent.wait?.reason !== 'children') return 'not-waiting'
+    const remaining = parent.wait.toolCallIds.filter((id) => id !== toolCallId)
+    if (remaining.length === parent.wait.toolCallIds.length) return 'not-waiting'
+    if (remaining.length === 0) {
+      this.requeueWaiting(parentRunId)
+      return 'requeued'
+    }
+    const row = this.#db
+      .query<RunRow, [Uint8Array, number, string]>(
+        `UPDATE runs SET wait_cbor = ?, updated_at = ? WHERE id = ? AND status = 'waiting' RETURNING ${RUN_COLUMNS}`,
+      )
+      .get(cbor.encode({reason: 'children', toolCallIds: remaining} satisfies RunWait), Date.now(), parentRunId)
+    if (row) this.#onRunChanged?.(rowToRun(row))
+    return 'updated'
   }
 
   /**

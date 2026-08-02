@@ -3584,9 +3584,17 @@ describe('api service', () => {
         expect(events.some((event) => event.type === 'message' && event.role === 'assistant')).toBe(true)
       }
 
+      // Agent-started sessions carry durable lineage now: the top-level list shows only the parent
+      // (with a child count); children list under it or via includeChildren.
       const listed = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions'}}))
       if (listed._ !== 'ListSessionsResponse') throw new Error('unexpected response')
-      expect(listed.sessions).toHaveLength(3)
+      expect(listed.sessions).toHaveLength(1)
+      expect(listed.sessions[0]?.childSessionCount).toBe(2)
+      const includingChildren = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', includeChildren: true}}),
+      )
+      if (includingChildren._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(includingChildren.sessions).toHaveLength(3)
     } finally {
       globalThis.fetch = originalFetch
       db.close()
@@ -3835,6 +3843,477 @@ describe('api service', () => {
     expect(apisvc.restoreReasoningEffort(plain, definition)).toBe(plain)
   })
 
+  test('sub_session fan-out parks the parent and child results resume it', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Coordinator',
+              systemPrompt: 'You are the coordinator.',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: ['sub_session'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const parentRequests: string[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        const isParent = messagesJSON.includes('You are the coordinator.')
+        if (isParent) {
+          parentRequests.push(messagesJSON)
+          expect(messagesJSON).not.toContain('"status":"spawned"')
+          const hasResults = body.messages.some((message: {role?: string}) => message.role === 'tool')
+          if (!hasResults) {
+            return openAIStreamResponse([
+              {
+                id: 'parent-1',
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: 0,
+                          id: 'spawn-a',
+                          type: 'function',
+                          function: {
+                            name: 'sub_session',
+                            arguments: JSON.stringify({
+                              title: 'Worker A',
+                              prompt: 'You are worker Alpha.',
+                              input: 'Summarize topic A',
+                            }),
+                          },
+                        },
+                        {
+                          index: 1,
+                          id: 'spawn-b',
+                          type: 'function',
+                          function: {
+                            name: 'sub_session',
+                            arguments: JSON.stringify({
+                              title: 'Worker B',
+                              prompt: 'You are worker Beta.',
+                              input: {topic: 'B'},
+                            }),
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+            ])
+          }
+          expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+          expect(messagesJSON).toContain('Alpha finished')
+          expect(messagesJSON).toContain('Beta finished')
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'All workers finished.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        const worker = messagesJSON.includes('worker Alpha') ? 'Alpha' : 'Beta'
+        return openAIStreamResponse([
+          {id: `child-${worker}`, choices: [{delta: {content: `${worker} finished the task.`}}]},
+          {id: `child-${worker}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Fan out workers A and B'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+      await svc.awaitQueueIdle()
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('idle')
+      const types = session.events.map((event) => (event.event as {type?: string}).type)
+      expect(types.filter((type) => type === 'tool_call')).toHaveLength(2)
+      expect(types.filter((type) => type === 'tool_result')).toHaveLength(2)
+      expect(session.events.at(-1)?.event).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'All workers finished.',
+      })
+      const resultEvents = session.events
+        .map((event) => event.event as {type?: string; output?: {status?: string; output?: {text?: string}}})
+        .filter((event) => event.type === 'tool_result')
+      for (const result of resultEvents) {
+        expect(result.output?.status).toBe('succeeded')
+        expect(result.output?.output?.text).toContain('finished the task')
+      }
+      expect(parentRequests).toHaveLength(2)
+
+      // Lineage: children exist, are excluded from the top-level list, and list under their parent.
+      const topLevel = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions'}}))
+      if (topLevel._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(topLevel.sessions).toHaveLength(1)
+      expect(topLevel.sessions[0]?.childSessionCount).toBe(2)
+      const children = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ListSessions', parentSessionId: createdSession.sessionId},
+        }),
+      )
+      if (children._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(children.sessions).toHaveLength(2)
+      for (const child of children.sessions) {
+        expect(child.parentSessionId).toBe(createdSession.sessionId)
+        expect(child.runId).toBeDefined()
+      }
+
+      // Run tree: one root (succeeded) with two succeeded children.
+      const rootRuns = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ListRuns', sessionId: createdSession.sessionId},
+        }),
+      )
+      if (rootRuns._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(rootRuns.runs).toHaveLength(1)
+      const root = rootRuns.runs[0]!
+      expect(root.status).toBe('succeeded')
+      const tree = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', rootRunId: root.id}}),
+      )
+      if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(tree.runs).toHaveLength(3)
+      expect(tree.runs.filter((run) => run.depth === 1)).toHaveLength(2)
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('typed sub_session: return_result validation bounces back, then the payload resolves the parent', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Typed',
+              systemPrompt: 'You are the coordinator.',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: ['sub_session'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      let childCalls = 0
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        if (messagesJSON.includes('You are the coordinator.')) {
+          const hasResults = body.messages.some((message: {role?: string}) => message.role === 'tool')
+          if (!hasResults) {
+            return openAIStreamResponse([
+              {
+                id: 'parent-1',
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: 0,
+                          id: 'spawn-typed',
+                          type: 'function',
+                          function: {
+                            name: 'sub_session',
+                            arguments: JSON.stringify({
+                              title: 'Scorer',
+                              prompt: 'You are a scorer.',
+                              input: 'Score this',
+                              output: {
+                                type: 'object',
+                                additionalProperties: false,
+                                required: ['answer', 'confidence'],
+                                properties: {answer: {type: 'string'}, confidence: {type: 'number'}},
+                              },
+                            }),
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+            ])
+          }
+          // The tool_result rides as stringified JSON inside a message string, so quotes are escaped.
+          expect(messagesJSON).toContain('forty-two')
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'Score received.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        // Child (scorer): the return_result tool must be exposed; deliver invalid then valid.
+        childCalls += 1
+        const toolNames = body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name) ?? []
+        expect(toolNames).toContain('return_result')
+        const payload = childCalls === 1 ? {answer: 42} : {answer: 'forty-two', confidence: 0.9}
+        return openAIStreamResponse([
+          {
+            id: `child-${childCalls}`,
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: `deliver-${childCalls}`,
+                      type: 'function',
+                      function: {name: 'return_result', arguments: JSON.stringify(payload)},
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: `child-${childCalls}`, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Get me a typed score'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      expect(childCalls).toBe(2)
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const result = session.events
+        .map((event) => event.event as {type?: string; output?: {status?: string; output?: unknown}})
+        .find((event) => event.type === 'tool_result')
+      expect(result?.output?.status).toBe('succeeded')
+      expect(result?.output?.output).toEqual({answer: 'forty-two', confidence: 0.9})
+      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Score received.'})
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('restart while parked: a queued child executes after reboot and resumes the waiting parent', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const boot = new apisvc.Service(db, dataDir, {})
+      await boot.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await boot.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await boot.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Parker',
+              systemPrompt: 'You are the coordinator.',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: ['sub_session'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdParent = await boot.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdParent._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const createdChild = await boot.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdChild._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      boot.stopRunQueue()
+      const accountId = blobs.principalToString(account.principal)
+
+      // Forge the parked state a crash could leave behind: parent waiting on one child that never ran.
+      const now = Date.now()
+      const putEvent = (sessionId: string, seq: number, event: unknown) =>
+        db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
+          crypto.randomUUID(),
+          sessionId,
+          seq,
+          cbor.encode(event),
+          now,
+        ])
+      putEvent(createdParent.sessionId, 1, {type: 'message', role: 'user', content: 'Delegate the work'})
+      putEvent(createdParent.sessionId, 2, {
+        type: 'tool_call',
+        id: 'spawn-1',
+        name: 'sub_session',
+        input: {title: 'Worker', prompt: 'You are worker Alpha.', input: 'Do the thing'},
+      })
+      putEvent(createdChild.sessionId, 1, {type: 'message', role: 'user', content: 'Do the thing'})
+      db.run(
+        `INSERT INTO runs (id, account_id, root_run_id, depth, kind, agent_id, session_id, origin, input_cbor,
+           status, wait_cbor, attempt, max_attempts, queue, created_at, started_at, updated_at)
+         VALUES ('parent-run', ?, 'parent-run', 0, 'agent', ?, ?, 'user', ?, 'waiting', ?, 1, 1, 'interactive', ?, ?, ?)`,
+        [
+          accountId,
+          createdAgent.agentId,
+          createdParent.sessionId,
+          cbor.encode({}),
+          cbor.encode({reason: 'children', toolCallIds: ['spawn-1']}),
+          now,
+          now,
+          now,
+        ],
+      )
+      db.run(
+        `INSERT INTO runs (id, account_id, root_run_id, parent_run_id, depth, kind, agent_id, session_id, origin,
+           input_cbor, status, attempt, max_attempts, queue, created_at, updated_at)
+         VALUES ('child-run', ?, 'parent-run', 'parent-run', 1, 'agent', ?, ?, 'agent', ?, 'queued', 0, 2, 'background', ?, ?)`,
+        [
+          accountId,
+          createdAgent.agentId,
+          createdChild.sessionId,
+          cbor.encode({
+            spec: {title: 'Worker', prompt: 'You are worker Alpha.', input: 'Do the thing'},
+            parentToolCallId: 'spawn-1',
+          }),
+          now,
+          now,
+        ],
+      )
+      db.run(`UPDATE sessions SET parent_session_id = ?, run_id = 'child-run' WHERE id = ?`, [
+        createdParent.sessionId,
+        createdChild.sessionId,
+      ])
+
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        // Route on the system message: the parent transcript also mentions the child prompt
+        // (inside the sub_session tool_call arguments), so a substring match anywhere is wrong.
+        const system = String((body.messages?.[0] as {content?: string} | undefined)?.content ?? '')
+        if (system.includes('worker Alpha')) {
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Alpha finished after reboot.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+        expect(messagesJSON).toContain('Alpha finished after reboot')
+        return openAIStreamResponse([
+          {id: 'parent', choices: [{delta: {content: 'Resumed and done.'}}]},
+          {id: 'parent', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      // "Restart": the queued child dispatches at boot; its result wakes the waiting parent.
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.awaitQueueIdle()
+
+      const parentRun = db.query<{status: string}, [string]>(`SELECT status FROM runs WHERE id = ?`).get('parent-run')
+      expect(parentRun?.status).toBe('succeeded')
+      const childRun = db.query<{status: string}, [string]>(`SELECT status FROM runs WHERE id = ?`).get('child-run')
+      expect(childRun?.status).toBe('succeeded')
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdParent.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('idle')
+      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Resumed and done.'})
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
   test('crash recovery: a run interrupted mid-tool resumes after restart with a repaired transcript', async () => {
     // Simulates the old wedged-`streaming` failure: a process died after persisting a tool_call but
     // before its tool_result, leaving the run row `running` and the session column `streaming`. A
@@ -3960,7 +4439,7 @@ function agentPromptText(prompt: unknown): string {
     .join('\n')
 }
 
-function expectToolResultHasPrecedingToolCall(messages: unknown): void {
+function expectToolResultHasPrecedingToolCall(messages: unknown, toolName = 'read'): void {
   expect(Array.isArray(messages)).toBe(true)
   if (!Array.isArray(messages)) return
   const toolResultIndex = messages.findIndex((message) => isRecord(message) && message.role === 'tool')
@@ -3976,7 +4455,7 @@ function expectToolResultHasPrecedingToolCall(messages: unknown): void {
       expect.objectContaining({
         id: toolResult.tool_call_id,
         type: 'function',
-        function: expect.objectContaining({name: 'read'}),
+        function: expect.objectContaining({name: toolName}),
       }),
     ]),
   )

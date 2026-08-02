@@ -167,6 +167,10 @@ export type UnsignedAgentAction =
   | CommitFileUpload
   | AbortFileUpload
   | StopSession
+  | GetRun
+  | ListRuns
+  | CancelRun
+  | GetRunJournal
   | Subscribe
 
 /** Lists agents for the signed account. */
@@ -471,6 +475,43 @@ export type ListSessions = {
   limit?: number
   /** Continue after a previous page. Pass the `nextCursor` from `ListSessionsResponse` verbatim. */
   cursor?: SessionListCursor
+  /** List only the children of this session (ignores `includeChildren`). */
+  parentSessionId?: string
+  /** Include child sessions in the top-level listing. Default false: children are fetched per parent. */
+  includeChildren?: boolean
+}
+
+/** Loads one run. */
+export type GetRun = {
+  _: 'GetRun'
+  runId: string
+}
+
+/**
+ * Lists runs, newest first. Exactly one selector: `rootRunId` returns the whole tree of one root
+ * (oldest first, for tree rendering); `sessionId` returns root runs referencing a session;
+ * `agentId` returns runs of one agent.
+ */
+export type ListRuns = {
+  _: 'ListRuns'
+  rootRunId?: string
+  sessionId?: string
+  agentId?: string
+  status?: RunStatus
+  limit?: number
+}
+
+/** Cancels a run and every non-terminal descendant. */
+export type CancelRun = {
+  _: 'CancelRun'
+  runId: string
+}
+
+/** Loads a run's durable journal entries, optionally after a sequence. */
+export type GetRunJournal = {
+  _: 'GetRunJournal'
+  runId: string
+  afterSeq?: number
 }
 
 /**
@@ -1108,7 +1149,39 @@ export type GetSessionResponse = {
 export type MessageSessionResponse = {
   _: 'MessageSessionResponse'
   sessionId: string
+  /**
+   * Final assistant event of the turn. Empty string when the turn did not produce one before the
+   * request returned: background enqueues and runs that parked on sub-sessions (the rest of the
+   * turn streams over WS).
+   */
   assistantEventId: string
+}
+
+/** Successful response for `GetRun`. */
+export type GetRunResponse = {
+  _: 'GetRunResponse'
+  run: RunInfo
+}
+
+/** Successful response for `ListRuns`. */
+export type ListRunsResponse = {
+  _: 'ListRunsResponse'
+  runs: RunInfo[]
+}
+
+/** Successful response for `CancelRun`. */
+export type CancelRunResponse = {
+  _: 'CancelRunResponse'
+  runId: string
+  /** False when the run was already terminal. */
+  canceled: boolean
+}
+
+/** Successful response for `GetRunJournal`. */
+export type GetRunJournalResponse = {
+  _: 'GetRunJournalResponse'
+  runId: string
+  entries: RunJournalEntryInfo[]
 }
 
 /** Successful response for `UploadSessionAttachment`. */
@@ -1200,6 +1273,10 @@ export type AgentResponse =
   | UploadAgentMemoryFileToIpfsResponse
   | CreateSessionResponse
   | ListSessionsResponse
+  | GetRunResponse
+  | ListRunsResponse
+  | CancelRunResponse
+  | GetRunJournalResponse
   | UpdateSessionResponse
   | DeleteSessionResponse
   | GetSessionResponse
