@@ -28,9 +28,30 @@ The following are complete enough for local use and should be treated as baselin
 - streaming/subscription diagnostics;
 - shared Agents protocol package consumed by the Bun service and desktop;
 - local agents server run as a desktop subprocess, with the desktop's own HM API server as its HM backend;
-- assistant sidebar unified onto agent sessions, spanning every agent on every configured server.
+- assistant sidebar unified onto agent sessions, spanning every agent on every configured server;
+- durable run records + dispatch queue under every execution (leases, boot-sweep crash recovery, derived session status,
+  persisted usage);
+- `sub_session` awaited delegation with park/resume, typed `return_result` validation, and durable session lineage;
+- QuickJS workflow engine (`run_workflow`): journaled deterministic replay, lint, fuel/memory/journal caps, ctx
+  tool/agent/parallel/sleep/step surface;
+- `update_plan` live todo snapshots; run actions (GetRun/ListRuns/CancelRun/GetRunJournal) and `runs/<rootRunId>`
+  subscriptions;
+- Tier-3 live-model validation harness (`agents/e2e/run.ts`).
 
 ## Highest priority next steps
+
+### 0. Finish the workflows v1 surface
+
+Why: the runs/sub-session/workflow backend landed (see `workflows-v1-plan.md`); the remaining work is user-facing polish
+and validation.
+
+Work:
+
+- pinned run/progress card on the session page (in progress on the desktop);
+- run the Tier-3 live-model gates (`bun e2e/run.ts all`) — currently blocked on the OpenAI account having no API credits
+  — and iterate tool descriptions until the thresholds in workflows-v1-plan.md §15.3 hold;
+- v2 seeds in priority order: `ctx.waitForEvent`/`SignalRun` (human-approval steps), `ctx.continueAsNew`,
+  trigger→workflow targets, per-model cost tables + dollar budgets, named/published workflows.
 
 ### 1. Complete Pi SDK migration hardening
 
@@ -89,17 +110,10 @@ Work:
 - cover `read` document link rendering and any future `query` alias;
 - preserve assistant panel streaming tests.
 
-### 5. Implement stop/cancel session
+### 5. Stop/cancel session — landed
 
-Why: users need control over long or stuck model calls.
-
-Work:
-
-- add signed `StopSession`/`CancelRun` action;
-- track active abort controllers;
-- append durable stopped event;
-- add desktop stop button;
-- add tests.
+`StopSession` cancels the session's whole run tree (descendants included) and `CancelRun` cancels any run subtree;
+remaining work is only desktop affordances (stop/cancel buttons wired to the new actions everywhere they belong).
 
 ### 6. Add provider test and unsupported-provider warnings
 
@@ -137,9 +151,10 @@ result counts where available.
 
 Add heartbeat, unsubscribe, CBOR server events, subscription limits, and better reconnect cursors.
 
-### Run records
+### Run records — landed
 
-Add durable run records for better execution history, cancellation, reconnect recovery, and inspector UI.
+The `runs` table + journal now back execution history, cancellation, and reconnect recovery. Remaining: surface run
+history in the built-in `/agents` inspector.
 
 ## Security hardening priority
 
@@ -166,9 +181,9 @@ reduced without removing the troubleshooting path.
 Durable tool events are visible, and the Pi path reconstructs historical tool results as Pi tool-result messages where
 possible. Tool-heavy multi-turn sessions still need focused regression coverage to ensure context quality stays high.
 
-### Session status is too coarse
+### Session status is too coarse — resolved
 
-`idle/streaming/stopped/error` is not enough for run history, cancellation, retry, and metrics. Add run records.
+`sessions.status` is now a derived mirror of durable run state; rich status lives on `RunInfo`.
 
 ### Built-in inspector is unauthenticated
 
@@ -186,8 +201,8 @@ lands.
 
 ### WebSocket partials are ephemeral
 
-This is acceptable for live typing, but disconnects miss partials until final durable append. Run records or draft
-assistant events could improve this.
+This is acceptable for live typing, but disconnects miss partials until final durable append. Run journals cover this
+for workflows; agent-run text partials remain ephemeral.
 
 ## Documentation roadmap
 
