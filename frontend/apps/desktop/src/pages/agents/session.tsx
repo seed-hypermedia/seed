@@ -1,6 +1,7 @@
 import {
   type AgentRunActivity,
   type AgentSessionTriggerContext,
+  type RunStatus,
   type SessionEvent,
   type SessionInfo,
 } from '@/agents-client'
@@ -24,6 +25,7 @@ import {
   useDeleteAgentSession,
   uploadFileToAgentServer,
   useMessageAgentSession,
+  useRun,
   useStopAgentSession,
   useUpdateAgentSession,
 } from '@/models/agents'
@@ -58,11 +60,52 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
+import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader} from './header'
+import {SessionRunCard} from './run-card'
 import {promptBlocksToMarkdown} from './prompt-editor'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
+
+/** Run states a sub-session's parent can no longer be driving it from. */
+const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
+
+const SUB_SESSION_DRIVEN_MESSAGE =
+  'This sub-session is being driven by its parent — watch, or open the parent to intervene'
+
+/**
+ * Header affordances for a sub-session: where it came from, and whether it is still someone else's
+ * to drive. A parked parent leaves this page silent for minutes, so the banner is what makes that
+ * legible rather than looking like a stalled chat.
+ */
+function SubSessionHeader({
+  parentTitle,
+  isDriven,
+  onOpenParent,
+}: {
+  parentTitle?: string
+  isDriven: boolean
+  onOpenParent: () => void
+}) {
+  return (
+    <div className="flex flex-none flex-col gap-2 pt-3">
+      <button
+        type="button"
+        className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground flex max-w-full items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-xs"
+        onClick={onOpenParent}
+        title="Open the parent session"
+      >
+        <CornerLeftUp className="size-3 flex-none" />
+        <span className="min-w-0 truncate">{parentTitle || 'Parent session'}</span>
+      </button>
+      {isDriven ? (
+        <div className="border-border bg-muted/40 text-muted-foreground rounded-md border px-3 py-1.5 text-xs">
+          {SUB_SESSION_DRIVEN_MESSAGE}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function SessionListItem({
   session,
@@ -217,6 +260,14 @@ function AgentSessionPage({
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
   const runStartedAt = useRunStartedAt(isAgentBusy)
+  // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
+  // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
+  // child in the parent's tree, so it is reachable by id (SessionInfo.runId), not by ListRuns.
+  const parentSessionId = session.data?.session.parentSessionId
+  const parentSession = useAgentSession(serverUrl, selectedAccountId, parentSessionId, {poll: false})
+  const ownRun = useRun(serverUrl, selectedAccountId, parentSessionId ? session.data?.session.runId : undefined)
+  const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
+  const isDrivenByParent = !!parentSessionId && (isAgentStreaming || hasLiveRun)
   const triggerActivityRoute = useMemo(
     () => (session.data?.triggerContext ? getTriggerActivityRoute(session.data.triggerContext) : null),
     [session.data?.triggerContext],
@@ -438,6 +489,20 @@ function AgentSessionPage({
         ) : null}
         {session.data ? (
           <div className="flex min-h-0 flex-1 flex-col">
+            {parentSessionId ? (
+              <SubSessionHeader
+                parentTitle={parentSession.data?.session.title}
+                isDriven={isDrivenByParent}
+                onOpenParent={() =>
+                  navigate({
+                    key: 'agent-session',
+                    agentId: parentSession.data?.session.agentId,
+                    sessionId: parentSessionId,
+                    serverUrl,
+                  })
+                }
+              />
+            ) : null}
             <div
               ref={autoScroll.containerRef}
               onScroll={autoScroll.handleScroll}
@@ -477,10 +542,20 @@ function AgentSessionPage({
                 ) : null}
               </div>
             </div>
+            <SessionRunCard
+              serverUrl={serverUrl}
+              accountUid={selectedAccountId}
+              sessionId={sessionId}
+              sessionPlan={session.data.session.plan}
+              onOpenSession={(childSessionId, childAgentId) =>
+                navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+              }
+            />
             <QueuedChatMessages messages={queuedMessages} getText={(message) => message.text} />
             <AgentRichMessageComposer
               isBusy={isAgentBusy}
               isStreaming={isAgentStreaming}
+              disabledMessage={isDrivenByParent ? SUB_SESSION_DRIVEN_MESSAGE : undefined}
               stopPending={stopSession.isPending}
               serverUrl={serverUrl}
               accountId={selectedAccountId ?? null}
@@ -575,6 +650,7 @@ type CommentEditorGetContent = CommentEditorSubmitOptions['getContent']
 function AgentRichMessageComposer({
   isBusy,
   isStreaming,
+  disabledMessage,
   stopPending,
   serverUrl,
   accountId,
@@ -584,6 +660,8 @@ function AgentRichMessageComposer({
 }: {
   isBusy: boolean
   isStreaming: boolean
+  /** When set, the composer is replaced by this explanation — the session is not the user's to drive. */
+  disabledMessage?: string
   stopPending: boolean
   serverUrl: string
   accountId: string | null
@@ -641,6 +719,14 @@ function AgentRichMessageComposer({
     setDraftMarkdown('')
     requestAnimationFrame(() => submitHandleRef.current?.focus({moveCursorToEnd: true}))
     onSend({text: markdown, blocks: trimmedBlocks, ...(attachments.length ? {attachments} : {})})
+  }
+
+  if (disabledMessage) {
+    return (
+      <div className="border-border border-t">
+        <div className="text-muted-foreground px-3 py-3 text-xs">{disabledMessage}</div>
+      </div>
+    )
   }
 
   return (

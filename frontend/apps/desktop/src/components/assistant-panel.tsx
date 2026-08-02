@@ -57,6 +57,8 @@ import {useChatAutoScroll} from './chat-autoscroll'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {ChatMessageComposer} from './chat-message-composer'
+import {SessionRunCard} from '@/pages/agents/run-card'
+import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
 import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
 
 /**
@@ -202,6 +204,7 @@ export function AssistantPanel({
         <AssistantSessionPicker
           entries={selection.agentSessions}
           isLoading={sessions.isLoading}
+          accountUid={accountUid}
           selected={activeSession}
           selectedTitle={sessionTitle}
           isDraft={!activeSession}
@@ -412,6 +415,7 @@ function AssistantAgentPicker({
 function AssistantSessionPicker({
   entries,
   isLoading,
+  accountUid,
   selected,
   selectedTitle,
   isDraft,
@@ -419,6 +423,7 @@ function AssistantSessionPicker({
 }: {
   entries: AgentSessionListEntry[]
   isLoading: boolean
+  accountUid: string | null | undefined
   selected: AssistantSessionRef | null
   selectedTitle?: string
   isDraft: boolean
@@ -448,19 +453,37 @@ function AssistantSessionPicker({
           entries.map((entry) => {
             const isSelected = entry.serverUrl === selected?.serverUrl && entry.session.id === selected?.sessionId
             return (
-              <button
-                key={`${entry.serverUrl}${entry.session.id}`}
-                type="button"
-                className={`hover:bg-muted flex w-full items-center rounded px-2 py-1.5 text-left ${
-                  isSelected ? 'bg-muted' : ''
-                }`}
-                onClick={() => {
-                  onSelect({serverUrl: entry.serverUrl, sessionId: entry.session.id})
-                  setOpen(false)
-                }}
-              >
-                <span className="w-full truncate text-xs">{entry.session.title || 'Untitled session'}</span>
-              </button>
+              <div key={`${entry.serverUrl}${entry.session.id}`} className="flex flex-col">
+                <button
+                  type="button"
+                  className={`hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${
+                    isSelected ? 'bg-muted' : ''
+                  }`}
+                  onClick={() => {
+                    onSelect({serverUrl: entry.serverUrl, sessionId: entry.session.id})
+                    setOpen(false)
+                  }}
+                >
+                  <SessionStatusDot status={entry.session.status} className="size-2" />
+                  <span className="min-w-0 flex-1 truncate text-xs">{entry.session.title || 'Untitled session'}</span>
+                </button>
+                {entry.session.childSessionCount ? (
+                  <div className="pl-4">
+                    <SubSessionsDisclosure
+                      compact
+                      serverUrl={entry.serverUrl}
+                      accountUid={accountUid}
+                      parentSessionId={entry.session.id}
+                      childSessionCount={entry.session.childSessionCount}
+                      selectedSessionId={entry.serverUrl === selected?.serverUrl ? selected?.sessionId : undefined}
+                      onOpenSession={(child) => {
+                        onSelect({serverUrl: entry.serverUrl, sessionId: child.id})
+                        setOpen(false)
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             )
           })
         )}
@@ -552,6 +575,7 @@ function AssistantSessionChat({
   inputRef: React.RefObject<HTMLTextAreaElement>
 }) {
   const {serverUrl, sessionId} = sessionRef
+  const navigate = useNavigate()
   const session = useAgentSession(serverUrl, accountUid, sessionId)
   const live = useAgentWebSocketSubscription(serverUrl, accountUid, `sessions/${sessionId}`)
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
@@ -653,6 +677,17 @@ function AssistantSessionChat({
           ) : null}
         </div>
       </div>
+
+      <SessionRunCard
+        compact
+        serverUrl={serverUrl}
+        accountUid={accountUid}
+        sessionId={sessionId}
+        sessionPlan={session.data?.session.plan}
+        onOpenSession={(childSessionId, childAgentId) =>
+          navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+        }
+      />
 
       <QueuedChatMessages messages={queuedMessages} />
 
