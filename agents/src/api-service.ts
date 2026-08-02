@@ -26,6 +26,12 @@ import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
 import * as runs from '@/runs'
+import {
+  lintWorkflowSource,
+  runWorkflowVM,
+  type WorkflowChildResolution,
+  type WorkflowJournalEntry,
+} from '@/workflow-host'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
 import {
@@ -95,6 +101,9 @@ const MAX_SESSION_SPAWN_DEPTH = 3
 const MAX_SESSION_SPAWNS_PER_SESSION = 10
 /** Failed return_result validation attempts before a typed sub-session fails `output-schema`. */
 const MAX_RETURN_RESULT_RETRIES = 3
+/** Workflow journal caps: replay cost is bounded by these; split bigger jobs into smaller workflows. */
+const WORKFLOW_JOURNAL_MAX_ENTRIES = 5_000
+const WORKFLOW_JOURNAL_MAX_BYTES = 8 * 1024 * 1024
 const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
@@ -156,6 +165,19 @@ export type ServiceEvent =
     }
   | {type: 'account-change'; accountId: string; reason: string; agentId?: string; sessionId?: string}
   | {type: 'run-change'; accountId: string; run: api.RunInfo}
+  | {type: 'run-append'; accountId: string; rootRunId: string; entry: api.RunJournalEntryInfo}
+  | {
+      type: 'run-partial'
+      accountId: string
+      rootRunId: string
+      runId: string
+      partialId: string
+      patch: {
+        progress?: {fraction?: number; label?: string}
+        activity?: api.AgentRunActivity
+        usage?: api.AgentRunUsage
+      }
+    }
 
 /** Error with an HTTP status code for API responses. */
 export class APIError extends Error {
@@ -203,6 +225,56 @@ type SubSessionSpec = {
   input: unknown
   tools?: string[]
   output?: JsonSchema
+}
+
+/** Tools a workflow's ctx.call may reach: everything session-independent the agent has enabled. */
+const WORKFLOW_CALLABLE_TOOLS = new Set(
+  [
+    seedToolRegistry.search,
+    seedToolRegistry.read,
+    seedToolRegistry.list_activity_feed,
+    seedToolRegistry.web_search,
+    seedToolRegistry.web_read,
+    seedToolRegistry.write,
+    seedToolRegistry.memory_list,
+    seedToolRegistry.memory_read,
+    seedToolRegistry.memory_write,
+    seedToolRegistry.memory_delete,
+    seedToolRegistry.memory_download,
+    seedToolRegistry.ipfs_read,
+    seedToolRegistry.ipfs_write,
+    seedToolRegistry.memory_publish_document,
+    seedToolRegistry.execute_code,
+  ].map((tool) => tool.name),
+)
+
+/** Validates sub_session/ctx.agent input into the stored spec shape (shared by chat and workflows). */
+function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
+  const input = isPlainRecord(raw) ? raw : {}
+  if (input.input === undefined) throw new APIError(400, 'A sub-session requires an input payload')
+  if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
+    throw new APIError(400, 'Provide either prompt or agentId, not both')
+  }
+  const spec: SubSessionSpec = {
+    ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
+    ...(typeof input.prompt === 'string' && input.prompt ? {prompt: input.prompt} : {}),
+    ...(typeof input.agentId === 'string' && input.agentId ? {agentId: input.agentId} : {}),
+    input: input.input,
+    ...(Array.isArray(input.tools)
+      ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
+      : {}),
+  }
+  if (input.output !== undefined) {
+    const shapeErrors = validateJsonSchemaShape(input.output)
+    if (shapeErrors.length > 0) {
+      throw new APIError(
+        400,
+        `output schema is not supported: ${shapeErrors.map((error) => `${error.path}: ${error.message}`).join('; ')}`,
+      )
+    }
+    spec.output = input.output as JsonSchema
+  }
+  return spec
 }
 
 /** Content of a durable assistant message event, for typed-less sub-session results. */
@@ -276,6 +348,10 @@ export class Service {
   readonly #subscriptionAuthEnabled: boolean
   /** Durable run records + dispatch queue; every agent execution goes through it. */
   readonly #runQueue: runs.RunQueue
+  /** Resolvers awaiting a run's terminal status (workflow children), resolved in the finalizer. */
+  readonly #runWaiters = new Map<string, Array<(run: runs.RunRecord) => void>>()
+  /** Live workflow VMs whose cancellation was requested; their interrupt handlers check this. */
+  readonly #workflowCancelFlags = new Set<string>()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -311,10 +387,14 @@ export class Service {
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
     this.#runQueue = new runs.RunQueue(db, {
-      executors: {agent: (run) => this.#executeAgentRun(run)},
+      executors: {
+        agent: (run) => this.#executeAgentRun(run),
+        workflow: (run) => this.#executeWorkflowRun(run),
+      },
       onRunChanged: (run) => this.#onRunChanged(run),
       onRunFinalized: (run) => this.#onRunFinalized(run),
       abortRun: (run) => {
+        if (run.kind === 'workflow') this.#workflowCancelFlags.add(run.id)
         if (run.sessionId) void this.#abortLiveSessionRun(run.accountId, run.sessionId)
       },
     })
@@ -2034,13 +2114,18 @@ export class Service {
     run: runs.RunRecord | undefined,
     runningSession: RunningSession | undefined,
     outputSchema: JsonSchema | undefined,
-  ): Pick<AgentServicePiToolContext, 'spawnSubSession' | 'returnResultSchema' | 'deliverResult'> {
+  ): Pick<AgentServicePiToolContext, 'spawnSubSession' | 'spawnWorkflow' | 'returnResultSchema' | 'deliverResult'> {
     if (!run || !runningSession) return {}
     const liveRun = run
     const live = runningSession
-    const context: Pick<AgentServicePiToolContext, 'spawnSubSession' | 'returnResultSchema' | 'deliverResult'> = {
+    const context: Pick<
+      AgentServicePiToolContext,
+      'spawnSubSession' | 'spawnWorkflow' | 'returnResultSchema' | 'deliverResult'
+    > = {
       spawnSubSession: (toolCallId: string, input: unknown) =>
         this.#spawnSubSession(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
+      spawnWorkflow: (toolCallId: string, input: unknown) =>
+        this.#spawnWorkflowFromChat(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
     }
     if (outputSchema) {
       const schema = outputSchema
@@ -2074,10 +2159,16 @@ export class Service {
   }
 
   #onRunFinalized(run: runs.RunRecord): void {
+    this.#workflowCancelFlags.delete(run.id)
+    const waiters = this.#runWaiters.get(run.id)
+    if (waiters) {
+      this.#runWaiters.delete(run.id)
+      for (const resolve of waiters) resolve(run)
+    }
     if (run.parentRunId) {
-      const parentToolCallId = (run.input as {parentToolCallId?: string} | null)?.parentToolCallId
-      if (typeof parentToolCallId === 'string' && parentToolCallId) {
-        this.#resolveSubSessionResult(run, parentToolCallId)
+      const input = run.input as {parentToolCallId?: string; parentToolName?: string} | null
+      if (typeof input?.parentToolCallId === 'string' && input.parentToolCallId) {
+        this.#resolveSubSessionResult(run, input.parentToolCallId, input.parentToolName)
       }
     }
     if (run.kind === 'agent' && run.sessionId && run.status === 'failed' && run.error) {
@@ -2259,30 +2350,7 @@ export class Service {
     toolCallId: string,
     raw: unknown,
   ): {status: string; sessionId: string; title: string} {
-    const input = isPlainRecord(raw) ? raw : {}
-    if (input.input === undefined) throw new APIError(400, 'sub_session requires an input payload')
-    if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
-      throw new APIError(400, 'Provide either prompt or agentId, not both')
-    }
-    const spec: SubSessionSpec = {
-      ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
-      ...(typeof input.prompt === 'string' && input.prompt ? {prompt: input.prompt} : {}),
-      ...(typeof input.agentId === 'string' && input.agentId ? {agentId: input.agentId} : {}),
-      input: input.input,
-      ...(Array.isArray(input.tools)
-        ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
-        : {}),
-    }
-    if (input.output !== undefined) {
-      const shapeErrors = validateJsonSchemaShape(input.output)
-      if (shapeErrors.length > 0) {
-        throw new APIError(
-          400,
-          `output schema is not supported: ${shapeErrors.map((error) => `${error.path}: ${error.message}`).join('; ')}`,
-        )
-      }
-      spec.output = input.output as JsonSchema
-    }
+    const spec = normalizeSubSessionSpec(raw)
     if (parentRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
       throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH}); finish the work here.`)
     }
@@ -2343,9 +2411,10 @@ export class Service {
    * Child terminal status → parent resolution: appends the durable sub_session tool_result on the
    * parent transcript and shrinks the parent's wait set, requeuing it when the set empties.
    */
-  #resolveSubSessionResult(child: runs.RunRecord, parentToolCallId: string): void {
+  #resolveSubSessionResult(child: runs.RunRecord, parentToolCallId: string, parentToolName?: string): void {
     const parent = child.parentRunId ? runs.getRun(this.#db, child.accountId, child.parentRunId) : null
     if (!parent || parent.kind !== 'agent' || !parent.sessionId) return
+    const toolName = parentToolName ?? seedToolRegistry.sub_session.name
     let result: Record<string, unknown>
     if (child.status === 'succeeded') {
       result = {status: 'succeeded', sessionId: child.sessionId, output: child.output ?? null}
@@ -2363,7 +2432,7 @@ export class Service {
       child.accountId,
       parent.agentId ?? '',
       parent.sessionId,
-      {type: 'tool_result', toolCallId: parentToolCallId, name: seedToolRegistry.sub_session.name, output: result},
+      {type: 'tool_result', toolCallId: parentToolCallId, name: toolName, output: result},
       Date.now(),
     )
     const resolution = this.#runQueue.resolveChildWait(parent.id, parentToolCallId)
@@ -2400,6 +2469,321 @@ export class Service {
         this.#runQueue.resolveChildWait(run.id, toolCallId)
       }
     }
+  }
+
+  /** Resolves when the run reaches a terminal status (resolved by the finalizer, race-safe). */
+  #awaitRunTerminal(accountId: string, runId: string): Promise<runs.RunRecord> {
+    return new Promise((resolve) => {
+      const waiters = this.#runWaiters.get(runId) ?? []
+      waiters.push(resolve)
+      this.#runWaiters.set(runId, waiters)
+      // Check AFTER registering so a finalization between check and register cannot be missed.
+      const current = runs.getRun(this.#db, accountId, runId)
+      if (current && runs.TERMINAL_RUN_STATUSES.includes(current.status)) {
+        const pending = this.#runWaiters.get(runId)
+        if (pending) {
+          this.#runWaiters.delete(runId)
+          for (const waiter of pending) waiter(current)
+        }
+      }
+    })
+  }
+
+  /** run_workflow tool: lints and spawns a workflow child run, parking the calling turn on it. */
+  #spawnWorkflowFromChat(
+    accountId: string,
+    parentRun: runs.RunRecord,
+    parentSessionId: string,
+    parentAgentId: string,
+    runningSession: RunningSession,
+    toolCallId: string,
+    raw: unknown,
+  ): {status: string; runId: string; title: string} {
+    const input = isPlainRecord(raw) ? raw : {}
+    const source = typeof input.source === 'string' ? input.source : ''
+    const title = normalizeBoundedString(input.title, 'Workflow title', MAX_NAME_BYTES)
+    const lintErrors = lintWorkflowSource(source)
+    if (lintErrors.length > 0) {
+      throw new APIError(400, `Workflow source rejected:\n- ${lintErrors.join('\n- ')}`)
+    }
+    if (parentRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
+      throw new APIError(400, `Workflow depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
+    }
+    const hasher = new Bun.CryptoHasher('sha256')
+    hasher.update(source)
+    const sourceCid = `sha256:${hasher.digest('hex')}`
+    const childRunId = crypto.randomUUID()
+    this.#runQueue.enqueue({
+      id: childRunId,
+      accountId,
+      kind: 'workflow',
+      origin: 'agent',
+      parentRunId: parentRun.id,
+      agentId: parentAgentId,
+      title,
+      sourceCid,
+      sourceText: source,
+      input: {input: input.input ?? null, parentToolCallId: toolCallId, parentToolName: 'run_workflow'},
+      queue: 'background',
+      maxAttempts: 1,
+    })
+    runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
+    console.info('[agents/workflow] workflow spawned from chat', {
+      accountId,
+      parentRunId: parentRun.id,
+      childRunId,
+      parentSessionId,
+      title,
+      sourceBytes: source.length,
+    })
+    return {status: 'spawned', runId: childRunId, title}
+  }
+
+  /** ctx.agent inside a workflow: spawns a child agent run + session under the workflow run. */
+  #spawnWorkflowChildAgent(workflowRun: runs.RunRecord, rawSpec: unknown): {childRunId: string; sessionId?: string} {
+    const spec = normalizeSubSessionSpec(rawSpec)
+    if (workflowRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
+      throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
+    }
+    const childCount =
+      this.#db
+        .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`)
+        .get(workflowRun.id)?.n ?? 0
+    if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
+      throw new APIError(400, `This workflow already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions`)
+    }
+    const accountId = workflowRun.accountId
+    const childAgentId = spec.agentId ?? workflowRun.agentId
+    if (!childAgentId) throw new APIError(400, 'Workflow run has no agent to run sub-sessions as')
+    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
+    // Nest the child session under the chat session that (transitively) launched the workflow.
+    let ancestorSessionId: string | undefined
+    for (let cursor: runs.RunRecord | null = workflowRun; cursor; ) {
+      if (cursor.sessionId) {
+        ancestorSessionId = cursor.sessionId
+        break
+      }
+      cursor = cursor.parentRunId ? runs.getRun(this.#db, accountId, cursor.parentRunId) : null
+    }
+    const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
+    const childRunId = crypto.randomUUID()
+    const session = this.#createSessionOnce(accountId, childAgentId, title, {
+      ...(ancestorSessionId ? {parentSessionId: ancestorSessionId} : {}),
+      runId: childRunId,
+    })
+    const rendered =
+      typeof spec.input === 'string'
+        ? spec.input
+        : `Here is your task input:\n\n\`\`\`json\n${JSON.stringify(spec.input, null, 2)}\n\`\`\``
+    this.#appendSessionEvent(
+      accountId,
+      childAgentId,
+      session.sessionId,
+      {type: 'message', role: 'user', content: rendered},
+      Date.now(),
+    )
+    this.#runQueue.enqueue({
+      id: childRunId,
+      accountId,
+      kind: 'agent',
+      origin: 'workflow',
+      parentRunId: workflowRun.id,
+      agentId: childAgentId,
+      sessionId: session.sessionId,
+      title,
+      input: {spec},
+      queue: 'background',
+      maxAttempts: 2,
+    })
+    return {childRunId, sessionId: session.sessionId}
+  }
+
+  /** Executes one claimed workflow run in the QuickJS engine against journaled adapters. */
+  async #executeWorkflowRun(run: runs.RunRecord): Promise<runs.RunOutcome> {
+    if (!run.sourceText) {
+      return {type: 'failed', error: {code: 'config-error', message: 'Workflow run is missing its source'}}
+    }
+    if (!run.agentId) {
+      return {type: 'failed', error: {code: 'config-error', message: 'Workflow run is missing its agent'}}
+    }
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(run.accountId, run.agentId)
+    if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found'}}
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    const allowedTools = new Set(
+      (definition.tools === undefined ? [seedToolRegistry.read.name] : definition.tools)
+        .map(normalizeSeedToolName)
+        .filter(
+          (tool) =>
+            WORKFLOW_CALLABLE_TOOLS.has(tool) && (tool !== seedToolRegistry.execute_code.name || codeExecAvailable),
+        ),
+    )
+    const stateDir = this.#agentMemoryStateDir(run.accountId, run.agentId)
+    const partialId = crypto.randomUUID()
+    const emitRunPartial = (patch: {
+      progress?: {fraction?: number; label?: string}
+      activity?: api.AgentRunActivity
+    }): void => {
+      this.#emit({
+        type: 'run-partial',
+        accountId: run.accountId,
+        rootRunId: run.rootRunId,
+        runId: run.id,
+        partialId,
+        patch,
+      })
+    }
+    const toolDefs = createAgentServicePiTools({
+      db: this.#db,
+      accountId: run.accountId,
+      agentId: run.agentId,
+      definition,
+      hmServerUrl: this.#hmServerUrl,
+      web: this.#web,
+      stateDir,
+      sessionId: '',
+      modelAcceptsImages: false,
+      codeExec: this.#codeExec,
+      onMemoryChange: () =>
+        this.#emit({
+          type: 'account-change',
+          accountId: run.accountId,
+          reason: 'agent-memory-changed',
+          agentId: run.agentId,
+        }),
+      onToolProgress: (toolName, progress) =>
+        emitRunPartial({
+          activity: {
+            phase: 'tool',
+            toolName,
+            toolCallId: progress.toolCallId,
+            detail: progress.detail,
+            outputTail: progress.outputTail,
+          },
+        }),
+      setSessionTitle: () => {
+        throw new APIError(400, 'set_session_title is not available in workflows')
+      },
+      startSession: () => {
+        throw new APIError(400, 'start_session is not available in workflows; use ctx.agent')
+      },
+    })
+    const toolsByName = new Map(toolDefs.map((def) => [def.name, def]))
+
+    // Journal adapter with caps, backed by run_journal and streamed to runs/<root> subscribers.
+    let journalCount =
+      this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)?.n ??
+      0
+    let journalBytes =
+      this.#db
+        .query<{b: number | null}, [string]>(`SELECT SUM(LENGTH(entry_cbor)) AS b FROM run_journal WHERE run_id = ?`)
+        .get(run.id)?.b ?? 0
+    let toolCallCounter = 0
+
+    const outcome = await runWorkflowVM({
+      runId: run.id,
+      input: (run.input as {input?: unknown} | null)?.input ?? null,
+      source: run.sourceText,
+      journal: {
+        load: () =>
+          this.#db
+            .query<{entry_cbor: Uint8Array}, [string]>(
+              `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
+            )
+            .all(run.id)
+            .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor)),
+        append: (entry) => {
+          const encoded = cbor.encode(entry)
+          if (
+            journalCount + 1 > WORKFLOW_JOURNAL_MAX_ENTRIES ||
+            journalBytes + encoded.byteLength > WORKFLOW_JOURNAL_MAX_BYTES
+          ) {
+            throw {code: 'journal-cap'}
+          }
+          journalCount += 1
+          journalBytes += encoded.byteLength
+          const seq = journalCount
+          const createdAt = Date.now()
+          this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
+            run.id,
+            seq,
+            encoded,
+            createdAt,
+          ])
+          this.#emit({
+            type: 'run-append',
+            accountId: run.accountId,
+            rootRunId: run.rootRunId,
+            entry: {runId: run.id, seq, entry: entry as unknown as Record<string, unknown>, createdAt},
+          })
+        },
+      },
+      effects: {
+        callTool: async (tool, input) => {
+          if (!allowedTools.has(normalizeSeedToolName(tool))) {
+            const error = new Error(
+              `Tool "${tool}" is not available in this workflow. Available: ${[...allowedTools].join(', ')}`,
+            ) as Error & {code: string}
+            error.code = 'unknown-tool'
+            throw error
+          }
+          const def = toolsByName.get(normalizeSeedToolName(tool))
+          if (!def) {
+            const error = new Error(`Tool "${tool}" has no workflow executor`) as Error & {code: string}
+            error.code = 'unknown-tool'
+            throw error
+          }
+          const metadata = seedToolRegistry[normalizeSeedToolName(tool) as keyof typeof seedToolRegistry]
+          if (metadata) {
+            const inputErrors = validateJsonSchemaValue(metadata.inputSchema, input ?? {})
+            if (inputErrors.length > 0) {
+              const error = new Error(
+                `Invalid input for ${tool}: ${inputErrors.map((e) => `${e.path}: ${e.message}`).join('; ')}`,
+              ) as Error & {code: string}
+              error.code = 'invalid-input'
+              throw error
+            }
+          }
+          toolCallCounter += 1
+          emitRunPartial({activity: {phase: 'tool', toolName: tool}})
+          const execute = def.execute as unknown as (
+            toolCallId: string,
+            params: unknown,
+          ) => Promise<{details?: unknown}>
+          const result = await execute(`wf-${run.id}-${toolCallCounter}`, input)
+          emitRunPartial({activity: {phase: 'thinking'}})
+          return result.details ?? null
+        },
+        spawnAgent: (spec) => this.#spawnWorkflowChildAgent(run, spec),
+        awaitChild: async (childRunId): Promise<WorkflowChildResolution> => {
+          const child = await this.#awaitRunTerminal(run.accountId, childRunId)
+          if (child.status === 'succeeded') {
+            return {status: 'succeeded', output: child.output ?? null, sessionId: child.sessionId}
+          }
+          if (child.status === 'canceled') return {status: 'canceled', sessionId: child.sessionId}
+          return {
+            status: 'failed',
+            error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-agent failed'},
+            sessionId: child.sessionId,
+          }
+        },
+        updatePlan: (plan) => {
+          this.#runQueue.updatePlan(run.id, plan)
+        },
+        progress: (patch) => emitRunPartial({progress: patch}),
+      },
+      isCanceled: () => this.#workflowCancelFlags.has(run.id),
+    })
+
+    if (outcome.type === 'parked') return {type: 'parked', wait: outcome.wait}
+    if (outcome.type === 'succeeded') return {type: 'succeeded', output: outcome.output}
+    if (outcome.type === 'canceled') return {type: 'canceled'}
+    return {type: 'failed', error: outcome.error}
   }
 
   async #stopSession(accountId: string, sessionId: string): Promise<api.StopSessionResponse> {
@@ -2677,6 +3061,7 @@ export class Service {
                 tool === seedToolRegistry.attachment_to_ipfs.name ||
                 tool === seedToolRegistry.memory_publish_document.name ||
                 (tool === seedToolRegistry.sub_session.name && run !== undefined) ||
+                (tool === seedToolRegistry.run_workflow.name && run !== undefined) ||
                 (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
             ),
         ),
@@ -4712,6 +5097,8 @@ type AgentServicePiToolContext = WriteToolContext & {
   startSession: (input: unknown) => {sessionId: string; title: string}
   /** sub_session tool: spawns an awaited child run + session and parks the calling turn on it. */
   spawnSubSession?: (toolCallId: string, input: unknown) => unknown
+  /** run_workflow tool: lints + spawns a workflow child run and parks the calling turn on it. */
+  spawnWorkflow?: (toolCallId: string, input: unknown) => unknown
   /** When set, this run is a typed sub-session child: return_result uses this schema as its parameters. */
   returnResultSchema?: JsonSchema
   /** return_result tool: validates and records the typed result, ending the turn after the tool batch. */
@@ -5092,6 +5479,10 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
     defineSeedPiTool(seedToolRegistry.sub_session, (params, toolCallId) => {
       if (!context.spawnSubSession) throw new APIError(400, 'sub_session is not available in this run context')
       return context.spawnSubSession(toolCallId, params)
+    }),
+    defineSeedPiTool(seedToolRegistry.run_workflow, (params, toolCallId) => {
+      if (!context.spawnWorkflow) throw new APIError(400, 'run_workflow is not available in this run context')
+      return context.spawnWorkflow(toolCallId, params)
     }),
     defineSeedPiTool(
       context.returnResultSchema

@@ -491,6 +491,23 @@ async function main(): Promise<void> {
           key: `runs/${event.run.rootRunId}`,
           value: event.run,
         })
+      } else if (event.type === 'run-append') {
+        sendIfSubscribed(ws, `runs/${event.rootRunId}`, {
+          _: 'append',
+          key: `runs/${event.rootRunId}`,
+          runId: event.entry.runId,
+          seq: event.entry.seq,
+          entry: event.entry.entry,
+          createdAt: event.entry.createdAt,
+        })
+      } else if (event.type === 'run-partial') {
+        sendIfSubscribed(ws, `runs/${event.rootRunId}`, {
+          _: 'appendPartial',
+          key: `runs/${event.rootRunId}`,
+          runId: event.runId,
+          partialId: event.partialId,
+          patch: event.patch,
+        })
       } else {
         sendIfSubscribed(ws, `account/${event.accountId}`, {
           _: 'change',

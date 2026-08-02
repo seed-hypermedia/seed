@@ -34,6 +34,7 @@
     "lucide-react": "^0.545.0",
     "microsandbox": "^0.6.6",
     "multiformats": "^13.4.1",
+    "quickjs-emscripten": "^0.32.0",
     "react": "^19",
     "react-dom": "^19",
     "react-router-dom": "^7.13.0",
