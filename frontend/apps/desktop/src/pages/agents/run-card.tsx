@@ -1,10 +1,10 @@
-import {type RunInfo, type RunPlan, type RunStatus} from '@/agents-client'
+import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} from '@/agents-client'
 import {formatElapsed, formatTokenCount} from '@/components/agent-run-status'
 import {SessionStatusDot} from '@/components/session-children'
 import {useAgentRunTreeSubscription, useCancelRun, useRunTree, useSessionRuns} from '@/models/agents'
 import {Button} from '@shm/ui/button'
 import {Bot, Check, ChevronDown, ChevronRight, CircleDashed, Loader2, Minus, Workflow, X} from 'lucide-react'
-import React, {useEffect, useMemo, useState} from 'react'
+import React, {useEffect, useMemo, useRef, useState} from 'react'
 
 /** Statuses a run can no longer leave. */
 const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
@@ -234,12 +234,134 @@ export function SessionRunCard({
         </div>
       ) : null}
 
+      <RunActivityDrawer journal={live.journal} />
+
       {!compact && usageTotal > 0 ? (
         <div className="text-muted-foreground border-border flex justify-end border-t pt-1 text-[10px]">
           {formatTokenCount(usageTotal)} tokens
         </div>
       ) : null}
     </RunCardShell>
+  )
+}
+
+/** How many journal lines the drawer keeps on screen; older ones scroll out of existence. */
+const MAX_ACTIVITY_LINES = 100
+
+/** One rendered journal line: what happened, and how loudly to say it. */
+type ActivityLine = {key: string; text: string; tone?: 'error' | 'warn'}
+
+/**
+ * Renders the journal entries a workflow writes as it runs. Kinds not listed here (`result`,
+ * `timer`, `fired`, `now`, `plan`) are replay bookkeeping, not activity, and would drown the log.
+ */
+function journalEntryLine(entry: RunJournalEntryInfo): ActivityLine | null {
+  const payload = entry.entry as {
+    kind?: string
+    level?: string
+    message?: string
+    label?: string
+    phase?: string
+    ok?: boolean
+    op?: string
+    tool?: string
+    status?: string
+    error?: {code?: string; message?: string}
+  }
+  const key = `${entry.runId}:${entry.seq}`
+  if (payload.kind === 'log') {
+    return {
+      key,
+      text: `${payload.level || 'info'} · ${payload.message ?? ''}`,
+      tone: payload.level === 'error' ? 'error' : payload.level === 'warn' ? 'warn' : undefined,
+    }
+  }
+  if (payload.kind === 'step') {
+    const phase = payload.phase === 'start' ? 'start' : payload.ok === false ? 'failed' : 'done'
+    return {
+      key,
+      text: `step: ${payload.label ?? payload.phase ?? ''} (${phase})`,
+      tone: phase === 'failed' ? 'error' : undefined,
+    }
+  }
+  if (payload.kind === 'call') {
+    if (payload.op === 'agent') return {key, text: 'agent: sub-session'}
+    return {key, text: `tool: ${payload.tool ?? 'unknown'}`}
+  }
+  // Successful results are replay bookkeeping, but a failed result is the one place the error
+  // message lives — surface it where someone reading the log is looking for it.
+  if (payload.kind === 'result' && payload.status === 'failed') {
+    return {
+      key,
+      text: `failed: ${payload.error?.message ?? payload.error?.code ?? 'action failed'}`,
+      tone: 'error',
+    }
+  }
+  return null
+}
+
+/**
+ * Collapsible log of what the run has actually been doing.
+ *
+ * Collapsed by default: a fan-out of a dozen children writes hundreds of lines, and the card's job
+ * above this is to stay glanceable. Entries span every run in the tree, oldest first, so the newest
+ * line sits at the bottom where the drawer is already scrolled.
+ */
+function RunActivityDrawer({journal}: {journal: RunJournalEntryInfo[]}) {
+  const [open, setOpen] = useState(false)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const lines = useMemo(() => {
+    const ordered = [...journal].sort((a, b) => a.createdAt - b.createdAt || a.seq - b.seq)
+    return ordered
+      .map(journalEntryLine)
+      .filter((line): line is ActivityLine => line !== null)
+      .slice(-MAX_ACTIVITY_LINES)
+  }, [journal])
+
+  // Follow the tail, the way a terminal does.
+  useEffect(() => {
+    if (!open || !scrollRef.current) return
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [open, lines.length])
+
+  if (!lines.length) return null
+
+  return (
+    <div className="border-border flex flex-col border-t pt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start text-[11px]"
+        onClick={() => setOpen((current) => !current)}
+      >
+        {open ? <ChevronDown className="size-3 flex-none" /> : <ChevronRight className="size-3 flex-none" />}
+        Activity
+        <span className="opacity-70">{lines.length}</span>
+      </button>
+      {open ? (
+        <div
+          ref={scrollRef}
+          aria-label="Run activity"
+          className="bg-muted/40 mt-1 max-h-40 overflow-y-auto rounded p-1.5 font-mono text-[10px] leading-4"
+        >
+          {lines.map((line) => (
+            <div
+              key={line.key}
+              className={`truncate ${
+                line.tone === 'error'
+                  ? 'text-destructive'
+                  : line.tone === 'warn'
+                    ? 'text-amber-700 dark:text-amber-300'
+                    : ''
+              }`}
+              title={line.text}
+            >
+              {line.text}
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
