@@ -190,6 +190,7 @@ export type SeedToolRegistry = {
   sub_session: SeedToolMetadata
   return_result: SeedToolMetadata
   start_session: SeedToolMetadata
+  update_plan: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
 
@@ -1275,6 +1276,35 @@ export const seedToolRegistry: SeedToolRegistry = {
         {label: 'Output', source: 'output'},
       ],
     },
+    runtimes: ['agent-service'],
+  },
+  update_plan: {
+    name: 'update_plan',
+    label: 'Update Plan',
+    description:
+      "Maintain a visible todo list for the current task. Call this when starting any task with 3 or more distinct steps (declare them all as pending, then mark the first running), and again whenever a step's status changes: running when you begin it, done when finished, failed if it cannot complete, skipped if no longer needed. Keep step labels short and outcome-oriented. Send the full current list each time; it replaces the previous plan. The user sees this as a live checklist, so keeping it current is part of doing the task well.",
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        title: {type: 'string', description: 'Optional one-line name for the overall task.'},
+        steps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              id: {type: 'string', description: 'Stable id for the step (e.g. "s1"), kept across updates.'},
+              label: {type: 'string', minLength: 1, description: 'Short description of the step.'},
+              status: {type: 'string', enum: ['pending', 'running', 'done', 'failed', 'skipped']},
+            },
+            required: ['id', 'label', 'status'],
+          },
+        },
+      },
+      required: ['steps'],
+    },
+    render: {kind: 'hidden', label: 'Update Plan', color: 'hidden', summaryArg: 'title'},
     runtimes: ['agent-service'],
   },
   set_session_title: {

@@ -2515,6 +2515,7 @@ describe('api service', () => {
             'view_attachment',
             'start_session',
             'set_session_title',
+            'update_plan',
           ])
           return openAIStreamResponse([
             {id: 'chat-1', choices: [{delta: {content: "I'll read it first.\n"}}]},
@@ -2738,7 +2739,7 @@ describe('api service', () => {
       // First provider request advertises exactly the enabled web tool plus the hidden title tool.
       expect(
         (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
-      ).toEqual(['web_search', 'view_attachment', 'start_session', 'set_session_title'])
+      ).toEqual(['web_search', 'view_attachment', 'start_session', 'set_session_title', 'update_plan'])
       // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
       const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
       expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
@@ -2838,6 +2839,7 @@ describe('api service', () => {
             'view_attachment',
             'start_session',
             'set_session_title',
+            'update_plan',
           ])
           expect(JSON.stringify(body.tools)).toContain('replyCommentId')
           expect(JSON.stringify(body.tools)).toContain('document title metadata')

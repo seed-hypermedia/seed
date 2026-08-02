@@ -28,6 +28,7 @@ import * as cbor from '@/cbor'
 import * as runs from '@/runs'
 import {
   lintWorkflowSource,
+  normalizeRunPlan,
   runWorkflowVM,
   type WorkflowChildResolution,
   type WorkflowJournalEntry,
@@ -1763,6 +1764,24 @@ export class Service {
     return {_: 'AbortFileUploadResponse', uploadId}
   }
 
+  /** update_plan tool: stores the session's todo snapshot, rendered by the pinned progress card. */
+  #setSessionPlanFromAgent(accountId: string, sessionId: string, raw: unknown): api.SessionInfo {
+    const plan = normalizeRunPlan(raw)
+    const changes = this.#db.run(`UPDATE sessions SET plan_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+      cbor.encode(plan),
+      Date.now(),
+      accountId,
+      sessionId,
+    ]).changes
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    if (changes > 0) {
+      this.#emit({type: 'session-change', accountId, session})
+      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+    }
+    return session
+  }
+
   #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {
     const title = normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
     const existing = this.#db
@@ -3027,6 +3046,7 @@ export class Service {
             },
           }),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
+        setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan),
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input),
         ...this.#subSessionToolContext(
           accountId,
@@ -3069,6 +3089,7 @@ export class Service {
         seedToolRegistry.view_attachment.name,
         seedToolRegistry.start_session.name,
         seedToolRegistry.set_session_title.name,
+        seedToolRegistry.update_plan.name,
         // Typed sub-session children must deliver their result through this tool.
         ...(subSessionOutputSchema ? [seedToolRegistry.return_result.name] : []),
       ],
@@ -3223,6 +3244,7 @@ export class Service {
       }
       if (event.type === 'tool_execution_start') {
         if (event.toolName === seedToolRegistry.set_session_title.name) return
+        if (event.toolName === seedToolRegistry.update_plan.name) return
         endStreamingLog()
         if (currentAssistantHadDelta) {
           flushPartialAssistantMessage()
@@ -3254,6 +3276,7 @@ export class Service {
       }
       if (event.type === 'tool_execution_end') {
         if (event.toolName === seedToolRegistry.set_session_title.name) return
+        if (event.toolName === seedToolRegistry.update_plan.name) return
         // Parked sub_session calls keep their durable tool_call unanswered: the real tool_result is
         // appended by the child's finalizer, and the resumed turn replays it from there.
         if (runningSession?.parkToolCallIds?.includes(event.toolCallId)) {
@@ -5095,6 +5118,8 @@ type AgentServicePiToolContext = WriteToolContext & {
   codeExec: CodeExecutor
   /** start_session tool: creates a new session of this agent and dispatches its first run in the background. */
   startSession: (input: unknown) => {sessionId: string; title: string}
+  /** update_plan tool: stores the session's live todo snapshot. Absent in session-less (workflow) contexts. */
+  setSessionPlan?: (plan: unknown) => api.SessionInfo
   /** sub_session tool: spawns an awaited child run + session and parks the calling turn on it. */
   spawnSubSession?: (toolCallId: string, input: unknown) => unknown
   /** run_workflow tool: lints + spawns a workflow child run and parks the calling turn on it. */
@@ -5493,6 +5518,11 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         return context.deliverResult(params)
       },
     ),
+    defineSeedPiTool(seedToolRegistry.update_plan, (params) => {
+      if (!context.setSessionPlan) throw new APIError(400, 'update_plan is not available in this context')
+      const session = context.setSessionPlan(params)
+      return {ok: true, steps: session.plan?.steps.length ?? 0}
+    }),
     defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
       const title = isRecord(params) && typeof params.title === 'string' ? params.title : ''
       console.info('[agents/runtime] set_session_title tool called')
