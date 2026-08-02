@@ -543,10 +543,10 @@ export type StopSession = {
   sessionId: string
 }
 
-/** Authorizes a WebSocket subscription to account/agent/session changes. */
+/** Authorizes a WebSocket subscription to account/agent/session/run changes. */
 export type Subscribe = {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 
@@ -595,6 +595,68 @@ export type SessionInfo = {
   createdAt: number
   updatedAt: number
   startedByTrigger?: AgentSessionTriggerSummary
+  /** Set on sessions spawned by another session (sub-sessions and agent-started sessions). */
+  parentSessionId?: string
+  /** The run this session is the transcript of, for sessions created as run children. */
+  runId?: string
+  /** Todo/plan snapshot maintained by the agent via the update_plan tool. */
+  plan?: RunPlan
+  /** Number of sessions spawned under this one (rendered as the sub-session disclosure). */
+  childSessionCount?: number
+}
+
+/** Lifecycle status of a durable run. */
+export type RunStatus = 'queued' | 'claimed' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'canceled'
+
+/** Why a run is parked in `waiting`. */
+export type RunWaitInfo = {
+  reason: 'children' | 'timer'
+  wakeAt?: number
+  /** Unresolved child tool calls the run is parked on. */
+  pendingChildren?: number
+}
+
+/** Step list snapshot rendered by the pinned run card and session todo lists. */
+export type RunPlan = {
+  title?: string
+  steps: Array<{id: string; label: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'}>
+}
+
+/** Cumulative persisted usage for a run, including rolled-up child usage. */
+export type RunUsageInfo = AgentRunUsage & {
+  children?: AgentRunUsage & {runs: number}
+}
+
+/** Public metadata returned for a durable run. */
+export type RunInfo = {
+  id: string
+  account: string
+  rootRunId: string
+  parentRunId?: string
+  depth: number
+  kind: 'agent' | 'workflow'
+  agentId?: string
+  /** Transcript session for agent runs; workflow runs have none. */
+  sessionId?: string
+  origin: 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
+  title?: string
+  status: RunStatus
+  wait?: RunWaitInfo
+  plan?: RunPlan
+  error?: {code: string; message: string}
+  usage?: RunUsageInfo
+  createdAt: number
+  startedAt?: number
+  finishedAt?: number
+  updatedAt: number
+}
+
+/** One durable entry in a workflow run's journal (loose until the workflow engine lands). */
+export type RunJournalEntryInfo = {
+  runId: string
+  seq: number
+  entry: Record<string, unknown>
+  createdAt: number
 }
 
 /** Compact trigger attribution attached to sessions created by triggers. */
@@ -697,6 +759,19 @@ export type AgentWSEvent =
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
   | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}
+  | {_: 'change'; key: `runs/${string}`; value: RunInfo}
+  | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
+  | {
+      _: 'appendPartial'
+      key: `runs/${string}`
+      runId: string
+      partialId: string
+      patch: {
+        progress?: {fraction?: number; label?: string}
+        activity?: AgentRunActivity
+        usage?: AgentRunUsage
+      }
+    }
   | {_: 'error'; message: string}
 
 /** Redacted provider metadata returned after provider writes. */

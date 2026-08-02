@@ -1360,6 +1360,8 @@ export function useAgentWebSocketSubscription(
             } else if (event._ === 'subscribed') {
               log('subscribed event', {subscribedKey: event.key, accountId: event.accountId})
             } else if (event._ === 'append') {
+              // Run-journal appends (runs/<id> keys) are handled by the run-tree hook, not here.
+              if (!('event' in event)) return
               log('append event', {sessionId: event.event.sessionId, seq: event.event.seq})
               const eventPayload = event.event.event as {
                 type?: string
@@ -1407,25 +1409,33 @@ export function useAgentWebSocketSubscription(
               )
               invalidateQueries(['agents', 'detail'])
             } else if (event._ === 'appendPartial') {
+              // Run-keyed partials (workflow progress) are handled by the run-tree hook, not here.
+              if (!event.key.startsWith('sessions/')) return
+              const patch = event.patch as {
+                textDelta?: string
+                done?: boolean
+                usage?: AgentRunUsage
+                activity?: AgentRunActivity
+              }
               const sessionId = event.key.slice('sessions/'.length)
-              const textDeltaLength = event.patch.textDelta?.length ?? 0
+              const textDeltaLength = patch.textDelta?.length ?? 0
               log('partial event', {
                 sessionId,
                 partialId: event.partialId,
                 textDeltaLength,
-                done: event.patch.done === true,
-                activity: event.patch.activity?.phase,
-                totalTokens: event.patch.usage?.total,
+                done: patch.done === true,
+                activity: patch.activity?.phase,
+                totalTokens: patch.usage?.total,
               })
               setPartials((current) => {
                 const existing = current[sessionId] ?? EMPTY_SESSION_LIVE_STATE
                 // Usage and activity updates always apply, even on the `done` patch.
                 const next: AgentSessionLiveState = {
                   ...existing,
-                  ...(event.patch.usage ? {usage: event.patch.usage} : {}),
-                  ...(event.patch.activity ? {activity: event.patch.activity} : {}),
+                  ...(patch.usage ? {usage: patch.usage} : {}),
+                  ...(patch.activity ? {activity: patch.activity} : {}),
                 }
-                if (event.patch.done) {
+                if (patch.done) {
                   log('partial marked done; keeping visible until durable append', {
                     sessionId,
                     partialId: event.partialId,
@@ -1433,7 +1443,7 @@ export function useAgentWebSocketSubscription(
                   })
                   return {...current, [sessionId]: next}
                 }
-                next.text = existing.text + (event.patch.textDelta || '')
+                next.text = existing.text + (patch.textDelta || '')
                 log('partial state updated', {sessionId, partialId: event.partialId, totalLength: next.text.length})
                 return {...current, [sessionId]: next}
               })

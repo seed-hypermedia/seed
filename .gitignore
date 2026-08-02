@@ -138,3 +138,4 @@ AGENTS.local.md
 __pycache__/
 *.pyc
 .playwright-mcp/
+.keys
