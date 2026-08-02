@@ -152,6 +152,10 @@ Important columns:
 - `title`
 - `title_source` (`system`, `agent`, or `user`)
 - `status`
+- `parent_session_id` — set on sessions spawned by another session (`sub_session` children, workflow `ctx.agent`
+  children, and `start_session`-started sessions); top-level `ListSessions` excludes rows with a parent by default
+- `run_id` — the run this session is the transcript of, for sessions created as run children
+- `plan_cbor` — the live todo snapshot written by the hidden `update_plan` tool (a `RunPlan`)
 
 `title_source` lets the hidden `set_session_title` runtime tool update generated/system titles while preserving any
 title manually saved by the user through `UpdateSession`.
@@ -163,7 +167,46 @@ Current session statuses:
 - `stopped`
 - `error`
 
-`MessageSession` sets `streaming` during execution, then `idle` or `error`.
+`status` is now a **derived mirror** of run state, maintained for client compatibility: `streaming` iff a non-terminal
+agent run references the session, `error` when the session's latest run failed, else `idle` (canceled runs also mirror
+to `idle` so old clients see the pre-runs behavior). Liveness truth lives in the `runs` table, so a crash can never
+permanently wedge a session in `streaming` — the boot sweep requeues interrupted runs and the mirror re-derives.
+
+Deleting a session detaches rather than cascades: its runs keep their history with `session_id` nulled, and child
+sessions promote to top level (`parent_session_id` nulled).
+
+### `runs`
+
+Every execution — an interactive turn, a trigger firing, an agent-started session, a `sub_session` child, a workflow —
+is a durable row in `runs`. The table doubles as the dispatch queue (see `agents/src/runs.ts`); runs form a tree via
+`parent_run_id` with a denormalized `root_run_id` so one WebSocket subscription covers a whole tree.
+
+Important columns:
+
+- `id`, `account_id`, `root_run_id`, `parent_run_id`, `depth`
+- `kind` — `agent` or `workflow`
+- `agent_id`, `session_id` (transcript session for agent runs; NULL for workflows), `trigger_firing_id`
+- `origin` — `user`, `trigger`, `agent`, `workflow`, or `system`
+- `title`, `model`
+- `source_cid`, `source_text` — workflow runs: the JS module and its `sha256:` digest
+- `input_cbor`, `output_cbor`, `error_cbor` (`{code, message, retryable?, httpStatus?}`)
+- `status` — `queued`, `claimed`, `running`, `waiting`, `succeeded`, `failed`, `canceled`
+- `wait_cbor` — why a run is parked: `{reason: 'children', toolCallIds}` or `{reason: 'timer', wakeAt}`
+- `attempt`, `max_attempts`, `not_before` (backoff/timer wake), `queue` (`interactive` or `background`)
+- `lease_owner`, `lease_expires_at` — crash recovery: the boot sweep requeues rows a dead process left claimed/running
+- `budget_cbor`, `usage_cbor` (persisted per turn boundary, child usage rolled up into the parent on finalize)
+- `plan_cbor` — workflow step/plan snapshot fed by `ctx.step`/`ctx.plan`
+
+Deleting a trigger detaches its runs (`trigger_firing_id` nulled) before deleting firings.
+
+### `run_journal`
+
+Append-only journal for workflow runs — the execution spine that makes replay-from-top resume deterministic. Rows are
+`(run_id, seq, entry_cbor, created_at)` with `seq` monotonic per run; each entry carries a `callSeq` correlating the
+entries of one `ctx` call (`call`/`result`, `timer`/`fired`) because the `(run_id, seq)` primary key cannot repeat.
+Entry kinds: `call`, `result`, `timer`, `fired`, `now`, `log`, `step`, `plan` (see `WorkflowJournalEntry` in
+`agents/src/workflow-host.ts`). Caps: 5,000 entries or 8 MiB per run, after which the run fails `journal-cap`. Entries
+are streamed to `runs/<rootRunId>` subscribers as `append` events and replayed on subscribe.
 
 ### `trigger_firings`
 
@@ -272,8 +315,7 @@ transactions because it performs model/network work.
 
 - Move from `MAX(seq)+1` event sequence allocation to a stronger per-session sequence allocator if concurrent appends
   become possible.
-- Add run records to distinguish durable session state from each model execution attempt.
-- Add retention/pruning for old events and idempotency rows.
+- Add retention/pruning for old events, runs, journals, and idempotency rows.
 - Add secret versioning/rotation metadata.
 - Add audit log tables for provider/secret/tool/security events.
 - Add KMS/keychain option for secret encryption key.

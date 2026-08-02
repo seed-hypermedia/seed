@@ -32,6 +32,8 @@ ipfs_write
 attachment_to_memory
 attachment_to_ipfs
 execute_code
+sub_session
+run_workflow
 ```
 
 `read` is available by default for existing agents whose saved definition omits `tools`. Agents with an explicit `tools`
@@ -43,7 +45,10 @@ Always-available runtime tools (not stored in agent `tools`):
 ```text
 view_attachment
 set_session_title
+update_plan
 ```
+
+`return_result` is a special runtime tool exposed only inside typed sub-sessions (see `sub_session` below).
 
 `set_session_title` is always available to the model but is not stored in agent `tools`, shown in the desktop Tools tab,
 or rendered as a durable tool call/result in chat. The system prompt tells the model to set a concise one-line title
@@ -327,6 +332,78 @@ Behavior and safety:
 - the SDK loads lazily: servers without virtualization support run normally and the tool fails with a clear
   backend-unavailable error (or is greyed out when `SEED_AGENTS_EXEC_BACKEND` is unset/off, via the health `codeExec`
   capability).
+
+## `sub_session`
+
+Delegates one task to an **awaited** child session that resolves back into the calling turn as this tool call's result —
+the durable counterpart to fire-and-forget `start_session`.
+
+Input (`SubSessionSpec`):
+
+```ts
+type SubSessionInput = {
+  title?: string // sessions list + progress card label
+  prompt?: string // inline system prompt for an anonymous worker (exactly one of prompt | agentId; neither = run as yourself)
+  agentId?: string // run under another of the account's agents
+  input: unknown // first user message: strings verbatim, objects as fenced JSON
+  tools?: string[] // intersected with the (child) agent's enabled tools
+  output?: JsonSchema // typed result contract (see return_result below)
+}
+```
+
+Semantics:
+
+- The child is a **real session** with durable lineage (`parent_session_id`, `run_id`) and a `kind: 'agent'` child run
+  under the calling run. Context isolation is total: the child sees only its system prompt and the rendered input, never
+  the parent transcript (persistent memory is shared when the child is the same agent).
+- **The parent never busy-waits.** After the turn's tool batch executes (several `sub_session` calls in one reply fan
+  out in parallel), the run refuses the next provider request and parks (`status 'waiting'`, wait reason `children`) —
+  holding no worker slot and surviving restarts. Each child's finalizer appends the durable `sub_session` `tool_result`
+  (`{status: 'succeeded' | 'failed' | 'canceled', sessionId, output?, error?}`) on the parent transcript and requeues
+  the parent when the wait set empties; the resumed turn replays the transcript and continues with results in hand.
+- The parked `tool_call` stays durably unanswered until then; a post-park reconcile pass closes the race where a fast
+  child finalizes before the parent's `waiting` status commits.
+- **Typed results**: when `output` declares a JSON schema (the registry's bounded subset — validated at spawn), the
+  child gets a synthetic `return_result` tool whose parameters ARE that schema. The server validates the payload;
+  failures return the error list to the child model for self-correction (3 attempts, then the run fails `output-schema`;
+  a turn that ends without delivering gets one nudge). Without `output`, success returns
+  `{text: <final assistant text>}`.
+- **Limits from the durable run tree** (restart-proof, unlike the old in-memory `start_session` backstops): spawn-chain
+  depth 3, fan-out 10 children per run.
+
+`start_session` remains the fire-and-forget variant — no result ever returns — but now records the same durable lineage,
+so its sessions also nest under their parent in session lists.
+
+## `run_workflow`
+
+Runs agent-authored JavaScript orchestration in an in-process QuickJS-WASM realm (`agents/src/workflow-host.ts`). The
+model writes one self-contained module — `export default async function (input, ctx) { ... }` — and every external
+effect crosses the host boundary through `ctx`, journaled to `run_journal` so resume after a crash or timer wake is
+deterministic replay-from-top: journaled effects return recorded results instantly, completed work never re-executes,
+and divergence (edited source, changed inputs) fails the run as `nondeterministic-replay` instead of guessing.
+
+- **Lint at submission**: `Date`, `Math.random`, `setTimeout`/`setInterval`, `fetch`, `XMLHttpRequest`, `eval`,
+  `require`/`import`, `process`, `globalThis`, missing/multiple `export default`, and >256 KiB sources are rejected as
+  an immediate tool error with pointers to the `ctx` equivalents. The realm also removes these at runtime.
+- **ctx surface**: `await ctx.call(tool, input)` (any enabled session-independent tool: search/read/web/write/memory/
+  ipfs/execute_code — never attachment, session, or spawn tools), `await ctx.agent(spec)` (a `sub_session` spec; child
+  sessions nest under the launching chat session), `ctx.parallel`/`ctx.parallelSettled` (true concurrent fan-out),
+  `await ctx.sleep(ms)` + `ctx.minutes`/`ctx.hours` (durable timers — sleeps ≥ 60s park the run at zero cost),
+  `await ctx.step(label, fn)` / `await ctx.plan({steps})` (live step list on the run's `plan_cbor`), `await ctx.now()`,
+  `await ctx.log(level, message, data?)`, `ctx.progress({fraction, label})` (ephemeral), `ctx.input`, `ctx.runId`. Tool
+  inputs are schema-validated before dispatch; failures throw catchable errors with `.code`.
+- **Execution bounds**: 2s pure-compute fuel between awaits (interrupt), 64 MiB WASM memory, journal caps (5,000 entries
+  / 8 MiB → `journal-cap`), depth/fan-out caps shared with `sub_session`. Workflow runs have their own concurrency pool
+  (32) so a workflow awaiting children can never starve its children's model slots.
+- The calling chat turn parks on the workflow exactly like a `sub_session`; the resolution (`{status, output | error}`)
+  is the tool result, where `output` is the module's JSON return value.
+
+## `update_plan`
+
+Always-available hidden tool (like `set_session_title`): the model maintains a live todo list —
+`{title?, steps: [{id, label, status: pending | running | done | failed | skipped}]}` — stored on `sessions.plan_cbor`
+and surfaced through `SessionInfo.plan` and session-change events for the pinned progress card. Calls replace the whole
+plan and render no chat bubble. Workflow `ctx.step`/`ctx.plan` maintain the same shape on the run row.
 
 ## `write`
 

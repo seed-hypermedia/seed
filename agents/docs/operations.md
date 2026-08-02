@@ -305,14 +305,51 @@ The server also starts a background schedule monitor. It evaluates enabled `sche
 interval, records durable `trigger_firings` rows with `schedule:<triggerId>:<scheduledAt>` idempotency keys, creates
 sessions for due occurrences, and disables one-time triggers after a successful run.
 
+## Run queue and workflow engine
+
+Every agent execution is a durable row in the `runs` table, which doubles as the dispatch queue (`agents/src/runs.ts`):
+
+- **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency); everything else
+  (trigger firings, agent-started sessions, sub-sessions, workflows) dispatches on the `background` queue. Agent runs
+  are capped at 8 concurrent provider streams; workflow runs get their own pool of 32 (they hold no provider stream), so
+  a workflow awaiting its children can never starve them.
+- **One live agent run per session** is enforced at claim time (lease-based), replacing the old racy status-column 409.
+- **Boot sweep**: on service construction, runs a dead process left `claimed`/`running` are requeued and any queued
+  backlog resumes. Agent runs resume by replaying their durable session events; a crash between a persisted `tool_call`
+  and its `tool_result` gets a synthesized "interrupted by service restart" result so the provider request is
+  well-formed and the model decides whether to retry. Workflow runs resume by journal replay.
+- **Retry classification**: provider 5xx/network failures are retryable with exponential backoff (base 5s, cap 5min);
+  validation/config errors fail immediately. All current enqueues use `maxAttempts` 1 (2 for sub-session children) — the
+  retry machinery is in place but conservative.
+- **Timer parking**: workflow `ctx.sleep` of 60s or more parks the run (`waiting` + `not_before`); the dispatcher's
+  1-second interval wakes due timers. Parked runs cost nothing.
+- Tests and shutdown wait for the queue via `Service.awaitQueueIdle()` (aliased by the older `drainTriggerSessions()`).
+
+Workflow execution bounds (see `agents/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s
+pure-compute fuel between awaits, journal caps of 5,000 entries / 8 MiB per run, 256 KiB source cap.
+
+## Live-model validation harness
+
+`agents/e2e/run.ts` drives the real Service against the real OpenAI API to validate prompts and tool designs
+(workflows-v1-plan.md §15.3). It spends real tokens — run it as a manual gate, never in CI:
+
+```bash
+cd agents && bun e2e/run.ts all              # all scenarios, default model gpt-5-mini
+bun e2e/run.ts sub-basic wf-hello --n 3      # selected scenarios, repeated
+```
+
+The API key comes from `OPENAI_API_KEY` or the repo-root `.keys` file (never committed). Every scenario asserts on
+durable state (runs, journals, session events) and dumps full transcripts to `agents/e2e-artifacts/<timestamp>/` for
+prompt autopsies. Scenarios: `chat-smoke`, `sub-basic`, `sub-typed`, `sub-restraint`, `wf-hello`, `todo-adoption`.
+
 ## Startup behavior
 
 On startup:
 
 1. `config.create(config.parseArgs())` builds config.
 2. `sqlite.open(cfg.dbPath)` validates or initializes the DB.
-3. If schema is valid, `Service`, the activity trigger monitor, and the schedule trigger monitor are created and Bun
-   server starts.
+3. If schema is valid, `Service` (which boot-sweeps the run queue), the activity trigger monitor, and the schedule
+   trigger monitor are created and Bun server starts.
 4. If schema is mismatched, server starts in schema-mismatch mode and returns a JSON error.
 
 Schema mismatch log includes stored and expected version. For local throwaway data, delete the SQLite files and restart.
@@ -326,8 +363,9 @@ The service handles `SIGINT` and `SIGTERM`:
 3. close WebSocket clients with code `1001`;
 4. clear client set;
 5. stop Bun server;
-6. close SQLite DB;
-7. exit.
+6. drain in-flight runs (bounded) and stop the run-queue timers;
+7. close SQLite DB;
+8. exit.
 
 ## CORS
 

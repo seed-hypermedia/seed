@@ -5,6 +5,30 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Durable runs, sub-sessions, and the workflow engine (2026-08-03)
+
+Landed as four commits on `feat/agent-workflows` implementing `agents/docs/workflows-v1-plan.md`:
+
+- `feat(agents): durable runs table + dispatch queue under every agent execution` — every execution is a `runs` row; the
+  table is the dispatch queue (leases, interactive/background, one-live-run-per-session, boot sweep + interrupted
+  tool_call repair); `sessions.status` became a derived mirror, killing the wedged-`streaming` crash mode; usage
+  persists per turn and rolls up child→parent; session lineage columns landed; also fixed a schedule-trigger
+  clock-mixing flake.
+- `feat(agents): sub_session tool — awaited child sessions with park/resume and typed results` — awaited delegation with
+  total context isolation, turn parking (refuse-next-provider-request), child finalizers appending the durable
+  tool_result and requeuing the parent, typed `return_result` validation with bounded retries, run actions
+  (GetRun/ListRuns/CancelRun/GetRunJournal) and the `runs/<rootRunId>` WS key.
+- `feat(agents): QuickJS workflow engine — journaled deterministic runs behind run_workflow` — agent-authored JS
+  orchestration with journal replay-from-top resume, determinism lint + realm, sync-VM effect pump (true parallel
+  fan-out), fuel/memory/journal caps, timer parking, its own concurrency pool, and `ctx.step`/`ctx.plan` progress.
+- `feat(agents): update_plan todo tool + Tier-3 live-model validation harness` — always-available todo snapshots on
+  `sessions.plan_cbor`, plus `agents/e2e/run.ts`, the manual real-model gate (default `gpt-5-mini`) asserting on durable
+  state with transcript artifacts.
+
+Validation: `bun check` clean; 172 `bun test` tests including park/resume fan-out, typed-validation retry,
+restart-while-parked, crash-recovery, queue semantics, and 18 workflow-engine determinism/fault-injection tests. The
+live-model gate ran against the real OpenAI endpoint but is blocked on account credits.
+
 ### Sandboxed code execution (`execute_code`)
 
 Completed:

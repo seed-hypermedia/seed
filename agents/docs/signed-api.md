@@ -96,6 +96,10 @@ Current `AgentAction` union:
 - `GetSession`
 - `MessageSession`
 - `StopSession`
+- `GetRun`
+- `ListRuns`
+- `CancelRun`
+- `GetRunJournal`
 - `Subscribe`
 
 `Subscribe` is signed with the same envelope type but is accepted over WebSocket, not HTTP.
@@ -469,6 +473,8 @@ Request:
   agentId?: string
   limit?: number
   cursor?: {updatedBefore: number; idBefore: string}
+  parentSessionId?: string
+  includeChildren?: boolean
 }
 ```
 
@@ -495,6 +501,10 @@ Pagination is keyset on the composite `(updatedAt, id)`, not on `updatedAt` alon
 `updatedAt` millisecond — one trigger firing over a batch of activity events creates several at once — and a
 timestamp-only cursor silently drops every tied row past a page boundary. Pass `nextCursor` back verbatim as `cursor`;
 its absence means the list is exhausted.
+
+Child sessions (spawned by `sub_session`, workflow `ctx.agent`, or `start_session`) are **excluded from top-level
+listings by default** — they render nested under their parent, which carries `childSessionCount`. Pass `parentSessionId`
+to list one parent's children, or `includeChildren: true` to flatten everything into one list.
 
 ### `UpdateSession`
 
@@ -590,6 +600,12 @@ Flow:
 7. append tool events and final assistant/error event;
 8. set session `idle` or `error`.
 
+Internally the turn is a durable run row claimed inline from the dispatch queue (`agents/src/runs.ts`); the "already
+streaming" guard checks live runs, not the status column, so a crash cannot wedge it.
+`MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant
+event existed: background enqueues (triggers, agent-started sessions) and turns that parked on spawned
+sub-sessions/workflows — the rest of the turn streams over WebSocket.
+
 Idempotent through `clientMessageId`, but intentionally avoids one long SQLite transaction around network calls.
 
 ### `StopSession`
@@ -613,8 +629,40 @@ Response:
 }
 ```
 
-Stops the in-flight Pi agent turn for the signed account/session when one is active. `stopped` is `false` when the
-session is already idle.
+Stops the in-flight Pi agent turn for the signed account/session when one is active, and cancels every live run rooted
+at the session **including descendants** (spawned sub-sessions and workflows). `stopped` is `false` when the session is
+already idle.
+
+### `GetRun`
+
+`{_: 'GetRun', runId}` → `{_: 'GetRunResponse', run: RunInfo}`. 404 when the run does not belong to the account.
+
+### `ListRuns`
+
+```ts
+{
+  _: 'ListRuns'
+  rootRunId?: string // the whole tree of one root, oldest first (tree rendering)
+  sessionId?: string // root runs referencing a session, newest first
+  agentId?: string // runs of one agent, newest first
+  status?: RunStatus
+  limit?: number // default 50, clamped to 200
+}
+```
+
+Exactly one selector is required. Response: `{_: 'ListRunsResponse', runs: RunInfo[]}`.
+
+### `CancelRun`
+
+`{_: 'CancelRun', runId}` → `{_: 'CancelRunResponse', runId, canceled}`. Cancels the run and every non-terminal
+descendant: queued runs never start, waiting runs never wake, executing runs are aborted (Pi abort for agent runs, VM
+interrupt for workflows). `canceled` is `false` when everything was already terminal.
+
+### `GetRunJournal`
+
+`{_: 'GetRunJournal', runId, afterSeq?}` → `{_: 'GetRunJournalResponse', runId, entries}` — a workflow run's durable
+journal entries (`{runId, seq, entry, createdAt}`), empty for agent runs, replayable with `afterSeq` like session
+events.
 
 ### `Subscribe`
 
