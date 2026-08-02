@@ -627,6 +627,11 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
   }
 }
 
+/** Bounds and validates a model-supplied plan/todo snapshot (shared with the update_plan tool). */
+export function normalizeRunPlan(raw: unknown): RunPlanState {
+  return normalizePlan(raw)
+}
+
 function normalizePlan(raw: unknown): RunPlanState {
   if (typeof raw !== 'object' || raw === null) return {steps: []}
   const record = raw as {title?: unknown; steps?: unknown}
