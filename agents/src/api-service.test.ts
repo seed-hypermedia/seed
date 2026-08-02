@@ -4064,6 +4064,174 @@ describe('api service', () => {
     }
   })
 
+  test('run_workflow: a model-authored workflow calls tools, spawns a sub-agent, and resolves the parent', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Orchestrator',
+              systemPrompt: 'You are the orchestrator.',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: ['run_workflow', 'memory_write'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const workflowSource = [
+        'export default async function (input, ctx) {',
+        "  await ctx.plan({title: 'Demo', steps: [{id: 'write', label: 'Write note', status: 'pending'}]})",
+        "  await ctx.step('Write note', function () {",
+        "    return ctx.call('memory_write', {path: 'notes/wf.txt', content: input.note})",
+        '  })',
+        "  const worker = await ctx.agent({title: 'Worker', prompt: 'You are worker Gamma.', input: 'Say hi'})",
+        "  await ctx.log('info', 'worker replied')",
+        '  return {note: input.note, worker: worker.text}',
+        '}',
+      ].join('\n')
+
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const system = String((body.messages?.[0] as {content?: string} | undefined)?.content ?? '')
+        if (system.includes('worker Gamma')) {
+          return openAIStreamResponse([
+            {id: 'gamma', choices: [{delta: {content: 'Gamma says hi.'}}]},
+            {id: 'gamma', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        const hasResults = body.messages.some((message: {role?: string}) => message.role === 'tool')
+        if (!hasResults) {
+          return openAIStreamResponse([
+            {
+              id: 'orc-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'wf-call',
+                        type: 'function',
+                        function: {
+                          name: 'run_workflow',
+                          arguments: JSON.stringify({
+                            title: 'Demo workflow',
+                            source: workflowSource,
+                            input: {note: 'hello from the workflow'},
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'orc-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        const messagesJSON = JSON.stringify(body.messages)
+        expect(messagesJSON).toContain('Gamma says hi')
+        expect(messagesJSON).toContain('hello from the workflow')
+        return openAIStreamResponse([
+          {id: 'orc-2', choices: [{delta: {content: 'Workflow complete.'}}]},
+          {id: 'orc-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Run the demo workflow'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('idle')
+      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Workflow complete.'})
+      const workflowResult = session.events
+        .map(
+          (event) =>
+            event.event as {type?: string; output?: {status?: string; output?: {note?: string; worker?: string}}},
+        )
+        .find((event) => event.type === 'tool_result')
+      expect(workflowResult?.output?.status).toBe('succeeded')
+      expect(workflowResult?.output?.output?.note).toBe('hello from the workflow')
+      expect(workflowResult?.output?.output?.worker).toBe('Gamma says hi.')
+
+      // The run tree: chat root → workflow child → worker grandchild; the workflow has a journal and plan.
+      const rootRuns = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId: createdSession.sessionId}}),
+      )
+      if (rootRuns._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const tree = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', rootRunId: rootRuns.runs[0]!.id}}),
+      )
+      if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(tree.runs).toHaveLength(3)
+      const workflowRun = tree.runs.find((run) => run.kind === 'workflow')
+      expect(workflowRun?.status).toBe('succeeded')
+      expect(workflowRun?.plan?.steps).toEqual([{id: 'write', label: 'Write note', status: 'done'}])
+      const journal = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetRunJournal', runId: workflowRun!.id}}),
+      )
+      if (journal._ !== 'GetRunJournalResponse') throw new Error('unexpected response')
+      const kinds = journal.entries.map((entry) => entry.entry.kind)
+      expect(kinds).toContain('plan')
+      expect(kinds).toContain('step')
+      expect(kinds).toContain('call')
+      expect(kinds).toContain('result')
+      expect(kinds).toContain('log')
+      // The worker session nests under the chat session.
+      const children = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ListSessions', parentSessionId: createdSession.sessionId},
+        }),
+      )
+      if (children._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(children.sessions).toHaveLength(1)
+      expect(children.sessions[0]?.title).toBe('Worker')
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
   test('crash recovery: a run interrupted mid-tool resumes after restart with a repaired transcript', async () => {
     // Simulates the old wedged-`streaming` failure: a process died after persisting a tool_call but
     // before its tool_result, leaving the run row `running` and the session column `streaming`. A

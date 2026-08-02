@@ -186,6 +186,7 @@ export type SeedToolRegistry = {
   attachment_to_ipfs: SeedToolMetadata
   memory_publish_document: SeedToolMetadata
   execute_code: SeedToolMetadata
+  run_workflow: SeedToolMetadata
   sub_session: SeedToolMetadata
   return_result: SeedToolMetadata
   start_session: SeedToolMetadata
@@ -1092,6 +1093,61 @@ export const seedToolRegistry: SeedToolRegistry = {
         {label: 'Code', source: 'input', path: 'code'},
         {label: 'Output', source: 'output', path: 'stdout'},
         {label: 'Errors', source: 'output', path: 'stderr'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: true,
+  },
+  run_workflow: {
+    name: 'run_workflow',
+    label: 'Run Workflow',
+    description: [
+      "Write and run a JavaScript workflow that orchestrates your tools with real control flow: loops, conditionals, parallel fan-out, durable sleeps. Use it for multi-step jobs a single conversation turn handles poorly — batch processing, fan-out/aggregate, long-running pipelines. The workflow runs durably: it survives service restarts (completed steps never re-execute) and your turn pauses cheaply until it resolves with the workflow's return value.",
+      '',
+      'The source must be one self-contained module: `export default async function (input, ctx) { ... return result }`. No imports, no Date, no Math.random, no setTimeout, no fetch — the lint rejects them. Everything external goes through ctx:',
+      '- `await ctx.call(toolName, input)` — call any of your enabled tools; throws a catchable error with `.code` on failure.',
+      '- `await ctx.agent({title?, prompt?, agentId?, input, tools?, output?})` — run a sub-session and get its result (`output` JSON schema → validated object; else `{text}`); throws on failure.',
+      '- `await ctx.parallel([() => ctx.call(...), () => ctx.agent(...)])` — run thunks concurrently (also ctx.parallelSettled).',
+      '- `await ctx.sleep(ms)` / `ctx.minutes(n)` / `ctx.hours(n)` — durable timer; long sleeps cost nothing while waiting.',
+      '- `await ctx.step(label, async () => {...})` — wrap phases so the user sees a live step list; `await ctx.plan({steps: [...]})` to declare the plan upfront.',
+      '- `await ctx.now()` — the current time (deterministic on replay); `await ctx.log(level, message, data?)`; `ctx.progress({fraction, label})`.',
+      '- `ctx.input`, `ctx.runId`.',
+      '',
+      'Keep compute light (heavy work belongs in execute_code via ctx.call); results must be JSON-serializable. Do not use this for work a couple of direct tool calls handle.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        title: {type: 'string', minLength: 1, description: 'Short label for the workflow, shown in the progress card.'},
+        source: {
+          type: 'string',
+          minLength: 1,
+          description: 'The workflow module: export default async function (input, ctx) { ... }',
+        },
+        input: {description: 'JSON value passed to the module as its first argument.'},
+      },
+      required: ['title', 'source'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        status: {type: 'string', enum: ['succeeded', 'failed', 'canceled']},
+        output: {description: "The workflow module's return value."},
+        error: {type: 'object', properties: {code: {type: 'string'}, message: {type: 'string'}}},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Workflow',
+      pendingLabel: 'Running workflow',
+      color: 'indigo',
+      primaryArg: 'title',
+      summaryArg: 'title',
+      details: [
+        {label: 'Source', source: 'input', path: 'source'},
+        {label: 'Input', source: 'input', path: 'input'},
+        {label: 'Result', source: 'output'},
       ],
     },
     runtimes: ['agent-service'],

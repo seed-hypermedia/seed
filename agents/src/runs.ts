@@ -283,9 +283,11 @@ export class RunQueue {
   readonly #onRunFinalized?: (run: RunRecord) => void
   readonly #abortRun?: (run: RunRecord) => void
   readonly #maxConcurrentModelRuns: number
+  readonly #maxConcurrentWorkflows: number
   readonly #retryBaseMs: number
   readonly #pollIntervalMs: number
   readonly #inflight = new Map<string, Promise<void>>()
+  readonly #inflightKinds = new Map<string, RunKind>()
   #interval: ReturnType<typeof setInterval> | null = null
   #wakeTimer: ReturnType<typeof setTimeout> | null = null
   #idleWaiters: Array<() => void> = []
@@ -302,6 +304,8 @@ export class RunQueue {
       /** Asked to abort a currently-executing run during cancellation. */
       abortRun?: (run: RunRecord) => void
       maxConcurrentModelRuns?: number
+      /** Workflow runs hold no provider stream and get their own, higher cap. */
+      maxConcurrentWorkflows?: number
       /** Retry backoff base (tests use small values). */
       retryBaseMs?: number
       /** Dispatch interval for backoff/timer wakes (tests use small values). */
@@ -315,6 +319,7 @@ export class RunQueue {
     this.#onRunFinalized = opts.onRunFinalized
     this.#abortRun = opts.abortRun
     this.#maxConcurrentModelRuns = opts.maxConcurrentModelRuns ?? 8
+    this.#maxConcurrentWorkflows = opts.maxConcurrentWorkflows ?? 32
     this.#retryBaseMs = opts.retryBaseMs ?? RETRY_BASE_MS
     this.#pollIntervalMs = opts.pollIntervalMs ?? 1_000
   }
@@ -568,7 +573,14 @@ export class RunQueue {
   }
 
   #hasFutureWork(): boolean {
-    return this.#db.query<{id: string}, []>(`SELECT id FROM runs WHERE status = 'queued' LIMIT 1`).get() !== null
+    return (
+      this.#db
+        .query<{id: string}, []>(
+          `SELECT id FROM runs WHERE status = 'queued'
+             OR (status = 'waiting' AND not_before IS NOT NULL) LIMIT 1`,
+        )
+        .get() !== null
+    )
   }
 
   #ensureInterval(): void {
@@ -585,18 +597,30 @@ export class RunQueue {
 
   #pump(): void {
     try {
+      this.#wakeDueTimers()
       for (;;) {
-        if (this.#inflight.size >= this.#maxConcurrentModelRuns) break
-        const run = this.#claimNext()
+        const kinds: RunKind[] = []
+        let agentInflight = 0
+        let workflowInflight = 0
+        for (const kind of this.#inflightKinds.values()) {
+          if (kind === 'agent') agentInflight += 1
+          else workflowInflight += 1
+        }
+        if (agentInflight < this.#maxConcurrentModelRuns) kinds.push('agent')
+        if (workflowInflight < this.#maxConcurrentWorkflows) kinds.push('workflow')
+        if (kinds.length === 0) break
+        const run = this.#claimNext(kinds)
         if (!run) break
         const done = this.#execute(run).finally(() => {
           this.#inflight.delete(run.id)
+          this.#inflightKinds.delete(run.id)
           const waiters = this.#idleWaiters
           this.#idleWaiters = []
           for (const waiter of waiters) waiter()
           this.#pump()
         })
         this.#inflight.set(run.id, done)
+        this.#inflightKinds.set(run.id, run.kind)
       }
       this.#maybeStopInterval()
     } catch (error) {
@@ -609,14 +633,17 @@ export class RunQueue {
     }
   }
 
-  #claimNext(): RunRecord | null {
+  #claimNext(kinds: RunKind[]): RunRecord | null {
+    if (kinds.length === 0) return null
     const now = Date.now()
+    const kindList = kinds.map((kind) => `'${kind}'`).join(', ')
     const row = this.#db
       .query<RunRow, [string, number, number, number]>(
         `UPDATE runs SET status = 'claimed', lease_owner = ?1, lease_expires_at = ?2, attempt = attempt + 1, updated_at = ?3
          WHERE id = (
            SELECT r.id FROM runs r
            WHERE r.status = 'queued' AND (r.not_before IS NULL OR r.not_before <= ?4)
+             AND r.kind IN (${kindList})
              AND NOT (
                r.kind = 'agent' AND r.session_id IS NOT NULL AND EXISTS (
                  SELECT 1 FROM runs r2 WHERE r2.session_id = r.session_id AND r2.id != r.id
@@ -630,6 +657,18 @@ export class RunQueue {
       )
       .get(this.#instanceId, now + LEASE_MS, now, now)
     return row ? rowToRun(row) : null
+  }
+
+  /** Timer-parked runs whose wake time arrived move back to queued. */
+  #wakeDueTimers(): void {
+    const now = Date.now()
+    const rows = this.#db
+      .query<RunRow, [number, number]>(
+        `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = NULL, updated_at = ?1
+         WHERE status = 'waiting' AND not_before IS NOT NULL AND not_before <= ?2 RETURNING ${RUN_COLUMNS}`,
+      )
+      .all(now, now)
+    for (const row of rows) this.#onRunChanged?.(rowToRun(row))
   }
 
   #claimSpecific(runId: string): RunRecord | null {
