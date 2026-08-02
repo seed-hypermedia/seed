@@ -180,22 +180,62 @@ describe('workflow host', () => {
     expect(executed).toEqual([1, 2])
   })
 
-  test('edited source fails nondeterministic-replay with a diff diagnostic', async () => {
+  test('content-keyed replay: reordered parallel continuations consume the journal with zero re-execution', async () => {
+    // The regression the order-based design had: fastB finishes before slowA live, so afterB is
+    // journaled before afterA; on replay both journaled results deliver in issuance order, flipping
+    // which continuation runs first. Content keys make the match order-independent.
+    const source = `export default async function (input, ctx) {
+      const [a, b] = await ctx.parallel([
+        () => ctx.call('slowA', {}).then(() => ctx.call('afterA', {from: 'A'})),
+        () => ctx.call('fastB', {}).then(() => ctx.call('afterB', {from: 'B'})),
+      ])
+      return {a, b}
+    }`
+    const first = fakeAdapters({
+      source,
+      callTool: (tool) =>
+        new Promise((resolve) => {
+          const delay = tool === 'slowA' ? 60 : 5
+          setTimeout(() => resolve({tool}), delay)
+        }),
+    })
+    const firstOutcome = await runWorkflowVM(first.adapters)
+    expect(firstOutcome.type).toBe('succeeded')
+    // Sanity: the journal really recorded the continuations in completion order (B before A).
+    const callTools = first.journal
+      .filter((entry) => entry.kind === 'call')
+      .map((entry) => (entry as {tool?: string}).tool)
+    expect(callTools.indexOf('afterB')).toBeLessThan(callTools.indexOf('afterA'))
+
+    const replay = fakeAdapters({
+      source,
+      journal: [...first.journal],
+      callTool: async () => {
+        throw new Error('tool must not re-execute on replay')
+      },
+    })
+    const replayOutcome = await runWorkflowVM(replay.adapters)
+    expect(JSON.stringify(replayOutcome)).toBe(JSON.stringify(firstOutcome))
+  })
+
+  test('journal misses execute live instead of failing (content-keyed matching)', async () => {
     const first = fakeAdapters({
       source: `export default async function (input, ctx) { return ctx.call('alpha', {v: 1}) }`,
       callTool: async () => ({ok: 1}),
     })
     await runWorkflowVM(first.adapters)
+    let liveCalls = 0
     const edited = fakeAdapters({
       source: `export default async function (input, ctx) { return ctx.call('beta', {v: 2}) }`,
       journal: [...first.journal],
+      callTool: async (tool) => {
+        liveCalls += 1
+        return {ran: tool}
+      },
     })
     const outcome = await runWorkflowVM(edited.adapters)
-    expect(outcome.type).toBe('failed')
-    if (outcome.type !== 'failed') return
-    expect(outcome.error.code).toBe('nondeterministic-replay')
-    expect(outcome.error.message).toContain('alpha')
-    expect(outcome.error.message).toContain('beta')
+    expect(outcome).toEqual({type: 'succeeded', output: {ran: 'beta'}})
+    expect(liveCalls).toBe(1)
   })
 
   test('short sleeps stay resident and journal timer + fired', async () => {

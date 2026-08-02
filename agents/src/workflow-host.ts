@@ -17,22 +17,30 @@
 import {getQuickJS, type QuickJSContext, type QuickJSRuntime} from 'quickjs-emscripten'
 import type {RunPlanState} from '@/runs'
 
-/** One durable entry in a workflow run's journal. `callSeq` correlates entries of one ctx call. */
-export type WorkflowJournalEntry =
-  | {kind: 'call'; callSeq: number; op: 'tool' | 'agent'; tool?: string; input: unknown; childRunId?: string}
+/**
+ * One durable entry in a workflow run's journal. `callSeq` correlates the entries of one ctx call
+ * (informational — it follows host processing order). Replay MATCHING uses `key`, a deterministic
+ * content key of the effect: continuation ordering after `ctx.parallel` depends on real completion
+ * timing, so arrival order differs between a live run and its replay, and order-based matching
+ * would misfile results. Content keys are order-independent; effects with no journaled match simply
+ * execute live (the source itself is pinned on the run row, so edited-source divergence cannot
+ * occur).
+ */
+export type WorkflowJournalEntry = {callSeq: number; key?: string} & (
+  | {kind: 'call'; op: 'tool' | 'agent'; tool?: string; input: unknown; childRunId?: string}
   | {
       kind: 'result'
-      callSeq: number
       status: 'succeeded' | 'failed'
       output?: unknown
       error?: {code: string; message: string; retryable?: boolean}
     }
-  | {kind: 'timer'; callSeq: number; wakeAt: number}
-  | {kind: 'fired'; callSeq: number}
-  | {kind: 'now'; callSeq: number; value: number}
-  | {kind: 'log'; callSeq: number; level: 'debug' | 'info' | 'warn' | 'error'; message: string; data?: unknown}
-  | {kind: 'step'; callSeq: number; stepId: string; label: string; phase: 'start' | 'end'; ok?: boolean}
-  | {kind: 'plan'; callSeq: number; plan: RunPlanState}
+  | {kind: 'timer'; wakeAt: number}
+  | {kind: 'fired'}
+  | {kind: 'now'; value: number}
+  | {kind: 'log'; level: 'debug' | 'info' | 'warn' | 'error'; message: string; data?: unknown}
+  | {kind: 'step'; stepId: string; label: string; phase: 'start' | 'end'; ok?: boolean}
+  | {kind: 'plan'; plan: RunPlanState}
+)
 
 export type WorkflowChildResolution = {
   status: 'succeeded' | 'failed' | 'canceled'
@@ -234,15 +242,57 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
   let finished: {ok: boolean; value: unknown} | null = null
   const parkState: {timer: {wakeAt: number} | null} = {timer: null}
 
-  // Journal replay state: entries grouped by callSeq, consumed in arrival order.
+  // Journal replay state: entry groups (one per ctx call, correlated by callSeq) filed under their
+  // deterministic content key and consumed FIFO per key. Order-independent by construction, so
+  // continuation reordering after ctx.parallel cannot misfile results.
   const journal = adapters.journal.load()
-  const byCallSeq = new Map<number, WorkflowJournalEntry[]>()
+  const groupsBySeq = new Map<number, WorkflowJournalEntry[]>()
   for (const entry of journal) {
-    const list = byCallSeq.get(entry.callSeq) ?? []
+    const list = groupsBySeq.get(entry.callSeq) ?? []
     list.push(entry)
-    byCallSeq.set(entry.callSeq, list)
+    groupsBySeq.set(entry.callSeq, list)
+  }
+  const groupsByKey = new Map<string, WorkflowJournalEntry[][]>()
+  for (const [, group] of [...groupsBySeq.entries()].sort((a, b) => a[0] - b[0])) {
+    const key = group[0]?.key
+    if (!key) continue
+    const queue = groupsByKey.get(key) ?? []
+    queue.push(group)
+    groupsByKey.set(key, queue)
+  }
+  const takeJournaledGroup = (key: string): WorkflowJournalEntry[] | undefined => {
+    const queue = groupsByKey.get(key)
+    if (!queue || queue.length === 0) return undefined
+    return queue.shift()
+  }
+  const remainingJournaledGroups = (): number => {
+    let count = 0
+    for (const queue of groupsByKey.values()) count += queue.length
+    return count
   }
   let callCounter = 0
+  for (const seq of groupsBySeq.keys()) callCounter = Math.max(callCounter, seq)
+
+  const effectKey = (op: string, args: Record<string, unknown>): string => {
+    switch (op) {
+      case 'tool':
+        return `tool|${String(args.tool ?? '')}|${JSON.stringify(args.input ?? null)}`
+      case 'agent':
+        return `agent|${JSON.stringify(args.spec ?? null)}`
+      case 'sleep':
+        return `sleep|${Math.max(0, Number(args.ms) || 0)}`
+      case 'now':
+        return 'now'
+      case 'log':
+        return `log|${String(args.level ?? '')}|${String(args.message ?? '')}`
+      case 'step':
+        return `step|${String(args.stepId ?? '')}|${String(args.phase ?? '')}`
+      case 'plan':
+        return `plan|${JSON.stringify(args.plan ?? null)}`
+      default:
+        return `op|${op}`
+    }
+  }
 
   const dispose = () => {
     try {
@@ -339,31 +389,11 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
     })
   }
 
-  const assertReplayMatch = (
-    callSeq: number,
-    journaledCall: Extract<WorkflowJournalEntry, {kind: 'call'}>,
-    op: 'tool' | 'agent',
-    tool: string | undefined,
-    input: unknown,
-  ): void => {
-    const inputJson = JSON.stringify(input ?? null)
-    const journaledJson = JSON.stringify(journaledCall.input ?? null)
-    if (journaledCall.op !== op || journaledCall.tool !== tool || journaledJson !== inputJson) {
-      throw new WorkflowFailure(
-        'nondeterministic-replay',
-        `Replay diverged at call ${callSeq}: journal has ${journaledCall.op}:${journaledCall.tool ?? ''} ` +
-          `with input ${journaledJson.slice(0, 200)}, live code issued ${op}:${tool ?? ''} with input ${inputJson.slice(
-            0,
-            200,
-          )}`,
-      )
-    }
-  }
-
   const handleEffect = (effect: PendingEffect): void => {
-    const callSeq = ++callCounter
     const args = (effect.args ?? {}) as Record<string, unknown>
-    const journaled = byCallSeq.get(callSeq)
+    const key = effectKey(effect.op, args)
+    const journaled = takeJournaledGroup(key)
+    const callSeq = journaled?.[0]?.callSeq ?? ++callCounter
     const journaledCall = journaled?.find((entry) => entry.kind === 'call') as
       | Extract<WorkflowJournalEntry, {kind: 'call'}>
       | undefined
@@ -374,20 +404,18 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
     switch (effect.op) {
       case 'tool': {
         const tool = String(args.tool ?? '')
-        if (journaledCall) assertReplayMatch(callSeq, journaledCall, 'tool', tool, args.input)
         if (journaledResult) {
           const [ok, value] = journaledResultValue(journaledResult)
           scheduleDelivery(effect.callId, ok, value)
           return
         }
-        if (!journaledCall) adapters.journal.append({kind: 'call', callSeq, op: 'tool', tool, input: args.input})
+        if (!journaledCall) adapters.journal.append({kind: 'call', callSeq, key, op: 'tool', tool, input: args.input})
         // A call journaled without a result was interrupted mid-execution; whether it took effect is
         // unknowable, so it re-executes (workflow tools should be idempotent or cheap).
         startInflight(effect.callId, callSeq, () => adapters.effects.callTool(tool, args.input))
         return
       }
       case 'agent': {
-        if (journaledCall) assertReplayMatch(callSeq, journaledCall, 'agent', undefined, args.spec)
         if (journaledResult) {
           const [ok, value] = journaledResultValue(journaledResult)
           scheduleDelivery(effect.callId, ok, value)
@@ -399,7 +427,14 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           return
         }
         const spawned = adapters.effects.spawnAgent(args.spec)
-        adapters.journal.append({kind: 'call', callSeq, op: 'agent', input: args.spec, childRunId: spawned.childRunId})
+        adapters.journal.append({
+          kind: 'call',
+          callSeq,
+          key,
+          op: 'agent',
+          input: args.spec,
+          childRunId: spawned.childRunId,
+        })
         startChildWait(effect.callId, callSeq, spawned.childRunId)
         return
       }
@@ -410,14 +445,14 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           | undefined
         const fired = journaled?.some((entry) => entry.kind === 'fired')
         const wakeAt = journaledTimer?.wakeAt ?? Date.now() + ms
-        if (!journaledTimer) adapters.journal.append({kind: 'timer', callSeq, wakeAt})
+        if (!journaledTimer) adapters.journal.append({kind: 'timer', callSeq, key, wakeAt})
         if (fired) {
           scheduleDelivery(effect.callId, true, null)
           return
         }
         const remaining = wakeAt - Date.now()
         if (remaining <= 0) {
-          adapters.journal.append({kind: 'fired', callSeq})
+          adapters.journal.append({kind: 'fired', callSeq, key})
           scheduleDelivery(effect.callId, true, null)
           return
         }
@@ -430,7 +465,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         // Short sleep: hold the VM resident; journal the timer's own `fired` marker (not a result).
         const timerPromise = new Promise<void>((resolve) => setTimeout(resolve, remaining))
           .then(() => {
-            adapters.journal.append({kind: 'fired', callSeq})
+            adapters.journal.append({kind: 'fired', callSeq, key})
             scheduleDelivery(effect.callId, true, null)
           })
           .finally(() => inflight.delete(effect.callId))
@@ -442,7 +477,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           | Extract<WorkflowJournalEntry, {kind: 'now'}>
           | undefined
         const value = journaledNow?.value ?? Date.now()
-        if (!journaledNow) adapters.journal.append({kind: 'now', callSeq, value})
+        if (!journaledNow) adapters.journal.append({kind: 'now', callSeq, key, value})
         scheduleDelivery(effect.callId, true, value)
         return
       }
@@ -455,6 +490,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           adapters.journal.append({
             kind: 'log',
             callSeq,
+            key,
             level,
             message: String(args.message ?? ''),
             ...(args.data === undefined ? {} : {data: args.data}),
@@ -467,9 +503,10 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         const alreadyJournaled = journaled?.some(
           (entry) => entry.kind === 'step' && entry.phase === (args.phase as string),
         )
-        const entry: Extract<WorkflowJournalEntry, {kind: 'step'}> = {
+        const entry: WorkflowJournalEntry & {kind: 'step'} = {
           kind: 'step',
           callSeq,
+          key,
           stepId: String(args.stepId ?? `step-${callSeq}`),
           label: String(args.label ?? ''),
           phase: args.phase === 'end' ? 'end' : 'start',
@@ -483,7 +520,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
       case 'plan': {
         const plan = normalizePlan(args.plan)
         const alreadyJournaled = journaled?.some((entry) => entry.kind === 'plan')
-        if (!alreadyJournaled) adapters.journal.append({kind: 'plan', callSeq, plan})
+        if (!alreadyJournaled) adapters.journal.append({kind: 'plan', callSeq, key, plan})
         planState = plan
         adapters.effects.updatePlan(plan)
         scheduleDelivery(effect.callId, true, null)
@@ -572,7 +609,18 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
       }
       if (finished) {
         const done: {ok: boolean; value: unknown} = finished
-        if (done.ok) return {type: 'succeeded', output: done.value ?? null}
+        if (done.ok) {
+          const leftovers = remainingJournaledGroups()
+          if (leftovers > 0) {
+            // Content-keyed matching: a leftover means the resumed code issued fewer/different
+            // calls than the original pass. Informational — the run still completed.
+            console.warn('[agents/workflow] replay finished with unconsumed journal groups', {
+              runId: adapters.runId,
+              leftovers,
+            })
+          }
+          return {type: 'succeeded', output: done.value ?? null}
+        }
         const failure = (done.value ?? {}) as {code?: string; message?: string}
         // An interrupt inside an async body surfaces as a rejection (QuickJS message: "interrupted"),
         // not an eval error: map it back to the real cause.

@@ -477,7 +477,10 @@ export type ListSessions = {
   cursor?: SessionListCursor
   /** List only the children of this session (ignores `includeChildren`). */
   parentSessionId?: string
-  /** Include child sessions in the top-level listing. Default false: children are fetched per parent. */
+  /**
+   * Pass false to exclude child sessions from the top-level listing (lineage-aware clients nest
+   * them under their parents). Absent/true returns every session, which keeps older clients whole.
+   */
   includeChildren?: boolean
 }
 
