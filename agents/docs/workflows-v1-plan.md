@@ -1,7 +1,9 @@
 # Workflows: agent-authored scripts, sub-sessions, and visible progress
 
 Implementation planning document (2026-08-02). Self-contained: everything needed to build the feature is specified here,
-grounded in the current code. Nothing in this document is implemented yet.
+grounded in the code as it was before the work. **Status: implemented 2026-08-03** (phases 1–4 landed on
+`feat/agent-workflows`; the progress-card UI and live-model gates are in flight) — see "Implementation divergences (as
+built)" at the end for where the code deliberately differs from this plan.
 
 ## 1. Summary
 
@@ -799,3 +801,37 @@ In rough priority order, all additive on top of the v1 formats:
    shows it after restart. Leaning: persist latest onto `runs.plan_cbor` opportunistically, keep the stream ephemeral.
 5. **`run_workflow` from triggers** before v2 trigger-targets: a trigger prompt can already tell the agent to write a
    workflow; is that good enough for the interim?
+
+## Implementation divergences (as built, 2026-08-03)
+
+The feature landed on `feat/agent-workflows` in four commits following this plan's phases 1–4. Where the implementation
+deliberately differs from the sections above, the code is the source of truth:
+
+1. **Journal row seq vs call correlation** (§8.4): `run_journal`'s primary key is `(run_id, seq)`, so a call and its
+   result cannot share a `seq`. Entries carry their own storage `seq` plus a `callSeq` field correlating the entries of
+   one ctx call (`call`/`result`, `timer`/`fired`).
+2. **Workflows do not park on children** (§8.2/§6): a workflow awaiting `ctx.agent` children holds its VM resident and
+   awaits their terminal status in-process; only long timers (`ctx.sleep` ≥ 60s) park. To make resident-await safe,
+   workflow runs execute in their own concurrency pool (32) separate from the 8 agent-run provider slots, so an awaiting
+   workflow can never starve its children. Crash recovery still works: the boot sweep requeues the workflow and journal
+   replay reconnects to still-live children by `childRunId`.
+3. **Canceled runs mirror to session status `idle`**, not `stopped` (§4): preserves the exact pre-runs StopSession
+   behavior old clients and tests expect.
+4. **Trigger runs keep `maxAttempts: 1`** (§6): the retry/backoff machinery is implemented and unit-tested, but enabling
+   multi-attempt trigger runs is deferred — `awaitQueueIdle()` (used by tests and shutdown) cannot span real backoff
+   windows, and the plan's retry cadence needs a test-clock story first.
+5. **`ctx.now()` and `ctx.log()` are async** (§8.3): all journaled ctx members return promises; scripts must `await`
+   them.
+6. **Depth 3 / fan-out 10** (§7.2): the limits reuse the pre-existing `start_session` constants
+   (`MAX_SESSION_SPAWN_DEPTH`, `MAX_SESSION_SPAWNS_PER_SESSION`) rather than the plan's 4/16, now enforced from the
+   durable run tree.
+7. **Parking mechanism** (§7.4): Pi tool executors cannot throw a sentinel out of the loop (throws become tool errors),
+   so the turn ends by _refusing the next provider request_: the spawn executors register park intents and `onPayload`
+   throws before the batch-following request is sent; the executor treats that as the designed ending. Suppression of
+   the durable tool_result for parked calls happens in the `tool_execution_end` handler.
+8. **`update_plan` is always available** (§11.4) rather than an opt-in toggle — it is hidden, session-scoped, and
+   harmless, exactly like `set_session_title`.
+9. **Tier-3 harness status** (§15.3): `agents/e2e/run.ts` implements the chat-smoke, sub-basic, sub-typed,
+   sub-restraint, wf-hello, and todo-adoption scenarios. It verified end-to-end against the live OpenAI endpoint, but
+   the pass/fail gates could not be run to green because the OpenAI account has no API credits; the remaining battery
+   scenarios (wf-battery, wf-crash-live, card-reconstruction, release sweep) are still to be written.

@@ -33,7 +33,7 @@ Server-to-client events are not individually signed; authorization happens at su
 ```ts
 type Subscribe = {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 ```
@@ -52,6 +52,15 @@ type AgentWSEvent =
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
   | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}
+  | {_: 'change'; key: `runs/${string}`; value: RunInfo}
+  | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
+  | {
+      _: 'appendPartial'
+      key: `runs/${string}`
+      runId: string
+      partialId: string
+      patch: {progress?: {fraction?: number; label?: string}; activity?: AgentRunActivity; usage?: AgentRunUsage}
+    }
   | {_: 'error'; message: string}
 ```
 
@@ -74,6 +83,19 @@ Session event stream. The session page uses this key and receives:
 - session status `change` events;
 - live assistant text `appendPartial` events.
 
+### `runs/<rootRunId>`
+
+One subscription streams a whole run tree (the key is the ROOT run id; `root_run_id` is denormalized on every run row
+for this). On subscribe the server sends a snapshot — one `change` per run in the tree — followed by durable journal
+`append` replay (`afterSeq` applies per run). Live events:
+
+- `change` with a `RunInfo` whenever any run in the tree changes status/usage/plan;
+- `append` with a workflow journal entry, tagged with the originating `runId`;
+- `appendPartial` with ephemeral workflow progress (`ctx.progress`) and tool activity, tagged with `runId`.
+
+The pinned run card on the session page is durable-first: it reconstructs from `ListRuns` + `GetRunJournal` and uses
+this stream only for liveness.
+
 ## Authorization
 
 `Service.verifySubscription()` verifies:
@@ -89,6 +111,7 @@ Rules:
 - `account/<accountId>` must equal verified account ID.
 - `agents/<agentId>` must be owned by verified account.
 - `sessions/<sessionId>` must be owned by verified account.
+- `runs/<rootRunId>` must reference a run owned by the verified account.
 - A socket may not switch accounts after a successful subscription.
 
 ## Replay
