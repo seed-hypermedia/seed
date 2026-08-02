@@ -73,11 +73,16 @@ CREATE TABLE sessions (
     title TEXT,
     title_source TEXT NOT NULL DEFAULT 'system',
     status TEXT NOT NULL,
+    parent_session_id TEXT REFERENCES sessions (id),
+    run_id TEXT,
+    plan_cbor BLOB,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;
 
 CREATE INDEX sessions_by_agent ON sessions (agent_id, updated_at DESC);
+
+CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);
 
 CREATE TABLE trigger_firings (
     id TEXT PRIMARY KEY,
@@ -112,6 +117,55 @@ CREATE TABLE session_events (
     event_cbor BLOB NOT NULL,
     created_at INTEGER NOT NULL,
     UNIQUE (session_id, seq)
+) WITHOUT ROWID;
+
+CREATE TABLE runs (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    root_run_id TEXT NOT NULL,
+    parent_run_id TEXT REFERENCES runs (id),
+    depth INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL,
+    agent_id TEXT REFERENCES agents (id),
+    session_id TEXT REFERENCES sessions (id),
+    trigger_firing_id TEXT REFERENCES trigger_firings (id),
+    origin TEXT NOT NULL,
+    title TEXT,
+    model TEXT,
+    source_cid TEXT,
+    source_text TEXT,
+    input_cbor BLOB NOT NULL,
+    output_cbor BLOB,
+    error_cbor BLOB,
+    status TEXT NOT NULL,
+    wait_cbor BLOB,
+    attempt INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 1,
+    not_before INTEGER,
+    queue TEXT NOT NULL DEFAULT 'background',
+    lease_owner TEXT,
+    lease_expires_at INTEGER,
+    budget_cbor BLOB,
+    usage_cbor BLOB,
+    plan_cbor BLOB,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    finished_at INTEGER,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX runs_dispatch ON runs (status, queue, not_before, created_at);
+CREATE INDEX runs_by_root ON runs (root_run_id, created_at);
+CREATE INDEX runs_by_parent ON runs (parent_run_id);
+CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
+CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
+
+CREATE TABLE run_journal (
+    run_id TEXT NOT NULL REFERENCES runs (id),
+    seq INTEGER NOT NULL,
+    entry_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (run_id, seq)
 ) WITHOUT ROWID;
 
 CREATE TABLE agent_drafts (

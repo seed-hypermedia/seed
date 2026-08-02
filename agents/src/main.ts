@@ -175,17 +175,23 @@ function sendWS(ws: ServerWebSocket<WSData>, event: api.AgentWSEvent): void {
 
 function summarizeWSEvent(event: api.AgentWSEvent): Record<string, unknown> {
   if (event._ === 'appendPartial') {
+    const patch = event.patch as {
+      textDelta?: string
+      done?: boolean
+      usage?: api.AgentRunUsage
+      activity?: api.AgentRunActivity
+    }
     return {
       type: event._,
       key: event.key,
       partialId: event.partialId,
-      textDeltaBytes: event.patch.textDelta ? new TextEncoder().encode(event.patch.textDelta).byteLength : 0,
-      done: event.patch.done === true,
-      activity: event.patch.activity?.phase,
-      totalTokens: event.patch.usage?.total,
+      textDeltaBytes: patch.textDelta ? new TextEncoder().encode(patch.textDelta).byteLength : 0,
+      done: patch.done === true,
+      activity: patch.activity?.phase,
+      totalTokens: patch.usage?.total,
     }
   }
-  if (event._ === 'append') return {type: event._, key: event.key, seq: event.event.seq}
+  if (event._ === 'append') return {type: event._, key: event.key, seq: 'seq' in event ? event.seq : event.event.seq}
   if (event._ === 'change') return {type: event._, key: event.key}
   if (event._ === 'subscribed') return {type: event._, key: event.key, accountId: event.accountId}
   return {type: event._}
@@ -479,6 +485,12 @@ async function main(): Promise<void> {
           key: `agents/${event.agent.id}`,
           value: event.agent,
         })
+      } else if (event.type === 'run-change') {
+        sendIfSubscribed(ws, `runs/${event.run.rootRunId}`, {
+          _: 'change',
+          key: `runs/${event.run.rootRunId}`,
+          value: event.run,
+        })
       } else {
         sendIfSubscribed(ws, `account/${event.accountId}`, {
           _: 'change',
@@ -613,6 +625,7 @@ async function main(): Promise<void> {
     // Let in-flight background trigger runs finish their writes before closing the DB (bounded so a
     // stuck session can't block shutdown).
     await withTimeout(svc.drainTriggerSessions(), 5_000, 'drain trigger sessions').catch(() => {})
+    svc.stopRunQueue()
     db.close()
     process.exit(0)
   }

@@ -13,6 +13,60 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  `CREATE TABLE runs (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      root_run_id TEXT NOT NULL,
+      parent_run_id TEXT REFERENCES runs (id),
+      depth INTEGER NOT NULL DEFAULT 0,
+      kind TEXT NOT NULL,
+      agent_id TEXT REFERENCES agents (id),
+      session_id TEXT REFERENCES sessions (id),
+      trigger_firing_id TEXT REFERENCES trigger_firings (id),
+      origin TEXT NOT NULL,
+      title TEXT,
+      model TEXT,
+      source_cid TEXT,
+      source_text TEXT,
+      input_cbor BLOB NOT NULL,
+      output_cbor BLOB,
+      error_cbor BLOB,
+      status TEXT NOT NULL,
+      wait_cbor BLOB,
+      attempt INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 1,
+      not_before INTEGER,
+      queue TEXT NOT NULL DEFAULT 'background',
+      lease_owner TEXT,
+      lease_expires_at INTEGER,
+      budget_cbor BLOB,
+      usage_cbor BLOB,
+      plan_cbor BLOB,
+      created_at INTEGER NOT NULL,
+      started_at INTEGER,
+      finished_at INTEGER,
+      updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+  CREATE INDEX runs_dispatch ON runs (status, queue, not_before, created_at);
+  CREATE INDEX runs_by_root ON runs (root_run_id, created_at);
+  CREATE INDEX runs_by_parent ON runs (parent_run_id);
+  CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
+  CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
+
+  CREATE TABLE run_journal (
+      run_id TEXT NOT NULL REFERENCES runs (id),
+      seq INTEGER NOT NULL,
+      entry_cbor BLOB NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, seq)
+  ) WITHOUT ROWID;
+
+  ALTER TABLE sessions ADD COLUMN parent_session_id TEXT REFERENCES sessions (id);
+  ALTER TABLE sessions ADD COLUMN run_id TEXT;
+  ALTER TABLE sessions ADD COLUMN plan_cbor BLOB;
+
+  CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);`,
   `ALTER TABLE sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'system';
    UPDATE sessions
       SET title_source = CASE

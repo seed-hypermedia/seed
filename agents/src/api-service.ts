@@ -23,6 +23,7 @@ import {
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
+import * as runs from '@/runs'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
 import {
@@ -150,6 +151,7 @@ export type ServiceEvent =
       activity?: api.AgentRunActivity
     }
   | {type: 'account-change'; accountId: string; reason: string; agentId?: string; sessionId?: string}
+  | {type: 'run-change'; accountId: string; run: api.RunInfo}
 
 /** Error with an HTTP status code for API responses. */
 export class APIError extends Error {
@@ -170,6 +172,56 @@ class SessionStoppedError extends Error {
 
 type RunningSession = {accountId: string; abort?: () => Promise<void>; stopped: boolean}
 
+/** Classifies an executor error into the persisted run-error shape with retryability. */
+function classifyRunError(error: unknown): runs.RunErrorInfo {
+  if (error instanceof APIError) {
+    return {
+      code: error.status >= 500 ? 'provider-error' : 'config-error',
+      message: error.message,
+      retryable: error.status >= 500,
+      httpStatus: error.status,
+    }
+  }
+  return {
+    code: 'provider-error',
+    message: error instanceof Error ? error.message : String(error),
+    retryable: true,
+  }
+}
+
+/** Public run metadata derived from a run record. */
+function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
+  return {
+    id: run.id,
+    account: run.accountId,
+    rootRunId: run.rootRunId,
+    ...(run.parentRunId ? {parentRunId: run.parentRunId} : {}),
+    depth: run.depth,
+    kind: run.kind,
+    ...(run.agentId ? {agentId: run.agentId} : {}),
+    ...(run.sessionId ? {sessionId: run.sessionId} : {}),
+    origin: run.origin,
+    ...(run.title ? {title: run.title} : {}),
+    status: run.status,
+    ...(run.wait
+      ? {
+          wait: {
+            reason: run.wait.reason,
+            ...(run.wait.reason === 'timer' ? {wakeAt: run.wait.wakeAt} : {}),
+            ...(run.wait.reason === 'children' ? {pendingChildren: run.wait.toolCallIds.length} : {}),
+          },
+        }
+      : {}),
+    ...(run.plan ? {plan: run.plan} : {}),
+    ...(run.error ? {error: {code: run.error.code, message: run.error.message}} : {}),
+    ...(run.usage ? {usage: run.usage} : {}),
+    createdAt: run.createdAt,
+    ...(run.startedAt !== undefined ? {startedAt: run.startedAt} : {}),
+    ...(run.finishedAt !== undefined ? {finishedAt: run.finishedAt} : {}),
+    updatedAt: run.updatedAt,
+  }
+}
+
 /** Server-side implementation of the signed Agents action API. */
 export class Service {
   readonly #db: Database
@@ -179,17 +231,12 @@ export class Service {
   readonly #web: WebToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
-  /** In-flight background session runs (trigger + agent-started), awaited by {@link drainTriggerSessions} (tests + shutdown). */
+  /** In-flight background dispatch setup (trigger prompt builds + enqueues); the runs themselves live in the queue. */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
-  /**
-   * Spawn-chain depth per agent-started session, and spawn counts per starting session. Both are
-   * in-memory backstops against runaway start_session loops, not durable state: a server restart
-   * resets them, which only relaxes the limits until the next chain builds up again.
-   */
-  readonly #sessionSpawnDepth = new Map<string, number>()
-  readonly #sessionSpawnCounts = new Map<string, number>()
   /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
   readonly #subscriptionAuthEnabled: boolean
+  /** Durable run records + dispatch queue; every agent execution goes through it. */
+  readonly #runQueue: runs.RunQueue
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -224,6 +271,22 @@ export class Service {
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
+    this.#runQueue = new runs.RunQueue(db, {
+      executors: {agent: (run) => this.#executeAgentRun(run)},
+      onRunChanged: (run) => this.#onRunChanged(run),
+      onRunFinalized: (run) => this.#onRunFinalized(run),
+      abortRun: (run) => {
+        if (run.sessionId) void this.#abortLiveSessionRun(run.accountId, run.sessionId)
+      },
+    })
+    // Crash recovery: runs a dead process left claimed/running go back to queued (the sweep wakes
+    // the loop when it found any); their sessions' dangling tool calls are repaired on resume.
+    this.#runQueue.sweepAtBoot()
+  }
+
+  /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
+  stopRunQueue(): void {
+    this.#runQueue.stop()
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
@@ -1309,6 +1372,12 @@ export class Service {
     const existing = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!existing) throw new APIError(404, 'Agent trigger not found')
     const transaction = this.#db.transaction(() => {
+      // Run history survives trigger deletion detached from its firing rows.
+      this.#db.run(
+        `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
+           SELECT id FROM trigger_firings WHERE account_id = ? AND trigger_id = ?)`,
+        [accountId, triggerId],
+      )
       this.#db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND trigger_id = ?`, [accountId, triggerId])
       this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND id = ?`, [accountId, triggerId])
     })
@@ -1328,7 +1397,12 @@ export class Service {
     )
   }
 
-  #createSessionOnce(accountId: string, agentId: string, rawTitle?: string): api.CreateSessionResponse {
+  #createSessionOnce(
+    accountId: string,
+    agentId: string,
+    rawTitle?: string,
+    opts: {parentSessionId?: string; runId?: string} = {},
+  ): api.CreateSessionResponse {
     const agent = this.#db
       .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
       .get(accountId, agentId)
@@ -1338,9 +1412,20 @@ export class Service {
     const sessionId = crypto.randomUUID()
     const title = rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
     this.#db.run(
-      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, accountId, agentId, title, 'system', 'idle', now, now],
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        sessionId,
+        accountId,
+        agentId,
+        title,
+        'system',
+        'idle',
+        opts.parentSessionId ?? null,
+        opts.runId ?? null,
+        now,
+        now,
+      ],
     )
     const sessionInfo = this.#getSessionInfo(accountId, sessionId)
     if (sessionInfo) {
@@ -1375,6 +1460,9 @@ export class Service {
         sessionId,
       ])
       this.#db.run(`DELETE FROM session_events WHERE session_id = ?`, [sessionId])
+      // Run history survives session deletion detached; children promote to top level.
+      this.#db.run(`UPDATE runs SET session_id = NULL WHERE session_id = ?`, [sessionId])
+      this.#db.run(`UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?`, [sessionId])
       this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND id = ?`, [accountId, sessionId])
     })
     transaction()
@@ -1383,8 +1471,6 @@ export class Service {
     try {
       sessionAttachments.deleteSessionAttachments(this.#agentMemoryStateDir(accountId, existing.agentId), sessionId)
     } catch {}
-    this.#sessionSpawnDepth.delete(sessionId)
-    this.#sessionSpawnCounts.delete(sessionId)
     this.#emit({type: 'account-change', accountId, reason: 'session-deleted', agentId: existing.agentId, sessionId})
     return {_: 'DeleteSessionResponse', sessionId, agentId: existing.agentId}
   }
@@ -1581,14 +1667,18 @@ export class Service {
   ): {sessionId: string; title: string} {
     const input = isPlainRecord(raw) ? raw : {}
     const prompt = normalizeBoundedString(input.prompt, 'Session prompt', MAX_MESSAGE_TEXT_BYTES)
-    const depth = this.#sessionSpawnDepth.get(parentSessionId) ?? 0
+    // Chain depth and fan-out are read from the durable session lineage, so restarts do not relax them.
+    const depth = this.#sessionChainDepth(parentSessionId)
     if (depth >= MAX_SESSION_SPAWN_DEPTH) {
       throw new APIError(
         400,
         `Session spawn chain limit reached (${MAX_SESSION_SPAWN_DEPTH}); this session was itself started by a chain of agent-started sessions. Finish the work here instead.`,
       )
     }
-    const spawned = this.#sessionSpawnCounts.get(parentSessionId) ?? 0
+    const spawned =
+      this.#db
+        .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM sessions WHERE parent_session_id = ?`)
+        .get(parentSessionId)?.n ?? 0
     if (spawned >= MAX_SESSION_SPAWNS_PER_SESSION) {
       throw new APIError(
         400,
@@ -1599,9 +1689,7 @@ export class Service {
       input.title === undefined || input.title === null || input.title === ''
         ? sessionTitleFromPrompt(prompt)
         : normalizeBoundedString(input.title, 'Session title', MAX_NAME_BYTES)
-    const session = this.#createSessionOnce(accountId, agentId, title)
-    this.#sessionSpawnCounts.set(parentSessionId, spawned + 1)
-    this.#sessionSpawnDepth.set(session.sessionId, depth + 1)
+    const session = this.#createSessionOnce(accountId, agentId, title, {parentSessionId})
     console.info('[agents/runtime] agent started session', {
       accountId,
       parentSessionId,
@@ -1609,9 +1697,12 @@ export class Service {
       agentId,
       depth: depth + 1,
     })
-    const run = (async () => {
+    const dispatch = (async () => {
       try {
-        await this.#messageSessionOnce(accountId, session.sessionId, [{type: 'text', text: prompt}])
+        await this.#messageSessionOnce(accountId, session.sessionId, [{type: 'text', text: prompt}], {
+          origin: 'agent',
+          background: true,
+        })
       } catch (error) {
         console.error('[agents/runtime] agent-started session run failed', {
           accountId,
@@ -1620,9 +1711,27 @@ export class Service {
         })
       }
     })()
-    this.#pendingTriggerSessions.add(run)
-    void run.finally(() => this.#pendingTriggerSessions.delete(run))
+    this.#pendingTriggerSessions.add(dispatch)
+    void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
     return {sessionId: session.sessionId, title}
+  }
+
+  /** Number of parent links above a session in the spawn chain (durable replacement for the old in-memory map). */
+  #sessionChainDepth(sessionId: string): number {
+    return (
+      this.#db
+        .query<{depth: number}, [string]>(
+          `WITH RECURSIVE chain(id, d) AS (
+             SELECT parent_session_id, 1 FROM sessions WHERE id = ?1 AND parent_session_id IS NOT NULL
+             UNION ALL
+             SELECT s.parent_session_id, c.d + 1
+             FROM sessions s JOIN chain c ON s.id = c.id
+             WHERE s.parent_session_id IS NOT NULL AND c.d < 32
+           )
+           SELECT COALESCE(MAX(d), 0) AS depth FROM chain`,
+        )
+        .get(sessionId)?.depth ?? 0
+    )
   }
 
   async #messageSession(
@@ -1664,6 +1773,7 @@ export class Service {
     accountId: string,
     sessionId: string,
     rawContent: api.MessageSession['content'],
+    opts: {origin?: runs.RunOrigin; background?: boolean; runId?: string; triggerFiringId?: string} = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
     const session = this.#db
@@ -1673,7 +1783,8 @@ export class Service {
       )
       .get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
-    if (session.status === 'streaming') throw new APIError(409, 'Session is already streaming')
+    // Liveness is lease-based (run rows), not the status column, so a crash can never wedge this guard.
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) throw new APIError(409, 'Session is already streaming')
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
@@ -1728,39 +1839,176 @@ export class Service {
         Date.now(),
       )
     }
-    this.#updateSessionStatus(accountId, sessionId, 'streaming', now)
+    const origin = opts.origin ?? 'user'
+    const run = this.#runQueue.enqueue({
+      id: opts.runId,
+      accountId,
+      kind: 'agent',
+      origin,
+      agentId: session.agent_id,
+      sessionId,
+      triggerFiringId: opts.triggerFiringId,
+      input: {kind: 'session-message'},
+      queue: opts.background ? 'background' : 'interactive',
+      maxAttempts: 1,
+      dispatch: opts.background === true,
+    })
+    // Background callers (triggers, agent-started sessions) return as soon as the run is durably
+    // queued; the dispatch loop picks it up and completion is observable via awaitQueueIdle/WS.
+    if (opts.background) return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
 
+    const final = await this.#runQueue.runInline(run.id)
+    if (final.status === 'succeeded' || final.status === 'canceled') {
+      const output = (final.output ?? {}) as {assistantEventId?: string}
+      return {_: 'MessageSessionResponse', sessionId, assistantEventId: output.assistantEventId ?? ''}
+    }
+    if (final.status === 'failed') {
+      const error = final.error ?? {code: 'run-failed', message: 'Agent run failed'}
+      throw new APIError(error.httpStatus ?? 502, error.message)
+    }
+    // Parked (waiting on children): the request returns and the client follows along over WS.
+    return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
+  }
+
+  /** Executes one claimed agent run: repairs interrupted tool calls, then replays the transcript into Pi. */
+  async #executeAgentRun(run: runs.RunRecord): Promise<runs.RunOutcome> {
+    if (!run.sessionId || !run.agentId) {
+      return {type: 'failed', error: {code: 'config-error', message: 'Agent run is missing session or agent'}}
+    }
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(run.accountId, run.agentId)
+    if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found', httpStatus: 404}}
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+    definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
+    this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, run.sessionId)
+    const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
+    this.#runningSessions.set(this.#runningSessionKey(run.accountId, run.sessionId), runningSession)
     try {
-      const runningSessionKey = this.#runningSessionKey(accountId, sessionId)
-      const runningSession: RunningSession = {accountId, stopped: false}
-      this.#runningSessions.set(runningSessionKey, runningSession)
-      const assistantEvent = await this.#runPiAgent(accountId, definition, sessionId, runningSession)
-      const doneAt = Date.now()
-      this.#updateSessionStatus(accountId, sessionId, 'idle', doneAt)
-      return {_: 'MessageSessionResponse', sessionId, assistantEventId: assistantEvent.id}
+      const assistantEvent = await this.#runPiAgent(run.accountId, definition, run.sessionId, runningSession, run)
+      if (runningSession.stopped) return {type: 'canceled', output: {assistantEventId: assistantEvent.id}}
+      return {type: 'succeeded', output: {assistantEventId: assistantEvent.id}}
     } catch (error) {
-      if (error instanceof SessionStoppedError) {
-        const stoppedAt = Date.now()
-        const assistantEvent = this.#appendSessionEvent(
-          accountId,
-          session.agent_id,
-          sessionId,
+      if (error instanceof SessionStoppedError || runningSession.stopped) {
+        const stoppedEvent = this.#appendSessionEvent(
+          run.accountId,
+          run.agentId,
+          run.sessionId,
           {type: 'message', role: 'assistant', content: 'Stopped.'},
-          stoppedAt,
+          Date.now(),
         )
-        this.#updateSessionStatus(accountId, sessionId, 'idle', stoppedAt)
-        return {_: 'MessageSessionResponse', sessionId, assistantEventId: assistantEvent.id}
+        return {type: 'canceled', output: {assistantEventId: stoppedEvent.id}}
       }
-      const failedAt = Date.now()
+      return {type: 'failed', error: classifyRunError(error)}
+    }
+  }
+
+  #onRunChanged(run: runs.RunRecord): void {
+    this.#emit({type: 'run-change', accountId: run.accountId, run: runInfoFromRecord(run)})
+    if (run.kind === 'agent' && run.sessionId) this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
+  }
+
+  #onRunFinalized(run: runs.RunRecord): void {
+    if (run.kind === 'agent' && run.sessionId && run.status === 'failed' && run.error) {
+      this.#appendSessionEvent(
+        run.accountId,
+        run.agentId ?? '',
+        run.sessionId,
+        {type: 'error', message: run.error.message},
+        Date.now(),
+      )
+      this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
+    }
+    if (run.triggerFiringId && run.status === 'failed' && run.error) {
+      const firing = this.#db
+        .query<{trigger_id: string}, [string, string]>(
+          `SELECT trigger_id FROM trigger_firings WHERE account_id = ? AND id = ?`,
+        )
+        .get(run.accountId, run.triggerFiringId)
+      this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+        'error',
+        run.error.message,
+        run.accountId,
+        run.triggerFiringId,
+      ])
+      if (firing) {
+        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+          run.error.message,
+          run.accountId,
+          firing.trigger_id,
+        ])
+      }
+    }
+  }
+
+  /**
+   * Maintains the legacy `sessions.status` column as a mirror derived from run state: `streaming`
+   * iff a non-terminal agent run references the session, `error` when the latest run failed, else
+   * `idle`. Old clients keep working; liveness truth lives in the runs table.
+   */
+  #syncSessionStatusFromRuns(accountId: string, sessionId: string): void {
+    const session = this.#db
+      .query<{status: string}, [string, string]>(`SELECT status FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(accountId, sessionId)
+    if (!session) return
+    let derived: api.SessionInfo['status'] = 'idle'
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) {
+      derived = 'streaming'
+    } else {
+      const latest = runs.latestSessionRun(this.#db, sessionId)
+      if (latest?.status === 'failed') derived = 'error'
+    }
+    if (derived === session.status) return
+    this.#updateSessionStatus(accountId, sessionId, derived, Date.now())
+  }
+
+  /**
+   * A crash between a persisted `tool_call` and its `tool_result` leaves a transcript providers
+   * reject. Before an agent run (re)enters the loop, synthesize an error result for every unmatched
+   * call so the request is well-formed and the model decides whether to re-issue the tool.
+   */
+  #synthesizeInterruptedToolResults(accountId: string, agentId: string, sessionId: string): void {
+    const events = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+      )
+      .all(sessionId)
+      .map(sessionEventRowToInfo)
+    const unmatched = new Map<string, string>()
+    for (const event of events) {
+      const value = event.event as {type?: string; id?: string; toolCallId?: string; name?: string}
+      if (value.type === 'tool_call') {
+        const toolCallId = typeof value.id === 'string' ? value.id : value.toolCallId
+        if (toolCallId) unmatched.set(toolCallId, typeof value.name === 'string' ? value.name : '')
+      } else if (value.type === 'tool_result' && typeof value.toolCallId === 'string') {
+        unmatched.delete(value.toolCallId)
+      }
+    }
+    for (const [toolCallId, name] of unmatched) {
       this.#appendSessionEvent(
         accountId,
-        session.agent_id,
+        agentId,
         sessionId,
-        {type: 'error', message: error instanceof Error ? error.message : 'Agent run failed'},
-        failedAt,
+        {
+          type: 'tool_result',
+          toolCallId,
+          name,
+          error:
+            'Interrupted by a service restart before this tool finished; whether its side effects happened is unknown. Verify state before retrying.',
+        },
+        Date.now(),
       )
-      this.#updateSessionStatus(accountId, sessionId, 'error', failedAt)
-      throw error
+    }
+  }
+
+  async #abortLiveSessionRun(accountId: string, sessionId: string): Promise<void> {
+    const running = this.#runningSessions.get(this.#runningSessionKey(accountId, sessionId))
+    if (running) {
+      running.stopped = true
+      await running.abort?.()
     }
   }
 
@@ -1768,15 +2016,19 @@ export class Service {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
 
+    // Queued/waiting runs never start; a currently-executing run is aborted through Pi.
+    const canceledQueued = this.#runQueue.cancelQueuedForSession(accountId, sessionId)
     const running = this.#runningSessions.get(this.#runningSessionKey(accountId, sessionId))
     if (running) {
       running.stopped = true
       await running.abort?.()
       return {_: 'StopSessionResponse', sessionId, stopped: true}
     }
+    if (canceledQueued.length > 0) return {_: 'StopSessionResponse', sessionId, stopped: true}
 
     if (session.status === 'streaming') {
-      this.#updateSessionStatus(accountId, sessionId, 'idle', Date.now())
+      // Stale mirror with no live run (should not happen post-sweep); re-derive.
+      this.#syncSessionStatusFromRuns(accountId, sessionId)
       return {_: 'StopSessionResponse', sessionId, stopped: true}
     }
 
@@ -1946,6 +2198,7 @@ export class Service {
     definition: api.AgentDefinition,
     sessionId: string,
     runningSession?: RunningSession,
+    run?: runs.RunRecord,
   ): Promise<api.SessionEvent> {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
@@ -2151,6 +2404,8 @@ export class Service {
           textChars: partialText.length || piAssistantText(event.message).length,
           tokens: {...runUsage},
         })
+        // Usage persists at every turn boundary so a crash loses at most one turn's accounting.
+        if (run) this.#runQueue.updateUsage(run.id, {...runUsage})
         emitProgress({usage: {...runUsage}, activity: {phase: 'thinking'}})
         if (assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted') {
           finalError = assistantMessage.errorMessage || 'Agent run failed'
@@ -2266,6 +2521,7 @@ export class Service {
       this.#runningSessions.delete(runningSessionKey)
       unsubscribe()
       piSession.dispose()
+      if (run && runUsage.total > 0) this.#runQueue.updateUsage(run.id, {...runUsage})
       logRun('agent run finished', {
         durationMs: Date.now() - runStartedAt,
         turns: turnCount,
@@ -2683,7 +2939,14 @@ export class Service {
         // can't let the same occurrence fire twice.
         this.#db.run(
           `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL, enabled = CASE WHEN ? THEN 0 ELSE enabled END WHERE account_id = ? AND id = ?`,
-          [Date.now(), trigger.source.schedule.kind === 'once' ? 1 : 0, trigger.account, trigger.id],
+          // The caller's clock, not Date.now(): mixing the injected timestamp with the wall clock
+          // makes a firing in the same millisecond as trigger creation eligible to re-match.
+          [
+            Math.max(now, occurrence.scheduledAt),
+            trigger.source.schedule.kind === 'once' ? 1 : 0,
+            trigger.account,
+            trigger.id,
+          ],
         )
         fired += 1
         // Run the agent in the background; the session already exists for this occurrence.
@@ -2843,11 +3106,17 @@ export class Service {
     sessionId: string,
     activity: activityTriggers.ActivityFeedEvent,
   ): void {
-    const run = (async () => {
+    const dispatch = (async () => {
       try {
         const content = await triggerPromptMessage(trigger, firingId, activity, createSeedClient(this.#hmServerUrl))
-        await this.#messageSessionOnce(accountId, sessionId, content)
-        console.log('[Agents Trigger] Trigger session run completed', {
+        // Exactly-once: the run id derives from the firing id, so a duplicate dispatch is a no-op insert.
+        await this.#messageSessionOnce(accountId, sessionId, content, {
+          origin: 'trigger',
+          background: true,
+          runId: `firing-${firingId}`,
+          triggerFiringId: firingId,
+        })
+        console.log('[Agents Trigger] Trigger session run enqueued', {
           accountId,
           triggerId: trigger.id,
           sessionId,
@@ -2865,7 +3134,7 @@ export class Service {
           accountId,
           trigger.id,
         ])
-        console.error('[Agents Trigger] Trigger session run failed', {
+        console.error('[Agents Trigger] Trigger session dispatch failed', {
           accountId,
           triggerId: trigger.id,
           sessionId,
@@ -2873,17 +3142,23 @@ export class Service {
         })
       }
     })()
-    this.#pendingTriggerSessions.add(run)
-    void run.finally(() => this.#pendingTriggerSessions.delete(run))
+    this.#pendingTriggerSessions.add(dispatch)
+    void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
   }
 
   /**
-   * Awaits all in-flight background trigger session runs started by {@link #dispatchTriggerSession}.
-   * Used by tests for determinism and by graceful shutdown so runs aren't cut off mid-write. Does not
-   * start new work; runs added after the snapshot are not awaited.
+   * Awaits in-flight background dispatch setup AND the run queue going idle, so tests and graceful
+   * shutdown observe every enqueued run's completion. Runs enqueued after the snapshot are covered
+   * by the queue-idle wait as long as they were enqueued before it resolves.
    */
   async drainTriggerSessions(): Promise<void> {
     await Promise.allSettled([...this.#pendingTriggerSessions])
+    await this.#runQueue.awaitIdle()
+  }
+
+  /** Alias for {@link drainTriggerSessions} under the name the runs feature documents. */
+  async awaitQueueIdle(): Promise<void> {
+    await this.drainTriggerSessions()
   }
 
   #ensureAccount(accountId: string, now: number): void {

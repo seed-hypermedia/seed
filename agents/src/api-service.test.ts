@@ -3834,6 +3834,112 @@ describe('api service', () => {
     )
     expect(apisvc.restoreReasoningEffort(plain, definition)).toBe(plain)
   })
+
+  test('crash recovery: a run interrupted mid-tool resumes after restart with a repaired transcript', async () => {
+    // Simulates the old wedged-`streaming` failure: a process died after persisting a tool_call but
+    // before its tool_result, leaving the run row `running` and the session column `streaming`. A
+    // fresh Service must requeue the run, synthesize an interrupted tool_result so the provider
+    // request is well-formed, finish the turn, and leave the session idle.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc2: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Recovery', systemPrompt: 'be terse', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const sessionId = createdSession.sessionId
+      const accountId = blobs.principalToString(account.principal)
+      svc.stopRunQueue()
+
+      // Forge the crash state directly: user message + dangling tool_call, run row left `running`.
+      const now = Date.now()
+      const putEvent = (seq: number, event: unknown) =>
+        db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
+          crypto.randomUUID(),
+          sessionId,
+          seq,
+          cbor.encode(event),
+          now,
+        ])
+      putEvent(1, {type: 'message', role: 'user', content: 'What is in the doc?'})
+      putEvent(2, {type: 'tool_call', id: 'call-lost', name: 'read', input: {id: 'hm://z6MkDoc/x'}})
+      db.run(
+        `INSERT INTO runs (id, account_id, root_run_id, depth, kind, agent_id, session_id, origin, input_cbor,
+           status, attempt, max_attempts, queue, lease_owner, created_at, started_at, updated_at)
+         VALUES ('crashed-run', ?, 'crashed-run', 0, 'agent', ?, ?, 'user', ?, 'running', 1, 1, 'interactive',
+           'dead-process', ?, ?, ?)`,
+        [accountId, createdAgent.agentId, sessionId, cbor.encode({}), now, now, now],
+      )
+      db.run(`UPDATE sessions SET status = 'streaming' WHERE id = ?`, [sessionId])
+
+      const providerBodies: unknown[] = []
+      globalThis.fetch = mock(async (_url: string | URL, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(_url, init))
+        providerBodies.push(body.messages)
+        expectToolResultHasPrecedingToolCall(body.messages)
+        return openAIStreamResponse([
+          {id: 'chat-r', choices: [{delta: {content: 'Recovered.'}}]},
+          {id: 'chat-r', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      // "Restart": a fresh Service over the same DB sweeps and re-executes the run.
+      svc2 = new apisvc.Service(db, dataDir, {})
+      await svc2.awaitQueueIdle()
+
+      const session = await svc2.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('idle')
+      const eventTypes = session.events.map((event) => event.event)
+      const synthesized = eventTypes.find(
+        (event) => event.type === 'tool_result' && (event as {toolCallId?: string}).toolCallId === 'call-lost',
+      ) as {error?: string} | undefined
+      expect(synthesized?.error).toContain('Interrupted by a service restart')
+      expect(eventTypes.at(-1)).toEqual({type: 'message', role: 'assistant', content: 'Recovered.'})
+      expect(providerBodies.length).toBe(1)
+
+      const runRow = db
+        .query<{status: string; usage_cbor: Uint8Array | null}, [string]>(
+          `SELECT status, usage_cbor FROM runs WHERE id = ?`,
+        )
+        .get('crashed-run')
+      expect(runRow?.status).toBe('succeeded')
+      expect(runRow?.usage_cbor).not.toBeNull()
+    } finally {
+      globalThis.fetch = originalFetch
+      svc2?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
 })
 
 async function setDefaultProvider(svc: apisvc.Service, account: blobs.Signer): Promise<void> {
