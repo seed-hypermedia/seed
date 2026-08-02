@@ -590,6 +590,22 @@ async function main(): Promise<void> {
                 sendWS(ws, {_: 'append', key: `sessions/${event.sessionId}`, event})
               }
             }
+            if (sub.runsReplay) {
+              const runsKey = sub.key as `runs/${string}`
+              for (const run of sub.runsReplay.runs) {
+                sendWS(ws, {_: 'change', key: runsKey, value: run})
+              }
+              for (const entry of sub.runsReplay.entries) {
+                sendWS(ws, {
+                  _: 'append',
+                  key: runsKey,
+                  runId: entry.runId,
+                  seq: entry.seq,
+                  entry: entry.entry,
+                  createdAt: entry.createdAt,
+                })
+              }
+            }
           } catch (error) {
             sendWS(ws, {_: 'error', message: error instanceof Error ? error.message : 'Invalid subscription'})
           }

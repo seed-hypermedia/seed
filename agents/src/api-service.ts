@@ -7,8 +7,10 @@ import {
   normalizeSeedToolName,
   seedAssistantSystemPrompt,
   seedToolRegistry,
+  type JsonSchema,
   type SeedToolMetadata,
 } from '@seed-hypermedia/agents-protocol'
+import {validateJsonSchemaShape, validateJsonSchemaValue} from '@/json-schema'
 import * as activityTriggers from '@/activity-triggers'
 import * as agentMemory from '@/agent-memory'
 import * as sessionAttachments from '@/session-attachments'
@@ -87,6 +89,8 @@ const MAX_MESSAGE_TEXT_BYTES = 64 * 1024
 const MAX_SESSION_SPAWN_DEPTH = 3
 /** Most sessions one session may start with start_session, a backstop against runaway spawning. */
 const MAX_SESSION_SPAWNS_PER_SESSION = 10
+/** Failed return_result validation attempts before a typed sub-session fails `output-schema`. */
+const MAX_RETURN_RESULT_RETRIES = 3
 const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
@@ -166,7 +170,42 @@ class SessionStoppedError extends Error {
   }
 }
 
-type RunningSession = {accountId: string; abort?: () => Promise<void>; stopped: boolean}
+/** Thrown out of a Pi run when the turn parked on spawned sub-sessions instead of finishing. */
+class SessionParkedError extends Error {
+  constructor() {
+    super('Agent run parked on sub-sessions')
+  }
+}
+
+type RunningSession = {
+  accountId: string
+  abort?: () => Promise<void>
+  stopped: boolean
+  /** Sub-session tool calls of the current turn the run must park on (set by the sub_session executor). */
+  parkToolCallIds?: string[]
+  /** Validated `return_result` payload delivered by a typed sub-session child. */
+  subResult?: {value: unknown}
+  /** Failed `return_result` validation attempts (bounded; then the run fails `output-schema`). */
+  subResultRetries?: number
+  /** Set when the turn should end after the current tool batch (result delivered). */
+  completeAfterTools?: boolean
+}
+
+/** Validated sub_session tool input, embedded in the child run's `input` so the run is self-describing. */
+type SubSessionSpec = {
+  title?: string
+  prompt?: string
+  agentId?: string
+  input: unknown
+  tools?: string[]
+  output?: JsonSchema
+}
+
+/** Content of a durable assistant message event, for typed-less sub-session results. */
+function assistantMessageText(event: api.SessionEvent): string {
+  const payload = event.event as {type?: string; content?: string}
+  return payload.type === 'message' && typeof payload.content === 'string' ? payload.content : ''
+}
 
 /** Classifies an executor error into the persisted run-error shape with retryability. */
 function classifyRunError(error: unknown): runs.RunErrorInfo {
@@ -384,6 +423,8 @@ export class Service {
           envelope.action.agentId,
           envelope.action.limit,
           envelope.action.cursor,
+          envelope.action.parentSessionId,
+          envelope.action.includeChildren,
         )
       case 'UpdateSession':
         return this.#updateSession(verified.accountId, envelope.action.sessionId, envelope.action.title)
@@ -423,6 +464,14 @@ export class Service {
         return this.#abortFileUpload(verified.accountId, envelope.action.uploadId)
       case 'StopSession':
         return this.#stopSession(verified.accountId, envelope.action.sessionId)
+      case 'GetRun':
+        return this.#getRun(verified.accountId, envelope.action.runId)
+      case 'ListRuns':
+        return this.#listRuns(verified.accountId, envelope.action)
+      case 'CancelRun':
+        return this.#cancelRun(verified.accountId, envelope.action.runId)
+      case 'GetRunJournal':
+        return this.#getRunJournal(verified.accountId, envelope.action.runId, envelope.action.afterSeq)
       case 'Subscribe':
         throw new APIError(400, 'Subscribe is only supported over WebSocket')
       default:
@@ -853,7 +902,9 @@ export class Service {
 
     const sessions = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
       )
       .all(accountId, agentId)
@@ -876,6 +927,8 @@ export class Service {
     agentId?: string,
     limit?: number,
     cursor?: api.SessionListCursor,
+    parentSessionId?: string,
+    includeChildren?: boolean,
   ): api.ListSessionsResponse {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
     const conditions = ['account_id = ?']
@@ -883,6 +936,14 @@ export class Service {
     if (agentId !== undefined) {
       conditions.push('agent_id = ?')
       params.push(normalizeBoundedString(agentId, 'Agent ID', MAX_NAME_BYTES))
+    }
+    if (parentSessionId !== undefined) {
+      // Children of one parent; the top-level exclusion below does not apply.
+      conditions.push('parent_session_id = ?')
+      params.push(normalizeBoundedString(parentSessionId, 'Parent session ID', MAX_NAME_BYTES))
+    } else if (includeChildren !== true) {
+      // Top-level listing: children render nested under their parent, fetched on demand.
+      conditions.push('parent_session_id IS NULL')
     }
     if (cursor !== undefined) {
       if (!isRecord(cursor)) throw new APIError(400, 'Session cursor must be an object')
@@ -896,7 +957,9 @@ export class Service {
 
     const rows = this.#db
       .query<SessionRow, (string | number)[]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
       )
       .all(...params)
@@ -1566,7 +1629,9 @@ export class Service {
     const messages = normalizeMessageContent(rawContent)
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
@@ -1658,11 +1723,17 @@ export class Service {
     return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
   }
 
-  /** Executes one claimed agent run: repairs interrupted tool calls, then replays the transcript into Pi. */
+  /**
+   * Executes one claimed agent run: repairs interrupted tool calls, then replays the transcript
+   * into Pi. Sub-session child runs (a `spec` in the run input) get their definition overridden
+   * (inline prompt, tool restriction) and — when a typed `output` schema was declared — must
+   * deliver a valid `return_result` payload, with one nudge turn before failing `output-schema`.
+   */
   async #executeAgentRun(run: runs.RunRecord): Promise<runs.RunOutcome> {
     if (!run.sessionId || !run.agentId) {
       return {type: 'failed', error: {code: 'config-error', message: 'Agent run is missing session or agent'}}
     }
+    const sessionId = run.sessionId
     const agent = this.#db
       .query<AgentRow, [string, string]>(
         `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
@@ -1672,34 +1743,131 @@ export class Service {
     if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found', httpStatus: 404}}
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
-    this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, run.sessionId)
-    const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
-    this.#runningSessions.set(this.#runningSessionKey(run.accountId, run.sessionId), runningSession)
-    try {
-      const assistantEvent = await this.#runPiAgent(run.accountId, definition, run.sessionId, runningSession, run)
-      if (runningSession.stopped) return {type: 'canceled', output: {assistantEventId: assistantEvent.id}}
-      return {type: 'succeeded', output: {assistantEventId: assistantEvent.id}}
-    } catch (error) {
-      if (error instanceof SessionStoppedError || runningSession.stopped) {
-        const stoppedEvent = this.#appendSessionEvent(
-          run.accountId,
-          run.agentId,
-          run.sessionId,
-          {type: 'message', role: 'assistant', content: 'Stopped.'},
-          Date.now(),
-        )
-        return {type: 'canceled', output: {assistantEventId: stoppedEvent.id}}
-      }
-      return {type: 'failed', error: classifyRunError(error)}
+    const spec = (run.input as {spec?: SubSessionSpec} | null)?.spec
+    if (spec?.prompt) definition.systemPrompt = spec.prompt
+    if (spec?.tools) {
+      const base = definition.tools ?? [seedToolRegistry.read.name]
+      definition.tools = base.filter((tool) => spec.tools!.includes(normalizeSeedToolName(tool)))
     }
+    this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, sessionId)
+    const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
+    this.#runningSessions.set(this.#runningSessionKey(run.accountId, sessionId), runningSession)
+    let nudged = false
+    for (;;) {
+      try {
+        const assistantEvent = await this.#runPiAgent(run.accountId, definition, sessionId, runningSession, run)
+        if (runningSession.stopped) return {type: 'canceled', output: {assistantEventId: assistantEvent.id}}
+        if (spec?.output) {
+          if (runningSession.subResult) return {type: 'succeeded', output: runningSession.subResult.value}
+          if (!nudged) {
+            nudged = true
+            this.#appendSessionEvent(
+              run.accountId,
+              run.agentId,
+              sessionId,
+              {
+                type: 'message',
+                role: 'user',
+                content:
+                  'You have not delivered the result yet. Call the return_result tool now with a payload matching the required schema; that is how this task completes.',
+              },
+              Date.now(),
+            )
+            continue
+          }
+          return {
+            type: 'failed',
+            error: {code: 'output-schema', message: 'Sub-session ended without delivering a valid return_result'},
+          }
+        }
+        if (spec) return {type: 'succeeded', output: {text: assistantMessageText(assistantEvent)}}
+        return {type: 'succeeded', output: {assistantEventId: assistantEvent.id}}
+      } catch (error) {
+        if (error instanceof SessionParkedError) {
+          const pending = (runningSession.parkToolCallIds ?? []).filter(
+            (toolCallId) => !this.#sessionHasToolResult(sessionId, toolCallId),
+          )
+          runningSession.parkToolCallIds = undefined
+          runningSession.completeAfterTools = undefined
+          if (pending.length === 0) continue // every child already resolved; pick results up now
+          return {type: 'parked', wait: {reason: 'children', toolCallIds: pending}}
+        }
+        if (runningSession.subResult) return {type: 'succeeded', output: runningSession.subResult.value}
+        if (spec?.output && (runningSession.subResultRetries ?? 0) >= MAX_RETURN_RESULT_RETRIES) {
+          return {
+            type: 'failed',
+            error: {code: 'output-schema', message: 'Sub-session could not produce a schema-valid result'},
+          }
+        }
+        if (error instanceof SessionStoppedError || runningSession.stopped) {
+          const stoppedEvent = this.#appendSessionEvent(
+            run.accountId,
+            run.agentId,
+            sessionId,
+            {type: 'message', role: 'assistant', content: 'Stopped.'},
+            Date.now(),
+          )
+          return {type: 'canceled', output: {assistantEventId: stoppedEvent.id}}
+        }
+        return {type: 'failed', error: classifyRunError(error)}
+      }
+    }
+  }
+
+  /** The sub_session/return_result slice of the Pi tool context, present only for run-backed turns. */
+  #subSessionToolContext(
+    accountId: string,
+    sessionId: string,
+    agentId: string,
+    run: runs.RunRecord | undefined,
+    runningSession: RunningSession | undefined,
+    outputSchema: JsonSchema | undefined,
+  ): Pick<AgentServicePiToolContext, 'spawnSubSession' | 'returnResultSchema' | 'deliverResult'> {
+    if (!run || !runningSession) return {}
+    const liveRun = run
+    const live = runningSession
+    const context: Pick<AgentServicePiToolContext, 'spawnSubSession' | 'returnResultSchema' | 'deliverResult'> = {
+      spawnSubSession: (toolCallId: string, input: unknown) =>
+        this.#spawnSubSession(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
+    }
+    if (outputSchema) {
+      const schema = outputSchema
+      context.returnResultSchema = schema
+      context.deliverResult = (payload: unknown) => {
+        const errors = validateJsonSchemaValue(schema, payload)
+        if (errors.length > 0) {
+          live.subResultRetries = (live.subResultRetries ?? 0) + 1
+          const detail = errors.map((error) => `${error.path}: ${error.message}`).join('; ')
+          if (live.subResultRetries >= MAX_RETURN_RESULT_RETRIES) {
+            live.completeAfterTools = true
+            throw new APIError(400, `Result rejected (attempt limit reached): ${detail}`)
+          }
+          throw new APIError(
+            400,
+            `Result does not match the required schema: ${detail}. Fix and call return_result again.`,
+          )
+        }
+        live.subResult = {value: payload}
+        live.completeAfterTools = true
+        return {accepted: true}
+      }
+    }
+    return context
   }
 
   #onRunChanged(run: runs.RunRecord): void {
     this.#emit({type: 'run-change', accountId: run.accountId, run: runInfoFromRecord(run)})
     if (run.kind === 'agent' && run.sessionId) this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
+    if (run.status === 'waiting') this.#reconcileParkedRun(run)
   }
 
   #onRunFinalized(run: runs.RunRecord): void {
+    if (run.parentRunId) {
+      const parentToolCallId = (run.input as {parentToolCallId?: string} | null)?.parentToolCallId
+      if (typeof parentToolCallId === 'string' && parentToolCallId) {
+        this.#resolveSubSessionResult(run, parentToolCallId)
+      }
+    }
     if (run.kind === 'agent' && run.sessionId && run.status === 'failed' && run.error) {
       this.#appendSessionEvent(
         run.accountId,
@@ -1800,19 +1968,247 @@ export class Service {
     }
   }
 
+  #getRun(accountId: string, runId: string): api.GetRunResponse {
+    const run = runs.getRun(this.#db, accountId, normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES))
+    if (!run) throw new APIError(404, 'Run not found')
+    return {_: 'GetRunResponse', run: runInfoFromRecord(run)}
+  }
+
+  #listRuns(accountId: string, action: api.ListRuns): api.ListRunsResponse {
+    const limit = boundedInteger(action.limit, 50, 1, 200)
+    let records: runs.RunRecord[]
+    if (action.rootRunId !== undefined) {
+      records = runs.listRunTree(
+        this.#db,
+        accountId,
+        normalizeBoundedString(action.rootRunId, 'Root run ID', MAX_NAME_BYTES),
+      )
+    } else if (action.sessionId !== undefined) {
+      records = runs.listSessionRootRuns(
+        this.#db,
+        accountId,
+        normalizeBoundedString(action.sessionId, 'Session ID', MAX_NAME_BYTES),
+        limit,
+      )
+    } else if (action.agentId !== undefined) {
+      records = runs.listAgentRuns(
+        this.#db,
+        accountId,
+        normalizeBoundedString(action.agentId, 'Agent ID', MAX_NAME_BYTES),
+        limit,
+      )
+    } else {
+      throw new APIError(400, 'ListRuns requires rootRunId, sessionId, or agentId')
+    }
+    if (action.status !== undefined) records = records.filter((run) => run.status === action.status)
+    return {_: 'ListRunsResponse', runs: records.slice(0, limit).map(runInfoFromRecord)}
+  }
+
+  #cancelRun(accountId: string, runId: string): api.CancelRunResponse {
+    const normalized = normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES)
+    const existing = runs.getRun(this.#db, accountId, normalized)
+    if (!existing) throw new APIError(404, 'Run not found')
+    const affected = this.#runQueue.cancelTree(accountId, normalized)
+    return {_: 'CancelRunResponse', runId: normalized, canceled: affected.length > 0}
+  }
+
+  #getRunJournal(accountId: string, runId: string, afterSeq?: number): api.GetRunJournalResponse {
+    if (afterSeq !== undefined && (!Number.isInteger(afterSeq) || afterSeq < 0)) {
+      throw new APIError(400, 'afterSeq must be a non-negative integer')
+    }
+    const normalized = normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES)
+    const run = runs.getRun(this.#db, accountId, normalized)
+    if (!run) throw new APIError(404, 'Run not found')
+    const entries = this.#db
+      .query<{seq: number; entry_cbor: Uint8Array; created_at: number}, [string, number]>(
+        `SELECT seq, entry_cbor, created_at FROM run_journal WHERE run_id = ? AND seq > ? ORDER BY seq ASC`,
+      )
+      .all(normalized, afterSeq ?? 0)
+      .map((row) => ({
+        runId: normalized,
+        seq: row.seq,
+        entry: cbor.decode<Record<string, unknown>>(row.entry_cbor),
+        createdAt: row.created_at,
+      }))
+    return {_: 'GetRunJournalResponse', runId: normalized, entries}
+  }
+
+  /**
+   * sub_session tool: spawns a child run + real session under the calling run and registers a park
+   * intent on the calling turn. The tool "returns" only transiently to Pi — the durable tool_result
+   * is appended later by {@link #resolveSubSessionResult} when the child reaches a terminal status.
+   */
+  #spawnSubSession(
+    accountId: string,
+    parentRun: runs.RunRecord,
+    parentSessionId: string,
+    parentAgentId: string,
+    runningSession: RunningSession,
+    toolCallId: string,
+    raw: unknown,
+  ): {status: string; sessionId: string; title: string} {
+    const input = isPlainRecord(raw) ? raw : {}
+    if (input.input === undefined) throw new APIError(400, 'sub_session requires an input payload')
+    if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
+      throw new APIError(400, 'Provide either prompt or agentId, not both')
+    }
+    const spec: SubSessionSpec = {
+      ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
+      ...(typeof input.prompt === 'string' && input.prompt ? {prompt: input.prompt} : {}),
+      ...(typeof input.agentId === 'string' && input.agentId ? {agentId: input.agentId} : {}),
+      input: input.input,
+      ...(Array.isArray(input.tools)
+        ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
+        : {}),
+    }
+    if (input.output !== undefined) {
+      const shapeErrors = validateJsonSchemaShape(input.output)
+      if (shapeErrors.length > 0) {
+        throw new APIError(
+          400,
+          `output schema is not supported: ${shapeErrors.map((error) => `${error.path}: ${error.message}`).join('; ')}`,
+        )
+      }
+      spec.output = input.output as JsonSchema
+    }
+    if (parentRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
+      throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH}); finish the work here.`)
+    }
+    const childCount =
+      this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(parentRun.id)
+        ?.n ?? 0
+    if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
+      throw new APIError(
+        400,
+        `This run already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions; finish the remaining work here.`,
+      )
+    }
+    const childAgentId = spec.agentId ?? parentAgentId
+    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
+    const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
+    const childRunId = crypto.randomUUID()
+    const session = this.#createSessionOnce(accountId, childAgentId, title, {
+      parentSessionId,
+      runId: childRunId,
+    })
+    const rendered =
+      typeof spec.input === 'string'
+        ? spec.input
+        : `Here is your task input:\n\n\`\`\`json\n${JSON.stringify(spec.input, null, 2)}\n\`\`\``
+    this.#appendSessionEvent(
+      accountId,
+      childAgentId,
+      session.sessionId,
+      {type: 'message', role: 'user', content: rendered},
+      Date.now(),
+    )
+    this.#runQueue.enqueue({
+      id: childRunId,
+      accountId,
+      kind: 'agent',
+      origin: 'agent',
+      parentRunId: parentRun.id,
+      agentId: childAgentId,
+      sessionId: session.sessionId,
+      title,
+      input: {spec, parentToolCallId: toolCallId},
+      queue: 'background',
+      maxAttempts: 2,
+    })
+    runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
+    console.info('[agents/runtime] sub-session spawned', {
+      accountId,
+      parentRunId: parentRun.id,
+      childRunId,
+      sessionId: session.sessionId,
+      depth: parentRun.depth + 1,
+      typed: spec.output !== undefined,
+    })
+    return {status: 'spawned', sessionId: session.sessionId, title}
+  }
+
+  /**
+   * Child terminal status → parent resolution: appends the durable sub_session tool_result on the
+   * parent transcript and shrinks the parent's wait set, requeuing it when the set empties.
+   */
+  #resolveSubSessionResult(child: runs.RunRecord, parentToolCallId: string): void {
+    const parent = child.parentRunId ? runs.getRun(this.#db, child.accountId, child.parentRunId) : null
+    if (!parent || parent.kind !== 'agent' || !parent.sessionId) return
+    let result: Record<string, unknown>
+    if (child.status === 'succeeded') {
+      result = {status: 'succeeded', sessionId: child.sessionId, output: child.output ?? null}
+    } else if (child.status === 'canceled') {
+      result = {status: 'canceled', sessionId: child.sessionId}
+    } else {
+      result = {
+        status: 'failed',
+        sessionId: child.sessionId,
+        error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-session failed'},
+      }
+    }
+    if (this.#sessionHasToolResult(parent.sessionId, parentToolCallId)) return
+    this.#appendSessionEvent(
+      child.accountId,
+      parent.agentId ?? '',
+      parent.sessionId,
+      {type: 'tool_result', toolCallId: parentToolCallId, name: seedToolRegistry.sub_session.name, output: result},
+      Date.now(),
+    )
+    const resolution = this.#runQueue.resolveChildWait(parent.id, parentToolCallId)
+    console.info('[agents/runtime] sub-session resolved', {
+      childRunId: child.id,
+      parentRunId: parent.id,
+      status: child.status,
+      resolution,
+    })
+  }
+
+  #sessionHasToolResult(sessionId: string, toolCallId: string): boolean {
+    const rows = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+      )
+      .all(sessionId)
+      .map(sessionEventRowToInfo)
+    return rows.some((row) => {
+      const value = row.event as {type?: string; toolCallId?: string}
+      return value.type === 'tool_result' && value.toolCallId === toolCallId
+    })
+  }
+
+  /**
+   * Closes the park/resolve race: a fast child can finalize between the parent's park decision and
+   * the `waiting` status commit. After every waiting-on-children transition, drop wait entries whose
+   * durable tool_result already exists and requeue when none remain.
+   */
+  #reconcileParkedRun(run: runs.RunRecord): void {
+    if (run.status !== 'waiting' || run.wait?.reason !== 'children' || !run.sessionId) return
+    for (const toolCallId of run.wait.toolCallIds) {
+      if (this.#sessionHasToolResult(run.sessionId, toolCallId)) {
+        this.#runQueue.resolveChildWait(run.id, toolCallId)
+      }
+    }
+  }
+
   async #stopSession(accountId: string, sessionId: string): Promise<api.StopSessionResponse> {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
 
-    // Queued/waiting runs never start; a currently-executing run is aborted through Pi.
-    const canceledQueued = this.#runQueue.cancelQueuedForSession(accountId, sessionId)
+    // Cancel every live run rooted at this session AND its descendants (spawned sub-sessions),
+    // then abort the in-memory Pi run if one is streaming right now.
+    const liveRuns = runs.listLiveSessionRuns(this.#db, accountId, sessionId)
+    let canceledAny = false
+    for (const run of liveRuns) {
+      const affected = this.#runQueue.cancelTree(accountId, run.id)
+      canceledAny = canceledAny || affected.length > 0
+    }
     const running = this.#runningSessions.get(this.#runningSessionKey(accountId, sessionId))
     if (running) {
       running.stopped = true
       await running.abort?.()
       return {_: 'StopSessionResponse', sessionId, stopped: true}
     }
-    if (canceledQueued.length > 0) return {_: 'StopSessionResponse', sessionId, stopped: true}
+    if (canceledAny) return {_: 'StopSessionResponse', sessionId, stopped: true}
 
     if (session.status === 'streaming') {
       // Stale mirror with no live run (should not happen post-sweep); re-derive.
@@ -1914,6 +2310,7 @@ export class Service {
   ): Promise<api.SessionEvent> {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
+    const subSessionOutputSchema = (run?.input as {spec?: SubSessionSpec} | null)?.spec?.output
     const providerRow = this.#db
       .query<{config_cbor: Uint8Array}, [string, string]>(
         `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
@@ -1987,6 +2384,14 @@ export class Service {
           }),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input),
+        ...this.#subSessionToolContext(
+          accountId,
+          sessionId,
+          session.agentId,
+          run,
+          runningSession,
+          subSessionOutputSchema,
+        ),
       }),
       tools: [
         // Set-dedupe: legacy alias normalization can produce duplicate names.
@@ -2011,6 +2416,7 @@ export class Service {
                 tool === seedToolRegistry.attachment_to_memory.name ||
                 tool === seedToolRegistry.attachment_to_ipfs.name ||
                 tool === seedToolRegistry.memory_publish_document.name ||
+                (tool === seedToolRegistry.sub_session.name && run !== undefined) ||
                 (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
             ),
         ),
@@ -2018,6 +2424,8 @@ export class Service {
         seedToolRegistry.view_attachment.name,
         seedToolRegistry.start_session.name,
         seedToolRegistry.set_session_title.name,
+        // Typed sub-session children must deliver their result through this tool.
+        ...(subSessionOutputSchema ? [seedToolRegistry.return_result.name] : []),
       ],
       noTools: 'builtin',
       sessionManager: pi.SessionManager.inMemory(cwd),
@@ -2026,6 +2434,17 @@ export class Service {
 
     const mergeModelDefaults = provider.modelDefaults
     piSession.agent.onPayload = (payload) => {
+      // The next provider request is the tool batch's end: if this turn spawned sub-sessions (park)
+      // or delivered its typed result, the turn is over — refuse to send another provider request.
+      // Throwing here (caught below as a designed ending) guarantees the request never leaves.
+      if (runningSession && (runningSession.parkToolCallIds?.length || runningSession.completeAfterTools)) {
+        console.info('[agents/runtime] ending turn after tool batch', {
+          sessionId,
+          parked: runningSession.parkToolCallIds?.length ?? 0,
+          resultDelivered: runningSession.subResult !== undefined,
+        })
+        throw new SessionParkedError()
+      }
       const payloadTools = isRecord(payload) && Array.isArray(payload.tools) ? payload.tools.length : undefined
       console.info('[agents/runtime] sending provider request', {
         sessionId,
@@ -2190,6 +2609,12 @@ export class Service {
       }
       if (event.type === 'tool_execution_end') {
         if (event.toolName === seedToolRegistry.set_session_title.name) return
+        // Parked sub_session calls keep their durable tool_call unanswered: the real tool_result is
+        // appended by the child's finalizer, and the resumed turn replays it from there.
+        if (runningSession?.parkToolCallIds?.includes(event.toolCallId)) {
+          emitProgress({activity: {phase: 'thinking'}})
+          return
+        }
         const startedAt = toolStartedAt.get(event.toolCallId)
         toolStartedAt.delete(event.toolCallId)
         logRun(event.isError ? 'tool call failed' : 'tool call end', {
@@ -2254,8 +2679,14 @@ export class Service {
       await piSession.agent.continue()
     } catch (error) {
       endStreamingLog()
-      logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
-      throw error
+      // A park or delivered typed result ends the loop by throwing from onPayload; that (and any
+      // error Pi wraps it in) is a designed ending, not a failure — fall through to the end checks.
+      const endedByDesign = runningSession.parkToolCallIds?.length || runningSession.completeAfterTools
+      if (!endedByDesign) {
+        logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
+        throw error
+      }
+      logRun('turn ended after tool batch', {parked: runningSession.parkToolCallIds?.length ?? 0})
     } finally {
       endStreamingLog()
       this.#runningSessions.delete(runningSessionKey)
@@ -2271,6 +2702,17 @@ export class Service {
       })
     }
 
+    if (runningSession.parkToolCallIds?.length) {
+      // The turn ended by design: sub-sessions were spawned and the run parks on them.
+      if (partialText.trim()) flushPartialAssistantMessage()
+      throw new SessionParkedError()
+    }
+    if (runningSession.completeAfterTools && runningSession.subResult) {
+      // Typed result delivered; the abort that ended the loop is success, not an error.
+      if (partialText.trim()) flushPartialAssistantMessage()
+      if (assistantEvent) return assistantEvent
+      throw new SessionStoppedError()
+    }
     if (runningSession.stopped) {
       if (partialText.trim()) flushPartialAssistantMessage()
       if (assistantEvent) return assistantEvent
@@ -2432,7 +2874,9 @@ export class Service {
     }
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
@@ -2513,6 +2957,8 @@ export class Service {
     accountId: string
     key: string
     replay?: api.GetSessionResponse
+    /** Snapshot + durable journal replay for `runs/<rootRunId>` subscriptions. */
+    runsReplay?: {runs: api.RunInfo[]; entries: api.RunJournalEntryInfo[]}
   }> {
     let verified: auth.VerifiedEnvelope
     try {
@@ -2538,6 +2984,24 @@ export class Service {
       if (!sessionId) throw new APIError(400, 'Subscription key is invalid')
       const replay = await this.#getSession(verified.accountId, sessionId, envelope.action.afterSeq)
       return {accountId: verified.accountId, key, replay}
+    }
+    const runMatch = /^runs\/([^/]+)$/.exec(key)
+    if (runMatch) {
+      const rootRunId = runMatch[1]
+      if (!rootRunId) throw new APIError(400, 'Subscription key is invalid')
+      const root = runs.getRun(this.#db, verified.accountId, rootRunId)
+      if (!root) throw new APIError(404, 'Run not found')
+      const tree = runs.listRunTree(this.#db, verified.accountId, root.rootRunId)
+      const afterSeq = envelope.action.afterSeq
+      const entries: api.RunJournalEntryInfo[] = []
+      for (const run of tree) {
+        entries.push(...this.#getRunJournal(verified.accountId, run.id, afterSeq).entries)
+      }
+      return {
+        accountId: verified.accountId,
+        key,
+        runsReplay: {runs: tree.map(runInfoFromRecord), entries},
+      }
     }
     throw new APIError(400, 'Subscription key is not authorized')
   }
@@ -2566,7 +3030,9 @@ export class Service {
   #getSessionInfo(accountId: string, sessionId: string): api.SessionInfo | null {
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
@@ -2941,6 +3407,10 @@ type SessionRow = {
   agent_id: string
   title: string | null
   status: api.SessionInfo['status']
+  parent_session_id: string | null
+  run_id: string | null
+  plan_cbor: Uint8Array | null
+  child_count: number
   created_at: number
   updated_at: number
 }
@@ -3200,6 +3670,10 @@ function sessionRowToInfo(row: SessionRow, triggerContext?: api.AgentSessionTrig
     agentId: row.agent_id,
     ...(row.title ? {title: row.title} : {}),
     status: row.status,
+    ...(row.parent_session_id ? {parentSessionId: row.parent_session_id} : {}),
+    ...(row.run_id ? {runId: row.run_id} : {}),
+    ...(row.plan_cbor ? {plan: cbor.decode<api.RunPlan>(row.plan_cbor)} : {}),
+    ...(row.child_count > 0 ? {childSessionCount: row.child_count} : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(triggerContext
@@ -3907,6 +4381,12 @@ type AgentServicePiToolContext = WriteToolContext & {
   codeExec: CodeExecutor
   /** start_session tool: creates a new session of this agent and dispatches its first run in the background. */
   startSession: (input: unknown) => {sessionId: string; title: string}
+  /** sub_session tool: spawns an awaited child run + session and parks the calling turn on it. */
+  spawnSubSession?: (toolCallId: string, input: unknown) => unknown
+  /** When set, this run is a typed sub-session child: return_result uses this schema as its parameters. */
+  returnResultSchema?: JsonSchema
+  /** return_result tool: validates and records the typed result, ending the turn after the tool batch. */
+  deliverResult?: (payload: unknown) => unknown
 }
 
 type ResolvedAgentSigner = {
@@ -4280,6 +4760,19 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         ...started,
       }
     }),
+    defineSeedPiTool(seedToolRegistry.sub_session, (params, toolCallId) => {
+      if (!context.spawnSubSession) throw new APIError(400, 'sub_session is not available in this run context')
+      return context.spawnSubSession(toolCallId, params)
+    }),
+    defineSeedPiTool(
+      context.returnResultSchema
+        ? {...seedToolRegistry.return_result, inputSchema: context.returnResultSchema}
+        : seedToolRegistry.return_result,
+      (params) => {
+        if (!context.deliverResult) throw new APIError(400, 'return_result is only available in typed sub-sessions')
+        return context.deliverResult(params)
+      },
+    ),
     defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
       const title = isRecord(params) && typeof params.title === 'string' ? params.title : ''
       console.info('[agents/runtime] set_session_title tool called')
