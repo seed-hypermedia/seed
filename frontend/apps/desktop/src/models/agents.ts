@@ -1659,6 +1659,9 @@ export type AgentRunTreeLiveState = {
 
 const EMPTY_RUN_TREE_LIVE_STATE: AgentRunTreeLiveState = {runs: {}, progress: {}, activity: {}, journal: []}
 
+/** Journal entries kept in memory per run tree. Well above what the activity drawer renders. */
+const RUN_JOURNAL_BUFFER_LIMIT = 500
+
 /**
  * Subscribes to one run tree (`runs/<rootRunId>`).
  *
@@ -1693,10 +1696,12 @@ export function useAgentRunTreeSubscription(
         createdAt: event.createdAt,
       }
       setState((current) => {
+        // Keyed on (runId, seq): seq is per-run, so it repeats across a tree's runs.
         if (current.journal.some((existing) => existing.runId === entry.runId && existing.seq === entry.seq)) {
           return current
         }
-        return {...current, journal: [...current.journal, entry]}
+        // A long workflow journals without bound; the drawer only ever shows the tail.
+        return {...current, journal: [...current.journal, entry].slice(-RUN_JOURNAL_BUFFER_LIMIT)}
       })
     } else if (event._ === 'appendPartial' && event.key.startsWith('runs/')) {
       const {runId, patch} = event as {runId: string; patch: AgentWSRunPatch}
