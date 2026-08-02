@@ -17,13 +17,14 @@ import {SessionRunCard} from '../run-card'
 const mockState = vi.hoisted(() => ({
   runs: [] as RunInfo[],
   tree: [] as RunInfo[],
+  journal: [] as {runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}[],
   cancel: vi.fn(),
 }))
 
 vi.mock('@/models/agents', () => ({
   useSessionRuns: () => ({data: mockState.runs}),
   useRunTree: () => ({data: mockState.tree}),
-  useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: []}),
+  useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: mockState.journal}),
   useCancelRun: () => ({mutate: mockState.cancel, isPending: false}),
 }))
 
@@ -52,6 +53,7 @@ function render(element: React.ReactElement) {
 beforeEach(() => {
   mockState.runs = []
   mockState.tree = []
+  mockState.journal = []
   mockState.cancel = vi.fn()
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -165,6 +167,30 @@ describe('SessionRunCard', () => {
     )
     act(() => dismiss?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
     expect(container.textContent).toBe('')
+  })
+
+  it('keeps the activity journal collapsed until asked, then shows it oldest-first', () => {
+    mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Workflow', kind: 'workflow'})]
+    mockState.tree = [mockState.runs[0]!]
+    mockState.journal = [
+      {runId: 'root-1', seq: 2, createdAt: 200, entry: {kind: 'call', op: 'tool', tool: 'search'}},
+      {runId: 'root-1', seq: 1, createdAt: 100, entry: {kind: 'step', stepId: 's1', label: 'Gather', phase: 'start'}},
+      {runId: 'child-1', seq: 1, createdAt: 300, entry: {kind: 'log', level: 'warn', message: 'retrying'}},
+      // Replay bookkeeping, not activity — never rendered.
+      {runId: 'root-1', seq: 3, createdAt: 400, entry: {kind: 'now', value: 12345}},
+    ]
+    render(<SessionRunCard {...baseProps} />)
+    expect(container.textContent).toContain('Activity')
+    expect(container.textContent).not.toContain('Gather')
+
+    const toggle = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.startsWith('Activity'),
+    )
+    act(() => toggle?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    const drawer = container.querySelector('[aria-label="Run activity"]')
+    const lines = Array.from(drawer?.children ?? []).map((node) => node.textContent)
+    expect(lines).toEqual(['step: Gather (start)', 'tool: search', 'warn · retrying'])
   })
 
   it('surfaces the error message of a failed run', () => {
