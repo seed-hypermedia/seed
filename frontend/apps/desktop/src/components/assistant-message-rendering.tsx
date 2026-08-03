@@ -5,7 +5,7 @@ import {useOpenUrl} from '@/open-url'
 import {useSessionAttachmentDataUrls} from '@/models/agents'
 import {RunRecordCard} from '@/pages/agents/run-card'
 import {useSelectedAccountId} from '@/selected-account'
-import {useNavigate} from '@/utils/useNavigate'
+import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {cn} from '@shm/ui/utils'
@@ -1316,6 +1316,48 @@ function getToolRunId(item: ChatToolPart): string | undefined {
   return getToolString(item.rawOutput, 'runId')
 }
 
+/**
+ * The transcript a `sub_session` call created, once it has one.
+ *
+ * Present in the result and in the spawn placeholder, so the title is a way in while the
+ * sub-session is still working, not only after it finishes.
+ */
+function getToolSessionId(item: ChatToolPart): string | undefined {
+  if (item.name !== 'sub_session') return undefined
+  return getToolString(item.rawOutput, 'sessionId')
+}
+
+/**
+ * A tool row's title, as a way into what it made.
+ *
+ * Styled as the document titles in read/write rows are, and it swallows the click the same way, so
+ * the rest of the row still expands.
+ */
+function ToolRouteLink({
+  label,
+  title,
+  onOpen,
+}: {
+  label: string
+  title: string
+  onOpen: (event: React.MouseEvent) => void
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(event) => {
+        // Opening and expanding are different intents; the row's toggle must not also fire.
+        event.stopPropagation()
+        onOpen(event)
+      }}
+      className="text-foreground min-w-0 truncate font-medium decoration-1 underline-offset-2 hover:underline"
+    >
+      {label}
+    </button>
+  )
+}
+
 function ToolCallLine({
   item,
   liveActivity,
@@ -1330,7 +1372,9 @@ function ToolCallLine({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const accountUid = useSelectedAccountId()
   const navigate = useNavigate()
+  const clickNavigate = useClickNavigate()
   const runId = getToolRunId(item)
+  const childSessionId = getToolSessionId(item)
   const metadata = getSeedToolMetadata(item.name)
   const render = metadata?.render
   const Icon = toolIcons[render?.kind || 'generic']
@@ -1378,7 +1422,21 @@ function ToolCallLine({
           ) : (
             <>
               <span className="shrink-0 font-medium">{render?.label || item.name}</span>
-              {summary ? <span className="text-foreground/75 min-w-0 truncate">{summary}</span> : null}
+              {summary ? (
+                childSessionId && serverUrl ? (
+                  <ToolRouteLink
+                    label={summary}
+                    title={`Open ${summary}`}
+                    // clickNavigate honours cmd/shift-click into a new window, like every other
+                    // session row in the app.
+                    onOpen={(event) =>
+                      clickNavigate({key: 'agent-session', sessionId: childSessionId, serverUrl}, event)
+                    }
+                  />
+                ) : (
+                  <span className="text-foreground/75 min-w-0 truncate">{summary}</span>
+                )
+              ) : null}
               {liveTool?.detail ? <span className="text-foreground/60 min-w-0 truncate">{liveTool.detail}</span> : null}
               <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1 overflow-hidden">
                 {links.map((link) => (
