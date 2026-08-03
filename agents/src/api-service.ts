@@ -2077,10 +2077,14 @@ export class Service {
   #onRunChanged(run: runs.RunRecord): void {
     this.#emit({type: 'run-change', accountId: run.accountId, run: runInfoFromRecord(run)})
     if (run.kind === 'agent' && run.sessionId) this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
+    // Titling races the turn, not follows it: the user message exists the moment the run starts,
+    // so the title generates in parallel and lands while the answer is still streaming. The
+    // waiting/finalize triggers below stay as the retry net (e.g. the provider hiccuped here).
+    if (run.kind === 'agent' && run.sessionId && run.status === 'running') {
+      this.#ensureSessionTitled(run.accountId, run.sessionId)
+    }
     if (run.status === 'waiting') {
       this.#reconcileParkedRun(run)
-      // A turn that parks on its first batch never reaches the model's "first assistant turn"
-      // titling moment; name the session now rather than leaving it untitled for hours.
       if (run.kind === 'agent' && run.sessionId) this.#ensureSessionTitled(run.accountId, run.sessionId)
     }
   }

@@ -175,6 +175,13 @@ export function AssistantPanel({
 
   return (
     <div className="flex h-full flex-col">
+      {/* Account-wide live updates per server: session changes (titles, statuses) reach the
+          sidebar the moment they happen, instead of waiting on the 5s background poll. */}
+      {accountUid
+        ? (serverUrls.data || []).map((serverUrl) => (
+            <AgentAccountLiveUpdates key={serverUrl} serverUrl={serverUrl} accountUid={accountUid} />
+          ))
+        : null}
       {deleteDialog.content}
       {createAgentDialog.content}
       <div className="border-border window-drag flex h-10 items-center justify-between gap-1 border-b px-2 py-2">
@@ -312,6 +319,16 @@ export function AssistantPanel({
  * and jumping to the full Agents page — live here so the sidebar is self-sufficient: on a fresh
  * install with zero agents, this dropdown is where you fix that.
  */
+/**
+ * Renders nothing; holds one account-wide WebSocket subscription open for a server so every
+ * session change (agent-set titles, status flips) invalidates the sidebar queries immediately.
+ * A component rather than a hook because the server list is dynamic and hooks cannot loop.
+ */
+function AgentAccountLiveUpdates({serverUrl, accountUid}: {serverUrl: string; accountUid: string}) {
+  useAgentWebSocketSubscription(serverUrl, accountUid, `account/${accountUid}`)
+  return null
+}
+
 function AssistantAgentPicker({
   agents,
   activeAgent,
