@@ -28,6 +28,7 @@ import {client} from '@/trpc'
 import {grpcClient} from '@/grpc-client'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
+import {DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
@@ -35,7 +36,8 @@ import {useEffect, useMemo, useState} from 'react'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
-const LOCAL_DEFAULT_AGENT_SERVER_URL = 'http://localhost:3050'
+// Dev runs the agents server on the port from .env.vars; release builds use the baked-in default.
+const LOCAL_DEFAULT_AGENT_SERVER_URL = DEFAULT_DESKTOP_AGENTS_URL
 const PRODUCTION_DEFAULT_AGENT_SERVER_URL = 'https://agentic.seed.hyper.media'
 /** Returns the built-in default agent server URL for the current desktop runtime. */
 export function getDefaultAgentServerUrl() {
@@ -199,7 +201,7 @@ export function useConfiguredAgentServerUrls() {
       }
       // Seed the list with the built-in default the first time the app runs so
       // there is a server to connect to out of the box — the hosted
-      // `agentic.seed.hyper.media` in production, `localhost:3050` in dev.
+      // `agentic.seed.hyper.media` in production, the local dev server in dev.
       // Once the list has been configured (even to empty), respect that choice
       // so removing the last server still sticks.
       if (configured.size === 0 && !Array.isArray(storedList)) {

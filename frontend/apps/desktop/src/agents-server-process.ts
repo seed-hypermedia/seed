@@ -19,7 +19,15 @@ import {forceKillChildProcess} from './win32-process'
  * the default port first and attaches to whatever healthy agents server answers.
  */
 
-const DEFAULT_AGENTS_PORT = 3050
+/**
+ * Mirrors the agents server's own port default (agents/src/config.ts). Dev redefines it via
+ * SEED_AGENTS_HTTP_PORT in .env.vars — like the daemon ports — so a release build's spawned
+ * server and the dev hot-reload server never share a port. Read at call time, not module load,
+ * so tests control it per-case.
+ */
+function defaultAgentsPort(): number {
+  return Number(process.env.SEED_AGENTS_HTTP_PORT) || 3050
+}
 /** Ports scanned when the default is occupied by something that is not a healthy agents server. */
 const MAX_PORT_PROBES = 20
 const HEALTH_TIMEOUT_MS = 1_500
@@ -107,7 +115,7 @@ export async function startLocalAgentsServer(): Promise<string | null> {
     return null
   }
 
-  const defaultUrl = `http://localhost:${DEFAULT_AGENTS_PORT}`
+  const defaultUrl = `http://localhost:${defaultAgentsPort()}`
   if (await isAgentsServerHealthy(defaultUrl)) {
     // Almost always the `./dev up` mprocs pane. Attaching keeps its hot reload authoritative.
     log.info('Attached to already-running agents server', {url: defaultUrl})
@@ -134,7 +142,7 @@ async function spawnAgentsServer(): Promise<string> {
     throw new Error(`Agents server binary not found at ${binaryPath}`)
   }
 
-  const port = await findFreePort(DEFAULT_AGENTS_PORT)
+  const port = await findFreePort(defaultAgentsPort())
   const dataDir = path.join(userDataPath, 'agents')
   fs.mkdirSync(dataDir, {recursive: true})
 

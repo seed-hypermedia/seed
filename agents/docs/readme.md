@@ -176,12 +176,15 @@ Do not claim audit success unless it actually passes.
 
 ## Local URLs
 
-- Agent server base: `http://localhost:3050`
-- Built-in inspector: `http://localhost:3050/agents`
-- Health: `http://localhost:3050/agents/api/health`
-- Status JSON: `http://localhost:3050/agents/api/status`
-- Signed API: `POST http://localhost:3050/api/message`
-- WebSocket: `ws://localhost:3050/agents/ws`
+The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` (`.env.vars`), so the dev server never shares a port with the 3050
+default a release/packaged build uses (`src/config.ts`).
+
+- Agent server base: `http://localhost:3051`
+- Built-in inspector: `http://localhost:3051/agents`
+- Health: `http://localhost:3051/agents/api/health`
+- Status JSON: `http://localhost:3051/agents/api/status`
+- Signed API: `POST http://localhost:3051/api/message`
+- WebSocket: `ws://localhost:3051/agents/ws`
 
 ## Historical context
 

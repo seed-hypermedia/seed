@@ -46,6 +46,8 @@ beforeEach(() => {
   mockState.binaryExists = false
   delete process.env.SEED_NO_AGENTS_SPAWN
   delete process.env.SEED_AGENTS_SERVER_URL
+  // The dev shell exports this (.env.vars); tests exercise the release default unless set explicitly.
+  delete process.env.SEED_AGENTS_HTTP_PORT
 
   vi.stubGlobal('fetch', async (url: string) => {
     mockState.fetched.push(String(url))
@@ -76,6 +78,17 @@ describe('local agents server resolution', () => {
 
     expect(await startLocalAgentsServer()).toBe('http://localhost:3050')
     expect(getAgentsServerState()).toEqual({t: 'attached', url: 'http://localhost:3050'})
+  })
+
+  it('probes the port from SEED_AGENTS_HTTP_PORT when set, not the release default', async () => {
+    // Dev redefines the port (.env.vars) so a release build's server on 3050 is never mistaken
+    // for the dev one.
+    process.env.SEED_AGENTS_HTTP_PORT = '3051'
+    mockState.healthy.add('http://localhost:3051')
+
+    expect(await startLocalAgentsServer()).toBe('http://localhost:3051')
+    expect(getAgentsServerState()).toEqual({t: 'attached', url: 'http://localhost:3051'})
+    expect(mockState.fetched.every((url) => url.includes('3051'))).toBe(true)
   })
 
   it('attaches to an explicitly configured server', async () => {

@@ -56,10 +56,10 @@ Query polling and WebSocket invalidations; there are no manual reload controls.
 
 Advanced Settings includes an **AGENT SERVERS** section for managing multiple URLs and default selection.
 
-Default local server:
+Default local server (dev; release builds use port 3050):
 
 ```text
-http://localhost:3050
+http://localhost:3051
 ```
 
 ## Provider dialog

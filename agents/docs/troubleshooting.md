@@ -111,7 +111,7 @@ every restart. The tokenizer now guarantees forward progress each iteration.
 Check:
 
 ```bash
-curl http://localhost:3050/agents/api/status
+curl http://localhost:3051/agents/api/status # dev port; release builds use 3050
 ```
 
 If agents exist in desktop but not inspector, confirm desktop is pointing at the same server URL/database.

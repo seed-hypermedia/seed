@@ -33,6 +33,11 @@ export const DEFAULT_GATEWAY_URL: string = IME.VITE_GATEWAY_URL || process.env.V
 export const DEFAULT_DESKTOP_VAULT_URL: string | undefined =
   IME.VITE_DESKTOP_DEFAULT_VAULT_URL || process.env.VITE_DESKTOP_DEFAULT_VAULT_URL || undefined
 
+// The dev shell redefines the agents server port (.env.vars); the fallback matches the
+// production default baked into agents/src/config.ts.
+export const DEFAULT_DESKTOP_AGENTS_URL: string =
+  IME.VITE_DESKTOP_DEFAULT_AGENTS_URL || process.env.VITE_DESKTOP_DEFAULT_AGENTS_URL || 'http://localhost:3050'
+
 export const P2P_PORT = IME.VITE_DESKTOP_P2P_PORT || process.env.VITE_DESKTOP_P2P_PORT || 56000
 
 export const DAEMON_HTTP_PORT =

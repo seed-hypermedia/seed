@@ -8,10 +8,10 @@ Endpoint:
 /agents/ws
 ```
 
-Local URL:
+Local URL (dev; release builds use port 3050):
 
 ```text
-ws://localhost:3050/agents/ws
+ws://localhost:3051/agents/ws
 ```
 
 Desktop URL helper: `getAgentWebSocketUrl()` in `frontend/apps/desktop/src/agents-client.ts`.

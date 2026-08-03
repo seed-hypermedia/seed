@@ -22,7 +22,8 @@ procs:
       cmd: 'docker compose -f agents/dev/web-backends/docker-compose.yml down'
     autostart: true
 
-  # Agents server (:3050), bun --hot. Defaults to the backends above.
+  # Agents server (:3051 via SEED_AGENTS_HTTP_PORT in .env.vars; release builds
+  # keep 3050), bun --hot. Defaults to the backends above.
   # Separate Bun workspace: `dev` wraps the server in scripts/watch-file-deps.ts,
   # which installs deps and re-syncs + restarts when the copied file: packages
   # (frontend/packages/*) change, so they never go stale mid-session.
