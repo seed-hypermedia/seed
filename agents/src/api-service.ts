@@ -2063,11 +2063,55 @@ export class Service {
   #onRunChanged(run: runs.RunRecord): void {
     this.#emit({type: 'run-change', accountId: run.accountId, run: runInfoFromRecord(run)})
     if (run.kind === 'agent' && run.sessionId) this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
-    if (run.status === 'waiting') this.#reconcileParkedRun(run)
+    if (run.status === 'waiting') {
+      this.#reconcileParkedRun(run)
+      // A turn that parks on its first batch never reaches the model's "first assistant turn"
+      // titling moment; name the session now rather than leaving it untitled for hours.
+      if (run.kind === 'agent' && run.sessionId) this.#ensureSessionTitled(run.accountId, run.sessionId)
+    }
+  }
+
+  /**
+   * Server-side fallback naming: sessions must never stay "Untitled" just because no model called
+   * set_session_title (a parked first turn, an API-created session, a model that skipped the
+   * housekeeping). Derives a bounded title from the first user message; keeps title_source
+   * 'system' so both the agent and the user can still rename it.
+   */
+  #ensureSessionTitled(accountId: string, sessionId: string): void {
+    const row = this.#db
+      .query<{title: string | null; title_source: string; agent_id: string}, [string, string]>(
+        `SELECT title, title_source, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    if (!row || row.title || row.title_source !== 'system') return
+    const events = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+         WHERE session_id = ? ORDER BY seq ASC LIMIT 8`,
+      )
+      .all(sessionId)
+      .map(sessionEventRowToInfo)
+    const firstUser = events
+      .map((event) => event.event as {type?: string; role?: string; rawMarkdown?: string; content?: string})
+      .find((event) => event.type === 'message' && event.role === 'user')
+    const source = firstUser?.rawMarkdown || firstUser?.content
+    if (!source) return
+    const title = sessionTitleFromPrompt(source)
+    if (!title) return
+    this.#db.run(
+      `UPDATE sessions SET title = ?, updated_at = ? WHERE account_id = ? AND id = ? AND (title IS NULL OR title = '') AND title_source = 'system'`,
+      [title, Date.now(), accountId, sessionId],
+    )
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (session?.title === title) {
+      this.#emit({type: 'session-change', accountId, session})
+      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: row.agent_id, sessionId})
+    }
   }
 
   #onRunFinalized(run: runs.RunRecord): void {
     this.#workflowCancelFlags.delete(run.id)
+    if (run.kind === 'agent' && run.sessionId) this.#ensureSessionTitled(run.accountId, run.sessionId)
     const waiters = this.#runWaiters.get(run.id)
     if (waiters) {
       this.#runWaiters.delete(run.id)
