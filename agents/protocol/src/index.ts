@@ -167,6 +167,7 @@ export type UnsignedAgentAction =
   | CommitFileUpload
   | AbortFileUpload
   | StopSession
+  | RetrySession
   | GetRun
   | ListRuns
   | CancelRun
@@ -622,6 +623,16 @@ export type AbortFileUpload = {
 /** Stops an in-flight agent response for a session. */
 export type StopSession = {
   _: 'StopSession'
+  sessionId: string
+}
+
+/**
+ * Re-runs a session whose latest run failed, without appending a new user message: the turn
+ * re-enters from the durable transcript (error events are not replayed to the provider). Rejected
+ * when a run is live or the latest run did not fail.
+ */
+export type RetrySession = {
+  _: 'RetrySession'
   sessionId: string
 }
 
@@ -1160,6 +1171,14 @@ export type MessageSessionResponse = {
   assistantEventId: string
 }
 
+/** Successful response for `RetrySession`. */
+export type RetrySessionResponse = {
+  _: 'RetrySessionResponse'
+  sessionId: string
+  /** Final assistant event of the retried turn; empty string when the turn parked (streams over WS). */
+  assistantEventId: string
+}
+
 /** Successful response for `GetRun`. */
 export type GetRunResponse = {
   _: 'GetRunResponse'
@@ -1276,6 +1295,7 @@ export type AgentResponse =
   | UploadAgentMemoryFileToIpfsResponse
   | CreateSessionResponse
   | ListSessionsResponse
+  | RetrySessionResponse
   | GetRunResponse
   | ListRunsResponse
   | CancelRunResponse

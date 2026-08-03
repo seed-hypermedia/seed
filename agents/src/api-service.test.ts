@@ -4541,6 +4541,105 @@ describe('api service', () => {
     }
   })
 
+  test('RetrySession re-runs a failed turn without a new user message', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Retrier', systemPrompt: 'be terse', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      // Nothing to retry on a fresh session.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'RetrySession', sessionId: createdSession.sessionId},
+          }),
+        ),
+      ).rejects.toThrow('Nothing to retry')
+
+      // First attempt: the provider hard-fails, the run fails, an error event lands.
+      globalThis.fetch = mock(async () => new Response('boom', {status: 500})) as unknown as typeof fetch
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'MessageSession',
+              sessionId: createdSession.sessionId,
+              content: [{type: 'text', text: 'What is the capital of France?'}],
+            },
+          }),
+        ),
+      ).rejects.toThrow()
+      let session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('error')
+      expect((session.events.at(-1)?.event as {type?: string}).type).toBe('error')
+
+      // Retry with a healthy provider: the turn re-enters from the transcript, no duplicate user message.
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        // The provider request must not include the error event and has exactly one user message.
+        expect(JSON.stringify(body.messages)).not.toContain('boom')
+        expect(body.messages.filter((message: {role?: string}) => message.role === 'user')).toHaveLength(1)
+        return openAIStreamResponse([
+          {id: 'retry', choices: [{delta: {content: 'Paris.'}}]},
+          {id: 'retry', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+      const retried = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'RetrySession', sessionId: createdSession.sessionId},
+        }),
+      )
+      expect(retried._).toBe('RetrySessionResponse')
+      session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('idle')
+      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Paris.'})
+      const userMessages = session.events.filter(
+        (event) => (event.event as {type?: string; role?: string}).role === 'user',
+      )
+      expect(userMessages).toHaveLength(1)
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
   test('crash recovery: a run interrupted mid-tool resumes after restart with a repaired transcript', async () => {
     // Simulates the old wedged-`streaming` failure: a process died after persisting a tool_call but
     // before its tool_result, leaving the run row `running` and the session column `streaming`. A
