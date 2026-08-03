@@ -685,6 +685,9 @@ function normalizePlan(raw: unknown): RunPlanState {
   const record = raw as {title?: unknown; steps?: unknown}
   const steps = Array.isArray(record.steps)
     ? record.steps
+        // Models routinely declare plans as bare strings; accept them as pending steps rather
+        // than silently dropping them.
+        .map((step) => (typeof step === 'string' ? {label: step} : step))
         .filter((step): step is Record<string, unknown> => typeof step === 'object' && step !== null)
         .slice(0, 100)
         .map((step, index) => ({

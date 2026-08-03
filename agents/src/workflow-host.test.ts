@@ -289,6 +289,20 @@ describe('workflow host', () => {
     })
   })
 
+  test('ctx.plan accepts bare-string steps and ctx.step ticks them by label', async () => {
+    const {adapters, plans} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        await ctx.plan({steps: ['Fetch', 'Combine']})
+        await ctx.step('Fetch', async () => 1)
+        return 'ok'
+      }`,
+    })
+    const outcome = await runWorkflowVM(adapters)
+    expect(outcome).toEqual({type: 'succeeded', output: 'ok'})
+    const finalPlan = plans.at(-1)
+    expect(finalPlan?.steps.map((step) => `${step.label}:${step.status}`)).toEqual(['Fetch:done', 'Combine:pending'])
+  })
+
   test('ctx.step maintains the plan through start/done/failed', async () => {
     const {adapters, plans} = fakeAdapters({
       source: `export default async function (input, ctx) {
