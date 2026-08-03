@@ -3,7 +3,9 @@ import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} fr
 import {getSeedToolMetadata} from '../../../../../agents/protocol/src/tool-registry'
 import {useOpenUrl} from '@/open-url'
 import {useSessionAttachmentDataUrls} from '@/models/agents'
+import {RunRecordCard} from '@/pages/agents/run-card'
 import {useSelectedAccountId} from '@/selected-account'
+import {useNavigate} from '@/utils/useNavigate'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {cn} from '@shm/ui/utils'
@@ -63,6 +65,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
         <AssistantMessageParts
           parts={getAssistantMessageParts(message)}
           liveActivity={liveActivity}
+          serverUrl={serverUrl}
           rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
         />
       )}
@@ -131,11 +134,14 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   isStreaming = false,
   liveActivity,
   rawMarkdownButton,
+  serverUrl,
 }: {
   parts: ChatMessagePart[]
   isStreaming?: boolean
   liveActivity?: AgentRunActivity
   rawMarkdownButton?: React.ReactNode
+  /** Agent server the parts' tool calls ran on, for tools that link to server-side records. */
+  serverUrl?: string
 }) {
   const rawButtonIndex = rawMarkdownButton
     ? parts.reduce((lastTextIndex, part, index) => (part.type === 'text' ? index : lastTextIndex), -1)
@@ -143,7 +149,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
 
   return parts.map((part, index) => {
     if (part.type === 'tool') {
-      return <ToolCallItem key={`${part.id}:${index}`} item={part} liveActivity={liveActivity} />
+      return <ToolCallItem key={`${part.id}:${index}`} item={part} liveActivity={liveActivity} serverUrl={serverUrl} />
     }
 
     const showCursor = isStreaming && index === parts.length - 1
@@ -1296,9 +1302,35 @@ function ExecuteCodeDetails({item, liveTail}: {item: ChatToolPart; liveTail?: st
   )
 }
 
-function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: AgentRunActivity}) {
+/** Tools whose real story is the run they started, not their JSON payloads. */
+const RUN_BACKED_TOOLS = new Set(['sub_session', 'run_workflow'])
+
+/**
+ * The run a tool call started, if it reported one.
+ *
+ * `sub_session` and `run_workflow` results carry `runId` alongside the status and output; workflow
+ * spawns carry it in the placeholder output too, so an in-flight call is resolvable as well.
+ */
+function getToolRunId(item: ChatToolPart): string | undefined {
+  if (!RUN_BACKED_TOOLS.has(item.name)) return undefined
+  return getToolString(item.rawOutput, 'runId')
+}
+
+function ToolCallLine({
+  item,
+  liveActivity,
+  serverUrl,
+}: {
+  item: ChatToolPart
+  liveActivity?: AgentRunActivity
+  /** Agent server the run lives on; without it the embedded run record cannot be loaded. */
+  serverUrl?: string
+}) {
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const accountUid = useSelectedAccountId()
+  const navigate = useNavigate()
+  const runId = getToolRunId(item)
   const metadata = getSeedToolMetadata(item.name)
   const render = metadata?.render
   const Icon = toolIcons[render?.kind || 'generic']
@@ -1376,6 +1408,16 @@ function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: 
         ) : null}
         {expanded ? (
           <div className="mt-2 space-y-2 border-t pt-2">
+            {/* The run's own record — steps, children, log — mounted only now, so a transcript full
+                of finished workflows costs nothing until one is opened. */}
+            {runId && serverUrl ? (
+              <RunRecordCard
+                serverUrl={serverUrl}
+                accountUid={accountUid}
+                runId={runId}
+                onOpenSession={(sessionId, agentId) => navigate({key: 'agent-session', agentId, sessionId, serverUrl})}
+              />
+            ) : null}
             {item.name === 'execute_code' ? (
               <ExecuteCodeDetails item={item} liveTail={liveTool?.outputTail} />
             ) : item.name === 'read' ? (
@@ -1415,6 +1457,14 @@ function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: 
   )
 }
 
-function ToolCallItem({item, liveActivity}: {item: ChatToolPart; liveActivity?: AgentRunActivity}) {
-  return <ToolCallLine item={item} liveActivity={liveActivity} />
+function ToolCallItem({
+  item,
+  liveActivity,
+  serverUrl,
+}: {
+  item: ChatToolPart
+  liveActivity?: AgentRunActivity
+  serverUrl?: string
+}) {
+  return <ToolCallLine item={item} liveActivity={liveActivity} serverUrl={serverUrl} />
 }
