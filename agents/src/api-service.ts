@@ -589,6 +589,8 @@ export class Service {
         return this.#abortFileUpload(verified.accountId, envelope.action.uploadId)
       case 'StopSession':
         return this.#stopSession(verified.accountId, envelope.action.sessionId)
+      case 'RetrySession':
+        return this.#retrySession(verified.accountId, envelope.action.sessionId)
       case 'GetRun':
         return this.#getRun(verified.accountId, envelope.action.runId)
       case 'ListRuns':
@@ -2788,6 +2790,47 @@ export class Service {
     }
 
     return {_: 'StopSessionResponse', sessionId, stopped: false}
+  }
+
+  /**
+   * Re-runs a failed turn without a new user message: enqueues a fresh interactive run whose
+   * transcript replay re-enters from the durable events (error events never reach the provider,
+   * and interrupted tool calls were already repaired with synthesized results).
+   */
+  async #retrySession(accountId: string, sessionId: string): Promise<api.RetrySessionResponse> {
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) throw new APIError(409, 'Session is already streaming')
+    const latest = runs.latestSessionRun(this.#db, sessionId)
+    if (!latest || latest.status !== 'failed') {
+      throw new APIError(400, 'Nothing to retry: the latest run did not fail')
+    }
+    const run = this.#runQueue.enqueue({
+      accountId,
+      kind: 'agent',
+      origin: 'user',
+      agentId: session.agentId,
+      sessionId,
+      input: {kind: 'session-retry', retryOfRunId: latest.id},
+      queue: 'interactive',
+      maxAttempts: 1,
+      dispatch: false,
+    })
+    const final = await this.#runQueue.runInline(run.id)
+    if (final.status === 'queued') {
+      this.#runQueue.cancelTree(accountId, run.id)
+      throw new APIError(409, 'Session is already streaming')
+    }
+    if (final.status === 'succeeded' || final.status === 'canceled') {
+      const output = (final.output ?? {}) as {assistantEventId?: string}
+      return {_: 'RetrySessionResponse', sessionId, assistantEventId: output.assistantEventId ?? ''}
+    }
+    if (final.status === 'failed') {
+      const error = final.error ?? {code: 'run-failed', message: 'Agent run failed'}
+      throw new APIError(error.httpStatus ?? 502, error.message)
+    }
+    // Parked on sub-sessions: the retried turn continues over WS like any parked turn.
+    return {_: 'RetrySessionResponse', sessionId, assistantEventId: ''}
   }
 
   #runningSessionKey(accountId: string, sessionId: string): string {
