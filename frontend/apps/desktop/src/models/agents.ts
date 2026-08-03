@@ -21,6 +21,7 @@ import {
   type ModelProviderType,
   type RunInfo,
   type RunJournalEntryInfo,
+  type RunStatus,
   type SessionAttachmentInfo,
   type SessionInfo,
   type SigningIdentity,
@@ -1095,12 +1096,18 @@ export function useRun(
       return res.run
     },
     enabled: !!serverUrl && !!accountUid && !!runId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    // A finished run never changes again, and a long transcript can hold many of these — stop
+    // polling as soon as the run reaches a terminal status.
+    refetchInterval: (data) =>
+      data && TERMINAL_RUN_STATUSES.includes(data.status) ? false : AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
     refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
 }
+
+/** Run statuses that never change again. */
+const TERMINAL_RUN_STATUSES: RunStatus[] = ['succeeded', 'failed', 'canceled']
 
 /** Lists the root runs of one session, newest first. Root runs only — a sub-session's run is not one. */
 export function useSessionRuns(
