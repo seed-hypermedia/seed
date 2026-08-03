@@ -4230,6 +4230,160 @@ describe('api service', () => {
     }
   })
 
+  test('a parked parent still converses: new messages answer immediately, the resume queues behind them', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Conversant',
+              systemPrompt: 'You are the coordinator.',
+              modelProvider: 'openai',
+              model: 'gpt',
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const sessionId = createdSession.sessionId
+
+      let releaseChild: () => void = () => {}
+      const childGate = new Promise<void>((resolve) => {
+        releaseChild = resolve
+      })
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const system = String((body.messages?.[0] as {content?: string} | undefined)?.content ?? '')
+        const messagesJSON = JSON.stringify(body.messages)
+        if (system.includes('worker Alpha')) {
+          await childGate // the sub-session runs "for a long time"
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Alpha done: report attached.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (messagesJSON.includes('Alpha done')) {
+          // The resume, after the real result landed — sees the interleaved chat too.
+          expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+          expect(messagesJSON).toContain('Quick answer')
+          return openAIStreamResponse([
+            {id: 'resume', choices: [{delta: {content: 'The background research is finished.'}}]},
+            {id: 'resume', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (messagesJSON.includes('are you still there')) {
+          // The mid-park turn: provider-legal transcript with a synthetic pending result adjacent
+          // to the spawn call, telling the model to answer now rather than wait.
+          expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+          expect(messagesJSON).toContain('Still running in the background')
+          return openAIStreamResponse([
+            {id: 'mid', choices: [{delta: {content: 'Quick answer: yes, the research is still running.'}}]},
+            {id: 'mid', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'spawn',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-alpha',
+                      type: 'function',
+                      function: {
+                        name: 'sub_session',
+                        arguments: JSON.stringify({
+                          title: 'Research',
+                          prompt: 'REPRO you are worker Alpha.',
+                          input: 'research the thing',
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'spawn', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      // Turn 1 parks on the slow sub-session.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'go research the thing'}]},
+        }),
+      )
+      let session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      // Parked is NOT stalled: the mirror reports idle so the composer stays open.
+      expect(session.session.status).toBe('idle')
+
+      // A new message while parked answers immediately — no 409, no queueing behind the workflow.
+      const midResponse = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'hey, are you still there?'}]},
+        }),
+      )
+      expect(midResponse._).toBe('MessageSessionResponse')
+      session = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}))
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect((session.events.at(-1)?.event as {content?: string}).content).toContain('Quick answer')
+
+      // The workflow finishes: its resume queues and then delivers the final word.
+      releaseChild()
+      await svc.awaitQueueIdle()
+      session = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}))
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.status).toBe('idle')
+      const contents = session.events.map((event) => {
+        const value = event.event as {type?: string; role?: string; content?: string; toolCallId?: string}
+        return value.type === 'message' ? `${value.role}:${(value.content ?? '').slice(0, 24)}` : value.type
+      })
+      expect(contents).toEqual([
+        'user:go research the thing',
+        'tool_call',
+        'user:hey, are you still there',
+        'assistant:Quick answer: yes, the r',
+        'tool_result',
+        'assistant:The background research ',
+      ])
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
   test('restart while parked: a queued child executes after reboot and resumes the waiting parent', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

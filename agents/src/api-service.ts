@@ -2554,6 +2554,11 @@ export class Service {
         unmatched.delete(value.toolCallId)
       }
     }
+    // Spawn calls a waiting run still parks on are pending, not interrupted: their real results
+    // arrive from the child finalizer, and replay injects a synthetic pending result meanwhile.
+    for (const pendingId of runs.pendingWaitToolCallIds(this.#db, sessionId)) {
+      unmatched.delete(pendingId)
+    }
     for (const [toolCallId, name] of unmatched) {
       this.#appendSessionEvent(
         accountId,
@@ -3480,7 +3485,21 @@ export class Service {
       if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
       return next
     }
-    piSession.state.messages = this.#piMessages(sessionId) as never
+    const replayMessages = this.#piMessages(sessionId)
+    // A park-resume after interleaved conversation can end on an assistant message (the late tool
+    // results attach adjacent to their calls, earlier in the transcript). Pi cannot continue from
+    // an assistant turn, and the model needs direction anyway: hand it back the floor explicitly.
+    // In-memory only — never persisted to the transcript.
+    const lastReplayed = replayMessages.at(-1) as {role?: string} | undefined
+    if (lastReplayed?.role === 'assistant') {
+      replayMessages.push({
+        role: 'user',
+        content:
+          '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>',
+        timestamp: Date.now(),
+      })
+    }
+    piSession.state.messages = replayMessages as never
     let partialId = crypto.randomUUID()
     let partialText = ''
     let currentAssistantHadDelta = false
@@ -3754,6 +3773,42 @@ export class Service {
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
 
+    // Pass 1 — index every durable tool_result by call id. Providers require tool results to sit
+    // DIRECTLY after the assistant message that made the calls, but the durable event order
+    // interleaves once a parked parent converses (user turns land between a spawn's tool_call and
+    // its late-arriving tool_result). Results are therefore attached at flush time, not replayed
+    // positionally.
+    type ToolResultEvent = {toolCallId: string; name?: string; output?: unknown; error?: string; createdAt: number}
+    const resultsByCallId = new Map<string, ToolResultEvent>()
+    const knownCallIds = new Set<string>()
+    for (const event of events) {
+      const value = event.event as {
+        type?: string
+        id?: string
+        toolCallId?: string
+        name?: string
+        output?: unknown
+        error?: string
+      }
+      if (value.type === 'tool_call') {
+        const callId = typeof value.id === 'string' ? value.id : value.toolCallId
+        if (callId) knownCallIds.add(callId)
+      }
+      if (value.type === 'tool_result' && typeof value.toolCallId === 'string' && value.toolCallId) {
+        resultsByCallId.set(value.toolCallId, {
+          toolCallId: value.toolCallId,
+          name: value.name,
+          output: value.output,
+          error: value.error,
+          createdAt: event.createdAt,
+        })
+      }
+    }
+    // Spawn calls whose children are still running: replayed with a synthetic pending result so a
+    // new turn on a parked session is provider-legal and the model knows work is in flight. The
+    // REAL result is appended durably by the child's finalizer and replayed on later turns.
+    const pendingSpawnIds = runs.pendingWaitToolCallIds(this.#db, sessionId)
+
     const messages: unknown[] = []
     let pendingAssistant: {content: Record<string, unknown>[]; timestamp: number} | undefined
     const appendPendingAssistantContent = (part: Record<string, unknown>, timestamp: number): void => {
@@ -3763,6 +3818,7 @@ export class Service {
     const flushPendingAssistant = (): void => {
       if (!pendingAssistant) return
       const hasToolCall = pendingAssistant.content.some((part) => part.type === 'toolCall')
+      const toolCalls = pendingAssistant.content.filter((part) => part.type === 'toolCall')
       messages.push({
         role: 'assistant',
         content: pendingAssistant.content,
@@ -3773,6 +3829,39 @@ export class Service {
         stopReason: hasToolCall ? 'toolUse' : 'stop',
         timestamp: pendingAssistant.timestamp,
       })
+      // Results ride directly behind their calls, wherever their durable events actually landed.
+      for (const call of toolCalls) {
+        const callId = String(call.id)
+        const result = resultsByCallId.get(callId)
+        if (result) {
+          messages.push({
+            role: 'toolResult',
+            toolCallId: callId,
+            toolName: result.name || String(call.name) || seedToolRegistry.read.name,
+            content: [{type: 'text', text: result.error ?? JSON.stringify(result.output ?? {})}],
+            details: result.output,
+            isError: typeof result.error === 'string',
+            timestamp: result.createdAt,
+          })
+        } else if (pendingSpawnIds.has(callId)) {
+          messages.push({
+            role: 'toolResult',
+            toolCallId: callId,
+            toolName: String(call.name) || seedToolRegistry.read.name,
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'running',
+                  note: 'Still running in the background. Its real result will arrive in a later turn as this tool call’s result; do not wait for it — respond to the user now.',
+                }),
+              },
+            ],
+            isError: false,
+            timestamp: pendingAssistant?.timestamp ?? Date.now(),
+          })
+        }
+      }
       pendingAssistant = undefined
     }
 
@@ -3824,6 +3913,9 @@ export class Service {
       } else if (value.type === 'tool_result') {
         flushPendingAssistant()
         if (typeof value.toolCallId !== 'string' || !value.toolCallId) continue
+        // Results with a known call are emitted adjacent to that call at flush time; only orphans
+        // (a result whose call event never persisted) keep the legacy inline placement.
+        if (knownCallIds.has(value.toolCallId)) continue
         messages.push({
           role: 'toolResult',
           toolCallId: value.toolCallId,
