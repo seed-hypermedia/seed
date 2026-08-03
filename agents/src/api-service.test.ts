@@ -3791,6 +3791,21 @@ describe('api service', () => {
         expect(child.parentSessionId).toBe(createdSession.sessionId)
         expect(child.runId).toBeDefined()
       }
+      // The child transcript opens with the parent's briefing VERBATIM — reviewing a sub-agent's
+      // context must show exactly what the parent wrote (markdown strings), never a reworded
+      // envelope; non-string inputs degrade to a bare fenced JSON block.
+      const childFirstMessages = new Map<string, string>()
+      for (const child of children.sessions) {
+        const childSession = await svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: child.id}}),
+        )
+        if (childSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+        const first = childSession.events[0]?.event as {role?: string; content?: string}
+        expect(first?.role).toBe('user')
+        childFirstMessages.set(child.title ?? '', first?.content ?? '')
+      }
+      expect(childFirstMessages.get('Worker A')).toBe('Summarize topic A')
+      expect(childFirstMessages.get('Worker B')).toBe('```json\n{\n  "topic": "B"\n}\n```')
 
       // Run tree: one root (succeeded) with two succeeded children.
       const rootRuns = await svc.message(
