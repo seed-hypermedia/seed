@@ -4030,9 +4030,9 @@ describe('api service', () => {
       if (topLevel._ !== 'ListSessionsResponse') throw new Error('unexpected response')
       expect(topLevel.sessions).toHaveLength(1)
       expect(topLevel.sessions[0]?.childSessionCount).toBe(2)
-      // The parent model never called set_session_title (it parked on its first batch): the
-      // server-side fallback names the session from its first user message instead.
-      expect(topLevel.sessions[0]?.title).toBe('Fan out workers A and B')
+      // Title generation is a server opt-in (off here), and the model never called
+      // set_session_title — the session legitimately stays untitled in this configuration.
+      expect(topLevel.sessions[0]?.title).toBeUndefined()
       const children = await svc.message(
         await apisvc.createSignedEnvelope(account, {
           action: {_: 'ListSessions', parentSessionId: createdSession.sessionId},
@@ -4543,14 +4543,15 @@ describe('api service', () => {
 
   test('sessions never stay "Untitled session": placeholder titles normalize away and heal', async () => {
     // Eric's live repro: the desktop created sessions with the literal display placeholder as a
-    // stored title, so the DB was never "untitled" and the fallback naming skipped it — and a
-    // model that parks or just skips set_session_title left it that way forever.
+    // stored title, so the DB was never "untitled" — and a model that parks or just skips
+    // set_session_title left it that way forever. The agent names its sessions: when a turn ends
+    // untitled, a dedicated model call generates the title (never an echo of the user's words).
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     let svc: apisvc.Service | undefined
     try {
       const account = blobs.generateNobleKeyPair()
-      svc = new apisvc.Service(db, dataDir, {})
+      svc = new apisvc.Service(db, dataDir, {titleGeneration: true})
       await svc.message(
         await apisvc.createSignedEnvelope(account, {
           action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
@@ -4575,13 +4576,26 @@ describe('api service', () => {
       )
       if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
 
-      // The model answers but never calls set_session_title.
-      globalThis.fetch = mock(async () =>
-        openAIStreamResponse([
+      // The chat model answers but never calls set_session_title; the dedicated titling call
+      // (identified by its system prompt) is answered by "the model" with a proper title.
+      let titleRequests = 0
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const system = String((body.messages?.[0] as {content?: string} | undefined)?.content ?? '')
+        if (system.includes('session-titling assistant')) {
+          titleRequests += 1
+          const digest = JSON.stringify(body.messages)
+          const title = digest.includes('summarize my week') ? 'Weekly Summary' : 'Feelings Check-In'
+          return openAIStreamResponse([
+            {id: 'title', choices: [{delta: {content: title}}]},
+            {id: 'title', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
           {id: 'chat', choices: [{delta: {content: 'Doing well, thanks!'}}]},
           {id: 'chat', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
-        ]),
-      ) as unknown as typeof fetch
+        ])
+      }) as unknown as typeof fetch
 
       // Case 1: a client sends the display placeholder at creation (the old desktop behavior).
       const created = await svc.message(
@@ -4608,7 +4622,8 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: created.sessionId}}),
       )
       if (named._ !== 'GetSessionResponse') throw new Error('unexpected response')
-      expect(named.session.title).toBe('hey, how are you feeling today?')
+      expect(named.session.title).toBe('Feelings Check-In')
+      expect(titleRequests).toBe(1)
 
       // Case 2: a pre-existing poisoned row (literal placeholder stored, source 'system') heals on
       // its next run.
@@ -4631,7 +4646,7 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: legacy.sessionId}}),
       )
       if (healed._ !== 'GetSessionResponse') throw new Error('unexpected response')
-      expect(healed.session.title).toBe('summarize my week')
+      expect(healed.session.title).toBe('Weekly Summary')
 
       // A user-authored title is never overwritten by the fallback.
       await svc.message(

@@ -363,6 +363,10 @@ export class Service {
   readonly #runWaiters = new Map<string, Array<(run: runs.RunRecord) => void>>()
   /** Live workflow VMs whose cancellation was requested; their interrupt handlers check this. */
   readonly #workflowCancelFlags = new Set<string>()
+  /** Whether untitled sessions get a dedicated model call to name them (server opt-in). */
+  readonly #titleGenerationEnabled: boolean
+  /** Sessions with a title generation in flight, so parks + finalizes do not double-spend. */
+  readonly #namingSessions = new Set<string>()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -387,6 +391,8 @@ export class Service {
       providerOAuth?: ProviderOAuthManager
       /** Offer subscription (OAuth) provider sign-in. Explicit server opt-in; default off. */
       subscriptionAuth?: boolean
+      /** Generate titles for untitled sessions with a dedicated model call (default off: tests mock providers). */
+      titleGeneration?: boolean
     } = {},
   ) {
     this.#db = db
@@ -397,6 +403,7 @@ export class Service {
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
+    this.#titleGenerationEnabled = options.titleGeneration ?? false
     this.#runQueue = new runs.RunQueue(db, {
       executors: {
         agent: (run) => this.#executeAgentRun(run),
@@ -2296,39 +2303,161 @@ export class Service {
    * housekeeping). Derives a bounded title from the first user message; keeps title_source
    * 'system' so both the agent and the user can still rename it.
    */
+  /**
+   * The agent names its own sessions — that is the feature, not a derived echo of the user's
+   * words. The in-turn path is the set_session_title tool; this is the guarantee behind it: when a
+   * turn parks or finalizes leaving the session untitled (parked first turns skip the model's
+   * titling moment entirely), a dedicated minimal model call generates the title. Detached from
+   * the run, tracked for drain determinism, in-flight-deduped per session, and disabled unless the
+   * server opted in (`titleGeneration`) so mocked test providers never see surprise requests.
+   */
   #ensureSessionTitled(accountId: string, sessionId: string): void {
+    if (!this.#titleGenerationEnabled) return
+    if (this.#namingSessions.has(sessionId)) return
     const row = this.#db
-      .query<{title: string | null; title_source: string; agent_id: string}, [string, string]>(
-        `SELECT title, title_source, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+      .query<{title: string | null; title_source: string}, [string, string]>(
+        `SELECT title, title_source FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
     if (!row || row.title_source !== 'system') return
-    // A stored literal placeholder counts as untitled (healed here for sessions created before
-    // the placeholder was normalized away at creation).
+    // A stored literal placeholder counts as untitled (pre-normalization rows heal here).
     if (row.title && row.title.trim().toLowerCase() !== 'untitled session') return
+    this.#namingSessions.add(sessionId)
+    const pending = this.#nameSessionWithModel(accountId, sessionId)
+      .catch((error) => {
+        console.warn('[agents/runtime] session title generation failed', {
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
+      .finally(() => {
+        this.#namingSessions.delete(sessionId)
+        this.#pendingTriggerSessions.delete(pending)
+      }) as Promise<void>
+    this.#pendingTriggerSessions.add(pending)
+  }
+
+  /** Builds a conversation digest, asks the agent's own model for a title, and applies it guarded. */
+  async #nameSessionWithModel(accountId: string, sessionId: string): Promise<void> {
+    const session = this.#db
+      .query<{agent_id: string}, [string, string]>(`SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(accountId, sessionId)
+    if (!session) return
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, session.agent_id)
+    if (!agent) return
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const events = this.#db
       .query<SessionEventRow, [string]>(
         `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
-         WHERE session_id = ? ORDER BY seq ASC LIMIT 8`,
+         WHERE session_id = ? ORDER BY seq ASC LIMIT 12`,
       )
       .all(sessionId)
       .map(sessionEventRowToInfo)
-    const firstUser = events
-      .map((event) => event.event as {type?: string; role?: string; rawMarkdown?: string; content?: string})
-      .find((event) => event.type === 'message' && event.role === 'user')
-    const source = firstUser?.rawMarkdown || firstUser?.content
-    if (!source) return
-    const title = sessionTitleFromPrompt(source)
+    const lines: string[] = []
+    for (const event of events) {
+      const value = event.event as {type?: string; role?: string; content?: string}
+      if (value.type !== 'message' || typeof value.content !== 'string') continue
+      if (value.role === 'user') lines.push(`User: ${value.content.slice(0, 1200)}`)
+      else if (value.role === 'assistant') lines.push(`Assistant: ${value.content.slice(0, 600)}`)
+    }
+    if (lines.length === 0) return
+    const title = await this.#generateSessionTitle(accountId, definition, lines.join('\n\n').slice(0, 4000))
     if (!title) return
+    // Guarded exactly like the tool path: never overwrite a user title or a title that landed
+    // meanwhile (the model may have called set_session_title on a resumed turn).
     this.#db.run(
       `UPDATE sessions SET title = ?, updated_at = ? WHERE account_id = ? AND id = ?
          AND (title IS NULL OR title = '' OR LOWER(TRIM(title)) = 'untitled session') AND title_source = 'system'`,
       [title, Date.now(), accountId, sessionId],
     )
-    const session = this.#getSessionInfo(accountId, sessionId)
-    if (session?.title === title) {
-      this.#emit({type: 'session-change', accountId, session})
-      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: row.agent_id, sessionId})
+    const info = this.#getSessionInfo(accountId, sessionId)
+    if (info?.title === title) {
+      console.info('[agents/runtime] session titled by model', {sessionId, title})
+      this.#emit({type: 'session-change', accountId, session: info})
+      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agent_id, sessionId})
+    }
+  }
+
+  /** One minimal, tool-less model call: the conversation digest in, one line out. */
+  async #generateSessionTitle(
+    accountId: string,
+    definition: api.AgentDefinition,
+    digest: string,
+  ): Promise<string | null> {
+    const providerRow = this.#db
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, definition.modelProvider)
+    if (!providerRow) return null
+    const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
+    const spec = providerSpec(provider.type)
+    const apiKeySecretName = provider.secretRefs?.apiKey
+    if (spec.requireApiKey && !apiKeySecretName) return null
+    const apiKey = apiKeySecretName
+      ? new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
+      : 'local'
+    const baseUrl = resolveProviderBaseUrl(provider.type, provider.baseUrl)
+    const authStorage = pi.AuthStorage.inMemory()
+    authStorage.setRuntimeApiKey(provider.type, apiKey)
+    const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
+    modelRegistry.registerProvider(provider.type, {
+      baseUrl,
+      apiKey,
+      api: spec.api,
+      models: [piModelForDefinition(provider.type, baseUrl, definition)],
+    })
+    const model = modelRegistry.find(provider.type, definition.model)
+    if (!model) return null
+    const {session: piSession} = await pi.createAgentSession({
+      cwd: this.#dataDir,
+      agentDir: path.join(this.#dataDir, 'pi'),
+      model,
+      thinkingLevel: 'off',
+      authStorage,
+      modelRegistry,
+      resourceLoader: createSeedPiResourceLoader(
+        'You are a session-titling assistant. Reply with ONLY a concise one-line title (at most eight words) naming the purpose of the conversation you are shown. No quotes, no trailing punctuation, no explanation.',
+      ),
+      customTools: [],
+      tools: [],
+      noTools: 'builtin',
+      sessionManager: pi.SessionManager.inMemory(this.#dataDir),
+      settingsManager: pi.SettingsManager.inMemory({compaction: {enabled: false}}),
+    })
+    try {
+      piSession.agent.onPayload = (payload) => {
+        let next = restoreReasoningEffort(payload, definition)
+        if (provider.modelDefaults) next = mergePiPayloadDefaults(next, provider.modelDefaults)
+        return next
+      }
+      piSession.state.messages = [{role: 'user', content: digest, timestamp: Date.now()}] as never
+      let text = ''
+      const unsubscribe = piSession.subscribe((event) => {
+        if (event.type === 'message_end' && event.message.role === 'assistant') {
+          text = piAssistantText(event.message)
+        }
+      })
+      await piSession.agent.continue()
+      unsubscribe()
+      const firstLine = text.split('\n')[0]?.trim() ?? ''
+      const stripped = firstLine
+        .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
+        .replace(/[.]+$/, '')
+        .trim()
+      if (!stripped) return null
+      try {
+        return normalizeBoundedString(stripped, 'Session title', MAX_NAME_BYTES)
+      } catch {
+        return null
+      }
+    } finally {
+      piSession.dispose()
     }
   }
 

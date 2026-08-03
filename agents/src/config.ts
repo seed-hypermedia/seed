@@ -23,6 +23,8 @@ export type Config = {
    * localhost redirect (the desktop app) or a user willing to paste it.
    */
   subscriptionAuth: boolean
+  /** Generate titles for untitled sessions with a dedicated model call. */
+  titleGeneration: boolean
   activity: {
     hmServerUrl: string
     pollIntervalMs: number
@@ -70,6 +72,7 @@ export type Flags = {
   'crawler-token': string
   'exec-backend': string
   'subscription-auth': boolean
+  'session-title-generation': boolean
   'exec-image': string
   'exec-cpus': number
   'exec-memory-mib': number
@@ -94,6 +97,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
     'exec-backend': env.SEED_AGENTS_EXEC_BACKEND ?? 'microsandbox',
     'subscription-auth': isTruthyFlag(env.SEED_AGENTS_SUBSCRIPTION_AUTH ?? ''),
+    'session-title-generation': env.SEED_AGENTS_SESSION_TITLE_GENERATION !== 'false',
     'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
     'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
     'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
@@ -180,6 +184,7 @@ export function create(pflags: Flags): Config {
       dnsServers: parseDnsServers(pflags['exec-dns']),
     },
     subscriptionAuth: pflags['subscription-auth'],
+    titleGeneration: pflags['session-title-generation'],
   }
 }
 
