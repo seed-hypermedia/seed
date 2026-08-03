@@ -122,7 +122,6 @@ Shared Seed libraries
 
 - Anthropic and Google are mapped through Pi but still need real-provider smoke coverage before being considered
   production-complete.
-- No stop/cancel controls for active runs.
 - Signed-action timestamps reject requests more than 30 seconds from server time, but nonce caching is still missing.
 - No production KMS/OS-keychain secret key storage.
 - No explicit tool permission UI or policy engine.

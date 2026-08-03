@@ -77,13 +77,42 @@ Remote plain HTTP servers are rejected for secret submission. Use HTTPS or local
 
 ## Session stuck in `streaming`
 
-No stop action exists yet. Current options:
+Since the runs rework, `sessions.status` is a derived mirror of run state and a crash cannot wedge it: the boot sweep
+requeues interrupted runs, interrupted tool calls get synthesized results, and a boot reconcile pass replays children
+that finalized inside a crash window. If a session still shows `streaming`:
 
-- wait for provider/network timeout/error;
-- restart local service for local debugging;
-- inspect DB/session events to understand last state.
+1. `ListRuns {sessionId}` → is the latest root run genuinely live (`queued`/`claimed`/`running`/`waiting`)? The mirror
+   says `streaming` iff yes.
+2. A run `waiting` with `wait_cbor {reason: 'children'}` is parked on sub-sessions — inspect the tree with
+   `ListRuns {rootRunId}` and check each child's status. A run `waiting` with `not_before` set is a workflow timer park
+   and wakes on schedule.
+3. `StopSession` aborts the live turn AND cancels every run rooted at the session including descendants; `CancelRun` on
+   any run id is the finer-grained kill switch (cascades to its subtree).
+4. Restarting the service is always safe: sweep + reconcile recover every documented crash window.
 
-Future fix: implement StopSession/CancelRun.
+## Sub-sessions ran but the parent never resumed
+
+Checklist, in order:
+
+1. **Was it actually `sub_session`?** `start_session` children are detached by design — they join the parent's run tree
+   (visible in the progress card) but never resolve a result and never wake the parent. Check the parent transcript for
+   which tool the model called. If the model keeps choosing `start_session` for delegation-with-results, that is a
+   prompt problem worth reporting; the descriptions route it to `sub_session`.
+2. `ListRuns {rootRunId}` on the parent's root: are the children terminal while the parent is `waiting`? The parent's
+   `wait_cbor.toolCallIds` should shrink as each child's finalizer appends the durable `sub_session` tool_result. A
+   restart runs `#reconcileWaitingRunsAtBoot`, which replays any child that finalized without resolving its parent.
+3. Where errors surface: a failed run's `error_cbor` shows in `RunInfo.error` and the card; failed workflow effects
+   appear as `result {status: 'failed'}` journal entries (visible in the card's Activity drawer and `GetRunJournal`);
+   agent-run failures also append a durable session `error` event after retries exhaust.
+
+## Workflow run misbehaving
+
+- `GetRunJournal {runId}` is the flight recorder: every effect (`call`/`result`), timer, log, step, and plan change in
+  order. The desktop Activity drawer renders the same stream.
+- `fuel-exhausted` = >2s of pure compute between awaits (move heavy work into `ctx.call('execute_code', …)`);
+  `journal-cap` = >5,000 entries / 8 MiB (split the job); `workflow-deadlock` = the script awaited a promise that did
+  not come from `ctx`.
+- Sleeps ≥ 60s park the run (`waiting` + `not_before`); the dispatcher wakes due timers every second.
 
 ## Server unresponsive but process alive (100% CPU)
 

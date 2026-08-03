@@ -51,11 +51,15 @@ Completed and usable locally:
   tool-call repair), derived session status, persisted per-run usage with child rollup;
 - `sub_session`: awaited sub-session delegation with turn parking/resume, typed `return_result` validation, and durable
   session lineage (child sessions nest under their parent);
-- `run_workflow`: agent-authored JavaScript workflows in a QuickJS realm with journaled deterministic replay,
-  determinism lint, fuel/memory/journal caps, and a ctx API (call/agent/parallel/sleep/step/plan/now/log/progress);
+- `run_workflow`: agent-authored JavaScript workflows in a QuickJS realm with content-keyed journal replay, determinism
+  lint, fuel/memory/journal caps, and a ctx API (call/agent/parallel/sleep/step/plan/now/log/progress); `sub_session`
+  and `run_workflow` are always available in run-backed sessions, like `start_session`;
 - `update_plan` live todo snapshots on sessions; run actions (`GetRun`/`ListRuns`/`CancelRun`/`GetRunJournal`) and
   `runs/<rootRunId>` WebSocket subscriptions with journal replay;
-- a Tier-3 live-model validation harness (`agents/e2e/run.ts`) that gates prompt/tool designs against a real model;
+- a Tier-3 live-model validation harness (`agents/e2e/run.ts`) that gates prompt/tool designs against a real model
+  (currently blocked on API credits), plus a blind simulated-model gate methodology (see `operations.md`);
+- desktop progress surfaces: the pinned run card with Activity drawer, session nesting with lazy sub-session
+  disclosures, and child-session breadcrumb/banner/composer lock;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;
 - diagnostic logging for OpenAI streaming and WebSocket subscription/fanout.
@@ -138,6 +142,10 @@ Desktop:
 - `frontend/apps/desktop/src/components/assistant-message-rendering.tsx` — shared user/assistant message, markdown,
   streaming cursor, raw-markdown info dialog, and tool-call bubble rendering used by both desktop assistant and Agents
   chat.
+- `frontend/apps/desktop/src/pages/agents/run-card.tsx` — the pinned run/progress card (active/parked/terminal/todo
+  states) and its Activity drawer over the run tree's journal.
+- `frontend/apps/desktop/src/components/session-children.tsx` — shared session status dot + lazy sub-session disclosure
+  used by the sidebar and the agent-detail Sessions tab.
 - `frontend/apps/desktop/src/pages/agents/prompt-editor.tsx` — shared rich prompt editor and block-to-markdown helper
   used by agent/trigger prompt editing and rich session-message submission.
 - `frontend/packages/shared/src/routes.ts` — route schemas for `agents`, `agent`, and `agent-session`.

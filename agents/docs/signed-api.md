@@ -354,7 +354,10 @@ Response:
 ```
 
 Deletes the agent after validating ownership, including its triggers, sessions, session events, trigger firings, drafts,
-and per-agent state directory.
+and per-agent state directory. Live runs of the agent are canceled first (cascading through their trees); run history
+survives detached — `runs.agent_id`, `runs.session_id`, and `runs.trigger_firing_id` are nulled inside the delete
+transaction (they are enforced foreign keys; without the detach, any agent that had ever executed a run was
+undeletable), and sub-sessions of _other_ agents hanging off this agent's sessions promote to top level.
 
 ### Agent trigger actions
 
@@ -502,9 +505,11 @@ Pagination is keyset on the composite `(updatedAt, id)`, not on `updatedAt` alon
 timestamp-only cursor silently drops every tied row past a page boundary. Pass `nextCursor` back verbatim as `cursor`;
 its absence means the list is exhausted.
 
-Child sessions (spawned by `sub_session`, workflow `ctx.agent`, or `start_session`) are **excluded from top-level
-listings by default** — they render nested under their parent, which carries `childSessionCount`. Pass `parentSessionId`
-to list one parent's children, or `includeChildren: true` to flatten everything into one list.
+Child sessions (spawned by `sub_session`, workflow `ctx.agent`, or `start_session`) are **included by default**: an
+absent `includeChildren` returns every session, because older deployed clients cannot send the field and hiding
+agent-started sessions from them would be a silent regression. Lineage-aware clients (the current desktop) pass
+`includeChildren: false` explicitly to get top-level rows only — parents carry `childSessionCount` — and fetch children
+per parent with `parentSessionId` (which ignores `includeChildren`).
 
 ### `UpdateSession`
 
@@ -542,8 +547,11 @@ Request:
 }
 ```
 
-Deletes an account-owned session and its durable events. If the session was created by a trigger firing, the firing row
-is retained but detached from the deleted session. The server emits an account change with reason `session-deleted`.
+Deletes an account-owned session and its durable events. Every live run rooted at the session is canceled first —
+**including descendants** (spawned sub-sessions and workflows) — so a parked parent can never be stranded `waiting` by
+its session disappearing, and no executor streams into deleted rows. Run history survives detached (`runs.session_id`
+nulled); child sessions promote to top level (`parent_session_id` nulled); a creating trigger firing is retained but
+detached. The server emits an account change with reason `session-deleted`.
 
 Response:
 
@@ -671,7 +679,7 @@ Request:
 ```ts
 {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 ```
