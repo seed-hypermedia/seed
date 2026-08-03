@@ -18,6 +18,7 @@ import {
   Info,
   Loader2,
   PenLine,
+  RotateCcw,
   Search,
   Wrench,
 } from 'lucide-react'
@@ -164,6 +165,56 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
     )
   })
 })
+
+/**
+ * A failed turn, as the transcript shows it — with a way back when it is the last thing that
+ * happened.
+ *
+ * Retry re-runs the failed turn from the durable transcript, so it is offered only on the trailing
+ * error (see `retryableErrorRowKey`): further up, the conversation has already moved on.
+ */
+export function AgentErrorRow({
+  message,
+  compact,
+  onRetry,
+  retryPending,
+}: {
+  message: string
+  /** Sidebar sizing: no frame, tighter type. */
+  compact?: boolean
+  /** Omitted when this error is not retryable, which is what hides the button. */
+  onRetry?: () => void
+  retryPending?: boolean
+}) {
+  return (
+    <div
+      className={
+        compact
+          ? 'text-destructive my-1 rounded-lg px-3 py-2 text-xs'
+          : 'border-destructive/30 bg-destructive/10 text-destructive mr-6 rounded-lg border px-3 py-2 text-xs'
+      }
+    >
+      {compact ? null : <div className="mb-1 font-medium">Error</div>}
+      <p className="whitespace-pre-wrap">{message}</p>
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={retryPending}
+          // Neutral inside the red frame: the error is the alarming part, retrying is not.
+          className="bg-background/75 hover:bg-background text-foreground mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.75 text-[10px] font-medium transition-colors disabled:opacity-60"
+        >
+          {retryPending ? (
+            <Loader2 className="size-2.5 shrink-0 animate-spin" />
+          ) : (
+            <RotateCcw className="size-2.5 shrink-0" />
+          )}
+          {retryPending ? 'Retrying…' : 'Retry'}
+        </button>
+      ) : null}
+    </div>
+  )
+}
 
 /** Message shape accepted by the shared assistant chat bubble renderer. */
 export type ChatBubbleMessage = {

@@ -202,7 +202,9 @@ function AgentDetailPage({
 
   async function handleCreateSession() {
     try {
-      const result = await createSession.mutateAsync({agentId, title: 'Untitled session'})
+      // No title at creation: the agent names the session, with a server-side fallback from the
+      // first user message — 'Untitled session' is a display placeholder, never data.
+      const result = await createSession.mutateAsync({agentId})
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected session response')
       navigate({key: 'agent-session', agentId, sessionId: result.sessionId, serverUrl})
       // toast.success('Session created')

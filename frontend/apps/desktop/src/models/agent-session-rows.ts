@@ -23,6 +23,20 @@ export type AgentSessionChatRow =
   | {key: string; kind: 'error'; message: string}
   | {key: string; kind: 'raw'; event: SessionEvent}
 
+/**
+ * The error row a retry may be offered on, if any.
+ *
+ * Only the transcript's final row qualifies: an error the conversation already moved past is
+ * history, and re-running the turn behind it is not what "retry" means there. Nothing is offered
+ * while the agent is working either — the server rejects a retry on a live run, so the button would
+ * only be a way to get an error message.
+ */
+export function retryableErrorRowKey(rows: AgentSessionChatRow[], isBusy: boolean): string | undefined {
+  if (isBusy) return undefined
+  const last = rows[rows.length - 1]
+  return last?.kind === 'error' ? last.key : undefined
+}
+
 /** Identifies which session the events belong to, for building per-event share links. */
 export type AgentSessionRowContext = {
   serverUrl: string
