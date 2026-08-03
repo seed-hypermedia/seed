@@ -14,11 +14,13 @@ import type {ChatMessagePart} from '@/models/chat-parts'
 
 const mockState = vi.hoisted(() => ({
   navigate: vi.fn(),
+  clickNavigate: vi.fn(),
   openUrl: vi.fn(),
 }))
 
 vi.mock('@/utils/useNavigate', () => ({
   useNavigate: () => mockState.navigate,
+  useClickNavigate: () => mockState.clickNavigate,
 }))
 
 vi.mock('@/open-url', () => ({
@@ -68,12 +70,12 @@ vi.mock('@/models/agents', () => ({
 import {ChatMessageBubble} from '../components/assistant-message-rendering'
 
 /** Renders one assistant bubble carrying the given tool part. */
-function renderToolPart(part: ChatMessagePart) {
+function renderToolPart(part: ChatMessagePart, serverUrl?: string) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
   act(() => {
-    root.render(<ChatMessageBubble message={{role: 'assistant', content: '', parts: [part]}} />)
+    root.render(<ChatMessageBubble message={{role: 'assistant', content: '', parts: [part]}} serverUrl={serverUrl} />)
   })
   return {container, root}
 }
@@ -330,6 +332,48 @@ describe('assistant message rendering', () => {
     expect(container.textContent).toContain('Updated plan.')
     expect(container.textContent).not.toContain('"input"')
     expect(container.textContent).not.toContain('"output"')
+
+    cleanupRendered(root, container)
+  })
+
+  it('opens the sub-session from its title in the tool row', () => {
+    const {container, root} = renderToolPart(
+      {
+        type: 'tool',
+        id: 'tool-sub-session',
+        name: 'sub_session',
+        args: {title: 'Research Acme', input: 'go'},
+        rawOutput: {status: 'succeeded', sessionId: 'child-session-1', runId: 'child-run-1'},
+      },
+      'http://localhost:3050',
+    )
+
+    const title = findButton(container, (element) => element.textContent === 'Research Acme')
+    expect(title).toBeTruthy()
+    click(title)
+    expect(mockState.clickNavigate).toHaveBeenCalledWith(
+      {key: 'agent-session', sessionId: 'child-session-1', serverUrl: 'http://localhost:3050'},
+      expect.anything(),
+    )
+    // Opening the sub-session is not a request to expand the row.
+    expect(findButton(container, (element) => element.getAttribute('title') === 'Show tool details')).toBeTruthy()
+
+    cleanupRendered(root, container)
+  })
+
+  it('leaves the sub-session title as plain text until it has a session to open', () => {
+    const {container, root} = renderToolPart(
+      {
+        type: 'tool',
+        id: 'tool-sub-session-pending',
+        name: 'sub_session',
+        args: {title: 'Research Acme', input: 'go'},
+      },
+      'http://localhost:3050',
+    )
+
+    expect(container.textContent).toContain('Research Acme')
+    expect(findButton(container, (element) => element.textContent === 'Research Acme')).toBeUndefined()
 
     cleanupRendered(root, container)
   })
