@@ -11,10 +11,16 @@ import {
   useDeleteAgentSession,
   useLocalAgentServerUrl,
   useMessageAgentSession,
+  useRetrySession,
   useStopAgentSession,
   type AgentSessionListEntry,
 } from '@/models/agents'
-import {buildAgentSessionChatRows, buildAgentSessionUrl, chatRowHasPendingToolCall} from '@/models/agent-session-rows'
+import {
+  buildAgentSessionChatRows,
+  buildAgentSessionUrl,
+  chatRowHasPendingToolCall,
+  retryableErrorRowKey,
+} from '@/models/agent-session-rows'
 import {
   resolveAssistantSelection,
   type AssistantAgentKey,
@@ -52,7 +58,7 @@ import {
 } from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
-import {AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
+import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
 import {useChatAutoScroll} from './chat-autoscroll'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
 import {useAssistantWindowContextLines} from './assistant-window-context'
@@ -580,6 +586,7 @@ function AssistantSessionChat({
   const live = useAgentWebSocketSubscription(serverUrl, accountUid, `sessions/${sessionId}`)
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
+  const retrySession = useRetrySession(serverUrl, accountUid)
   const windowContextLines = useAssistantWindowContextLines()
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
@@ -617,6 +624,15 @@ function AssistantSessionChat({
 
   const {queuedMessages, queueMessage} = useQueuedChatMessages({isBusy: isStreaming, onFlush: doSendMessage})
 
+  // Retry is offered on a trailing error only, and survives its own in-flight state: the row goes
+  // away when the retried run starts streaming, not when the request is sent.
+  const retryableRowKey = retryableErrorRowKey(rows, !!isStreaming)
+  const handleRetry = useCallback(() => {
+    retrySession.mutate(sessionId, {
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not retry this turn'),
+    })
+  }, [retrySession, sessionId])
+
   function handleSend() {
     const content = input.trim()
     if (!content) return
@@ -650,9 +666,13 @@ function AssistantSessionChat({
               )
             if (row.kind === 'error') {
               return (
-                <div key={row.key} className="text-destructive my-1 rounded-lg px-3 py-2 text-xs">
-                  {row.message}
-                </div>
+                <AgentErrorRow
+                  key={row.key}
+                  compact
+                  message={row.message}
+                  onRetry={row.key === retryableRowKey ? handleRetry : undefined}
+                  retryPending={retrySession.isPending}
+                />
               )
             }
             return null

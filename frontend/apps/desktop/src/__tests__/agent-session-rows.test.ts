@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {SessionEvent} from '@/agents-client'
-import {buildAgentSessionChatRows} from '@/models/agent-session-rows'
+import {buildAgentSessionChatRows, retryableErrorRowKey} from '@/models/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@/components/assistant-session-ref'
 
 const CONTEXT = {serverUrl: 'http://localhost:3050', agentId: 'agent-1', sessionId: 'session-1'}
@@ -127,6 +127,37 @@ describe('buildAgentSessionChatRows', () => {
     const row = rows[0]!
     if (row.kind !== 'message') throw new Error('expected a message row')
     expect(row.message.shareUrl).toBeUndefined()
+  })
+})
+
+describe('retryableErrorRowKey', () => {
+  const rows = (events: SessionEvent[]) => buildAgentSessionChatRows(events, CONTEXT)
+
+  it('offers the trailing error row', () => {
+    const built = rows([
+      event(1, {type: 'message', role: 'user', content: 'hi'}),
+      event(2, {type: 'error', message: 'model call failed'}),
+    ])
+    expect(retryableErrorRowKey(built, false)).toBe('event-2')
+  })
+
+  it('ignores an error the conversation already moved past', () => {
+    const built = rows([
+      event(1, {type: 'error', message: 'model call failed'}),
+      event(2, {type: 'message', role: 'assistant', content: 'recovered'}),
+    ])
+    expect(retryableErrorRowKey(built, false)).toBeUndefined()
+  })
+
+  it('offers nothing while the agent is working', () => {
+    const built = rows([event(1, {type: 'error', message: 'model call failed'})])
+    expect(retryableErrorRowKey(built, true)).toBeUndefined()
+  })
+
+  it('offers nothing on a transcript that never failed', () => {
+    const built = rows([event(1, {type: 'message', role: 'assistant', content: 'all good'})])
+    expect(retryableErrorRowKey(built, false)).toBeUndefined()
+    expect(retryableErrorRowKey([], false)).toBeUndefined()
   })
 })
 

@@ -8,6 +8,7 @@ import {
 import {AgentRunStatusBar, useRunStartedAt} from '@/components/agent-run-status'
 import {useChatAutoScroll} from '@/components/chat-autoscroll'
 import {
+  AgentErrorRow,
   AssistantMessageParts,
   ChatMessageBubble,
   type ChatBubbleMessage,
@@ -25,6 +26,7 @@ import {
   useDeleteAgentSession,
   uploadFileToAgentServer,
   useMessageAgentSession,
+  useRetrySession,
   useRun,
   useStopAgentSession,
   useUpdateAgentSession,
@@ -36,6 +38,7 @@ import {
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
   getSharedEventIdFromHash,
+  retryableErrorRowKey,
   type AgentSessionChatRow as AgentSessionChatRowData,
 } from '@/models/agent-session-rows'
 import {type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
@@ -259,6 +262,10 @@ function AgentSessionPage({
   )
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
+  const retrySession = useRetrySession(serverUrl, selectedAccountId)
+  // Deliberately not gated on the mutation being in flight: the button stays put and shows its
+  // pending state until the retried run actually starts streaming, which is what removes the row.
+  const retryableRowKey = retryableErrorRowKey(chatRows, !!isAgentBusy)
   const runStartedAt = useRunStartedAt(isAgentBusy)
   // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
   // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
@@ -366,6 +373,12 @@ function AgentSessionPage({
     if (isAgentBusy) queueMessage(message)
     else await doSendAgentMessage(message)
   }
+
+  const handleRetrySession = useCallback(() => {
+    retrySession.mutate(sessionId, {
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not retry this turn'),
+    })
+  }, [retrySession, sessionId])
 
   async function handleStopSession() {
     try {
@@ -521,6 +534,8 @@ function AgentSessionPage({
                       serverUrl={serverUrl}
                       agentId={agentId}
                       liveActivity={chatRowHasPendingToolCall(row) ? liveState.activity : undefined}
+                      onRetry={row.key === retryableRowKey ? handleRetrySession : undefined}
+                      retryPending={retrySession.isPending}
                     />
                   </div>
                 ))}
@@ -818,11 +833,16 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   serverUrl,
   agentId,
   liveActivity,
+  onRetry,
+  retryPending,
 }: {
   row: AgentSessionChatRowData
   serverUrl: string
   agentId?: string
   liveActivity?: AgentRunActivity
+  /** Set only on a trailing error row, which is the only place a retry is offered. */
+  onRetry?: () => void
+  retryPending?: boolean
 }) {
   if (row.kind === 'message') {
     if (row.triggerContext) {
@@ -846,12 +866,7 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   }
 
   if (row.kind === 'error') {
-    return (
-      <div className="border-destructive/30 bg-destructive/10 text-destructive mr-6 rounded-lg border px-3 py-2 text-xs">
-        <div className="mb-1 font-medium">Error</div>
-        <p className="whitespace-pre-wrap">{row.message}</p>
-      </div>
-    )
+    return <AgentErrorRow message={row.message} onRetry={onRetry} retryPending={retryPending} />
   }
 
   return (

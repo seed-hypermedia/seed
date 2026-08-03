@@ -4541,6 +4541,123 @@ describe('api service', () => {
     }
   })
 
+  test('sessions never stay "Untitled session": placeholder titles normalize away and heal', async () => {
+    // Eric's live repro: the desktop created sessions with the literal display placeholder as a
+    // stored title, so the DB was never "untitled" and the fallback naming skipped it — and a
+    // model that parks or just skips set_session_title left it that way forever.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Namer', systemPrompt: 'be terse', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      // The model answers but never calls set_session_title.
+      globalThis.fetch = mock(async () =>
+        openAIStreamResponse([
+          {id: 'chat', choices: [{delta: {content: 'Doing well, thanks!'}}]},
+          {id: 'chat', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ]),
+      ) as unknown as typeof fetch
+
+      // Case 1: a client sends the display placeholder at creation (the old desktop behavior).
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSession', agentId: createdAgent.agentId, title: 'Untitled session'},
+        }),
+      )
+      if (created._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const stored = db
+        .query<{title: string | null}, [string]>(`SELECT title FROM sessions WHERE id = ?`)
+        .get(created.sessionId)
+      expect(stored?.title).toBeNull() // the placeholder is not a title
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: created.sessionId,
+            content: [{type: 'text', text: 'hey, how are you feeling today?'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+      const named = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: created.sessionId}}),
+      )
+      if (named._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(named.session.title).toBe('hey, how are you feeling today?')
+
+      // Case 2: a pre-existing poisoned row (literal placeholder stored, source 'system') heals on
+      // its next run.
+      const legacy = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (legacy._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      db.run(`UPDATE sessions SET title = 'Untitled session' WHERE id = ?`, [legacy.sessionId])
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: legacy.sessionId,
+            content: [{type: 'text', text: 'summarize my week'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+      const healed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: legacy.sessionId}}),
+      )
+      if (healed._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(healed.session.title).toBe('summarize my week')
+
+      // A user-authored title is never overwritten by the fallback.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'UpdateSession', sessionId: legacy.sessionId, title: 'My week'},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId: legacy.sessionId, content: [{type: 'text', text: 'more please'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+      const kept = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: legacy.sessionId}}),
+      )
+      if (kept._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(kept.session.title).toBe('My week')
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
   test('RetrySession re-runs a failed turn without a new user message', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
