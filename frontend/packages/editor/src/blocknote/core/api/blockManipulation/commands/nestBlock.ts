@@ -7,16 +7,27 @@ import {BlockNoteEditor} from '../../../BlockNoteEditor'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 import {isInGridContainer} from '../../../extensions/Blocks/nodes/BlockChildren'
+import {getCarryableStoredMarks} from './splitBlock'
 import {updateGroupChildrenCommand} from './updateGroup'
 
 function liftListItem(editor: Editor, posInBlock: number) {
   return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
+    const storedMarks = getCarryableStoredMarks(state)
+    console.log(
+      '[CTF] liftListItem | depth:',
+      state.selection.$from.depth - 1,
+      '| hasDispatch:',
+      !!dispatch,
+      '| hasChildren:',
+      false,
+    )
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
 
     if (state.selection.$from.depth - 1 > 2 && dispatch) {
       // If there are children, need to manually append siblings
       // into block's children to avoid the range error.
       if (blockInfo.block.node.childCount > 1) {
+        console.log('[CTF] liftListItem | complex path with children')
         const blockChildren = state.tr.doc
           .resolve(blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 2)
           .node().content
@@ -110,11 +121,14 @@ function liftListItem(editor: Editor, posInBlock: number) {
 
         state.tr.insert(insertPos, block)
         state.tr.setSelection(new TextSelection(state.tr.doc.resolve(insertPos + 2)))
+        state.tr.setStoredMarks(storedMarks)
+        console.log('[CTF] liftListItem | complex dispatch with storedMarks')
 
         dispatch(state.tr)
 
         return true
       } else {
+        console.log('[CTF] liftListItem | simple path: setTimeout -> editor.commands.liftListItem')
         setTimeout(() => {
           editor.commands.liftListItem('blockNode')
         })
@@ -122,6 +136,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
       }
     }
 
+    console.log('[CTF] liftListItem | fallthrough: depth <= 2 or no dispatch')
     return true
   }
 }
@@ -133,12 +148,15 @@ export function sinkListItem(
   listLevel: string,
 ) {
   return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
+    const storedMarks = getCarryableStoredMarks(state)
+    console.log('[CTF] sinkListItem | storedMarks count:', storedMarks.length, '| hasDispatch:', !!dispatch)
     const {$from, $to} = state.selection
     const range = $from.blockRange(
       $to,
       (node) => node.childCount > 0 && node.type.name === 'blockChildren', // change necessary to not look at first item child type
     )
     if (!range) {
+      console.log('[CTF] sinkListItem | SKIPPED: no range')
       return false
     }
     const startIndex = range.startIndex
@@ -166,8 +184,10 @@ export function sinkListItem(
       dispatch(
         state.tr
           .step(new ReplaceAroundStep(before - (nestedBefore ? 3 : 1), after, before, after, slice, 1, true))
+          .setStoredMarks(storedMarks)
           .scrollIntoView(),
       )
+      console.log('[CTF] sinkListItem | dispatched with setStoredMarks')
     }
     return true
   }
@@ -185,6 +205,7 @@ export function nestBlock(editor: BlockNoteEditor<any>, listType: HMBlockChildre
 }
 
 export function unnestBlock(editor: Editor, posInBlock: number) {
+  console.log('[CTF] unnestBlock called at pos:', posInBlock)
   return editor.commands.command(liftListItem(editor, posInBlock))
 }
 
