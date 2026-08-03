@@ -1,13 +1,22 @@
 import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} from '@/agents-client'
 import {formatElapsed, formatTokenCount} from '@/components/agent-run-status'
 import {SessionStatusDot} from '@/components/session-children'
-import {useAgentRunTreeSubscription, useCancelRun, useRunTree, useSessionRuns} from '@/models/agents'
+import {
+  useAgentRunTreeSubscription,
+  useCancelRun,
+  useRun,
+  useRunTree,
+  useSessionRuns,
+  type AgentRunTreeLiveState,
+} from '@/models/agents'
 import {Button} from '@shm/ui/button'
 import {Bot, Check, ChevronDown, ChevronRight, CircleDashed, Loader2, Minus, Workflow, X} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 
 /** Statuses a run can no longer leave. */
 const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
+
+const isTerminalRun = (status: RunStatus) => TERMINAL_RUN_STATUSES.has(status)
 
 /** How a run's status reads in the header pill. */
 const RUN_STATUS_LABELS: Record<RunStatus, string> = {
@@ -30,18 +39,73 @@ function runStatusClass(status: RunStatus): string {
 /** Session status a run maps onto, so child rows reuse the one status dot the lists use. */
 function runStatusAsSessionStatus(status: RunStatus): 'idle' | 'streaming' | 'error' {
   if (status === 'failed' || status === 'canceled') return 'error'
-  if (TERMINAL_RUN_STATUSES.has(status)) return 'idle'
+  if (isTerminalRun(status)) return 'idle'
   return 'streaming'
 }
 
+/** A run's own title, or what it is when it never got one. */
+function runTitle(run: RunInfo): string {
+  return run.title || (run.kind === 'workflow' ? 'Workflow' : 'Sub-session')
+}
+
 /**
- * The pinned progress card: what the agent is working through, right now, without scrolling.
+ * The run tree behind a card: durable rows from `ListRuns`, overlaid by the socket's replay.
  *
- * Durable-first — the latest root run and its tree come from `ListRuns`, and subscribing to
- * `runs/<rootRunId>` replays every run's current state on connect, so a reload or a relaunch
- * mid-workflow rebuilds the card in full. Live partials only animate progress and activity on top of
- * that. With no run at all it falls back to the session's `update_plan` todo list, which is the same
- * step list fed from a different source.
+ * `live: false` opens no socket and skips the tree query — used by transcript cards that are
+ * collapsed, so a long chat full of finished workflows costs nothing until one is opened.
+ */
+function useRunTreeView(
+  serverUrl: string,
+  accountUid: string | null | undefined,
+  rootRunId: string | undefined,
+  seed: RunInfo | undefined,
+  live: boolean,
+): {runsById: Record<string, RunInfo>; liveState: AgentRunTreeLiveState} {
+  const tree = useRunTree(serverUrl, accountUid, live ? rootRunId : undefined)
+  const liveState = useAgentRunTreeSubscription(serverUrl, accountUid, live ? rootRunId : undefined)
+
+  const runsById = useMemo(() => {
+    const merged: Record<string, RunInfo> = {}
+    for (const run of tree.data || []) merged[run.id] = run
+    if (seed && !merged[seed.id]) merged[seed.id] = seed
+    // The socket's replay is at least as fresh as the query, so it wins.
+    for (const run of Object.values(liveState.runs)) merged[run.id] = run
+    return merged
+  }, [tree.data, liveState.runs, seed])
+
+  return {runsById, liveState}
+}
+
+/**
+ * Every run spawned under `focusRunId`, at any depth, oldest first.
+ *
+ * A subscription is keyed by the tree's root, so a card focused on one run inside that tree (a
+ * workflow bubble, say) receives its siblings too and has to narrow to its own branch.
+ */
+function descendantsOf(runsById: Record<string, RunInfo>, focusRunId: string): RunInfo[] {
+  const isDescendant = (run: RunInfo): boolean => {
+    let current: RunInfo | undefined = run
+    // Bounded walk: a cycle would otherwise hang the render.
+    for (let depth = 0; depth < 32 && current; depth += 1) {
+      const parentId: string | undefined = current.parentRunId
+      if (!parentId) return false
+      if (parentId === focusRunId) return true
+      current = runsById[parentId]
+    }
+    return false
+  }
+  return Object.values(runsById)
+    .filter((run) => run.id !== focusRunId && isDescendant(run))
+    .sort((a, b) => a.createdAt - b.createdAt)
+}
+
+/**
+ * The live progress card pinned above the composer.
+ *
+ * Shows only while the session's newest run is still going: once it finishes, the record of it lives
+ * in the transcript (see {@link RunRecordCard}) and the pinned slot clears so the next turn — or a
+ * plain chat reply — is not shadowed by a stale summary. With no live run it falls back to the
+ * session's `update_plan` todo list, the same step list fed from a different source.
  */
 export function SessionRunCard({
   serverUrl,
@@ -54,7 +118,7 @@ export function SessionRunCard({
   serverUrl: string
   accountUid: string | null | undefined
   sessionId: string
-  /** `SessionInfo.plan`, rendered as a todo list when no run is active. */
+  /** `SessionInfo.plan`, rendered as a todo list when no run is live. */
   sessionPlan?: RunPlan
   /** Sidebar sizing: tighter rows, no footer. */
   compact?: boolean
@@ -62,148 +126,187 @@ export function SessionRunCard({
   onOpenSession?: (sessionId: string, agentId?: string) => void
 }) {
   const runs = useSessionRuns(serverUrl, accountUid, sessionId)
-  const latestRoot = runs.data?.[0]
-  const rootRunId = latestRoot?.rootRunId
-  const tree = useRunTree(serverUrl, accountUid, rootRunId)
-  const live = useAgentRunTreeSubscription(serverUrl, accountUid, rootRunId)
   const cancelRun = useCancelRun(serverUrl, accountUid)
-  const [dismissedRunId, setDismissedRunId] = useState<string | null>(null)
-  const [terminalExpanded, setTerminalExpanded] = useState(false)
-  const [confirmingCancel, setConfirmingCancel] = useState(false)
-
-  // A newer root run replaces whatever the user dismissed or expanded before it.
-  useEffect(() => {
-    setTerminalExpanded(false)
-    setConfirmingCancel(false)
-  }, [rootRunId])
-
-  const runsById = useMemo(() => {
-    const merged: Record<string, RunInfo> = {}
-    for (const run of tree.data || []) merged[run.id] = run
-    if (latestRoot && !merged[latestRoot.id]) merged[latestRoot.id] = latestRoot
-    // The socket's replay is at least as fresh as the query, so it wins.
-    for (const run of Object.values(live.runs)) merged[run.id] = run
-    return merged
-  }, [tree.data, live.runs, latestRoot])
-
-  const root = latestRoot ? runsById[latestRoot.id] ?? latestRoot : undefined
-  const children = useMemo(
-    () =>
-      Object.values(runsById)
-        .filter((run) => run.id !== root?.id)
-        .sort((a, b) => a.createdAt - b.createdAt),
-    [runsById, root?.id],
+  const seedRoot = runs.data?.[0]
+  // Gate on the query's view of the status: it lags by at most one poll, and gating on the merged
+  // status instead would need the very socket this decides whether to open.
+  const seedIsLive = !!seedRoot && !isTerminalRun(seedRoot.status)
+  const {runsById, liveState} = useRunTreeView(
+    serverUrl,
+    accountUid,
+    seedIsLive ? seedRoot.rootRunId : undefined,
+    seedRoot,
+    seedIsLive,
   )
 
-  if (!root) {
-    if (!sessionPlan?.steps.length) return null
+  const root = seedRoot ? runsById[seedRoot.id] ?? seedRoot : undefined
+  const children = useMemo(() => (root ? descendantsOf(runsById, root.id) : []), [runsById, root?.id])
+
+  if (root && !isTerminalRun(root.status)) {
     return (
-      <RunCardShell compact={compact}>
-        <RunPlanSteps plan={sessionPlan} compact={compact} />
+      <RunCardShell compact={compact} column>
+        <RunCardBody
+          run={root}
+          childRuns={children}
+          liveState={liveState}
+          plan={root.plan ?? sessionPlan}
+          compact={compact}
+          onOpenSession={onOpenSession}
+          onCancelRun={(runId) => cancelRun.mutate(runId)}
+          cancelPending={cancelRun.isPending}
+        />
       </RunCardShell>
     )
   }
 
-  const isTerminal = TERMINAL_RUN_STATUSES.has(root.status)
-  if (isTerminal && dismissedRunId === root.id) return null
-
-  const plan = root.plan ?? sessionPlan
-  const progress = live.progress[root.id]
-  const doneChildren = children.filter((child) => TERMINAL_RUN_STATUSES.has(child.status)).length
-  const usageTotal = (root.usage?.total ?? 0) + (root.usage?.children?.total ?? 0)
-
-  if (isTerminal && !terminalExpanded) {
-    return (
-      <RunCardShell compact={compact}>
-        <button
-          type="button"
-          className="flex w-full min-w-0 items-center gap-2 text-left text-xs"
-          onClick={() => setTerminalExpanded(true)}
-        >
-          {root.status === 'succeeded' ? (
-            <Check className="size-3.5 flex-none text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            <X className="text-destructive size-3.5 flex-none" />
-          )}
-          <span className="min-w-0 truncate">
-            {root.status === 'succeeded'
-              ? [
-                  root.title || 'Run finished',
-                  plan?.steps.length ? `${plan.steps.length} steps` : null,
-                  children.length ? `${children.length} sub-session${children.length === 1 ? '' : 's'}` : null,
-                  usageTotal > 0 ? `${formatTokenCount(usageTotal)} tok` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-              : `${RUN_STATUS_LABELS[root.status]}: ${root.error?.message || root.title || 'no details'}`}
-          </span>
-          <ChevronRight className="text-muted-foreground ml-auto size-3.5 flex-none" />
-        </button>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground flex-none"
-          aria-label="Dismiss run summary"
-          onClick={() => setDismissedRunId(root.id)}
-        >
-          <X className="size-3.5" />
-        </button>
-      </RunCardShell>
-    )
+  // Todo-list fallback. A plan with nothing left to do is just noise once its run is over.
+  if (!sessionPlan?.steps.length) return null
+  const settled = !!root
+  if (settled && sessionPlan.steps.every((step) => step.status === 'done' || step.status === 'skipped')) {
+    return null
   }
+  return (
+    <RunCardShell compact={compact}>
+      <RunPlanSteps plan={sessionPlan} compact={compact} settle={settled ? 'idle' : 'live'} />
+    </RunCardShell>
+  )
+}
 
-  const isParked = root.status === 'waiting'
+/**
+ * The durable record of one run, rendered inside its `sub_session` / `run_workflow` chat bubble.
+ *
+ * The pinned card is deliberately transient, so this is where a finished workflow keeps its step
+ * list, children, and activity log — in the transcript, at the point in the conversation where it
+ * happened. Mounted only while its bubble is expanded, which is what keeps its socket and queries
+ * off until someone actually looks.
+ */
+export function RunRecordCard({
+  serverUrl,
+  accountUid,
+  runId,
+  onOpenSession,
+}: {
+  serverUrl: string
+  accountUid: string | null | undefined
+  runId: string
+  onOpenSession?: (sessionId: string, agentId?: string) => void
+}) {
+  const run = useRun(serverUrl, accountUid, runId)
+  const cancelRun = useCancelRun(serverUrl, accountUid)
+  const seed = run.data ?? undefined
+  const {runsById, liveState} = useRunTreeView(serverUrl, accountUid, seed?.rootRunId, seed, true)
+  const focus = seed ? runsById[seed.id] ?? seed : undefined
+  const children = useMemo(() => (focus ? descendantsOf(runsById, focus.id) : []), [runsById, focus?.id])
+
+  if (!focus) {
+    return run.isLoading ? <div className="text-muted-foreground py-1 text-[11px]">Loading run…</div> : null
+  }
 
   return (
-    <RunCardShell compact={compact} column>
+    <div className="border-border bg-background/40 flex flex-col gap-2 rounded-md border p-2">
+      <RunCardBody
+        run={focus}
+        childRuns={children}
+        liveState={liveState}
+        plan={focus.plan}
+        onOpenSession={onOpenSession}
+        onCancelRun={(id) => cancelRun.mutate(id)}
+        cancelPending={cancelRun.isPending}
+      />
+    </div>
+  )
+}
+
+/**
+ * Everything a run has to say about itself: status, progress, steps, children, log, cost.
+ *
+ * Shared by the pinned card and the transcript record so a run looks the same wherever it is read.
+ */
+function RunCardBody({
+  run,
+  childRuns,
+  liveState,
+  plan,
+  compact,
+  onOpenSession,
+  onCancelRun,
+  cancelPending,
+}: {
+  run: RunInfo
+  childRuns: RunInfo[]
+  liveState: AgentRunTreeLiveState
+  plan?: RunPlan
+  compact?: boolean
+  onOpenSession?: (sessionId: string, agentId?: string) => void
+  onCancelRun: (runId: string) => void
+  cancelPending: boolean
+}) {
+  const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const isTerminal = isTerminalRun(run.status)
+  const isParked = run.status === 'waiting'
+  const progress = liveState.progress[run.id]
+  const doneChildren = childRuns.filter((child) => isTerminalRun(child.status)).length
+  const usageTotal = (run.usage?.total ?? 0) + (run.usage?.children?.total ?? 0)
+
+  useEffect(() => {
+    if (isTerminal) setConfirmingCancel(false)
+  }, [isTerminal])
+
+  // The children strip says everything a step row would, and says it better: clickable, cancelable,
+  // live. Where a step is just the name of a child, only the child row survives.
+  const childTitles = useMemo(() => {
+    const titles = new Set<string>()
+    for (const child of childRuns) {
+      const title = (child.title || '').trim().toLowerCase()
+      if (title) titles.add(title)
+    }
+    return titles
+  }, [childRuns])
+  const visibleSteps = useMemo(
+    () => (plan ? plan.steps.filter((step) => !childTitles.has(step.label.trim().toLowerCase())) : []),
+    [plan, childTitles],
+  )
+
+  return (
+    <>
       <div className="flex min-w-0 items-center gap-2">
-        {isTerminal ? (
-          <button
-            type="button"
-            aria-label="Collapse run details"
-            className="text-muted-foreground hover:text-foreground flex-none"
-            onClick={() => setTerminalExpanded(false)}
-          >
-            <ChevronDown className="size-3.5" />
-          </button>
-        ) : (
-          <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" />
-        )}
+        {isTerminal ? null : <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" />}
         <span className="min-w-0 flex-1 truncate text-xs font-medium">
-          {isParked && children.length
-            ? `Waiting on ${children.length} sub-session${children.length === 1 ? '' : 's'} — ${doneChildren} done`
-            : root.title || (root.kind === 'workflow' ? 'Workflow' : 'Agent run')}
+          {isParked && childRuns.length
+            ? `Waiting on ${childRuns.length} sub-session${childRuns.length === 1 ? '' : 's'} — ${doneChildren} done`
+            : runTitle(run)}
         </span>
-        <span className={`flex-none rounded-full border px-1.5 py-0.5 text-[10px] ${runStatusClass(root.status)}`}>
-          {RUN_STATUS_LABELS[root.status]}
+        <span className={`flex-none rounded-full border px-1.5 py-0.5 text-[10px] ${runStatusClass(run.status)}`}>
+          {RUN_STATUS_LABELS[run.status]}
         </span>
-        <RunElapsed run={root} />
-        {!isTerminal ? (
-          confirmingCancel ? (
-            <span className="flex flex-none items-center gap-1">
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={cancelRun.isPending}
-                onClick={() => {
-                  cancelRun.mutate(root.id)
-                  setConfirmingCancel(false)
-                }}
-              >
-                Cancel run
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setConfirmingCancel(false)}>
-                Keep
-              </Button>
-            </span>
-          ) : (
-            <Button size="sm" variant="ghost" className="flex-none" onClick={() => setConfirmingCancel(true)}>
-              Cancel
+        <RunElapsed run={run} />
+        {isTerminal ? null : confirmingCancel ? (
+          <span className="flex flex-none items-center gap-1">
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={cancelPending}
+              onClick={() => {
+                onCancelRun(run.id)
+                setConfirmingCancel(false)
+              }}
+            >
+              Cancel run
             </Button>
-          )
-        ) : null}
+            <Button size="sm" variant="ghost" onClick={() => setConfirmingCancel(false)}>
+              Keep
+            </Button>
+          </span>
+        ) : (
+          <Button size="sm" variant="ghost" className="flex-none" onClick={() => setConfirmingCancel(true)}>
+            Cancel
+          </Button>
+        )}
       </div>
 
-      {progress ? (
+      {run.error ? <div className="text-destructive text-[11px]">{run.error.message}</div> : null}
+
+      {progress && !isTerminal ? (
         <div className="flex flex-col gap-1">
           {progress.label ? <span className="text-muted-foreground text-[11px]">{progress.label}</span> : null}
           {progress.fraction !== undefined ? (
@@ -217,31 +320,40 @@ export function SessionRunCard({
         </div>
       ) : null}
 
-      {plan?.steps.length ? <RunPlanSteps plan={plan} compact={compact} /> : null}
+      {plan && visibleSteps.length ? (
+        <RunPlanSteps
+          plan={{...plan, steps: visibleSteps}}
+          compact={compact}
+          settle={isTerminal ? 'run-finished' : 'live'}
+        />
+      ) : null}
 
-      {children.length ? (
+      {childRuns.length ? (
         <div className="flex flex-col">
-          {children.map((child) => (
+          {childRuns.map((child) => (
             <RunChildRow
               key={child.id}
               run={child}
-              activityDetail={live.activity[child.id]?.detail}
+              ownerTerminal={isTerminal}
+              activityDetail={liveState.activity[child.id]?.detail}
               onOpen={
                 child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined
               }
+              onCancel={() => onCancelRun(child.id)}
+              cancelPending={cancelPending}
             />
           ))}
         </div>
       ) : null}
 
-      <RunActivityDrawer journal={live.journal} />
+      <RunActivityDrawer journal={liveState.journal} />
 
       {!compact && usageTotal > 0 ? (
         <div className="text-muted-foreground border-border flex justify-end border-t pt-1 text-[10px]">
           {formatTokenCount(usageTotal)} tokens
         </div>
       ) : null}
-    </RunCardShell>
+    </>
   )
 }
 
@@ -252,8 +364,9 @@ const MAX_ACTIVITY_LINES = 100
 type ActivityLine = {key: string; text: string; tone?: 'error' | 'warn'}
 
 /**
- * Renders the journal entries a workflow writes as it runs. Kinds not listed here (`result`,
- * `timer`, `fired`, `now`, `plan`) are replay bookkeeping, not activity, and would drown the log.
+ * Renders the journal entries a workflow writes as it runs. Kinds not listed here (`timer`, `fired`,
+ * `now`, `plan`, and successful `result`s) are replay bookkeeping, not activity, and would drown the
+ * log.
  */
 function journalEntryLine(entry: RunJournalEntryInfo): ActivityLine | null {
   const payload = entry.entry as {
@@ -381,7 +494,7 @@ function RunCardShell({children, compact, column}: {children: React.ReactNode; c
 /** Live elapsed timer for a run, frozen once it finishes. */
 function RunElapsed({run}: {run: RunInfo}) {
   const [now, setNow] = useState(() => Date.now())
-  const isTerminal = TERMINAL_RUN_STATUSES.has(run.status)
+  const isTerminal = isTerminalRun(run.status)
   useEffect(() => {
     if (isTerminal) return
     setNow(Date.now())
@@ -413,23 +526,45 @@ const STEP_CLASSES = {
   skipped: 'text-muted-foreground line-through',
 }
 
+type StepStatus = keyof typeof STEP_ICONS
+
+/**
+ * How much of the plan's own account of itself to still believe.
+ *
+ * - `live`: verbatim.
+ * - `run-finished`: the run that owns this plan is over, so nothing in it is running and nothing
+ *   pending will start. Mirrors the settling the service now does in `plan_cbor`, so plans written
+ *   before that landed read identically.
+ * - `idle`: a session todo list with no run behind it right now. The session lives on, so pending
+ *   steps stay pending — but a step left mid-flight is not running either, and a spinner under a
+ *   finished turn is exactly the lie that makes the whole card untrustworthy.
+ */
+type PlanSettle = 'live' | 'run-finished' | 'idle'
+
+function displayStepStatus(status: StepStatus, settle: PlanSettle): StepStatus {
+  if (settle === 'live') return status
+  if (settle === 'idle') return status === 'running' ? 'pending' : status
+  if (status === 'running') return 'done'
+  if (status === 'pending') return 'skipped'
+  return status
+}
+
 /** The step list, fed by a run's plan or by the session's `update_plan` todo list. */
-function RunPlanSteps({plan, compact}: {plan: RunPlan; compact?: boolean}) {
+function RunPlanSteps({plan, compact, settle = 'live'}: {plan: RunPlan; compact?: boolean; settle?: PlanSettle}) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       {plan.title ? (
         <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
       ) : null}
       {plan.steps.map((step) => {
-        const Icon = STEP_ICONS[step.status]
+        const status = displayStepStatus(step.status, settle)
+        const Icon = STEP_ICONS[status]
         return (
           <div key={step.id} className={`flex min-w-0 items-center gap-1.5 ${compact ? 'text-[11px]' : 'text-xs'}`}>
             <Icon
-              className={`size-3 flex-none ${STEP_CLASSES[step.status]} ${
-                step.status === 'running' ? 'animate-spin' : ''
-              }`}
+              className={`size-3 flex-none ${STEP_CLASSES[status]} ${status === 'running' ? 'animate-spin' : ''}`}
             />
-            <span className={`min-w-0 truncate ${STEP_CLASSES[step.status]}`}>{step.label}</span>
+            <span className={`min-w-0 truncate ${STEP_CLASSES[status]}`}>{step.label}</span>
           </div>
         )
       })}
@@ -437,28 +572,65 @@ function RunPlanSteps({plan, compact}: {plan: RunPlan; compact?: boolean}) {
   )
 }
 
-/** One child run in the strip: status, what it is, and a way into its transcript. */
-function RunChildRow({run, activityDetail, onOpen}: {run: RunInfo; activityDetail?: string; onOpen?: () => void}) {
+/** One child run in the strip: status, what it is, a way into its transcript, and a way to stop it. */
+function RunChildRow({
+  run,
+  ownerTerminal,
+  activityDetail,
+  onOpen,
+  onCancel,
+  cancelPending,
+}: {
+  run: RunInfo
+  /** The parent run has finished, so this child cannot still be going however it was last recorded. */
+  ownerTerminal?: boolean
+  activityDetail?: string
+  onOpen?: () => void
+  onCancel?: () => void
+  cancelPending?: boolean
+}) {
   const KindIcon = run.kind === 'workflow' ? Workflow : Bot
+  const isLive = !isTerminalRun(run.status) && !ownerTerminal
+  const status = runStatusAsSessionStatus(run.status)
+  // A stale "still running" child under a finished parent gets the quiet dot, never the pulse.
+  const dotStatus = status === 'streaming' && !isLive ? 'idle' : status
   const content = (
     <>
-      <SessionStatusDot status={runStatusAsSessionStatus(run.status)} className="size-2" />
+      <SessionStatusDot status={dotStatus} className="size-2" />
       <KindIcon className="text-muted-foreground size-3 flex-none" />
-      <span className="min-w-0 truncate">{run.title || (run.kind === 'workflow' ? 'Workflow' : 'Sub-session')}</span>
-      {activityDetail ? (
+      <span className="min-w-0 truncate">{runTitle(run)}</span>
+      {isLive && activityDetail ? (
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">{activityDetail}</span>
       ) : null}
       {run.error ? <span className="text-destructive flex-none text-[10px]">{run.error.message}</span> : null}
     </>
   )
-  if (!onOpen) return <div className="flex min-w-0 items-center gap-1.5 px-1 py-0.5 text-[11px]">{content}</div>
   return (
-    <button
-      type="button"
-      className="hover:bg-muted flex min-w-0 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px]"
-      onClick={onOpen}
-    >
-      {content}
-    </button>
+    <div className="flex min-w-0 items-center gap-1">
+      {onOpen ? (
+        <button
+          type="button"
+          className="hover:bg-muted flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px]"
+          onClick={onOpen}
+        >
+          {content}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1 py-0.5 text-[11px]">{content}</div>
+      )}
+      {isLive && onCancel ? (
+        <button
+          type="button"
+          // One child is low-stakes to stop, unlike the whole run — no confirmation step in the way.
+          aria-label={`Cancel ${runTitle(run)}`}
+          title={`Cancel ${runTitle(run)}`}
+          className="text-muted-foreground hover:text-destructive flex-none rounded p-0.5"
+          disabled={cancelPending}
+          onClick={onCancel}
+        >
+          <X className="size-3" />
+        </button>
+      ) : null}
+    </div>
   )
 }
