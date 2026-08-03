@@ -1152,7 +1152,7 @@ export const seedToolRegistry: SeedToolRegistry = {
       ],
     },
     runtimes: ['agent-service'],
-    userConfigurable: true,
+    userConfigurable: false,
   },
   sub_session: {
     name: 'sub_session',
@@ -1216,7 +1216,7 @@ export const seedToolRegistry: SeedToolRegistry = {
       ],
     },
     runtimes: ['agent-service'],
-    userConfigurable: true,
+    userConfigurable: false,
   },
   return_result: {
     name: 'return_result',
@@ -1237,7 +1237,7 @@ export const seedToolRegistry: SeedToolRegistry = {
     name: 'start_session',
     label: 'Start Session',
     description:
-      'Start a new independent session of yourself, providing its first message; the new session begins running immediately in the background. Use it to delegate work that should proceed on its own — a long research task, a follow-up job, or parallel work. The new session does NOT share this conversation and you will NOT receive its results, so put everything it needs into the prompt; it does share your persistent memory, so memory files are a good way to hand over material. Your user can watch the new session on the Sessions tab. Do not use this for work you can simply do yourself in this session.',
+      'Start a new detached session of yourself, providing its first message; it begins running immediately in the background. Use it ONLY for work that should proceed on its own and whose outcome you do not need — you will NOT receive its results, and your session does not pause for it. When you need the result back (delegation, fan-out, sub-agents), use sub_session instead; for multi-step orchestration, use run_workflow. The new session does not share this conversation, so put everything it needs into the prompt; it does share your persistent memory. Do not use this for work you can simply do yourself in this session.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,

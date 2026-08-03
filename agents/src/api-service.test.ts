@@ -2287,6 +2287,8 @@ describe('api service', () => {
             'read',
             'view_attachment',
             'start_session',
+            'sub_session',
+            'run_workflow',
             'set_session_title',
             'update_plan',
           ])
@@ -2512,7 +2514,15 @@ describe('api service', () => {
       // First provider request advertises exactly the enabled web tool plus the hidden title tool.
       expect(
         (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
-      ).toEqual(['web_search', 'view_attachment', 'start_session', 'set_session_title', 'update_plan'])
+      ).toEqual([
+        'web_search',
+        'view_attachment',
+        'start_session',
+        'sub_session',
+        'run_workflow',
+        'set_session_title',
+        'update_plan',
+      ])
       // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
       const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
       expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
@@ -2611,6 +2621,8 @@ describe('api service', () => {
             'write',
             'view_attachment',
             'start_session',
+            'sub_session',
+            'run_workflow',
             'set_session_title',
             'update_plan',
           ])
