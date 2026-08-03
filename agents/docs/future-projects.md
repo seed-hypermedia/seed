@@ -98,9 +98,13 @@ Scope:
 - create normal agent sessions when triggers fire;
 - track firings idempotently so feed retries do not duplicate sessions.
 
-## Project: Stop/cancel running sessions
+## Completed: Stop/cancel running sessions
 
-Scope:
+Status: completed. `StopSession` aborts the live Pi turn and cancels every run rooted at the session including
+descendants; `CancelRun` cancels any run's subtree (queued runs never start, waiting runs never wake, executing runs
+abort via Pi abort / VM interrupt). The desktop has a stop button and a cancel control on the pinned run card.
+
+Original scope:
 
 - add `StopSession` or `CancelRun` action;
 - track active run abort controllers;
@@ -115,11 +119,13 @@ Risks:
 - concurrent run state must be explicit;
 - cancellation races with final provider events must be handled without sleeps.
 
-## Project: Run records and richer runtime state
+## Completed: Run records and richer runtime state
 
-Problem: session status is coarse and partials are ephemeral.
+Status: completed as the runs foundation of `workflows-v1-plan.md` — the `runs` table doubles as the dispatch queue,
+usage persists per turn with child rollup, session events carry no run linkage but sessions carry `run_id`, and
+`ListRuns`/`GetRun`/`GetRunJournal` plus `runs/<rootRunId>` subscriptions expose it live and after reconnect.
 
-Scope:
+Original scope:
 
 - add `runs` table;
 - persist run status, provider, model, start/end times, token/usage metadata;
