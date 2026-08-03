@@ -19,6 +19,19 @@ export type ProviderMetadata = {
   priorityPrefixes: string[]
   /** Models preferred as the initial default in agent creation/edit flows. */
   preferredDefaultModelIds: string[]
+  /**
+   * OAuth subscription sign-in support (server `StartProviderOAuth`). When set,
+   * the add-provider form offers an auth-mode toggle between API key and
+   * subscription sign-in.
+   */
+  subscription?: {
+    /** Toggle label, e.g. 'ChatGPT subscription'. */
+    label: string
+    /** Sign-in button label, e.g. 'Sign in with ChatGPT'. */
+    signInLabel: string
+    /** Short explanation shown in subscription mode. */
+    description: string
+  }
 }
 
 export const PROVIDER_METADATA: Record<ModelProviderType, ProviderMetadata> = {
@@ -28,7 +41,13 @@ export const PROVIDER_METADATA: Record<ModelProviderType, ProviderMetadata> = {
     showBaseUrlField: false,
     requiresApiKey: true,
     priorityPrefixes: ['gpt-5', 'gpt-4.1', 'gpt-4o', 'o4', 'o3', 'o1', 'gpt-4', 'gpt-3.5', 'chatgpt'],
-    preferredDefaultModelIds: ['gpt-5-mini'],
+    preferredDefaultModelIds: ['gpt-5-mini', 'gpt-5.2', 'gpt-5.1'],
+    subscription: {
+      label: 'ChatGPT subscription',
+      signInLabel: 'Sign in with ChatGPT',
+      description:
+        'Use your ChatGPT Plus/Pro/Team plan instead of API billing. Requests run through the ChatGPT Codex backend with the models included in your plan.',
+    },
   },
   anthropic: {
     label: 'Anthropic',

@@ -3,6 +3,7 @@ import {describe, expect, mock, test} from 'bun:test'
 import * as apisvc from '@/api-service'
 import * as cbor from '@/cbor'
 import * as sqlite from '@/sqlite'
+import {ProviderOAuthManager} from '@/provider-oauth'
 import * as blobs from '@shm/shared/blobs'
 import {unpackHmId} from '@seed-hypermedia/client'
 import {serialize} from 'superjson'
@@ -703,6 +704,233 @@ describe('api service', () => {
       expect(models.models).toEqual([{id: 'llama3.2', name: 'llama3.2'}])
     } finally {
       globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('subscription sign-in flow: start, submit code, poll completion, save provider', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {
+        providerOAuth: new ProviderOAuthManager({
+          openai: async ({onAuth, onManualCodeInput}) => {
+            onAuth({url: 'https://auth.openai.com/oauth/authorize?client_id=test'})
+            const code = await onManualCodeInput()
+            expect(code).toBe('pasted-code')
+            return {access: 'access-1', refresh: 'refresh-1', expires: Date.now() + 3600_000, accountId: 'acct_1'}
+          },
+        }),
+      })
+
+      const started = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'StartProviderOAuth', providerType: 'openai'}}),
+      )
+      if (started._ !== 'StartProviderOAuthResponse') throw new Error('unexpected response')
+      expect(started.authUrl).toContain('https://auth.openai.com/oauth/authorize')
+
+      const submitted = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SubmitProviderOAuthCode', loginId: started.loginId, code: 'pasted-code'},
+        }),
+      )
+      expect(submitted._).toBe('SubmitProviderOAuthCodeResponse')
+      await Bun.sleep(5)
+
+      const status = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetProviderOAuthStatus', loginId: started.loginId},
+        }),
+      )
+      if (status._ !== 'ProviderOAuthStatusResponse') throw new Error('unexpected response')
+      expect(status.status).toBe('completed')
+      expect(status.secretName).toBe('openai-subscription-oauth')
+
+      const saved = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'ChatGPT',
+            provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: status.secretName!}},
+          },
+        }),
+      )
+      if (saved._ !== 'SetModelProviderResponse') throw new Error('unexpected response')
+      expect(saved.provider.authMode).toBe('subscription')
+      expect(saved.provider.authStatus).toBe('ok')
+      expect(saved.provider.hasSecrets).toBe(true)
+
+      const listed = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListModelProviders'}}))
+      if (listed._ !== 'ListModelProvidersResponse') throw new Error('unexpected response')
+      expect(listed.providers).toHaveLength(1)
+      expect(listed.providers[0]).toMatchObject({name: 'ChatGPT', authMode: 'subscription', authStatus: 'ok'})
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('subscription provider lists the static Codex model catalog without a network call', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetSecret',
+            name: 'openai-subscription-oauth',
+            value: new TextEncoder().encode(
+              JSON.stringify({access: 'a', refresh: 'r', expires: Date.now() + 3600_000, accountId: 'acct_1'}),
+            ),
+            metadata: {provider: 'openai', kind: 'provider-oauth'},
+          },
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'ChatGPT',
+            provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: 'openai-subscription-oauth'}},
+          },
+        }),
+      )
+      globalThis.fetch = mock(async () => {
+        throw new Error('subscription model listing must not hit the network')
+      }) as unknown as typeof fetch
+
+      const models = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListProviderModels', provider: 'ChatGPT'}}),
+      )
+      if (models._ !== 'ListProviderModelsResponse') throw new Error('unexpected response')
+      expect(models.models.length).toBeGreaterThan(0)
+      for (const model of models.models) expect(model.id.startsWith('gpt-')).toBe(true)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('rejects subscription auth for provider types without OAuth support and without an oauth secret ref', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'SetModelProvider',
+              name: 'claude',
+              provider: {type: 'anthropic', authMode: 'subscription', secretRefs: {oauth: 'x'}},
+            },
+          }),
+        ),
+      ).rejects.toThrow('does not support subscription auth')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'SetModelProvider',
+              name: 'ChatGPT',
+              provider: {type: 'openai', authMode: 'subscription'},
+            },
+          }),
+        ),
+      ).rejects.toThrow('secretRefs.oauth')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'StartProviderOAuth', providerType: 'anthropic'},
+          }),
+        ),
+      ).rejects.toThrow('does not support subscription sign-in')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('subscription provider health: needs-login when the OAuth secret is missing or flagged', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      // Provider referencing a secret that was never stored (abandoned sign-in).
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'ChatGPT',
+            provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: 'openai-subscription-oauth'}},
+          },
+        }),
+      )
+      const missing = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListModelProviders'}}))
+      if (missing._ !== 'ListModelProvidersResponse') throw new Error('unexpected response')
+      expect(missing.providers[0]?.authStatus).toBe('needs-login')
+
+      // Store credentials: healthy again.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetSecret',
+            name: 'openai-subscription-oauth',
+            value: new TextEncoder().encode(JSON.stringify({access: 'a', refresh: 'r', expires: 1, accountId: 'x'})),
+            metadata: {provider: 'openai', kind: 'provider-oauth'},
+          },
+        }),
+      )
+      const healthy = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListModelProviders'}}))
+      if (healthy._ !== 'ListModelProvidersResponse') throw new Error('unexpected response')
+      expect(healthy.providers[0]?.authStatus).toBe('ok')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('deleting a subscription provider removes its OAuth secret unless still referenced', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      const secretValue = new TextEncoder().encode(
+        JSON.stringify({access: 'a', refresh: 'r', expires: 1, accountId: 'x'}),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-subscription-oauth', value: secretValue},
+        }),
+      )
+      for (const name of ['ChatGPT A', 'ChatGPT B']) {
+        await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'SetModelProvider',
+              name,
+              provider: {type: 'openai', authMode: 'subscription', secretRefs: {oauth: 'openai-subscription-oauth'}},
+            },
+          }),
+        )
+      }
+      const secretExists = () =>
+        db.query(`SELECT id FROM secrets WHERE name = 'openai-subscription-oauth'`).get() !== null
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteModelProvider', name: 'ChatGPT A'}}),
+      )
+      expect(secretExists()).toBe(true) // ChatGPT B still references it
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteModelProvider', name: 'ChatGPT B'}}),
+      )
+      expect(secretExists()).toBe(false)
+    } finally {
       db.close()
       cleanup()
     }

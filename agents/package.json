@@ -21,6 +21,7 @@
     "@seed-hypermedia/client": "file:../frontend/packages/client"
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "0.70.6",
     "@mariozechner/pi-coding-agent": "0.70.2",
     "@mozilla/readability": "0.6.0",
     "@seed-hypermedia/agents-protocol": "file:./protocol",

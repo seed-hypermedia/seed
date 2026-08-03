@@ -42,6 +42,10 @@ export type ModelProviderInfo = AgentsProtocol.RedactedModelProvider
 export type ModelProviderConfig = AgentsProtocol.ModelProviderConfig
 /** Public model metadata returned by the agents service. */
 export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
+/** How a provider authenticates: stored API key or OAuth subscription sign-in. */
+export type ModelProviderAuthMode = NonNullable<AgentsProtocol.ModelProviderConfig['authMode']>
+/** Snapshot of a pending or finished provider OAuth sign-in. */
+export type ProviderOAuthStatus = AgentsProtocol.ProviderOAuthStatusResponse
 /** One file or directory inside an agent's private memory filesystem. */
 export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 /** Contents of one agent memory file. */
