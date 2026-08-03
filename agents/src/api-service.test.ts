@@ -4030,6 +4030,9 @@ describe('api service', () => {
       if (topLevel._ !== 'ListSessionsResponse') throw new Error('unexpected response')
       expect(topLevel.sessions).toHaveLength(1)
       expect(topLevel.sessions[0]?.childSessionCount).toBe(2)
+      // The parent model never called set_session_title (it parked on its first batch): the
+      // server-side fallback names the session from its first user message instead.
+      expect(topLevel.sessions[0]?.title).toBe('Fan out workers A and B')
       const children = await svc.message(
         await apisvc.createSignedEnvelope(account, {
           action: {_: 'ListSessions', parentSessionId: createdSession.sessionId},
