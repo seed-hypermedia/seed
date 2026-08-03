@@ -100,6 +100,12 @@ function AgentDetailPage({
   const serverUrl = routeServerUrl || serverUrlQuery.data || DEFAULT_AGENT_SERVER_URL
   const serverHealth = useAgentServerHealth(serverUrl)
   const agent = useAgentDetail(serverUrl, selectedAccountId, agentId)
+  // GetAgent returns every session including sub-sessions; the tab renders children nested under
+  // their parent's disclosure, so the flat list must hold top-level rows only or they show twice.
+  const topLevelSessions = useMemo(
+    () => (agent.data?.sessions ?? []).filter((session) => !session.parentSessionId),
+    [agent.data?.sessions],
+  )
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
   const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
@@ -363,7 +369,7 @@ function AgentDetailPage({
                 agentId={agentId}
                 serverUrl={serverUrl}
                 activeTab={tab}
-                sessionsCount={agent.data.sessions.length}
+                sessionsCount={topLevelSessions.length}
                 triggersCount={triggers.data?.length}
                 onCreateSession={() => void handleCreateSession()}
                 creatingSession={createSession.isLoading}
@@ -380,8 +386,8 @@ function AgentDetailPage({
               {tab === 'sessions' ? (
                 <section className="flex min-h-0 flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
-                    {!agent.data.sessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
-                    {agent.data.sessions.map((session) => (
+                    {!topLevelSessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
+                    {topLevelSessions.map((session) => (
                       <SessionListItem
                         key={session.id}
                         session={session}

@@ -1895,6 +1895,7 @@ export class Service {
     parentSessionId: string,
     agentId: string,
     raw: unknown,
+    parentRun?: runs.RunRecord,
   ): {sessionId: string; title: string} {
     const input = isPlainRecord(raw) ? raw : {}
     const prompt = normalizeBoundedString(input.prompt, 'Session prompt', MAX_MESSAGE_TEXT_BYTES)
@@ -1933,6 +1934,10 @@ export class Service {
         await this.#messageSessionOnce(accountId, session.sessionId, [{type: 'text', text: prompt}], {
           origin: 'agent',
           background: true,
+          // Detached from the caller's TURN (no park, no result), but still a member of its run
+          // TREE so the progress card shows it, cancel cascades, and usage rolls up.
+          parentRunId: parentRun?.id,
+          title,
         })
       } catch (error) {
         console.error('[agents/runtime] agent-started session run failed', {
@@ -2004,7 +2009,16 @@ export class Service {
     accountId: string,
     sessionId: string,
     rawContent: api.MessageSession['content'],
-    opts: {origin?: runs.RunOrigin; background?: boolean; runId?: string; triggerFiringId?: string} = {},
+    opts: {
+      origin?: runs.RunOrigin
+      background?: boolean
+      runId?: string
+      triggerFiringId?: string
+      /** Makes the new run a child in the caller's run tree (visible in the card, cancel-cascaded). */
+      parentRunId?: string
+      /** Human label for the run, shown in the progress card's children strip. */
+      title?: string
+    } = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
     const session = this.#db
@@ -2081,6 +2095,8 @@ export class Service {
       agentId: session.agent_id,
       sessionId,
       triggerFiringId: opts.triggerFiringId,
+      parentRunId: opts.parentRunId,
+      title: opts.title,
       input: {kind: 'session-message'},
       queue: opts.background ? 'background' : 'interactive',
       maxAttempts: 1,
@@ -3125,7 +3141,7 @@ export class Service {
           }),
         setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
         setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan),
-        startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input),
+        startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
         ...this.#subSessionToolContext(
           accountId,
           sessionId,
@@ -3158,14 +3174,16 @@ export class Service {
                 tool === seedToolRegistry.attachment_to_memory.name ||
                 tool === seedToolRegistry.attachment_to_ipfs.name ||
                 tool === seedToolRegistry.memory_publish_document.name ||
-                (tool === seedToolRegistry.sub_session.name && run !== undefined) ||
-                (tool === seedToolRegistry.run_workflow.name && run !== undefined) ||
                 (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
             ),
         ),
         // Always available: attachments are session data the model was already told about.
         seedToolRegistry.view_attachment.name,
         seedToolRegistry.start_session.name,
+        // Delegation is always available in run-backed sessions, like start_session — an existing
+        // agent whose saved tools predate these must not fall back to fire-and-forget spawning
+        // when the user asks for awaited sub-agents or workflows.
+        ...(run !== undefined ? [seedToolRegistry.sub_session.name, seedToolRegistry.run_workflow.name] : []),
         seedToolRegistry.set_session_title.name,
         seedToolRegistry.update_plan.name,
         // Typed sub-session children must deliver their result through this tool.

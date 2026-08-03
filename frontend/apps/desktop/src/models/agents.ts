@@ -1104,11 +1104,17 @@ export function useAllAgentSessions(serverUrls: string[] | undefined, accountUid
         const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSessions', includeChildren: false}})
         if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
         const agentsById = new Map(res.agents.map((agent) => [agent.id, agent]))
-        return res.sessions.map((session) => ({
-          serverUrl,
-          session,
-          agent: agentsById.get(session.agentId),
-        }))
+        return (
+          res.sessions
+            // Children render nested under their parent's disclosure; filter defensively so a
+            // server that ignores includeChildren (older build) can never duplicate them here.
+            .filter((session) => !session.parentSessionId)
+            .map((session) => ({
+              serverUrl,
+              session,
+              agent: agentsById.get(session.agentId),
+            }))
+        )
       },
       enabled: !!accountUid,
       refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
