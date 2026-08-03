@@ -67,7 +67,7 @@ vi.mock('@/models/agents', () => ({
   useSessionAttachmentDataUrls: () => ({}),
 }))
 
-import {ChatMessageBubble} from '../components/assistant-message-rendering'
+import {AgentErrorRow, ChatMessageBubble} from '../components/assistant-message-rendering'
 
 /** Renders one assistant bubble carrying the given tool part. */
 function renderToolPart(part: ChatMessagePart, serverUrl?: string) {
@@ -390,6 +390,53 @@ describe('assistant message rendering', () => {
     expect(container.textContent).toContain('unknown_tool')
     expect(container.textContent).toContain('Completed.')
     expect(container.textContent).not.toContain('example')
+
+    cleanupRendered(root, container)
+  })
+})
+
+describe('agent error rows', () => {
+  function renderErrorRow(props: React.ComponentProps<typeof AgentErrorRow>) {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    act(() => {
+      root.render(<AgentErrorRow {...props} />)
+    })
+    return {container, root}
+  }
+
+  it('shows the failure without a retry when the turn cannot be re-run', () => {
+    const {container, root} = renderErrorRow({message: 'model call failed'})
+
+    expect(container.textContent).toContain('model call failed')
+    expect(findButton(container, (element) => element.textContent?.includes('Retry') ?? false)).toBeUndefined()
+
+    cleanupRendered(root, container)
+  })
+
+  it('runs the retry handler when the turn can be re-run', () => {
+    const onRetry = vi.fn()
+    const {container, root} = renderErrorRow({message: 'model call failed', onRetry})
+
+    const retry = findButton(container, (element) => element.textContent === 'Retry')
+    expect(retry).toBeTruthy()
+    expect(retry?.disabled).toBe(false)
+    click(retry)
+    expect(onRetry).toHaveBeenCalledTimes(1)
+
+    cleanupRendered(root, container)
+  })
+
+  it('locks the button while the retry is in flight', () => {
+    const onRetry = vi.fn()
+    const {container, root} = renderErrorRow({message: 'model call failed', onRetry, retryPending: true})
+
+    const retry = findButton(container, (element) => element.textContent?.includes('Retrying') ?? false)
+    expect(retry?.disabled).toBe(true)
+    click(retry)
+    expect(onRetry).not.toHaveBeenCalled()
+    expect(container.querySelector('.animate-spin')).toBeTruthy()
 
     cleanupRendered(root, container)
   })

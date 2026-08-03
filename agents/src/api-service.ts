@@ -1417,7 +1417,12 @@ export class Service {
 
     const now = Date.now()
     const sessionId = crypto.randomUUID()
-    const title = rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
+    // Clients historically sent the UI display placeholder as a literal title, which made every
+    // session look titled and defeated both naming paths. The placeholder means "no title".
+    const normalizedTitle =
+      rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
+    const title =
+      normalizedTitle && normalizedTitle.trim().toLowerCase() === 'untitled session' ? null : normalizedTitle
     this.#db.run(
       `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -2085,7 +2090,10 @@ export class Service {
         `SELECT title, title_source, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
-    if (!row || row.title || row.title_source !== 'system') return
+    if (!row || row.title_source !== 'system') return
+    // A stored literal placeholder counts as untitled (healed here for sessions created before
+    // the placeholder was normalized away at creation).
+    if (row.title && row.title.trim().toLowerCase() !== 'untitled session') return
     const events = this.#db
       .query<SessionEventRow, [string]>(
         `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
@@ -2101,7 +2109,8 @@ export class Service {
     const title = sessionTitleFromPrompt(source)
     if (!title) return
     this.#db.run(
-      `UPDATE sessions SET title = ?, updated_at = ? WHERE account_id = ? AND id = ? AND (title IS NULL OR title = '') AND title_source = 'system'`,
+      `UPDATE sessions SET title = ?, updated_at = ? WHERE account_id = ? AND id = ?
+         AND (title IS NULL OR title = '' OR LOWER(TRIM(title)) = 'untitled session') AND title_source = 'system'`,
       [title, Date.now(), accountId, sessionId],
     )
     const session = this.#getSessionInfo(accountId, sessionId)

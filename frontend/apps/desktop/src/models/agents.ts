@@ -1426,6 +1426,27 @@ export function useStopAgentSession(serverUrl: string | undefined, accountUid: s
   })
 }
 
+/**
+ * Re-runs a session whose last turn failed, with no new user message.
+ *
+ * The server re-enters the turn from the durable transcript, so the retried run streams into the
+ * session exactly like the original — nothing here has to reconcile the transcript, the usual
+ * WebSocket append and invalidation carry it.
+ */
+export function useRetrySession(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'RetrySession', sessionId}})
+      if (res._ !== 'RetrySessionResponse') throw new Error('Unexpected RetrySession response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
 /** Live, in-flight state for one agent session streamed over the WebSocket. */
 export type AgentSessionLiveState = {
   /** Assistant text streamed so far for the current (uncommitted) partial. */
@@ -1788,12 +1809,14 @@ export function addOptimisticSessionMessage(
 /** Creates a session for an existing server-hosted agent from the desktop GUI. */
 export function useCreateAgentSession(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({agentId, title}: {agentId: string; title: string}) => {
+    // No title by default: the agent names its session, with a server-side fallback from the first
+    // user message. Sending a display placeholder as a real title defeats both.
+    mutationFn: async ({agentId, title}: {agentId: string; title?: string}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSession', agentId, title, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
       })
     },
     onSuccess() {
