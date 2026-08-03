@@ -530,6 +530,7 @@ async function main(): Promise<void> {
     hmServerUrl: cfg.activity.hmServerUrl,
     web: cfg.web,
     exec: cfg.exec,
+    titleGeneration: cfg.titleGeneration,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
