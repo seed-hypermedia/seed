@@ -232,16 +232,36 @@ export function listSessionRootRuns(db: Database, accountId: string, sessionId: 
     .map(rowToRun)
 }
 
-/** True when any non-terminal agent run references the session. */
+/**
+ * True when an agent run is actively executing or about to (queued/claimed/running). A `waiting`
+ * run — parked on sub-sessions — deliberately does NOT count: a parked parent still converses,
+ * and new interactive turns interleave with it (its resume queues behind them).
+ */
 export function sessionHasLiveRun(db: Database, sessionId: string): boolean {
   return (
     db
       .query<{id: string}, [string]>(
         `SELECT id FROM runs WHERE session_id = ? AND kind = 'agent'
-         AND status IN ('queued','claimed','running','waiting') LIMIT 1`,
+         AND status IN ('queued','claimed','running') LIMIT 1`,
       )
       .get(sessionId) !== null
   )
+}
+
+/** Pending child tool-call ids across every waiting run of a session (still-running spawns). */
+export function pendingWaitToolCallIds(db: Database, sessionId: string): Set<string> {
+  const pending = new Set<string>()
+  const rows = db
+    .query<{wait_cbor: Uint8Array | null}, [string]>(
+      `SELECT wait_cbor FROM runs WHERE session_id = ? AND status = 'waiting'`,
+    )
+    .all(sessionId)
+  for (const row of rows) {
+    if (!row.wait_cbor) continue
+    const wait = cbor.decode<RunWait>(row.wait_cbor)
+    if (wait.reason === 'children') for (const id of wait.toolCallIds) pending.add(id)
+  }
+  return pending
 }
 
 /** Non-terminal runs referencing a session (stop/cancel targets). */
@@ -647,7 +667,7 @@ export class RunQueue {
              AND NOT (
                r.kind = 'agent' AND r.session_id IS NOT NULL AND EXISTS (
                  SELECT 1 FROM runs r2 WHERE r2.session_id = r.session_id AND r2.id != r.id
-                   AND r2.status IN ('claimed', 'running', 'waiting')
+                   AND r2.status IN ('claimed', 'running')
                )
              )
            ORDER BY CASE r.queue WHEN 'interactive' THEN 0 ELSE 1 END, r.created_at, r.id
@@ -682,7 +702,7 @@ export class RunQueue {
            AND NOT (
              kind = 'agent' AND session_id IS NOT NULL AND EXISTS (
                SELECT 1 FROM runs r2 WHERE r2.session_id = runs.session_id AND r2.id != runs.id
-                 AND r2.status IN ('claimed', 'running', 'waiting')
+                 AND r2.status IN ('claimed', 'running')
              )
            )
          RETURNING ${RUN_COLUMNS}`,
