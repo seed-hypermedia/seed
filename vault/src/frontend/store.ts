@@ -1,18 +1,18 @@
 import type * as api from '@/api'
 import {code as cborCodec} from '@ipld/dag-cbor'
 import * as base64 from '@seed-hypermedia/client/base64'
+import * as encryption from '@seed-hypermedia/client/encryption'
+import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
-import * as encryption from '@seed-hypermedia/client/encryption'
 import * as hmauth from '@shm/shared/hmauth'
-import * as keyfile from '@seed-hypermedia/client/keyfile'
+import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import * as webauthn from '@simplewebauthn/browser'
-import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
+import {code as rawCodec} from 'multiformats/codecs/raw'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createContext, useContext} from 'react'
 import {proxy, useSnapshot} from 'valtio'
-import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import {APIError} from './api-client'
 import type {Blockstore} from './blockstore'
 import * as localCrypto from './crypto'
@@ -33,6 +33,7 @@ export interface SessionInfo {
 
 type VaultConnectionRequest = {
   connectToken: string
+  siteName?: string
   pendingCredential?: {
     credentialId: string
     secret: string
@@ -263,8 +264,11 @@ function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequ
     throw new Error('Invalid vault connection fragment')
   }
 
+  const siteName = (params.get('siteName') ?? '').trim().slice(0, 100)
+
   return {
     connectToken,
+    ...(siteName ? {siteName} : {}),
   }
 }
 

@@ -60,7 +60,12 @@ export function PreLoginView() {
     <Card>
       <CardHeader>
         <StepIndicator currentStep={1} />
-        {vaultConnectionRequest ? (
+        {vaultConnectionRequest?.siteName ? (
+          <>
+            <CardTitle className="text-left text-xl">Sign in to join {vaultConnectionRequest.siteName}</CardTitle>
+            <CardDescription className="text-left">Enter the email linked to your Hypermedia identity.</CardDescription>
+          </>
+        ) : vaultConnectionRequest ? (
           <>
             <CardTitle className="text-left text-xl">Connect your desktop app</CardTitle>
             <CardDescription className="text-left">

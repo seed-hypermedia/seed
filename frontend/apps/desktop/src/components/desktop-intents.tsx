@@ -8,10 +8,17 @@ import {toast} from '@shm/ui/toast'
 import {ReactNode, useCallback} from 'react'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
 
+/** Optional overrides for the identity dialog. */
+export type RequireAccountOptions = {
+  title?: string
+  introDescription?: string
+  siteName?: string
+}
+
 /** Dialog content and account gate callback returned by desktop intent hooks. */
 export type DesktopIntentResult = {
   content: ReactNode
-  requireAccount: (action: (accountUid: string) => void | Promise<void>) => void
+  requireAccount: (action: (accountUid: string) => void | Promise<void>, options?: RequireAccountOptions) => void
 }
 
 /** Runs a desktop action immediately when an account exists, or after identity setup completes. */
@@ -20,12 +27,17 @@ export function useDesktopAccountIntent(): DesktopIntentResult {
   const authDialog = useDesktopAuthDialog()
 
   const requireAccount = useCallback(
-    (action: (accountUid: string) => void | Promise<void>) => {
+    (action: (accountUid: string) => void | Promise<void>, options?: RequireAccountOptions) => {
       if (selectedAccountId) {
         void action(selectedAccountId)
         return
       }
-      authDialog.open({onReady: action})
+      authDialog.open({
+        onReady: action,
+        title: options?.title,
+        introDescription: options?.introDescription,
+        siteName: options?.siteName,
+      })
     },
     [authDialog, selectedAccountId],
   )
@@ -89,17 +101,24 @@ export function useJoinSiteIntent(siteUid: string, siteName?: string) {
   const setSubscription = useSetSubscription()
 
   const join = useCallback(() => {
-    requireAccount(async (accountUid) => {
-      if (accountUid === siteUid) return
-      try {
-        await subscribeContact({accountUid, subjectUid: siteUid, subscribe: 'site'})
-        setSubscription.mutate({id: hmId(siteUid), subscribed: true, recursive: true})
-        toast.success(`Joined ${siteName || 'site'}`)
-      } catch (error) {
-        console.error('Failed to join:', error)
-        toast.error('Failed to join')
-      }
-    })
+    requireAccount(
+      async (accountUid) => {
+        if (accountUid === siteUid) return
+        try {
+          await subscribeContact({accountUid, subjectUid: siteUid, subscribe: 'site'})
+          setSubscription.mutate({id: hmId(siteUid), subscribed: true, recursive: true})
+          toast.success(`Joined ${siteName || 'site'}`)
+        } catch (error) {
+          console.error('Failed to join:', error)
+          toast.error('Failed to join')
+        }
+      },
+      {
+        title: `Join ${siteName || 'this site'}`,
+        introDescription: 'Create your identity to participate, it takes two minutes.',
+        siteName,
+      },
+    )
   }, [requireAccount, setSubscription, siteName, siteUid, subscribeContact])
 
   return {content, join, isPending: setSubscription.isPending}

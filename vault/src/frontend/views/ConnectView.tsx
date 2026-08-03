@@ -7,15 +7,20 @@ import {useActions, useAppState} from '@/frontend/store'
  * Consent screen for connecting this vault to the local desktop app.
  */
 export function ConnectView() {
-  const {error, loading, vaultConnectionInProgress} = useAppState()
+  const {error, loading, vaultConnectionInProgress, vaultConnectionRequest} = useAppState()
   const actions = useActions()
+  const siteName = vaultConnectionRequest?.siteName
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-left text-xl">Connect your desktop app</CardTitle>
+        <CardTitle className="text-left text-xl">
+          {siteName ? `Join ${siteName}` : 'Connect your desktop app'}
+        </CardTitle>
         <CardDescription className="text-left">
-          Allow the Seed desktop app on this device to connect to this vault for remote sync.
+          {siteName
+            ? `You're signed in. Join ${siteName} to comment, reply, and participate.`
+            : 'Allow the Seed desktop app on this device to connect to this vault for remote sync.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -35,7 +40,7 @@ export function ConnectView() {
             disabled={loading}
             onClick={actions.completeVaultConnection}
           >
-            Connect desktop
+            {siteName ? `Join ${siteName}` : 'Connect desktop'}
           </Button>
           <Button
             variant="ghost"

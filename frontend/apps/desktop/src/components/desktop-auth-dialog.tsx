@@ -24,6 +24,9 @@ type DesktopAuthDialogInput = {
   initialSubmit?: CreateAccountDialogSubmit
   initialStep?: 'main' | 'custom-identity'
   onReady?: (accountUid: string) => void | Promise<void>
+  title?: string
+  introDescription?: string
+  siteName?: string
 }
 
 /** Turns a raw daemon Vault Connect error into user-facing recovery guidance. */
@@ -120,9 +123,9 @@ function DesktopAuthDialogContent({
   }, [accountIds.data, browserUrl, input, isReady, onClose, selectedIdentityValue, setSelectedIdentity])
 
   const handleSubmit = useCallback(
-    async (input: CreateAccountDialogSubmit) => {
-      lastSubmitRef.current = input
-      const rawVaultUrl = input.type === 'custom-id-server' ? input.url : defaultVaultUrl
+    async (submit: CreateAccountDialogSubmit) => {
+      lastSubmitRef.current = submit
+      const rawVaultUrl = submit.type === 'custom-id-server' ? submit.url : defaultVaultUrl
       let normalizedVaultUrl = ''
       try {
         normalizedVaultUrl = normalizeVaultOriginURL(rawVaultUrl, 'identity server URL')
@@ -140,6 +143,7 @@ function DesktopAuthDialogContent({
           vaultConnect.vaultUrl,
           vaultConnect.connectToken,
           DAEMON_HTTP_URL,
+          input.siteName,
         )
         setBrowserUrl(nextBrowserUrl)
         openUrl(nextBrowserUrl)
@@ -147,7 +151,7 @@ function DesktopAuthDialogContent({
         toast.error('Failed to start identity sign-in: ' + (error instanceof Error ? error.message : String(error)))
       }
     },
-    [defaultVaultUrl, openUrl, startVaultConnection],
+    [defaultVaultUrl, input.siteName, openUrl, startVaultConnection],
   )
 
   useEffect(() => {
@@ -214,7 +218,9 @@ function DesktopAuthDialogContent({
 
   return (
     <CreateAccountDialogContent
-      title="Your Hypermedia Identity"
+      header={input.title ? 'Hypermedia' : undefined}
+      title={input.title ?? 'Your Hypermedia Identity'}
+      introDescription={input.introDescription}
       localAccountTitle="Create Account"
       localAccountDescription="Hypermedia accounts use public key cryptography."
       defaultCustomIdentityUrl={defaultVaultUrl}

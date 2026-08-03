@@ -31,18 +31,19 @@ export function LogoutVaultDialog({
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Log out of remote vault?</AlertDialogTitle>
+          <AlertDialogTitle>Log out?</AlertDialogTitle>
           <AlertDialogDescription>
-            This will disconnect the remote vault and delete all vault keys from this device.
-          </AlertDialogDescription>
-          <AlertDialogDescription>
-            You will be able to log in with your passkey to use your accounts again.
+            Your identity will no longer be active on this device. You can sign back in at any time.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+        <AlertDialogFooter className="sm:justify-stretch">
+          <AlertDialogCancel size="lg" className="flex-1" disabled={busy}>
+            Cancel
+          </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
+            size="lg"
+            className="flex-1"
             disabled={busy}
             onClick={(e) => {
               e.preventDefault()

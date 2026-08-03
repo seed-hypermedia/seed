@@ -8,6 +8,7 @@ export type CreateAccountDialogSubmit = {type: 'register'} | {type: 'login'} | {
 
 type CreateAccountDialogContentProps = {
   localAccountUnlocked?: boolean
+  header?: string
   title: string
   localAccountTitle: string
   localAccountDescription: string
@@ -26,6 +27,7 @@ type CreateAccountDialogContentProps = {
 /** Shared visual content for the create account / sign-in dialog. */
 export function CreateAccountDialogContent({
   localAccountUnlocked = false,
+  header,
   title,
   localAccountTitle,
   localAccountDescription,
@@ -81,18 +83,30 @@ export function CreateAccountDialogContent({
 
   return (
     <>
-      <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={onTitleClick}>
-        {localAccountUnlocked ? (
-          localAccountTitle
-        ) : (
-          <>
-            <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
-              <SeedLogo className="size-4 text-white" />
+      {localAccountUnlocked ? (
+        <DialogTitle className="max-sm:text-base" onClick={onTitleClick}>
+          {localAccountTitle}
+        </DialogTitle>
+      ) : header ? (
+        <>
+          <div className="flex items-center gap-2">
+            <div className="flex size-6 items-center justify-center rounded-full bg-emerald-600">
+              <SeedLogo className="size-3.5 text-white" />
             </div>
+            <span className="text-sm font-semibold">{header}</span>
+          </div>
+          <DialogTitle className="text-xl font-bold max-sm:text-lg" onClick={onTitleClick}>
             {title}
-          </>
-        )}
-      </DialogTitle>
+          </DialogTitle>
+        </>
+      ) : (
+        <DialogTitle className="flex items-center gap-2 max-sm:text-base" onClick={onTitleClick}>
+          <div className="flex size-8 items-center justify-center rounded-full bg-emerald-600">
+            <SeedLogo className="size-4 text-white" />
+          </div>
+          {title}
+        </DialogTitle>
+      )}
 
       {localAccountUnlocked ? (
         <>

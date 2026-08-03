@@ -22,13 +22,18 @@ export function normalizeVaultOriginURL(rawUrl: string, fieldName: string): stri
 }
 
 /** Build the Vault Connect URL for remote-vault connection. */
-export function buildVaultConnectionURL(vaultUrl: string, connectToken: string, callbackBase: string): string {
+export function buildVaultConnectionURL(
+  vaultUrl: string,
+  connectToken: string,
+  callbackBase: string,
+  siteName?: string,
+): string {
   const vaultOrigin = normalizeVaultOriginURL(vaultUrl, 'vault URL')
   normalizeVaultOriginURL(callbackBase, 'callback URL')
   const connectionURL = new URL(vaultOrigin)
   connectionURL.pathname = connectionURL.pathname ? `${connectionURL.pathname}/connect` : '/connect'
-  connectionURL.hash = new URLSearchParams({
-    token: connectToken,
-  }).toString()
+  const fragmentParams = new URLSearchParams({token: connectToken})
+  if (siteName) fragmentParams.set('siteName', siteName)
+  connectionURL.hash = fragmentParams.toString()
   return connectionURL.toString()
 }
