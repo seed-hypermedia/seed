@@ -2534,12 +2534,13 @@ export class Service {
     const toolName = parentToolName ?? seedToolRegistry.sub_session.name
     let result: Record<string, unknown>
     if (child.status === 'succeeded') {
-      result = {status: 'succeeded', sessionId: child.sessionId, output: child.output ?? null}
+      result = {status: 'succeeded', runId: child.id, sessionId: child.sessionId, output: child.output ?? null}
     } else if (child.status === 'canceled') {
-      result = {status: 'canceled', sessionId: child.sessionId}
+      result = {status: 'canceled', runId: child.id, sessionId: child.sessionId}
     } else {
       result = {
         status: 'failed',
+        runId: child.id,
         sessionId: child.sessionId,
         error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-session failed'},
       }
@@ -2897,10 +2898,35 @@ export class Service {
       isCanceled: () => this.#workflowCancelFlags.has(run.id),
     })
 
+    if (outcome.type !== 'parked') this.#finalizeWorkflowPlan(run, outcome.type)
     if (outcome.type === 'parked') return {type: 'parked', wait: outcome.wait}
     if (outcome.type === 'succeeded') return {type: 'succeeded', output: outcome.output}
     if (outcome.type === 'canceled') return {type: 'canceled'}
     return {type: 'failed', error: outcome.error}
+  }
+
+  /**
+   * A terminal run must not advertise live work: steps still 'running' when the workflow ends
+   * (a script that returned or died mid-step) coerce to the outcome's truth, and never-started
+   * steps become 'skipped'. Without this the progress card spins forever on a finished run.
+   */
+  #finalizeWorkflowPlan(run: runs.RunRecord, outcomeType: 'succeeded' | 'failed' | 'canceled'): void {
+    const current = runs.getRun(this.#db, run.accountId, run.id)
+    const plan = current?.plan
+    if (!plan || plan.steps.length === 0) return
+    let changed = false
+    const steps = plan.steps.map((step) => {
+      if (step.status === 'running') {
+        changed = true
+        return {...step, status: outcomeType === 'succeeded' ? ('done' as const) : ('failed' as const)}
+      }
+      if (step.status === 'pending') {
+        changed = true
+        return {...step, status: 'skipped' as const}
+      }
+      return step
+    })
+    if (changed) this.#runQueue.updatePlan(run.id, {...plan, steps})
   }
 
   async #stopSession(accountId: string, sessionId: string): Promise<api.StopSessionResponse> {
