@@ -350,7 +350,9 @@ type SubSessionInput = {
   title?: string // sessions list + progress card label
   prompt?: string // inline system prompt for an anonymous worker (exactly one of prompt | agentId; neither = run as yourself)
   agentId?: string // run under another of the account's agents
-  input: unknown // first user message: strings verbatim, objects as fenced JSON
+  input: unknown // the briefing, as markdown: becomes the child's first user message VERBATIM
+  //                 (reviewable as the sub-agent's full context); non-strings degrade to a bare
+  //                 fenced JSON block — spawners are instructed to prefer markdown
   tools?: string[] // narrows the child's tool set; by default it gets the (child) agent's enabled tools
   output?: JsonSchema // typed result contract (see return_result below)
 }

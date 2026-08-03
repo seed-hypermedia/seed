@@ -278,6 +278,16 @@ function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
   return spec
 }
 
+/**
+ * The child's first user message IS the parent's input, verbatim: sub-session transcripts must read
+ * as the exact briefing the parent wrote (spawners are instructed to pass human-readable markdown).
+ * Non-string inputs fall back to a bare fenced JSON block so nothing is ever hidden or reworded.
+ */
+function renderSubSessionInput(input: unknown): string {
+  if (typeof input === 'string') return input
+  return `\`\`\`json\n${JSON.stringify(input, null, 2)}\n\`\`\``
+}
+
 /** Content of a durable assistant message event, for typed-less sub-session results. */
 function assistantMessageText(event: api.SessionEvent): string {
   const payload = event.event as {type?: string; content?: string}
@@ -2481,10 +2491,7 @@ export class Service {
       parentSessionId,
       runId: childRunId,
     })
-    const rendered =
-      typeof spec.input === 'string'
-        ? spec.input
-        : `Here is your task input:\n\n\`\`\`json\n${JSON.stringify(spec.input, null, 2)}\n\`\`\``
+    const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
       accountId,
       childAgentId,
@@ -2684,10 +2691,7 @@ export class Service {
       ...(ancestorSessionId ? {parentSessionId: ancestorSessionId} : {}),
       runId: childRunId,
     })
-    const rendered =
-      typeof spec.input === 'string'
-        ? spec.input
-        : `Here is your task input:\n\n\`\`\`json\n${JSON.stringify(spec.input, null, 2)}\n\`\`\``
+    const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
       accountId,
       childAgentId,

@@ -1107,7 +1107,7 @@ export const seedToolRegistry: SeedToolRegistry = {
       '',
       'The source must be one self-contained module: `export default async function (input, ctx) { ... return result }`. No imports, no Date, no Math.random, no setTimeout, no fetch — the lint rejects them. Everything external goes through ctx:',
       '- `await ctx.call(toolName, input)` — call any of your enabled tools; throws a catchable error with `.code` on failure.',
-      '- `await ctx.agent({title?, prompt?, agentId?, input, tools?, output?})` — run a sub-session and get its result back DIRECTLY (`output` JSON schema → the validated object itself; else `{text}`); throws a coded error on failure/cancellation. Sub-agents default to your tools (pass `tools` only to narrow) and share your persistent memory when they are you.',
+      "- `await ctx.agent({title?, prompt?, agentId?, input, tools?, output?})` — run a sub-session and get its result back DIRECTLY. Write `input` as human-readable markdown: it becomes the sub-agent's first message verbatim and is what the user reviews, so compose the full briefing there (embed data in fenced blocks) rather than passing bare objects (`output` JSON schema → the validated object itself; else `{text}`); throws a coded error on failure/cancellation. Sub-agents default to your tools (pass `tools` only to narrow) and share your persistent memory when they are you.",
       "- `await ctx.parallel([() => ctx.call(...), () => ctx.agent(...)])` — run thunks concurrently, Promise.all semantics; `ctx.parallelSettled` gives standard Promise.allSettled results ({status: 'fulfilled', value} | {status: 'rejected', reason}).",
       '- `await ctx.sleep(ms)` / `ctx.minutes(n)` / `ctx.hours(n)` — durable timer; long sleeps cost nothing while waiting.',
       "- `await ctx.step(label, async () => {...})` — wrap phases so the user sees a live step list; returns the callback's value. `await ctx.plan({steps: [...]})` declares the plan upfront (steps as strings or {id, label, status}); matching ctx.step labels tick the declared steps.",
@@ -1178,7 +1178,7 @@ export const seedToolRegistry: SeedToolRegistry = {
         },
         input: {
           description:
-            "The task payload, rendered as the sub-session's first user message. A string is passed verbatim; an object is passed as fenced JSON.",
+            "The task brief, written as human-readable markdown. It becomes the sub-session's first user message VERBATIM — the user reviews it as the sub-agent's full context, so write it like a real briefing: goal, all needed background, and expectations, with any structured data embedded in fenced blocks. (A non-string value is accepted but renders as a raw JSON block; prefer markdown.)",
         },
         tools: {
           type: 'array',
