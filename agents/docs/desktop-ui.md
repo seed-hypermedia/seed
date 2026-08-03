@@ -205,6 +205,46 @@ Features:
 - signed `StopSession` support from the stop button while streaming, including recovery for stale sessions stuck in
   `streaming` with no active runner.
 
+## Run progress surfaces (workflows, sub-sessions, todo lists)
+
+The session page pins a run/progress card between the message list and the composer, shared with the assistant sidebar
+in a compact variant (`frontend/apps/desktop/src/pages/agents/run-card.tsx` · `SessionRunCard`):
+
+- **Data flow is durable-first**: the latest root run comes from `ListRuns {sessionId}` (`useSessionRuns`), the tree
+  from `ListRuns {rootRunId}` (`useRunTree`), and the signed `runs/<rootRunId>` subscription
+  (`useAgentRunTreeSubscription`) animates it — its subscribe replay re-sends every run snapshot plus all journal
+  entries, so a reload reconstructs the card with no other source.
+- **Active state**: run title, status pill, elapsed time, cancel button (confirm-then-`CancelRun` on the root, cascading
+  to the subtree), optional progress bar from ephemeral `ctx.progress` partials, the step list from the run's
+  `plan_cbor` (pending ○ / running ◐ / done ✓ / failed ✕ / skipped –), a **children strip** (one row per run in the
+  tree: status dot, title, kind; agent children navigate to their session transcript), and rolled-up token usage.
+- **Parked state**: banner form — "Waiting on N sub-sessions — M done" — while the session's own run sits `waiting`; the
+  composer above stays locked (the mirror reports `streaming`).
+- **Terminal state**: a dismissible chip ("✓ … / ✕ Failed: message") that expands to the full card; replaced when a
+  newer root run starts.
+- **Todo mode**: with no runs but `SessionInfo.plan` present (the `update_plan` tool), the card renders just the step
+  list.
+- **Activity drawer** (`RunActivityDrawer`): a collapsed-by-default terminal-style tail of the whole tree's journal —
+  `ctx.log` lines (error/warn toned), step transitions, `tool:`/`agent:` call lines, and failed results with their error
+  message — ordered by `(createdAt, seq)` across runs, last 100 lines visible over a 500-entry buffer. Replay
+  bookkeeping kinds (successful results, timers, now, plan) are filtered out. Shown on active, parked, and expanded
+  terminal cards.
+
+Session lists nest sub-sessions (`frontend/apps/desktop/src/components/session-children.tsx`):
+
+- Parent rows with `childSessionCount` show a lazy "▸ N sub-sessions" disclosure (`SubSessionsDisclosure`) with a
+  rolled-up status dot; expanding fetches `ListSessions {parentSessionId}` (`useChildSessions`) and renders children
+  indented with tree lines. Both surfaces — the assistant sidebar picker and the agent-detail Sessions tab — filter
+  their flat lists to top-level rows client-side (and the sidebar's query passes `includeChildren: false`), so children
+  can never appear twice.
+- Child session pages show a "⤴ parent" breadcrumb, a "driven by its parent" banner while the child's own run is live
+  (looked up via `SessionInfo.runId` → `GetRun` with the `useRun` hook — `ListRuns {sessionId}` deliberately returns
+  only root runs), and a locked composer with explanatory copy until the run is terminal.
+
+New hooks in `frontend/apps/desktop/src/models/agents.ts`: `useChildSessions`, `useRun`, `useSessionRuns`, `useRunTree`,
+`useCancelRun`, `useAgentRunTreeSubscription` — the last two subscriptions share one signed-socket lifecycle
+(`useSignedAgentSocket`) with the session subscription.
+
 ## Shared chat rendering
 
 Agents chat and the desktop assistant panel reuse the same message renderer:
@@ -282,7 +322,6 @@ durable user event arrives, the hook removes matching optimistic events.
 - `write` can use selected HM account keys to create drafts, profiles, documents, comments, capabilities, and contacts.
 - Newly added provider types (OpenRouter/DeepSeek/Groq/xAI/Ollama/custom) still need real-provider manual smoke
   coverage; the UI does not surface which providers are verified end-to-end.
-- No stop/cancel button exists.
 - No provider test button exists.
 - No model presets/capability validation beyond suggested defaults.
 

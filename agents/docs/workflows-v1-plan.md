@@ -804,12 +804,19 @@ In rough priority order, all additive on top of the v1 formats:
 
 ## Implementation divergences (as built, 2026-08-03)
 
-The feature landed on `feat/agent-workflows` in four commits following this plan's phases 1–4. Where the implementation
-deliberately differs from the sections above, the code is the source of truth:
+The feature landed on `feat/agent-workflows` across ten commits (phases 1–4, desktop UX, an adversarial review pass, and
+two live-feedback fix rounds). Where the implementation deliberately differs from the sections above, the code is the
+source of truth:
 
-1. **Journal row seq vs call correlation** (§8.4): `run_journal`'s primary key is `(run_id, seq)`, so a call and its
-   result cannot share a `seq`. Entries carry their own storage `seq` plus a `callSeq` field correlating the entries of
-   one ctx call (`call`/`result`, `timer`/`fired`).
+1. **Journal row seq, call correlation, and content-keyed matching** (§8.4/§8.5): `run_journal`'s primary key is
+   `(run_id, seq)`, so a call and its result cannot share a `seq`. Entries carry their own storage `seq` plus a
+   `callSeq` correlating the entries of one ctx call, and a `key` — the effect's deterministic content key. Replay
+   matches by key with FIFO per-key consumption, **not** by order: continuation ordering after `ctx.parallel` follows
+   real completion timing, so the plan's order-based matching failed genuinely deterministic workflows on resume
+   (empirically reproduced during adversarial review). Consequences: `nondeterministic-replay` does not exist as a
+   failure mode — a journal miss executes live (the source is pinned per run via `source_cid`/`source_text`, so edited
+   code cannot cause it) and unconsumed groups log a warning; and identical-key effects (two bare `ctx.now()` calls in
+   parallel branches) may swap recorded values across a resume — never re-executing, but not byte-pinned per branch.
 2. **Workflows do not park on children** (§8.2/§6): a workflow awaiting `ctx.agent` children holds its VM resident and
    awaits their terminal status in-process; only long timers (`ctx.sleep` ≥ 60s) park. To make resident-await safe,
    workflow runs execute in their own concurrency pool (32) separate from the 8 agent-run provider slots, so an awaiting
@@ -834,4 +841,20 @@ deliberately differs from the sections above, the code is the source of truth:
 9. **Tier-3 harness status** (§15.3): `agents/e2e/run.ts` implements the chat-smoke, sub-basic, sub-typed,
    sub-restraint, wf-hello, and todo-adoption scenarios. It verified end-to-end against the live OpenAI endpoint, but
    the pass/fail gates could not be run to green because the OpenAI account has no API credits; the remaining battery
-   scenarios (wf-battery, wf-crash-live, card-reconstruction, release sweep) are still to be written.
+   scenarios (wf-battery, wf-crash-live, card-reconstruction, release sweep) are still to be written. In lieu, **blind
+   simulated-model gates** ran (a fresh LLM given only the registry descriptions; see `operations.md`): delegation
+   choice matched design intent across parallel-fan-out/detached/trivial scenarios, and an authored ~100-line workflow
+   lint-passed and executed correctly first try in the real engine; the simulators' uncertainty lists drove the
+   contract-tight ctx documentation and bare-string `ctx.plan` support.
+10. **Delegation is always available** (§7.1/§8.1): `sub_session` and `run_workflow` are not Tools-tab toggles — they
+    are always-on in run-backed sessions like `start_session` (`userConfigurable: false`). Live testing showed why:
+    agents saved before this branch have explicit `tools` arrays without them, and real models fell back to
+    fire-and-forget `start_session` for delegation, which never resumes the parent.
+11. **`start_session` joins the run tree** (§7.2): its children stay detached from the caller's _turn_ (no park, no
+    result) but are children in the caller's run _tree_ — visible in the progress card, cancel-cascaded, usage rolled up
+    — and its description routes delegation-with-results to `sub_session`.
+12. **`ListSessions` children are included by default** (§10): the plan's exclude-by-default hid agent-started sessions
+    from older deployed clients that cannot send the field. Exclusion now requires explicit `includeChildren: false`;
+    the current desktop sends it and additionally filters client-side.
+13. **The activity drawer shipped** (§11.1 mentioned a log drawer; the E-list cut it): the run card gained a collapsed
+    journal tail (log/step/call lines + failed results) across active, parked, and expanded-terminal states.

@@ -201,10 +201,14 @@ Deleting a trigger detaches its runs (`trigger_firing_id` nulled) before deletin
 
 ### `run_journal`
 
-Append-only journal for workflow runs — the execution spine that makes replay-from-top resume deterministic. Rows are
-`(run_id, seq, entry_cbor, created_at)` with `seq` monotonic per run; each entry carries a `callSeq` correlating the
-entries of one `ctx` call (`call`/`result`, `timer`/`fired`) because the `(run_id, seq)` primary key cannot repeat.
-Entry kinds: `call`, `result`, `timer`, `fired`, `now`, `log`, `step`, `plan` (see `WorkflowJournalEntry` in
+Append-only journal for workflow runs — the execution spine that makes replay-from-top resume safe. Rows are
+`(run_id, seq, entry_cbor, created_at)` with `seq` monotonic per run. Each entry carries a `callSeq` correlating the
+entries of one `ctx` call (`call`/`result`, `timer`/`fired` — the `(run_id, seq)` primary key cannot repeat) and a
+`key`: the effect's **deterministic content key** (`tool|name|inputJSON`, `agent|specJSON`, `sleep|ms`, …). Replay
+matches by key with FIFO per-key group consumption, not by arrival order — continuation ordering after `ctx.parallel`
+depends on real completion timing, so order-based matching misfiles results on resume. A live effect with no journaled
+group executes fresh (the run's source is pinned via `source_cid`/`source_text`); groups left unconsumed at success log
+a warning. Entry kinds: `call`, `result`, `timer`, `fired`, `now`, `log`, `step`, `plan` (see `WorkflowJournalEntry` in
 `agents/src/workflow-host.ts`). Caps: 5,000 entries or 8 MiB per run, after which the run fails `journal-cap`. Entries
 are streamed to `runs/<rootRunId>` subscribers as `append` events and replayed on subscribe.
 

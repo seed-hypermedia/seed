@@ -32,11 +32,16 @@ The following are complete enough for local use and should be treated as baselin
 - durable run records + dispatch queue under every execution (leases, boot-sweep crash recovery, derived session status,
   persisted usage);
 - `sub_session` awaited delegation with park/resume, typed `return_result` validation, and durable session lineage;
-- QuickJS workflow engine (`run_workflow`): journaled deterministic replay, lint, fuel/memory/journal caps, ctx
+- QuickJS workflow engine (`run_workflow`): content-keyed journal replay, lint, fuel/memory/journal caps, ctx
   tool/agent/parallel/sleep/step surface;
 - `update_plan` live todo snapshots; run actions (GetRun/ListRuns/CancelRun/GetRunJournal) and `runs/<rootRunId>`
   subscriptions;
-- Tier-3 live-model validation harness (`agents/e2e/run.ts`).
+- Tier-3 live-model validation harness (`agents/e2e/run.ts`) plus the blind simulated-model gate methodology
+  (`operations.md`);
+- desktop progress surfaces: pinned run card (active/parked/terminal/todo), Activity drawer, session nesting with lazy
+  disclosures, child-page breadcrumb/banner/composer lock;
+- always-available delegation (`sub_session`/`run_workflow` alongside `start_session`), with `start_session` children in
+  the caller's run tree.
 
 ## Highest priority next steps
 
@@ -47,9 +52,14 @@ and validation.
 
 Work:
 
-- pinned run/progress card on the session page (in progress on the desktop);
-- run the Tier-3 live-model gates (`bun e2e/run.ts all`) — currently blocked on the OpenAI account having no API credits
-  — and iterate tool descriptions until the thresholds in workflows-v1-plan.md §15.3 hold;
+- run the Tier-3 live-model gates (`bun e2e/run.ts all`) once the OpenAI account has credits — the simulated-model gates
+  passed (delegation choice; first-try workflow authoring) but real-provider tool-call formatting still needs the live
+  battery, including the unwritten wf-battery/wf-crash-live/card-reconstruction scenarios;
+- idempotency keys for workflow `ctx.call`: an interrupted call (journaled, no result) currently re-executes on resume —
+  fine for idempotent tools, but a `write` mid-crash could double-publish;
+- decide on identical-key journal values: two same-key effects (e.g. bare `ctx.now()` in parallel branches) may swap
+  recorded values across a resume — harmless today, worth either pinning or documenting as contract;
+- measure the prompt cost of always-on delegation tools (~700 tokens/session) against real transcripts;
 - v2 seeds in priority order: `ctx.waitForEvent`/`SignalRun` (human-approval steps), `ctx.continueAsNew`,
   trigger→workflow targets, per-model cost tables + dollar budgets, named/published workflows.
 

@@ -342,6 +342,24 @@ The API key comes from `OPENAI_API_KEY` or the repo-root `.keys` file (never com
 durable state (runs, journals, session events) and dumps full transcripts to `agents/e2e-artifacts/<timestamp>/` for
 prompt autopsies. Scenarios: `chat-smoke`, `sub-basic`, `sub-typed`, `sub-restraint`, `wf-hello`, `todo-adoption`.
 
+Status: the harness is verified end-to-end against the live OpenAI endpoint, but the pass/fail gates are **blocked on
+the OpenAI account having no API credits** (the 429 exercised the queue's failure classification correctly).
+
+### Simulated-model gates (no API key required)
+
+Until live gates can run — and as a repeatable practice for iterating tool prompts — validation uses **blind
+simulated-model agents**: a fresh LLM session (a Claude Code subagent) is given ONLY what the runtime model sees (the
+system prompt plus the registry `description`/`inputSchema` of the tools under test, read from
+`agents/protocol/src/tool-registry.ts`) and asked to produce its exact assistant turns for scripted scenarios. Its tool
+calls are then validated mechanically: delegation choices checked against intent, declared output schemas run through
+`validateJsonSchemaShape`, and authored workflow source run through `lintWorkflowSource` and executed in the real engine
+(`runWorkflowVM`) against scripted adapters. The 2026-08-03 pass validated delegation choice (parallel `sub_session`
+fan-out with typed schemas, `start_session` only for detached work, no tools for trivial input) and workflow authoring
+(a ~100-line module that lint-passed and ran correctly, unmodified, first try); the simulators' lists of guessed-at
+contracts drove the ctx-contract tightening in the tool descriptions and the bare-string `ctx.plan` fix. The key
+property making this honest: the simulator must be **blind** — no access to implementation, docs, or tests, only the
+model-facing prompt surface.
+
 ## Startup behavior
 
 On startup:

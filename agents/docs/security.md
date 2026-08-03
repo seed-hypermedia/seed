@@ -227,8 +227,11 @@ Workflow JavaScript is untrusted, possibly model-authored input. Its posture is 
 - **Kill switch**: `CancelRun` on any root cascades to every descendant — queued runs never start, waiting runs never
   wake, live agent runs abort through Pi, live workflow VMs are interrupted. `StopSession` on the launching chat does
   the same for its whole tree.
-- **Accepted gap**: there are no cost (dollar/token) budgets yet — wall-time, depth, fan-out, and concurrency caps are
-  the blast-radius controls until per-model cost tables land. Live usage is persisted per run and visible to clients.
+- **Accepted gaps**: there are no cost (dollar/token) budgets yet — wall-time, depth, fan-out, and concurrency caps are
+  the blast-radius controls until per-model cost tables land (live usage is persisted per run and visible to clients).
+  And a workflow `ctx.call` interrupted between execution and its journaled result **re-executes on resume**
+  (at-least-once): fine for idempotent tools, but a `write` crashed at exactly that point could double-publish —
+  idempotency keys are the roadmap fix.
 
 ## Replay protection status
 

@@ -7,7 +7,7 @@ future agents can reconstruct why the system looks the way it does.
 
 ### Durable runs, sub-sessions, and the workflow engine (2026-08-03)
 
-Landed as four commits on `feat/agent-workflows` implementing `agents/docs/workflows-v1-plan.md`:
+Landed as ten commits on `feat/agent-workflows` implementing `agents/docs/workflows-v1-plan.md`. The first four:
 
 - `feat(agents): durable runs table + dispatch queue under every agent execution` — every execution is a `runs` row; the
   table is the dispatch queue (leases, interactive/background, one-live-run-per-session, boot sweep + interrupted
@@ -25,9 +25,35 @@ Landed as four commits on `feat/agent-workflows` implementing `agents/docs/workf
   `sessions.plan_cbor`, plus `agents/e2e/run.ts`, the manual real-model gate (default `gpt-5-mini`) asserting on durable
   state with transcript artifacts.
 
-Validation: `bun check` clean; 172 `bun test` tests including park/resume fan-out, typed-validation retry,
-restart-while-parked, crash-recovery, queue semantics, and 18 workflow-engine determinism/fault-injection tests. The
-live-model gate ran against the real OpenAI endpoint but is blocked on account credits.
+The same day continued through six more commits:
+
+- `docs(agents)` routing-table pass, plus desktop UX (`feat(desktop)` ×2): the pinned `SessionRunCard`
+  (active/parked/terminal-chip/todo states, durable-first from `ListRuns` + the `runs/<rootRunId>` subscription replay),
+  the collapsed Activity drawer tailing the run tree's journal, session nesting with lazy disclosures in both list
+  surfaces, and child-page breadcrumb/banner/composer-lock.
+- `fix(agents): six confirmed findings from the adversarial review pass` — a 13-agent review workflow (4 dimensions +
+  adversarial verification) over the branch diff confirmed: an interactive-claim TOCTOU that could double-execute a
+  session (same-session exclusion added to the inline claim; refused claims withdraw + 409); journal matching by arrival
+  order diverging on `ctx.parallel` continuation reordering (empirically reproduced by the verifier; replaced with
+  content-keyed matching — `nondeterministic-replay` no longer exists as a failure mode); `DeleteAgent` FK-crashing on
+  run rows (any agent that ever executed was undeletable); crash-window stranding of parked parents (boot reconcile
+  pass + unconditional wait resolution); `DeleteSession` stranding parked parents (live trees canceled before detach);
+  and a `ListSessions` default that hid agent-started sessions from older clients (default flipped to inclusive;
+  exclusion needs explicit `includeChildren: false`).
+- `fix(agents,desktop): delegation works out of the box; sessions never list twice` — root cause of the first live
+  report: existing agents' saved tool arrays predate `sub_session`/`run_workflow`, so real models fell back to
+  fire-and-forget `start_session` (children invisible to the card, no resume). Both delegation tools became
+  always-available like `start_session`; `start_session` children joined the caller's run tree while keeping detached
+  turn semantics; both session-list surfaces filter to top-level rows client-side. Verified by three full-stack repros
+  driving `bun src/main.ts` over signed HTTP with a scripted local provider.
+- `feat(agents): simulated-model validation pass` — with the OpenAI key exhausted, blind Claude-subagent simulated-model
+  gates (see `operations.md`) validated delegation choice and workflow authoring; their guessed-at-contract lists drove
+  bare-string `ctx.plan` steps and the contract-tight ctx documentation in the tool descriptions.
+
+Validation at head: `bun check` clean; 174 `bun test` tests (park/resume fan-out, typed-validation retry,
+restart-while-parked, crash recovery, queue semantics, 19 workflow-engine determinism/fault-injection tests including
+the continuation-reordering replay regression); desktop 567 vitest tests. The Tier-3 live-model gate ran against the
+real OpenAI endpoint but remains blocked on account credits.
 
 ### Sandboxed code execution (`execute_code`)
 
