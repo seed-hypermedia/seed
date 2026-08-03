@@ -45,7 +45,10 @@ function runStatusAsSessionStatus(status: RunStatus): 'idle' | 'streaming' | 'er
 
 /** A run's own title, or what it is when it never got one. */
 function runTitle(run: RunInfo): string {
-  return run.title || (run.kind === 'workflow' ? 'Workflow' : 'Sub-session')
+  if (run.title) return run.title
+  if (run.kind === 'workflow') return 'Workflow'
+  // Only child runs are sub-sessions; an untitled root is just this session's own turn.
+  return run.parentRunId ? 'Sub-session' : 'Agent turn'
 }
 
 /**
@@ -142,7 +145,14 @@ export function SessionRunCard({
   const root = seedRoot ? runsById[seedRoot.id] ?? seedRoot : undefined
   const children = useMemo(() => (root ? descendantsOf(runsById, root.id) : []), [runsById, root?.id])
 
-  if (root && !isTerminalRun(root.status)) {
+  // A plain turn — one model streaming, maybe a few tool calls — is not an orchestration: it
+  // renders in the scroll log like it always has. The pinned panel earns its place only when
+  // there is a process to supervise: a workflow, spawned children, a parked wait, or a plan.
+  const isOrchestration =
+    !!root &&
+    (root.kind === 'workflow' || children.length > 0 || root.status === 'waiting' || (root.plan?.steps.length ?? 0) > 0)
+
+  if (root && isOrchestration && !isTerminalRun(root.status)) {
     return (
       <RunCardShell compact={compact} column>
         <RunCardBody

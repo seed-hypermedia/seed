@@ -123,9 +123,24 @@ describe('SessionRunCard (pinned)', () => {
     expect(container.textContent).toBe('')
   })
 
+  it('does not pin a panel for a plain live chat turn — tools stream in the scroll log', () => {
+    mockState.runs = [makeRun({id: 'root-1', status: 'running'})]
+    mockState.tree = [mockState.runs[0]!]
+    render(<SessionRunCard {...baseProps} />)
+    expect(container.textContent).toBe('')
+  })
+
+  it('appears the moment a live turn spawns its first child', () => {
+    mockState.runs = [makeRun({id: 'root-1', status: 'running'})]
+    mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'running', title: 'Worker'})]
+    render(<SessionRunCard {...baseProps} />)
+    expect(container.textContent).toContain('Worker')
+  })
+
   it('asks for confirmation before canceling the whole run', () => {
     mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Long job'})]
-    mockState.tree = [mockState.runs[0]!]
+    // The pinned panel exists only for orchestrations, so the cancelable run has a child.
+    mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'running', title: 'Worker'})]
     render(<SessionRunCard {...baseProps} />)
 
     click(buttonWithText('Cancel'))
