@@ -1,8 +1,8 @@
 import {useLocalKeyPair} from '@/auth'
 import {createSpaceHomeDraft} from '@/document-edit/web-create-space-draft'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
-import {webUniversalClient} from '@/universal-client'
 import {useNavigate} from '@remix-run/react'
+import {useUniversalClient} from '@shm/shared'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Dialog, DialogSideContent, DialogTitle} from '@shm/ui/components/dialog'
 import {CreateSpaceForm, type CreateSpaceFormState} from '@shm/ui/create-space-form'
@@ -15,13 +15,14 @@ import {useCallback, useMemo, useState} from 'react'
 
 /** Whether the account already has a published home document. */
 export function useHasExistingSpace(accountUid: string | null | undefined) {
+  const client = useUniversalClient()
   return useQuery({
     queryKey: ['create-space-existing-home', accountUid],
     enabled: !!accountUid,
     queryFn: async () => {
       if (!accountUid) return false
       try {
-        const res = (await webUniversalClient.request('Resource', hmId(accountUid, {path: []}))) as {type?: string}
+        const res = (await client.request('Resource', hmId(accountUid, {path: []}))) as {type?: string}
         return res?.type === 'document'
       } catch {
         return false
@@ -54,9 +55,10 @@ export function useCreateSpaceDialog() {
 function CreateSpaceFlow({onClose}: {onClose: () => void}) {
   const navigate = useNavigate()
   const userKeyPair = useLocalKeyPair()
+  const client = useUniversalClient()
   const accountUid = userKeyPair?.delegatedAccountUid ?? userKeyPair?.id ?? null
   const [busy, setBusy] = useState(false)
-  const fileUpload = useMemo(() => makeWebFileUpload(webUniversalClient), [])
+  const fileUpload = useMemo(() => makeWebFileUpload(client), [client])
 
   async function handleComplete(state: CreateSpaceFormState) {
     setBusy(true)
