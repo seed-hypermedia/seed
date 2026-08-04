@@ -4874,3 +4874,110 @@ describe('normalizeSubSessionSpec', () => {
     expect(() => apisvc.normalizeSubSessionSpec({title: 'Nothing'})).toThrow(/task brief/)
   })
 })
+
+describe('session plan settling', () => {
+  test('a step left running settles to done when its turn succeeds', async () => {
+    // Live gap: the model marked "Summarize findings" running, did the work, and ended the turn
+    // without the final update_plan — the checklist showed unfinished work forever.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-api-key', value: new TextEncoder().encode('test-key')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-api-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      let openAICallCount = 0
+      globalThis.fetch = mock(async () => {
+        openAICallCount += 1
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {
+              id: 'chat-plan',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'plan-call-1',
+                        type: 'function',
+                        function: {
+                          name: 'update_plan',
+                          arguments: JSON.stringify({
+                            title: 'Review knowledge base',
+                            steps: [
+                              {id: 's1', label: 'Review memory files', status: 'done'},
+                              {id: 's2', label: 'Summarize findings', status: 'running'},
+                            ],
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-plan', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: 'chat-final', choices: [{delta: {content: 'Here is the summary.'}}]},
+          {id: 'chat-final', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Review the knowledge base'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+      await svc.awaitQueueIdle()
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(openAICallCount).toBe(2)
+      expect(session.session.plan?.steps.map((step) => `${step.label}:${step.status}`)).toEqual([
+        'Review memory files:done',
+        'Summarize findings:done',
+      ])
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+})
