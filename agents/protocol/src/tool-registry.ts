@@ -1174,7 +1174,7 @@ export const seedToolRegistry: SeedToolRegistry = {
         prompt: {
           type: 'string',
           description:
-            'System prompt for an anonymous worker using your model and provider. Provide exactly one of prompt or agentId; omitting both runs the sub-session as yourself (your own system prompt).',
+            'System prompt for an anonymous worker using your model and provider. Provide exactly one of prompt or agentId; omitting both runs the sub-session as yourself (your own system prompt). This is NOT the task brief — that goes in input (a prompt passed without input is treated as the task brief).',
         },
         agentId: {
           type: 'string',
@@ -1182,7 +1182,7 @@ export const seedToolRegistry: SeedToolRegistry = {
         },
         input: {
           description:
-            "The task brief, written as human-readable markdown. It becomes the sub-session's first user message VERBATIM — the user reviews it as the sub-agent's full context, so write it like a real briefing: goal, all needed background, and expectations, with any structured data embedded in fenced blocks. (A non-string value is accepted but renders as a raw JSON block; prefer markdown.)",
+            "REQUIRED. The task brief, written as human-readable markdown. It becomes the sub-session's first user message VERBATIM — the user reviews it as the sub-agent's full context, so write it like a real briefing: goal, all needed background, and expectations, with any structured data embedded in fenced blocks. (A non-string value is accepted but renders as a raw JSON block; prefer markdown.)",
         },
         tools: {
           type: 'array',
@@ -1195,7 +1195,9 @@ export const seedToolRegistry: SeedToolRegistry = {
             'JSON schema for the required result — the root MUST be type "object" (wrap arrays in a named property). The sub-session must deliver a matching payload via its return_result tool; validation errors bounce back to it for self-correction.',
         },
       },
-      required: ['input'],
+      // `input` is semantically required, but enforced in the executor so a model that writes the
+      // brief into `prompt` (the natural mistake) is understood instead of bounced for a retry.
+      required: [],
     },
     outputSchema: {
       type: 'object',

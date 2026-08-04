@@ -5104,3 +5104,23 @@ function createTestState(): {db: Database; dataDir: string; cleanup: () => void}
     cleanup: () => fs.rmSync(dataDir, {recursive: true, force: true}),
   }
 }
+
+describe('normalizeSubSessionSpec', () => {
+  test('reads a lone prompt as the task brief instead of bouncing the call', () => {
+    // Live gpt-5-mini wrote the briefing into `prompt` and omitted `input`; a bare system prompt
+    // with no input is meaningless, so the natural reading is the right one.
+    const spec = apisvc.normalizeSubSessionSpec({title: 'Research', prompt: 'Go research supplements.'})
+    expect(spec.input).toBe('Go research supplements.')
+    expect(spec.prompt).toBeUndefined()
+  })
+
+  test('keeps prompt as a system prompt when input is present', () => {
+    const spec = apisvc.normalizeSubSessionSpec({prompt: 'You are a researcher.', input: 'Find sources.'})
+    expect(spec.prompt).toBe('You are a researcher.')
+    expect(spec.input).toBe('Find sources.')
+  })
+
+  test('still requires some form of brief', () => {
+    expect(() => apisvc.normalizeSubSessionSpec({title: 'Nothing'})).toThrow(/task brief/)
+  })
+})

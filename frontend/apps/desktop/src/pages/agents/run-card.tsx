@@ -262,20 +262,28 @@ function RunCardBody({
     if (isTerminal) setConfirmingCancel(false)
   }, [isTerminal])
 
-  // The children strip says everything a step row would, and says it better: clickable, cancelable,
-  // live. Where a step is just the name of a child, only the child row survives.
-  const childTitles = useMemo(() => {
-    const titles = new Set<string>()
+  // A step and the sub-agent working it are one item, not two. A child attaches to a step when the
+  // spawner recorded the step label (`stepLabel`, stamped by ctx.step / the running update_plan
+  // step), or — legacy runs — when its title happens to equal a step label. Attached children render
+  // in the step's position, replacing the step row: the child row is clickable, cancelable, and
+  // live, which is everything the step row would have said and more.
+  const {childrenByStep, unattachedChildren} = useMemo(() => {
+    const byStep = new Map<string, RunInfo[]>()
+    if (!plan?.steps.length) return {childrenByStep: byStep, unattachedChildren: childRuns}
+    const stepLabels = new Set(plan.steps.map((step) => step.label.trim().toLowerCase()))
+    const loose: RunInfo[] = []
     for (const child of childRuns) {
-      const title = (child.title || '').trim().toLowerCase()
-      if (title) titles.add(title)
+      const stamped = (child.stepLabel || '').trim().toLowerCase()
+      const titled = (child.title || '').trim().toLowerCase()
+      const label = stamped && stepLabels.has(stamped) ? stamped : titled && stepLabels.has(titled) ? titled : undefined
+      if (!label) {
+        loose.push(child)
+        continue
+      }
+      byStep.set(label, [...(byStep.get(label) ?? []), child])
     }
-    return titles
-  }, [childRuns])
-  const visibleSteps = useMemo(
-    () => (plan ? plan.steps.filter((step) => !childTitles.has(step.label.trim().toLowerCase())) : []),
-    [plan, childTitles],
-  )
+    return {childrenByStep: byStep, unattachedChildren: loose}
+  }, [plan, childRuns])
 
   return (
     <>
@@ -330,17 +338,43 @@ function RunCardBody({
         </div>
       ) : null}
 
-      {plan && visibleSteps.length ? (
-        <RunPlanSteps
-          plan={{...plan, steps: visibleSteps}}
-          compact={compact}
-          settle={isTerminal ? 'run-finished' : 'live'}
-        />
+      {plan?.steps.length ? (
+        <div className="flex min-w-0 flex-col gap-0.5">
+          {plan.title ? (
+            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
+          ) : null}
+          {plan.steps.map((step) => {
+            const attached = childrenByStep.get(step.label.trim().toLowerCase())
+            if (attached?.length) {
+              return attached.map((child) => (
+                <RunChildRow
+                  key={child.id}
+                  run={child}
+                  ownerTerminal={isTerminal}
+                  activityDetail={liveState.activity[child.id]?.detail}
+                  onOpen={
+                    child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined
+                  }
+                  onCancel={() => onCancelRun(child.id)}
+                  cancelPending={cancelPending}
+                />
+              ))
+            }
+            return (
+              <PlanStepRow
+                key={step.id}
+                step={step}
+                compact={compact}
+                settle={isTerminal ? 'run-finished' : 'live'}
+              />
+            )
+          })}
+        </div>
       ) : null}
 
-      {childRuns.length ? (
+      {unattachedChildren.length ? (
         <div className="flex flex-col">
-          {childRuns.map((child) => (
+          {unattachedChildren.map((child) => (
             <RunChildRow
               key={child.id}
               run={child}
@@ -356,6 +390,8 @@ function RunCardBody({
         </div>
       ) : null}
 
+      <RunSourceDrawer runs={[run, ...childRuns]} />
+
       <RunActivityDrawer journal={liveState.journal} />
 
       {!compact && usageTotal > 0 ? (
@@ -370,8 +406,8 @@ function RunCardBody({
 /** How many journal lines the drawer keeps on screen; older ones scroll out of existence. */
 const MAX_ACTIVITY_LINES = 100
 
-/** One rendered journal line: what happened, and how loudly to say it. */
-type ActivityLine = {key: string; text: string; tone?: 'error' | 'warn'}
+/** One rendered journal line: what happened, how loudly to say it, and the full entry behind it. */
+type ActivityLine = {key: string; text: string; tone?: 'error' | 'warn'; entry: RunJournalEntryInfo}
 
 /**
  * Renders the journal entries a workflow writes as it runs. Kinds not listed here (`timer`, `fired`,
@@ -397,6 +433,7 @@ function journalEntryLine(entry: RunJournalEntryInfo): ActivityLine | null {
       key,
       text: `${payload.level || 'info'} · ${payload.message ?? ''}`,
       tone: payload.level === 'error' ? 'error' : payload.level === 'warn' ? 'warn' : undefined,
+      entry,
     }
   }
   if (payload.kind === 'step') {
@@ -405,11 +442,12 @@ function journalEntryLine(entry: RunJournalEntryInfo): ActivityLine | null {
       key,
       text: `step: ${payload.label ?? payload.phase ?? ''} (${phase})`,
       tone: phase === 'failed' ? 'error' : undefined,
+      entry,
     }
   }
   if (payload.kind === 'call') {
-    if (payload.op === 'agent') return {key, text: 'agent: sub-session'}
-    return {key, text: `tool: ${payload.tool ?? 'unknown'}`}
+    if (payload.op === 'agent') return {key, text: 'agent: sub-session', entry}
+    return {key, text: `tool: ${payload.tool ?? 'unknown'}`, entry}
   }
   // Successful results are replay bookkeeping, but a failed result is the one place the error
   // message lives — surface it where someone reading the log is looking for it.
@@ -418,6 +456,7 @@ function journalEntryLine(entry: RunJournalEntryInfo): ActivityLine | null {
       key,
       text: `failed: ${payload.error?.message ?? payload.error?.code ?? 'action failed'}`,
       tone: 'error',
+      entry,
     }
   }
   return null
@@ -468,22 +507,78 @@ function RunActivityDrawer({journal}: {journal: RunJournalEntryInfo[]}) {
           className="bg-muted/40 mt-1 max-h-40 overflow-y-auto rounded p-1.5 font-mono text-[10px] leading-4"
         >
           {lines.map((line) => (
-            <div
-              key={line.key}
-              className={`truncate ${
-                line.tone === 'error'
-                  ? 'text-destructive'
-                  : line.tone === 'warn'
-                    ? 'text-amber-700 dark:text-amber-300'
-                    : ''
-              }`}
-              title={line.text}
-            >
-              {line.text}
-            </div>
+            <ActivityLineRow key={line.key} line={line} />
           ))}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * One journal line; clicking it unfolds the entry's full payload. What the log line compresses —
+ * call inputs, result values, error details — is one click away instead of gone.
+ */
+function ActivityLineRow({line}: {line: ActivityLine}) {
+  const [open, setOpen] = useState(false)
+  const toneClass =
+    line.tone === 'error' ? 'text-destructive' : line.tone === 'warn' ? 'text-amber-700 dark:text-amber-300' : ''
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        title={open ? 'Hide full entry' : 'Show full entry'}
+        className={`hover:bg-muted block w-full truncate rounded px-0.5 text-left ${toneClass}`}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {line.text}
+      </button>
+      {open ? (
+        <pre className="bg-background/80 my-0.5 max-h-40 overflow-auto rounded border p-1.5 whitespace-pre-wrap">
+          {JSON.stringify(line.entry.entry, null, 2)}
+        </pre>
+      ) : null}
+    </div>
+  )
+}
+
+/**
+ * The code a workflow actually runs, verbatim.
+ *
+ * Agents write these modules; reviewing the run means reading them. Collapsed by default beside the
+ * Activity drawer; one section per workflow run in the tree (there is usually exactly one).
+ */
+function RunSourceDrawer({runs}: {runs: RunInfo[]}) {
+  const [open, setOpen] = useState(false)
+  const sources = runs.filter((run) => run.kind === 'workflow' && run.sourceText)
+  if (!sources.length) return null
+  return (
+    <div className="border-border flex flex-col border-t pt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start text-[11px]"
+        onClick={() => setOpen((current) => !current)}
+      >
+        {open ? <ChevronDown className="size-3 flex-none" /> : <ChevronRight className="size-3 flex-none" />}
+        Code
+      </button>
+      {open
+        ? sources.map((run) => (
+            <div key={run.id} className="mt-1 flex flex-col gap-0.5">
+              {sources.length > 1 ? (
+                <span className="text-muted-foreground text-[10px]">{runTitle(run)}</span>
+              ) : null}
+              <pre
+                aria-label={`Workflow source: ${runTitle(run)}`}
+                className="bg-muted/40 max-h-64 overflow-auto rounded p-1.5 font-mono text-[10px] leading-4 whitespace-pre"
+              >
+                {run.sourceText}
+              </pre>
+            </div>
+          ))
+        : null}
     </div>
   )
 }
@@ -559,6 +654,26 @@ function displayStepStatus(status: StepStatus, settle: PlanSettle): StepStatus {
   return status
 }
 
+/** One plan step row: status icon and label. */
+function PlanStepRow({
+  step,
+  compact,
+  settle = 'live',
+}: {
+  step: RunPlan['steps'][number]
+  compact?: boolean
+  settle?: PlanSettle
+}) {
+  const status = displayStepStatus(step.status, settle)
+  const Icon = STEP_ICONS[status]
+  return (
+    <div className={`flex min-w-0 items-center gap-1.5 ${compact ? 'text-[11px]' : 'text-xs'}`}>
+      <Icon className={`size-3 flex-none ${STEP_CLASSES[status]} ${status === 'running' ? 'animate-spin' : ''}`} />
+      <span className={`min-w-0 truncate ${STEP_CLASSES[status]}`}>{step.label}</span>
+    </div>
+  )
+}
+
 /** The step list, fed by a run's plan or by the session's `update_plan` todo list. */
 function RunPlanSteps({plan, compact, settle = 'live'}: {plan: RunPlan; compact?: boolean; settle?: PlanSettle}) {
   return (
@@ -566,18 +681,9 @@ function RunPlanSteps({plan, compact, settle = 'live'}: {plan: RunPlan; compact?
       {plan.title ? (
         <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
       ) : null}
-      {plan.steps.map((step) => {
-        const status = displayStepStatus(step.status, settle)
-        const Icon = STEP_ICONS[status]
-        return (
-          <div key={step.id} className={`flex min-w-0 items-center gap-1.5 ${compact ? 'text-[11px]' : 'text-xs'}`}>
-            <Icon
-              className={`size-3 flex-none ${STEP_CLASSES[status]} ${status === 'running' ? 'animate-spin' : ''}`}
-            />
-            <span className={`min-w-0 truncate ${STEP_CLASSES[status]}`}>{step.label}</span>
-          </div>
-        )
-      })}
+      {plan.steps.map((step) => (
+        <PlanStepRow key={step.id} step={step} compact={compact} settle={settle} />
+      ))}
     </div>
   )
 }
