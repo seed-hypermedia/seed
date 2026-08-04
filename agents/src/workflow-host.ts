@@ -62,7 +62,7 @@ export type WorkflowAdapters = {
   effects: {
     callTool(tool: string, input: unknown): Promise<unknown>
     /** Creates the child run (queued) and returns its id; the pump awaits it separately. */
-    spawnAgent(spec: unknown): {childRunId: string; sessionId?: string}
+    spawnAgent(spec: unknown, stepLabel?: string): {childRunId: string; sessionId?: string}
     awaitChild(childRunId: string): Promise<WorkflowChildResolution>
     updatePlan(plan: RunPlanState): void
     progress(patch: {fraction?: number; label?: string}): void
@@ -162,12 +162,20 @@ function __deliver(id, ok, valueJson) {
 }
 function __makeCtx(input, runId) {
   var stepCount = 0;
+  // Labels of ctx.step blocks currently executing, innermost last. Spawns inherit the innermost
+  // one so the progress card can show a step and the sub-agent working it as one item.
+  var openSteps = [];
+  function closeStep(label) {
+    var index = openSteps.lastIndexOf(label);
+    if (index >= 0) openSteps.splice(index, 1);
+  }
   return Object.freeze({
     input: input,
     runId: runId,
     call: function (tool, input2, opts) { return __call('tool', {tool: tool, input: input2, opts: opts}); },
     agent: function (spec) {
-      return __call('agent', {spec: spec}).then(function (res) {
+      var step = openSteps.length ? openSteps[openSteps.length - 1] : undefined;
+      return __call('agent', {spec: spec, step: step}).then(function (res) {
         if (res && res.status === 'succeeded') return res.output;
         throw new ActionError({
           code: res && res.status === 'canceled' ? 'canceled' : (res && res.error && res.error.code) || 'agent-failed',
@@ -185,11 +193,14 @@ function __makeCtx(input, runId) {
     step: function (label, fn) {
       var id = 'step-' + (++stepCount);
       return __call('step', {stepId: id, label: label, phase: 'start'}).then(function () {
+        openSteps.push(label);
         return Promise.resolve()
           .then(fn)
           .then(function (value) {
+            closeStep(label);
             return __call('step', {stepId: id, label: label, phase: 'end', ok: true}).then(function () { return value; });
           }, function (error) {
+            closeStep(label);
             return __call('step', {stepId: id, label: label, phase: 'end', ok: false}).then(function () { throw error; });
           });
       });
@@ -426,7 +437,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           startChildWait(effect.callId, callSeq, journaledCall.childRunId)
           return
         }
-        const spawned = adapters.effects.spawnAgent(args.spec)
+        const spawned = adapters.effects.spawnAgent(args.spec, typeof args.step === 'string' ? args.step : undefined)
         adapters.journal.append({
           kind: 'call',
           callSeq,

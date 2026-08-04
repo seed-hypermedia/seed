@@ -246,9 +246,17 @@ const WORKFLOW_CALLABLE_TOOLS = new Set(
 )
 
 /** Validates sub_session/ctx.agent input into the stored spec shape (shared by chat and workflows). */
-function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
+export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
   const input = isPlainRecord(raw) ? raw : {}
-  if (input.input === undefined) throw new APIError(400, 'A sub-session requires an input payload')
+  // Models often write the task brief into `prompt`. A prompt with no input is meaningless as a
+  // bare system prompt, so read it as the brief instead of bouncing the call for a retry.
+  if (input.input === undefined && typeof input.prompt === 'string' && input.prompt) {
+    input.input = input.prompt
+    delete input.prompt
+  }
+  if (input.input === undefined) {
+    throw new APIError(400, 'A sub-session requires an `input` task brief (human-readable markdown)')
+  }
   if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
     throw new APIError(400, 'Provide either prompt or agentId, not both')
   }
@@ -309,6 +317,8 @@ function classifyRunError(error: unknown): runs.RunErrorInfo {
 
 /** Public run metadata derived from a run record. */
 function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
+  const inputRecord = isPlainRecord(run.input) ? run.input : undefined
+  const stepLabel = typeof inputRecord?.planStepLabel === 'string' ? inputRecord.planStepLabel : undefined
   return {
     id: run.id,
     account: run.accountId,
@@ -320,6 +330,8 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
     ...(run.sessionId ? {sessionId: run.sessionId} : {}),
     origin: run.origin,
     ...(run.title ? {title: run.title} : {}),
+    ...(stepLabel ? {stepLabel} : {}),
+    ...(run.kind === 'workflow' && run.sourceText ? {sourceText: run.sourceText} : {}),
     status: run.status,
     ...(run.wait
       ? {
@@ -2480,6 +2492,11 @@ export class Service {
       {type: 'message', role: 'user', content: rendered},
       Date.now(),
     )
+    // If exactly one plan step is running right now, that step is what this spawn is working on —
+    // record it so the progress card shows the step and its sub-agent as one item.
+    const currentPlan = runs.getRun(this.#db, accountId, parentRun.id)?.plan
+    const runningSteps = (currentPlan?.steps ?? []).filter((step) => step.status === 'running')
+    const stepLabel = runningSteps.length === 1 ? runningSteps[0]?.label : undefined
     this.#runQueue.enqueue({
       id: childRunId,
       accountId,
@@ -2489,7 +2506,7 @@ export class Service {
       agentId: childAgentId,
       sessionId: session.sessionId,
       title,
-      input: {spec, parentToolCallId: toolCallId},
+      input: {spec, parentToolCallId: toolCallId, ...(stepLabel ? {planStepLabel: stepLabel} : {})},
       queue: 'background',
       maxAttempts: 2,
     })
@@ -2642,7 +2659,11 @@ export class Service {
   }
 
   /** ctx.agent inside a workflow: spawns a child agent run + session under the workflow run. */
-  #spawnWorkflowChildAgent(workflowRun: runs.RunRecord, rawSpec: unknown): {childRunId: string; sessionId?: string} {
+  #spawnWorkflowChildAgent(
+    workflowRun: runs.RunRecord,
+    rawSpec: unknown,
+    stepLabel?: string,
+  ): {childRunId: string; sessionId?: string} {
     const spec = normalizeSubSessionSpec(rawSpec)
     if (workflowRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
       throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
@@ -2690,7 +2711,7 @@ export class Service {
       agentId: childAgentId,
       sessionId: session.sessionId,
       title,
-      input: {spec},
+      input: {spec, ...(stepLabel ? {planStepLabel: stepLabel} : {})},
       queue: 'background',
       maxAttempts: 2,
     })
@@ -2863,7 +2884,7 @@ export class Service {
           emitRunPartial({activity: {phase: 'thinking'}})
           return result.details ?? null
         },
-        spawnAgent: (spec) => this.#spawnWorkflowChildAgent(run, spec),
+        spawnAgent: (spec, stepLabel) => this.#spawnWorkflowChildAgent(run, spec, stepLabel),
         awaitChild: async (childRunId): Promise<WorkflowChildResolution> => {
           const child = await this.#awaitRunTerminal(run.accountId, childRunId)
           if (child.status === 'succeeded') {

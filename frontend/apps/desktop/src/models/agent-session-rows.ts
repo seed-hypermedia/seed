@@ -207,6 +207,7 @@ export function buildAgentSessionChatRows(
         name: payload.name,
         result: resultText,
         rawOutput: payload.output,
+        ...(payload.error ? {isError: true} : {}),
       }
 
       if (existingRow) {

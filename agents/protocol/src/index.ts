@@ -695,6 +695,10 @@ export type RunInfo = {
   sessionId?: string
   origin: 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
   title?: string
+  /** Label of the parent's plan step this run works on, when the spawner recorded one. */
+  stepLabel?: string
+  /** The exact module a workflow run executes — the code the agent wrote, for review. */
+  sourceText?: string
   status: RunStatus
   wait?: RunWaitInfo
   plan?: RunPlan

@@ -388,9 +388,15 @@ function firstInlinePathValue(value: unknown, path?: string): string | undefined
   return undefined
 }
 
-function ToolChip({children}: {children: React.ReactNode}) {
+function ToolChip({children, tone}: {children: React.ReactNode; tone?: 'error'}) {
   return (
-    <span className="bg-background/75 text-muted-foreground rounded-full border px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap">
+    <span
+      className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap ${
+        tone === 'error'
+          ? 'border-destructive/30 bg-destructive/10 text-destructive'
+          : 'bg-background/75 text-muted-foreground border'
+      }`}
+    >
       {children}
     </span>
   )
@@ -1433,7 +1439,9 @@ function ToolCallLine({
   const details = getToolDetails(item)
   const summary = getToolSummary(item)
   const links = getToolLinks(item)
-  const colorClass = toolColorClasses[render?.color || 'muted']
+  const colorClass = item.isError
+    ? 'border-destructive/30 bg-destructive/5'
+    : toolColorClasses[render?.color || 'muted']
   const customView = getToolCustomView(item)
   // Live progress for this specific call while it runs (matched by call ID, with a
   // tool-name fallback for servers that don't report the ID yet).
@@ -1497,6 +1505,7 @@ function ToolCallLine({
             </>
           )}
           {isPending ? <ToolChip>{render?.pendingLabel || 'Running'}</ToolChip> : null}
+          {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
           {getFirstToolValue(item.rawOutput, ['dryRun']) === true ? <ToolChip>Dry run</ToolChip> : null}
           <button
             type="button"
@@ -1517,6 +1526,11 @@ function ToolCallLine({
         ) : null}
         {expanded ? (
           <div className="mt-2 space-y-2 border-t pt-2">
+            {item.isError && item.result ? (
+              <pre className="border-destructive/30 bg-destructive/5 text-destructive max-h-48 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+                {item.result}
+              </pre>
+            ) : null}
             {/* The run's own record — steps, children, log — mounted only now, so a transcript full
                 of finished workflows costs nothing until one is opened. */}
             {runId && serverUrl ? (

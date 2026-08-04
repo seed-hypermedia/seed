@@ -231,6 +231,40 @@ describe('SessionRunCard (pinned)', () => {
     expect(container.textContent).toContain('Write the summary')
   })
 
+  it('renders a stepLabel-stamped child in place of its plan step, even when titles differ', () => {
+    // The live bug: step "Research common supplements", child titled "Research common health
+    // supplements" — same work shown twice. The stamp is the structural link titles can't be.
+    mockState.runs = [makeRun({id: 'root-1', status: 'waiting', title: 'Build KB'})]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeChild({
+        id: 'child-1',
+        status: 'running',
+        title: 'Research common health supplements',
+        stepLabel: 'Research common supplements',
+      }),
+    ]
+    render(
+      <SessionRunCard
+        {...baseProps}
+        sessionPlan={{
+          steps: [
+            {id: 's1', label: 'Research common supplements', status: 'running'},
+            {id: 's2', label: 'Draft knowledge base structure', status: 'pending'},
+          ],
+        }}
+      />,
+    )
+    expect(container.textContent).not.toContain('Research common supplements' + 'Draft')
+    expect(container.textContent).toContain('Research common health supplements')
+    // The step's own row is gone: its label appears nowhere outside the child row.
+    const rows = Array.from(container.querySelectorAll('span')).filter(
+      (span) => span.textContent === 'Research common supplements',
+    )
+    expect(rows).toHaveLength(0)
+    expect(container.textContent).toContain('Draft knowledge base structure')
+  })
+
   it('keeps an unfinished todo list after the run ends, but stops spinning it', () => {
     mockState.runs = [makeRun({id: 'root-1', status: 'succeeded'})]
     render(
@@ -267,6 +301,23 @@ describe('SessionRunCard (pinned)', () => {
 
 describe('RunRecordCard (in the chat bubble)', () => {
   const recordProps = {serverUrl: 'http://localhost:3050', accountUid: 'account-1', runId: 'root-1'}
+
+  it('shows the workflow module behind a Code drawer', () => {
+    mockState.run = makeRun({
+      id: 'root-1',
+      status: 'succeeded',
+      kind: 'workflow',
+      title: 'Link fixer',
+      sourceText: 'export default async function (input, ctx) { return 1 }',
+    })
+    mockState.tree = [mockState.run]
+    render(<RunRecordCard {...recordProps} />)
+
+    // Collapsed by default; the source appears once opened.
+    expect(container.textContent).not.toContain('export default async function')
+    click(buttonWithText('Code'))
+    expect(container.textContent).toContain('export default async function (input, ctx) { return 1 }')
+  })
 
   it('renders the finished run: status, steps, children and error', () => {
     mockState.run = makeRun({
