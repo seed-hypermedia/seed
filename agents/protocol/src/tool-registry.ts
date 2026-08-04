@@ -8,8 +8,12 @@ export type JsonSchema = {
   additionalProperties?: boolean | JsonSchema
   enum?: string[]
   minLength?: number
+  maxLength?: number
   minimum?: number
+  maximum?: number
   items?: JsonSchema
+  minItems?: number
+  maxItems?: number
 }
 
 export type ToolRuntime = 'assistant' | 'agent-service'
@@ -1188,7 +1192,7 @@ export const seedToolRegistry: SeedToolRegistry = {
         output: {
           type: 'object',
           description:
-            'JSON schema for the required result. The sub-session must deliver a matching payload via its return_result tool; validation errors bounce back to it for self-correction.',
+            'JSON schema for the required result — the root MUST be type "object" (wrap arrays in a named property). The sub-session must deliver a matching payload via its return_result tool; validation errors bounce back to it for self-correction.',
         },
       },
       required: ['input'],

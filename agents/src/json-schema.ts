@@ -23,12 +23,26 @@ export function validateJsonSchemaValue(schema: JsonSchema, value: unknown, path
   if (typeof value === 'string' && schema.minLength !== undefined && value.length < schema.minLength) {
     errors.push({path, message: `string shorter than minLength ${schema.minLength}`})
   }
+  if (typeof value === 'string' && schema.maxLength !== undefined && value.length > schema.maxLength) {
+    errors.push({path, message: `string longer than maxLength ${schema.maxLength}`})
+  }
   if (typeof value === 'number' && schema.minimum !== undefined && value < schema.minimum) {
     errors.push({path, message: `number below minimum ${schema.minimum}`})
   }
-  if (Array.isArray(value) && schema.items) {
-    for (const [index, item] of value.entries()) {
-      errors.push(...validateJsonSchemaValue(schema.items, item, `${path}[${index}]`))
+  if (typeof value === 'number' && schema.maximum !== undefined && value > schema.maximum) {
+    errors.push({path, message: `number above maximum ${schema.maximum}`})
+  }
+  if (Array.isArray(value)) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      errors.push({path, message: `array shorter than minItems ${schema.minItems}`})
+    }
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) {
+      errors.push({path, message: `array longer than maxItems ${schema.maxItems}`})
+    }
+    if (schema.items) {
+      for (const [index, item] of value.entries()) {
+        errors.push(...validateJsonSchemaValue(schema.items, item, `${path}[${index}]`))
+      }
     }
   }
   if (isPlainObject(value)) {
@@ -54,6 +68,11 @@ export function validateJsonSchemaValue(schema: JsonSchema, value: unknown, path
 export function validateJsonSchemaShape(schema: unknown, path = '$'): SchemaValidationError[] {
   if (!isPlainObject(schema)) return [{path, message: 'schema must be an object'}]
   const errors: SchemaValidationError[] = []
+  // Providers require function parameters to be object-rooted; a top-level array schema fails at
+  // the provider with an opaque 400. Reject here instead, where the message reaches the model.
+  if (path === '$' && schema.type !== undefined && schema.type !== 'object') {
+    errors.push({path: '$.type', message: 'the root must be type "object" — wrap arrays/scalars in a named property'})
+  }
   const known = new Set([
     'type',
     'description',
@@ -62,8 +81,12 @@ export function validateJsonSchemaShape(schema: unknown, path = '$'): SchemaVali
     'additionalProperties',
     'enum',
     'minLength',
+    'maxLength',
     'minimum',
+    'maximum',
     'items',
+    'minItems',
+    'maxItems',
   ])
   for (const key of Object.keys(schema)) {
     if (!known.has(key)) errors.push({path: `${path}.${key}`, message: 'unsupported schema keyword'})
