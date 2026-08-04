@@ -2625,7 +2625,26 @@ export class Service {
   #getRun(accountId: string, runId: string): api.GetRunResponse {
     const run = runs.getRun(this.#db, accountId, normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES))
     if (!run) throw new APIError(404, 'Run not found')
-    return {_: 'GetRunResponse', run: runInfoFromRecord(run)}
+    return {_: 'GetRunResponse', run: this.#withChildRunCounts([run])[0]!}
+  }
+
+  /** Decorates run infos with how many children each spawned, in one grouped query. */
+  #withChildRunCounts(records: runs.RunRecord[]): api.RunInfo[] {
+    if (records.length === 0) return []
+    const placeholders = records.map(() => '?').join(', ')
+    const counts = new Map(
+      this.#db
+        .query<{parent_run_id: string; n: number}, string[]>(
+          `SELECT parent_run_id, COUNT(*) AS n FROM runs WHERE parent_run_id IN (${placeholders}) GROUP BY parent_run_id`,
+        )
+        .all(...records.map((record) => record.id))
+        .map((row) => [row.parent_run_id, row.n]),
+    )
+    return records.map((record) => {
+      const info = runInfoFromRecord(record)
+      const childRunCount = counts.get(record.id)
+      return childRunCount ? {...info, childRunCount} : info
+    })
   }
 
   #listRuns(accountId: string, action: api.ListRuns): api.ListRunsResponse {
@@ -2655,7 +2674,7 @@ export class Service {
       throw new APIError(400, 'ListRuns requires rootRunId, sessionId, or agentId')
     }
     if (action.status !== undefined) records = records.filter((run) => run.status === action.status)
-    return {_: 'ListRunsResponse', runs: records.slice(0, limit).map(runInfoFromRecord)}
+    return {_: 'ListRunsResponse', runs: this.#withChildRunCounts(records.slice(0, limit))}
   }
 
   #cancelRun(accountId: string, runId: string): api.CancelRunResponse {

@@ -3,9 +3,8 @@ import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} fr
 import {getSeedToolMetadata} from '../../../../../agents/protocol/src/tool-registry'
 import {useOpenUrl} from '@/open-url'
 import {useSessionAttachmentDataUrls} from '@/models/agents'
-import {RunRecordCard} from '@/pages/agents/run-card'
 import {useSelectedAccountId} from '@/selected-account'
-import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
+import {useClickNavigate} from '@/utils/useNavigate'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {cn} from '@shm/ui/utils'
@@ -1359,20 +1358,6 @@ function ExecuteCodeDetails({item, liveTail}: {item: ChatToolPart; liveTail?: st
   )
 }
 
-/** Tools whose real story is the run they started, not their JSON payloads. */
-const RUN_BACKED_TOOLS = new Set(['sub_session', 'run_workflow'])
-
-/**
- * The run a tool call started, if it reported one.
- *
- * `sub_session` and `run_workflow` results carry `runId` alongside the status and output; workflow
- * spawns carry it in the placeholder output too, so an in-flight call is resolvable as well.
- */
-function getToolRunId(item: ChatToolPart): string | undefined {
-  if (!RUN_BACKED_TOOLS.has(item.name)) return undefined
-  return getToolString(item.rawOutput, 'runId')
-}
-
 /**
  * The transcript a `sub_session` call created, once it has one.
  *
@@ -1427,10 +1412,7 @@ function ToolCallLine({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const accountUid = useSelectedAccountId()
-  const navigate = useNavigate()
   const clickNavigate = useClickNavigate()
-  const runId = getToolRunId(item)
   const childSessionId = getToolSessionId(item)
   const metadata = getSeedToolMetadata(item.name)
   const render = metadata?.render
@@ -1530,16 +1512,6 @@ function ToolCallLine({
               <pre className="border-destructive/30 bg-destructive/5 text-destructive max-h-48 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
                 {item.result}
               </pre>
-            ) : null}
-            {/* The run's own record — steps, children, log — mounted only now, so a transcript full
-                of finished workflows costs nothing until one is opened. */}
-            {runId && serverUrl ? (
-              <RunRecordCard
-                serverUrl={serverUrl}
-                accountUid={accountUid}
-                runId={runId}
-                onOpenSession={(sessionId, agentId) => navigate({key: 'agent-session', agentId, sessionId, serverUrl})}
-              />
             ) : null}
             {item.name === 'execute_code' ? (
               <ExecuteCodeDetails item={item} liveTail={liveTool?.outputTail} />

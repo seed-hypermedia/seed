@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import type {SessionEvent} from '@/agents-client'
-import {buildAgentSessionChatRows, retryableErrorRowKey} from '@/models/agent-session-rows'
+import type {RunInfo, SessionEvent} from '@/agents-client'
+import {buildAgentSessionChatRows, interleaveRunRecords, retryableErrorRowKey} from '@/models/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@/components/assistant-session-ref'
 
 const CONTEXT = {serverUrl: 'http://localhost:3050', agentId: 'agent-1', sessionId: 'session-1'}
@@ -180,6 +180,70 @@ describe('retryableErrorRowKey', () => {
     const built = rows([event(1, {type: 'message', role: 'assistant', content: 'all good'})])
     expect(retryableErrorRowKey(built, false)).toBeUndefined()
     expect(retryableErrorRowKey([], false)).toBeUndefined()
+  })
+})
+
+describe('interleaveRunRecords', () => {
+  const run = (overrides: Partial<RunInfo> & Pick<RunInfo, 'id' | 'status'>): RunInfo =>
+    ({
+      account: 'a',
+      rootRunId: overrides.id,
+      depth: 0,
+      kind: 'agent',
+      origin: 'user',
+      createdAt: 0,
+      updatedAt: 0,
+      ...overrides,
+    }) as RunInfo
+
+  const messageRows = () =>
+    buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(2, {type: 'message', role: 'assistant', content: 'done'}),
+      ],
+      CONTEXT,
+    )
+
+  it('drops a finished orchestration record after the last event before it completed', () => {
+    const rows = interleaveRunRecords(messageRows(), [
+      run({id: 'r1', status: 'succeeded', childRunCount: 2, finishedAt: 1_700_000_000_000 + 5}),
+    ])
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'message', 'run-record'])
+  })
+
+  it('places an older record between turns, not at the bottom', () => {
+    const rows = interleaveRunRecords(
+      buildAgentSessionChatRows(
+        [
+          event(1, {type: 'message', role: 'user', content: 'first'}),
+          event(5, {type: 'message', role: 'user', content: 'later turn'}),
+        ],
+        CONTEXT,
+      ),
+      [run({id: 'r1', status: 'succeeded', childRunCount: 1, finishedAt: 1_700_000_000_000 + 3})],
+    )
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'run-record', 'message'])
+  })
+
+  it('skips live runs (the pinned card owns them) and plain turns', () => {
+    const rows = interleaveRunRecords(messageRows(), [
+      run({id: 'live', status: 'waiting', childRunCount: 3, finishedAt: undefined}),
+      run({id: 'plain', status: 'succeeded', finishedAt: 1_700_000_000_000 + 9}),
+    ])
+    expect(rows.every((row) => row.kind === 'message')).toBe(true)
+  })
+
+  it('records a workflow or planned run even with no children', () => {
+    const rows = interleaveRunRecords(messageRows(), [
+      run({
+        id: 'planned',
+        status: 'failed',
+        plan: {steps: [{id: 's1', label: 'Only step', status: 'failed'}]},
+        finishedAt: 1_700_000_000_000 + 9,
+      }),
+    ])
+    expect(rows.at(-1)).toMatchObject({kind: 'run-record', run: {id: 'planned'}})
   })
 })
 
