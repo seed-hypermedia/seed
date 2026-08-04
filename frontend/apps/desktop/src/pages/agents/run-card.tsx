@@ -314,7 +314,7 @@ function RunCardBody({
         )}
       </div>
 
-      {run.error ? <div className="text-destructive text-[11px]">{run.error.message}</div> : null}
+      {run.error ? <div className="text-destructive text-[11px] break-words">{run.error.message}</div> : null}
 
       {progress && !isTerminal ? (
         <div className="flex flex-col gap-1">
@@ -608,11 +608,18 @@ function RunChildRow({
     <>
       <SessionStatusDot status={dotStatus} className="size-2" />
       <KindIcon className="text-muted-foreground size-3 flex-none" />
-      <span className="min-w-0 truncate">{runTitle(run)}</span>
+      {/* The title is the click target: it holds its ground (truncating only past 55%), while the
+          error text yields — truncated into the remaining space with the full text on hover.
+          A flex-none error span let long provider errors crush the title entirely. */}
+      <span className="max-w-[55%] flex-none truncate">{runTitle(run)}</span>
       {isLive && activityDetail ? (
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">{activityDetail}</span>
       ) : null}
-      {run.error ? <span className="text-destructive flex-none text-[10px]">{run.error.message}</span> : null}
+      {run.error ? (
+        <span className="text-destructive min-w-0 flex-1 truncate text-[10px]" title={run.error.message}>
+          {run.error.message}
+        </span>
+      ) : null}
     </>
   )
   return (
