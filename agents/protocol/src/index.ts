@@ -744,6 +744,8 @@ export type RunInfo = {
   stepLabel?: string
   /** The exact module a workflow run executes — the code the agent wrote, for review. */
   sourceText?: string
+  /** How many child runs this run spawned. Populated by GetRun/ListRuns; absent means zero. */
+  childRunCount?: number
   status: RunStatus
   wait?: RunWaitInfo
   plan?: RunPlan

@@ -28,6 +28,7 @@ import {
   useMessageAgentSession,
   useRetrySession,
   useRun,
+  useSessionRuns,
   useStopAgentSession,
   useUpdateAgentSession,
 } from '@/models/agents'
@@ -35,6 +36,7 @@ import type {SessionAttachmentInfo} from '@/agents-client'
 import {
   buildAgentSessionChatRows,
   buildAgentSessionEventUrl,
+  interleaveRunRecords,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
   getSharedEventIdFromHash,
@@ -66,7 +68,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader} from './header'
-import {SessionRunCard} from './run-card'
+import {RunRecordCard, SessionRunCard} from './run-card'
 import {promptBlocksToMarkdown} from './prompt-editor'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
 
@@ -250,15 +252,19 @@ function AgentSessionPage({
   const titleSaveIdRef = useRef(0)
   const loadedSessionId = session.data?.session.id
   const persistedTitle = session.data?.session.title || 'Untitled session'
+  const sessionRuns = useSessionRuns(serverUrl, selectedAccountId, sessionId)
   const chatRows = useMemo(
     () =>
-      buildAgentSessionChatRows(session.data?.events || [], {
-        serverUrl,
-        agentId,
-        sessionId,
-        triggerContext: session.data?.triggerContext ?? null,
-      }),
-    [agentId, serverUrl, session.data?.events, session.data?.triggerContext, sessionId],
+      interleaveRunRecords(
+        buildAgentSessionChatRows(session.data?.events || [], {
+          serverUrl,
+          agentId,
+          sessionId,
+          triggerContext: session.data?.triggerContext ?? null,
+        }),
+        sessionRuns.data || [],
+      ),
+    [agentId, serverUrl, session.data?.events, session.data?.triggerContext, sessionId, sessionRuns.data],
   )
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
@@ -533,9 +539,13 @@ function AgentSessionPage({
                       row={row}
                       serverUrl={serverUrl}
                       agentId={agentId}
+                      accountUid={selectedAccountId}
                       liveActivity={chatRowHasPendingToolCall(row) ? liveState.activity : undefined}
                       onRetry={row.key === retryableRowKey ? handleRetrySession : undefined}
                       retryPending={retrySession.isPending}
+                      onOpenSession={(childSessionId, childAgentId) =>
+                        navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+                      }
                     />
                   </div>
                 ))}
@@ -832,17 +842,21 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   row,
   serverUrl,
   agentId,
+  accountUid,
   liveActivity,
   onRetry,
   retryPending,
+  onOpenSession,
 }: {
   row: AgentSessionChatRowData
   serverUrl: string
   agentId?: string
+  accountUid?: string | null
   liveActivity?: AgentRunActivity
   /** Set only on a trailing error row, which is the only place a retry is offered. */
   onRetry?: () => void
   retryPending?: boolean
+  onOpenSession?: (sessionId: string, agentId?: string) => void
 }) {
   if (row.kind === 'message') {
     if (row.triggerContext) {
@@ -867,6 +881,13 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
 
   if (row.kind === 'error') {
     return <AgentErrorRow message={row.message} onRetry={onRetry} retryPending={retryPending} />
+  }
+
+  if (row.kind === 'run-record') {
+    // The pinned card's afterlife: the same card, frozen at the moment the run completed.
+    return (
+      <RunRecordCard serverUrl={serverUrl} accountUid={accountUid} runId={row.run.id} onOpenSession={onOpenSession} />
+    )
   }
 
   return (

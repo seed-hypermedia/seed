@@ -5,6 +5,7 @@ import {
   useAgentLists,
   useAgentServerUrls,
   useAgentSession,
+  useSessionRuns,
   useAgentWebSocketSubscription,
   useAllAgentSessions,
   useCreateAgentSessionOnServer,
@@ -17,6 +18,7 @@ import {
 } from '@/models/agents'
 import {
   buildAgentSessionChatRows,
+  interleaveRunRecords,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
   retryableErrorRowKey,
@@ -63,7 +65,7 @@ import {useChatAutoScroll} from './chat-autoscroll'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {ChatMessageComposer} from './chat-message-composer'
-import {SessionRunCard} from '@/pages/agents/run-card'
+import {RunRecordCard, SessionRunCard} from '@/pages/agents/run-card'
 import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
 import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
 
@@ -615,15 +617,19 @@ function AssistantSessionChat({
   const isStreaming = status === 'streaming'
   const runStartedAt = useRunStartedAt(isStreaming)
   const events = session.data?.events
+  const sessionRuns = useSessionRuns(serverUrl, accountUid, sessionId)
   const rows = useMemo(
     () =>
-      buildAgentSessionChatRows(events || [], {
-        serverUrl,
-        agentId: session.data?.session.agentId,
-        sessionId,
-        triggerContext: session.data?.triggerContext,
-      }),
-    [events, serverUrl, sessionId, session.data?.session.agentId, session.data?.triggerContext],
+      interleaveRunRecords(
+        buildAgentSessionChatRows(events || [], {
+          serverUrl,
+          agentId: session.data?.session.agentId,
+          sessionId,
+          triggerContext: session.data?.triggerContext,
+        }),
+        sessionRuns.data || [],
+      ),
+    [events, serverUrl, sessionId, session.data?.session.agentId, session.data?.triggerContext, sessionRuns.data],
   )
 
   const doSendMessage = useCallback(
@@ -689,6 +695,19 @@ function AssistantSessionChat({
                   message={row.message}
                   onRetry={row.key === retryableRowKey ? handleRetry : undefined}
                   retryPending={retrySession.isPending}
+                />
+              )
+            }
+            if (row.kind === 'run-record') {
+              return (
+                <RunRecordCard
+                  key={row.key}
+                  serverUrl={serverUrl}
+                  accountUid={accountUid}
+                  runId={row.run.id}
+                  onOpenSession={(childSessionId, childAgentId) =>
+                    navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+                  }
                 />
               )
             }

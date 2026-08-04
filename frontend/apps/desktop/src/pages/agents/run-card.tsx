@@ -213,7 +213,8 @@ export function RunRecordCard({
   }
 
   return (
-    <div className="border-border bg-background/40 flex flex-col gap-2 rounded-md border p-2">
+    // Same shell as the pinned card: this IS that card, frozen where the run finished.
+    <div className="border-border bg-card mr-6 flex flex-col gap-2 rounded-lg border p-2.5">
       <RunCardBody
         run={focus}
         childRuns={children}
