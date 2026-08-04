@@ -61,11 +61,12 @@ function CreateSpaceFlow({onClose}: {onClose: () => void}) {
   async function handleComplete(state: CreateSpaceFormState) {
     setBusy(true)
     try {
-      const [coverCid, logoCid] = await Promise.all([
+      const [coverCid, logoCid, faviconCid] = await Promise.all([
         state.cover ? fileUpload(state.cover) : Promise.resolve(undefined),
         state.logo ? fileUpload(state.logo) : Promise.resolve(undefined),
+        state.favicon ? fileUpload(state.favicon) : Promise.resolve(undefined),
       ])
-      const metadata = createSpaceMetadata(state, {coverCid, logoCid})
+      const metadata = createSpaceMetadata(state, {coverCid, logoCid, faviconCid})
       const {webPath} = await createSpaceHomeDraft(metadata, accountUid)
       navigate(webPath)
       onClose()

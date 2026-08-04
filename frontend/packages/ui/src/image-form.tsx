@@ -12,6 +12,7 @@ export interface ImageFormProps {
   url?: string
   uploadOnChange?: boolean
   height?: number
+  width?: number
   /**
    * Optional async function that uploads a File and resolves to its URL.
    * When omitted and `uploadOnChange` is true, the upload step is skipped.
@@ -38,6 +39,7 @@ export function ImageForm({
   suggestedSize = '1920px x 1080px',
   uploadOnChange = true,
   height,
+  width,
   fileUpload,
   ...props
 }: ImageFormProps) {
@@ -87,7 +89,10 @@ export function ImageForm({
   if (!onImageUpload) return image
 
   return (
-    <div className="group group-icon relative flex w-auto items-end self-stretch overflow-hidden rounded-md">
+    <div
+      className="group group-icon relative flex w-auto items-end self-stretch overflow-hidden rounded-md"
+      style={width ? {width, flex: 'none'} : undefined}
+    >
       <div
         className="relative w-full self-stretch overflow-hidden"
         style={{
