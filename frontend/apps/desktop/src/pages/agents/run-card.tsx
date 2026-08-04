@@ -361,12 +361,7 @@ function RunCardBody({
               ))
             }
             return (
-              <PlanStepRow
-                key={step.id}
-                step={step}
-                compact={compact}
-                settle={isTerminal ? 'run-finished' : 'live'}
-              />
+              <PlanStepRow key={step.id} step={step} compact={compact} settle={isTerminal ? 'run-finished' : 'live'} />
             )
           })}
           {/* Children with no home step live in the same list — the plan and the delegated work
@@ -564,9 +559,7 @@ function RunSourceDrawer({runs}: {runs: RunInfo[]}) {
       {open
         ? sources.map((run) => (
             <div key={run.id} className="mt-1 flex flex-col gap-0.5">
-              {sources.length > 1 ? (
-                <span className="text-muted-foreground text-[10px]">{runTitle(run)}</span>
-              ) : null}
+              {sources.length > 1 ? <span className="text-muted-foreground text-[10px]">{runTitle(run)}</span> : null}
               <pre
                 aria-label={`Workflow source: ${runTitle(run)}`}
                 className="bg-muted/40 max-h-64 overflow-auto rounded p-1.5 font-mono text-[10px] leading-4 whitespace-pre"
