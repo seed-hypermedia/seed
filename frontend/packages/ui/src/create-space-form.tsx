@@ -28,6 +28,7 @@ export type CreateSpaceFormState = {
   name: string
   cover: File | null
   logo: File | null
+  favicon: File | null
   headerLayout: CreateSpaceHeaderLayout
   contentWidth: 'S' | 'M' | 'L'
   showActivity: boolean
@@ -37,6 +38,7 @@ export const defaultCreateSpaceFormState: CreateSpaceFormState = {
   name: '',
   cover: null,
   logo: null,
+  favicon: null,
   headerLayout: 'horizontal',
   contentWidth: 'L',
   showActivity: true,
@@ -163,6 +165,7 @@ function useFilePreviewUrl(file: File | null) {
 function IdentityStep({state, update}: StepProps) {
   const coverUrl = useFilePreviewUrl(state.cover)
   const logoUrl = useFilePreviewUrl(state.logo)
+  const faviconUrl = useFilePreviewUrl(state.favicon)
   return (
     <>
       <StepHeader
@@ -188,6 +191,7 @@ function IdentityStep({state, update}: StepProps) {
         <ImageForm
           id="space-logo"
           height={100}
+          width={320}
           url={logoUrl}
           uploadOnChange={false}
           emptyLabel="Add Logo"
@@ -196,6 +200,22 @@ function IdentityStep({state, update}: StepProps) {
             if (file instanceof File) update({logo: file})
           }}
           onRemove={() => update({logo: null})}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <Label>Favicon</Label>
+        <ImageForm
+          id="space-favicon"
+          height={100}
+          width={100}
+          url={faviconUrl}
+          uploadOnChange={false}
+          emptyLabel="Add Favicon"
+          suggestedSize="512 × 512px JPG or PNG"
+          onImageUpload={(file) => {
+            if (file instanceof File) update({favicon: file})
+          }}
+          onRemove={() => update({favicon: null})}
         />
       </div>
     </>

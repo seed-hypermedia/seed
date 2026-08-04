@@ -339,17 +339,17 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
   const {data: hasExistingSpace} = useHasExistingSpace(isOwnProfile ? ownAccountUid : undefined)
 
-  // Profile header buttons (create space + vault account settings + logout) - only for own profile
+  // Profile header buttons (account settings + logout + create space) - only for own profile.
   const profileHeaderButtons = useMemo(() => {
     if (!isOwnProfile) return undefined
     return (
       <>
+        <LogoutButton />
         {hasExistingSpace ? null : (
           <Button variant="default" onClick={openCreateSpaceDialog}>
-            Create Space
+            Create my site
           </Button>
         )}
-        <LogoutButton />
       </>
     )
   }, [isOwnProfile, hasExistingSpace, openCreateSpaceDialog])
@@ -556,7 +556,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {isJoined} = useJoinSite({siteUid})
   const siteResource = useResource(docId.path?.length ? undefined : docId)
   const siteMetadata = siteResource.data?.type === 'document' ? siteResource.data.document?.metadata : undefined
-  const showSubscribeBox = !userKeyPair || !isJoined
+  // Only offer to subscribe on a published doc — not while previewing an
+  // unpublished draft (placeholder route), where subscription can't work yet.
+  const showSubscribeBox = (!userKeyPair || !isJoined) && !placeholderDraftId
   const inlineInsert = useMemo(() => {
     if (!showSubscribeBox || !NOTIFY_SERVICE_HOST) return undefined
     return (

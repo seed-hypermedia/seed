@@ -7,7 +7,7 @@ import {CREATE_SPACE_HEADER_LAYOUTS, type CreateSpaceFormState} from './create-s
  */
 export function createSpaceMetadata(
   state: CreateSpaceFormState,
-  images: {coverCid?: string; logoCid?: string},
+  images: {coverCid?: string; logoCid?: string; faviconCid?: string},
 ): Partial<HMMetadata> {
   const storedHeaderLayout =
     CREATE_SPACE_HEADER_LAYOUTS.find((layout) => layout.value === state.headerLayout)?.stored ?? ''
@@ -18,6 +18,7 @@ export function createSpaceMetadata(
     theme: {headerLayout: storedHeaderLayout},
   }
   if (images.coverCid) metadata.cover = `ipfs://${images.coverCid}`
-  if (images.logoCid) metadata.icon = `ipfs://${images.logoCid}`
+  if (images.logoCid) metadata.seedExperimentalLogo = `ipfs://${images.logoCid}`
+  if (images.faviconCid) metadata.icon = `ipfs://${images.faviconCid}`
   return metadata
 }
