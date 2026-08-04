@@ -328,22 +328,30 @@ Every agent execution is a durable row in the `runs` table, which doubles as the
 Workflow execution bounds (see `agents/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s
 pure-compute fuel between awaits, journal caps of 5,000 entries / 8 MiB per run, 256 KiB source cap.
 
-## Live-model validation harness
+## Model-gate harness (record/replay)
 
-`agents/e2e/run.ts` drives the real Service against the real OpenAI API to validate prompts and tool designs
-(workflows-v1-plan.md §15.3). It spends real tokens — run it as a manual gate, never in CI:
+`agents/e2e/run.ts` drives the real Service through six behavioral gates. By default it **replays** recorded gpt-5-mini
+responses from `agents/e2e/recordings/` — full service and tool loop, no network, no API key — and
+`agents/src/e2e-replay.test.ts` runs that replay as part of the regular `bun test` suite. Pass `--record` to hit the
+live OpenAI API and refresh the cassettes (spends real tokens — manual only, never CI):
 
 ```bash
-cd agents && bun e2e/run.ts all              # all scenarios, default model gpt-5-mini
-bun e2e/run.ts sub-basic wf-hello --n 3      # selected scenarios, repeated
+cd agents && bun e2e/run.ts all              # replay all scenarios from recordings (offline)
+bun e2e/run.ts wf-hello --record             # re-record one scenario live (needs OPENAI_API_KEY)
 ```
 
-The API key comes from `OPENAI_API_KEY` or the repo-root `.keys` file (never committed). Every scenario asserts on
-durable state (runs, journals, session events) and dumps full transcripts to `agents/e2e-artifacts/<timestamp>/` for
-prompt autopsies. Scenarios: `chat-smoke`, `sub-basic`, `sub-typed`, `sub-restraint`, `wf-hello`, `todo-adoption`.
+Recording proxies provider traffic through a local server that captures each response keyed by a request fingerprint
+(model + system-prompt head + last user message + tool names + tool-result count); replay matches the same fingerprints,
+so cassettes survive tool-description edits but need re-recording when system prompts or conversation flow change. Only
+a passing run overwrites a scenario's cassette. The live key comes from `OPENAI_API_KEY` or the repo-root `.keys` file
+(never committed). Every scenario asserts on durable state (runs, journals, session events) and dumps full transcripts
+to `agents/e2e-artifacts/<timestamp>/` for prompt autopsies. Scenarios: `chat-smoke`, `sub-basic`, `sub-typed`,
+`sub-restraint`, `wf-hello`, `todo-adoption`.
 
-Status: the harness is verified end-to-end against the live OpenAI endpoint, but the pass/fail gates are **blocked on
-the OpenAI account having no API credits** (the 429 exercised the queue's failure classification correctly).
+Status: all six cassettes recorded from live gpt-5-mini on 2026-08-04, all passing in replay. The live recording pass
+surfaced (and fixed) three real-model defects: top-level-array output schemas now rejected at spawn time with a
+self-correctable message, `functions.`-prefixed tool names normalized in workflow `ctx.call`, and the standard
+`minItems`/`maxItems`/`maxLength`/`maximum` keywords added to the schema subset.
 
 ### Simulated-model gates (no API key required)
 

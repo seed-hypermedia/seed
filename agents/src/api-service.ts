@@ -3035,10 +3035,15 @@ export class Service {
         },
       },
       effects: {
-        callTool: async (tool, input) => {
+        callTool: async (rawTool, input) => {
+          // Models occasionally leak the provider's function namespace into tool names
+          // (`functions.memory_write`); accept it rather than failing a real workflow over it.
+          const tool = rawTool.replace(/^functions\./, '')
           if (!allowedTools.has(normalizeSeedToolName(tool))) {
             const error = new Error(
-              `Tool "${tool}" is not available in this workflow. Available: ${[...allowedTools].join(', ')}`,
+              `Tool "${tool}" is not available in this workflow. Available: ${[...allowedTools].join(
+                ', ',
+              )}. Chat-session tools are not callable here — use ctx.plan/ctx.step for progress and ctx.agent for delegation.`,
             ) as Error & {code: string}
             error.code = 'unknown-tool'
             throw error
