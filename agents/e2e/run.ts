@@ -37,6 +37,14 @@ for (let i = 0; i < args.length; i++) {
 const MODEL = flags.get('model') || 'gpt-5-mini'
 const REPS = Number(flags.get('n') || '1')
 const SCENARIO_TIMEOUT_MS = Number(flags.get('timeout') || '240000')
+/**
+ * Modes: replay (default) serves recorded model responses from e2e/recordings — no live model,
+ * safe for CI. `--record` forwards to the real OpenAI API and (re)writes the recordings; it is the
+ * only mode that spends tokens or needs a key.
+ */
+const RECORD = args.includes('--record')
+const RECORDINGS_DIR = path.join(import.meta.dir, 'recordings')
+const PROXY_PORT = Number(flags.get('proxy-port') || '45899')
 
 function loadApiKey(): string {
   if (process.env.OPENAI_API_KEY) return process.env.OPENAI_API_KEY
@@ -47,12 +55,116 @@ function loadApiKey(): string {
       if (match) return match[1]!.trim().replace(/^"|"$/g, '')
     }
   }
-  throw new Error('OPENAI_API_KEY not found in env or ../.keys')
+  throw new Error('OPENAI_API_KEY not found in env or ../.keys (needed only for --record)')
 }
 
-const API_KEY = loadApiKey()
+const API_KEY = RECORD ? loadApiKey() : ''
 const ARTIFACT_DIR = path.join(import.meta.dir, '..', 'e2e-artifacts', new Date().toISOString().replace(/[:.]/g, '-'))
 fs.mkdirSync(ARTIFACT_DIR, {recursive: true})
+
+// ─── Record/replay proxy ─────────────────────────────────────────────────────
+// The service talks to a local OpenAI-compatible proxy. Recording forwards upstream and captures
+// the full SSE body per request; replay serves the recording matched by a content fingerprint that
+// is stable across runs (volatile lines like the current-time prompt are stripped before hashing).
+
+type Cassette = {
+  fingerprint: string
+  request: {model?: string; systemHead: string; lastUser: string; toolNames: string[]; toolResultCount: number}
+  status: number
+  body: string
+}
+
+let currentScenario = 'unscoped'
+const recorded = new Map<string, Cassette[]>()
+/** Per-fingerprint serve cursor so repeated identical requests replay in recorded order. */
+let replayCursors = new Map<string, number>()
+let replayCassettes: Cassette[] = []
+
+function cassettePath(scenario: string): string {
+  return path.join(RECORDINGS_DIR, `${scenario}.json`)
+}
+
+function requestFingerprint(body: {
+  model?: string
+  messages?: Array<{role?: string; content?: unknown}>
+  tools?: Array<{function?: {name?: string}}>
+}): {fingerprint: string; request: Cassette['request']} {
+  const messages = body.messages ?? []
+  const system = String(messages[0]?.content ?? '')
+    .split('\n')
+    .filter((line) => !line.startsWith('The current time is:'))
+    .join('\n')
+    .slice(0, 2000)
+  const lastUser = String([...messages].reverse().find((message) => message.role === 'user')?.content ?? '').slice(
+    0,
+    2000,
+  )
+  const toolNames = (body.tools ?? []).map((tool) => tool.function?.name ?? '').sort()
+  const toolResultCount = messages.filter((message) => message.role === 'tool').length
+  const request = {model: body.model, systemHead: system, lastUser, toolNames, toolResultCount}
+  const hasher = new Bun.CryptoHasher('sha256')
+  hasher.update(JSON.stringify(request))
+  return {fingerprint: hasher.digest('hex').slice(0, 24), request}
+}
+
+function loadReplayCassettes(scenario: string): void {
+  const file = cassettePath(scenario)
+  if (!fs.existsSync(file)) {
+    throw new Error(`No recording for scenario "${scenario}" (${file}). Run: bun e2e/run.ts ${scenario} --record`)
+  }
+  replayCassettes = JSON.parse(fs.readFileSync(file, 'utf8')) as Cassette[]
+  replayCursors = new Map()
+}
+
+function flushRecordings(scenario: string): void {
+  const cassettes = recorded.get(scenario)
+  if (!cassettes) return
+  fs.mkdirSync(RECORDINGS_DIR, {recursive: true})
+  fs.writeFileSync(cassettePath(scenario), JSON.stringify(cassettes, null, 2))
+  recorded.delete(scenario)
+}
+
+Bun.serve({
+  port: PROXY_PORT,
+  async fetch(req) {
+    const url = new URL(req.url)
+    if (!url.pathname.endsWith('/chat/completions')) return new Response('not found', {status: 404})
+    const rawBody = await req.text()
+    const parsed = JSON.parse(rawBody) as Parameters<typeof requestFingerprint>[0]
+    const {fingerprint, request} = requestFingerprint(parsed)
+    if (RECORD) {
+      const upstream = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {'content-type': 'application/json', authorization: `Bearer ${API_KEY}`},
+        body: rawBody,
+      })
+      const body = await upstream.text()
+      const list = recorded.get(currentScenario) ?? []
+      list.push({fingerprint, request, status: upstream.status, body})
+      recorded.set(currentScenario, list)
+      return new Response(body, {
+        status: upstream.status,
+        headers: {'content-type': upstream.headers.get('content-type') ?? 'text/event-stream'},
+      })
+    }
+    const matches = replayCassettes.filter((cassette) => cassette.fingerprint === fingerprint)
+    if (matches.length === 0) {
+      console.error(`[replay-miss] scenario=${currentScenario} fp=${fingerprint}`)
+      console.error(`  wanted: ${JSON.stringify(request).slice(0, 300)}`)
+      for (const cassette of replayCassettes.slice(0, 8)) {
+        console.error(`  have fp=${cassette.fingerprint}: ${JSON.stringify(cassette.request).slice(0, 160)}`)
+      }
+      return new Response('data: [DONE]\n\n', {status: 500, headers: {'content-type': 'text/event-stream'}})
+    }
+    const cursor = replayCursors.get(fingerprint) ?? 0
+    const cassette = matches[Math.min(cursor, matches.length - 1)]!
+    replayCursors.set(fingerprint, cursor + 1)
+    return new Response(cassette.body, {
+      status: cassette.status,
+      headers: {'content-type': 'text/event-stream'},
+    })
+  },
+})
 
 type Harness = {
   svc: apisvc.Service
@@ -77,15 +189,19 @@ async function createHarness(): Promise<Harness> {
   if (!opened.ok) throw new Error('schema mismatch')
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-agents-e2e-'))
   const account = blobs.generateNobleKeyPair()
-  const svc = new apisvc.Service(db, dataDir, {})
+  const svc = new apisvc.Service(db, dataDir, {titleGeneration: true})
   const send = async (action: unknown): Promise<api.AgentResponse> =>
     svc.message(await apisvc.createSignedEnvelope(account, {action} as never))
   const expectType = <T extends api.AgentResponse['_']>(response: api.AgentResponse, type: T) => {
     if (response._ !== type) throw new Error(`Expected ${type}, got ${response._}: ${JSON.stringify(response)}`)
     return response as Extract<api.AgentResponse, {_: T}>
   }
-  await send({_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode(API_KEY)})
-  await send({_: 'SetModelProvider', name: 'openai', provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}}})
+  // All model traffic rides the local record/replay proxy; only --record touches the real API.
+  await send({
+    _: 'SetModelProvider',
+    name: 'openai',
+    provider: {type: 'custom', baseUrl: `http://127.0.0.1:${PROXY_PORT}/v1`},
+  })
   return {
     svc,
     account,
@@ -313,7 +429,8 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
       checks.that(succeeded, 'workflow resolved succeeded')
       const runs = await h.runsForSession(sessionId)
       const tree = runs.length > 0 ? await h.runTree(runs[0]!.id) : []
-      const workflowRun = tree.find((run) => run.kind === 'workflow')
+      const workflowRuns = tree.filter((run) => run.kind === 'workflow')
+      const workflowRun = workflowRuns.find((run) => run.status === 'succeeded') ?? workflowRuns.at(-1)
       checks.that(workflowRun !== undefined, 'workflow run exists in the tree')
       if (workflowRun) {
         const journal = await h.journal(workflowRun.id)
@@ -371,6 +488,12 @@ async function runScenario(name: string): Promise<ScenarioResult> {
   const checks = new Checks()
   const scenario = SCENARIOS[name]
   if (!scenario) return {pass: false, failures: [`unknown scenario: ${name}`], notes: []}
+  currentScenario = name
+  try {
+    if (!RECORD) loadReplayCassettes(name)
+  } catch (error) {
+    return {pass: false, failures: [error instanceof Error ? error.message : String(error)], notes: []}
+  }
   try {
     await Promise.race([
       scenario(checks),
@@ -381,11 +504,16 @@ async function runScenario(name: string): Promise<ScenarioResult> {
   } catch (error) {
     checks.failures.push(`threw: ${error instanceof Error ? error.message : String(error)}`)
   }
+  // Only passing runs overwrite recordings: a failed record pass must not poison the cassettes.
+  if (RECORD && checks.failures.length === 0) flushRecordings(name)
+  if (RECORD) recorded.delete(name)
   return {pass: checks.failures.length === 0, failures: checks.failures, notes: checks.notes}
 }
 
 const requested = positional.length === 0 || positional.includes('all') ? Object.keys(SCENARIOS) : positional
-console.log(`\n=== Tier-3 live validation · model=${MODEL} · reps=${REPS} ===`)
+console.log(
+  `\n=== Tier-3 gates · ${RECORD ? `RECORDING live from ${MODEL}` : 'replaying recordings'} · reps=${REPS} ===`,
+)
 console.log(`artifacts: ${ARTIFACT_DIR}\n`)
 let failed = 0
 const summary: string[] = []
