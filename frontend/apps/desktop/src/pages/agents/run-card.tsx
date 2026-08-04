@@ -338,12 +338,12 @@ function RunCardBody({
         </div>
       ) : null}
 
-      {plan?.steps.length ? (
+      {plan?.steps.length || unattachedChildren.length ? (
         <div className="flex min-w-0 flex-col gap-0.5">
-          {plan.title ? (
+          {plan?.title ? (
             <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
           ) : null}
-          {plan.steps.map((step) => {
+          {(plan?.steps ?? []).map((step) => {
             const attached = childrenByStep.get(step.label.trim().toLowerCase())
             if (attached?.length) {
               return attached.map((child) => (
@@ -369,11 +369,8 @@ function RunCardBody({
               />
             )
           })}
-        </div>
-      ) : null}
-
-      {unattachedChildren.length ? (
-        <div className="flex flex-col">
+          {/* Children with no home step live in the same list — the plan and the delegated work
+              are one account of the run, never two stacked lists. */}
           {unattachedChildren.map((child) => (
             <RunChildRow
               key={child.id}
