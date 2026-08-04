@@ -11,6 +11,7 @@ export type ChatToolResult = {
   name: string
   result: string
   rawOutput?: unknown
+  isError?: boolean
 }
 
 /** A markdown text fragment within an assistant message. */
@@ -27,6 +28,8 @@ export type ChatToolPart = {
   args?: Record<string, unknown>
   result?: string
   rawOutput?: unknown
+  /** The result was an error (validation failure, tool crash) — `result` holds the message. */
+  isError?: boolean
 }
 
 /** Ordered assistant message content used to interleave text and tool activity. */
@@ -73,7 +76,7 @@ export function applyChatToolResults(parts: ChatMessagePart[], toolResults: Chat
     if (!toolResult) return part
 
     seenResults.add(toolResult.id)
-    return {...part, result: toolResult.result, rawOutput: toolResult.rawOutput}
+    return {...part, result: toolResult.result, rawOutput: toolResult.rawOutput, isError: toolResult.isError}
   })
 
   for (const toolResult of toolResults) {

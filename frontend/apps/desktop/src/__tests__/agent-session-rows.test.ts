@@ -53,7 +53,29 @@ describe('buildAgentSessionChatRows', () => {
 
     const row = rows[0]!
     if (row.kind !== 'message') throw new Error('expected a message row')
-    expect(row.message.parts?.[0]).toMatchObject({result: 'Not found'})
+    expect(row.message.parts?.[0]).toMatchObject({result: 'Not found', isError: true})
+  })
+
+  it('marks a validation-failed call as errored so a retried call does not read as a duplicate', () => {
+    // Real transcript shape from a live session: the model passed `prompt` instead of `input`,
+    // the call bounced, and the retry succeeded — two calls, and the first must look failed.
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'call-1', name: 'sub_session', input: {title: 'Research'}}),
+        event(2, {type: 'tool_result', toolCallId: 'call-1', name: 'sub_session', error: 'Validation failed'}),
+        event(3, {type: 'tool_call', id: 'call-2', name: 'sub_session', input: {title: 'Research', input: 'Go.'}}),
+      ],
+      CONTEXT,
+    )
+
+    expect(rows).toHaveLength(2)
+    const failed = rows[0]!
+    if (failed.kind !== 'message') throw new Error('expected a message row')
+    expect(failed.message.parts?.[0]).toMatchObject({id: 'call-1', isError: true, result: 'Validation failed'})
+    const retried = rows[1]!
+    if (retried.kind !== 'message') throw new Error('expected a message row')
+    expect(retried.message.parts?.[0]).toMatchObject({id: 'call-2'})
+    expect((retried.message.parts?.[0] as {isError?: boolean}).isError).toBeUndefined()
   })
 
   it('carries window-context lines on the message without leaking them into its text', () => {

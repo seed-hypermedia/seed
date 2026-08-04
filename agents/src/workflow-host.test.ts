@@ -13,7 +13,7 @@ type FakeAdapterOptions = {
   input?: unknown
   journal?: WorkflowJournalEntry[]
   callTool?: (tool: string, input: unknown) => Promise<unknown>
-  spawnAgent?: (spec: unknown) => {childRunId: string; sessionId?: string}
+  spawnAgent?: (spec: unknown, stepLabel?: string) => {childRunId: string; sessionId?: string}
   awaitChild?: (childRunId: string) => Promise<WorkflowChildResolution>
   isCanceled?: () => boolean
   timerParkThresholdMs?: number
@@ -287,6 +287,27 @@ describe('workflow host', () => {
       type: 'succeeded',
       output: {good: {text: 'worker done'}, caught: 'output-schema'},
     })
+  })
+
+  test('ctx.agent inside ctx.step carries the step label to the spawner', async () => {
+    const spawns: Array<{spec: unknown; stepLabel?: string}> = []
+    const {adapters} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        await ctx.step('Research', async () => {
+          await ctx.agent({input: 'go research'})
+        })
+        await ctx.agent({input: 'no step here'})
+        return 'ok'
+      }`,
+      spawnAgent: (spec, stepLabel) => {
+        spawns.push({spec, stepLabel})
+        return {childRunId: `child-${spawns.length}`}
+      },
+      awaitChild: async () => ({status: 'succeeded', output: {text: 'done'}}),
+    })
+    const outcome = await runWorkflowVM(adapters)
+    expect(outcome).toEqual({type: 'succeeded', output: 'ok'})
+    expect(spawns.map((spawn) => spawn.stepLabel)).toEqual(['Research', undefined])
   })
 
   test('ctx.plan accepts bare-string steps and ctx.step ticks them by label', async () => {
