@@ -46,12 +46,11 @@ export function CreateSpaceFlow({onClose}: {onClose: () => void}) {
     try {
       // Upload images to IPFS, then write a populated home draft for
       // the selected identity.
-      const [coverCid, logoCid, faviconCid] = await Promise.all([
+      const [coverCid, logoCid] = await Promise.all([
         state.cover ? fileUpload(state.cover) : Promise.resolve(undefined),
         state.logo ? fileUpload(state.logo) : Promise.resolve(undefined),
-        state.favicon ? fileUpload(state.favicon) : Promise.resolve(undefined),
       ])
-      const metadata = createSpaceMetadata(state, {coverCid, logoCid, faviconCid})
+      const metadata = createSpaceMetadata(state, {coverCid, logoCid})
       await client.drafts.write.mutate({
         id: nanoid(10),
         editUid: selectedAccountId,

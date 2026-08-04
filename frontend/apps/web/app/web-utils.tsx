@@ -10,6 +10,7 @@ import {
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useAccount} from '@shm/shared/models/entity'
+import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
@@ -30,7 +31,6 @@ import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -38,16 +38,13 @@ import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {
   Bell,
-  ExternalLink,
   FilePlus2,
-  Globe,
   History,
   Import as ImportIcon,
   Layers,
   LayoutList,
   Lock,
   LogOut,
-  Plus,
   Search,
   User,
   UserCog,
@@ -56,7 +53,6 @@ import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
 import {getVaultAccountSettingsUrl} from './vault-links'
-import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
 
 export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeInspect?: boolean}): MenuItemType[] {
@@ -270,9 +266,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const {content: createAccountContent, createAccount} = useCreateAccount({})
   const {isJoined, joinSite} = useJoinSite({siteUid})
   const logoutDialog = useAppDialog(LogoutDialog)
-  const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
-  const {data: hasExistingSpace} = useHasExistingSpace(accountId)
-  const canCreateSpace = !hasExistingSpace
 
   const myAccount = useAccount(accountId || undefined, {
     retry: 3,
@@ -322,16 +315,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     />
   )
 
-  // When the account already has a site, the dropdown shows a link to it.
-  const mySiteUrl = account?.metadata?.siteUrl || null
-  const mySiteLabel = mySiteUrl
-    ? mySiteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
-    : account?.metadata?.name || 'My site'
-  const goToMySite = () => {
-    if (mySiteUrl) window.open(mySiteUrl, '_blank', 'noopener,noreferrer')
-    else if (accountId) navigate({key: 'document', id: hmId(accountId, {latest: true})})
-  }
-
   const menuItems = (
     <>
       <button
@@ -360,34 +343,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
-      <div className="bg-border mx-4 h-px" />
-      {canCreateSpace ? (
-        <button
-          className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left text-green-600 dark:text-green-500"
-          onClick={() => {
-            setMobileMenuOpen(false)
-            openCreateSpaceDialog()
-          }}
-        >
-          <Plus className="size-5" />
-          <span className="text-sm">Create my site</span>
-        </button>
-      ) : (
-        <>
-          <div className="text-muted-foreground px-4 pt-2 pb-1 text-xs">My site</div>
-          <button
-            className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
-            onClick={() => {
-              setMobileMenuOpen(false)
-              goToMySite()
-            }}
-          >
-            <Globe className="size-5" />
-            <span className="flex-1 truncate text-sm">{mySiteLabel}</span>
-            {mySiteUrl ? <ExternalLink className="text-muted-foreground size-4" /> : null}
-          </button>
-        </>
-      )}
       <div className="bg-border mx-4 h-px" />
       <button
         className="text-destructive hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
@@ -459,25 +414,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 Manage account
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-              {canCreateSpace ? (
-                <DropdownMenuItem
-                  onClick={openCreateSpaceDialog}
-                  className="text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
-                >
-                  <Plus className="size-4 text-green-600 dark:text-green-500" />
-                  Create my site
-                </DropdownMenuItem>
-              ) : (
-                <>
-                  <div className="text-muted-foreground px-2 pt-1 pb-0.5 text-xs">My site</div>
-                  <DropdownMenuItem onClick={goToMySite}>
-                    <Globe className="size-4" />
-                    <span className="flex-1 truncate">{mySiteLabel}</span>
-                    {mySiteUrl ? <ExternalLink className="text-muted-foreground size-3.5" /> : null}
-                  </DropdownMenuItem>
-                </>
-              )}
-              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
                 <LogOut className="size-4" />
                 Log out
@@ -489,7 +425,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
       )}
       {logoutDialog.content}
       {createAccountContent}
-      {createSpaceDialogContent}
     </>
   )
 }
