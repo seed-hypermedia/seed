@@ -227,6 +227,14 @@ export function DocumentEditor({
     return editorBlocks.length > 0 ? editorBlocks : [{type: 'paragraph' as const}]
   }, [effectiveBlocks])
 
+  // Rebuilding the editor tears down and recreates every ProseMirror node view,
+  // so key it on the serialized content rather than on `initialContent`'s
+  // identity — query refetches and machine emissions hand us a fresh array with
+  // identical content. `resourceId.id` stays in the deps so navigating between
+  // two documents that happen to have identical content still gets a new editor
+  // (option closures below capture `resourceId`).
+  const initialContentKey = useMemo(() => JSON.stringify(initialContent), [initialContent])
+
   const editor = useBlockNote<HMBlockSchema>(
     {
       editable: false,
@@ -449,7 +457,7 @@ export function DocumentEditor({
         ],
       },
     },
-    [initialContent],
+    [initialContentKey, resourceId.id],
   )
 
   // Keep the editor ref current so the paste-handler block-fragment landing
