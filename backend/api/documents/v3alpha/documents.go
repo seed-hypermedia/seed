@@ -514,7 +514,9 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		qb := baseListDocumentsQuery(commentAggSubtree)
 
 		// The comment aggregation is scoped to the same subtree as the row filter below.
-		// It's a LEFT JOIN, so it precedes the WHERE clause and binds first.
+		// It's a LEFT JOIN, so it precedes the WHERE clause and binds first. The scope
+		// appears twice inside it (targets, then credits), so it binds twice.
+		args.Append(baseIRI, baseIRI+"/*")
 		args.Append(baseIRI, baseIRI+"/*")
 
 		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
@@ -1185,6 +1187,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	{
 		// Resolve the account scope up front: the comment aggregation is scoped to the
 		// same resources the row filter selects, and being a LEFT JOIN it binds first.
+		// The scope appears twice inside it (targets, then credits), so it binds twice.
 		var (
 			commentAgg = commentAggAll
 			accountIRI blob.IRI
@@ -1207,6 +1210,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			}
 
 			commentAgg = commentAggSubtree
+			args.Append(accountIRI, accountIRI+"/*")
 			args.Append(accountIRI, accountIRI+"/*")
 		}
 
@@ -1338,23 +1342,25 @@ const qSingleDocCommentAgg = `(
 ) agg`
 
 // Prebuilt comment aggregations, one per listing scope. Each scope predicate must select
-// exactly the resources its listing can return, expressed over the bare `iri` column of
+// exactly the resources its listing can return, expressed over the `tr` alias of
 // `resources`, and must bind the same values as the outer query's `r.iri` filter (see the
 // binding order note on [baseListDocumentsQuery]).
+//
+// A parameterised scope appears *twice* in the generated SQL, so its callers must bind its
+// arguments twice — see [qListDocsCommentAggScoped].
 //
 // These are built once rather than per request: the scopes are fixed, and assembling a
 // couple of kilobytes of SQL on every call would be pure waste on a hot path.
 var (
 	// commentAggSubtree covers one document and everything below it.
-	commentAggSubtree = qListDocsCommentAggScoped(`iri = ? OR iri GLOB ?`)
+	commentAggSubtree = qListDocsCommentAggScoped(`tr.iri = ? OR tr.iri GLOB ?`)
 
 	// commentAggRoots covers the root document of every space.
-	commentAggRoots = qListDocsCommentAggScoped(`iri GLOB 'hm://*' AND iri NOT GLOB 'hm://*/*'`)
+	commentAggRoots = qListDocsCommentAggScoped(`tr.iri GLOB 'hm://*' AND tr.iri NOT GLOB 'hm://*/*'`)
 
-	// commentAggAll covers every document in the database, so the aggregation degenerates
-	// to the unscoped form: correct, but paying the full cost. Only ListDocuments without
-	// an account filter needs it, and that isn't a hot path.
-	commentAggAll = qListDocsCommentAggScoped(`iri GLOB 'hm://*'`)
+	// commentAggAll covers every document in the database. It's the widest scope, and it's
+	// also the hottest: the desktop app lists documents with no account filter on load.
+	commentAggAll = qListDocsCommentAggScoped(`tr.iri GLOB 'hm://*'`)
 )
 
 // qListDocsCommentAggScoped computes each listed document's comment activity (count,
@@ -1388,11 +1394,22 @@ var (
 // blobs outside the scope. Winner-per-TSID is therefore identical to the unscoped query;
 // losers outside the scope simply credit nothing. Comment blobs always carry a TSID
 // (blob_comment.go sets it unconditionally), so the partition key is never NULL.
+//
+// The scope must be written in terms of the `tr` alias of `resources` (e.g.
+// `tr.iri GLOB 'hm://*'`), because it is applied in two places, and callers with a
+// parameterised scope must therefore bind its arguments TWICE: once for `targets`, then
+// once for `credits`, in that order. The duplication is deliberate. `credits` already
+// joins `resources tr`, and testing membership there via `tr.id IN (SELECT id FROM
+// targets)` was quadratic: `chains` is a recursive CTE consumed as a co-routine, so SQLite
+// re-evaluated the IN list per row instead of materializing it once (~2k chain rows × ~7k
+// target rows ≈ 15M scans ≈ 2.5s on a real database, and MATERIALIZED hints on `targets`,
+// `redirected` or `chains` did not help). Applying the predicate directly to `tr.iri`
+// makes it a filter on a row already in hand: same rows, ~0.07s instead of ~2.5s.
 func qListDocsCommentAggScoped(scope string) string {
 	return `(
 	WITH RECURSIVE
 	targets AS (
-		SELECT id FROM resources WHERE ` + scope + `
+		SELECT id FROM resources tr WHERE (` + scope + `)
 	),
 	redirected AS (
 		SELECT
@@ -1416,7 +1433,7 @@ func qListDocsCommentAggScoped(scope string) string {
 		FROM chains c
 		JOIN resources tr ON tr.iri = c.target_iri
 		WHERE tr.id != c.source
-		AND tr.id IN (SELECT id FROM targets)
+		AND (` + scope + `)
 	),
 	sources AS (
 		SELECT id FROM targets
