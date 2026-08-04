@@ -2479,7 +2479,10 @@ export class Service {
 
   #onRunFinalized(run: runs.RunRecord): void {
     this.#workflowCancelFlags.delete(run.id)
-    if (run.kind === 'agent' && run.sessionId) this.#ensureSessionTitled(run.accountId, run.sessionId)
+    if (run.kind === 'agent' && run.sessionId) {
+      this.#ensureSessionTitled(run.accountId, run.sessionId)
+      this.#settleSessionPlanAfterRun(run)
+    }
     const waiters = this.#runWaiters.get(run.id)
     if (waiters) {
       this.#runWaiters.delete(run.id)
@@ -2521,6 +2524,29 @@ export class Service {
         ])
       }
     }
+  }
+
+  /**
+   * A step can't still be "running" once the run that was running it is over. When a session-owning
+   * run finalizes and nothing else is live on the session, settle the update_plan todo the same way
+   * run plans settle: running→done on success, running→failed on failure. Pending steps are left
+   * alone — a session todo list legitimately spans turns.
+   */
+  #settleSessionPlanAfterRun(run: runs.RunRecord): void {
+    if (!run.sessionId) return
+    if (run.status !== 'succeeded' && run.status !== 'failed') return
+    if (runs.sessionHasLiveRun(this.#db, run.sessionId)) return
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(run.accountId, run.sessionId)
+    if (!row?.plan_cbor) return
+    const plan = cbor.decode<api.RunPlan>(row.plan_cbor)
+    const settled: 'done' | 'failed' = run.status === 'succeeded' ? 'done' : 'failed'
+    const steps = plan.steps.map((step) => (step.status === 'running' ? {...step, status: settled} : step))
+    if (steps.every((step, index) => step === plan.steps[index])) return
+    this.#setSessionPlanFromAgent(run.accountId, run.sessionId, {...plan, steps})
   }
 
   /**
