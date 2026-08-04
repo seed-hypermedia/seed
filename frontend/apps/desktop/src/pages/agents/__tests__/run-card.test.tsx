@@ -137,6 +137,39 @@ describe('SessionRunCard (pinned)', () => {
     expect(container.textContent).toContain('Worker')
   })
 
+  it('a failed child with a long error keeps its title visible, truncated error, and click target', () => {
+    const longError =
+      'Invalid request: Your request exceeded model token limit: 262144 (requested: 284345) and then some more detail that goes on and on'
+    mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Analysis'})]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeChild({
+        id: 'child-1',
+        status: 'failed',
+        title: 'Analyze BIB File',
+        sessionId: 'session-child-1',
+        error: {code: 'provider-error', message: longError},
+      }),
+    ]
+    const opened: string[] = []
+    render(<SessionRunCard {...baseProps} onOpenSession={(sessionId) => opened.push(sessionId)} />)
+    expect(container.textContent).toContain('Analyze BIB File')
+    // The error is present but yields space (truncate + hover title), never flex-none.
+    const errorSpan = Array.from(container.querySelectorAll('span')).find(
+      (span) => span.textContent?.startsWith('Invalid request'),
+    )
+    expect(errorSpan?.getAttribute('title')).toBe(longError)
+    expect(errorSpan?.className).toContain('truncate')
+    expect(errorSpan?.className).not.toContain('flex-none')
+    // The row is still clickable and opens the child session.
+    const row = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Analyze BIB File'),
+    )
+    expect(row).toBeTruthy()
+    click(row)
+    expect(opened).toContain('session-child-1')
+  })
+
   it('asks for confirmation before canceling the whole run', () => {
     mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Long job'})]
     // The pinned panel exists only for orchestrations, so the cancelable run has a child.
