@@ -265,6 +265,32 @@ describe('SessionRunCard (pinned)', () => {
     expect(container.textContent).toContain('Draft knowledge base structure')
   })
 
+  it('renders plan steps and unattached sub-agents as one list, not two stacked blocks', () => {
+    // Children spawned before any plan existed have no step to attach to; they still belong in the
+    // same checklist container so the card reads as one account of the run.
+    mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Build KB'})]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeChild({id: 'child-1', status: 'succeeded', title: 'Research supplement knowledge base'}),
+    ]
+    render(
+      <SessionRunCard
+        {...baseProps}
+        sessionPlan={{
+          title: 'Build supplement knowledge base',
+          steps: [{id: 's1', label: 'Publish Seed docs', status: 'running'}],
+        }}
+      />,
+    )
+    const listWithTitle = Array.from(container.querySelectorAll('div')).find(
+      (div) =>
+        div.textContent?.includes('Build supplement knowledge base') &&
+        div.querySelector('span')?.textContent === 'Build supplement knowledge base',
+    )
+    expect(listWithTitle?.textContent).toContain('Publish Seed docs')
+    expect(listWithTitle?.textContent).toContain('Research supplement knowledge base')
+  })
+
   it('keeps an unfinished todo list after the run ends, but stops spinning it', () => {
     mockState.runs = [makeRun({id: 'root-1', status: 'succeeded'})]
     render(
