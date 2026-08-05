@@ -14,7 +14,7 @@
 - `frontend/AGENTS.md` for `frontend/**`.
 - `proto/AGENTS.md` for `proto/**`.
 - `vault/AGENTS.md` for `vault/**`.
-- `agents/docs/readme.md` for `agents/**`
+- `agents/AGENTS.md` for `agents/**`.
 
 ## Agent Assets
 
@@ -42,9 +42,7 @@
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
-- This repo uses `mise` + `direnv` for toolchain setup. Always run commands with the `direnv` environment activated. In
-  non-interactive shells, run `eval "$(direnv export <shell>)"` first, using the current shell name; for example,
-  `eval "$(direnv export zsh)"`.
+- This repo uses `mise` + `direnv` for toolchain setup. Run repository commands as `direnv exec . <command>`.
 
 ## Local CI
 
