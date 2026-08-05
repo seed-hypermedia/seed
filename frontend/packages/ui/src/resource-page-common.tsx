@@ -13,6 +13,7 @@ import {
   createInspectNavRoute,
   DocumentPanelRoute,
   findContentBlock,
+  getMetadataName,
   getBlockText,
   getDraftNodesOutline,
   getNodesOutline,
@@ -124,6 +125,7 @@ import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
 import {SiteHeader} from './site-header'
+import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {UnreferencedDocuments} from './unreferenced-documents'
@@ -1285,6 +1287,8 @@ export function PageWrapper({
   // Note: IS_DESKTOP (Electron) never uses document scroll regardless of window width
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
+  const navigate = useNavigate()
+  const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
 
   // Live-preview the in-flight nav while the user edits the home doc, so
   // additions/reorders/deletions in the EditNavPopover show immediately in
@@ -1340,9 +1344,22 @@ export function PageWrapper({
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
         editNavPane={editNavPane}
+        onOpenFileBrowser={() => setIsFileBrowserOpen(true)}
       />
       <TransientResourceBanner error={transientResourceError ?? null} />
-      {children}
+      <SiteFileBrowserLayout
+        siteId={hmId(siteHomeId.uid)}
+        activeDocumentId={docId}
+        siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Site documents'}
+        mobileOpen={isFileBrowserOpen}
+        onMobileOpenChange={setIsFileBrowserOpen}
+        onNavigate={(id) => {
+          setIsFileBrowserOpen(false)
+          navigate({key: 'document', id})
+        }}
+      >
+        {children}
+      </SiteFileBrowserLayout>
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, test} from 'vitest'
-import {buildDocumentTree, flattenTree} from '../utils/all-documents-tree'
+import {buildDocumentTree, filterDocumentsByTitle, flattenTree, getAncestorPathKeys} from '../utils/all-documents-tree'
 
 function makeDoc(path: string[], name?: string): HMDocumentInfo {
   return {
@@ -90,5 +90,17 @@ describe('all documents tree', () => {
       new Set(),
     )
     expect(rows.every((row) => row.depth === 0)).toBe(true)
+  })
+
+  test('filters documents by title into a flat list', () => {
+    const docs = [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'install'], 'Install Seed')]
+
+    expect(filterDocumentsByTitle(docs, 'INSTALL')).toEqual([docs[1]])
+    expect(filterDocumentsByTitle(docs, 'guides/install')).toEqual([])
+  })
+
+  test('returns ancestor path keys for the active document', () => {
+    expect(getAncestorPathKeys(['guides', 'install', 'linux'])).toEqual(['guides', 'guides/install'])
+    expect(getAncestorPathKeys(['guides'])).toEqual([])
   })
 })
