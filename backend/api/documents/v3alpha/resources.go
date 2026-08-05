@@ -722,7 +722,7 @@ citing_blobs AS (
   JOIN structural_blobs sb ON sb.id = changes.id AND sb.type = 'Comment'
 )
 SELECT
-    (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
+    source_resources.iri AS source_iri,
     blobs.codec,
     blobs.multihash,
 	public_keys.principal AS author,
@@ -741,6 +741,7 @@ SELECT
 FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
 CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
+JOIN resources AS source_resources ON source_resources.id = structural_blobs.resource
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
