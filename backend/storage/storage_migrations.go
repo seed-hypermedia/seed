@@ -63,11 +63,19 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
-	// Repair installs that already advanced past the original RBSR-table
-	// migration without receiving it. The tables are derived and safe to create
-	// empty; fresh data dirs already have them from schema.sql.
+	// This is a bug-fix migration which re-creates the RBSR-related tables if they are missing.
+	// Some users have reported daemon startup issues that's caused by these tables missing.
+	// During the development of this feature we did some weird things and seems like we might have updated a past migration
+	// without bumping its version number, and it could be that some users have ran those pre-release versions.
+	// This migration simply ensures those tables exist, and forces reindex of all the data just to be sure.
 	{Version: "2026-08-05.103117", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := scheduleReindex(conn); err != nil {
+			return err
+		}
+
 		return sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS rbsr_scope;
+			DROP TABLE IF EXISTS rbsr_item;
 			CREATE TABLE IF NOT EXISTS rbsr_scope (
 			    id INTEGER PRIMARY KEY,
 			    iri TEXT NOT NULL,
@@ -86,10 +94,7 @@ var migrations = []migration{
 	}},
 	// Add an expression index on the redirect target of document generations, so
 	// that the comment-activity aggregation in document listings can walk redirect
-	// chains with indexed lookups instead of scanning the whole table. DDL must
-	// stay in lock-step with schema.sql (the migration snapshot test compares).
-	// Drop-first because data dirs fresh-initialized from a pre-merge branch
-	// build already have this index from schema.sql.
+	// chains with indexed lookups instead of scanning the whole table.
 	{Version: "2026-07-28.193121", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			DROP INDEX IF EXISTS document_generations_by_redirect;
@@ -105,10 +110,7 @@ var migrations = []migration{
 	// Add the embeddings_index bookkeeping table: one row per fts entry that has
 	// been embedded. The vec0 embeddings table can't be indexed on fts_id, so the
 	// embedder's pending scan had to full-scan the vector table on every pass;
-	// this table gives that anti-join an integer primary key to probe. DDL must
-	// stay in lock-step with schema.sql (the migration snapshot test compares).
-	// Drop-first because data dirs fresh-initialized from a pre-merge branch
-	// build already have this table from schema.sql. Backfilled from the
+	// this table gives that anti-join an integer primary key to probe. Backfilled from the
 	// existing embeddings so already-embedded content isn't re-embedded.
 	{Version: "2026-07-24.124310", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
@@ -122,12 +124,7 @@ var migrations = []migration{
 	}},
 	// Add the maintained RBSR fingerprint index tables (rbsr_scope / rbsr_item).
 	// They're derived, incremental acceleration for syncing and re-materialize
-	// lazily, so the migration only needs to create the empty tables. DDL must
-	// stay in lock-step with schema.sql (the migration snapshot test compares).
-	// Drop-first because data dirs fresh-initialized from a pre-merge branch
-	// build already have these tables (from schema.sql) while their VERSION file
-	// predates this migration; the tables hold no durable data, so replacing
-	// them also fixes any stale shape.
+	// lazily, so the migration only needs to create the empty tables.
 	{Version: "2026-06-09.094401", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			DROP TABLE IF EXISTS rbsr_item;
@@ -151,9 +148,7 @@ var migrations = []migration{
 	// Drop the UNIQUE constraint from peers.addresses. Two peers can legitimately
 	// share an address set (relay-shared, NAT-shared, address reuse after a peer
 	// leaves) and the old constraint aborted entire bulk peer-exchange INSERTs
-	// on the first colliding row. We park the data in a tmp table, drop the
-	// original, recreate with the canonical DDL (matching schema.sql so the
-	// migration snapshot test passes), copy back, and drop the tmp.
+	// on the first colliding row.
 	{Version: "2026-05-19.151347", Run: func(_ *Store, conn *sqlite.Conn) error {
 		return sqlitex.ExecScript(conn, sqlfmt(`
 			CREATE TABLE peers_tmp AS SELECT id, pid, addresses, explicitly_connected, created_at, updated_at FROM peers;
