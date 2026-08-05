@@ -48,6 +48,7 @@ describe('SiteFileBrowser', () => {
     })
 
     expect(container.textContent).toContain('Private guide')
+    expect(container.querySelector('[data-slot="scroll-area"]')).toBeTruthy()
     expect(container.querySelector('[aria-label="Private document"]')).toBeTruthy()
     expect(container.querySelector('[aria-current="page"]')?.textContent).toContain('Private guide')
   })

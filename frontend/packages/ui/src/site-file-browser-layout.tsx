@@ -5,6 +5,7 @@ import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Button} from './button'
+import {ScrollArea} from './components/scroll-area'
 import {SiteFileBrowser} from './site-file-browser'
 import {useMedia} from './use-media'
 
@@ -76,7 +77,7 @@ export function SiteFileBrowserLayout({
         {mobileOpen
           ? createPortal(
               <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="File browser">
-                <aside className="bg-background flex h-dvh w-4/5 flex-col shadow-2xl">
+                <aside className="dark:bg-background flex h-dvh w-4/5 flex-col bg-white shadow-2xl">
                   <div className="border-border flex shrink-0 items-center border-b px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold">Files</p>
@@ -110,7 +111,7 @@ export function SiteFileBrowserLayout({
   return (
     <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
       {collapsed ? (
-        <div className="border-border bg-background shrink-0 border-r p-2">
+        <div className="border-border dark:bg-background shrink-0 border-r bg-white p-2">
           <Button variant="ghost" size="icon" aria-label="Open file browser" onClick={() => setCollapsed(false)}>
             <PanelLeftOpen className="size-4" />
           </Button>
@@ -127,7 +128,7 @@ export function SiteFileBrowserLayout({
               minSize={minimumPercent}
               maxSize={40}
             >
-              <aside className="border-border bg-background flex h-full flex-col border-r">
+              <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
                 <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
                   <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
                   <Button
@@ -146,7 +147,15 @@ export function SiteFileBrowserLayout({
           </>
         ) : null}
         <Panel id="site-main-content" order={2} minSize={60}>
-          <div className="h-full min-h-0">{children}</div>
+          <div className="dark:bg-background h-full min-h-0 bg-white">
+            <ScrollArea
+              className="scroll-area-full-height h-full"
+              viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+              fillViewportContent
+            >
+              {children}
+            </ScrollArea>
+          </div>
         </Panel>
       </PanelGroup>
     </div>
