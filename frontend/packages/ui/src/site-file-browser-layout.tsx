@@ -82,7 +82,14 @@ export function SiteFileBrowserLayout({
           <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
             <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
           </div>
-          <div className="min-h-0 flex-1">{browser}</div>
+          <div className="min-h-0 flex-1 p-3">
+            <div className="border-border bg-muted/40 h-9 rounded-md border" />
+            <div className="mt-3 space-y-2">
+              <div className="bg-muted h-4 w-3/4 rounded" />
+              <div className="bg-muted h-4 w-2/3 rounded" />
+              <div className="bg-muted h-4 w-1/2 rounded" />
+            </div>
+          </div>
         </aside>
         <div className="dark:bg-background h-full min-h-0 flex-1 overflow-hidden bg-white">{children}</div>
       </div>

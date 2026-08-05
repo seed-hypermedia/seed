@@ -79,10 +79,10 @@ describe('SiteFileBrowserLayout', () => {
     )
 
     expect(html).toContain('Document body')
-    expect(html).toContain('site-file-browser')
     expect(html).toContain('Documents')
     expect(html).toContain('w-72')
     expect(html).not.toContain('data-panel-group')
+    expect(html).not.toContain('animate-spin')
   })
 
   it('labels the collapse and reopen controls with tooltips and uses folder tree when collapsed', () => {
