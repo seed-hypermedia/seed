@@ -98,6 +98,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {useQuery} from '@tanstack/react-query'
 import {FilePen, Info, Quote, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
 import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
@@ -829,6 +830,8 @@ export function ResourcePage({
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
   const isSiteProfile = route.key === 'site-profile'
+  const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
+  const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
     ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
@@ -1129,37 +1132,40 @@ export function ResourcePage({
     : undefined
 
   return (
-    <DocumentMachineProvider
-      // Recreate the machine only when the identity it's bound to changes: the
-      // resolved doc id (path change on first publish) or the ROUTE's pinned
-      // version (?v=). Deliberately NOT the *resolved* latest version — that
-      // bumps on our own publish, which would destroy + recreate the machine
-      // mid-publish and re-load the just-cleared draft, stranding it in editing.
-      key={getDocumentMachineKey(renderedDocId)}
-      input={{
-        documentId: renderedDocId,
-        canEdit: effectiveCanEdit,
-        isLatest,
-        routeVersion: renderedDocId.version ?? null,
-        deps: existingDraftDeps,
-        reservedDraftId: reservedDraftId ?? undefined,
-        editUid: renderedDocId.uid,
-        editPath: renderedDocId.path ?? undefined,
-        signingAccountId,
-        publishAccountUid,
-      }}
-      machine={machine}
-      inspect={inspect}
+    <PageWrapper
+      siteHomeId={siteHomeId}
+      docId={renderedDocId}
+      headerData={headerData}
+      document={document}
+      rightActions={rightActions}
+      editNavPanePortalRef={setEditNavPanePortalElement}
+      transientResourceError={transientResourceError}
+      liveNavigationItems={liveNavigationItems}
     >
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={renderedDocId}
-        headerData={headerData}
-        document={document}
-        rightActions={rightActions}
-        editNavPane={editNavPane}
-        transientResourceError={transientResourceError}
+      <DocumentMachineProvider
+        // Recreate the machine only when the identity it's bound to changes: the
+        // resolved doc id (path change on first publish) or the ROUTE's pinned
+        // version (?v=). Deliberately NOT the *resolved* latest version — that
+        // bumps on our own publish, which would destroy + recreate the machine
+        // mid-publish and re-load the just-cleared draft, stranding it in editing.
+        key={getDocumentMachineKey(renderedDocId)}
+        input={{
+          documentId: renderedDocId,
+          canEdit: effectiveCanEdit,
+          isLatest,
+          routeVersion: renderedDocId.version ?? null,
+          deps: existingDraftDeps,
+          reservedDraftId: reservedDraftId ?? undefined,
+          editUid: renderedDocId.uid,
+          editPath: renderedDocId.path ?? undefined,
+          signingAccountId,
+          publishAccountUid,
+        }}
+        machine={machine}
+        inspect={inspect}
       >
+        <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
+        {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
         <DocumentBody
           routeDocId={docId}
           docId={renderedDocId}
@@ -1203,14 +1209,14 @@ export function ResourcePage({
           linkExtensionOptions={linkExtensionOptions}
           transientResourceError={transientResourceError}
         />
-      </PageWrapper>
-      {machineExtras}
-      {inspect && (
-        <Suspense fallback={null}>
-          <LazyDocumentMachineDebugDrawer store={inspectStore} />
-        </Suspense>
-      )}
-    </DocumentMachineProvider>
+        {machineExtras}
+        {inspect && (
+          <Suspense fallback={null}>
+            <LazyDocumentMachineDebugDrawer store={inspectStore} />
+          </Suspense>
+        )}
+      </DocumentMachineProvider>
+    </PageWrapper>
   )
 }
 
@@ -1259,18 +1265,45 @@ export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderDa
   }
 }
 
-// Wrapper that renders SiteHeader + content
-export function PageWrapper({
-  siteHomeId,
+function getLiveHeaderNavigationItems(
+  machineNav: ReturnType<typeof useDocumentNavigationOptional>,
+): DocNavigationItem[] | undefined {
+  return machineNav
+    ?.map((n) => {
+      const id = unpackHmId(n.link)
+      return {
+        key: n.id,
+        id: id ?? undefined,
+        webUrl: id ? undefined : n.link,
+        draftId: undefined,
+        metadata: {name: n.text || ''},
+        isPublished: true,
+      } satisfies DocNavigationItem
+    })
+    .filter(isValidSiteHeaderItem)
+}
+
+function DocumentNavigationItemsBridge({
   docId,
-  headerData,
-  document,
-  children,
-  isMainFeedVisible = false,
-  rightActions,
-  editNavPane,
-  transientResourceError,
+  onItemsChange,
 }: {
+  docId: UnpackedHypermediaId
+  onItemsChange: (items: DocNavigationItem[] | undefined) => void
+}) {
+  const machineNav = useDocumentNavigationOptional()
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
+
+  useEffect(() => {
+    onItemsChange(isHomeDoc ? getLiveHeaderNavigationItems(machineNav) : undefined)
+    return () => onItemsChange(undefined)
+  }, [docId.id, isHomeDoc, machineNav, onItemsChange])
+
+  return null
+}
+
+/** Props for the persistent site page shell. */
+export interface PageShellProps {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
   headerData: HeaderData
@@ -1279,9 +1312,27 @@ export function PageWrapper({
   isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
+  editNavPanePortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
-}) {
+  /** In-flight header navigation from an active document machine. */
+  liveNavigationItems?: DocNavigationItem[]
+}
+
+/** Persistent site chrome for the header and file browser around route content. */
+export function PageShell({
+  siteHomeId,
+  docId,
+  headerData,
+  document,
+  children,
+  isMainFeedVisible = false,
+  rightActions,
+  editNavPane,
+  editNavPanePortalRef,
+  transientResourceError,
+  liveNavigationItems,
+}: PageShellProps) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
   // Note: IS_DESKTOP (Electron) never uses document scroll regardless of window width
@@ -1289,33 +1340,7 @@ export function PageWrapper({
   const isMobile = media.xs && !IS_DESKTOP
   const navigate = useNavigate()
   const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
-
-  // Live-preview the in-flight nav while the user edits the home doc, so
-  // additions/reorders/deletions in the EditNavPopover show immediately in
-  // the visible site header. Mirrors the legacy draft route at
-  // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
-  // outside DocumentMachineProvider (loading/error/discovery branches), in
-  // which case we fall back to the published headerData.items.
-  const machineNav = useDocumentNavigationOptional()
-  const homeDraftOverride = useIsHomeDraftOverride()
-  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
-  const liveItems: DocNavigationItem[] | undefined =
-    isHomeDoc && machineNav
-      ? machineNav
-          .map((n) => {
-            const id = unpackHmId(n.link)
-            return {
-              key: n.id,
-              id: id ?? undefined,
-              webUrl: id ? undefined : n.link,
-              draftId: undefined,
-              metadata: {name: n.text || ''},
-              isPublished: true,
-            } satisfies DocNavigationItem
-          })
-          .filter(isValidSiteHeaderItem)
-      : undefined
-  const itemsForHeader = liveItems ?? headerData.items
+  const itemsForHeader = liveNavigationItems ?? headerData.items
 
   return (
     <div
@@ -1343,7 +1368,8 @@ export function PageWrapper({
         isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
-        editNavPane={editNavPane}
+        editNavPane={editNavPanePortalRef ? undefined : editNavPane}
+        editNavPanePortalRef={editNavPanePortalRef}
         onOpenFileBrowser={() => setIsFileBrowserOpen(true)}
       />
       <TransientResourceBanner error={transientResourceError ?? null} />
@@ -1361,6 +1387,63 @@ export function PageWrapper({
         {children}
       </SiteFileBrowserLayout>
     </div>
+  )
+}
+
+/** Wrapper that renders the persistent site header, file browser, and page content. */
+export function PageWrapper({
+  siteHomeId,
+  docId,
+  headerData,
+  document,
+  children,
+  isMainFeedVisible = false,
+  rightActions,
+  editNavPane,
+  editNavPanePortalRef,
+  transientResourceError,
+  liveNavigationItems,
+}: {
+  siteHomeId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId
+  headerData: HeaderData
+  document?: HMDocument
+  children: React.ReactNode
+  isMainFeedVisible?: boolean
+  rightActions?: React.ReactNode
+  editNavPane?: React.ReactNode
+  editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  /** Non-fatal resource fetch state rendered as a banner below the header. */
+  transientResourceError?: TransientResourceError
+  /** In-flight header navigation from a document machine mounted inside this wrapper. */
+  liveNavigationItems?: DocNavigationItem[]
+}) {
+  // Live-preview the in-flight nav while the user edits the home doc, so
+  // additions/reorders/deletions in the EditNavPopover show immediately in
+  // the visible site header. Mirrors the legacy draft route at
+  // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
+  // outside DocumentMachineProvider (loading/error/discovery branches), in
+  // which case we fall back to the published headerData.items.
+  const machineNav = useDocumentNavigationOptional()
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
+  const liveItems = liveNavigationItems ?? (isHomeDoc ? getLiveHeaderNavigationItems(machineNav) : undefined)
+
+  return (
+    <PageShell
+      siteHomeId={siteHomeId}
+      docId={docId}
+      headerData={headerData}
+      document={document}
+      isMainFeedVisible={isMainFeedVisible}
+      rightActions={rightActions}
+      editNavPane={editNavPane}
+      editNavPanePortalRef={editNavPanePortalRef}
+      transientResourceError={transientResourceError}
+      liveNavigationItems={liveItems}
+    >
+      {children}
+    </PageShell>
   )
 }
 

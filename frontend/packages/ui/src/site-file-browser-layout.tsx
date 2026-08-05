@@ -1,12 +1,12 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {PanelLeftClose, PanelLeftOpen, X} from 'lucide-react'
+import {FolderTree, PanelLeftClose, X} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Button} from './button'
-import {ScrollArea} from './components/scroll-area'
 import {SiteFileBrowser} from './site-file-browser'
+import {Tooltip} from './tooltip'
 import {useMedia} from './use-media'
 
 /** Props for the responsive site file browser layout. */
@@ -32,12 +32,17 @@ export function SiteFileBrowserLayout({
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
+  const [isClient, setIsClient] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const desktopContainerRef = useRef<HTMLDivElement>(null)
   const browserPanelRef = useRef<ImperativePanelHandle>(null)
   const [minimumPercent, setMinimumPercent] = useState(20)
   const didSetInitialWidth = useRef(false)
   const browser = <SiteFileBrowser siteId={siteId} activeDocumentId={activeDocumentId} onNavigate={onNavigate} />
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
 
   useEffect(() => {
     if (!mobileOpen) return
@@ -69,6 +74,20 @@ export function SiteFileBrowserLayout({
     observer.observe(desktopContainerRef.current)
     return () => observer.disconnect()
   }, [isMobile])
+
+  if (!isClient) {
+    return (
+      <div className="flex min-h-0 flex-1">
+        <aside className="border-border dark:bg-background hidden h-full w-72 shrink-0 flex-col border-r bg-white md:flex">
+          <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
+            <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
+          </div>
+          <div className="min-h-0 flex-1">{browser}</div>
+        </aside>
+        <div className="dark:bg-background h-full min-h-0 flex-1 overflow-hidden bg-white">{children}</div>
+      </div>
+    )
+  }
 
   if (isMobile) {
     return (
@@ -112,9 +131,11 @@ export function SiteFileBrowserLayout({
     <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
       {collapsed ? (
         <div className="border-border dark:bg-background shrink-0 border-r bg-white p-2">
-          <Button variant="ghost" size="icon" aria-label="Open file browser" onClick={() => setCollapsed(false)}>
-            <PanelLeftOpen className="size-4" />
-          </Button>
+          <Tooltip content="Show file explorer">
+            <Button variant="ghost" size="icon" aria-label="Open file browser" onClick={() => setCollapsed(false)}>
+              <FolderTree className="size-4" />
+            </Button>
+          </Tooltip>
         </div>
       ) : null}
       <PanelGroup direction="horizontal" className="min-h-0 flex-1">
@@ -131,14 +152,16 @@ export function SiteFileBrowserLayout({
               <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
                 <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
                   <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Collapse file browser"
-                    onClick={() => setCollapsed(true)}
-                  >
-                    <PanelLeftClose className="size-4" />
-                  </Button>
+                  <Tooltip content="Hide file explorer">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Collapse file browser"
+                      onClick={() => setCollapsed(true)}
+                    >
+                      <PanelLeftClose className="size-4" />
+                    </Button>
+                  </Tooltip>
                 </div>
                 <div className="min-h-0 flex-1">{browser}</div>
               </aside>
@@ -147,15 +170,7 @@ export function SiteFileBrowserLayout({
           </>
         ) : null}
         <Panel id="site-main-content" order={2} minSize={60}>
-          <div className="dark:bg-background h-full min-h-0 bg-white">
-            <ScrollArea
-              className="scroll-area-full-height h-full"
-              viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
-              fillViewportContent
-            >
-              {children}
-            </ScrollArea>
-          </div>
+          <div className="dark:bg-background h-full min-h-0 overflow-hidden bg-white">{children}</div>
         </Panel>
       </PanelGroup>
     </div>

@@ -1,0 +1,107 @@
+// @vitest-environment jsdom
+import {hmId} from '@shm/shared'
+import {act} from 'react-dom/test-utils'
+import {createRoot, type Root} from 'react-dom/client'
+import {renderToString} from 'react-dom/server'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {SiteFileBrowserLayout} from '../site-file-browser-layout'
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+
+vi.mock('../use-media', () => ({useMedia: () => ({xs: false})}))
+vi.mock('../site-file-browser', () => ({SiteFileBrowser: () => <div data-testid="site-file-browser" />}))
+vi.mock('../components/scroll-area', () => ({
+  ScrollArea: ({children}: {children: React.ReactNode}) => <div data-testid="main-scroll-area">{children}</div>,
+}))
+vi.mock('../tooltip', () => ({
+  Tooltip: ({content, children}: {content: string; children: React.ReactNode}) => (
+    <div data-tooltip-content={content}>{children}</div>
+  ),
+}))
+vi.mock('lucide-react', async () => {
+  const makeIcon = (testId: string) => (props: React.SVGProps<SVGSVGElement>) => <svg data-testid={testId} {...props} />
+  return {
+    FolderTree: makeIcon('folder-tree-icon'),
+    PanelLeftClose: makeIcon('panel-left-close-icon'),
+    X: makeIcon('x-icon'),
+  }
+})
+
+let container: HTMLDivElement
+let root: Root
+
+beforeEach(() => {
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+  ;(globalThis as typeof globalThis & {ResizeObserver: typeof ResizeObserver}).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver
+})
+
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+  vi.clearAllMocks()
+})
+
+function renderLayout() {
+  act(() => {
+    root.render(
+      <SiteFileBrowserLayout
+        siteId={hmId('site')}
+        activeDocumentId={hmId('site')}
+        siteName="Site"
+        mobileOpen={false}
+        onMobileOpenChange={vi.fn()}
+        onNavigate={vi.fn()}
+      >
+        <div>Document body</div>
+      </SiteFileBrowserLayout>,
+    )
+  })
+}
+
+describe('SiteFileBrowserLayout', () => {
+  it('server-renders a static 288px file explorer before client sizing is known', () => {
+    const html = renderToString(
+      <SiteFileBrowserLayout
+        siteId={hmId('site')}
+        activeDocumentId={hmId('site')}
+        siteName="Site"
+        mobileOpen={false}
+        onMobileOpenChange={vi.fn()}
+        onNavigate={vi.fn()}
+      >
+        <div>Document body</div>
+      </SiteFileBrowserLayout>,
+    )
+
+    expect(html).toContain('Document body')
+    expect(html).toContain('site-file-browser')
+    expect(html).toContain('Documents')
+    expect(html).toContain('w-72')
+    expect(html).not.toContain('data-panel-group')
+  })
+
+  it('labels the collapse and reopen controls with tooltips and uses folder tree when collapsed', () => {
+    renderLayout()
+
+    expect(container.querySelector('[data-tooltip-content="Hide file explorer"]')).toBeTruthy()
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Collapse file browser"]')?.click()
+    })
+
+    expect(container.querySelector('[data-tooltip-content="Show file explorer"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="folder-tree-icon"]')).toBeTruthy()
+  })
+
+  it('leaves desktop main content scrolling to the document body', () => {
+    renderLayout()
+
+    expect(container.querySelector('[data-testid="main-scroll-area"]')).toBeNull()
+    expect(container.textContent).toContain('Document body')
+  })
+})
