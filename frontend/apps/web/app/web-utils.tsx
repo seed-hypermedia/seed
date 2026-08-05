@@ -269,7 +269,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
   const {isJoined, joinSite} = useJoinSite({siteUid})
-  const logoutDialog = useAppDialog(LogoutDialog)
+  const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
   const {data: hasExistingSpace} = useHasExistingSpace(accountId)
   const canCreateSpace = !hasExistingSpace

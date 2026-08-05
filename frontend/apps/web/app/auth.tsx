@@ -516,25 +516,33 @@ export function LogoutDialog({onClose}: {onClose: () => void}) {
   const isAccountAliased = !!keyPair.delegatedAccountUid || account.data?.id.uid !== keyPair.id
   return (
     <>
-      <DialogTitle>{tx('Really Logout?')}</DialogTitle>
+      <DialogTitle>{tx('Log out?')}</DialogTitle>
       <DialogDescription>
+        {tx('logout_identity_inactive', 'Your identity will no longer be active on this device.')}{' '}
         {isAccountAliased
-          ? tx('logout_account_saved', 'This account will remain accessible on other devices.')
+          ? tx('logout_account_saved', 'You can sign back in at any time.')
           : tx(
               'logout_account_not_saved',
-              'This account key is not saved anywhere else. By logging out, you will lose access to this identity forever. You can always create a new account later.',
+              "This account key isn't saved anywhere else, so you'll lose access to this identity forever. You can always create a new account later.",
             )}
       </DialogDescription>
-      <Button
-        variant="destructive"
-        onClick={() => {
-          logout()
-          onClose()
-          navigate('/', {replace: true})
-        }}
-      >
-        {isAccountAliased ? tx('Log out') : tx('Log out Forever')}
-      </Button>
+      <div className="flex gap-2 sm:justify-stretch">
+        <Button variant="outline" size="lg" className="flex-1" onClick={onClose}>
+          {tx('Cancel')}
+        </Button>
+        <Button
+          variant="destructive"
+          size="lg"
+          className="flex-1"
+          onClick={() => {
+            logout()
+            onClose()
+            navigate('/', {replace: true})
+          }}
+        >
+          {isAccountAliased ? tx('Log out') : tx('Log out forever')}
+        </Button>
+      </div>
     </>
   )
 }
@@ -596,7 +604,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
 /** Renders the own-profile session actions shown in the account header. */
 export function LogoutButton() {
   const userKeyPair = useLocalKeyPair()
-  const logoutDialog = useAppDialog(LogoutDialog)
+  const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const tx = useTxString()
   const vaultAccountSettingsUrl = getVaultAccountSettingsUrl({
     vaultUrl: userKeyPair?.vaultUrl,
@@ -624,7 +632,7 @@ export function LogoutButton() {
 
 export function AccountFooterActions() {
   const userKeyPair = useLocalKeyPair()
-  const logoutDialog = useAppDialog(LogoutDialog)
+  const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const editProfileDialog = useAppDialog(EditProfileDialog)
 
   if (!userKeyPair) return null
