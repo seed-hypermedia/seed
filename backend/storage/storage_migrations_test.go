@@ -14,6 +14,7 @@ import (
 	"seed/backend/core/keystore"
 	"seed/backend/testutil"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitegen"
 	"slices"
@@ -155,6 +156,35 @@ func TestMigrationListSorted(t *testing.T) {
 	if len(out) != len(migrations) {
 		t.Fatalf("the list of migrations must not contain duplicates: %v", migrations)
 	}
+}
+
+func TestMigrationRestoresMissingRBSRTables(t *testing.T) {
+	alice := coretest.NewTester("alice")
+	dir := t.TempDir()
+
+	store, err := Open(dir, alice.Device.Libp2pKey(), keystore.NewMemory(), "debug")
+	require.NoError(t, err)
+	require.NoError(t, store.Close())
+
+	db, err := newSQLite(sqlitePath(dir))
+	require.NoError(t, err)
+	require.NoError(t, db.ForWrite(func(conn *sqlite.Conn) error {
+		if err := sqlitex.ExecTransient(conn, "DROP TABLE rbsr_item", nil); err != nil {
+			return err
+		}
+		return sqlitex.ExecTransient(conn, "DROP TABLE rbsr_scope", nil)
+	}))
+	require.NoError(t, db.Close())
+	require.NoError(t, writeVersionFile(dir, "2026-07-28.193121"))
+
+	store, err = Open(dir, alice.Device.Libp2pKey(), keystore.NewMemory(), "debug")
+	require.NoError(t, err)
+	defer store.Close()
+
+	rawSchema := getRawSQLSchema(t, store.db)
+	require.Contains(t, rawSchema, "rbsr_scope")
+	require.Contains(t, rawSchema, "rbsr_item")
+	require.Contains(t, rawSchema, "rbsr_item_by_blob")
 }
 
 func copyDir(src, dst string) error {

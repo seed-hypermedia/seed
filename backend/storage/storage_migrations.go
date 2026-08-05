@@ -63,6 +63,27 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Repair installs that already advanced past the original RBSR-table
+	// migration without receiving it. The tables are derived and safe to create
+	// empty; fresh data dirs already have them from schema.sql.
+	{Version: "2026-08-05.103117", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE TABLE IF NOT EXISTS rbsr_scope (
+			    id INTEGER PRIMARY KEY,
+			    iri TEXT NOT NULL,
+			    kind INTEGER NOT NULL,
+			    materialized INTEGER NOT NULL DEFAULT 0,
+			    last_access INTEGER NOT NULL DEFAULT 0,
+			    UNIQUE (iri, kind)
+			);
+			CREATE TABLE IF NOT EXISTS rbsr_item (
+			    scope INTEGER NOT NULL REFERENCES rbsr_scope (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    blob INTEGER NOT NULL REFERENCES blobs (id) ON UPDATE CASCADE ON DELETE CASCADE,
+			    PRIMARY KEY (scope, blob)
+			) WITHOUT ROWID;
+			CREATE INDEX IF NOT EXISTS rbsr_item_by_blob ON rbsr_item (blob);
+		`))
+	}},
 	// Add an expression index on the redirect target of document generations, so
 	// that the comment-activity aggregation in document listings can walk redirect
 	// chains with indexed lookups instead of scanning the whole table. DDL must
