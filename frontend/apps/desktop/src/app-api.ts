@@ -169,31 +169,38 @@ export async function openInitialWindows() {
   })
   await getFirstAvailableAccount()
   if (!validWindowEntries.length) {
-    trpc.createAppWindow({
+    await trpc.createAppWindow({
       routes: [getDefaultStartupRoute()],
     })
     return
   }
   try {
-    validWindowEntries.forEach(([windowId, window]) => {
-      trpc.createAppWindow({
-        routes: window.routes,
-        routeIndex: window.routeIndex,
-        selectedIdentity: window.selectedIdentity,
-        sidebarLocked: window.sidebarLocked,
-        sidebarWidth: window.sidebarWidth,
-        accessoryWidth: window.accessoryWidth,
-        bounds: window.bounds,
-        assistantOpen: window.assistantOpen,
-        assistantSessionId: window.assistantSessionId,
-        id: windowId,
-      })
-    })
+    // Awaited, not fire-and-forget: the startup caller clears the isStartingUp
+    // guard as soon as this resolves, and that guard is what stops the
+    // window-all-closed fired by the closing loading window from quitting the
+    // app. It has to outlive the actual BrowserWindow construction, which
+    // happens after an async daemon round-trip inside createAppWindow.
+    await Promise.all(
+      validWindowEntries.map(([windowId, window]) =>
+        trpc.createAppWindow({
+          routes: window.routes,
+          routeIndex: window.routeIndex,
+          selectedIdentity: window.selectedIdentity,
+          sidebarLocked: window.sidebarLocked,
+          sidebarWidth: window.sidebarWidth,
+          accessoryWidth: window.accessoryWidth,
+          bounds: window.bounds,
+          assistantOpen: window.assistantOpen,
+          assistantSessionId: window.assistantSessionId,
+          id: windowId,
+        }),
+      ),
+    )
   } catch (error: unknown) {
     const e = error as Error
     log.error(`[MAIN]: openInitialWindows Error: ${e.message}`)
     await getFirstAvailableAccount()
-    trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
+    await trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
     return
   }
 }

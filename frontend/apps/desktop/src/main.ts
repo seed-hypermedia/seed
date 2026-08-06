@@ -363,17 +363,29 @@ app.whenReady().then(async () => {
         logger.debug('[MAIN]: Loading window closed, opening main windows')
 
         if (response.keys.length === 0) {
-          deleteWindowsState().then(() => {
-            trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
-            isStartingUp = false
-            logger.debug('[MAIN]: Startup complete, main window created')
-            // Process cold start deep link if present
-            if (coldStartDeepLinkUrl) {
-              logger.info(`[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`)
-              handleUrlOpen(coldStartDeepLinkUrl)
-              coldStartDeepLinkUrl = null
-            }
-          })
+          await deleteWindowsState()
+          // Awaited on purpose. closeLoadingWindow above leaves the app with zero
+          // windows, which queues window-all-closed, and createAppWindow does a
+          // daemon round-trip (getFirstAvailableAccount) before it constructs the
+          // BrowserWindow. Firing it unawaited cleared isStartingUp while no window
+          // existed yet, so the queued event reached the handler with the guard
+          // already down and quit the app. The gap is normally too small to lose,
+          // but right after a migration the daemon is still settling from the
+          // reindex transaction, so the round-trip is slow and the app quit itself
+          // the instant reindexing finished.
+          try {
+            await trpc.createAppWindow({routes: [getDefaultStartupRoute()]})
+          } catch (e) {
+            logger.error('[MAIN]: Failed to create main window: ' + (e as Error).message)
+          }
+          isStartingUp = false
+          logger.debug('[MAIN]: Startup complete, main window created')
+          // Process cold start deep link if present
+          if (coldStartDeepLinkUrl) {
+            logger.info(`[MAIN]: Processing cold start deep link: ${coldStartDeepLinkUrl}`)
+            handleUrlOpen(coldStartDeepLinkUrl)
+            coldStartDeepLinkUrl = null
+          }
         } else {
           await openInitialWindows()
           isStartingUp = false
