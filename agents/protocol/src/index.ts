@@ -163,6 +163,11 @@ export type UnsignedAgentAction =
   | CommitFileUpload
   | AbortFileUpload
   | StopSession
+  | RetrySession
+  | GetRun
+  | ListRuns
+  | CancelRun
+  | GetRunJournal
   | Subscribe
 
 /** Lists agents for the signed account. */
@@ -433,6 +438,46 @@ export type ListSessions = {
   limit?: number
   /** Continue after a previous page. Pass the `nextCursor` from `ListSessionsResponse` verbatim. */
   cursor?: SessionListCursor
+  /** List only the children of this session (ignores `includeChildren`). */
+  parentSessionId?: string
+  /**
+   * Pass false to exclude child sessions from the top-level listing (lineage-aware clients nest
+   * them under their parents). Absent/true returns every session, which keeps older clients whole.
+   */
+  includeChildren?: boolean
+}
+
+/** Loads one run. */
+export type GetRun = {
+  _: 'GetRun'
+  runId: string
+}
+
+/**
+ * Lists runs, newest first. Exactly one selector: `rootRunId` returns the whole tree of one root
+ * (oldest first, for tree rendering); `sessionId` returns root runs referencing a session;
+ * `agentId` returns runs of one agent.
+ */
+export type ListRuns = {
+  _: 'ListRuns'
+  rootRunId?: string
+  sessionId?: string
+  agentId?: string
+  status?: RunStatus
+  limit?: number
+}
+
+/** Cancels a run and every non-terminal descendant. */
+export type CancelRun = {
+  _: 'CancelRun'
+  runId: string
+}
+
+/** Loads a run's durable journal entries, optionally after a sequence. */
+export type GetRunJournal = {
+  _: 'GetRunJournal'
+  runId: string
+  afterSeq?: number
 }
 
 /**
@@ -543,10 +588,20 @@ export type StopSession = {
   sessionId: string
 }
 
-/** Authorizes a WebSocket subscription to account/agent/session changes. */
+/**
+ * Re-runs a session whose latest run failed, without appending a new user message: the turn
+ * re-enters from the durable transcript (error events are not replayed to the provider). Rejected
+ * when a run is live or the latest run did not fail.
+ */
+export type RetrySession = {
+  _: 'RetrySession'
+  sessionId: string
+}
+
+/** Authorizes a WebSocket subscription to account/agent/session/run changes. */
 export type Subscribe = {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 
@@ -595,6 +650,74 @@ export type SessionInfo = {
   createdAt: number
   updatedAt: number
   startedByTrigger?: AgentSessionTriggerSummary
+  /** Set on sessions spawned by another session (sub-sessions and agent-started sessions). */
+  parentSessionId?: string
+  /** The run this session is the transcript of, for sessions created as run children. */
+  runId?: string
+  /** Todo/plan snapshot maintained by the agent via the update_plan tool. */
+  plan?: RunPlan
+  /** Number of sessions spawned under this one (rendered as the sub-session disclosure). */
+  childSessionCount?: number
+}
+
+/** Lifecycle status of a durable run. */
+export type RunStatus = 'queued' | 'claimed' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'canceled'
+
+/** Why a run is parked in `waiting`. */
+export type RunWaitInfo = {
+  reason: 'children' | 'timer'
+  wakeAt?: number
+  /** Unresolved child tool calls the run is parked on. */
+  pendingChildren?: number
+}
+
+/** Step list snapshot rendered by the pinned run card and session todo lists. */
+export type RunPlan = {
+  title?: string
+  steps: Array<{id: string; label: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'}>
+}
+
+/** Cumulative persisted usage for a run, including rolled-up child usage. */
+export type RunUsageInfo = AgentRunUsage & {
+  children?: AgentRunUsage & {runs: number}
+}
+
+/** Public metadata returned for a durable run. */
+export type RunInfo = {
+  id: string
+  account: string
+  rootRunId: string
+  parentRunId?: string
+  depth: number
+  kind: 'agent' | 'workflow'
+  agentId?: string
+  /** Transcript session for agent runs; workflow runs have none. */
+  sessionId?: string
+  origin: 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
+  title?: string
+  /** Label of the parent's plan step this run works on, when the spawner recorded one. */
+  stepLabel?: string
+  /** The exact module a workflow run executes — the code the agent wrote, for review. */
+  sourceText?: string
+  /** How many child runs this run spawned. Populated by GetRun/ListRuns; absent means zero. */
+  childRunCount?: number
+  status: RunStatus
+  wait?: RunWaitInfo
+  plan?: RunPlan
+  error?: {code: string; message: string}
+  usage?: RunUsageInfo
+  createdAt: number
+  startedAt?: number
+  finishedAt?: number
+  updatedAt: number
+}
+
+/** One durable entry in a workflow run's journal (loose until the workflow engine lands). */
+export type RunJournalEntryInfo = {
+  runId: string
+  seq: number
+  entry: Record<string, unknown>
+  createdAt: number
 }
 
 /** Compact trigger attribution attached to sessions created by triggers. */
@@ -697,6 +820,19 @@ export type AgentWSEvent =
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
   | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}
+  | {_: 'change'; key: `runs/${string}`; value: RunInfo}
+  | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
+  | {
+      _: 'appendPartial'
+      key: `runs/${string}`
+      runId: string
+      partialId: string
+      patch: {
+        progress?: {fraction?: number; label?: string}
+        activity?: AgentRunActivity
+        usage?: AgentRunUsage
+      }
+    }
   | {_: 'error'; message: string}
 
 /** Redacted provider metadata returned after provider writes. */
@@ -948,7 +1084,47 @@ export type GetSessionResponse = {
 export type MessageSessionResponse = {
   _: 'MessageSessionResponse'
   sessionId: string
+  /**
+   * Final assistant event of the turn. Empty string when the turn did not produce one before the
+   * request returned: background enqueues and runs that parked on sub-sessions (the rest of the
+   * turn streams over WS).
+   */
   assistantEventId: string
+}
+
+/** Successful response for `RetrySession`. */
+export type RetrySessionResponse = {
+  _: 'RetrySessionResponse'
+  sessionId: string
+  /** Final assistant event of the retried turn; empty string when the turn parked (streams over WS). */
+  assistantEventId: string
+}
+
+/** Successful response for `GetRun`. */
+export type GetRunResponse = {
+  _: 'GetRunResponse'
+  run: RunInfo
+}
+
+/** Successful response for `ListRuns`. */
+export type ListRunsResponse = {
+  _: 'ListRunsResponse'
+  runs: RunInfo[]
+}
+
+/** Successful response for `CancelRun`. */
+export type CancelRunResponse = {
+  _: 'CancelRunResponse'
+  runId: string
+  /** False when the run was already terminal. */
+  canceled: boolean
+}
+
+/** Successful response for `GetRunJournal`. */
+export type GetRunJournalResponse = {
+  _: 'GetRunJournalResponse'
+  runId: string
+  entries: RunJournalEntryInfo[]
 }
 
 /** Successful response for `UploadSessionAttachment`. */
@@ -1036,6 +1212,11 @@ export type AgentResponse =
   | UploadAgentMemoryFileToIpfsResponse
   | CreateSessionResponse
   | ListSessionsResponse
+  | RetrySessionResponse
+  | GetRunResponse
+  | ListRunsResponse
+  | CancelRunResponse
+  | GetRunJournalResponse
   | UpdateSessionResponse
   | DeleteSessionResponse
   | GetSessionResponse

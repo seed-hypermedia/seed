@@ -96,6 +96,10 @@ Current `AgentAction` union:
 - `GetSession`
 - `MessageSession`
 - `StopSession`
+- `GetRun`
+- `ListRuns`
+- `CancelRun`
+- `GetRunJournal`
 - `Subscribe`
 
 `Subscribe` is signed with the same envelope type but is accepted over WebSocket, not HTTP.
@@ -350,7 +354,10 @@ Response:
 ```
 
 Deletes the agent after validating ownership, including its triggers, sessions, session events, trigger firings, drafts,
-and per-agent state directory.
+and per-agent state directory. Live runs of the agent are canceled first (cascading through their trees); run history
+survives detached — `runs.agent_id`, `runs.session_id`, and `runs.trigger_firing_id` are nulled inside the delete
+transaction (they are enforced foreign keys; without the detach, any agent that had ever executed a run was
+undeletable), and sub-sessions of _other_ agents hanging off this agent's sessions promote to top level.
 
 ### Agent trigger actions
 
@@ -469,6 +476,8 @@ Request:
   agentId?: string
   limit?: number
   cursor?: {updatedBefore: number; idBefore: string}
+  parentSessionId?: string
+  includeChildren?: boolean
 }
 ```
 
@@ -495,6 +504,12 @@ Pagination is keyset on the composite `(updatedAt, id)`, not on `updatedAt` alon
 `updatedAt` millisecond — one trigger firing over a batch of activity events creates several at once — and a
 timestamp-only cursor silently drops every tied row past a page boundary. Pass `nextCursor` back verbatim as `cursor`;
 its absence means the list is exhausted.
+
+Child sessions (spawned by `sub_session`, workflow `ctx.agent`, or `start_session`) are **included by default**: an
+absent `includeChildren` returns every session, because older deployed clients cannot send the field and hiding
+agent-started sessions from them would be a silent regression. Lineage-aware clients (the current desktop) pass
+`includeChildren: false` explicitly to get top-level rows only — parents carry `childSessionCount` — and fetch children
+per parent with `parentSessionId` (which ignores `includeChildren`).
 
 ### `UpdateSession`
 
@@ -532,8 +547,11 @@ Request:
 }
 ```
 
-Deletes an account-owned session and its durable events. If the session was created by a trigger firing, the firing row
-is retained but detached from the deleted session. The server emits an account change with reason `session-deleted`.
+Deletes an account-owned session and its durable events. Every live run rooted at the session is canceled first —
+**including descendants** (spawned sub-sessions and workflows) — so a parked parent can never be stranded `waiting` by
+its session disappearing, and no executor streams into deleted rows. Run history survives detached (`runs.session_id`
+nulled); child sessions promote to top level (`parent_session_id` nulled); a creating trigger firing is retained but
+detached. The server emits an account change with reason `session-deleted`.
 
 Response:
 
@@ -590,6 +608,12 @@ Flow:
 7. append tool events and final assistant/error event;
 8. set session `idle` or `error`.
 
+Internally the turn is a durable run row claimed inline from the dispatch queue (`agents/src/runs.ts`); the "already
+streaming" guard checks live runs, not the status column, so a crash cannot wedge it.
+`MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant
+event existed: background enqueues (triggers, agent-started sessions) and turns that parked on spawned
+sub-sessions/workflows — the rest of the turn streams over WebSocket.
+
 Idempotent through `clientMessageId`, but intentionally avoids one long SQLite transaction around network calls.
 
 ### `StopSession`
@@ -613,8 +637,40 @@ Response:
 }
 ```
 
-Stops the in-flight Pi agent turn for the signed account/session when one is active. `stopped` is `false` when the
-session is already idle.
+Stops the in-flight Pi agent turn for the signed account/session when one is active, and cancels every live run rooted
+at the session **including descendants** (spawned sub-sessions and workflows). `stopped` is `false` when the session is
+already idle.
+
+### `GetRun`
+
+`{_: 'GetRun', runId}` → `{_: 'GetRunResponse', run: RunInfo}`. 404 when the run does not belong to the account.
+
+### `ListRuns`
+
+```ts
+{
+  _: 'ListRuns'
+  rootRunId?: string // the whole tree of one root, oldest first (tree rendering)
+  sessionId?: string // root runs referencing a session, newest first
+  agentId?: string // runs of one agent, newest first
+  status?: RunStatus
+  limit?: number // default 50, clamped to 200
+}
+```
+
+Exactly one selector is required. Response: `{_: 'ListRunsResponse', runs: RunInfo[]}`.
+
+### `CancelRun`
+
+`{_: 'CancelRun', runId}` → `{_: 'CancelRunResponse', runId, canceled}`. Cancels the run and every non-terminal
+descendant: queued runs never start, waiting runs never wake, executing runs are aborted (Pi abort for agent runs, VM
+interrupt for workflows). `canceled` is `false` when everything was already terminal.
+
+### `GetRunJournal`
+
+`{_: 'GetRunJournal', runId, afterSeq?}` → `{_: 'GetRunJournalResponse', runId, entries}` — a workflow run's durable
+journal entries (`{runId, seq, entry, createdAt}`), empty for agent runs, replayable with `afterSeq` like session
+events.
 
 ### `Subscribe`
 
@@ -623,7 +679,7 @@ Request:
 ```ts
 {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 ```

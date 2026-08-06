@@ -42,6 +42,13 @@ vi.mock('@/models/agents', () => ({
   useLocalAgentServerUrl: () => ({data: LOCAL}),
   useMessageAgentSession: () => ({mutate: vi.fn()}),
   useStopAgentSession: () => ({mutate: vi.fn()}),
+  useRetrySession: () => ({mutate: vi.fn(), isPending: false}),
+  // Sub-session nesting and the pinned run card: idle by default, so neither renders here.
+  useChildSessions: () => ({data: undefined, isLoading: false, isError: false}),
+  useSessionRuns: () => ({data: []}),
+  useRunTree: () => ({data: []}),
+  useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: []}),
+  useCancelRun: () => ({mutate: vi.fn(), isPending: false}),
 }))
 
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => 'account-1'}))

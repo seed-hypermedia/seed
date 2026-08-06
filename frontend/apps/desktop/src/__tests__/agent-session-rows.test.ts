@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import type {SessionEvent} from '@/agents-client'
-import {buildAgentSessionChatRows} from '@/models/agent-session-rows'
+import type {RunInfo, SessionEvent} from '@/agents-client'
+import {buildAgentSessionChatRows, interleaveRunRecords, retryableErrorRowKey} from '@/models/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@/components/assistant-session-ref'
 
 const CONTEXT = {serverUrl: 'http://localhost:3050', agentId: 'agent-1', sessionId: 'session-1'}
@@ -53,7 +53,29 @@ describe('buildAgentSessionChatRows', () => {
 
     const row = rows[0]!
     if (row.kind !== 'message') throw new Error('expected a message row')
-    expect(row.message.parts?.[0]).toMatchObject({result: 'Not found'})
+    expect(row.message.parts?.[0]).toMatchObject({result: 'Not found', isError: true})
+  })
+
+  it('marks a validation-failed call as errored so a retried call does not read as a duplicate', () => {
+    // Real transcript shape from a live session: the model passed `prompt` instead of `input`,
+    // the call bounced, and the retry succeeded — two calls, and the first must look failed.
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'call-1', name: 'sub_session', input: {title: 'Research'}}),
+        event(2, {type: 'tool_result', toolCallId: 'call-1', name: 'sub_session', error: 'Validation failed'}),
+        event(3, {type: 'tool_call', id: 'call-2', name: 'sub_session', input: {title: 'Research', input: 'Go.'}}),
+      ],
+      CONTEXT,
+    )
+
+    expect(rows).toHaveLength(2)
+    const failed = rows[0]!
+    if (failed.kind !== 'message') throw new Error('expected a message row')
+    expect(failed.message.parts?.[0]).toMatchObject({id: 'call-1', isError: true, result: 'Validation failed'})
+    const retried = rows[1]!
+    if (retried.kind !== 'message') throw new Error('expected a message row')
+    expect(retried.message.parts?.[0]).toMatchObject({id: 'call-2'})
+    expect((retried.message.parts?.[0] as {isError?: boolean}).isError).toBeUndefined()
   })
 
   it('carries window-context lines on the message without leaking them into its text', () => {
@@ -127,6 +149,101 @@ describe('buildAgentSessionChatRows', () => {
     const row = rows[0]!
     if (row.kind !== 'message') throw new Error('expected a message row')
     expect(row.message.shareUrl).toBeUndefined()
+  })
+})
+
+describe('retryableErrorRowKey', () => {
+  const rows = (events: SessionEvent[]) => buildAgentSessionChatRows(events, CONTEXT)
+
+  it('offers the trailing error row', () => {
+    const built = rows([
+      event(1, {type: 'message', role: 'user', content: 'hi'}),
+      event(2, {type: 'error', message: 'model call failed'}),
+    ])
+    expect(retryableErrorRowKey(built, false)).toBe('event-2')
+  })
+
+  it('ignores an error the conversation already moved past', () => {
+    const built = rows([
+      event(1, {type: 'error', message: 'model call failed'}),
+      event(2, {type: 'message', role: 'assistant', content: 'recovered'}),
+    ])
+    expect(retryableErrorRowKey(built, false)).toBeUndefined()
+  })
+
+  it('offers nothing while the agent is working', () => {
+    const built = rows([event(1, {type: 'error', message: 'model call failed'})])
+    expect(retryableErrorRowKey(built, true)).toBeUndefined()
+  })
+
+  it('offers nothing on a transcript that never failed', () => {
+    const built = rows([event(1, {type: 'message', role: 'assistant', content: 'all good'})])
+    expect(retryableErrorRowKey(built, false)).toBeUndefined()
+    expect(retryableErrorRowKey([], false)).toBeUndefined()
+  })
+})
+
+describe('interleaveRunRecords', () => {
+  const run = (overrides: Partial<RunInfo> & Pick<RunInfo, 'id' | 'status'>): RunInfo =>
+    ({
+      account: 'a',
+      rootRunId: overrides.id,
+      depth: 0,
+      kind: 'agent',
+      origin: 'user',
+      createdAt: 0,
+      updatedAt: 0,
+      ...overrides,
+    }) as RunInfo
+
+  const messageRows = () =>
+    buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(2, {type: 'message', role: 'assistant', content: 'done'}),
+      ],
+      CONTEXT,
+    )
+
+  it('drops a finished orchestration record after the last event before it completed', () => {
+    const rows = interleaveRunRecords(messageRows(), [
+      run({id: 'r1', status: 'succeeded', childRunCount: 2, finishedAt: 1_700_000_000_000 + 5}),
+    ])
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'message', 'run-record'])
+  })
+
+  it('places an older record between turns, not at the bottom', () => {
+    const rows = interleaveRunRecords(
+      buildAgentSessionChatRows(
+        [
+          event(1, {type: 'message', role: 'user', content: 'first'}),
+          event(5, {type: 'message', role: 'user', content: 'later turn'}),
+        ],
+        CONTEXT,
+      ),
+      [run({id: 'r1', status: 'succeeded', childRunCount: 1, finishedAt: 1_700_000_000_000 + 3})],
+    )
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'run-record', 'message'])
+  })
+
+  it('skips live runs (the pinned card owns them) and plain turns', () => {
+    const rows = interleaveRunRecords(messageRows(), [
+      run({id: 'live', status: 'waiting', childRunCount: 3, finishedAt: undefined}),
+      run({id: 'plain', status: 'succeeded', finishedAt: 1_700_000_000_000 + 9}),
+    ])
+    expect(rows.every((row) => row.kind === 'message')).toBe(true)
+  })
+
+  it('records a workflow or planned run even with no children', () => {
+    const rows = interleaveRunRecords(messageRows(), [
+      run({
+        id: 'planned',
+        status: 'failed',
+        plan: {steps: [{id: 's1', label: 'Only step', status: 'failed'}]},
+        finishedAt: 1_700_000_000_000 + 9,
+      }),
+    ])
+    expect(rows.at(-1)).toMatchObject({kind: 'run-record', run: {id: 'planned'}})
   })
 })
 

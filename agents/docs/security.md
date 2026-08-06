@@ -207,6 +207,32 @@ sandboxing:
 - resource note: each concurrent execution boots a microVM with its configured guest memory; there is no per-account
   concurrency limit yet — treat that as future hardening alongside nonce caching.
 
+## Workflow safety (`run_workflow`, `sub_session`)
+
+Workflow JavaScript is untrusted, possibly model-authored input. Its posture is defense in depth
+(`agents/src/workflow-host.ts`):
+
+- **Zero-ambient-authority realm**: each run gets a fresh QuickJS-WASM context with no `Date`, `Math.random`, timers,
+  `fetch`, imports, or process access — the submission-time lint rejects those tokens up front, and the realm removes
+  them at runtime. The only way to affect the world is the journaled `ctx` bridge.
+- **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the agent's enabled
+  session-independent tools and the tool's input schema; results are size-bounded by the existing tool caps; the journal
+  is a flight recorder — every external effect of a workflow is enumerable after the fact via `GetRunJournal`.
+- **No new authority**: a workflow can do exactly what its agent could do tool-by-tool in chat, under the agent's own
+  signing identities and configured HM server. The new dimension is scale, bounded by spawn depth (3), fan-out (10 per
+  run), the separate workflow concurrency pool (32), 2s compute fuel, 64 MiB VM memory, and journal caps (5,000 entries
+  / 8 MiB).
+- **Sub-agent outputs re-enter parents as data** (schema-validated when a typed result was declared), inside tool
+  results — never as trusted instructions. A prompt-injected child can corrupt only its own return value.
+- **Kill switch**: `CancelRun` on any root cascades to every descendant — queued runs never start, waiting runs never
+  wake, live agent runs abort through Pi, live workflow VMs are interrupted. `StopSession` on the launching chat does
+  the same for its whole tree.
+- **Accepted gaps**: there are no cost (dollar/token) budgets yet — wall-time, depth, fan-out, and concurrency caps are
+  the blast-radius controls until per-model cost tables land (live usage is persisted per run and visible to clients).
+  And a workflow `ctx.call` interrupted between execution and its journaled result **re-executes on resume**
+  (at-least-once): fine for idempotent tools, but a `write` crashed at exactly that point could double-publish —
+  idempotency keys are the roadmap fix.
+
 ## Replay protection status
 
 Implemented:

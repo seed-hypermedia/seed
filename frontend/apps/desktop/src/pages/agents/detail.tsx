@@ -29,6 +29,7 @@ import {
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
 } from '@/models/agents'
+import {SessionStatusDot, SubSessionsDisclosure} from '@/components/session-children'
 import {useSelectedAccountId} from '@/selected-account'
 import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -99,6 +100,12 @@ function AgentDetailPage({
   const serverUrl = routeServerUrl || serverUrlQuery.data || DEFAULT_AGENT_SERVER_URL
   const serverHealth = useAgentServerHealth(serverUrl)
   const agent = useAgentDetail(serverUrl, selectedAccountId, agentId)
+  // GetAgent returns every session including sub-sessions; the tab renders children nested under
+  // their parent's disclosure, so the flat list must hold top-level rows only or they show twice.
+  const topLevelSessions = useMemo(
+    () => (agent.data?.sessions ?? []).filter((session) => !session.parentSessionId),
+    [agent.data?.sessions],
+  )
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
   const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
@@ -195,7 +202,9 @@ function AgentDetailPage({
 
   async function handleCreateSession() {
     try {
-      const result = await createSession.mutateAsync({agentId, title: 'Untitled session'})
+      // No title at creation: the agent names the session, with a server-side fallback from the
+      // first user message — 'Untitled session' is a display placeholder, never data.
+      const result = await createSession.mutateAsync({agentId})
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected session response')
       navigate({key: 'agent-session', agentId, sessionId: result.sessionId, serverUrl})
       // toast.success('Session created')
@@ -362,7 +371,7 @@ function AgentDetailPage({
                 agentId={agentId}
                 serverUrl={serverUrl}
                 activeTab={tab}
-                sessionsCount={agent.data.sessions.length}
+                sessionsCount={topLevelSessions.length}
                 triggersCount={triggers.data?.length}
                 onCreateSession={() => void handleCreateSession()}
                 creatingSession={createSession.isLoading}
@@ -379,14 +388,21 @@ function AgentDetailPage({
               {tab === 'sessions' ? (
                 <section className="flex min-h-0 flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
-                    {!agent.data.sessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
-                    {agent.data.sessions.map((session) => (
+                    {!topLevelSessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
+                    {topLevelSessions.map((session) => (
                       <SessionListItem
                         key={session.id}
                         session={session}
                         serverUrl={serverUrl}
+                        accountUid={selectedAccountId}
                         onOpen={(event) =>
                           clickNavigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl}, event)
+                        }
+                        onOpenSession={(child, event) =>
+                          clickNavigate(
+                            {key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl},
+                            event,
+                          )
                         }
                         onOpenTrigger={() =>
                           session.startedByTrigger
@@ -1299,7 +1315,11 @@ function AgentTriggersTab({
                     key={session.id}
                     session={session}
                     serverUrl={serverUrl}
+                    accountUid={selectedAccountId}
                     onOpen={() => navigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl})}
+                    onOpenSession={(child) =>
+                      navigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl})
+                    }
                     onOpenTrigger={() =>
                       navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.id})
                     }
@@ -1555,12 +1575,18 @@ function StartSessionInput({
 
 function SessionListItem({
   session,
+  serverUrl,
+  accountUid,
   onOpen,
+  onOpenSession,
   onOpenTrigger,
 }: {
   session: SessionInfo
   serverUrl: string
+  accountUid: string | null | undefined
   onOpen: (event: React.MouseEvent<HTMLButtonElement>) => void
+  /** Opens a sub-session listed under this one. */
+  onOpenSession?: (session: SessionInfo, event: React.MouseEvent<HTMLButtonElement>) => void
   onOpenTrigger?: () => void
 }) {
   return (
@@ -1586,18 +1612,19 @@ function SessionListItem({
           Triggered by {session.startedByTrigger.triggerName}
         </button>
       ) : null}
+      {session.childSessionCount && onOpenSession ? (
+        <div className="mt-1 w-full pl-5">
+          <SubSessionsDisclosure
+            serverUrl={serverUrl}
+            accountUid={accountUid}
+            parentSessionId={session.id}
+            childSessionCount={session.childSessionCount}
+            onOpenSession={onOpenSession}
+          />
+        </div>
+      ) : null}
     </div>
   )
-}
-
-function SessionStatusDot({status}: {status: SessionInfo['status']}) {
-  const className =
-    status === 'error'
-      ? 'bg-destructive'
-      : status === 'streaming'
-        ? 'bg-muted-foreground animate-pulse'
-        : 'bg-green-500'
-  return <span className={`${className} size-2.5 flex-none rounded-full`} aria-label={status} title={status} />
 }
 
 export default function AgentDetailRoutePage() {

@@ -5,16 +5,24 @@ import {
   useAgentLists,
   useAgentServerUrls,
   useAgentSession,
+  useSessionRuns,
   useAgentWebSocketSubscription,
   useAllAgentSessions,
   useCreateAgentSessionOnServer,
   useDeleteAgentSession,
   useLocalAgentServerUrl,
   useMessageAgentSession,
+  useRetrySession,
   useStopAgentSession,
   type AgentSessionListEntry,
 } from '@/models/agents'
-import {buildAgentSessionChatRows, buildAgentSessionUrl, chatRowHasPendingToolCall} from '@/models/agent-session-rows'
+import {
+  buildAgentSessionChatRows,
+  interleaveRunRecords,
+  buildAgentSessionUrl,
+  chatRowHasPendingToolCall,
+  retryableErrorRowKey,
+} from '@/models/agent-session-rows'
 import {
   resolveAssistantSelection,
   type AssistantAgentKey,
@@ -52,11 +60,13 @@ import {
 } from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
-import {AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
+import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
 import {useChatAutoScroll} from './chat-autoscroll'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {ChatMessageComposer} from './chat-message-composer'
+import {RunRecordCard, SessionRunCard} from '@/pages/agents/run-card'
+import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
 import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
 
 /**
@@ -167,6 +177,13 @@ export function AssistantPanel({
 
   return (
     <div className="flex h-full flex-col">
+      {/* Account-wide live updates per server: session changes (titles, statuses) reach the
+          sidebar the moment they happen, instead of waiting on the 5s background poll. */}
+      {accountUid
+        ? (serverUrls.data || []).map((serverUrl) => (
+            <AgentAccountLiveUpdates key={serverUrl} serverUrl={serverUrl} accountUid={accountUid} />
+          ))
+        : null}
       {deleteDialog.content}
       {createAgentDialog.content}
       <div className="border-border window-drag flex h-10 items-center justify-between gap-1 border-b px-2 py-2">
@@ -202,6 +219,7 @@ export function AssistantPanel({
         <AssistantSessionPicker
           entries={selection.agentSessions}
           isLoading={sessions.isLoading}
+          accountUid={accountUid}
           selected={activeSession}
           selectedTitle={sessionTitle}
           isDraft={!activeSession}
@@ -303,6 +321,16 @@ export function AssistantPanel({
  * and jumping to the full Agents page — live here so the sidebar is self-sufficient: on a fresh
  * install with zero agents, this dropdown is where you fix that.
  */
+/**
+ * Renders nothing; holds one account-wide WebSocket subscription open for a server so every
+ * session change (agent-set titles, status flips) invalidates the sidebar queries immediately.
+ * A component rather than a hook because the server list is dynamic and hooks cannot loop.
+ */
+function AgentAccountLiveUpdates({serverUrl, accountUid}: {serverUrl: string; accountUid: string}) {
+  useAgentWebSocketSubscription(serverUrl, accountUid, `account/${accountUid}`)
+  return null
+}
+
 function AssistantAgentPicker({
   agents,
   activeAgent,
@@ -412,6 +440,7 @@ function AssistantAgentPicker({
 function AssistantSessionPicker({
   entries,
   isLoading,
+  accountUid,
   selected,
   selectedTitle,
   isDraft,
@@ -419,6 +448,7 @@ function AssistantSessionPicker({
 }: {
   entries: AgentSessionListEntry[]
   isLoading: boolean
+  accountUid: string | null | undefined
   selected: AssistantSessionRef | null
   selectedTitle?: string
   isDraft: boolean
@@ -448,19 +478,37 @@ function AssistantSessionPicker({
           entries.map((entry) => {
             const isSelected = entry.serverUrl === selected?.serverUrl && entry.session.id === selected?.sessionId
             return (
-              <button
-                key={`${entry.serverUrl}${entry.session.id}`}
-                type="button"
-                className={`hover:bg-muted flex w-full items-center rounded px-2 py-1.5 text-left ${
-                  isSelected ? 'bg-muted' : ''
-                }`}
-                onClick={() => {
-                  onSelect({serverUrl: entry.serverUrl, sessionId: entry.session.id})
-                  setOpen(false)
-                }}
-              >
-                <span className="w-full truncate text-xs">{entry.session.title || 'Untitled session'}</span>
-              </button>
+              <div key={`${entry.serverUrl}${entry.session.id}`} className="flex flex-col">
+                <button
+                  type="button"
+                  className={`hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${
+                    isSelected ? 'bg-muted' : ''
+                  }`}
+                  onClick={() => {
+                    onSelect({serverUrl: entry.serverUrl, sessionId: entry.session.id})
+                    setOpen(false)
+                  }}
+                >
+                  <SessionStatusDot status={entry.session.status} className="size-2" />
+                  <span className="min-w-0 flex-1 truncate text-xs">{entry.session.title || 'Untitled session'}</span>
+                </button>
+                {entry.session.childSessionCount ? (
+                  <div className="pl-4">
+                    <SubSessionsDisclosure
+                      compact
+                      serverUrl={entry.serverUrl}
+                      accountUid={accountUid}
+                      parentSessionId={entry.session.id}
+                      childSessionCount={entry.session.childSessionCount}
+                      selectedSessionId={entry.serverUrl === selected?.serverUrl ? selected?.sessionId : undefined}
+                      onOpenSession={(child) => {
+                        onSelect({serverUrl: entry.serverUrl, sessionId: child.id})
+                        setOpen(false)
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             )
           })
         )}
@@ -552,10 +600,12 @@ function AssistantSessionChat({
   inputRef: React.RefObject<HTMLTextAreaElement>
 }) {
   const {serverUrl, sessionId} = sessionRef
+  const navigate = useNavigate()
   const session = useAgentSession(serverUrl, accountUid, sessionId)
   const live = useAgentWebSocketSubscription(serverUrl, accountUid, `sessions/${sessionId}`)
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
+  const retrySession = useRetrySession(serverUrl, accountUid)
   const windowContextLines = useAssistantWindowContextLines()
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
@@ -567,15 +617,19 @@ function AssistantSessionChat({
   const isStreaming = status === 'streaming'
   const runStartedAt = useRunStartedAt(isStreaming)
   const events = session.data?.events
+  const sessionRuns = useSessionRuns(serverUrl, accountUid, sessionId)
   const rows = useMemo(
     () =>
-      buildAgentSessionChatRows(events || [], {
-        serverUrl,
-        agentId: session.data?.session.agentId,
-        sessionId,
-        triggerContext: session.data?.triggerContext,
-      }),
-    [events, serverUrl, sessionId, session.data?.session.agentId, session.data?.triggerContext],
+      interleaveRunRecords(
+        buildAgentSessionChatRows(events || [], {
+          serverUrl,
+          agentId: session.data?.session.agentId,
+          sessionId,
+          triggerContext: session.data?.triggerContext,
+        }),
+        sessionRuns.data || [],
+      ),
+    [events, serverUrl, sessionId, session.data?.session.agentId, session.data?.triggerContext, sessionRuns.data],
   )
 
   const doSendMessage = useCallback(
@@ -592,6 +646,15 @@ function AssistantSessionChat({
   )
 
   const {queuedMessages, queueMessage} = useQueuedChatMessages({isBusy: isStreaming, onFlush: doSendMessage})
+
+  // Retry is offered on a trailing error only, and survives its own in-flight state: the row goes
+  // away when the retried run starts streaming, not when the request is sent.
+  const retryableRowKey = retryableErrorRowKey(rows, !!isStreaming)
+  const handleRetry = useCallback(() => {
+    retrySession.mutate(sessionId, {
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not retry this turn'),
+    })
+  }, [retrySession, sessionId])
 
   function handleSend() {
     const content = input.trim()
@@ -626,9 +689,26 @@ function AssistantSessionChat({
               )
             if (row.kind === 'error') {
               return (
-                <div key={row.key} className="text-destructive my-1 rounded-lg px-3 py-2 text-xs">
-                  {row.message}
-                </div>
+                <AgentErrorRow
+                  key={row.key}
+                  compact
+                  message={row.message}
+                  onRetry={row.key === retryableRowKey ? handleRetry : undefined}
+                  retryPending={retrySession.isPending}
+                />
+              )
+            }
+            if (row.kind === 'run-record') {
+              return (
+                <RunRecordCard
+                  key={row.key}
+                  serverUrl={serverUrl}
+                  accountUid={accountUid}
+                  runId={row.run.id}
+                  onOpenSession={(childSessionId, childAgentId) =>
+                    navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+                  }
+                />
               )
             }
             return null
@@ -653,6 +733,17 @@ function AssistantSessionChat({
           ) : null}
         </div>
       </div>
+
+      <SessionRunCard
+        compact
+        serverUrl={serverUrl}
+        accountUid={accountUid}
+        sessionId={sessionId}
+        sessionPlan={session.data?.session.plan}
+        onOpenSession={(childSessionId, childAgentId) =>
+          navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+        }
+      />
 
       <QueuedChatMessages messages={queuedMessages} />
 

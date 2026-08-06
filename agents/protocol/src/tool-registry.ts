@@ -8,8 +8,12 @@ export type JsonSchema = {
   additionalProperties?: boolean | JsonSchema
   enum?: string[]
   minLength?: number
+  maxLength?: number
   minimum?: number
+  maximum?: number
   items?: JsonSchema
+  minItems?: number
+  maxItems?: number
 }
 
 export type ToolRuntime = 'assistant' | 'agent-service'
@@ -186,7 +190,11 @@ export type SeedToolRegistry = {
   attachment_to_ipfs: SeedToolMetadata
   memory_publish_document: SeedToolMetadata
   execute_code: SeedToolMetadata
+  run_workflow: SeedToolMetadata
+  sub_session: SeedToolMetadata
+  return_result: SeedToolMetadata
   start_session: SeedToolMetadata
+  update_plan: SeedToolMetadata
   set_session_title: SeedToolMetadata
 }
 
@@ -1095,11 +1103,147 @@ export const seedToolRegistry: SeedToolRegistry = {
     runtimes: ['agent-service'],
     userConfigurable: true,
   },
+  run_workflow: {
+    name: 'run_workflow',
+    label: 'Run Workflow',
+    description: [
+      "Write and run a JavaScript workflow that orchestrates your tools with real control flow: loops, conditionals, parallel fan-out, durable sleeps. Use it for multi-step jobs a single conversation turn handles poorly — batch processing, fan-out/aggregate, long-running pipelines. The workflow runs durably: it survives service restarts (completed steps never re-execute) and your turn pauses cheaply until it resolves with the workflow's return value.",
+      '',
+      'The source must be one self-contained module: `export default async function (input, ctx) { ... return result }`. No imports, no Date, no Math.random, no setTimeout, no fetch — the lint rejects them. Everything external goes through ctx:',
+      '- `await ctx.call(toolName, input)` — call any of your enabled tools; throws a catchable error with `.code` on failure.',
+      "- `await ctx.agent({title?, prompt?, agentId?, input, tools?, output?})` — run a sub-session and get its result back DIRECTLY. Write `input` as human-readable markdown: it becomes the sub-agent's first message verbatim and is what the user reviews, so compose the full briefing there (embed data in fenced blocks) rather than passing bare objects (`output` JSON schema → the validated object itself; else `{text}`); throws a coded error on failure/cancellation. Sub-agents default to your tools (pass `tools` only to narrow) and share your persistent memory when they are you.",
+      "- `await ctx.parallel([() => ctx.call(...), () => ctx.agent(...)])` — run thunks concurrently, Promise.all semantics; `ctx.parallelSettled` gives standard Promise.allSettled results ({status: 'fulfilled', value} | {status: 'rejected', reason}).",
+      '- `await ctx.sleep(ms)` / `ctx.minutes(n)` / `ctx.hours(n)` — durable timer; long sleeps cost nothing while waiting.',
+      "- `await ctx.step(label, async () => {...})` — wrap phases so the user sees a live step list; returns the callback's value. `await ctx.plan({steps: [...]})` declares the plan upfront (steps as strings or {id, label, status}); matching ctx.step labels tick the declared steps.",
+      '- `await ctx.now()` — epoch milliseconds, deterministic on replay; `await ctx.log(level, message, data?)`; `ctx.progress({fraction, label})` (synchronous, no await).',
+      '- `ctx.input`, `ctx.runId`.',
+      '',
+      'Keep compute light (heavy work belongs in execute_code via ctx.call); results must be JSON-serializable. Do not use this for work a couple of direct tool calls handle.',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        title: {type: 'string', minLength: 1, description: 'Short label for the workflow, shown in the progress card.'},
+        source: {
+          type: 'string',
+          minLength: 1,
+          description: 'The workflow module: export default async function (input, ctx) { ... }',
+        },
+        input: {description: 'JSON value passed to the module as its first argument.'},
+      },
+      required: ['title', 'source'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        status: {type: 'string', enum: ['succeeded', 'failed', 'canceled']},
+        output: {description: "The workflow module's return value."},
+        error: {type: 'object', properties: {code: {type: 'string'}, message: {type: 'string'}}},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Workflow',
+      pendingLabel: 'Running workflow',
+      color: 'indigo',
+      primaryArg: 'title',
+      summaryArg: 'title',
+      details: [
+        {label: 'Source', source: 'input', path: 'source'},
+        {label: 'Input', source: 'input', path: 'input'},
+        {label: 'Result', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: false,
+  },
+  sub_session: {
+    name: 'sub_session',
+    label: 'Sub-session',
+    description:
+      "Delegate one task to a sub-session that runs to completion and returns its result to you as this tool call's result. Use it to decompose challenging work: fan out research, run a long side-task, or get an isolated second pass. You may call it several times in one reply to run sub-sessions in parallel; your turn pauses (cheaply, resumable after restarts) until every spawned sub-session resolves as success or failure. The sub-session is a fresh context: it sees ONLY the prompt and input you pass (plus shared persistent memory when it is you), never this conversation — include everything it needs. By default it can use the same tools you have (or the named agentId's tools); pass `tools` only to narrow that set. Declare an `output` JSON schema when you need a structured, validated result; otherwise you get the sub-session's final text. Do NOT use this for work you can simply do yourself in this session, and do not spawn a sub-session just to call one tool. If you keep an update_plan todo list, update it first so the step this delegation serves is the one running step — the sub-session is then tracked under it.",
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        title: {
+          type: 'string',
+          description: 'Short label for the sub-session, shown in the sessions list and progress card.',
+        },
+        prompt: {
+          type: 'string',
+          description:
+            'System prompt for an anonymous worker using your model and provider. Provide exactly one of prompt or agentId; omitting both runs the sub-session as yourself (your own system prompt). This is NOT the task brief — that goes in input (a prompt passed without input is treated as the task brief).',
+        },
+        agentId: {
+          type: 'string',
+          description: 'Run the sub-session under another of your agents by id instead of an inline prompt.',
+        },
+        input: {
+          description:
+            "REQUIRED. The task brief, written as human-readable markdown. It becomes the sub-session's first user message VERBATIM — the user reviews it as the sub-agent's full context, so write it like a real briefing: goal, all needed background, and expectations, with any structured data embedded in fenced blocks. (A non-string value is accepted but renders as a raw JSON block; prefer markdown.)",
+        },
+        tools: {
+          type: 'array',
+          items: {type: 'string'},
+          description: 'Restrict the sub-session to these tools (intersected with the tools its agent has enabled).',
+        },
+        output: {
+          type: 'object',
+          description:
+            'JSON schema for the required result — the root MUST be type "object" (wrap arrays in a named property). The sub-session must deliver a matching payload via its return_result tool; validation errors bounce back to it for self-correction.',
+        },
+      },
+      // `input` is semantically required, but enforced in the executor so a model that writes the
+      // brief into `prompt` (the natural mistake) is understood instead of bounced for a retry.
+      required: [],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        status: {type: 'string', enum: ['succeeded', 'failed', 'canceled']},
+        sessionId: {type: 'string'},
+        output: {description: 'The validated result payload, or {text} when no output schema was declared.'},
+        error: {type: 'object', properties: {code: {type: 'string'}, message: {type: 'string'}}},
+      },
+    },
+    render: {
+      kind: 'write',
+      label: 'Sub-session',
+      pendingLabel: 'Running sub-session',
+      color: 'violet',
+      primaryArg: 'title',
+      summaryArg: 'title',
+      details: [
+        {label: 'Prompt', source: 'input', path: 'prompt', format: 'markdown'},
+        {label: 'Input', source: 'input'},
+        {label: 'Result', source: 'output'},
+      ],
+    },
+    runtimes: ['agent-service'],
+    userConfigurable: false,
+  },
+  return_result: {
+    name: 'return_result',
+    label: 'Return Result',
+    description:
+      'Deliver the final structured result of this sub-session. Call this exactly once when the task is complete; the payload must match the required schema. This ends your task.',
+    // The real parameters are the spawner-declared output schema, swapped in at session start.
+    inputSchema: {type: 'object'},
+    render: {
+      kind: 'generic',
+      label: 'Return Result',
+      color: 'emerald',
+      details: [{label: 'Result', source: 'input'}],
+    },
+    runtimes: ['agent-service'],
+  },
   start_session: {
     name: 'start_session',
     label: 'Start Session',
     description:
-      'Start a new independent session of yourself, providing its first message; the new session begins running immediately in the background. Use it to delegate work that should proceed on its own — a long research task, a follow-up job, or parallel work. The new session does NOT share this conversation and you will NOT receive its results, so put everything it needs into the prompt; it does share your persistent memory, so memory files are a good way to hand over material. Your user can watch the new session on the Sessions tab. Do not use this for work you can simply do yourself in this session.',
+      'Start a new detached session of yourself, providing its first message; it begins running immediately in the background. Use it ONLY for work that should proceed on its own and whose outcome you do not need — you will NOT receive its results, and your session does not pause for it. When you need the result back (delegation, fan-out, sub-agents), use sub_session instead; for multi-step orchestration, use run_workflow. The new session does not share this conversation, so put everything it needs into the prompt; it does share your persistent memory. Do not use this for work you can simply do yourself in this session.',
     inputSchema: {
       type: 'object',
       additionalProperties: false,
@@ -1138,6 +1282,35 @@ export const seedToolRegistry: SeedToolRegistry = {
         {label: 'Output', source: 'output'},
       ],
     },
+    runtimes: ['agent-service'],
+  },
+  update_plan: {
+    name: 'update_plan',
+    label: 'Update Plan',
+    description:
+      "Maintain a visible todo list for the current task. Call this when starting any task with 3 or more distinct steps (declare them all as pending, then mark the first running), and again whenever a step's status changes: running when you begin it, done when finished, failed if it cannot complete, skipped if no longer needed. Keep step labels short and outcome-oriented. Send the full current list each time; it replaces the previous plan. The user sees this as a live checklist, so keeping it current is part of doing the task well. Write the plan BEFORE delegating: a sub_session spawned while exactly one step is running is shown under that step in the checklist, so plan first, mark the step running, then spawn.",
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        title: {type: 'string', description: 'Optional one-line name for the overall task.'},
+        steps: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              id: {type: 'string', description: 'Stable id for the step (e.g. "s1"), kept across updates.'},
+              label: {type: 'string', minLength: 1, description: 'Short description of the step.'},
+              status: {type: 'string', enum: ['pending', 'running', 'done', 'failed', 'skipped']},
+            },
+            required: ['id', 'label', 'status'],
+          },
+        },
+      },
+      required: ['steps'],
+    },
+    render: {kind: 'hidden', label: 'Update Plan', color: 'hidden', summaryArg: 'title'},
     runtimes: ['agent-service'],
   },
   set_session_title: {

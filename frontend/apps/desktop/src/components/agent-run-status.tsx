@@ -70,7 +70,7 @@ function activityLabel(activity?: AgentRunActivity): string {
 }
 
 /** Formats elapsed milliseconds as m:ss for the live run timer. */
-function formatElapsed(ms: number): string {
+export function formatElapsed(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000)
   const minutes = Math.floor(totalSeconds / 60)
   const seconds = totalSeconds % 60
@@ -78,7 +78,7 @@ function formatElapsed(ms: number): string {
 }
 
 /** Formats a token count compactly (e.g. 1234 → "1.2k"). */
-function formatTokenCount(count: number): string {
+export function formatTokenCount(count: number): string {
   if (count >= 10_000) return `${Math.round(count / 1000)}k`
   if (count >= 1_000) return `${(count / 1000).toFixed(1)}k`
   return String(count)

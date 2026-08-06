@@ -4,6 +4,7 @@ import {getSeedToolMetadata} from '../../../../../agents/protocol/src/tool-regis
 import {useOpenUrl} from '@/open-url'
 import {useSessionAttachmentDataUrls} from '@/models/agents'
 import {useSelectedAccountId} from '@/selected-account'
+import {useClickNavigate} from '@/utils/useNavigate'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {cn} from '@shm/ui/utils'
@@ -16,6 +17,7 @@ import {
   Info,
   Loader2,
   PenLine,
+  RotateCcw,
   Search,
   Wrench,
 } from 'lucide-react'
@@ -63,6 +65,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
         <AssistantMessageParts
           parts={getAssistantMessageParts(message)}
           liveActivity={liveActivity}
+          serverUrl={serverUrl}
           rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
         />
       )}
@@ -131,11 +134,14 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   isStreaming = false,
   liveActivity,
   rawMarkdownButton,
+  serverUrl,
 }: {
   parts: ChatMessagePart[]
   isStreaming?: boolean
   liveActivity?: AgentRunActivity
   rawMarkdownButton?: React.ReactNode
+  /** Agent server the parts' tool calls ran on, for tools that link to server-side records. */
+  serverUrl?: string
 }) {
   const rawButtonIndex = rawMarkdownButton
     ? parts.reduce((lastTextIndex, part, index) => (part.type === 'text' ? index : lastTextIndex), -1)
@@ -143,7 +149,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
 
   return parts.map((part, index) => {
     if (part.type === 'tool') {
-      return <ToolCallItem key={`${part.id}:${index}`} item={part} liveActivity={liveActivity} />
+      return <ToolCallItem key={`${part.id}:${index}`} item={part} liveActivity={liveActivity} serverUrl={serverUrl} />
     }
 
     const showCursor = isStreaming && index === parts.length - 1
@@ -158,6 +164,56 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
     )
   })
 })
+
+/**
+ * A failed turn, as the transcript shows it — with a way back when it is the last thing that
+ * happened.
+ *
+ * Retry re-runs the failed turn from the durable transcript, so it is offered only on the trailing
+ * error (see `retryableErrorRowKey`): further up, the conversation has already moved on.
+ */
+export function AgentErrorRow({
+  message,
+  compact,
+  onRetry,
+  retryPending,
+}: {
+  message: string
+  /** Sidebar sizing: no frame, tighter type. */
+  compact?: boolean
+  /** Omitted when this error is not retryable, which is what hides the button. */
+  onRetry?: () => void
+  retryPending?: boolean
+}) {
+  return (
+    <div
+      className={
+        compact
+          ? 'text-destructive my-1 rounded-lg px-3 py-2 text-xs'
+          : 'border-destructive/30 bg-destructive/10 text-destructive mr-6 rounded-lg border px-3 py-2 text-xs'
+      }
+    >
+      {compact ? null : <div className="mb-1 font-medium">Error</div>}
+      <p className="whitespace-pre-wrap">{message}</p>
+      {onRetry ? (
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={retryPending}
+          // Neutral inside the red frame: the error is the alarming part, retrying is not.
+          className="bg-background/75 hover:bg-background text-foreground mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.75 text-[10px] font-medium transition-colors disabled:opacity-60"
+        >
+          {retryPending ? (
+            <Loader2 className="size-2.5 shrink-0 animate-spin" />
+          ) : (
+            <RotateCcw className="size-2.5 shrink-0" />
+          )}
+          {retryPending ? 'Retrying…' : 'Retry'}
+        </button>
+      ) : null}
+    </div>
+  )
+}
 
 /** Message shape accepted by the shared assistant chat bubble renderer. */
 export type ChatBubbleMessage = {
@@ -331,9 +387,15 @@ function firstInlinePathValue(value: unknown, path?: string): string | undefined
   return undefined
 }
 
-function ToolChip({children}: {children: React.ReactNode}) {
+function ToolChip({children, tone}: {children: React.ReactNode; tone?: 'error'}) {
   return (
-    <span className="bg-background/75 text-muted-foreground rounded-full border px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap">
+    <span
+      className={`rounded-full border px-1.5 py-0.5 text-[9px] font-medium whitespace-nowrap ${
+        tone === 'error'
+          ? 'border-destructive/30 bg-destructive/10 text-destructive'
+          : 'bg-background/75 text-muted-foreground border'
+      }`}
+    >
       {children}
     </span>
   )
@@ -1296,9 +1358,62 @@ function ExecuteCodeDetails({item, liveTail}: {item: ChatToolPart; liveTail?: st
   )
 }
 
-function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: AgentRunActivity}) {
+/**
+ * The transcript a `sub_session` call created, once it has one.
+ *
+ * Present in the result and in the spawn placeholder, so the title is a way in while the
+ * sub-session is still working, not only after it finishes.
+ */
+function getToolSessionId(item: ChatToolPart): string | undefined {
+  if (item.name !== 'sub_session') return undefined
+  return getToolString(item.rawOutput, 'sessionId')
+}
+
+/**
+ * A tool row's title, as a way into what it made.
+ *
+ * Styled as the document titles in read/write rows are, and it swallows the click the same way, so
+ * the rest of the row still expands.
+ */
+function ToolRouteLink({
+  label,
+  title,
+  onOpen,
+}: {
+  label: string
+  title: string
+  onOpen: (event: React.MouseEvent) => void
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(event) => {
+        // Opening and expanding are different intents; the row's toggle must not also fire.
+        event.stopPropagation()
+        onOpen(event)
+      }}
+      className="text-foreground min-w-0 truncate font-medium decoration-1 underline-offset-2 hover:underline"
+    >
+      {label}
+    </button>
+  )
+}
+
+function ToolCallLine({
+  item,
+  liveActivity,
+  serverUrl,
+}: {
+  item: ChatToolPart
+  liveActivity?: AgentRunActivity
+  /** Agent server the run lives on; without it the embedded run record cannot be loaded. */
+  serverUrl?: string
+}) {
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const clickNavigate = useClickNavigate()
+  const childSessionId = getToolSessionId(item)
   const metadata = getSeedToolMetadata(item.name)
   const render = metadata?.render
   const Icon = toolIcons[render?.kind || 'generic']
@@ -1306,7 +1421,9 @@ function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: 
   const details = getToolDetails(item)
   const summary = getToolSummary(item)
   const links = getToolLinks(item)
-  const colorClass = toolColorClasses[render?.color || 'muted']
+  const colorClass = item.isError
+    ? 'border-destructive/30 bg-destructive/5'
+    : toolColorClasses[render?.color || 'muted']
   const customView = getToolCustomView(item)
   // Live progress for this specific call while it runs (matched by call ID, with a
   // tool-name fallback for servers that don't report the ID yet).
@@ -1346,7 +1463,21 @@ function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: 
           ) : (
             <>
               <span className="shrink-0 font-medium">{render?.label || item.name}</span>
-              {summary ? <span className="text-foreground/75 min-w-0 truncate">{summary}</span> : null}
+              {summary ? (
+                childSessionId && serverUrl ? (
+                  <ToolRouteLink
+                    label={summary}
+                    title={`Open ${summary}`}
+                    // clickNavigate honours cmd/shift-click into a new window, like every other
+                    // session row in the app.
+                    onOpen={(event) =>
+                      clickNavigate({key: 'agent-session', sessionId: childSessionId, serverUrl}, event)
+                    }
+                  />
+                ) : (
+                  <span className="text-foreground/75 min-w-0 truncate">{summary}</span>
+                )
+              ) : null}
               {liveTool?.detail ? <span className="text-foreground/60 min-w-0 truncate">{liveTool.detail}</span> : null}
               <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1 overflow-hidden">
                 {links.map((link) => (
@@ -1356,6 +1487,7 @@ function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: 
             </>
           )}
           {isPending ? <ToolChip>{render?.pendingLabel || 'Running'}</ToolChip> : null}
+          {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
           {getFirstToolValue(item.rawOutput, ['dryRun']) === true ? <ToolChip>Dry run</ToolChip> : null}
           <button
             type="button"
@@ -1376,6 +1508,11 @@ function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: 
         ) : null}
         {expanded ? (
           <div className="mt-2 space-y-2 border-t pt-2">
+            {item.isError && item.result ? (
+              <pre className="border-destructive/30 bg-destructive/5 text-destructive max-h-48 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+                {item.result}
+              </pre>
+            ) : null}
             {item.name === 'execute_code' ? (
               <ExecuteCodeDetails item={item} liveTail={liveTool?.outputTail} />
             ) : item.name === 'read' ? (
@@ -1415,6 +1552,14 @@ function ToolCallLine({item, liveActivity}: {item: ChatToolPart; liveActivity?: 
   )
 }
 
-function ToolCallItem({item, liveActivity}: {item: ChatToolPart; liveActivity?: AgentRunActivity}) {
-  return <ToolCallLine item={item} liveActivity={liveActivity} />
+function ToolCallItem({
+  item,
+  liveActivity,
+  serverUrl,
+}: {
+  item: ChatToolPart
+  liveActivity?: AgentRunActivity
+  serverUrl?: string
+}) {
+  return <ToolCallLine item={item} liveActivity={liveActivity} serverUrl={serverUrl} />
 }

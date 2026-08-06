@@ -1,4 +1,9 @@
-import {type AgentSessionTriggerContext, type SessionAttachmentInfo, type SessionEvent} from '@/agents-client'
+import {
+  type AgentSessionTriggerContext,
+  type RunInfo,
+  type SessionAttachmentInfo,
+  type SessionEvent,
+} from '@/agents-client'
 import {type ChatBubbleMessage} from '@/components/assistant-message-rendering'
 import {type ChatToolPart} from '@/models/chat-parts'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
@@ -17,11 +22,69 @@ export type AgentSessionChatRow =
       key: string
       kind: 'message'
       message: ChatBubbleMessage
+      createdAt?: number
       triggerContext?: AgentSessionTriggerContext
       triggerInstructions?: string
     }
-  | {key: string; kind: 'error'; message: string}
-  | {key: string; kind: 'raw'; event: SessionEvent}
+  | {key: string; kind: 'error'; message: string; createdAt?: number}
+  | {key: string; kind: 'raw'; event: SessionEvent; createdAt?: number}
+  | {key: string; kind: 'run-record'; run: RunInfo; createdAt?: number}
+
+/** Statuses a run can no longer leave (mirrored from the run card; kept dependency-free here). */
+const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'canceled'])
+
+/**
+ * Whether a finished run deserves its own record row in the transcript: it orchestrated something —
+ * a workflow, spawned children, or a step plan. A plain chat turn's story is its messages.
+ */
+function isOrchestrationRecord(run: RunInfo): boolean {
+  return run.kind === 'workflow' || (run.childRunCount ?? 0) > 0 || (run.plan?.steps.length ?? 0) > 0
+}
+
+/**
+ * Places each finished orchestration's record card into the transcript at the moment it completed.
+ *
+ * This is the second half of the pinned card's contract: while a run is live it is pinned above the
+ * composer; once it finalizes, the same card joins the chat log — after the last event that
+ * happened before it finished, which for the newest run is the bottom of the log. Live runs are
+ * skipped (the pinned card owns them), as are plain turns.
+ */
+export function interleaveRunRecords(rows: AgentSessionChatRow[], runs: RunInfo[]): AgentSessionChatRow[] {
+  const records = runs
+    .filter((run) => TERMINAL_RUN_STATUSES.has(run.status) && isOrchestrationRecord(run))
+    .sort((a, b) => (a.finishedAt ?? a.updatedAt) - (b.finishedAt ?? b.updatedAt))
+  if (!records.length) return rows
+  const result = [...rows]
+  for (const run of records) {
+    const finishedAt = run.finishedAt ?? run.updatedAt
+    let index = result.length
+    // Insert after the last row that predates the finish; rows without timestamps keep their place.
+    for (let i = result.length - 1; i >= 0; i -= 1) {
+      const at = result[i]?.createdAt
+      if (at !== undefined && at <= finishedAt) {
+        index = i + 1
+        break
+      }
+      if (at !== undefined) index = i
+    }
+    result.splice(index, 0, {key: `run-${run.id}`, kind: 'run-record', run, createdAt: finishedAt})
+  }
+  return result
+}
+
+/**
+ * The error row a retry may be offered on, if any.
+ *
+ * Only the transcript's final row qualifies: an error the conversation already moved past is
+ * history, and re-running the turn behind it is not what "retry" means there. Nothing is offered
+ * while the agent is working either — the server rejects a retry on a live run, so the button would
+ * only be a way to get an error message.
+ */
+export function retryableErrorRowKey(rows: AgentSessionChatRow[], isBusy: boolean): string | undefined {
+  if (isBusy) return undefined
+  const last = rows[rows.length - 1]
+  return last?.kind === 'error' ? last.key : undefined
+}
 
 /** Identifies which session the events belong to, for building per-event share links. */
 export type AgentSessionRowContext = {
@@ -139,6 +202,7 @@ export function buildAgentSessionChatRows(
       rows.push({
         key: event.id,
         kind: 'message',
+        createdAt: event.createdAt,
         message: {
           role: payload.role,
           content: displayContent,
@@ -170,6 +234,7 @@ export function buildAgentSessionChatRows(
       const row: Extract<AgentSessionChatRow, {kind: 'message'}> = {
         key: event.id,
         kind: 'message',
+        createdAt: event.createdAt,
         message: {
           role: 'assistant',
           parts: [toolPart],
@@ -193,6 +258,7 @@ export function buildAgentSessionChatRows(
         name: payload.name,
         result: resultText,
         rawOutput: payload.output,
+        ...(payload.error ? {isError: true} : {}),
       }
 
       if (existingRow) {
@@ -204,6 +270,7 @@ export function buildAgentSessionChatRows(
         rows.push({
           key: event.id,
           kind: 'message',
+          createdAt: event.createdAt,
           message: {
             role: 'assistant',
             parts: [resultPart],
@@ -221,12 +288,13 @@ export function buildAgentSessionChatRows(
       rows.push({
         key: event.id,
         kind: 'error',
+        createdAt: event.createdAt,
         message: payload.message || payload.error || payload.content || 'Unknown agent error',
       })
       continue
     }
 
-    rows.push({key: event.id, kind: 'raw', event})
+    rows.push({key: event.id, kind: 'raw', event, createdAt: event.createdAt})
   }
 
   return rows

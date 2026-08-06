@@ -305,14 +305,77 @@ The server also starts a background schedule monitor. It evaluates enabled `sche
 interval, records durable `trigger_firings` rows with `schedule:<triggerId>:<scheduledAt>` idempotency keys, creates
 sessions for due occurrences, and disables one-time triggers after a successful run.
 
+## Run queue and workflow engine
+
+Every agent execution is a durable row in the `runs` table, which doubles as the dispatch queue (`agents/src/runs.ts`):
+
+- **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency); everything else
+  (trigger firings, agent-started sessions, sub-sessions, workflows) dispatches on the `background` queue. Agent runs
+  are capped at 8 concurrent provider streams; workflow runs get their own pool of 32 (they hold no provider stream), so
+  a workflow awaiting its children can never starve them.
+- **One live agent run per session** is enforced at claim time (lease-based), replacing the old racy status-column 409.
+- **Boot sweep**: on service construction, runs a dead process left `claimed`/`running` are requeued and any queued
+  backlog resumes. Agent runs resume by replaying their durable session events; a crash between a persisted `tool_call`
+  and its `tool_result` gets a synthesized "interrupted by service restart" result so the provider request is
+  well-formed and the model decides whether to retry. Workflow runs resume by journal replay.
+- **Retry classification**: provider 5xx/network failures are retryable with exponential backoff (base 5s, cap 5min);
+  validation/config errors fail immediately. All current enqueues use `maxAttempts` 1 (2 for sub-session children) — the
+  retry machinery is in place but conservative.
+- **Timer parking**: workflow `ctx.sleep` of 60s or more parks the run (`waiting` + `not_before`); the dispatcher's
+  1-second interval wakes due timers. Parked runs cost nothing.
+- Tests and shutdown wait for the queue via `Service.awaitQueueIdle()` (aliased by the older `drainTriggerSessions()`).
+
+Workflow execution bounds (see `agents/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s
+pure-compute fuel between awaits, journal caps of 5,000 entries / 8 MiB per run, 256 KiB source cap.
+
+## Model-gate harness (record/replay)
+
+`agents/e2e/run.ts` drives the real Service through six behavioral gates. By default it **replays** recorded gpt-5-mini
+responses from `agents/e2e/recordings/` — full service and tool loop, no network, no API key — and
+`agents/src/e2e-replay.test.ts` runs that replay as part of the regular `bun test` suite. Pass `--record` to hit the
+live OpenAI API and refresh the cassettes (spends real tokens — manual only, never CI):
+
+```bash
+cd agents && bun e2e/run.ts all              # replay all scenarios from recordings (offline)
+bun e2e/run.ts wf-hello --record             # re-record one scenario live (needs OPENAI_API_KEY)
+```
+
+Recording proxies provider traffic through a local server that captures each response keyed by a request fingerprint
+(model + system-prompt head + last user message + tool names + tool-result count); replay matches the same fingerprints,
+so cassettes survive tool-description edits but need re-recording when system prompts or conversation flow change. Only
+a passing run overwrites a scenario's cassette. The live key comes from `OPENAI_API_KEY` or the repo-root `.keys` file
+(never committed). Every scenario asserts on durable state (runs, journals, session events) and dumps full transcripts
+to `agents/e2e-artifacts/<timestamp>/` for prompt autopsies. Scenarios: `chat-smoke`, `sub-basic`, `sub-typed`,
+`sub-restraint`, `wf-hello`, `todo-adoption`.
+
+Status: all six cassettes recorded from live gpt-5-mini on 2026-08-04, all passing in replay. The live recording pass
+surfaced (and fixed) three real-model defects: top-level-array output schemas now rejected at spawn time with a
+self-correctable message, `functions.`-prefixed tool names normalized in workflow `ctx.call`, and the standard
+`minItems`/`maxItems`/`maxLength`/`maximum` keywords added to the schema subset.
+
+### Simulated-model gates (no API key required)
+
+Until live gates can run — and as a repeatable practice for iterating tool prompts — validation uses **blind
+simulated-model agents**: a fresh LLM session (a Claude Code subagent) is given ONLY what the runtime model sees (the
+system prompt plus the registry `description`/`inputSchema` of the tools under test, read from
+`agents/protocol/src/tool-registry.ts`) and asked to produce its exact assistant turns for scripted scenarios. Its tool
+calls are then validated mechanically: delegation choices checked against intent, declared output schemas run through
+`validateJsonSchemaShape`, and authored workflow source run through `lintWorkflowSource` and executed in the real engine
+(`runWorkflowVM`) against scripted adapters. The 2026-08-03 pass validated delegation choice (parallel `sub_session`
+fan-out with typed schemas, `start_session` only for detached work, no tools for trivial input) and workflow authoring
+(a ~100-line module that lint-passed and ran correctly, unmodified, first try); the simulators' lists of guessed-at
+contracts drove the ctx-contract tightening in the tool descriptions and the bare-string `ctx.plan` fix. The key
+property making this honest: the simulator must be **blind** — no access to implementation, docs, or tests, only the
+model-facing prompt surface.
+
 ## Startup behavior
 
 On startup:
 
 1. `config.create(config.parseArgs())` builds config.
 2. `sqlite.open(cfg.dbPath)` validates or initializes the DB.
-3. If schema is valid, `Service`, the activity trigger monitor, and the schedule trigger monitor are created and Bun
-   server starts.
+3. If schema is valid, `Service` (which boot-sweeps the run queue), the activity trigger monitor, and the schedule
+   trigger monitor are created and Bun server starts.
 4. If schema is mismatched, server starts in schema-mismatch mode and returns a JSON error.
 
 Schema mismatch log includes stored and expected version. For local throwaway data, delete the SQLite files and restart.
@@ -326,8 +389,9 @@ The service handles `SIGINT` and `SIGTERM`:
 3. close WebSocket clients with code `1001`;
 4. clear client set;
 5. stop Bun server;
-6. close SQLite DB;
-7. exit.
+6. drain in-flight runs (bounded) and stop the run-queue timers;
+7. close SQLite DB;
+8. exit.
 
 ## CORS
 

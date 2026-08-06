@@ -47,6 +47,19 @@ Completed and usable locally:
   with the agent's memory bind-mounted as the working directory, size/time/network-capped, reporting changed memory
   files;
 - per-agent tool toggles plus server-side HM account-key creation/selection for signing/publishing tools;
+- durable run records + dispatch queue under every agent execution: lease-based crash recovery (boot sweep + interrupted
+  tool-call repair), derived session status, persisted per-run usage with child rollup;
+- `sub_session`: awaited sub-session delegation with turn parking/resume, typed `return_result` validation, and durable
+  session lineage (child sessions nest under their parent);
+- `run_workflow`: agent-authored JavaScript workflows in a QuickJS realm with content-keyed journal replay, determinism
+  lint, fuel/memory/journal caps, and a ctx API (call/agent/parallel/sleep/step/plan/now/log/progress); `sub_session`
+  and `run_workflow` are always available in run-backed sessions, like `start_session`;
+- `update_plan` live todo snapshots on sessions; run actions (`GetRun`/`ListRuns`/`CancelRun`/`GetRunJournal`) and
+  `runs/<rootRunId>` WebSocket subscriptions with journal replay;
+- a Tier-3 live-model validation harness (`agents/e2e/run.ts`) that gates prompt/tool designs against a real model
+  (currently blocked on API credits), plus a blind simulated-model gate methodology (see `operations.md`);
+- desktop progress surfaces: the pinned run card with Activity drawer, session nesting with lazy sub-session
+  disclosures, and child-session breadcrumb/banner/composer lock;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;
 - diagnostic logging for OpenAI streaming and WebSocket subscription/fanout.
@@ -84,7 +97,8 @@ Important incomplete work:
 15. [Pi SDK migration project](./pi-sdk-migration.md) — research and implementation plan for using Pi as the agentic
     loop.
 16. [Agent triggers plan](./agent-triggers-plan.md) — proactive triggers that create sessions from HM activity or
-    schedules.
+    schedules. 16b. [Workflows v1 plan](./workflows-v1-plan.md) — the implemented plan for durable runs, sub-sessions,
+    the workflow engine, and the progress UX, with as-built divergences at the end.
 17. [Future projects](./future-projects.md) — larger future work packages.
 18. [Roadmap](./roadmap.md) — prioritized next steps and code-improvement opportunities.
 
@@ -103,6 +117,10 @@ Agents service:
 - `agents/src/agent-memory.ts` — sandboxed per-agent memory filesystem shared by the `memory_*` tools and the signed
   agent-memory actions.
 - `agents/src/code-exec.ts` — sandboxed code execution (microsandbox microVMs) against the agent memory workspace.
+- `agents/src/runs.ts` — durable run records + the dispatch queue (leases, retries, cancellation cascade, timer wakes).
+- `agents/src/workflow-host.ts` — the QuickJS workflow engine: lint, realm prelude, journaled effect pump, replay.
+- `agents/src/json-schema.ts` — bounded JSON Schema validator for typed sub-session results and workflow tool inputs.
+- `agents/e2e/run.ts` — Tier-3 live-model validation harness (manual; spends real tokens).
 - `agents/src/auth.ts` — signed envelope verification and local account authorization.
 - `agents/src/sqlite.ts` — open/schema validation/migration gate.
 - `agents/src/sqlite-schema.sql` — canonical schema.
@@ -124,6 +142,10 @@ Desktop:
 - `frontend/apps/desktop/src/components/assistant-message-rendering.tsx` — shared user/assistant message, markdown,
   streaming cursor, raw-markdown info dialog, and tool-call bubble rendering used by both desktop assistant and Agents
   chat.
+- `frontend/apps/desktop/src/pages/agents/run-card.tsx` — the pinned run/progress card (active/parked/terminal/todo
+  states) and its Activity drawer over the run tree's journal.
+- `frontend/apps/desktop/src/components/session-children.tsx` — shared session status dot + lazy sub-session disclosure
+  used by the sidebar and the agent-detail Sessions tab.
 - `frontend/apps/desktop/src/pages/agents/prompt-editor.tsx` — shared rich prompt editor and block-to-markdown helper
   used by agent/trigger prompt editing and rich session-message submission.
 - `frontend/packages/shared/src/routes.ts` — route schemas for `agents`, `agent`, and `agent-session`.

@@ -17,6 +17,8 @@ export type Config = {
   http: Server
   dbPath: string
   dataDir: string
+  /** Generate titles for untitled sessions with a dedicated model call. */
+  titleGeneration: boolean
   activity: {
     hmServerUrl: string
     pollIntervalMs: number
@@ -63,6 +65,7 @@ export type Flags = {
   'crawler-url': string
   'crawler-token': string
   'exec-backend': string
+  'session-title-generation': boolean
   'exec-image': string
   'exec-cpus': number
   'exec-memory-mib': number
@@ -86,6 +89,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'crawler-url': env.SEED_AGENTS_CRAWLER_URL || '',
     'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
     'exec-backend': env.SEED_AGENTS_EXEC_BACKEND ?? 'microsandbox',
+    'session-title-generation': env.SEED_AGENTS_SESSION_TITLE_GENERATION !== 'false',
     'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
     'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
     'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
@@ -169,6 +173,7 @@ export function create(pflags: Flags): Config {
       allowNetwork: isNetworkEnabled(pflags['exec-allow-network']),
       dnsServers: parseDnsServers(pflags['exec-dns']),
     },
+    titleGeneration: pflags['session-title-generation'],
   }
 }
 

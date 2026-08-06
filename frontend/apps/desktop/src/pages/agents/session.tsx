@@ -1,12 +1,14 @@
 import {
   type AgentRunActivity,
   type AgentSessionTriggerContext,
+  type RunStatus,
   type SessionEvent,
   type SessionInfo,
 } from '@/agents-client'
 import {AgentRunStatusBar, useRunStartedAt} from '@/components/agent-run-status'
 import {useChatAutoScroll} from '@/components/chat-autoscroll'
 import {
+  AgentErrorRow,
   AssistantMessageParts,
   ChatMessageBubble,
   type ChatBubbleMessage,
@@ -24,6 +26,9 @@ import {
   useDeleteAgentSession,
   uploadFileToAgentServer,
   useMessageAgentSession,
+  useRetrySession,
+  useRun,
+  useSessionRuns,
   useStopAgentSession,
   useUpdateAgentSession,
 } from '@/models/agents'
@@ -31,9 +36,11 @@ import type {SessionAttachmentInfo} from '@/agents-client'
 import {
   buildAgentSessionChatRows,
   buildAgentSessionEventUrl,
+  interleaveRunRecords,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
   getSharedEventIdFromHash,
+  retryableErrorRowKey,
   type AgentSessionChatRow as AgentSessionChatRowData,
 } from '@/models/agent-session-rows'
 import {type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
@@ -58,11 +65,52 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
+import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader} from './header'
+import {RunRecordCard, SessionRunCard} from './run-card'
 import {promptBlocksToMarkdown} from './prompt-editor'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
+
+/** Run states a sub-session's parent can no longer be driving it from. */
+const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
+
+const SUB_SESSION_DRIVEN_MESSAGE =
+  'This sub-session is being driven by its parent — watch, or open the parent to intervene'
+
+/**
+ * Header affordances for a sub-session: where it came from, and whether it is still someone else's
+ * to drive. A parked parent leaves this page silent for minutes, so the banner is what makes that
+ * legible rather than looking like a stalled chat.
+ */
+function SubSessionHeader({
+  parentTitle,
+  isDriven,
+  onOpenParent,
+}: {
+  parentTitle?: string
+  isDriven: boolean
+  onOpenParent: () => void
+}) {
+  return (
+    <div className="flex flex-none flex-col gap-2 pt-3">
+      <button
+        type="button"
+        className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground flex max-w-full items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-xs"
+        onClick={onOpenParent}
+        title="Open the parent session"
+      >
+        <CornerLeftUp className="size-3 flex-none" />
+        <span className="min-w-0 truncate">{parentTitle || 'Parent session'}</span>
+      </button>
+      {isDriven ? (
+        <div className="border-border bg-muted/40 text-muted-foreground rounded-md border px-3 py-1.5 text-xs">
+          {SUB_SESSION_DRIVEN_MESSAGE}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function SessionListItem({
   session,
@@ -204,19 +252,35 @@ function AgentSessionPage({
   const titleSaveIdRef = useRef(0)
   const loadedSessionId = session.data?.session.id
   const persistedTitle = session.data?.session.title || 'Untitled session'
+  const sessionRuns = useSessionRuns(serverUrl, selectedAccountId, sessionId)
   const chatRows = useMemo(
     () =>
-      buildAgentSessionChatRows(session.data?.events || [], {
-        serverUrl,
-        agentId,
-        sessionId,
-        triggerContext: session.data?.triggerContext ?? null,
-      }),
-    [agentId, serverUrl, session.data?.events, session.data?.triggerContext, sessionId],
+      interleaveRunRecords(
+        buildAgentSessionChatRows(session.data?.events || [], {
+          serverUrl,
+          agentId,
+          sessionId,
+          triggerContext: session.data?.triggerContext ?? null,
+        }),
+        sessionRuns.data || [],
+      ),
+    [agentId, serverUrl, session.data?.events, session.data?.triggerContext, sessionId, sessionRuns.data],
   )
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
+  const retrySession = useRetrySession(serverUrl, selectedAccountId)
+  // Deliberately not gated on the mutation being in flight: the button stays put and shows its
+  // pending state until the retried run actually starts streaming, which is what removes the row.
+  const retryableRowKey = retryableErrorRowKey(chatRows, !!isAgentBusy)
   const runStartedAt = useRunStartedAt(isAgentBusy)
+  // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
+  // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
+  // child in the parent's tree, so it is reachable by id (SessionInfo.runId), not by ListRuns.
+  const parentSessionId = session.data?.session.parentSessionId
+  const parentSession = useAgentSession(serverUrl, selectedAccountId, parentSessionId, {poll: false})
+  const ownRun = useRun(serverUrl, selectedAccountId, parentSessionId ? session.data?.session.runId : undefined)
+  const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
+  const isDrivenByParent = !!parentSessionId && (isAgentStreaming || hasLiveRun)
   const triggerActivityRoute = useMemo(
     () => (session.data?.triggerContext ? getTriggerActivityRoute(session.data.triggerContext) : null),
     [session.data?.triggerContext],
@@ -315,6 +379,12 @@ function AgentSessionPage({
     if (isAgentBusy) queueMessage(message)
     else await doSendAgentMessage(message)
   }
+
+  const handleRetrySession = useCallback(() => {
+    retrySession.mutate(sessionId, {
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not retry this turn'),
+    })
+  }, [retrySession, sessionId])
 
   async function handleStopSession() {
     try {
@@ -438,6 +508,20 @@ function AgentSessionPage({
         ) : null}
         {session.data ? (
           <div className="flex min-h-0 flex-1 flex-col">
+            {parentSessionId ? (
+              <SubSessionHeader
+                parentTitle={parentSession.data?.session.title}
+                isDriven={isDrivenByParent}
+                onOpenParent={() =>
+                  navigate({
+                    key: 'agent-session',
+                    agentId: parentSession.data?.session.agentId,
+                    sessionId: parentSessionId,
+                    serverUrl,
+                  })
+                }
+              />
+            ) : null}
             <div
               ref={autoScroll.containerRef}
               onScroll={autoScroll.handleScroll}
@@ -455,7 +539,13 @@ function AgentSessionPage({
                       row={row}
                       serverUrl={serverUrl}
                       agentId={agentId}
+                      accountUid={selectedAccountId}
                       liveActivity={chatRowHasPendingToolCall(row) ? liveState.activity : undefined}
+                      onRetry={row.key === retryableRowKey ? handleRetrySession : undefined}
+                      retryPending={retrySession.isPending}
+                      onOpenSession={(childSessionId, childAgentId) =>
+                        navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+                      }
                     />
                   </div>
                 ))}
@@ -477,10 +567,20 @@ function AgentSessionPage({
                 ) : null}
               </div>
             </div>
+            <SessionRunCard
+              serverUrl={serverUrl}
+              accountUid={selectedAccountId}
+              sessionId={sessionId}
+              sessionPlan={session.data.session.plan}
+              onOpenSession={(childSessionId, childAgentId) =>
+                navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+              }
+            />
             <QueuedChatMessages messages={queuedMessages} getText={(message) => message.text} />
             <AgentRichMessageComposer
               isBusy={isAgentBusy}
               isStreaming={isAgentStreaming}
+              disabledMessage={isDrivenByParent ? SUB_SESSION_DRIVEN_MESSAGE : undefined}
               stopPending={stopSession.isPending}
               serverUrl={serverUrl}
               accountId={selectedAccountId ?? null}
@@ -575,6 +675,7 @@ type CommentEditorGetContent = CommentEditorSubmitOptions['getContent']
 function AgentRichMessageComposer({
   isBusy,
   isStreaming,
+  disabledMessage,
   stopPending,
   serverUrl,
   accountId,
@@ -584,6 +685,8 @@ function AgentRichMessageComposer({
 }: {
   isBusy: boolean
   isStreaming: boolean
+  /** When set, the composer is replaced by this explanation — the session is not the user's to drive. */
+  disabledMessage?: string
   stopPending: boolean
   serverUrl: string
   accountId: string | null
@@ -641,6 +744,14 @@ function AgentRichMessageComposer({
     setDraftMarkdown('')
     requestAnimationFrame(() => submitHandleRef.current?.focus({moveCursorToEnd: true}))
     onSend({text: markdown, blocks: trimmedBlocks, ...(attachments.length ? {attachments} : {})})
+  }
+
+  if (disabledMessage) {
+    return (
+      <div className="border-border border-t">
+        <div className="text-muted-foreground px-3 py-3 text-xs">{disabledMessage}</div>
+      </div>
+    )
   }
 
   return (
@@ -731,12 +842,21 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   row,
   serverUrl,
   agentId,
+  accountUid,
   liveActivity,
+  onRetry,
+  retryPending,
+  onOpenSession,
 }: {
   row: AgentSessionChatRowData
   serverUrl: string
   agentId?: string
+  accountUid?: string | null
   liveActivity?: AgentRunActivity
+  /** Set only on a trailing error row, which is the only place a retry is offered. */
+  onRetry?: () => void
+  retryPending?: boolean
+  onOpenSession?: (sessionId: string, agentId?: string) => void
 }) {
   if (row.kind === 'message') {
     if (row.triggerContext) {
@@ -760,11 +880,13 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   }
 
   if (row.kind === 'error') {
+    return <AgentErrorRow message={row.message} onRetry={onRetry} retryPending={retryPending} />
+  }
+
+  if (row.kind === 'run-record') {
+    // The pinned card's afterlife: the same card, frozen at the moment the run completed.
     return (
-      <div className="border-destructive/30 bg-destructive/10 text-destructive mr-6 rounded-lg border px-3 py-2 text-xs">
-        <div className="mb-1 font-medium">Error</div>
-        <p className="whitespace-pre-wrap">{row.message}</p>
-      </div>
+      <RunRecordCard serverUrl={serverUrl} accountUid={accountUid} runId={row.run.id} onOpenSession={onOpenSession} />
     )
   }
 

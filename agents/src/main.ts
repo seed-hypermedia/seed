@@ -174,17 +174,23 @@ function sendWS(ws: ServerWebSocket<WSData>, event: api.AgentWSEvent): void {
 
 function summarizeWSEvent(event: api.AgentWSEvent): Record<string, unknown> {
   if (event._ === 'appendPartial') {
+    const patch = event.patch as {
+      textDelta?: string
+      done?: boolean
+      usage?: api.AgentRunUsage
+      activity?: api.AgentRunActivity
+    }
     return {
       type: event._,
       key: event.key,
       partialId: event.partialId,
-      textDeltaBytes: event.patch.textDelta ? new TextEncoder().encode(event.patch.textDelta).byteLength : 0,
-      done: event.patch.done === true,
-      activity: event.patch.activity?.phase,
-      totalTokens: event.patch.usage?.total,
+      textDeltaBytes: patch.textDelta ? new TextEncoder().encode(patch.textDelta).byteLength : 0,
+      done: patch.done === true,
+      activity: patch.activity?.phase,
+      totalTokens: patch.usage?.total,
     }
   }
-  if (event._ === 'append') return {type: event._, key: event.key, seq: event.event.seq}
+  if (event._ === 'append') return {type: event._, key: event.key, seq: 'seq' in event ? event.seq : event.event.seq}
   if (event._ === 'change') return {type: event._, key: event.key}
   if (event._ === 'subscribed') return {type: event._, key: event.key, accountId: event.accountId}
   return {type: event._}
@@ -478,6 +484,29 @@ async function main(): Promise<void> {
           key: `agents/${event.agent.id}`,
           value: event.agent,
         })
+      } else if (event.type === 'run-change') {
+        sendIfSubscribed(ws, `runs/${event.run.rootRunId}`, {
+          _: 'change',
+          key: `runs/${event.run.rootRunId}`,
+          value: event.run,
+        })
+      } else if (event.type === 'run-append') {
+        sendIfSubscribed(ws, `runs/${event.rootRunId}`, {
+          _: 'append',
+          key: `runs/${event.rootRunId}`,
+          runId: event.entry.runId,
+          seq: event.entry.seq,
+          entry: event.entry.entry,
+          createdAt: event.entry.createdAt,
+        })
+      } else if (event.type === 'run-partial') {
+        sendIfSubscribed(ws, `runs/${event.rootRunId}`, {
+          _: 'appendPartial',
+          key: `runs/${event.rootRunId}`,
+          runId: event.runId,
+          partialId: event.partialId,
+          patch: event.patch,
+        })
       } else {
         sendIfSubscribed(ws, `account/${event.accountId}`, {
           _: 'change',
@@ -501,6 +530,7 @@ async function main(): Promise<void> {
     hmServerUrl: cfg.activity.hmServerUrl,
     web: cfg.web,
     exec: cfg.exec,
+    titleGeneration: cfg.titleGeneration,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
@@ -578,6 +608,22 @@ async function main(): Promise<void> {
                 sendWS(ws, {_: 'append', key: `sessions/${event.sessionId}`, event})
               }
             }
+            if (sub.runsReplay) {
+              const runsKey = sub.key as `runs/${string}`
+              for (const run of sub.runsReplay.runs) {
+                sendWS(ws, {_: 'change', key: runsKey, value: run})
+              }
+              for (const entry of sub.runsReplay.entries) {
+                sendWS(ws, {
+                  _: 'append',
+                  key: runsKey,
+                  runId: entry.runId,
+                  seq: entry.seq,
+                  entry: entry.entry,
+                  createdAt: entry.createdAt,
+                })
+              }
+            }
           } catch (error) {
             sendWS(ws, {_: 'error', message: error instanceof Error ? error.message : 'Invalid subscription'})
           }
@@ -603,6 +649,7 @@ async function main(): Promise<void> {
     // Let in-flight background trigger runs finish their writes before closing the DB (bounded so a
     // stuck session can't block shutdown).
     await withTimeout(svc.drainTriggerSessions(), 5_000, 'drain trigger sessions').catch(() => {})
+    svc.stopRunQueue()
     db.close()
     process.exit(0)
   }
