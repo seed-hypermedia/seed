@@ -651,30 +651,36 @@ SELECT
   AND sb.extra_attrs->>'redirect' != '';
 `)
 
+// The redirected CTE walks redirect chains backwards from the target. It selects only
+// generations that carry a redirect (a handful of rows served by the partial index
+// document_generations_by_redirect) instead of materializing the latest generation of
+// every document in the database, which is what this query used to do on every call.
+// MATERIALIZED is required: without it SQLite 3.45 inlines the subquery and re-runs it
+// on every recursion level. A resource whose latest generation redirects elsewhere has
+// a row in the CTE, so the seed's NOT IN check preserves the old "target is not itself
+// redirected" behavior, including for resources with no generations at all.
 const qListCitationsTpl = `
 WITH RECURSIVE
-latest_document_generations AS (
+redirected AS MATERIALIZED (
   SELECT
     dg.resource AS resource,
     dg.metadata->>'$."$db.redirect".v' AS redirect_iri
   FROM document_generations dg
-  GROUP BY dg.resource
-  HAVING dg.generation = MAX(dg.generation)
+  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+  AND dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
 ),
 redirect_ancestors(resource, iri, depth) AS (
   SELECT r.id, r.iri, 0
   FROM resources r
-  LEFT JOIN latest_document_generations dg ON dg.resource = r.id
   WHERE r.id = :target
-  AND dg.redirect_iri IS NULL
+  AND r.id NOT IN (SELECT resource FROM redirected)
 
   UNION ALL
 
-  SELECT r.id, r.iri, ra.depth + 1
+  SELECT rd.resource, r.iri, ra.depth + 1
   FROM redirect_ancestors ra
-  JOIN latest_document_generations dg
-    ON dg.redirect_iri = ra.iri
-  JOIN resources r ON r.id = dg.resource
+  JOIN redirected rd ON rd.redirect_iri = ra.iri
+  JOIN resources r ON r.id = rd.resource
   WHERE r.iri != ra.iri
   AND ra.depth < 16
 ),

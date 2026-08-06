@@ -516,8 +516,8 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		// The comment aggregation is scoped to the same subtree as the row filter below.
 		// It's a LEFT JOIN, so it precedes the WHERE clause and binds first. The scope
 		// appears twice inside it (targets, then credits), so it binds twice.
-		args.Append(baseIRI, baseIRI+"/*")
-		args.Append(baseIRI, baseIRI+"/*")
+		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
+		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
 
 		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
 			return nil, err
@@ -525,8 +525,8 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			qb.Where(publicOnlyListVisibilityFilter)
 		}
 
-		qb.Where("(r.iri = ? OR r.iri GLOB ?)")
-		args.Append(baseIRI, baseIRI+"/*")
+		qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
+		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
 
 		if !in.Recursive {
 			qb.Where("r.iri NOT GLOB ?")
@@ -1268,8 +1268,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			}
 
 			commentAgg = commentAggSubtree
-			args.Append(accountIRI, accountIRI+"/*")
-			args.Append(accountIRI, accountIRI+"/*")
+			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
+			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
 		}
 
 		qb := baseListDocumentsQuery(commentAgg).OrderBy("activity_time DESC")
@@ -1282,8 +1282,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 				qb.Where(publicOnlyListVisibilityFilter)
 			}
 
-			qb.Where("(r.iri = ? OR r.iri GLOB ?)")
-			args.Append(accountIRI, accountIRI+"/*")
+			qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
+			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
 		}
 
 		qb.Where("activity_time < ?", "r.iri < ?")
@@ -1410,8 +1410,13 @@ const qSingleDocCommentAgg = `(
 // These are built once rather than per request: the scopes are fixed, and assembling a
 // couple of kilobytes of SQL on every call would be pure waste on a hot path.
 var (
-	// commentAggSubtree covers one document and everything below it.
-	commentAggSubtree = qListDocsCommentAggScoped(`tr.iri = ? OR tr.iri GLOB ?`)
+	// commentAggSubtree covers one document and everything below it. The subtree is
+	// expressed as an explicit range rather than GLOB because a parameterized GLOB
+	// inside an OR never seeks the resources.iri index (the prefix optimization doesn't
+	// apply to it there), while the equivalent range becomes a MULTI-INDEX OR of two
+	// seeks. Callers bind (iri, iri+"/", iri+"0") — '0' is '/'+1, so the range is
+	// exactly the iri+"/*" prefix, same trick as children_count below.
+	commentAggSubtree = qListDocsCommentAggScoped(`tr.iri = ? OR (tr.iri >= ? AND tr.iri < ?)`)
 
 	// commentAggRoots covers the root document of every space.
 	commentAggRoots = qListDocsCommentAggScoped(`tr.iri GLOB 'hm://*' AND tr.iri NOT GLOB 'hm://*/*'`)
@@ -1452,6 +1457,12 @@ var (
 // blobs outside the scope. Winner-per-TSID is therefore identical to the unscoped query;
 // losers outside the scope simply credit nothing. Comment blobs always carry a TSID
 // (blob_comment.go sets it unconditionally), so the partition key is never NULL.
+//
+// `deduped` fetches those blobs by JOINing cand_tsids rather than with an IN subquery:
+// an equality join term proves the partial structural_blobs_by_tsid index's IS NOT NULL
+// predicate, so each candidate TSID is a seek, whereas `tsid IN (SELECT …)` cannot prove
+// it and degraded to scanning every Comment blob in the database via
+// structural_blobs_by_type on each call.
 //
 // The scope must be written in terms of the `tr` alias of `resources` (e.g.
 // `tr.iri GLOB 'hm://*'`), because it is applied in two places, and callers with a
@@ -1511,9 +1522,9 @@ func qListDocsCommentAggScoped(scope string) string {
 			sb.ts AS ts,
 			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.id DESC) AS rn,
 			sb.extra_attrs->>'deleted' AS deleted
-		FROM structural_blobs sb
+		FROM cand_tsids ct
+		JOIN structural_blobs sb ON sb.extra_attrs->>'tsid' = ct.tsid
 		WHERE sb.type = 'Comment'
-		AND sb.extra_attrs->>'tsid' IN (SELECT tsid FROM cand_tsids)
 	),
 	live AS (
 		SELECT resource, id, ts FROM deduped WHERE rn = 1 AND deleted IS NULL
@@ -1582,9 +1593,13 @@ func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
 			    AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
 			) AS children_count`,
 		).
+		// CROSS JOIN forces the join order: seek resources by IRI first, then probe
+		// document_generations by its (resource, ...) primary key. Left to itself, the
+		// stat-less planner prefers scanning all of document_generations because that
+		// satisfies GROUP BY dg.resource without a sort — a whole-database scan on
+		// every call, with the caller's IRI filter applied only after the join.
 		From(
-			"document_generations dg",
-			"resources r",
+			"resources r CROSS JOIN document_generations dg",
 		).
 		LeftJoin(commentAggJoin, "agg.resource = dg.resource").
 		Where("r.id = dg.resource").
