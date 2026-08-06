@@ -1,4 +1,3 @@
-import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation} from './api-types'
 import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
@@ -14,7 +13,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
     const apiPath = hmIdPathToEntityQueryPath(id.path)
 
     try {
-      const [mentions, latestDoc, children] = await Promise.all([
+      const [mentions, latestDoc, docInfo] = await Promise.all([
         grpcClient.resources.listCitations({
           iri: id.id,
           pageSize: BIG_INT,
@@ -24,9 +23,13 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
           path: apiPath,
           version: undefined,
         }),
-        grpcClient.documents.listDirectory({
+        // The backend computes the alive direct-children count for every
+        // document info row; a whole ListDirectory call just to count
+        // children was both wasteful and wrong (it silently truncated at
+        // the default page size).
+        grpcClient.documents.getDocumentInfo({
           account: id.uid,
-          directoryPath: apiPath,
+          path: apiPath,
         }),
       ])
 
@@ -35,12 +38,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         path: apiPath,
         version: latestDoc.version,
       })
-      const childrenCount = toPlainMessage(children).documents.filter((d) => {
-        if (d.path === apiPath) return false
-        // filter out children of children
-        if (d.path.split('/').length > apiPath.split('/').length + 1) return false
-        return true
-      }).length
+      const childrenCount = docInfo.activitySummary?.childrenCount ?? 0
 
       return calculateInteractionSummary(mentions.citations, changes.changes, id, childrenCount)
     } catch (e) {
