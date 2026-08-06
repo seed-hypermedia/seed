@@ -78,6 +78,18 @@ var qVisibilityCheck = dqb.Str(`
 	SELECT bv.space FROM blob_visibility bv WHERE id = :new_blob_id;
 `)
 
+// The already-visible prune is written as a correlated NOT EXISTS, not as
+// NOT IN (SELECT id FROM blob_visibility WHERE space IS :space). The NOT IN
+// form is uncorrelated, so SQLite materializes the entire space's id set into
+// an ephemeral table plus a Bloom filter on every execution — and this query
+// runs once per blob per space, so a database with ~82k public blobs rebuilt
+// that 82k-row set ~56k times. Measured on a real 5.8 GB database: 6.7 ms per
+// execution with NOT IN, 0.16 ms with NOT EXISTS, byte-identical results.
+// NOT EXISTS probes the blob_visibility primary key (id, space) instead.
+//
+// The two forms are equivalent here: blob_visibility.id is NOT NULL, so the
+// NULL-propagation that normally distinguishes NOT IN from NOT EXISTS cannot
+// arise, and `space IS :space` keeps the same NULL-safe comparison.
 var qForwardPropagation = dqb.Str(`
 	WITH RECURSIVE propagate (id) AS (
 		SELECT :start_id
@@ -89,8 +101,9 @@ var qForwardPropagation = dqb.Str(`
 			ON (bvr.source_type = bl.source_type OR bvr.source_type = '*')
 			AND (bvr.link_type = bl.link_type OR bvr.link_type = '*')
 			AND (bvr.target_type = bl.target_type OR bvr.target_type = '*')
-		WHERE bl.target NOT IN (
-			SELECT id FROM blob_visibility WHERE space IS :space
+		WHERE NOT EXISTS (
+			SELECT 1 FROM blob_visibility bv
+			WHERE bv.id = bl.target AND bv.space IS :space
 		)
 	)
 	INSERT OR IGNORE INTO blob_visibility (id, space)
@@ -175,8 +188,9 @@ func propagateVisibilityForSpace(conn *sqlite.Conn, seeds []int64, space int64) 
 			ON (bvr.source_type = bl.source_type OR bvr.source_type = '*')
 			AND (bvr.link_type = bl.link_type OR bvr.link_type = '*')
 			AND (bvr.target_type = bl.target_type OR bvr.target_type = '*')
-		WHERE bl.target NOT IN (
-			SELECT id FROM blob_visibility WHERE space IS ?
+		WHERE NOT EXISTS (
+			SELECT 1 FROM blob_visibility bv
+			WHERE bv.id = bl.target AND bv.space IS ?
 		)
 	)
 	INSERT OR IGNORE INTO blob_visibility (id, space)

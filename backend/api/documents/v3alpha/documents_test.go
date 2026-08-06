@@ -1265,6 +1265,124 @@ func TestListDirectoryDerivesFallbackCoverImage(t *testing.T) {
 	require.Empty(t, img, "removing the image must clear the derived value")
 }
 
+func TestReindexDerivesFallbackCoverImage(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+
+	image := "ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+
+	publish := func(path, base string, changes ...*documents.DocumentChange) *documents.Document {
+		t.Helper()
+		doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Account:        aliceSpace,
+			Path:           path,
+			BaseVersion:    base,
+			Changes:        changes,
+		})
+		require.NoError(t, err)
+		return doc
+	}
+
+	setMeta := func(k, v string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_SetMetadata_{
+			SetMetadata: &documents.DocumentChange_SetMetadata{Key: k, Value: v},
+		}}
+	}
+	moveBlock := func(id, left string) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_MoveBlock_{
+			MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: id, Parent: "", LeftSibling: left},
+		}}
+	}
+	replaceBlock := func(b *documents.Block) *documents.DocumentChange {
+		return &documents.DocumentChange{Op: &documents.DocumentChange_ReplaceBlock{ReplaceBlock: b}}
+	}
+
+	// Several versions of the same document, i.e. several Refs against one
+	// generation. This is the shape the old per-Ref derivation made quadratic:
+	// each Ref replayed the whole history again.
+	v1 := publish("/with-image", "",
+		setMeta("name", "Has Image"),
+		moveBlock("b1", ""),
+		replaceBlock(&documents.Block{Id: "b1", Type: "Paragraph", Text: "hello"}),
+	)
+	v2 := publish("/with-image", v1.Version,
+		moveBlock("b2", "b1"),
+		replaceBlock(&documents.Block{Id: "b2", Type: "Image", Link: image}),
+	)
+	publish("/with-image", v2.Version,
+		moveBlock("b3", "b2"),
+		replaceBlock(&documents.Block{Id: "b3", Type: "Paragraph", Text: "trailing"}),
+	)
+
+	publish("/text-only", "",
+		setMeta("name", "Text Only"),
+		moveBlock("t1", ""),
+		replaceBlock(&documents.Block{Id: "t1", Type: "Paragraph", Text: "no pictures"}),
+	)
+
+	// A document that had no cover when its image was first indexed, and gained
+	// one later. See the assertion below for why the two paths differ here.
+	c1 := publish("/cover-added-later", "",
+		setMeta("name", "Cover Later"),
+		moveBlock("c1", ""),
+		replaceBlock(&documents.Block{Id: "c1", Type: "Image", Link: image}),
+	)
+	publish("/cover-added-later", c1.Version, setMeta("cover", image))
+
+	firstImage := func(path string) (string, bool) {
+		t.Helper()
+		list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+			Account:       aliceSpace,
+			DirectoryPath: "",
+			Recursive:     true,
+		})
+		require.NoError(t, err)
+		for _, d := range list.Documents {
+			if d.Path != path {
+				continue
+			}
+			if d.FirstImageInContent == nil {
+				return "", false
+			}
+			return *d.FirstImageInContent, true
+		}
+		t.Fatalf("document %s not found in listing", path)
+		return "", false
+	}
+
+	img, ok := firstImage("/with-image")
+	require.True(t, ok)
+	require.Equal(t, image, img)
+
+	_, ok = firstImage("/cover-added-later")
+	require.True(t, ok, "incremental indexing derives before the cover exists, and the value lingers")
+
+	require.NoError(t, alice.idx.Reindex(ctx), "reindex must succeed")
+
+	// The reindex derives once per generation from its final merged heads
+	// instead of once per Ref, and must land on the same value.
+	img, ok = firstImage("/with-image")
+	require.True(t, ok, "reindex must re-derive the fallback cover")
+	require.Equal(t, image, img, "reindex must derive the same image as incremental indexing")
+
+	img, ok = firstImage("/text-only")
+	require.True(t, ok, "imageless doc must keep the empty sentinel after a reindex")
+	require.Empty(t, img)
+
+	// The one intended difference between the two paths. Incrementally, the
+	// value is derived while the document still has no cover and then lingers in
+	// the LWW map; the end-of-reindex pass evaluates the guard against the final
+	// metadata and skips the document entirely. This is invisible to clients:
+	// an explicit cover takes precedence over the derived fallback everywhere it
+	// is read, so the lingering value is unreachable either way.
+	_, ok = firstImage("/cover-added-later")
+	require.False(t, ok, "a doc that gained a cover must not carry a derived fallback after reindex")
+}
+
 func TestDeriveFirstContentImageRecoversFromPanic(t *testing.T) {
 	t.Parallel()
 

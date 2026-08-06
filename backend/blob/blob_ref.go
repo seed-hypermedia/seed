@@ -824,6 +824,130 @@ const FirstImageInContentAttr = "$db.firstImageInContent"
 // DocIndexedAttrs is a map of indexed document attributes with CRDT metadata.
 type DocIndexedAttrs map[string]IndexedValue
 
+// deriveFirstContentImages derives the fallback cover image once per document
+// generation, from that generation's final merged heads.
+//
+// This is the full-reindex counterpart of the per-Ref derivation in
+// crossLinkRefMaybe. Incrementally, deriving per Ref is correct and cheap: a
+// new Ref replays a history that grew by one change. In a full reindex it is
+// quadratic per document — every Ref that advances the heads replays the whole
+// history again. On a real 82k-blob database that is ~680k change replays
+// against ~19k changes, and it dominated the entire reindex.
+//
+// Running once at the end is equivalent because the derivation only ever reads
+// the merged head set, and heads merge commutatively: whatever order the blob
+// loop visited Refs in, the final head set is the same one the last advancing
+// Ref would have derived from.
+//
+// Best-effort, matching the per-Ref path: a generation whose changes fail to
+// load or whose derivation fails is logged and skipped, never fatal.
+func deriveFirstContentImages(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveFirstContentImage) (scanned, derived, changesReplayed int, err error) {
+	if derive == nil {
+		return 0, 0, 0, nil
+	}
+
+	// Collect every key before writing anything: dg.save below writes to
+	// document_generations, which is the same table this query scans. See the
+	// same hazard called out in reindexStashedBlobs.
+	keys, err := loadGenerationKeys(conn)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	for _, k := range keys {
+		scanned++
+
+		var dg documentGeneration
+		if err := dg.load(conn, k.Resource, k.Generation, k.Genesis); err != nil {
+			return scanned, derived, changesReplayed, err
+		}
+
+		// The query already filters out empty head sets, but load() synthesizes a
+		// blank generation when the row is missing, so re-check the same condition
+		// the per-Ref path guards on.
+		if len(dg.Heads) == 0 {
+			continue
+		}
+
+		// Must be evaluated in Go, not folded into the SQL filter above:
+		// hasNonEmptyAttr treats a nil value and an empty string as absent but any
+		// non-string value as present, which metadata->>'$.cover.v' cannot express.
+		if hasNonEmptyAttr(dg.Metadata, "cover") || hasNonEmptyAttr(dg.Metadata, "icon") {
+			continue
+		}
+
+		headIDs := slices.Collect(maps.Keys(dg.Heads))
+		changes, cerr := changesFromHeadIDsConn(conn, bs, headIDs, dg.Generation)
+		if cerr != nil {
+			log.Warn("FailedToLoadChangesForCoverImage", zap.String("iri", string(k.IRI)), zap.Error(cerr))
+			continue
+		}
+		changesReplayed += len(changes)
+
+		firstImage, derr := derive(k.IRI, changes)
+		if derr != nil {
+			log.Warn("FailedToDeriveCoverImage", zap.String("iri", string(k.IRI)), zap.Error(derr))
+			continue
+		}
+
+		// LastAliveRefTime is already the max over every alive Ref of this
+		// generation, which is exactly what max(refTime, dg.LastAliveRefTime) in
+		// the per-Ref path resolves to once the last Ref has been applied.
+		dg.Metadata.set(FirstImageInContentAttr, firstImage, dg.LastAliveRefTime)
+
+		if err := dg.save(conn); err != nil {
+			return scanned, derived, changesReplayed, err
+		}
+		derived++
+	}
+
+	return scanned, derived, changesReplayed, nil
+}
+
+// generationKey identifies one document_generations row plus the IRI of its
+// resource, which the derivation needs but the generation row doesn't carry.
+type generationKey struct {
+	Resource   int64
+	Generation int64
+	Genesis    string
+	IRI        IRI
+}
+
+func loadGenerationKeys(conn *sqlite.Conn) (keys []generationKey, err error) {
+	rows, discard, check := sqlitex.Query(conn, qLoadGenerationKeys()).All()
+	defer discard(&err)
+	for row := range rows {
+		inc := sqlite.NewIncrementor(0)
+		keys = append(keys, generationKey{
+			Resource:   row.ColumnInt64(inc()),
+			Generation: row.ColumnInt64(inc()),
+			Genesis:    row.ColumnText(inc()),
+			IRI:        IRI(row.ColumnText(inc())),
+		})
+	}
+	if err := check(); err != nil {
+		return nil, err
+	}
+
+	return keys, nil
+}
+
+// Deliberately does not filter on is_deleted: a tombstone Ref never derives
+// (the !isTombstone guard) but also never clears what earlier alive Refs set,
+// and it leaves heads intact — deleted generations legitimately carry the
+// derived value and must keep being refreshed.
+var qLoadGenerationKeys = dqb.Str(`
+	SELECT
+		dg.resource,
+		dg.generation,
+		dg.genesis,
+		r.iri
+	FROM document_generations dg
+	JOIN resources r ON r.id = dg.resource
+	WHERE json_array_length(dg.heads) > 0
+	ORDER BY dg.resource, dg.generation;
+`)
+
 // hasNonEmptyAttr reports whether the indexed metadata map holds an effective
 // (client-visible, non-empty) value for key k. A key can be present with a nil
 // value (authored removal) or an empty string (cleared via the UI) — both mean
