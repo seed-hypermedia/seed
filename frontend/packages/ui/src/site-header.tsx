@@ -17,7 +17,7 @@ import {useResponsiveItems} from './use-responsive-items'
 
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Activity, Files, Lock} from 'lucide-react'
+import {Activity, FolderTree, Lock} from 'lucide-react'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {useHighlighter} from './highlight-context'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
@@ -102,9 +102,12 @@ export function SiteHeader({
           size="icon"
           className="md:hidden"
           aria-label="Open file browser"
-          onClick={onOpenFileBrowser}
+          onClick={() => {
+            setIsMobileMenuOpen(false)
+            onOpenFileBrowser()
+          }}
         >
-          <Files size={20} />
+          <FolderTree size={20} />
         </Button>
       ) : null}
       <Button

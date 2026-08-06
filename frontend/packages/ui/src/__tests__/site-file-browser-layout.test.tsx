@@ -7,7 +7,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {SiteFileBrowserLayout} from '../site-file-browser-layout'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-vi.mock('../use-media', () => ({useMedia: () => ({xs: false})}))
+const mediaMock = vi.hoisted(() => ({value: {xs: false}}))
+vi.mock('../use-media', () => ({useMedia: () => mediaMock.value}))
 vi.mock('../site-file-browser', () => ({SiteFileBrowser: () => <div data-testid="site-file-browser" />}))
 vi.mock('../components/scroll-area', () => ({
   ScrollArea: ({children}: {children: React.ReactNode}) => <div data-testid="main-scroll-area">{children}</div>,
@@ -30,6 +31,7 @@ let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  mediaMock.value = {xs: false}
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -57,7 +59,7 @@ function renderLayout() {
         onMobileOpenChange={vi.fn()}
         onNavigate={vi.fn()}
       >
-        <div>Document body</div>
+        <div data-testid="document-body">Document body</div>
       </SiteFileBrowserLayout>,
     )
   })
@@ -98,10 +100,36 @@ describe('SiteFileBrowserLayout', () => {
     expect(container.querySelector('[data-testid="folder-tree-icon"]')).toBeTruthy()
   })
 
-  it('leaves desktop main content scrolling to the document body', () => {
+  it('keeps desktop main content in a constrained flex column for document scrolling', () => {
     renderLayout()
 
     expect(container.querySelector('[data-testid="main-scroll-area"]')).toBeNull()
     expect(container.textContent).toContain('Document body')
+    expect(container.querySelector('[data-testid="document-body"]')?.parentElement?.className).toContain('flex-col')
+  })
+
+  it('keeps the mobile drawer pinned to 80 percent of the viewport', () => {
+    mediaMock.value = {xs: true}
+
+    act(() => {
+      root.render(
+        <SiteFileBrowserLayout
+          siteId={hmId('site')}
+          activeDocumentId={hmId('site')}
+          siteName="Site"
+          mobileOpen={true}
+          onMobileOpenChange={vi.fn()}
+          onNavigate={vi.fn()}
+        >
+          <div>Document body</div>
+        </SiteFileBrowserLayout>,
+      )
+    })
+
+    const drawer = document.body.querySelector('aside')
+    expect(drawer?.className).toContain('w-[80dvw]')
+    expect(drawer?.className).toContain('max-w-[80dvw]')
+    expect(drawer?.className).toContain('shrink-0')
+    expect(drawer?.className).toContain('motion-safe:slide-in-from-left')
   })
 })

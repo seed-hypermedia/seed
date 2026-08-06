@@ -91,7 +91,9 @@ export function SiteFileBrowserLayout({
             </div>
           </div>
         </aside>
-        <div className="dark:bg-background h-full min-h-0 flex-1 overflow-hidden bg-white">{children}</div>
+        <div className="dark:bg-background flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
+          {children}
+        </div>
       </div>
     )
   }
@@ -103,7 +105,7 @@ export function SiteFileBrowserLayout({
         {mobileOpen
           ? createPortal(
               <div className="fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-label="File browser">
-                <aside className="dark:bg-background flex h-dvh w-4/5 flex-col bg-white shadow-2xl">
+                <aside className="dark:bg-background motion-safe:animate-in motion-safe:slide-in-from-left flex h-dvh w-[80dvw] max-w-[80dvw] shrink-0 flex-col bg-white shadow-2xl motion-safe:duration-200 motion-safe:ease-out">
                   <div className="border-border flex shrink-0 items-center border-b px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold">Files</p>
@@ -123,7 +125,7 @@ export function SiteFileBrowserLayout({
                 <button
                   type="button"
                   aria-label="Close file browser"
-                  className="h-dvh w-1/5 bg-black/45"
+                  className="motion-safe:animate-in motion-safe:fade-in h-dvh flex-1 bg-black/45 motion-safe:duration-200"
                   onClick={() => onMobileOpenChange(false)}
                 />
               </div>,
@@ -177,7 +179,7 @@ export function SiteFileBrowserLayout({
           </>
         ) : null}
         <Panel id="site-main-content" order={2} minSize={60}>
-          <div className="dark:bg-background h-full min-h-0 overflow-hidden bg-white">{children}</div>
+          <div className="dark:bg-background flex h-full min-h-0 flex-col overflow-hidden bg-white">{children}</div>
         </Panel>
       </PanelGroup>
     </div>
