@@ -105,26 +105,25 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate}: SiteFile
                     )}
                   >
                     {!isFiltered && row?.hasChildren ? (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="size-8 shrink-0"
+                      <button
+                        type="button"
+                        className="hover:bg-accent/60 focus-visible:ring-ring flex size-6 shrink-0 items-center justify-center rounded-md p-0 outline-none focus-visible:ring-2"
                         aria-label={isExpanded ? `Collapse ${titleOf(doc)}` : `Expand ${titleOf(doc)}`}
                         onClick={() => toggle(row.pathKey)}
                       >
-                        {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-                      </Button>
+                        {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+                      </button>
                     ) : (
-                      <span className="size-8 shrink-0" />
+                      <span className="size-6 shrink-0" />
                     )}
                     <button
                       type="button"
                       aria-current={isActive ? 'page' : undefined}
                       onClick={() => onNavigate(doc.id)}
-                      className="hover:bg-accent/60 focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2 text-left text-sm outline-none focus-visible:ring-2"
+                      className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-xs outline-none focus-visible:ring-2"
                     >
                       {doc.visibility === 'PRIVATE' ? (
-                        <Lock aria-label="Private document" className="size-3.5 shrink-0" />
+                        <Lock aria-label="Private document" className="size-3 shrink-0" />
                       ) : null}
                       <span className="truncate">{titleOf(doc)}</span>
                     </button>

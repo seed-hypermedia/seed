@@ -51,6 +51,11 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[data-slot="scroll-area"]')).toBeTruthy()
     expect(container.querySelector('[aria-label="Private document"]')).toBeTruthy()
     expect(container.querySelector('[aria-current="page"]')?.textContent).toContain('Private guide')
+    const caretButton = container.querySelector('[aria-label="Collapse Guides"]')
+    expect(caretButton?.className).toContain('size-6')
+    expect(caretButton?.className).toContain('p-0')
+    expect(caretButton?.className).not.toContain('min-w-8')
+    expect(container.querySelector('[aria-current="page"]')?.className).toContain('h-6')
   })
 
   it('shows title matches as a flat list and navigates', () => {
