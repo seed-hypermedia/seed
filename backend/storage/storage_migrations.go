@@ -67,15 +67,11 @@ var migrations = []migration{
 	// Some users have reported daemon startup issues that's caused by these tables missing.
 	// During the development of this feature we did some weird things and seems like we might have updated a past migration
 	// without bumping its version number, and it could be that some users have ran those pre-release versions.
-	// This migration simply ensures those tables exist, and forces reindex of all the data just to be sure.
+	// This migration simply ensures those tables exist.
 	{Version: "2026-08-05.103117", Run: func(_ *Store, conn *sqlite.Conn) error {
-		if err := scheduleReindex(conn); err != nil {
-			return err
-		}
-
 		return sqlitex.ExecScript(conn, sqlfmt(`
-			DROP TABLE IF EXISTS rbsr_scope;
 			DROP TABLE IF EXISTS rbsr_item;
+			DROP TABLE IF EXISTS rbsr_scope;
 			CREATE TABLE IF NOT EXISTS rbsr_scope (
 			    id INTEGER PRIMARY KEY,
 			    iri TEXT NOT NULL,

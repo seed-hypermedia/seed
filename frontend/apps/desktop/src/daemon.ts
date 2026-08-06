@@ -1,4 +1,3 @@
-import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DAEMON_GRPC_PORT, DAEMON_HTTP_PORT, P2P_PORT, VERSION} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
@@ -7,6 +6,7 @@ import path from 'path'
 import {grpcClient, markGRPCReady} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
+import {waitForDaemonActive} from './daemon-readiness'
 import * as log from './logger'
 import {forceKillChildProcess} from './win32-process'
 
@@ -156,32 +156,13 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
 
 /** Polls the daemon gRPC and HTTP endpoints until it is fully ready. */
 async function waitForDaemonReady(label: string): Promise<void> {
-  await tryUntilSuccess(
-    async () => {
-      log.debug('Waiting for daemon to boot...')
-      const info = await grpcClient.daemon.getInfo({})
-      if (info.state !== State.ACTIVE) {
-        if (info.state === State.MIGRATING && info.tasks.length === 1) {
-          const completed = Number(info.tasks[0].completed)
-          const total = Number(info.tasks[0].total)
-          log.info(`Daemon migrating: ${completed}/${total}`)
-          // Broadcast migration progress to loading window
-          updateGoDaemonState({
-            t: 'migrating',
-            completed,
-            total,
-          })
-        }
-        throw new Error(`Daemon not ready yet: ${info.state}`)
-      }
-      log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
-      // Daemon is ACTIVE - update state so loading window can close
-      updateGoDaemonState({t: 'ready'})
-    },
-    `waiting for ${label} gRPC to be ready`,
-    200, // try every 200ms
-    10 * 60 * 1_000, // timeout after 10 minutes
-  )
+  const info = await waitForDaemonActive({
+    getInfo: () => grpcClient.daemon.getInfo({}),
+    onDaemonState: updateGoDaemonState,
+    onLogDebug: (message) => log.debug(message),
+    onLogInfo: (message) => log.info(message),
+  })
+  log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
 
   // Also check HTTP endpoint is responding
   await tryUntilSuccess(
