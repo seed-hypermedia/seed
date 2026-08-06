@@ -35,6 +35,25 @@ export function createMinimalSchema(): Schema {
         group: 'inline',
       },
     },
+    marks: {
+      bold: {},
+      italic: {},
+      link: {
+        attrs: {
+          href: {default: null},
+        },
+      },
+      textFamily: {
+        attrs: {
+          value: {default: null},
+        },
+      },
+      textSize: {
+        attrs: {
+          value: {default: null},
+        },
+      },
+    },
   })
 }
 

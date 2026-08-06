@@ -1,10 +1,10 @@
 import {Extension} from '@tiptap/core'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {Node as PMNode} from 'prosemirror-model'
-import {NodeSelection, TextSelection} from 'prosemirror-state'
+import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBlocks'
 import {nestBlock, unnestBlock} from '../../api/blockManipulation/commands/nestBlock'
-import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
+import {getCarryableStoredMarks, splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {updateGroupChildrenCommand, updateGroupCommand} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
@@ -507,6 +507,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
           commands.command(({state, dispatch}) => {
             const blockInfo = getBlockInfoFromSelection(state)
             const {block: blockContainer, blockContent} = blockInfo
+            const storedMarks = getCarryableStoredMarks(state)
 
             const selectionAtBlockStart = state.selection.$anchor.parentOffset === 0
             const selectionEmpty = state.selection.anchor === state.selection.head
@@ -523,6 +524,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
                 state.tr.insert(newBlockInsertionPos, newBlock).scrollIntoView()
                 state.tr.setSelection(new TextSelection(state.doc.resolve(newBlockContentPos)))
+                state.tr.setStoredMarks(storedMarks)
               }
 
               return true
@@ -554,8 +556,9 @@ export const KeyboardShortcutsExtension = Extension.create<{
           }),
       ])
 
-    const handleTab = () =>
-      this.editor.commands.first(({commands}) => [
+    const handleTab = () => {
+      console.log('[CTF] handleTab started')
+      return this.editor.commands.first(({commands}) => [
         // If the current block's previous sibling is a table, create an empty paragraph
         // blockNode, and indent a group under it.
         () =>
@@ -635,6 +638,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
             if (container) {
               // Try sinking the list item.
+              console.log('[CTF] Tab fallback (Command 3) | in container | calling chain().sinkListItem')
               const result = chain().sinkListItem('blockNode').run()
               // Update group children if sinking was successful.
               if (result) {
@@ -667,6 +671,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
             }
           }),
       ])
+    }
 
     return {
       Backspace: handleBackspace,
@@ -674,9 +679,14 @@ export const KeyboardShortcutsExtension = Extension.create<{
       Enter: handleEnter,
       Tab: handleTab,
       'Shift-Tab': () => {
+        console.log('[CTF] Shift-Tab handler entered')
         // Prevent outdent of grid children
-        if (isInGridContainer(this.editor.state, this.editor.state.selection.from)) return true
+        if (isInGridContainer(this.editor.state, this.editor.state.selection.from)) {
+          console.log('[CTF] Shift-Tab | SKIPPED: in grid container')
+          return true
+        }
         const {block} = getBlockInfoFromSelection(this.editor.state)
+        console.log('[CTF] Shift-Tab | calling unnestBlock at pos:', block.beforePos + 1)
         return unnestBlock(this.editor, block.beforePos + 1)
       },
       // "Shift-Mod-ArrowUp": () => {
@@ -716,5 +726,60 @@ export const KeyboardShortcutsExtension = Extension.create<{
         return false
       },
     }
+  },
+
+  addProseMirrorPlugins() {
+    let capturedMarks: ReturnType<typeof getCarryableStoredMarks> | null = null
+
+    return [
+      new Plugin({
+        key: new PluginKey('CarryStoredMarks'),
+        props: {
+          handleDOMEvents: {
+            keydown(view, event) {
+              if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+                capturedMarks = getCarryableStoredMarks(view.state)
+                console.log(
+                  '[CTF] Plugin keydown | key:',
+                  event.key,
+                  '| capturedMarks count:',
+                  capturedMarks?.length ?? 0,
+                  '| names:',
+                  capturedMarks?.map((m) => `${m.type.name}=${JSON.stringify(m.attrs)}`),
+                )
+              } else {
+                capturedMarks = null
+              }
+              return false
+            },
+          },
+        },
+        appendTransaction(transactions, _oldState, newState) {
+          if (!capturedMarks?.length) return null
+          if (!transactions.some((transaction) => transaction.docChanged)) {
+            console.log('[CTF] Plugin appendTransaction | WAITING: no docChanged yet, keeping marks')
+            return null
+          }
+          if (!(newState.selection instanceof TextSelection) || !newState.selection.empty) {
+            console.log(
+              '[CTF] Plugin appendTransaction | SKIPPED: selection not empty TextSelection | type:',
+              newState.selection.constructor.name,
+              '| empty:',
+              newState.selection.empty,
+            )
+            capturedMarks = null
+            return null
+          }
+
+          const marks = capturedMarks
+          capturedMarks = null
+          console.log(
+            '[CTF] Plugin appendTransaction | APPLYING storedMarks:',
+            marks.map((m) => `${m.type.name}=${JSON.stringify(m.attrs)}`),
+          )
+          return newState.tr.setStoredMarks(marks)
+        },
+      }),
+    ]
   },
 })

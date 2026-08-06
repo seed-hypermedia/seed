@@ -3,7 +3,7 @@ import {Fragment, Slice} from 'prosemirror-model'
 import {EditorState, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {Decoration, DecorationSet} from 'prosemirror-view'
 
-import {splitBlockCommand} from '../../../api/blockManipulation/commands/splitBlock'
+import {getCarryableStoredMarks, splitBlockCommand} from '../../../api/blockManipulation/commands/splitBlock'
 import {updateGroupCommand} from '../../../api/blockManipulation/commands/updateGroup'
 import {mergeCSSClasses} from '../../../shared/utils'
 import {BlockNoteDOMAttributes} from '../api/blockTypes'
@@ -294,6 +294,7 @@ export const BlockNode = Node.create<{
                 .run()
             })
           } else {
+            const storedMarks = getCarryableStoredMarks(state)
             const originalBlockContent = state.doc.cut(block.beforePos + 2, state.selection.from)
             let newBlockContent = state.doc.cut(state.selection.from, block.beforePos + blockContent.node.nodeSize)
             const newBlock =
@@ -321,6 +322,7 @@ export const BlockNode = Node.create<{
 
               // Set the selection to the start of the new block's content node.
               state.tr.setSelection(new TextSelection(state.doc.resolve(newBlockContentPos)))
+              state.tr.setStoredMarks(storedMarks)
 
               state.tr.replace(
                 block.beforePos + 2,
