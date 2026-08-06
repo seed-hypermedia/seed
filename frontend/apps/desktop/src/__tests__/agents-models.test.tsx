@@ -119,11 +119,11 @@ describe('agent server models', () => {
 
     vi.resetModules()
     const mod = await import('../models/agents')
-    const rendered = renderHook(() => mod.useAgentServerUrls())
+    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
-    expect(rendered.result().data).toEqual(['http://localhost:3050'])
+    expect(rendered.result().data).toEqual([mod.DEFAULT_AGENT_SERVER_URL])
 
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
@@ -133,11 +133,11 @@ describe('agent server models', () => {
 
     vi.resetModules()
     const mod = await import('../models/agents')
-    const rendered = renderHook(() => mod.useAgentServerUrls())
+    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
-    expect(rendered.result().data).toEqual(['https://agentic.seed.hyper.media'])
+    expect(rendered.result().data).toEqual([mod.DEFAULT_AGENT_SERVER_URL])
 
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
@@ -148,7 +148,7 @@ describe('agent server models', () => {
 
     vi.resetModules()
     const mod = await import('../models/agents')
-    const rendered = renderHook(() => mod.useAgentServerUrls())
+    const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
