@@ -233,6 +233,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     queryProps.querySort = JSON.stringify(block.attributes?.query?.sort || {})
     queryProps.banner = block.attributes?.banner ? 'true' : 'false'
     queryProps.queryLimit = String(block.attributes?.query?.limit || '')
+    if (block.attributes?.table) queryProps.tableConfig = JSON.stringify(block.attributes.table)
   }
 
   const blockText = (block as any).text || ''

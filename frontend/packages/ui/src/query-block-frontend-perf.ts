@@ -46,7 +46,7 @@ export function useQueryBlockFrontendPerf({
   source: 'editor' | 'desktop'
   blockId: string
   queryInput: HMQueryBlockInput | null
-  style: 'Card' | 'List'
+  style: 'Card' | 'List' | 'Table'
   banner: boolean
   active: boolean
   status: 'pending' | 'loading' | 'error' | 'success'

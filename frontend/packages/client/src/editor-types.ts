@@ -145,12 +145,13 @@ export type EditorNostrBlock = EditorBaseBlock & {
 export type EditorQueryBlock = EditorBaseBlock & {
   type: 'query'
   props: EditorBlockProps & {
-    style: 'Card' | 'List'
+    style: 'Card' | 'List' | 'Table'
     columnCount?: '1' | '2' | '3'
     queryLimit?: string
     queryIncludes?: string
     querySort?: string
     banner?: 'true' | 'false'
+    tableConfig?: string
   }
   content: Array<HMInlineContent>
 }

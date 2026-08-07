@@ -856,6 +856,59 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('table query block preserves its column configuration', () => {
+      const editorBlock: EditorQueryBlock = {
+        id: 'table-query',
+        type: 'query',
+        children: [],
+        content: [],
+        props: {
+          style: 'Table',
+          queryIncludes: '[{"space":"FOO_SPACE","path":"","mode":"Children"}]',
+          tableConfig:
+            '{"columns":[{"id":"title","visible":true,"width":280},{"id":"metadata:status","visible":false}]}',
+        },
+      }
+
+      expect(editorBlockToHMBlock(editorBlock)).toMatchObject({
+        type: 'Query',
+        attributes: {
+          style: 'Table',
+          table: {
+            columns: [
+              {id: 'title', visible: true, width: 280},
+              {id: 'metadata:status', visible: false},
+            ],
+          },
+        },
+      })
+    })
+
+    test('video and file blocks without optional numeric props serialize without number coercion warnings', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      editorBlockToHMBlock({
+        id: 'video-without-width',
+        type: 'video',
+        children: [],
+        content: [],
+        props: {url: 'https://example.com/video.mp4'},
+      })
+      editorBlockToHMBlock({
+        id: 'file-without-size',
+        type: 'file',
+        children: [],
+        content: [],
+        props: {url: 'https://example.com/file.pdf'},
+      })
+
+      expect(warn).not.toHaveBeenCalledWith(
+        'Value must be a number or a string that can be converted to a number',
+        undefined,
+      )
+      warn.mockRestore()
+    })
+
     // test('nostr', () => {
     //   const editorBlock: EditorNostrBlock = {
     //     id: 'foo',
