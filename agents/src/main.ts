@@ -8,7 +8,7 @@ import * as cbor from '@/cbor'
 import * as config from '@/config'
 import index from '@/frontend/index.html'
 import * as sqlite from '@/sqlite'
-import {type BunRequest, type ServerWebSocket, serve} from 'bun'
+import {type BunRequest, type Server, type ServerWebSocket, serve} from 'bun'
 import type {Database} from 'bun:sqlite'
 import * as fs from 'node:fs'
 import * as filepath from 'node:path'
@@ -520,6 +520,14 @@ async function main(): Promise<void> {
     error: handleError,
     routes: {
       ...createAPIRoutes(svc),
+      // Must be an explicit route: the '/agents/*' catch-all matches function routes before the
+      // fetch() fallback ever runs, so without this the prod build answers upgrade requests with
+      // the SPA HTML instead of a 101.
+      '/agents/ws': (req: BunRequest, srv: Server<WSData>) => {
+        const upgraded = srv.upgrade(req, {data: {connectedAt: Date.now(), subscriptions: new Set<string>()}})
+        if (upgraded) return undefined as unknown as Response
+        return new Response('WebSocket upgrade failed', {status: 400})
+      },
       '/agents/api/status': {
         GET: () => json({...getDebugOverview(db), connections: clients.size}),
       },
