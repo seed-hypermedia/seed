@@ -15,7 +15,6 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {Route} from 'lucide-react'
 import React from 'react'
-import {ColorValue} from 'react-native'
 import {HMPeerInfo, useDomainsByPeerId, usePeers} from '../models/networking'
 import {AddConnectionDialog} from './contacts-prompt'
 
@@ -236,8 +235,8 @@ function getPeerStatusIndicator(peer: HMPeerInfo, myProtocol: string): string {
   return 'bg-muted-foreground'
 }
 
-function IndicationStatus({color}: {color: ColorValue}) {
-  return <div className="size-3 rounded-md" style={{backgroundColor: color as string}} />
+function IndicationStatus({color}: {color: string}) {
+  return <div className="size-3 rounded-md" style={{backgroundColor: color}} />
 }
 
 function IndicationTag({label, status}: {label: string; status: null | 0 | 1 | 2}) {

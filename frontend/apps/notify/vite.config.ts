@@ -5,7 +5,6 @@ import tailwindcss from '@tailwindcss/vite'
 
 import * as path from 'path'
 import {defineConfig} from 'vite'
-import commonjs from 'vite-plugin-commonjs'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
 // @ts-ignore
@@ -47,13 +46,6 @@ export default defineConfig(({isSsrBuild}) => {
       remix(),
       envOnlyMacros(),
       tsconfigPaths({root: path.resolve(__dirname, '../..')}),
-      commonjs({
-        filter(id) {
-          if (id.includes('node_modules/@react-native/normalize-color')) {
-            return true
-          }
-        },
-      }),
       tailwindcss(),
       process.env.NODE_ENV === 'production' &&
         process.env.SENTRY_AUTH_TOKEN &&

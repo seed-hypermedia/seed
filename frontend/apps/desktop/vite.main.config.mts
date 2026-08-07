@@ -85,9 +85,6 @@ export default defineConfig(({command, mode}) => {
               root: '../../',
             }),
           ],
-    alias: {
-      'react-native': 'react-native-web',
-    },
     optimizeDeps: {
       esbuildOptions: {
         resolveExtensions: extensions,

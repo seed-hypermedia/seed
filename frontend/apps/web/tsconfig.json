@@ -6,7 +6,6 @@
     "app/**/.server/**/*.tsx",
     "app/**/.client/**/*.ts",
     "app/**/.client/**/*.tsx",
-    "app/shims/react-native-svg.js",
     "devicelink/**/*.ts",
     "devicelink/**/*.tsx"
   ],

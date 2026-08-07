@@ -69,7 +69,6 @@
     "react-day-picker": "^9.8.1",
     "react-hook-form": "7.46.1",
     "react-icons": "4.9.0",
-    "react-native-reanimated": "3.7.0",
     "react-virtuoso": "4.6.2",
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.0",
