@@ -17,7 +17,7 @@ import {useResponsiveItems} from './use-responsive-items'
 
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Activity, Lock} from 'lucide-react'
+import {Activity, FolderTree, Lock} from 'lucide-react'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {useHighlighter} from './highlight-context'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
@@ -46,11 +46,13 @@ export function SiteHeader({
   hideSiteBarClassName,
   isLatest: _isLatest,
   editNavPane,
+  editNavPanePortalRef,
   isMainFeedVisible = false,
   wrapperClassName,
   notifyServiceHost: _notifyServiceHost,
   routeType,
   rightActions,
+  onOpenFileBrowser,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
@@ -67,11 +69,13 @@ export function SiteHeader({
   hideSiteBarClassName?: AutoHideSiteHeaderClassName
   isLatest?: boolean
   editNavPane?: React.ReactNode
+  editNavPanePortalRef?: (node: HTMLDivElement | null) => void
   isMainFeedVisible: boolean
   wrapperClassName?: string
   notifyServiceHost?: string
   routeType?: NavRoute['key']
   rightActions?: React.ReactNode
+  onOpenFileBrowser?: () => void
 }) {
   const [isMobileMenuOpen, _setIsMobileMenuOpen] = useState(false)
   const [isMobileSearchActive, setIsMobileSearchActive] = useState(false)
@@ -92,6 +96,20 @@ export function SiteHeader({
     : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
   const headerSearch = (
     <>
+      {onOpenFileBrowser ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          aria-label="Open file browser"
+          onClick={() => {
+            setIsMobileMenuOpen(false)
+            onOpenFileBrowser()
+          }}
+        >
+          <FolderTree size={20} />
+        </Button>
+      ) : null}
       <Button
         variant="ghost"
         size="icon"
@@ -181,6 +199,7 @@ export function SiteHeader({
           docId={docId}
           isCenterLayout={isCenterLayout}
           editNavPane={editNavPane}
+          editNavPanePortalRef={editNavPanePortalRef}
           isMainFeedVisible={isMainFeedVisible}
           siteHomeId={siteHomeId}
         />
@@ -414,6 +433,7 @@ export function SiteHeaderMenu({
   siteHomeId,
   isCenterLayout = false,
   editNavPane,
+  editNavPanePortalRef,
   isMainFeedVisible = false,
 }: {
   items?: DocNavigationItem[] | null
@@ -421,9 +441,10 @@ export function SiteHeaderMenu({
   siteHomeId: UnpackedHypermediaId
   isCenterLayout?: boolean
   editNavPane?: React.ReactNode
+  editNavPanePortalRef?: (node: HTMLDivElement | null) => void
   isMainFeedVisible?: boolean
 }) {
-  const editNavPaneRef = useRef<HTMLDivElement>(null)
+  const editNavPaneRef = useRef<HTMLDivElement | null>(null)
   const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
 
   // Calculate reserved width for the dropdown button, edit pane, and feed button
@@ -469,7 +490,16 @@ export function SiteHeaderMenu({
         isCenterLayout ? 'justify-center' : 'justify-end',
       )}
     >
-      {editNavPane && <div ref={editNavPaneRef}>{editNavPane}</div>}
+      {(editNavPane || editNavPanePortalRef) && (
+        <div
+          ref={(node) => {
+            editNavPaneRef.current = node
+            editNavPanePortalRef?.(node)
+          }}
+        >
+          {editNavPane}
+        </div>
+      )}
       {/* Hidden measurement container */}
       <div className="pointer-events-none absolute top-0 left-0 flex items-center gap-5 p-0 opacity-0 md:flex md:p-2">
         {items?.map((item) => {
