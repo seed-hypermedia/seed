@@ -57,6 +57,14 @@ describe('query block table model', () => {
     expect(queryTableItemMatchesSearch(item('One', {secret: 'Needle'}), 'needle')).toBe(true)
   })
 
+  it('searches rows containing BigInt-backed activity values without throwing', () => {
+    const row = item('One', {secret: 'Needle'}) as HMDocumentInfo & {activitySummary: {commentCount: bigint}}
+    ;(row as any).activitySummary = {commentCount: 1n}
+
+    expect(() => queryTableItemMatchesSearch(row, 'needle')).not.toThrow()
+    expect(queryTableItemMatchesSearch(row, 'needle')).toBe(true)
+  })
+
   it('combines typed attribute filters with AND', () => {
     const items = [item('One', {priority: 2, status: 'Draft'}), item('Two', {priority: 5, status: 'Ready'})]
 

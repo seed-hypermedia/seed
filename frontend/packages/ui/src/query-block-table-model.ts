@@ -84,7 +84,8 @@ export function queryTableItemMatchesSearch(item: HMDocumentInfo, search: string
   const normalized = search.trim().toLocaleLowerCase()
   if (!normalized) return true
   return [item.metadata, item.path, item.authors, item.createTime, item.updateTime, item.activitySummary]
-    .map((value) => JSON.stringify(value).toLocaleLowerCase())
+    .map((value) => JSON.stringify(value, (_key, nested) => (typeof nested === 'bigint' ? nested.toString() : nested)))
+    .map((value) => value.toLocaleLowerCase())
     .some((value) => value.includes(normalized))
 }
 

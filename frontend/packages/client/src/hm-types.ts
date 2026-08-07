@@ -324,7 +324,10 @@ export const HMBlockFileSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        size: z.number().optional().transform(toNumber), // number of bytes, as a string
+        size: z
+          .number()
+          .optional()
+          .transform((value) => (value == null ? null : toNumber(value))), // number of bytes, as a string
         name: z.string().optional(),
       })
       .optional()

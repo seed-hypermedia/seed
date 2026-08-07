@@ -225,7 +225,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         )}
         {/* Stop mousedown propagation so ProseMirror doesn't intercept clicks on item links */}
         <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-          <LazyViewportMount active={isActive}>
+          <LazyViewportMount active={isActive || style === 'Table'}>
             <Profiler id={`query-block-${block.id}`} onRender={onRender}>
               {DraftSlot ? (
                 <DraftSlot targetId={queryTargetId}>{(data) => renderContent(data)}</DraftSlot>

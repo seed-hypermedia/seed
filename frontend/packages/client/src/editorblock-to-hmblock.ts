@@ -33,6 +33,7 @@ function toImageWidthNumber(width: string | undefined): number | null {
     const percentage = Number(width.trim().slice(0, -1))
     return Number.isFinite(percentage) && percentage > 0 ? percentage : null
   }
+  if (width == null || width === '') return null
   return toNumber(width)
 }
 
@@ -239,8 +240,10 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     } else if (editorBlock.props.mediaRef) {
       blockVideo.link = ''
     }
-    const width = toNumber(editorBlock.props.width)
-    if (width) blockVideo.attributes.width = width
+    if (editorBlock.props.width != null && editorBlock.props.width !== '') {
+      const width = toNumber(editorBlock.props.width)
+      if (width) blockVideo.attributes.width = width
+    }
 
     if (editorBlock.props.name) {
       blockVideo.attributes.name = editorBlock.props.name
@@ -264,8 +267,10 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
       blockFile.link = ''
     }
     if (editorBlock.props.name) blockFile.attributes.name = editorBlock.props.name
-    const size = toNumber(editorBlock.props.size)
-    if (size) blockFile.attributes.size = size
+    if (editorBlock.props.size != null && editorBlock.props.size !== '') {
+      const size = toNumber(editorBlock.props.size)
+      if (size) blockFile.attributes.size = size
+    }
   }
 
   const blockButton = block.type === 'Button' ? block : undefined

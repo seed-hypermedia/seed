@@ -190,7 +190,7 @@ export function QueryBlockTable({
     onColumnOrderChange: setColumnOrder,
     onColumnVisibilityChange: setColumnVisibility,
     onColumnSizingChange: setColumnSizing,
-    columnResizeMode: 'onEnd',
+    columnResizeMode: 'onChange',
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })
@@ -392,6 +392,7 @@ export function QueryBlockTable({
                         onTouchStart={header.getResizeHandler()}
                         onDoubleClick={() => header.column.resetSize()}
                         onMouseUp={() => persistColumns()}
+                        onTouchEnd={() => persistColumns()}
                       />
                     </TableHead>
                   ))}

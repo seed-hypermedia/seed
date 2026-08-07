@@ -884,6 +884,31 @@ describe('EditorBlock to HMBlock', () => {
       })
     })
 
+    test('video and file blocks without optional numeric props serialize without number coercion warnings', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      editorBlockToHMBlock({
+        id: 'video-without-width',
+        type: 'video',
+        children: [],
+        content: [],
+        props: {url: 'https://example.com/video.mp4'},
+      })
+      editorBlockToHMBlock({
+        id: 'file-without-size',
+        type: 'file',
+        children: [],
+        content: [],
+        props: {url: 'https://example.com/file.pdf'},
+      })
+
+      expect(warn).not.toHaveBeenCalledWith(
+        'Value must be a number or a string that can be converted to a number',
+        undefined,
+      )
+      warn.mockRestore()
+    })
+
     // test('nostr', () => {
     //   const editorBlock: EditorNostrBlock = {
     //     id: 'foo',
