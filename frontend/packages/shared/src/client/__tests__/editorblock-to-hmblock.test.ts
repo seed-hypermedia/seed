@@ -856,6 +856,34 @@ describe('EditorBlock to HMBlock', () => {
       expect(val).toEqual(result)
     })
 
+    test('table query block preserves its column configuration', () => {
+      const editorBlock: EditorQueryBlock = {
+        id: 'table-query',
+        type: 'query',
+        children: [],
+        content: [],
+        props: {
+          style: 'Table',
+          queryIncludes: '[{"space":"FOO_SPACE","path":"","mode":"Children"}]',
+          tableConfig:
+            '{"columns":[{"id":"title","visible":true,"width":280},{"id":"metadata:status","visible":false}]}',
+        },
+      }
+
+      expect(editorBlockToHMBlock(editorBlock)).toMatchObject({
+        type: 'Query',
+        attributes: {
+          style: 'Table',
+          table: {
+            columns: [
+              {id: 'title', visible: true, width: 280},
+              {id: 'metadata:status', visible: false},
+            ],
+          },
+        },
+      })
+    })
+
     // test('nostr', () => {
     //   const editorBlock: EditorNostrBlock = {
     //     id: 'foo',

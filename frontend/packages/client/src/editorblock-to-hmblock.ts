@@ -335,6 +335,7 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     if (editorBlock.props.queryLimit) query.limit = Number(editorBlock.props.queryLimit)
     blockQuery.attributes.query = query
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'
+    if (editorBlock.props.tableConfig) blockQuery.attributes.table = JSON.parse(editorBlock.props.tableConfig)
   }
 
   const blockParse = HMBlockSchema.safeParse(block)

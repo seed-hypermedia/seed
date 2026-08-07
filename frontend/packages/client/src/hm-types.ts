@@ -45,9 +45,22 @@ export const HMEmbedViewSchema = z.union([
 ])
 export type HMEmbedView = z.infer<typeof HMEmbedViewSchema>
 
-export const HMQueryStyleSchema = z.union([z.literal('Card'), z.literal('List')])
+export const HMQueryStyleSchema = z.union([z.literal('Card'), z.literal('List'), z.literal('Table')])
 
 export type HMQueryStyle = z.infer<typeof HMQueryStyleSchema>
+
+const HMQueryTableColumnSchema = z.object({
+  id: z.string(),
+  visible: z.boolean(),
+  width: z.number().positive().optional(),
+})
+
+const HMQueryTableConfigSchema = z.object({
+  columns: z.array(HMQueryTableColumnSchema),
+})
+
+/** Persisted presentation settings for a Query block's Table view. */
+export type HMQueryTableConfig = z.infer<typeof HMQueryTableConfigSchema>
 
 const baseAnnotationProperties = {
   starts: z.array(z.number()),
@@ -842,6 +855,7 @@ export const HMBlockQuerySchema = z
       columnCount: z.number().optional().default(3),
       query: HMQuerySchema,
       banner: z.boolean().optional().default(false),
+      table: HMQueryTableConfigSchema.optional(),
     }),
   })
   .strict()

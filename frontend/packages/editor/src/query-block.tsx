@@ -1,5 +1,5 @@
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockQuery, HMQueryTableConfig, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -34,7 +34,7 @@ export const QueryBlock = createReactBlockSpec({
   type: 'query',
   propSchema: {
     style: {
-      values: ['Card', 'List'],
+      values: ['Card', 'List', 'Table'],
       default: 'Card',
     },
     columnCount: {
@@ -57,6 +57,9 @@ export const QueryBlock = createReactBlockSpec({
     defaultOpen: {
       default: 'false',
       values: ['true', 'false'],
+    },
+    tableConfig: {
+      default: '',
     },
   },
   containsInlineContent: false,
@@ -127,11 +130,20 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }, [sortedItems, interactionSummaries])
 
   const accountsMetadata = queryBlock.data?.accountsMetadata ?? {}
-  const style = block.props.style as 'Card' | 'List'
+  const style = block.props.style as 'Card' | 'List' | 'Table'
+  const tableConfig = useMemo<HMQueryTableConfig | undefined>(() => {
+    if (!block.props.tableConfig) return undefined
+    return JSON.parse(block.props.tableConfig)
+  }, [block.props.tableConfig])
   const {DraftSlot} = useQueryBlockDrafts()
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
+    const {prependItems, bannerContent} = buildSlotItems(
+      slot,
+      style === 'Table' ? 'List' : style,
+      banner,
+      sortedItems.length > 0,
+    )
     return (
       <QueryBlockContent
         items={sortedItems}
@@ -151,6 +163,19 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         // target that all block-selection click paths already skip.
         // Selecting the query block still works via its padding/frame.
         navigateCards
+        tableConfig={tableConfig}
+        onTableConfigChange={(config) => assign({tableConfig: JSON.stringify(config)})}
+        onTableSortingChange={(sorting) => {
+          const first = sorting[0]
+          const terms: Record<string, HMQueryBlockSort[number]['term']> = {
+            title: 'Title',
+            path: 'Path',
+            created: 'CreateTime',
+            updated: 'UpdateTime',
+          }
+          const term = first ? terms[first.id] : undefined
+          if (term) assign({querySort: JSON.stringify([{term, reverse: first?.desc ?? false}])})
+        }}
       />
     )
   }
@@ -375,7 +400,7 @@ function QuerySettings({
                 onValue={(value) => {
                   onValuesChange({
                     id: null,
-                    props: {...block.props, style: value as 'Card' | 'List'},
+                    props: {...block.props, style: value as 'Card' | 'List' | 'Table'},
                   })
                 }}
                 label="View"
@@ -383,6 +408,7 @@ function QuerySettings({
                 options={[
                   {label: 'Card', value: 'Card'},
                   {label: 'List', value: 'List'},
+                  {label: 'Table', value: 'Table'},
                 ]}
               />
               <SelectField

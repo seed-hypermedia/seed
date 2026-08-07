@@ -3,6 +3,7 @@ import {ReactNode, useEffect, useRef, useState} from 'react'
 import {DocumentCardGrid} from './blocks-content-utils'
 import {DocumentListItem} from './document-list-item'
 import {Spinner} from './spinner'
+import {QueryBlockTable, type QueryBlockTableProps} from './query-block-table'
 
 const INITIAL_LIST_CHUNK_SIZE = 25
 const LIST_CHUNK_SIZE = 25
@@ -10,7 +11,7 @@ const LIST_CHUNK_ROOT_MARGIN = '800px 0px'
 
 export interface QueryBlockContentProps {
   items: HMDocumentInfo[]
-  style: 'Card' | 'List'
+  style: 'Card' | 'List' | 'Table'
   columnCount?: string | number
   banner?: boolean
   accountsMetadata: HMAccountsMetadata
@@ -24,6 +25,10 @@ export interface QueryBlockContentProps {
   titleLinkOnly?: boolean
   /** Whether whole cards navigate on click (ignored for the title when titleLinkOnly). */
   navigateCards?: boolean
+  tableConfig?: QueryBlockTableProps['tableConfig']
+  onTableConfigChange?: QueryBlockTableProps['onTableConfigChange']
+  tableSorting?: QueryBlockTableProps['sorting']
+  onTableSortingChange?: QueryBlockTableProps['onSortingChange']
 }
 
 export function QueryBlockContent({
@@ -39,7 +44,25 @@ export function QueryBlockContent({
   bannerContent,
   titleLinkOnly,
   navigateCards,
+  tableConfig,
+  onTableConfigChange,
+  tableSorting,
+  onTableSortingChange,
 }: QueryBlockContentProps) {
+  if (style === 'Table') {
+    return (
+      <QueryBlockTable
+        items={items}
+        accountsMetadata={accountsMetadata}
+        interactionSummaries={interactionSummaries}
+        isDiscovering={isDiscovering}
+        tableConfig={tableConfig}
+        onTableConfigChange={onTableConfigChange}
+        sorting={tableSorting}
+        onSortingChange={onTableSortingChange}
+      />
+    )
+  }
   if (style === 'Card') {
     return (
       <QueryBlockCardView
