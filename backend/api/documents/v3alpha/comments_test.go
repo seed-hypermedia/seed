@@ -1157,6 +1157,7 @@ func TestCommentCitations(t *testing.T) {
 
 	for _, citation := range citations.Citations {
 		require.Equal(t, "Comment", citation.SourceType)
+		require.Equal(t, "hm://"+alice.me.Account.PublicKey.String(), citation.SourceDocument)
 		require.Equal(t, target.Version, citation.TargetVersion)
 	}
 }
