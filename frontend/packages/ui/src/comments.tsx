@@ -876,8 +876,13 @@ export function CommentContent({
     blockRef: selection?.blockId || null,
     blockRange: selection?.blockRange || null,
   }
-  const zoomedBlock = zoomBlockRef ? getBlockNodeById(comment.content, zoomBlockRef) : null
-  const zoomedContent = zoomedBlock ? [zoomedBlock] : comment.content
+  // Must stay referentially stable: the viewer rebuilds its whole editor whenever
+  // `blocks` changes identity, so a fresh array literal would tear down and
+  // recreate a ProseMirror instance on every render.
+  const zoomedContent = useMemo(() => {
+    const zoomedBlock = zoomBlockRef ? getBlockNodeById(comment.content, zoomBlockRef) : null
+    return zoomedBlock ? [zoomedBlock] : comment.content
+  }, [zoomBlockRef, comment.content])
 
   if (!Viewer) return null
 
@@ -922,9 +927,11 @@ export function QuotedDocBlock({
   blockRange?: BlockRange
 }) {
   const Viewer = useReadOnlyViewer()
-  const blockContent = useMemo(() => {
+  // Memoized as an array so the viewer keeps the same editor across renders.
+  const blocks = useMemo(() => {
     if (!doc.content) return null
-    return getBlockNodeById(doc.content, blockId)
+    const blockNode = getBlockNodeById(doc.content, blockId)
+    return blockNode ? [blockNode] : null
   }, [doc.content, blockId])
 
   // Only forward a codepoint range — `{expanded: true}` blockRange variants
@@ -938,9 +945,9 @@ export function QuotedDocBlock({
           <BlockQuote size={23} />
         </div>
         <div className="min-w-0 flex-1">
-          {blockContent && Viewer && (
+          {blocks && Viewer && (
             <Viewer
-              blocks={[blockContent]}
+              blocks={blocks}
               resourceId={{...docId, blockRef: blockId}}
               focusBlockId={fragmentRange ? blockId : undefined}
               blockRange={fragmentRange}
