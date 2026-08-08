@@ -44,10 +44,11 @@ const schema = new Schema({
 })
 
 function getCursorSelectPlugin(openUrl = vi.fn()) {
-  return (BlockManipulationExtension as any).config.addProseMirrorPlugins.call({
+  const plugins = (BlockManipulationExtension as any).config.addProseMirrorPlugins.call({
     editor: {},
     options: {openUrl},
-  })[0]
+  })
+  return plugins.find((plugin: {key: string}) => plugin.key.startsWith('CursorSelectPlugin'))
 }
 
 function clickEventWithTarget(target: HTMLElement) {
