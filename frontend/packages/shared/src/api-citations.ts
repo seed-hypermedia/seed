@@ -1,17 +1,22 @@
 import {HMRequestImplementation, HMRequestParams} from './api-types'
-import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
 import {HMListCitationsRequest} from '@seed-hypermedia/client/hm-types'
+import {LIST_PAGE_SIZE, listAllPages} from './list-all-pages'
 import {packHmId, unpackHmId} from './utils'
 
 export const ListCitations: HMRequestImplementation<HMListCitationsRequest> = {
   async getData(grpcClient: GRPCClient, input): Promise<HMListCitationsRequest['output']> {
-    const result = await grpcClient.resources.listCitations({
-      iri: packHmId({...input.targetId, version: null, latest: null}),
-      pageSize: BIG_INT,
-    })
+    const citations = await listAllPages(
+      (pageToken) =>
+        grpcClient.resources.listCitations({
+          iri: packHmId({...input.targetId, version: null, latest: null}),
+          pageSize: LIST_PAGE_SIZE,
+          pageToken,
+        }),
+      (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
+    )
     return {
-      citations: result.citations.map((c) => c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any),
+      citations: citations.map((c) => c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any),
     }
   },
 }

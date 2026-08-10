@@ -1,8 +1,8 @@
 import {HMRequestImplementation} from './api-types'
-import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
 import {HMInteractionSummaryRequest} from '@seed-hypermedia/client/hm-types'
 import {calculateInteractionSummary} from './interaction-summary'
+import {LIST_PAGE_SIZE, listAllPages} from './list-all-pages'
 import {getErrorMessage, HMNotFoundError, HMRedirectError, HMResourceTombstoneError} from './models/entity'
 import {hmIdPathToEntityQueryPath} from './utils'
 
@@ -13,11 +13,16 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
     const apiPath = hmIdPathToEntityQueryPath(id.path)
 
     try {
-      const [mentions, latestDoc, docInfo] = await Promise.all([
-        grpcClient.resources.listCitations({
-          iri: id.id,
-          pageSize: BIG_INT,
-        }),
+      const [citations, latestDoc, docInfo] = await Promise.all([
+        listAllPages(
+          (pageToken) =>
+            grpcClient.resources.listCitations({
+              iri: id.id,
+              pageSize: LIST_PAGE_SIZE,
+              pageToken,
+            }),
+          (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
+        ),
         grpcClient.documents.getDocument({
           account: id.uid,
           path: apiPath,
@@ -40,7 +45,7 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
       })
       const childrenCount = docInfo.activitySummary?.childrenCount ?? 0
 
-      return calculateInteractionSummary(mentions.citations, changes.changes, id, childrenCount)
+      return calculateInteractionSummary(citations, changes.changes, id, childrenCount)
     } catch (e) {
       // If the document has been redirected, return empty summary.
       // queryResource handles following redirects, so this query will be
