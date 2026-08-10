@@ -105,15 +105,29 @@ const watchedDirs = collectFileDependencyPaths()
 install()
 startCommand()
 
-for (const dir of watchedDirs) {
-  const label = path.relative(path.dirname(workspaceDir), dir)
-  fs.watch(dir, {recursive: true}, (_event, filename) => {
+function watchDir(dir: string, label: string) {
+  const watcher = fs.watch(dir, {recursive: true}, (_event, filename) => {
     if (!filename) return
     if (Date.now() < quietUntil) return
     const parts = filename.split(path.sep)
     if (parts.some((part) => IGNORED_PATH_SEGMENTS.includes(part))) return
     scheduleResync(path.join(label, filename))
   })
+  watcher.on('error', (err) => {
+    // Recursive watching also tracks node_modules inside the file: packages,
+    // and `bun install` rewrites those (e.g. .bin/esbuild) while we watch —
+    // a vanished transient path errors the watcher and must not kill the
+    // supervisor. Re-arm after the install quiet window.
+    const code = (err as NodeJS.ErrnoException).code ?? err.message
+    console.warn(`⚠️ watch-file-deps: watcher error on ${label} (${code}); rewatching`)
+    watcher.close()
+    setTimeout(() => watchDir(dir, label), 1_000)
+  })
+}
+
+for (const dir of watchedDirs) {
+  const label = path.relative(path.dirname(workspaceDir), dir)
+  watchDir(dir, label)
   console.log(`👀 watch-file-deps: watching ${label}`)
 }
 
