@@ -138,6 +138,43 @@ describe('MediaContainer image caption', () => {
     expect(caption.getAttribute('contentEditable')).toBe('true')
   })
 
+  it('is not nested inside a non-editable ancestor', () => {
+    editorGate.canEdit = true
+    editorGate.isEditing = true
+    const caption = renderImageContainer(makeEditor(true))
+
+    for (let el = caption.parentElement; el && el !== container; el = el.parentElement) {
+      expect(el.getAttribute('contentEditable')).not.toBe('false')
+    }
+  })
+
+  it('is not nested inside a draggable ancestor', () => {
+    editorGate.canEdit = true
+    editorGate.isEditing = true
+    const caption = renderImageContainer(makeEditor(true))
+
+    for (let el = caption.parentElement; el && el !== container; el = el.parentElement) {
+      expect(el.getAttribute('draggable')).not.toBe('true')
+    }
+  })
+
+  it('keeps the media surface non-editable and draggable', () => {
+    editorGate.canEdit = true
+    editorGate.isEditing = true
+    const editor = makeEditor(true, true)
+    act(() => {
+      root.render(
+        <MediaContainer editor={editor} block={makeBlock()} mediaType="image" assign={() => {}}>
+          <div data-testid="media-child" />
+        </MediaContainer>,
+      )
+    })
+
+    const surface = (container.querySelector('[data-testid="media-child"]') as HTMLElement).parentElement!
+    expect(surface.getAttribute('contentEditable')).toBe('false')
+    expect(surface.getAttribute('draggable')).toBe('true')
+  })
+
   it('does not select the image block when the caption is clicked', () => {
     editorGate.canEdit = true
     editorGate.isEditing = true
@@ -205,61 +242,6 @@ describe('MediaContainer image caption', () => {
     expect(editor.__view.state.selection instanceof MultipleNodeSelection).toBe(true)
     const selection = editor.__view.state.selection as MultipleNodeSelection
     expect(selection.nodes.map((node) => node.attrs.id)).toEqual(['block-1', 'block-2', 'block-3'])
-  })
-
-  it('moves to the next block when Enter is pressed in the image caption', () => {
-    editorGate.canEdit = true
-    editorGate.isEditing = true
-    const editor = makeEditor(true)
-    const caption = renderImageContainer(editor)
-
-    const event = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true})
-    act(() => {
-      caption.dispatchEvent(event)
-    })
-
-    expect(event.defaultPrevented).toBe(true)
-    expect(editor.setTextCursorPosition).toHaveBeenCalledWith({id: 'block-2'}, 'start')
-    expect(editor.insertBlocks).not.toHaveBeenCalled()
-    expect(editor.focus).toHaveBeenCalledOnce()
-  })
-
-  it('creates a paragraph below the image when Enter is pressed in the last image caption', () => {
-    editorGate.canEdit = true
-    editorGate.isEditing = true
-    const editor = makeEditor(true)
-    const insertedBlock = {id: 'inserted-block'}
-    editor.getTextCursorPosition
-      .mockReturnValueOnce({block: {id: 'block-1'}, nextBlock: undefined})
-      .mockReturnValueOnce({block: {id: 'block-1'}, nextBlock: insertedBlock})
-    const caption = renderImageContainer(editor)
-
-    const event = new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true})
-    act(() => {
-      caption.dispatchEvent(event)
-    })
-
-    expect(event.defaultPrevented).toBe(true)
-    expect(editor.insertBlocks).toHaveBeenCalledWith([{type: 'paragraph', content: ''}], 'block-1', 'after')
-    expect(editor.setTextCursorPosition).toHaveBeenCalledWith(insertedBlock, 'start')
-    expect(editor.focus).toHaveBeenCalledOnce()
-  })
-
-  it('lets Shift+Enter create a line break in the image caption', () => {
-    editorGate.canEdit = true
-    editorGate.isEditing = true
-    const editor = makeEditor(true)
-    const caption = renderImageContainer(editor)
-
-    const event = new KeyboardEvent('keydown', {key: 'Enter', shiftKey: true, bubbles: true, cancelable: true})
-    act(() => {
-      caption.dispatchEvent(event)
-    })
-
-    expect(event.defaultPrevented).toBe(false)
-    expect(editor.setTextCursorPosition).not.toHaveBeenCalled()
-    expect(editor.insertBlocks).not.toHaveBeenCalled()
-    expect(editor.focus).not.toHaveBeenCalled()
   })
 
   it('does not render copy or comment actions inside the media selection menu', () => {

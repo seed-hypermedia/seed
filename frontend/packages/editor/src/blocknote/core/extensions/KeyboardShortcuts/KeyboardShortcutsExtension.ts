@@ -428,15 +428,28 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
     const handleEnter = () =>
       this.editor.commands.first(({commands}) => [
-        // When the cursor is inside an image caption, let the React
-        // handler manage Enter behavior — do not create or split blocks.
+        // An image caption is inline content of the image block, so Enter must
+        // never split or create a block there: it moves the cursor to the next
+        // block instead, appending an empty paragraph when the image is last.
         () =>
-          commands.command(({state}) => {
+          commands.command(({state, tr, dispatch}) => {
             const blockInfo = getBlockInfoFromSelection(state)
-            if (blockInfo.blockContentType === 'image' && !(state.selection instanceof NodeSelection)) {
-              return true
+            if (blockInfo.blockContentType !== 'image' || state.selection instanceof NodeSelection) return false
+            if (!dispatch) return true
+
+            const afterPos = blockInfo.block.afterPos
+            const nextTextPos = TextSelection.near(state.doc.resolve(afterPos), 1).from
+            if (nextTextPos > afterPos) {
+              tr.setSelection(TextSelection.create(tr.doc, nextTextPos))
+            } else {
+              // The image is the last block: Enter appends a paragraph to type in.
+              const {blockNode, paragraph} = state.schema.nodes
+              if (!blockNode || !paragraph) return true
+              tr.insert(afterPos, blockNode.create(null, paragraph.create()))
+              tr.setSelection(TextSelection.create(tr.doc, afterPos + 2))
             }
-            return false
+            tr.scrollIntoView()
+            return true
           }),
         // Add a block on top of the current one, if the block is not
         // empty and the selection is at the start of that block,

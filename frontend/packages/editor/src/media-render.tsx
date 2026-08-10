@@ -157,7 +157,7 @@ export const MediaRender: React.FC<RenderProps> = ({
   }
 
   return (
-    <BlockSelectionWrapper editor={editor} block={block}>
+    <BlockSelectionWrapper editor={editor} block={block} keepEditable={mediaType === 'image'}>
       <div className="flex w-full flex-col">
         {hideForm ? (
           <MediaComponent block={block} editor={editor} assign={assignMedia} DisplayComponent={DisplayComponent} />
