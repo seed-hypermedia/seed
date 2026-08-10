@@ -129,6 +129,10 @@ export const ImageGalleryPlugin = new Plugin<ImageGalleryState>({
     handleDoubleClickOn(view, _pos, node, _nodePos, _event) {
       if (node.type.name !== 'image') return false
 
+      // Ignore gallery open when clicking a caption.
+      const target = _event.target as Element | null
+      if (target?.closest?.('[data-media-container-ignore-select]')) return false
+
       const url: string = node.attrs.url ?? ''
       if (!url) return false
 
