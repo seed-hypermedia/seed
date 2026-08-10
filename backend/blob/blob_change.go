@@ -245,8 +245,8 @@ type OpSetAttributes struct {
 // KeyValue is a pair representing the nested attribute.
 type KeyValue struct {
 	Key []string `refmt:"key,omitempty"`
-	// Value must be a scalar supported by documentAttributeValue: nil, string,
-	// bool, or an integral number. It is any because CBOR has no scalar union.
+	// Value is any because CBOR has no scalar union. The document attribute
+	// index ignores values it cannot represent as a scalar.
 	Value any `refmt:"value"`
 }
 
@@ -410,7 +410,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		case OpSetKey:
 			k, v := op.Key, op.Value
 			if _, _, err := documentAttributeValue(v); err != nil {
-				return fmt.Errorf("unsupported value for SetKey attribute %q: %w", k, err)
+				continue
 			}
 
 			extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: k, Value: v, Operation: opIndex})
@@ -452,7 +452,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				opIndex += i
 				k := strings.Join(kv.Key, ".")
 				if _, _, err := documentAttributeValue(kv.Value); err != nil {
-					return fmt.Errorf("unsupported value for SetAttributes attribute %q: %w", k, err)
+					continue
 				}
 				extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: k, Value: kv.Value, Operation: opIndex})
 

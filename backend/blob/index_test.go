@@ -20,6 +20,39 @@ import (
 
 var _ blockstore.Blockstore = (*Index)(nil)
 
+func TestIndexIgnoresNonScalarDocumentAttributes(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	change, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{
+			NewOpSetAttributes("", []KeyValue{
+				{Key: []string{"name"}, Value: "Document with provenance"},
+				{Key: []string{"provenance"}, Value: map[string]any{"source": "import"}},
+			}),
+			{"type": "SetKey", "key": "legacyStructured", "value": []any{"one", "two"}},
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+	ref, err := NewRef(alice, 0, change.CID, alice.Principal(), "/structured-attributes", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
+	require.NoError(t, err)
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref}))
+
+	iri := must.Do2(NewIRI(alice.Principal(), "/structured-attributes"))
+	indexed, err := sqlitex.QueryOnePool[int](t.Context(), db, `
+		SELECT COUNT()
+		FROM document_attributes da
+		JOIN document_attribute_keys dak ON dak.id = da.key
+		JOIN resources r ON r.id = da.resource
+		WHERE r.iri = ? AND dak.key IN ('name', 'provenance', 'legacyStructured')
+	`, iri)
+	require.NoError(t, err)
+	require.Equal(t, 1, indexed, "only the scalar name attribute must be indexed")
+}
+
 func TestIterChangesDoesNotLoadResolvedAttributes(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	db := storage.MakeTestDB(t)

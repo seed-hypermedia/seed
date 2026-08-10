@@ -967,6 +967,11 @@ func (dg *documentGeneration) setAttribute(key string, value any, ts int64) {
 }
 
 func (dg *documentGeneration) setAttributeOrdered(key string, value any, ts int64, operation int, actor uint64) {
+	// Changes indexed by older versions may contain structured values. They are
+	// valid document data but cannot be represented in document_attributes.
+	if _, _, err := documentAttributeValue(value); err != nil {
+		return
+	}
 	dg.Metadata.setOrdered(key, value, ts, operation, actor)
 }
 
