@@ -1,8 +1,9 @@
+import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMRequestImplementation} from './api-types'
+import {BIG_INT} from './constants'
 import {GRPCClient} from './grpc-client'
 import {HMInteractionSummaryRequest} from '@seed-hypermedia/client/hm-types'
 import {calculateInteractionSummary} from './interaction-summary'
-import {LIST_PAGE_SIZE, listAllPages} from './list-all-pages'
 import {getErrorMessage, HMNotFoundError, HMRedirectError, HMResourceTombstoneError} from './models/entity'
 import {hmIdPathToEntityQueryPath} from './utils'
 
@@ -13,28 +14,19 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
     const apiPath = hmIdPathToEntityQueryPath(id.path)
 
     try {
-      const [citations, latestDoc, docInfo] = await Promise.all([
-        listAllPages(
-          (pageToken) =>
-            grpcClient.resources.listCitations({
-              iri: id.id,
-              pageSize: LIST_PAGE_SIZE,
-              pageToken,
-            }),
-          (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
-        ),
+      const [mentions, latestDoc, children] = await Promise.all([
+        grpcClient.resources.listCitations({
+          iri: id.id,
+          pageSize: BIG_INT,
+        }),
         grpcClient.documents.getDocument({
           account: id.uid,
           path: apiPath,
           version: undefined,
         }),
-        // The backend computes the alive direct-children count for every
-        // document info row; a whole ListDirectory call just to count
-        // children was both wasteful and wrong (it silently truncated at
-        // the default page size).
-        grpcClient.documents.getDocumentInfo({
+        grpcClient.documents.listDirectory({
           account: id.uid,
-          path: apiPath,
+          directoryPath: apiPath,
         }),
       ])
 
@@ -43,9 +35,14 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         path: apiPath,
         version: latestDoc.version,
       })
-      const childrenCount = docInfo.activitySummary?.childrenCount ?? 0
+      const childrenCount = toPlainMessage(children).documents.filter((d) => {
+        if (d.path === apiPath) return false
+        // filter out children of children
+        if (d.path.split('/').length > apiPath.split('/').length + 1) return false
+        return true
+      }).length
 
-      return calculateInteractionSummary(citations, changes.changes, id, childrenCount)
+      return calculateInteractionSummary(mentions.citations, changes.changes, id, childrenCount)
     } catch (e) {
       // If the document has been redirected, return empty summary.
       // queryResource handles following redirects, so this query will be

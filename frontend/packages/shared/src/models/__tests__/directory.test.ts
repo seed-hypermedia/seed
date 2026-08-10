@@ -1,7 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {SortAttribute} from '../../client/.generated/documents/v3alpha/documents_pb'
-import {LIST_PAGE_SIZE} from '../../list-all-pages'
+import {BIG_INT} from '../../constants'
 import {hmId} from '../../utils/entity-id-url'
 
 vi.mock('../entity', () => ({
@@ -74,8 +74,7 @@ describe('createQueryResolver', () => {
       account: 'alice',
       directoryPath: '/projects',
       recursive: false,
-      pageSize: LIST_PAGE_SIZE,
-      pageToken: '',
+      pageSize: BIG_INT,
       sortOptions: {
         attribute: SortAttribute.ACTIVITY_TIME,
         descending: true,
@@ -111,8 +110,7 @@ describe('createQueryResolver', () => {
       account: 'alice',
       directoryPath: '/projects',
       recursive: true,
-      pageSize: LIST_PAGE_SIZE,
-      pageToken: '',
+      pageSize: BIG_INT,
     })
     expect(result?.results.map((doc) => doc.metadata.name)).toEqual(['Newer', 'Older'])
   })

@@ -10,7 +10,6 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {BIG_INT} from '../constants'
-import {LIST_PAGE_SIZE, listAllPages} from '../list-all-pages'
 import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {getCommentGroups} from '../comments'
 import {parseFragment, unpackHmId} from '../utils'
@@ -155,10 +154,7 @@ export function createDiscussionsResolver(client: GRPCClient) {
           pageSize: BIG_INT,
         })
         .catch(() => null),
-      listAllPages(
-        (pageToken) => client.resources.listCitations({iri: targetId.id, pageSize: LIST_PAGE_SIZE, pageToken}),
-        (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
-      ).catch(() => null),
+      client.resources.listCitations({iri: targetId.id, pageSize: BIG_INT}).catch(() => null),
     ])
 
     // Process direct comments
@@ -168,8 +164,8 @@ export function createDiscussionsResolver(client: GRPCClient) {
 
     // Process citing discussions - group by doc to dedupe listComments calls
     const mentionsByDoc = new Map<string, {mention: any; id: UnpackedHypermediaId}[]>()
-    citationsResult
-      ?.filter((m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id)
+    citationsResult?.citations
+      .filter((m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id)
       .forEach((mention) => {
         const id = unpackHmId(mention.sourceDocument)
         if (!id) return
@@ -239,17 +235,12 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
     authors: Record<string, HMMetadataPayload>
   }> => {
     try {
-      const citations = await listAllPages(
-        (pageToken) =>
-          client.resources.listCitations({
-            iri: targetId.id,
-            pageSize: LIST_PAGE_SIZE,
-            pageToken,
-          }),
-        (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
-      )
+      const citations = await client.resources.listCitations({
+        iri: targetId.id,
+        pageSize: BIG_INT,
+      })
 
-      const commentCitations = citations.filter((m) => {
+      const commentCitations = citations.citations.filter((m) => {
         if (m.sourceType != 'Comment') return false
         const targetFragment = parseFragment(m.targetFragment)
         if (!targetFragment) return false

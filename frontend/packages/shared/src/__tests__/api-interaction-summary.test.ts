@@ -7,12 +7,12 @@ const targetDocId = hmId('z6MkTestAccount', {path: ['test-doc']})
 
 function makeGrpcClient({
   getDocument = vi.fn().mockResolvedValue({version: 'v1'}),
-  getDocumentInfo = vi.fn().mockResolvedValue({activitySummary: {childrenCount: 0}}),
+  listDirectory = vi.fn().mockResolvedValue({documents: []}),
   listDocumentChanges = vi.fn().mockResolvedValue({changes: []}),
   listCitations = vi.fn().mockResolvedValue({citations: []}),
 } = {}) {
   return {
-    documents: {getDocument, getDocumentInfo, listDocumentChanges},
+    documents: {getDocument, listDirectory, listDocumentChanges},
     resources: {listCitations},
   } as any
 }
@@ -75,9 +75,9 @@ describe('InteractionSummary.getData', () => {
     expect(result).toEqual(emptySummary)
   })
 
-  it('returns empty summary when getDocumentInfo fails with not found', async () => {
+  it('returns empty summary when listDirectory fails with not found', async () => {
     const grpcClient = makeGrpcClient({
-      getDocumentInfo: vi.fn().mockRejectedValue(new ConnectError('not found', Code.NotFound)),
+      listDirectory: vi.fn().mockRejectedValue(new ConnectError('not found', Code.NotFound)),
     })
 
     const result = await InteractionSummary.getData(grpcClient, {id: targetDocId}, dummyQueryDaemon)
