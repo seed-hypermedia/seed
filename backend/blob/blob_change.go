@@ -197,8 +197,10 @@ func (o baseOp) isOp() {}
 // OpSetKey represents the op to set a key in the document attributes.
 type OpSetKey struct {
 	baseOp
-	Key   string `refmt:"key"`
-	Value any    `refmt:"value"`
+	Key string `refmt:"key"`
+	// Value must be a scalar supported by documentAttributeValue: nil, string,
+	// bool, or an integral number. It is any because CBOR has no scalar union.
+	Value any `refmt:"value"`
 }
 
 const maxJSInt = 1<<53 - 1
@@ -242,8 +244,10 @@ type OpSetAttributes struct {
 
 // KeyValue is a pair representing the nested attribute.
 type KeyValue struct {
-	Key   []string `refmt:"key,omitempty"`
-	Value any      `refmt:"value"`
+	Key []string `refmt:"key,omitempty"`
+	// Value must be a scalar supported by documentAttributeValue: nil, string,
+	// bool, or an integral number. It is any because CBOR has no scalar union.
+	Value any `refmt:"value"`
 }
 
 // NewOpSetAttributes creates a new op that sets some attributes on a block.
@@ -395,20 +399,21 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		sb.AddBlobLink("change/dep", dep)
 	}
 
-	var extra changeIndexedAttrs
+	extra := changeIndexedAttrs{Actor: uint64(author.ActorID())}
+	opIndex := -1
 	for op, err := range v.Ops() {
+		opIndex++
 		if err != nil {
 			return err
 		}
 		switch op := op.(type) {
 		case OpSetKey:
 			k, v := op.Key, op.Value
-
-			if extra.Metadata == nil {
-				extra.Metadata = make(map[string]any)
+			if _, _, err := documentAttributeValue(v); err != nil {
+				return fmt.Errorf("unsupported value for SetKey attribute %q: %w", k, err)
 			}
 
-			extra.Metadata[k] = v
+			extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: k, Value: v, Operation: opIndex})
 
 			vs, ok := v.(string)
 			if !ok {
@@ -443,13 +448,13 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				continue
 			}
 
-			if extra.Metadata == nil {
-				extra.Metadata = make(map[string]any)
-			}
-
-			for _, kv := range op.Attrs {
+			for i, kv := range op.Attrs {
+				opIndex += i
 				k := strings.Join(kv.Key, ".")
-				extra.Metadata[k] = kv.Value
+				if _, _, err := documentAttributeValue(kv.Value); err != nil {
+					return fmt.Errorf("unsupported value for SetAttributes attribute %q: %w", k, err)
+				}
+				extra.Attributes = append(extra.Attributes, indexedAttributeChange{Key: k, Value: kv.Value, Operation: opIndex})
 
 				vs, isStr := kv.Value.(string)
 				ftsKey := "meta"
@@ -519,7 +524,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		}
 	}
 
-	if extra.Title != "" || len(extra.Metadata) > 0 {
+	if extra.Title != "" || len(extra.Metadata) > 0 || len(extra.Attributes) > 0 {
 		sb.ExtraAttrs = extra
 	}
 
@@ -535,8 +540,16 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 }
 
 type changeIndexedAttrs struct {
-	Title    string         `json:"title"` // Deprecated. TODO(burdiyan): remove this in favor of metadata.
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Title      string                   `json:"title"` // Deprecated. TODO(burdiyan): remove this in favor of metadata.
+	Metadata   map[string]any           `json:"metadata,omitempty"`
+	Attributes []indexedAttributeChange `json:"attributes,omitempty"`
+	Actor      uint64                   `json:"actor,omitempty"`
+}
+
+type indexedAttributeChange struct {
+	Key       string `json:"key"`
+	Value     any    `json:"value"`
+	Operation int    `json:"operation"`
 }
 
 type decodedBlob[T any] struct {

@@ -63,6 +63,68 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Move resolved document attributes out of the generation JSON envelope. A
+	// kind tag preserves Seed's bool/int64 distinction, which SQLite's dynamic
+	// INTEGER storage class cannot represent by itself. Reindex from blobs rather
+	// than backfilling the old envelope, which lacks the complete CRDT ordering
+	// tuple.
+	{Version: "2026-08-06.170309", Run: func(_ *Store, conn *sqlite.Conn) error {
+		if err := sqlitex.ExecScript(conn, sqlfmt(`
+			DROP TABLE IF EXISTS document_attributes;
+			DROP TABLE IF EXISTS document_attribute_keys;
+
+			CREATE TABLE IF NOT EXISTS document_attribute_keys (
+				id INTEGER PRIMARY KEY,
+				key TEXT NOT NULL,
+				search_key TEXT NOT NULL,
+				UNIQUE (key)
+			) STRICT;
+
+			CREATE INDEX document_attribute_keys_by_search ON document_attribute_keys (search_key, key);
+
+			CREATE TABLE IF NOT EXISTS document_attributes (
+				resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+				key INTEGER REFERENCES document_attribute_keys (id) ON UPDATE CASCADE ON DELETE RESTRICT NOT NULL,
+				kind TEXT NOT NULL,
+				value,
+				timestamp INTEGER NOT NULL,
+				operation INTEGER NOT NULL,
+				actor INTEGER NOT NULL,
+				PRIMARY KEY (resource, key)
+			) WITHOUT ROWID;
+
+			DROP INDEX IF EXISTS document_generations_by_redirect;
+
+			CREATE INDEX document_attributes_by_key ON document_attributes (key, kind, value);
+		`)); err != nil {
+			return err
+		}
+
+		hasVisibility, err := sqlitex.QueryOne[int](conn, `SELECT EXISTS (SELECT 1 FROM pragma_table_info('document_generations') WHERE name = 'visibility')`)
+		if err != nil {
+			return err
+		}
+		if hasVisibility == 0 {
+			if err := sqlitex.ExecScript(conn, `
+				ALTER TABLE document_generations ADD COLUMN visibility TEXT NOT NULL DEFAULT '';
+				ALTER TABLE document_generations ADD COLUMN visibility_timestamp INTEGER NOT NULL DEFAULT 0;
+			`); err != nil {
+				return err
+			}
+		}
+
+		hasMetadata, err := sqlitex.QueryOne[int](conn, `SELECT EXISTS (SELECT 1 FROM pragma_table_info('document_generations') WHERE name = 'metadata')`)
+		if err != nil {
+			return err
+		}
+		if hasMetadata != 0 {
+			if err := sqlitex.Exec(conn, `ALTER TABLE document_generations DROP COLUMN metadata`, nil); err != nil {
+				return err
+			}
+		}
+
+		return scheduleReindex(conn)
+	}},
 	// This is a bug-fix migration which re-creates the RBSR-related tables if they are missing.
 	// Some users have reported daemon startup issues that's caused by these tables missing.
 	// During the development of this feature we did some weird things and seems like we might have updated a past migration

@@ -535,14 +535,9 @@ func (idx *Index) ResolveLatest(ctx context.Context, resource IRI) (DocumentStat
 		return DocumentState{}, status.Errorf(codes.NotFound, "document not found: %s", resource)
 	}
 
-	visibility, err := dg.visibility()
-	if err != nil {
-		return DocumentState{}, err
-	}
-
 	out := DocumentState{
 		Generation: dg.Generation,
-		Visibility: visibility,
+		Visibility: dg.Visibility,
 		Heads:      make([]cid.Cid, 0, len(dg.Heads)),
 	}
 
@@ -581,7 +576,8 @@ func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg d
 		"dg.changes",
 		"dg.change_count",
 		"dg.authors",
-		"dg.metadata",
+		"dg.visibility",
+		"dg.visibility_timestamp",
 	).
 		From("document_generations dg", "resources r").
 		Where("r.id = dg.resource").
@@ -608,20 +604,9 @@ func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg d
 	}
 
 	// Check for redirects.
-	var hasRedirect bool
-	var targetIRI IRI
-	if rt, ok := dg.Metadata["$db.redirect"]; ok {
-		hasRedirect = true
-		var ok bool
-		targetIRI, ok = rt.Value.(IRI)
-		if !ok {
-			// Try string conversion as fallback
-			if s, ok := rt.Value.(string); ok {
-				targetIRI = IRI(s)
-			} else {
-				return dg, false, fmt.Errorf("invalid redirect target type: %T", rt.Value)
-			}
-		}
+	targetIRI, hasRedirect, err := readDocumentRedirect(conn, dg.ResourceID)
+	if err != nil {
+		return dg, false, err
 	}
 
 	// Check if it's a tombstone (deleted document).
@@ -655,21 +640,6 @@ func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg d
 	return dg, true, nil
 }
 
-// visibility reads the generation's indexed visibility attribute.
-func (dg *documentGeneration) visibility() (Visibility, error) {
-	v, ok := dg.Metadata["$db.visibility"]
-	if !ok {
-		return "", nil
-	}
-
-	s, ok := v.Value.(string)
-	if !ok {
-		return "", fmt.Errorf("invalid visibility type: %T", v.Value)
-	}
-
-	return Visibility(s), nil
-}
-
 // iterChangesLatest iterates over changes for a given resource for the latest generation.
 func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.Seq[ChangeRecord], check func() error) {
 	var outErr error
@@ -691,12 +661,6 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 
 		if !found {
-			return
-		}
-
-		visibility, err := dg.visibility()
-		if err != nil {
-			outErr = err
 			return
 		}
 
@@ -747,7 +711,7 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 				CID:        chcid,
 				Data:       ch,
 				Generation: dg.Generation,
-				Visibility: visibility,
+				Visibility: dg.Visibility,
 			}
 
 			if !yield(rec) {
@@ -861,7 +825,8 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 			"dg.changes",
 			"dg.change_count",
 			"dg.authors",
-			"dg.metadata",
+			"dg.visibility",
+			"dg.visibility_timestamp",
 		).
 			From("document_generations dg", "resources r").
 			Where("r.id = dg.resource").
@@ -959,10 +924,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 				CID:        chcid,
 				Data:       ch,
 				Generation: dg.Value().Generation,
-			}
-
-			if v, ok := dg.Value().Metadata["$db.visibility"]; ok {
-				rec.Visibility = Visibility(v.Value.(string))
+				Visibility: dg.Value().Visibility,
 			}
 
 			if !yield(rec) {
@@ -2280,10 +2242,13 @@ func (l *LookupCache) DocumentTitle(iri IRI) (title string, ok bool, err error) 
 }
 
 var qLookupDocumentTitle = dqb.Str(`
-	SELECT COALESCE(metadata->>'$.name.v', metadata->>'$.title.v')
-	FROM document_generations
-	WHERE resource = (SELECT id FROM resources WHERE iri = :iri)
-	GROUP BY resource HAVING generation = MAX(generation)
+SELECT da.value
+FROM document_attributes da
+JOIN document_attribute_keys dak ON dak.id = da.key
+WHERE da.resource = (SELECT id FROM resources WHERE iri = :iri)
+AND dak.key IN ('name', 'title') AND da.kind = 's'
+ORDER BY CASE dak.key WHEN 'name' THEN 0 ELSE 1 END
+LIMIT 1
 `)
 
 // PublicKey returns the public key by the internal database ID.
@@ -2461,7 +2426,7 @@ var qGetSiteURL = dqb.Str(`
 	SELECT site_url
 	FROM (
 		SELECT
-			COALESCE(dg.metadata->>'$.siteUrl.v', '') AS site_url,
+			COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'siteUrl') AND da.kind = 's'), '') AS site_url,
 			dg.is_deleted AS is_deleted
 		FROM document_generations dg
 		JOIN resources r ON r.id = dg.resource
@@ -2498,7 +2463,7 @@ var qGetDocumentVisibility = dqb.Str(`
 	SELECT visibility
 	FROM (
 		SELECT
-			COALESCE(dg.metadata->>'$."$db.visibility".v', '') AS visibility,
+			COALESCE(dg.visibility, '') AS visibility,
 			dg.is_deleted AS is_deleted
 		FROM document_generations dg
 		JOIN resources r ON r.id = dg.resource

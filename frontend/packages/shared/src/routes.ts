@@ -363,6 +363,13 @@ export const apiInspectorRouteSchema = z.object({
 /** Navigation route for the desktop API inspector. */
 export type ApiInspectorRoute = z.infer<typeof apiInspectorRouteSchema>
 
+/** Route for the desktop Query Documents playground. */
+export const queryDocumentsRouteSchema = z.object({
+  key: z.literal('query-documents'),
+})
+/** Navigation route for the desktop Query Documents playground. */
+export type QueryDocumentsRoute = z.infer<typeof queryDocumentsRouteSchema>
+
 export const draftRebaseRouteSchema = z.object({
   key: z.literal('draft-rebase'),
   documentId: z.string(),
@@ -401,6 +408,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentRouteSchema,
   agentSessionRouteSchema,
   apiInspectorRouteSchema,
+  queryDocumentsRouteSchema,
   feedRouteSchema,
   allDocumentsRouteSchema,
   inspectRouteSchema,

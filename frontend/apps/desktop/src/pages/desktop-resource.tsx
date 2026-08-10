@@ -41,7 +41,13 @@ import {getPublishedResourceIdForDraftRoute} from '@/utils/draft-route'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
 import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
-import {HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {
+  DOCUMENT_ATTRIBUTE_DESCRIPTIONS,
+  HMBlockNode,
+  HMComment,
+  UnpackedHypermediaId,
+} from '@seed-hypermedia/client/hm-types'
+import {DocumentAttributeKind} from '@shm/shared/client/grpc-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentEditor} from '@shm/editor/document-editor'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
@@ -79,6 +85,7 @@ import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {CloudOff, Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {ResourcePage} from '@shm/ui/resource-page-common'
+import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -222,6 +229,73 @@ export default function DesktopResourcePage() {
   // @ts-expect-error - route.id exists on all supported route types
   const docId = route.id
   if (!docId) throw new Error('No document ID in route')
+
+  const attributeAutocomplete = useMemo<AttributeAutocomplete>(() => {
+    const kindToEditor = (kind: DocumentAttributeKind): AttributeSuggestionKind | null => {
+      if (kind === DocumentAttributeKind.OBJECT) return 'object'
+      if (kind === DocumentAttributeKind.STRING) return 'text'
+      if (kind === DocumentAttributeKind.INT) return 'number'
+      if (kind === DocumentAttributeKind.BOOL) return 'toggle'
+      return null
+    }
+    return {
+      async listNames({parentPath, prefix, pageToken, signal}) {
+        const response = await grpcClient.documents.listDocumentAttributeNames(
+          {
+            account: docId.uid,
+            parentPath,
+            prefix,
+            pageSize: 30,
+            pageToken,
+          },
+          {signal},
+        )
+        return {
+          items: response.names.map((item) => ({
+            name: item.name,
+            description: DOCUMENT_ATTRIBUTE_DESCRIPTIONS[[...parentPath, item.name].join('.')],
+            kinds: item.kinds.flatMap((usage) => {
+              const kind = kindToEditor(usage.kind)
+              return kind
+                ? [
+                    {
+                      kind,
+                    },
+                  ]
+                : []
+            }),
+          })),
+          nextPageToken: response.nextPageToken,
+        }
+      },
+      async listValues({path, kind, prefix, pageToken, signal}) {
+        const response = await grpcClient.documents.listDocumentAttributeValues(
+          {
+            path,
+            kind: kind === 'text' ? DocumentAttributeKind.STRING : DocumentAttributeKind.INT,
+            account: docId.uid,
+            prefix,
+            pageSize: 30,
+            pageToken,
+          },
+          {signal},
+        )
+        return {
+          items: response.values.flatMap((item) => {
+            const value = item.value?.value
+            if (value?.case !== 'stringValue' && value?.case !== 'intValue') return []
+            if (value.case === 'intValue' && !Number.isSafeInteger(Number(value.value))) return []
+            return [
+              {
+                value: value.case === 'intValue' ? Number(value.value) : value.value,
+              },
+            ]
+          }),
+          nextPageToken: response.nextPageToken,
+        }
+      },
+    }
+  }, [docId.uid])
 
   const dispatch = useNavigationDispatch()
   const existingDraft = useExistingDraft(route)
@@ -1068,6 +1142,7 @@ export default function DesktopResourcePage() {
                     publishAccountUid={selectedAccount?.id?.uid || undefined}
                     perspectiveAccountUid={selectedAccountId}
                     linkExtensionOptions={linkExtensionOptions}
+                    attributeAutocomplete={attributeAutocomplete}
                     fileUpload={fileUpload}
                     editNavPane={
                       canEdit && !docId.path?.length ? <EditNavHeaderPane homeId={hmId(docId.uid)} /> : undefined

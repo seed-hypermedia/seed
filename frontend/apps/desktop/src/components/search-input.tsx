@@ -28,6 +28,7 @@ import {
 import {appRouteOfId, isHttpUrl, useNavRoute} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {RecentSearchResultItem, SearchInput as SearchInputUI, SearchResultItem} from '@shm/ui/search'
+import {Button} from '@shm/ui/button'
 import {Separator} from '@shm/ui/separator'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -236,8 +237,17 @@ export const SearchInput = forwardRef<
           },
         }
       }) || []
+  const queryDocumentsItem: SearchResult = {
+    key: 'query-documents',
+    title: 'Query documents',
+    path: [],
+    onFocus: () => {},
+    onMouseEnter: () => {},
+    onSelect: () => onSelect({route: {key: 'query-documents'}}),
+  }
   const isDisplayingRecents = !debouncedSearch.length
-  const activeItems = isDisplayingRecents ? recentItems : [...(queryItem ? [queryItem] : []), ...searchItems]
+  const resultItems = isDisplayingRecents ? recentItems : [...(queryItem ? [queryItem] : []), ...searchItems]
+  const activeItems = [...resultItems, queryDocumentsItem]
 
   // Expose keyboard handlers via ref
   const handleArrowUp = useCallback(() => {
@@ -286,24 +296,28 @@ export const SearchInput = forwardRef<
     }
   }, [focusedIndex])
 
-  let content = (
+  const content = (
     <>
       {isDisplayingRecents ? (
-        <SizableText size="xs" color="muted" className="text-sans! uppercase">
-          RECENT DOCUMENTS
-        </SizableText>
+        <>
+          {recentItems.length ? (
+            <SizableText size="xs" color="muted" className="text-sans! uppercase">
+              RECENT DOCUMENTS
+            </SizableText>
+          ) : null}
+        </>
       ) : null}
-      {activeItems.length ? (
-        activeItems.map((item, itemIndex) => {
-          const isSelected = focusedIndex === itemIndex
+      {resultItems.length ? (
+        resultItems.map((item, itemIndex) => {
+          const activeItemIndex = itemIndex
           const sharedProps = {
-            selected: isSelected,
-            onFocus: () => setFocusedIndex(itemIndex),
-            onMouseEnter: () => setFocusedIndex(itemIndex),
+            selected: focusedIndex === activeItemIndex,
+            onFocus: () => setFocusedIndex(activeItemIndex),
+            onMouseEnter: () => setFocusedIndex(activeItemIndex),
           }
 
           return (
-            <div ref={(el) => (itemRefs.current[itemIndex] = el)} key={item.key} className="focus:outline-none">
+            <div ref={(el) => (itemRefs.current[activeItemIndex] = el)} key={item.key} className="focus:outline-none">
               {isDisplayingRecents ? (
                 <RecentSearchResultItem
                   item={{
@@ -327,11 +341,11 @@ export const SearchInput = forwardRef<
                   selected={sharedProps.selected}
                 />
               )}
-              {itemIndex !== activeItems.length - 1 ? <Separator /> : null}
+              {itemIndex !== resultItems.length - 1 ? <Separator /> : null}
             </div>
           )
         })
-      ) : !isSearchPending ? (
+      ) : !isDisplayingRecents && !isSearchPending ? (
         <div className="my-4 flex items-center justify-center">
           <p className="text-muted-foreground text-sm">No results found.</p>
         </div>
@@ -339,11 +353,32 @@ export const SearchInput = forwardRef<
     </>
   )
 
+  const queryDocumentsFooter = (
+    <div ref={(el) => (itemRefs.current[resultItems.length] = el)} className="border-border border-t px-1 pt-1">
+      <Button
+        variant="ghost"
+        size="sm"
+        className={`text-primary h-7 w-full justify-start px-2 text-xs font-medium underline-offset-4 hover:underline ${
+          focusedIndex === resultItems.length ? 'bg-muted' : ''
+        }`}
+        onFocus={() => setFocusedIndex(resultItems.length)}
+        onMouseEnter={() => setFocusedIndex(resultItems.length)}
+        onClick={() => {
+          onClose?.()
+          queryDocumentsItem.onSelect?.()
+        }}
+      >
+        Query documents
+      </Button>
+    </div>
+  )
+
   // When hideInput is true, just render the results without the input wrapper
   if (hideInput) {
     return (
       <div className="flex h-full w-full flex-col gap-2">
         <div className="max-h-[200px] min-h-0 flex-1 overflow-y-auto">{content || <p>working…</p>}</div>
+        {queryDocumentsFooter}
       </div>
     )
   }
@@ -376,6 +411,7 @@ export const SearchInput = forwardRef<
       focusedIndex={focusedIndex}
     >
       {content || <p>working…</p>}
+      {queryDocumentsFooter}
     </SearchInputUI>
   )
 })

@@ -320,8 +320,8 @@ fts_data AS (
 latest_document_generations AS (
   SELECT
     dg.resource AS resource,
-    dg.metadata->>'$."$db.redirect".v' AS redirect_iri,
-    dg.metadata AS metadata,
+    (SELECT da.value FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource AND dak.key = '$db.redirect' AND da.kind = 's') AS redirect_iri,
+    COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}') AS metadata,
     dg.heads AS heads,
     dg.is_deleted AS is_deleted
   FROM document_generations dg
@@ -377,7 +377,7 @@ current_document_resources AS (
     SELECT
       f.rowid,
       resources.id AS resource,
-      dg.metadata,
+      COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}') AS metadata,
       dg.heads,
       dg.is_deleted,
       ROW_NUMBER() OVER (
@@ -396,7 +396,7 @@ current_document_resources AS (
       WHERE dg2.resource = resources.id
     )
     AND dg.is_deleted = False
-    AND dg.metadata->>'$."$db.redirect".v' IS NULL
+    AND NOT EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect') AND da.kind = 's')
   )
   WHERE rn = 1
 )
@@ -413,8 +413,8 @@ SELECT
   pk_subject.principal AS contact_subject,
   blobs.codec,
   blobs.multihash,
-  COALESCE(current_document_resources.metadata, current_document_generation.metadata, document_generations.metadata, structural_blobs.extra_attrs, '{}'),
-  dg_subject.metadata AS subject_metadata,
+  COALESCE(current_document_resources.metadata, (SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = current_document_generation.resource), (SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = document_generations.resource), structural_blobs.extra_attrs, '{}'),
+  (SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg_subject.resource) AS subject_metadata,
   COALESCE((
     SELECT json_group_array(
              json_object(
@@ -495,7 +495,8 @@ WHERE (f.type = 'profile' OR COALESCE(current_document_resources.is_deleted, cur
 // ORDER BY uses the same sort key as the inner one, so the inner top-N is the
 // outer top-N modulo the few outer-only filters (IRI resolution + GLOB).
 //
-// Args: query, type1, type2, type3, type4, type5, publicOnly, oversample, iriGlob, limit.
+// Args: query, type1, type2, type3, type4, type5, publicOnly, rootDocumentsOnly,
+// oversample, rootDocumentsOnly, iriGlob, limit.
 var qKeywordSearch = dqb.Str(`
 WITH RECURSIVE
 matched_fts AS MATERIALIZED (
@@ -510,6 +511,25 @@ matched_fts AS MATERIALIZED (
     AND fts.type IN (?, ?, ?, ?, ?)
     AND (? = 0
          OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fts.blob_id AND v.space = 0))
+    AND (? = 0
+         OR EXISTS (
+           SELECT 1
+           FROM structural_blobs root_sb
+           JOIN resources root_r ON root_r.id = root_sb.resource
+           WHERE root_sb.id = fts.blob_id
+             AND root_r.iri GLOB 'hm://*'
+             AND root_r.iri NOT GLOB 'hm://*/*'
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM blob_links root_bl
+           JOIN structural_blobs root_ref ON root_ref.id = root_bl.source
+           JOIN resources root_r ON root_r.id = root_ref.resource
+           WHERE root_bl.target = fts.blob_id
+             AND root_bl.type = 'ref/head'
+             AND root_r.iri GLOB 'hm://*'
+             AND root_r.iri NOT GLOB 'hm://*/*'
+         ))
   ORDER BY
     (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
     fts.rank ASC
@@ -518,8 +538,10 @@ matched_fts AS MATERIALIZED (
 latest_document_generations AS (
   SELECT
     dg.resource AS resource,
-    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
+    da.value AS redirect_iri
   FROM document_generations dg
+  JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
+  JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
 ),
@@ -583,6 +605,10 @@ LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
 LEFT JOIN resources r2 ON r2.id = sb_ref.resource
 LEFT JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
 WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
+  AND (? = 0 OR (
+    COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB 'hm://*'
+    AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) NOT GLOB 'hm://*/*'
+  ))
   AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB ?
 ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
@@ -595,7 +621,8 @@ LIMIT ?
 // (`hm://*` or empty), since every resource in our schema has an `hm://` IRI
 // and the GLOB would just be paid for nothing.
 //
-// Args: query, type1, type2, type3, type4, type5, publicOnly, oversample, limit.
+// Args: query, type1, type2, type3, type4, type5, publicOnly, rootDocumentsOnly,
+// oversample, rootDocumentsOnly, limit.
 var qKeywordSearchAllIRIs = dqb.Str(`
 WITH RECURSIVE
 matched_fts AS MATERIALIZED (
@@ -610,6 +637,25 @@ matched_fts AS MATERIALIZED (
     AND fts.type IN (?, ?, ?, ?, ?)
     AND (? = 0
          OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fts.blob_id AND v.space = 0))
+    AND (? = 0
+         OR EXISTS (
+           SELECT 1
+           FROM structural_blobs root_sb
+           JOIN resources root_r ON root_r.id = root_sb.resource
+           WHERE root_sb.id = fts.blob_id
+             AND root_r.iri GLOB 'hm://*'
+             AND root_r.iri NOT GLOB 'hm://*/*'
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM blob_links root_bl
+           JOIN structural_blobs root_ref ON root_ref.id = root_bl.source
+           JOIN resources root_r ON root_r.id = root_ref.resource
+           WHERE root_bl.target = fts.blob_id
+             AND root_bl.type = 'ref/head'
+             AND root_r.iri GLOB 'hm://*'
+             AND root_r.iri NOT GLOB 'hm://*/*'
+         ))
   ORDER BY
     (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
     fts.rank ASC
@@ -618,8 +664,10 @@ matched_fts AS MATERIALIZED (
 latest_document_generations AS (
   SELECT
     dg.resource AS resource,
-    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
+    da.value AS redirect_iri
   FROM document_generations dg
+  JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
+  JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
 ),
@@ -678,6 +726,10 @@ LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
 LEFT JOIN resources r2 ON r2.id = sb_ref.resource
 LEFT JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
 WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
+  AND (? = 0 OR (
+    COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB 'hm://*'
+    AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) NOT GLOB 'hm://*/*'
+  ))
 ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
   mf.rank ASC
@@ -701,7 +753,7 @@ const keywordSearchMinOversample = 200
 
 // keywordSearch performs minimal FTS search returning SearchResultMap.
 // This is a standalone function (not Server method) used for hybrid search.
-func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string, publicOnly bool) (llm.SearchResultMap, error) {
+func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string, publicOnly, rootDocumentsOnly bool) (llm.SearchResultMap, error) {
 	results := make(llm.SearchResultMap)
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile interface{}
 	supportedType := false
@@ -757,7 +809,7 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 	if iriGlob == "" || iriGlob == "hm://*" {
 		if err := sqlitex.Exec(conn, qKeywordSearchAllIRIs(), cb,
 			query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
-			publicOnly, oversample, limit); err != nil {
+			publicOnly, rootDocumentsOnly, oversample, rootDocumentsOnly, limit); err != nil {
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 		return results, nil
@@ -765,7 +817,7 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 
 	if err := sqlitex.Exec(conn, qKeywordSearch(), cb,
 		query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
-		publicOnly, oversample, iriGlob, limit); err != nil {
+		publicOnly, rootDocumentsOnly, oversample, rootDocumentsOnly, iriGlob, limit); err != nil {
 		return nil, fmt.Errorf("keyword search failed: %w", err)
 	}
 
@@ -1080,13 +1132,13 @@ var qBatchDeletedComments = dqb.Str(`
 `)
 
 var qGetMetadata = dqb.Str(`
-	select dg.metadata, r.iri, pk.principal from document_generations dg
+select COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}'), r.iri, pk.principal from document_generations dg
 	INNER JOIN resources r ON r.id = dg.resource
 	INNER JOIN public_keys pk ON pk.id = r.owner
 	WHERE dg.is_deleted = False;`)
 
 var qGetParentsMetadata = dqb.Str(`
-	select dg.metadata, r.iri from document_generations dg
+select COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}'), r.iri from document_generations dg
 	INNER JOIN resources r ON r.id = dg.resource
 	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
 
@@ -1148,6 +1200,19 @@ func sanitizeSearchQuery(raw string) string {
 	re := regexp.MustCompile(`[^A-Za-z0-9_ ]+`)
 	clean := re.ReplaceAllString(raw, " ")
 	return strings.Join(strings.Fields(clean), " ")
+}
+
+func searchEntityKind(result fullDataSearchResult) entpb.EntityKindFilter {
+	switch result.contentType {
+	case "comment":
+		return entpb.EntityKindFilter_ENTITY_KIND_COMMENT
+	case "contact":
+		return entpb.EntityKindFilter_ENTITY_KIND_CONTACT
+	}
+	if strings.HasPrefix(result.iri, "hm://") && !strings.Contains(strings.TrimPrefix(result.iri, "hm://"), "/") {
+		return entpb.EntityKindFilter_ENTITY_KIND_SPACE
+	}
+	return entpb.EntityKindFilter_ENTITY_KIND_DOCUMENT
 }
 
 // SearchEntities implements the Fuzzy search of entpb.
@@ -1216,6 +1281,26 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}
 		// TODO: Remove auto-include of contacts once frontend uses content_type_filter explicitly.
 		contentTypes["contact"] = true
+	}
+	entityKinds := make(map[entpb.EntityKindFilter]bool, len(in.EntityKindFilter))
+	for _, kind := range in.EntityKindFilter {
+		switch kind {
+		case entpb.EntityKindFilter_ENTITY_KIND_SPACE,
+			entpb.EntityKindFilter_ENTITY_KIND_DOCUMENT,
+			entpb.EntityKindFilter_ENTITY_KIND_COMMENT,
+			entpb.EntityKindFilter_ENTITY_KIND_CONTACT:
+			entityKinds[kind] = true
+		default:
+			return nil, status.Errorf(codes.InvalidArgument, "unsupported entity_kind_filter: %s", kind)
+		}
+	}
+	rootDocumentsOnly := len(entityKinds) == 1 && entityKinds[entpb.EntityKindFilter_ENTITY_KIND_SPACE]
+	if rootDocumentsOnly {
+		delete(contentTypes, "comment")
+		delete(contentTypes, "contact")
+		if !contentTypes["title"] && !contentTypes["profile"] && !contentTypes["document"] {
+			return &entpb.SearchEntitiesResponse{}, nil
+		}
 	}
 	// Adjust candidate limit based on search type. If the caller requested a
 	// page size, keep enough headroom for dedupe/deleted-result filtering but
@@ -1288,13 +1373,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, publicOnly)
+			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, publicOnly, rootDocumentsOnly)
 		}()
 		go func() {
 			defer wg.Done()
 			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 				var err error
-				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, publicOnly)
+				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, publicOnly, rootDocumentsOnly)
 				return err
 			})
 		}()
@@ -1318,7 +1403,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Semantic-only search. Any failure is surfaced to the caller since there
 		// is no keyword leg to fall back to.
 		var err error
-		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold, publicOnly)
+		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold, publicOnly, rootDocumentsOnly)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -1327,7 +1412,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Keyword only search:
 		err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var err error
-			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob, publicOnly)
+			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob, publicOnly, rootDocumentsOnly)
 			return err
 		})
 		if err != nil {
@@ -1448,6 +1533,21 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		}, string(winnerIDsJSON), loggedAccountID)
 	}); err != nil {
 		return nil, err
+	}
+	if len(entityKinds) > 0 {
+		filteredResults := make([]fullDataSearchResult, 0, len(searchResults))
+		filteredMatches := make([]fuzzy.Match, 0, len(bodyMatches))
+		for i, result := range searchResults {
+			if !entityKinds[searchEntityKind(result)] {
+				continue
+			}
+			match := bodyMatches[i]
+			match.Index = len(filteredResults)
+			filteredResults = append(filteredResults, result)
+			filteredMatches = append(filteredMatches, match)
+		}
+		searchResults = filteredResults
+		bodyMatches = filteredMatches
 	}
 	seen := make(map[string]int)
 	var uniqueResults []fullDataSearchResult
@@ -2181,8 +2281,10 @@ WITH RECURSIVE
 latest_document_generations AS (
   SELECT
     dg.resource AS resource,
-    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
+    da.value AS redirect_iri
   FROM document_generations dg
+  JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
+  JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
   GROUP BY dg.resource
   HAVING dg.generation = MAX(dg.generation)
 ),

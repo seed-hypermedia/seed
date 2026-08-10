@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRefsRequest, ListRefsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
+import { Account, BatchGetAccountsRequest, BatchGetAccountsResponse, BatchGetDocumentInfoRequest, BatchGetDocumentInfoResponse, Contact, CreateAliasRequest, CreateContactRequest, CreateRefRequest, DeleteContactRequest, DeleteDocumentRequest, Document, DocumentChangeInfo, DocumentInfo, GetAccountRequest, GetContactRequest, GetDocumentChangeRequest, GetDocumentInfoRequest, GetDocumentRequest, GetRefRequest, ListAccountsRequest, ListAccountsResponse, ListContactsRequest, ListContactsResponse, ListDirectoryRequest, ListDirectoryResponse, ListDocumentAttributeNamesRequest, ListDocumentAttributeNamesResponse, ListDocumentAttributeValuesRequest, ListDocumentAttributeValuesResponse, ListDocumentChangesRequest, ListDocumentChangesResponse, ListDocumentsRequest, ListDocumentsResponse, ListRefsRequest, ListRefsResponse, ListRootDocumentsRequest, ListRootDocumentsResponse, PrepareChangeRequest, PrepareChangeResponse, QueryDocumentsRequest, QueryDocumentsResponse, Ref, UpdateContactRequest, UpdateDocumentReadStatusRequest, UpdateProfileRequest } from "./documents_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -219,6 +219,39 @@ export const Documents = {
       name: "ListRootDocuments",
       I: ListRootDocumentsRequest,
       O: ListRootDocumentsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Queries the current, visible attributes of documents.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.QueryDocuments
+     */
+    queryDocuments: {
+      name: "QueryDocuments",
+      I: QueryDocumentsRequest,
+      O: QueryDocumentsResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists user-defined document attribute names for autocomplete.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocumentAttributeNames
+     */
+    listDocumentAttributeNames: {
+      name: "ListDocumentAttributeNames",
+      I: ListDocumentAttributeNamesRequest,
+      O: ListDocumentAttributeNamesResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Lists known values for a user-defined document attribute.
+     *
+     * @generated from rpc com.seed.documents.v3alpha.Documents.ListDocumentAttributeValues
+     */
+    listDocumentAttributeValues: {
+      name: "ListDocumentAttributeValues",
+      I: ListDocumentAttributeValuesRequest,
+      O: ListDocumentAttributeValuesResponse,
       kind: MethodKind.Unary,
     },
     /**

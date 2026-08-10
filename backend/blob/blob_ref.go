@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"seed/backend/core"
 	"seed/backend/ipfs"
-	"seed/backend/util/colx"
+	"seed/backend/util/attrkey"
 	"seed/backend/util/dqb"
 	"seed/backend/util/maybe"
 	"seed/backend/util/must"
@@ -443,6 +444,9 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	}
 
 	dg.Metadata.set("$db.visibility", string(v.Visibility), refTime)
+	resolvedVisibility := dg.Metadata["$db.visibility"]
+	dg.Visibility = Visibility(resolvedVisibility.Value.(string))
+	dg.VisibilityTimestamp = resolvedVisibility.Ts
 
 	// Derive a fallback cover image (the first image block in reading order) for
 	// documents that carry neither an explicit cover nor icon, so directory cards
@@ -508,6 +512,8 @@ type documentGeneration struct {
 	LastChangeTime       int64
 	LastTombstoneRefTime int64
 	LastAliveRefTime     int64
+	Visibility           Visibility
+	VisibilityTimestamp  int64
 	Genesis              string
 	LastComment          int64
 	LastCommentTime      int64
@@ -536,6 +542,8 @@ func (dg *documentGeneration) load(conn *sqlite.Conn, resource, generation int64
 		dg.Genesis = genesis
 		dg.Changes = roaring64.New()
 		dg.Metadata = make(DocIndexedAttrs)
+	} else if err := dg.loadAttributes(conn); err != nil {
+		return err
 	}
 
 	return nil
@@ -555,9 +563,80 @@ func (dg documentGeneration) loadAllByResource(conn *sqlite.Conn, resource int64
 	if err := check(); err != nil {
 		return nil, err
 	}
+	for i := range out {
+		if err := out[i].loadAttributes(conn); err != nil {
+			return nil, err
+		}
+	}
 
 	return out, nil
 }
+
+func (dg *documentGeneration) loadAttributes(conn *sqlite.Conn) (err error) {
+	attrs, err := readDocumentAttributes(conn, dg.ResourceID, dg.Generation, dg.Genesis)
+	if err != nil {
+		return err
+	}
+	if dg.Visibility != "" {
+		attrs["$db.visibility"] = IndexedValue{Key: "$db.visibility", Value: string(dg.Visibility), Ts: dg.VisibilityTimestamp, Kind: documentAttributeString}
+	}
+	dg.Metadata = attrs
+	return nil
+}
+
+func readDocumentAttributes(conn *sqlite.Conn, resource, generation int64, _ string) (attrs DocIndexedAttrs, err error) {
+	attrs = make(DocIndexedAttrs)
+	rows, discard, check := sqlitex.Query(conn, `SELECT dak.key, da.kind, da.value, da.timestamp, da.operation, da.actor FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = ? AND ? = (SELECT MAX(generation) FROM document_generations WHERE resource = ?)`, resource, generation, resource).All()
+	defer discard(&err)
+	for row := range rows {
+		key := row.ColumnText(0)
+		kind := row.ColumnText(1)
+		var value any
+		switch kind {
+		case documentAttributeNull:
+			value = nil
+		case documentAttributeString:
+			value = row.ColumnText(2)
+		case documentAttributeBool:
+			value = row.ColumnInt64(2) != 0
+		case documentAttributeInt:
+			value = row.ColumnInt64(2)
+		default:
+			return nil, fmt.Errorf("unknown document attribute kind %q", kind)
+		}
+		attrs[key] = IndexedValue{
+			Key:       key,
+			Value:     value,
+			Ts:        row.ColumnInt64(3),
+			Operation: row.ColumnInt(4),
+			Actor:     uint64(row.ColumnInt64(5)),
+			Kind:      kind,
+		}
+	}
+	return attrs, check()
+}
+
+func readDocumentRedirect(conn *sqlite.Conn, resource int64) (target IRI, ok bool, err error) {
+	rows, discard, check := sqlitex.Query(conn, qReadDocumentRedirect(), resource).All()
+	defer discard(&err)
+	for row := range rows {
+		kind := row.ColumnText(0)
+		if kind != documentAttributeString {
+			return "", false, fmt.Errorf("invalid document redirect kind %q", kind)
+		}
+		target = IRI(row.ColumnText(1))
+		ok = true
+		break
+	}
+	return target, ok, check()
+}
+
+var qReadDocumentRedirect = dqb.Str(`
+	SELECT da.kind, da.value
+	FROM document_attributes da
+	WHERE da.resource = ?1
+	AND da.key = (SELECT id FROM document_attribute_keys WHERE key = '$db.redirect');
+`)
 
 func (dg *documentGeneration) fromRow(row *sqlite.Stmt) error {
 	dg.shouldUpdate = true
@@ -603,15 +682,10 @@ func (dg *documentGeneration) fromRow(row *sqlite.Stmt) error {
 			return err
 		}
 	}
+	dg.Visibility = Visibility(row.ColumnText(inc()))
+	dg.VisibilityTimestamp = row.ColumnInt64(inc())
 
-	metadataJSON := row.ColumnBytesUnsafe(inc())
-	if len(metadataJSON) > 0 {
-		if err := json.Unmarshal(metadataJSON, &dg.Metadata); err != nil {
-			return err
-		}
-	} else {
-		dg.Metadata = make(DocIndexedAttrs)
-	}
+	dg.Metadata = make(DocIndexedAttrs)
 
 	return nil
 }
@@ -632,7 +706,8 @@ var qLoadDocumentGeneration = dqb.Str(`
 		changes,
 		change_count,
 		authors,
-		metadata
+		visibility,
+		visibility_timestamp
 	FROM document_generations
 	WHERE resource = ?1
 	AND generation = ?2
@@ -655,7 +730,8 @@ var qLoadGenerationsForResource = dqb.Str(`
 		changes,
 		change_count,
 		authors,
-		metadata
+		visibility,
+		visibility_timestamp
 	FROM document_generations
 	WHERE resource = ?1;
 `)
@@ -669,7 +745,6 @@ func (dg *documentGeneration) save(conn *sqlite.Conn) error {
 	}
 
 	authorsJSON := unsafeutil.StringFromBytes(must.Do2(json.Marshal(dg.Authors)))
-	metadataJSON := unsafeutil.StringFromBytes(must.Do2(json.Marshal(dg.Metadata)))
 	changesBitmap, err := dg.Changes.ToBytes()
 	if err != nil {
 		return fmt.Errorf("failed to serialize bitmap: %w", err)
@@ -697,15 +772,75 @@ func (dg *documentGeneration) save(conn *sqlite.Conn) error {
 		dg.CommentCount,
 		dg.ChangeCount,
 		authorsJSON,
-		metadataJSON,
 		changesBitmap,
 		dg.LastTombstoneRefTime,
 		dg.LastAliveRefTime,
 		dg.LastChangeTime,
 		dg.GenesisChangeTime,
 		headsJSON,
+		dg.Visibility,
+		dg.VisibilityTimestamp,
 	); err != nil {
 		return err
+	}
+
+	var isCurrent bool
+	if err := sqlitex.Exec(conn, `SELECT ? = MAX(generation) FROM document_generations WHERE resource = ?`, func(row *sqlite.Stmt) error {
+		isCurrent = row.ColumnInt64(0) != 0
+		return nil
+	}, dg.Generation, dg.ResourceID); err != nil {
+		return err
+	}
+	if !isCurrent {
+		return nil
+	}
+	persisted, err := readDocumentAttributes(conn, dg.ResourceID, dg.Generation, dg.Genesis)
+	if err != nil {
+		return err
+	}
+	for key, attr := range dg.Metadata {
+		if key == "$db.visibility" {
+			continue
+		}
+		kind, value, err := documentAttributeValue(attr.Value)
+		if err != nil {
+			return fmt.Errorf("invalid document attribute %q: %w", attr.Key, err)
+		}
+		if current, ok := persisted[key]; ok && current.Kind == kind && current.Value == value && current.Ts == attr.Ts && current.Operation == attr.Operation && current.Actor == attr.Actor {
+			continue
+		}
+		if err := sqlitex.Exec(conn, `
+				INSERT OR IGNORE INTO document_attribute_keys (key, search_key)
+				VALUES (?, ?)
+			`, nil, key, attrkey.SearchKey(key)); err != nil {
+			return err
+		}
+		if err := sqlitex.Exec(conn, `
+				INSERT INTO document_attributes (resource, key, kind, value, timestamp, operation, actor)
+				SELECT ?, dak.id, ?, ?, ?, ?, ?
+				FROM document_attribute_keys dak
+				WHERE dak.key = ?
+				ON CONFLICT (resource, key) DO UPDATE SET
+					kind = excluded.kind,
+					value = excluded.value,
+				timestamp = excluded.timestamp,
+				operation = excluded.operation,
+				actor = excluded.actor
+			`, nil, dg.ResourceID, kind, value, attr.Ts, attr.Operation, int64(attr.Actor), //nolint:gosec // ActorID is derived from 56 bits.
+			key); err != nil {
+			return err
+		}
+	}
+	for key := range persisted {
+		if key == "$db.visibility" {
+			continue
+		}
+		if _, ok := dg.Metadata[key]; ok {
+			continue
+		}
+		if err := sqlitex.Exec(conn, `DELETE FROM document_attributes WHERE resource = ? AND key = (SELECT id FROM document_attribute_keys WHERE key = ?)`, nil, dg.ResourceID, key); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -721,15 +856,16 @@ var qInsertDocumentGeneration = dqb.Str(`
 		comment_count,
 		change_count,
 		authors,
-		metadata,
 		changes,
 		last_tombstone_ref_time,
 		last_alive_ref_time,
 		last_change_time,
 		genesis_change_time,
-		heads
+		heads,
+		visibility,
+		visibility_timestamp
 	)
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 `)
 
 var qUpdateDocumentGeneration = dqb.Str(`
@@ -740,15 +876,47 @@ var qUpdateDocumentGeneration = dqb.Str(`
 		comment_count = ?6,
 		change_count = ?7,
 		authors = ?8,
-		metadata = ?9,
-		changes = ?10,
-		last_tombstone_ref_time = ?11,
-		last_alive_ref_time = ?12,
-		last_change_time = ?13,
-		genesis_change_time = ?14,
-		heads = ?15
+		changes = ?9,
+		last_tombstone_ref_time = ?10,
+		last_alive_ref_time = ?11,
+		last_change_time = ?12,
+		genesis_change_time = ?13,
+		heads = ?14,
+		visibility = ?15,
+		visibility_timestamp = ?16
 	WHERE (resource, generation, genesis) = (?1, ?2, ?3);
 `)
+
+const (
+	documentAttributeNull   = "n"
+	documentAttributeString = "s"
+	documentAttributeBool   = "b"
+	documentAttributeInt    = "i"
+)
+
+func documentAttributeValue(value any) (kind string, out any, err error) {
+	switch value := value.(type) {
+	case nil:
+		return documentAttributeNull, nil, nil
+	case string:
+		return documentAttributeString, value, nil
+	case IRI:
+		return documentAttributeString, string(value), nil
+	case bool:
+		return documentAttributeBool, value, nil
+	case int64:
+		return documentAttributeInt, value, nil
+	case int:
+		return documentAttributeInt, int64(value), nil
+	case float64:
+		if math.Trunc(value) != value {
+			return "", nil, fmt.Errorf("non-integral number %v", value)
+		}
+		return documentAttributeInt, int64(value), nil
+	default:
+		return "", nil, fmt.Errorf("unsupported value type %T", value)
+	}
+}
 
 func (dg *documentGeneration) containsAllChanges(changes []int64) bool {
 	for _, c := range changes {
@@ -776,23 +944,10 @@ func (dg *documentGeneration) ensureChangeApplied(cm changeMetadata) {
 	// Ensure indexed attributes are set,
 	// unless newer values are already set.
 	for k, v := range cm.ExtraAttrs.Metadata {
-		dg.Metadata.set(k, v, cm.Ts)
-
-		// When we set a key it means that we set it to a primitive value.
-		// It's possible that previously there was a nested map in this key.
-		// Because we store the keys as a flattened, we have to remove all the records
-		// where our new key is a prefix, and the value is with lower timestamp than the incoming key.
-		//
-		// TODO(burdiyan): this is very complicated, and hard to reason about. Fix it!
-		// There're other places in the code where this is done.
-		// Search for "attrprefixhack" in the codebase.
-		for kk, vv := range dg.Metadata {
-			s := kk
-			prefix := k
-			if len(s) > len(prefix) && s[len(prefix)] == '.' && s[0:len(prefix)] == prefix && vv.Ts <= cm.Ts {
-				delete(dg.Metadata, kk)
-			}
-		}
+		dg.setAttribute(k, v, cm.Ts)
+	}
+	for _, attribute := range cm.ExtraAttrs.Attributes {
+		dg.setAttributeOrdered(attribute.Key, attribute.Value, cm.Ts, attribute.Operation, cm.ExtraAttrs.Actor)
 	}
 
 	// Ensure author of the change is added to the set of authors.
@@ -807,10 +962,22 @@ func (dg *documentGeneration) ensureChangeApplied(cm changeMetadata) {
 	dg.Heads[cm.ID] = struct{}{}
 }
 
+func (dg *documentGeneration) setAttribute(key string, value any, ts int64) {
+	dg.setAttributeOrdered(key, value, ts, 0, 0)
+}
+
+func (dg *documentGeneration) setAttributeOrdered(key string, value any, ts int64, operation int, actor uint64) {
+	dg.Metadata.setOrdered(key, value, ts, operation, actor)
+}
+
 // IndexedValue is a attributes with timestamp for CRDT metadata.
 type IndexedValue struct {
-	Value any   `json:"v"`
-	Ts    int64 `json:"t"`
+	Key       string `json:"key,omitempty"`
+	Value     any    `json:"v"`
+	Ts        int64  `json:"t"`
+	Operation int    `json:"o,omitempty"`
+	Actor     uint64 `json:"a,omitempty"`
+	Kind      string `json:"k,omitempty"`
 }
 
 // FirstImageInContentAttr is the internal indexed-attrs key holding the
@@ -964,39 +1131,88 @@ func hasNonEmptyAttr(m DocIndexedAttrs, k string) bool {
 }
 
 func (m DocIndexedAttrs) set(k string, v any, ts int64) {
-	vNew := IndexedValue{Value: v, Ts: ts}
+	m.setOrdered(k, v, ts, 0, 0)
+}
+
+func (m DocIndexedAttrs) setOrdered(k string, v any, ts int64, operation int, actor uint64) {
+	kind, _, err := documentAttributeValue(v)
+	if err != nil {
+		panic(fmt.Errorf("BUG: invalid indexed attribute value %T: %w", v, err))
+	}
+	vNew := IndexedValue{Key: k, Value: v, Ts: ts, Operation: operation, Actor: actor, Kind: kind}
 	vOld, ok := m[k]
+	accepted := false
 	if !ok {
 		m[k] = vNew
+		accepted = true
+	} else {
+		switch order := compareIndexedOrder(vOld, vNew); {
+		case order < 0:
+			m[k] = vNew
+			accepted = true
+		case order == 0:
+			// When timestamps are equal, we use values as tie-breaker.
+			// To deterministically compare unknown values we simply encode them as deterministic CBOR,
+			// and compare the resulting byte slices. If new value is greater — it wins.
+
+			newValue, err := cbornode.DumpObject(vNew.Value)
+			if err != nil {
+				panic(fmt.Errorf("BUG: invalid CBOR new value to set %T: %w", v, err))
+			}
+
+			oldValue, err := cbornode.DumpObject(vOld.Value)
+			if err != nil {
+				panic(fmt.Errorf("BUG: invalid CBOR old value to set %T: %w", v, err))
+			}
+
+			if bytes.Compare(newValue, oldValue) > 0 {
+				m[k] = vNew
+				accepted = true
+			}
+		case order > 0:
+			break // Leaving the old value.
+		default:
+			panic("BUG: unreachable")
+		}
+	}
+	if !accepted {
 		return
 	}
 
-	switch {
-	case vNew.Ts > vOld.Ts:
-		m[k] = vNew
-	case vNew.Ts == vOld.Ts:
-		// When timestamps are equal, we use values as tie-breaker.
-		// To deterministically compare unknown values we simply encode them as deterministic CBOR,
-		// and compare the resulting byte slices. If new value is greater — it wins.
-
-		newValue, err := cbornode.DumpObject(vNew.Value)
-		if err != nil {
-			panic(fmt.Errorf("BUG: invalid CBOR new value to set %T: %w", v, err))
+	// Keep only the structural LWW frontier. Tombstones participate so an old
+	// parent or child cannot reappear when the replacing path is later deleted.
+	for otherKey, other := range m {
+		if otherKey == k {
+			continue
 		}
 
-		oldValue, err := cbornode.DumpObject(vOld.Value)
-		if err != nil {
-			panic(fmt.Errorf("BUG: invalid CBOR old value to set %T: %w", v, err))
+		otherIsAncestor := len(otherKey) < len(k) &&
+			k[len(otherKey)] == '.' &&
+			k[:len(otherKey)] == otherKey
+		otherIsDescendant := len(k) < len(otherKey) &&
+			otherKey[len(k)] == '.' &&
+			otherKey[:len(k)] == k
+		if !otherIsAncestor && !otherIsDescendant {
+			continue
 		}
 
-		if bytes.Compare(newValue, oldValue) > 0 {
-			m[k] = vNew
+		order := compareIndexedOrder(other, vNew)
+		if order > 0 || order == 0 && otherIsDescendant {
+			delete(m, k)
+			return
 		}
-	case vNew.Ts < vOld.Ts:
-		break // Leaving the old value.
-	default:
-		panic("BUG: unreachable")
+		delete(m, otherKey)
 	}
+}
+
+func compareIndexedOrder(a, b IndexedValue) int {
+	if order := cmp.Compare(a.Ts, b.Ts); order != 0 {
+		return order
+	}
+	if order := cmp.Compare(a.Operation, b.Operation); order != 0 {
+		return order
+	}
+	return cmp.Compare(a.Actor, b.Actor)
 }
 
 // PublicMap returns hydrated map attributes, doing proper nested map representation,
@@ -1010,22 +1226,30 @@ func (m DocIndexedAttrs) PublicMap() map[string]any {
 		Value IndexedValue
 	}
 	kvs := make([]KV, 0, len(m))
-	for k, v := range m {
-		kvs = append(kvs, KV{Key: k, Value: v})
+	for key, v := range m {
+		if v.Key == "" {
+			v.Key = key
+		}
+		kvs = append(kvs, KV{Key: v.Key, Value: v})
 	}
 	slices.SortFunc(kvs, func(a, b KV) int {
-		if a.Value.Ts == b.Value.Ts {
-			return cmp.Compare(a.Key, b.Key)
+		if order := compareIndexedOrder(a.Value, b.Value); order != 0 {
+			return order
 		}
-		return cmp.Compare(a.Value.Ts, b.Value.Ts)
+		return cmp.Compare(a.Key, b.Key)
 	})
 
 	for _, kv := range kvs {
 		if strings.HasPrefix(kv.Key, "$db.") || kv.Value.Value == nil {
 			continue
 		}
+		if kv.Value.Kind == documentAttributeBool {
+			if value, ok := kv.Value.Value.(float64); ok {
+				kv.Value.Value = value != 0
+			}
+		}
 
-		colx.ObjectSet(out, strings.Split(kv.Key, "."), kv.Value.Value)
+		attrkey.Set(out, strings.Split(kv.Key, "."), kv.Value.Value)
 	}
 
 	return out

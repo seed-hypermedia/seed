@@ -16,7 +16,10 @@ import (
 	"seed/backend/logging"
 	"seed/backend/storage"
 	"seed/backend/testutil"
+	"seed/backend/util/colx"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite"
+	"seed/backend/util/sqlite/sqlitex"
 	"slices"
 	"strings"
 	"testing"
@@ -33,6 +36,23 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+func TestDocumentSortLimit(t *testing.T) {
+	sort := make([]*documents.DocumentSort, maxQueryDocumentSorts)
+	for i := range sort {
+		sort[i] = &documents.DocumentSort{Key: fmt.Sprintf("sort-%d", i)}
+	}
+
+	args := colx.Slice[any]{}
+	_, err := documentSortSQL(sort, &args)
+	require.NoError(t, err)
+	require.Len(t, args, maxQueryDocumentSorts)
+
+	sort = append(sort, &documents.DocumentSort{Key: "one-too-many"})
+	_, err = documentSortSQL(sort, &args)
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.ErrorContains(t, err, "at most 16 sort attributes are supported")
+}
 
 func TestDocumentChangePublishing(t *testing.T) {
 	t.Parallel()
@@ -1569,6 +1589,178 @@ func TestDocumentAttributesFullJSONModel(t *testing.T) {
 	}
 }
 
+func TestDocumentAttributeIdentityIsCaseSensitive(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/folded", "", "main").
+		SetAttribute("", []string{"Category"}, "Old").
+		SetAttribute("", []string{"category"}, "Current").
+		SetAttribute("", []string{"Straße"}, "One").
+		SetAttribute("", []string{"STRASSE"}, "Two").
+		SetAttribute("", []string{"Résumé"}, "Composed").
+		SetAttribute("", []string{"RE\u0301SUME\u0301"}, "Decomposed").
+		Build())
+	require.NoError(t, err)
+	testutil.StructsEqual(map[string]any{
+		"Category":           "Old",
+		"category":           "Current",
+		"Straße":             "One",
+		"STRASSE":            "Two",
+		"Résumé":             "Composed",
+		"RE\u0301SUME\u0301": "Decomposed",
+	}, docmodel.ProtoStructAsMap(doc.Metadata)).Compare(t, "differently spelled paths must remain distinct")
+
+	doc, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/folded", doc.Version, "main").
+		SetAttribute("", []string{"cAtEgOrY"}, "Current").
+		Build())
+	require.NoError(t, err)
+	metadata := docmodel.ProtoStructAsMap(doc.Metadata)
+	require.Equal(t, map[string]any{
+		"Category":           "Old",
+		"category":           "Current",
+		"cAtEgOrY":           "Current",
+		"Straße":             "One",
+		"STRASSE":            "Two",
+		"Résumé":             "Composed",
+		"RE\u0301SUME\u0301": "Decomposed",
+	}, metadata)
+
+	names, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Prefix:  "stras",
+	})
+	require.NoError(t, err)
+	require.Len(t, names.Names, 2)
+	require.Equal(t, "STRASSE", names.Names[0].Name)
+	require.Equal(t, "Straße", names.Names[1].Name)
+
+	values, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    []string{"STRASSE"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+		Prefix:  "tW",
+	})
+	require.NoError(t, err)
+	require.Len(t, values.Values, 1)
+	require.Equal(t, "Two", values.Values[0].Value.GetStringValue())
+
+	values, err = alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    []string{"straße"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+	})
+	require.NoError(t, err)
+	require.Empty(t, values.Values, "value autocomplete must use the selected attribute's exact spelling")
+
+	conn, release, err := alice.db.ReadConn(ctx)
+	require.NoError(t, err)
+	defer release()
+	var keyRows int
+	err = sqlitex.ExecTransient(conn, `
+		SELECT COUNT(*)
+		FROM document_attributes da
+		JOIN document_attribute_keys dak ON dak.id = da.key
+		JOIN resources r ON r.id = da.resource
+		WHERE r.iri = ? AND dak.search_key = ?
+	`, func(row *sqlite.Stmt) error {
+		keyRows = row.ColumnInt(0)
+		return nil
+	}, "hm://"+alice.me.Account.PublicKey.String()+"/folded", "category")
+	require.NoError(t, err)
+	require.Equal(t, 3, keyRows, "folded search keys must not collapse exact attribute identities")
+}
+
+func TestDocumentAttributesDoNotResurrectStructurallyReplacedValues(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+	account := alice.me.Account.PublicKey.String()
+
+	doc, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/shadowed", "", "main").
+		SetAttribute("", []string{"theme"}, "Legacy").
+		Build())
+	require.NoError(t, err)
+	doc, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/shadowed", doc.Version, "main").
+		SetAttribute("", []string{"theme", "Color"}, "Red").
+		Build())
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"theme": map[string]any{"Color": "Red"}}, docmodel.ProtoStructAsMap(doc.Metadata))
+
+	values, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: account,
+		Path:    []string{"theme"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+	})
+	require.NoError(t, err)
+	require.Empty(t, values.Values, "a scalar hidden by a newer child must not be suggested")
+
+	names, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account: account,
+		Prefix:  "theme",
+	})
+	require.NoError(t, err)
+	require.Len(t, names.Names, 1)
+	require.Len(t, names.Names[0].Kinds, 1)
+	require.Equal(t, documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_OBJECT, names.Names[0].Kinds[0].Kind)
+
+	doc, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/shadowed", doc.Version, "main").
+		SetAttribute("", []string{"theme", "Color"}, nil).
+		Build())
+	require.NoError(t, err)
+	require.Empty(t, docmodel.ProtoStructAsMap(doc.Metadata), "deleting the child must not resurrect the replaced parent")
+
+	values, err = alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: account,
+		Path:    []string{"theme"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+	})
+	require.NoError(t, err)
+	require.Empty(t, values.Values)
+
+	{
+		conn, release, err := alice.db.ReadConn(ctx)
+		require.NoError(t, err)
+		var stored []string
+		rows, discard, check := sqlitex.Query(conn, `
+			SELECT dak.key || ':' || da.kind
+			FROM document_attributes da
+			JOIN document_attribute_keys dak ON dak.id = da.key
+			JOIN resources r ON r.id = da.resource
+			WHERE r.iri = ? AND dak.key NOT GLOB '$*'
+			ORDER BY dak.key
+		`, "hm://"+account+"/shadowed").All()
+		for row := range rows {
+			stored = append(stored, row.ColumnText(0))
+		}
+		require.NoError(t, check())
+		var discardErr error
+		discard(&discardErr)
+		require.NoError(t, discardErr)
+		release()
+		require.Equal(t, []string{"theme.Color:n"}, stored, "SQLite must remove the replaced parent instead of hiding it in a view")
+	}
+
+	inverse, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/shadowed-inverse", "", "main").
+		SetAttribute("", []string{"theme", "Color"}, "Blue").
+		Build())
+	require.NoError(t, err)
+	inverse, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/shadowed-inverse", inverse.Version, "main").
+		SetAttribute("", []string{"theme"}, "Modern").
+		Build())
+	require.NoError(t, err)
+	require.Equal(t, map[string]any{"theme": "Modern"}, docmodel.ProtoStructAsMap(inverse.Metadata))
+
+	inverse, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(alice.me.Account.Principal(), "/shadowed-inverse", inverse.Version, "main").
+		SetAttribute("", []string{"theme"}, nil).
+		Build())
+	require.NoError(t, err)
+	require.Empty(t, docmodel.ProtoStructAsMap(inverse.Metadata), "deleting the parent must not resurrect replaced children")
+}
+
 func TestDocumentAttributesRemoveMultiChildObject(t *testing.T) {
 	t.Parallel()
 
@@ -1599,6 +1791,417 @@ func TestDocumentAttributesRemoveMultiChildObject(t *testing.T) {
 	testutil.StructsEqual(map[string]any{
 		"name": "Doc",
 	}, docmodel.ProtoStructAsMap(doc.Metadata)).Compare(t, "object must be fully removed")
+}
+
+func TestQueryDocuments(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := newTestDocsAPI(t, "bob")
+	ctx := t.Context()
+	account := alice.me.Account.Principal()
+	urlFilter := func(path string, prefix bool) *documents.DocumentFilter {
+		url, err := blob.NewIRI(account, path)
+		require.NoError(t, err)
+		return &documents.DocumentFilter{Filter: &documents.DocumentFilter_UrlMatch{UrlMatch: &documents.DocumentFilter_URLMatch{
+			Url:    url.String(),
+			Prefix: prefix,
+		}}}
+	}
+	and := func(filters ...*documents.DocumentFilter) *documents.DocumentFilter {
+		return &documents.DocumentFilter{Filter: &documents.DocumentFilter_And_{And: &documents.DocumentFilter_And{Filters: filters}}}
+	}
+	spaceFilter := func(space string) *documents.DocumentFilter {
+		return &documents.DocumentFilter{Filter: &documents.DocumentFilter_SpaceMatch_{SpaceMatch: &documents.DocumentFilter_SpaceMatch{Space: space}}}
+	}
+	pathFilter := func(path string, prefix bool) *documents.DocumentFilter {
+		return &documents.DocumentFilter{Filter: &documents.DocumentFilter_PathMatch_{PathMatch: &documents.DocumentFilter_PathMatch{Path: path, Prefix: prefix}}}
+	}
+
+	for _, doc := range []struct {
+		path     string
+		title    string
+		priority int
+	}{
+		{"/one", "First Note", 1},
+		{"/two", "Second Note", 2},
+		{"/nested/three", "Third Note", 3},
+		{"/nestedness/four", "Third Imposter", 1},
+	} {
+		_, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, doc.path, "", "main").
+			SetAttribute("", []string{"title"}, doc.title).
+			SetAttribute("", []string{"priority"}, doc.priority).
+			Build())
+		require.NoError(t, err)
+	}
+	_, err := bob.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(bob.me.Account.Principal(), "/nested/five", "", "main").
+		SetAttribute("", []string{"title"}, "Other account note").
+		Build())
+	require.NoError(t, err)
+	syncStores(ctx, t, alice.idx, bob.idx)
+
+	priorityAtLeastTwo := &documents.DocumentFilter{Filter: &documents.DocumentFilter_Comparison_{Comparison: &documents.DocumentFilter_Comparison{
+		Key:      "priority",
+		Operator: documents.DocumentFilter_Comparison_GREATER_THAN_OR_EQUAL,
+		Value:    &documents.AttributeValue{Value: &documents.AttributeValue_IntValue{IntValue: 2}},
+	}}}
+	priorityInAccount := and(urlFilter("", true), priorityAtLeastTwo)
+	resp, err := alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter:   priorityInAccount,
+		Sort:     []*documents.DocumentSort{{Key: "priority"}},
+		PageSize: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Documents, 1)
+	require.Equal(t, "/two", resp.Documents[0].Path)
+	require.NotEmpty(t, resp.NextPageToken)
+
+	resp, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter:    priorityInAccount,
+		Sort:      []*documents.DocumentSort{{Key: "priority"}},
+		PageSize:  1,
+		PageToken: resp.NextPageToken,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Documents, 1)
+	require.Equal(t, "/nested/three", resp.Documents[0].Path)
+
+	resp, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter: and(spaceFilter(account.String()), priorityAtLeastTwo),
+		Sort:   []*documents.DocumentSort{{Key: "priority"}},
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Documents, 2)
+	require.Equal(t, "/two", resp.Documents[0].Path)
+	require.Equal(t, "/nested/three", resp.Documents[1].Path)
+
+	resp, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: and(spaceFilter(account.String()))})
+	require.NoError(t, err)
+	require.Len(t, resp.Documents, 4)
+	for _, doc := range resp.Documents {
+		require.Equal(t, account.String(), doc.Account)
+	}
+
+	resp, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: pathFilter("/nested", true)})
+	require.NoError(t, err)
+	require.Len(t, resp.Documents, 2)
+	require.ElementsMatch(t, []string{account.String(), bob.me.Account.Principal().String()}, []string{resp.Documents[0].Account, resp.Documents[1].Account})
+
+	resp, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: pathFilter("/nested/three", false)})
+	require.NoError(t, err)
+	require.Len(t, resp.Documents, 1)
+	require.Equal(t, account.String(), resp.Documents[0].Account)
+
+	changed, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, "/changed", "", "main").
+		SetAttribute("", []string{"priority"}, 2).
+		Build())
+	require.NoError(t, err)
+	_, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, "/changed", changed.Version, "main").
+		SetAttribute("", []string{"priority"}, 0).
+		Build())
+	require.NoError(t, err)
+
+	resp, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter:   priorityInAccount,
+		PageSize: 100,
+	})
+	require.NoError(t, err)
+	for _, document := range resp.Documents {
+		require.NotEqual(t, "/changed", document.Path)
+	}
+
+	resp, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter: and(urlFilter("/nested", true), &documents.DocumentFilter{Filter: &documents.DocumentFilter_StringMatch_{StringMatch: &documents.DocumentFilter_StringMatch{
+			Key:   "title",
+			Value: "third",
+		}}}),
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Documents, 1)
+	require.Equal(t, "/nested/three", resp.Documents[0].Path)
+
+	_, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter: &documents.DocumentFilter{Filter: &documents.DocumentFilter_UrlMatch{UrlMatch: &documents.DocumentFilter_URLMatch{
+			Url: "https://example.com/not-a-document",
+		}}},
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	_, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: spaceFilter("not-a-space")})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	_, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: pathFilter("nested/", true)})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+
+	_, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{PageSize: 1<<31 - 1})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+	require.Equal(t, "page_size must not exceed 1000", status.Convert(err).Message())
+}
+
+func TestDocumentAttributeAutocomplete(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := newTestDocsAPI(t, "bob")
+	ctx := t.Context()
+	aliceAccount := alice.me.Account.Principal()
+
+	for _, change := range []*apitest.DocumentChangeRequest{
+		apitest.NewChangeBuilder(aliceAccount, "/one", "", "main").
+			SetAttribute("", []string{"category"}, "Work").
+			SetAttribute("", []string{"priority"}, 2).
+			SetAttribute("", []string{"%name"}, "Percent").
+			SetAttribute("", []string{"_name"}, "Underscore").
+			SetAttribute("", []string{"specialValue"}, "%percent").
+			SetAttribute("", []string{"theme", "headerLayout"}, "Center").
+			SetAttribute("", []string{"theme", "accent"}, "Blue").
+			Build(),
+		apitest.NewChangeBuilder(aliceAccount, "/two", "", "main").
+			SetAttribute("", []string{"category"}, "Personal").
+			SetAttribute("", []string{"priority"}, "High").
+			SetAttribute("", []string{"specialValue"}, "_underscore").
+			SetAttribute("", []string{"removed"}, nil).
+			Build(),
+	} {
+		_, err := alice.PublishDocumentChangeForTest(ctx, change)
+		require.NoError(t, err)
+	}
+	for name, change := range map[string]*apitest.DocumentChangeRequest{
+		"root attribute": apitest.NewChangeBuilder(aliceAccount, "/forbidden-root", "", "main").
+			SetAttribute("", []string{"$foo"}, "Hidden").Build(),
+		"nested attribute": apitest.NewChangeBuilder(aliceAccount, "/forbidden-nested", "", "main").
+			SetAttribute("", []string{"parent", "$child"}, "Hidden").Build(),
+		"legacy metadata": apitest.NewChangeBuilder(aliceAccount, "/forbidden-metadata", "", "main").
+			SetMetadata("$legacy", "Hidden").Build(),
+	} {
+		_, err := alice.PublishDocumentChangeForTest(ctx, change)
+		require.Equal(t, codes.InvalidArgument, status.Code(err), name)
+	}
+
+	_, err := bob.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(bob.me.Account.Principal(), "/global", "", "main").
+		SetAttribute("", []string{"category"}, "Global").
+		SetAttribute("", []string{"globalOnly"}, true).
+		Build())
+	require.NoError(t, err)
+	syncStores(ctx, t, alice.idx, bob.idx)
+
+	keyCount, err := sqlitex.QueryOnePool[int](ctx, alice.db, `SELECT COUNT(*) FROM document_attribute_keys WHERE key = 'category'`)
+	require.NoError(t, err)
+	require.Equal(t, 1, keyCount, "attribute keys must be interned globally across spaces")
+
+	query, args := alice.attributeAutocompleteQuery(ctx, attributeAutocompleteNameQueries, aliceAccount)
+	args = append(args, "ca", "ca", "", "", "", false, 0, false, 1, 10, 0)
+	conn, release, err := alice.db.ReadConn(ctx)
+	require.NoError(t, err)
+	var queryPlan []string
+	err = sqlitex.ExecTransient(conn, "EXPLAIN QUERY PLAN "+query(), func(row *sqlite.Stmt) error {
+		queryPlan = append(queryPlan, row.ColumnText(3))
+		return nil
+	}, args...)
+	require.NoError(t, err)
+	plan := strings.Join(queryPlan, "\n")
+	require.Contains(t, plan, "document_attribute_keys_by_search")
+	require.Contains(t, plan, "(search_key>? AND search_key<?)", "name autocomplete must use a bounded folded prefix range")
+
+	query, args = alice.attributeAutocompleteQuery(ctx, attributeAutocompleteStringValueQueries, aliceAccount)
+	args = append(args, "category", "s", "", "", 10, 0)
+	queryPlan = nil
+	err = sqlitex.ExecTransient(conn, "EXPLAIN QUERY PLAN "+query(), func(row *sqlite.Stmt) error {
+		queryPlan = append(queryPlan, row.ColumnText(3))
+		return nil
+	}, args...)
+	release()
+	require.NoError(t, err)
+	plan = strings.Join(queryPlan, "\n")
+	require.Contains(t, plan, "document_attributes_by_key")
+	require.Contains(t, plan, "(key=? AND kind=? AND value>?)", "value autocomplete must scan only the selected exact attribute, kind, and value prefix")
+
+	names, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Prefix:  "CA",
+	})
+	require.NoError(t, err)
+	require.Len(t, names.Names, 1)
+	require.Equal(t, "category", names.Names[0].Name)
+	require.Equal(t, documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING, names.Names[0].Kinds[0].Kind)
+	for prefix, want := range map[string]string{"%": "%name", "_": "_name"} {
+		literalPrefix, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+			Account: alice.me.Account.PublicKey.String(),
+			Prefix:  prefix,
+		})
+		require.NoError(t, err)
+		require.Len(t, literalPrefix.Names, 1, prefix)
+		require.Equal(t, want, literalPrefix.Names[0].Name, prefix)
+	}
+
+	nested, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account:    alice.me.Account.PublicKey.String(),
+		ParentPath: []string{"theme"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, []string{"accent", "headerLayout"}, []string{nested.Names[0].Name, nested.Names[1].Name})
+	nestedPrefix, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account:    alice.me.Account.PublicKey.String(),
+		ParentPath: []string{"theme"},
+		Prefix:     "HE",
+	})
+	require.NoError(t, err)
+	require.Len(t, nestedPrefix.Names, 1)
+	require.Equal(t, "headerLayout", nestedPrefix.Names[0].Name)
+	for _, path := range [][]string{{"$foo"}, {"parent", "$child"}, {"only", "$hidden"}} {
+		_, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+			Account:    alice.me.Account.PublicKey.String(),
+			ParentPath: path,
+		})
+		require.Equal(t, codes.InvalidArgument, status.Code(err), path)
+	}
+	for _, path := range [][]string{{"$foo"}, {"parent", "$child"}} {
+		_, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+			Account: alice.me.Account.PublicKey.String(),
+			Path:    path,
+			Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+		})
+		require.Equal(t, codes.InvalidArgument, status.Code(err), path)
+	}
+
+	firstNamePage, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account:  alice.me.Account.PublicKey.String(),
+		PageSize: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, firstNamePage.Names, 1)
+	require.NotEmpty(t, firstNamePage.NextPageToken)
+	secondNamePage, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account:   alice.me.Account.PublicKey.String(),
+		PageSize:  1,
+		PageToken: firstNamePage.NextPageToken,
+	})
+	require.NoError(t, err)
+	require.Len(t, secondNamePage.Names, 1)
+	require.NotEqual(t, firstNamePage.Names[0].Name, secondNamePage.Names[0].Name)
+
+	root, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{
+		Account:  alice.me.Account.PublicKey.String(),
+		PageSize: 100,
+	})
+	require.NoError(t, err)
+	rootByName := map[string]*documents.DocumentAttributeName{}
+	for _, item := range root.Names {
+		rootByName[item.Name] = item
+	}
+	require.NotContains(t, rootByName, "$db")
+	require.NotContains(t, rootByName, "$foo")
+	require.NotContains(t, rootByName, "parent")
+	require.NotContains(t, rootByName, "only")
+	require.NotContains(t, rootByName, "removed")
+	require.Equal(t, documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_OBJECT, rootByName["theme"].Kinds[0].Kind)
+	require.Len(t, rootByName["priority"].Kinds, 2, "mixed scalar kinds must be preserved")
+	priorityKinds := map[documents.DocumentAttributeKind]bool{}
+	for _, usage := range rootByName["priority"].Kinds {
+		priorityKinds[usage.Kind] = true
+	}
+	require.True(t, priorityKinds[documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING])
+	require.True(t, priorityKinds[documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_INT])
+	require.Contains(t, rootByName, "globalOnly", "third-party keys must follow keys from the requested space")
+	localPriority := slices.IndexFunc(root.Names, func(item *documents.DocumentAttributeName) bool { return item.Name == "priority" })
+	externalGlobalOnly := slices.IndexFunc(root.Names, func(item *documents.DocumentAttributeName) bool { return item.Name == "globalOnly" })
+	require.Less(t, localPriority, externalGlobalOnly)
+
+	globalNames, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{PageSize: 100})
+	require.NoError(t, err)
+	globalNameStrings := make([]string, 0, len(globalNames.Names))
+	for _, item := range globalNames.Names {
+		globalNameStrings = append(globalNameStrings, item.Name)
+	}
+	require.Contains(t, globalNameStrings, "globalOnly")
+
+	flatNames, err := alice.ListDocumentAttributeNames(ctx, &documents.ListDocumentAttributeNamesRequest{Recursive: true, PageSize: 100})
+	require.NoError(t, err)
+	flatNameStrings := make([]string, 0, len(flatNames.Names))
+	for _, item := range flatNames.Names {
+		flatNameStrings = append(flatNameStrings, item.Name)
+	}
+	require.Contains(t, flatNameStrings, "theme.headerLayout")
+	require.NotContains(t, flatNameStrings, "theme")
+
+	first, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account:  alice.me.Account.PublicKey.String(),
+		Path:     []string{"category"},
+		Kind:     documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+		PageSize: 1,
+	})
+	require.NoError(t, err)
+	require.Len(t, first.Values, 1)
+	require.Equal(t, "Personal", first.Values[0].Value.GetStringValue())
+	require.NotEmpty(t, first.NextPageToken)
+
+	second, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account:   alice.me.Account.PublicKey.String(),
+		Path:      []string{"category"},
+		Kind:      documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+		PageSize:  1,
+		PageToken: first.NextPageToken,
+	})
+	require.NoError(t, err)
+	require.Len(t, second.Values, 1)
+	require.Equal(t, "Work", second.Values[0].Value.GetStringValue())
+
+	global, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: bob.me.Account.PublicKey.String(),
+		Path:    []string{"category"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+		Prefix:  "gLo",
+	})
+	require.NoError(t, err)
+	require.Len(t, global.Values, 1)
+	require.Equal(t, "Global", global.Values[0].Value.GetStringValue())
+
+	globalValues, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Path: []string{"category"},
+		Kind: documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+	})
+	require.NoError(t, err)
+	globalValueStrings := make([]string, 0, len(globalValues.Values))
+	for _, item := range globalValues.Values {
+		globalValueStrings = append(globalValueStrings, item.Value.GetStringValue())
+	}
+	require.Equal(t, []string{"Global", "Personal", "Work"}, globalValueStrings)
+	for prefix, want := range map[string]string{"%": "%percent", "_": "_underscore"} {
+		literalPrefix, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+			Account: alice.me.Account.PublicKey.String(),
+			Path:    []string{"specialValue"},
+			Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING,
+			Prefix:  prefix,
+		})
+		require.NoError(t, err)
+		require.Len(t, literalPrefix.Values, 1, prefix)
+		require.Equal(t, want, literalPrefix.Values[0].Value.GetStringValue(), prefix)
+	}
+
+	priority, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    []string{"priority"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_INT,
+	})
+	require.NoError(t, err)
+	require.Len(t, priority.Values, 1)
+	require.EqualValues(t, 2, priority.Values[0].Value.GetIntValue())
+
+	globalOnly, err := alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: bob.me.Account.PublicKey.String(),
+		Path:    []string{"globalOnly"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_BOOL,
+	})
+	require.NoError(t, err)
+	require.Len(t, globalOnly.Values, 1)
+	require.True(t, globalOnly.Values[0].Value.GetBoolValue())
+
+	_, err = alice.ListDocumentAttributeValues(ctx, &documents.ListDocumentAttributeValuesRequest{
+		Account: alice.me.Account.PublicKey.String(),
+		Path:    []string{"category"},
+		Kind:    documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_OBJECT,
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestRedirect(t *testing.T) {

@@ -120,6 +120,37 @@ func TestFirstContentImage(t *testing.T) {
 	})
 }
 
+func TestMetadataStructuralReplacementDoesNotResurrectAncestors(t *testing.T) {
+	t.Parallel()
+
+	alice := coretest.NewTester("alice").Account
+	load := func(changes ...blob.Encoded[*blob.Change]) *Document {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		for _, change := range changes {
+			must.Do(doc.ApplyChange(change.CID, change.Decoded))
+		}
+		return doc
+	}
+
+	doc := load()
+	must.Do(doc.SetAttribute("", []string{"theme"}, "Legacy"))
+	parent := must.Do2(doc.SignChange(alice))
+
+	doc = load(parent)
+	must.Do(doc.SetAttribute("", []string{"theme", "Color"}, "Red"))
+	child := must.Do2(doc.SignChange(alice))
+	require.Equal(t, map[string]any{"theme": map[string]any{"Color": "Red"}}, doc.crdt.GetMetadata())
+
+	doc = load(parent, child)
+	must.Do(doc.SetAttribute("", []string{"theme", "Color"}, nil))
+	deletedChild := must.Do2(doc.SignChange(alice))
+	require.Empty(t, doc.crdt.GetMetadata())
+
+	doc = load(parent, child, deletedChild)
+	require.Empty(t, doc.crdt.GetMetadata(), "deleting a child must not resurrect the scalar parent it replaced")
+	require.Equal(t, 1, doc.crdt.stateMetadata.Len(), "only the winning child tombstone must remain")
+}
+
 func TestBug_RedundantReplaces(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 

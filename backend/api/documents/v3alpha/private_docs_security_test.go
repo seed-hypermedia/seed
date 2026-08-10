@@ -526,4 +526,14 @@ func TestPrivateDocSecurity_PublicOnlyListingsExcludePrivateDocs(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.ElementsMatch(t, []string{"/public-a", "/public-b"}, collectPaths(directory.Documents))
+
+	query, err := alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter: &documents.DocumentFilter{Filter: &documents.DocumentFilter_UrlMatch{UrlMatch: &documents.DocumentFilter_URLMatch{
+			Url:    "hm://" + account,
+			Prefix: true,
+		}}},
+		PageSize: 100,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"/public-a", "/public-b"}, collectPaths(query.Documents))
 }

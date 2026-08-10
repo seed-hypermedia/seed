@@ -10,9 +10,10 @@ import (
 	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/util/attrkey"
 	"seed/backend/util/btree"
 	"seed/backend/util/cclock"
-	"seed/backend/util/colx"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,7 +21,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 type opID struct {
@@ -127,12 +127,17 @@ type docCRDT struct {
 
 	tree *treeOpSet
 
-	stateMetadata *btree.Map[[]string, *mvReg[any]]
+	stateMetadata *btree.Map[[]string, *mvReg[metadataValue]]
 	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
 
 	clock        *cclock.Clock
 	actorsIntern map[core.PrincipalUnsafeString]core.PrincipalUnsafeString
 	vectorClock  map[core.PrincipalUnsafeString]time.Time
+}
+
+type metadataValue struct {
+	Key   []string
+	Value any
 }
 
 func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
@@ -141,7 +146,7 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 		applied:       make(map[cid.Cid]int),
 		heads:         make(map[cid.Cid]struct{}),
 		tree:          newTreeOpSet(),
-		stateMetadata: btree.New[[]string, *mvReg[any]](8, slices.Compare),
+		stateMetadata: btree.New[[]string, *mvReg[metadataValue]](8, slices.Compare),
 		stateBlocks:   make(map[string]*mvReg[blob.Block]),
 		clock:         cclock.New(),
 		actorsIntern:  make(map[core.PrincipalUnsafeString]core.PrincipalUnsafeString),
@@ -154,50 +159,76 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 func (e *docCRDT) GetMetadata() map[string]any {
 	out := make(map[string]any, e.stateMetadata.Len())
 
-	// When a key is set to null it removes any nested map previously stored
-	// under it. Keys are stored flattened and iterated in prefix order (a
-	// parent immediately precedes all of its descendants), so we keep a stack
-	// of the "removal" ancestors currently in scope. A descendant is dropped
-	// when it lives under such a removal and is older than it; a newer value
-	// under the same prefix means the key was re-set and is kept.
-	// Search for "attrprefixhack" in the codebase.
-	type removal struct {
-		Key []string
-		ID  opID
+	type attribute struct {
+		ID    opID
+		Key   []string
+		Value any
 	}
-	var removals []removal
-	for k, v := range e.stateMetadata.Items() {
+	var attributes []attribute
+	for _, v := range e.stateMetadata.Items() {
 		id, vv, ok := v.GetLatestWithID()
-
-		// Pop removal ancestors we've iterated out of.
-		for len(removals) > 0 && !colx.HasPrefix(k, removals[len(removals)-1].Key) {
-			removals = removals[:len(removals)-1]
-		}
-
-		if !ok || vv == nil {
-			// A null value removes its subtree; remember it so every older
-			// descendant (not just the first one) is dropped.
-			if ok && vv == nil {
-				removals = append(removals, removal{Key: k, ID: id})
-			}
+		if !ok || vv.Value == nil {
 			continue
 		}
+		attributes = append(attributes, attribute{ID: id, Key: vv.Key, Value: vv.Value})
+	}
 
-		dropped := false
-		for _, r := range removals {
-			if colx.HasPrefix(k, r.Key) && id.Compare(r.ID) < 0 {
-				dropped = true
-				break
-			}
-		}
-		if dropped {
-			continue
-		}
-
-		colx.ObjectSet(out, k, vv)
+	slices.SortFunc(attributes, func(a, b attribute) int {
+		return a.ID.Compare(b.ID)
+	})
+	for _, attribute := range attributes {
+		attrkey.Set(out, attribute.Key, attribute.Value)
 	}
 
 	return out
+}
+
+func (e *docCRDT) setMetadata(id opID, key []string, value any) {
+	exactKey := slices.Clone(key)
+	if reg := e.stateMetadata.GetMaybe(exactKey); reg != nil {
+		currentID, _, ok := reg.GetLatestWithID()
+		if ok && currentID.Compare(id) >= 0 {
+			return
+		}
+	}
+
+	// Ancestor and descendant paths are mutually exclusive registers. Resolve
+	// them with the same total order as exact-key updates so replay order cannot
+	// resurrect a value that a later structural replacement removed.
+	var remove [][]string
+	for otherKey, reg := range e.stateMetadata.Items() {
+		if slices.Equal(otherKey, exactKey) {
+			continue
+		}
+
+		otherIsAncestor := len(otherKey) < len(exactKey) && slices.Equal(otherKey, exactKey[:len(otherKey)])
+		otherIsDescendant := len(exactKey) < len(otherKey) && slices.Equal(exactKey, otherKey[:len(exactKey)])
+		if !otherIsAncestor && !otherIsDescendant {
+			continue
+		}
+
+		otherID, _, ok := reg.GetLatestWithID()
+		if !ok {
+			continue
+		}
+
+		order := otherID.Compare(id)
+		if order > 0 || order == 0 && otherIsDescendant {
+			return
+		}
+		remove = append(remove, otherKey)
+	}
+
+	for _, otherKey := range remove {
+		e.stateMetadata.Delete(otherKey)
+	}
+
+	reg := e.stateMetadata.GetMaybe(exactKey)
+	if reg == nil {
+		reg = newMVReg[metadataValue]()
+		e.stateMetadata.Set(exactKey, reg)
+	}
+	reg.Set(id, metadataValue{Key: slices.Clone(key), Value: value})
 }
 
 // Heads returns the map of head changes.
@@ -389,13 +420,9 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 
 		switch op := op.(type) {
 		case blob.OpSetKey:
-			reg := e.stateMetadata.GetMaybe([]string{op.Key})
-			if reg == nil {
-				reg = newMVReg[any]()
-				e.stateMetadata.Set([]string{op.Key}, reg)
-			}
+			key := []string{op.Key}
 			opid := newOpID(ts, actorID, idx)
-			reg.Set(opid, op.Value)
+			e.setMetadata(opid, key, op.Value)
 		case blob.OpReplaceBlock:
 			blk := op.Block
 			reg := e.stateBlocks[blk.ID()]
@@ -463,12 +490,7 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			for i, kv := range op.Attrs {
 				idx += i
 				opid := newOpID(ts, actorID, idx)
-				reg := e.stateMetadata.GetMaybe(kv.Key)
-				if reg == nil {
-					reg = newMVReg[any]()
-					e.stateMetadata.Set(kv.Key, reg)
-				}
-				reg.Set(opid, kv.Value)
+				e.setMetadata(opid, kv.Key, kv.Value)
 			}
 		default:
 			return fmt.Errorf("BUG?: unhandled op type: %T", op)

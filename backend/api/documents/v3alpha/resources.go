@@ -663,9 +663,9 @@ SELECT
 `)
 
 // The redirected CTE walks redirect chains backwards from the target. It selects only
-// generations that carry a redirect (a handful of rows served by the partial index
-// document_generations_by_redirect) instead of materializing the latest generation of
-// every document in the database, which is what this query used to do on every call.
+// the flattened current attributes that carry a redirect, served by the
+// document_attributes_by_key index, instead of materializing the latest generation of
+// every document in the database.
 // MATERIALIZED is required: without it SQLite 3.45 inlines the subquery and re-runs it
 // on every recursion level. A resource whose latest generation redirects elsewhere has
 // a row in the CTE, so the seed's NOT IN check preserves the old "target is not itself
@@ -674,11 +674,12 @@ const qListCitationsTpl = `
 WITH RECURSIVE
 redirected AS MATERIALIZED (
   SELECT
-    dg.resource AS resource,
-    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
-  FROM document_generations dg
-  WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
-  AND dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
+    da.resource AS resource,
+    da.value AS redirect_iri
+  FROM document_attributes da
+  JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
+  WHERE da.kind = 's'
+  AND da.value IS NOT NULL
 ),
 redirect_ancestors(resource, iri, depth) AS (
   SELECT r.id, r.iri, 0

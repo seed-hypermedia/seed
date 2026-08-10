@@ -20,6 +20,8 @@ var derivedTables = []string{
 	storage.T_BlobLinks,
 	storage.T_ResourceLinks,
 	storage.T_StructuralBlobs,
+	storage.T_DocumentAttributes,
+	storage.T_DocumentAttributeKeys,
 	storage.T_Resources,
 	storage.T_Spaces,
 	storage.T_DocumentGenerations,

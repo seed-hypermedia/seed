@@ -5,14 +5,14 @@ const account = 'z6Mkq9emq1yUBq4KSeiSH5yzgNBJSnidPVqFnTpzjCdLxB3R'
 
 describe('Search.getData', () => {
   it('forwards search tuning fields to SearchEntities', async () => {
-    const searchEntities = vi.fn().mockResolvedValue({entities: []})
+    const searchEntities = vi.fn().mockResolvedValue({entities: [], nextPageToken: 'next-token'})
     const grpcClient = {
       entities: {
         searchEntities,
       },
     } as any
 
-    await Search.getData(
+    const result = await Search.getData(
       grpcClient,
       {
         query: 'honda',
@@ -20,8 +20,10 @@ describe('Search.getData', () => {
         contextSize: 43,
         searchType: 0,
         pageSize: 20,
+        pageToken: 'page-token',
         iriFilter: `hm://${account}*`,
         contentTypeFilter: [0],
+        entityKindFilter: [1],
       },
       (() => Promise.resolve(null)) as any,
     )
@@ -34,15 +36,20 @@ describe('Search.getData', () => {
       loggedAccountUid: undefined,
       searchType: 0,
       pageSize: 20,
+      pageToken: 'page-token',
       iriFilter: `hm://${account}*`,
       contentTypeFilter: [0],
+      entityKindFilter: [1],
     })
+
+    expect(result.nextPageToken).toBe('next-token')
   })
 
   it('maps comment hits to their containing document and keeps the comment id for focus', async () => {
     const grpcClient = {
       entities: {
         searchEntities: vi.fn().mockResolvedValue({
+          nextPageToken: '',
           entities: [
             {
               id: `hm://${account}/z6GXZLPYtXaHn4`,

@@ -8,6 +8,7 @@ import (
 	"seed/backend/storage"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
+	"seed/backend/util/sqlite/sqlitex"
 	"testing"
 
 	"github.com/ipfs/boxo/blockstore"
@@ -18,6 +19,66 @@ import (
 )
 
 var _ blockstore.Blockstore = (*Index)(nil)
+
+func TestIterChangesDoesNotLoadResolvedAttributes(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	change, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{
+			must.Do2(NewOpSetKey("title", "Title from the change")),
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	ref, err := NewRef(alice, 0, change.CID, alice.Principal(), "/attribute-replay", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPrivate)
+	require.NoError(t, err)
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref}))
+
+	iri := must.Do2(NewIRI(alice.Principal(), "/attribute-replay"))
+	conn, release, err := db.WriteConn(t.Context())
+	require.NoError(t, err)
+	err = sqlitex.Exec(conn, `
+		UPDATE document_attributes
+		SET kind = 'invalid'
+		WHERE resource = (SELECT id FROM resources WHERE iri = ?)
+		AND key = (
+			SELECT id
+			FROM document_attribute_keys
+			WHERE key = 'title'
+		)
+	`, nil, iri)
+	release()
+	require.NoError(t, err)
+	corrupted, err := sqlitex.QueryOnePool[int](t.Context(), db, `
+		SELECT COUNT()
+		FROM document_attributes da
+		JOIN resources r ON r.id = da.resource
+		WHERE r.iri = ? AND da.kind = 'invalid'
+	`, iri)
+	require.NoError(t, err)
+	require.Equal(t, 1, corrupted)
+
+	for name, heads := range map[string][]cid.Cid{
+		"latest":     nil,
+		"historical": {change.CID},
+	} {
+		t.Run(name, func(t *testing.T) {
+			changes, check := idx.IterChanges(t.Context(), iri, heads)
+			var got []ChangeRecord
+			for change := range changes {
+				got = append(got, change)
+			}
+			require.NoError(t, check())
+			require.Len(t, got, 1)
+			require.Equal(t, change.CID, got[0].CID)
+			require.Equal(t, VisibilityPrivate, got[0].Visibility)
+		})
+	}
+}
 
 func TestBreadcrumbs(t *testing.T) {
 	tests := []struct {

@@ -134,7 +134,7 @@ describe('handleApiAction', () => {
 
 describe('handleApiRequest schema introspection', () => {
   it('handles Search GET query options including zero enum values', async () => {
-    const searchEntities = vi.fn().mockResolvedValue({entities: []})
+    const searchEntities = vi.fn().mockResolvedValue({entities: [], nextPageToken: 'next-token'})
     const grpcClient = {
       entities: {
         searchEntities,
@@ -144,14 +144,18 @@ describe('handleApiRequest schema introspection', () => {
 
     const result = await handleApiRequest(
       new URL(
-        'http://localhost/api/Search?query=slow&includeBody=true&contextSize=44&searchType=0&pageSize=20&iriFilter=hm%3A%2F%2Fsite*&contentTypeFilter=%5B0%5D',
+        'http://localhost/api/Search?query=slow&includeBody=true&contextSize=44&searchType=0&pageSize=20&pageToken=page-token&iriFilter=hm%3A%2F%2Fsite*&contentTypeFilter=%5B0%5D&entityKindFilter=%5B1%5D',
       ),
       grpcClient,
       queryDaemon,
     )
 
     expect(result.status).toBe(200)
-    expect(deserialize(JSON.parse(result.body))).toEqual({entities: [], searchQuery: 'slow'})
+    expect(deserialize(JSON.parse(result.body))).toEqual({
+      entities: [],
+      searchQuery: 'slow',
+      nextPageToken: 'next-token',
+    })
     expect(searchEntities).toHaveBeenCalledWith({
       query: 'slow',
       includeBody: true,
@@ -160,8 +164,10 @@ describe('handleApiRequest schema introspection', () => {
       loggedAccountUid: undefined,
       searchType: 0,
       pageSize: 20,
+      pageToken: 'page-token',
       iriFilter: 'hm://site*',
       contentTypeFilter: [0],
+      entityKindFilter: [1],
     })
   })
 

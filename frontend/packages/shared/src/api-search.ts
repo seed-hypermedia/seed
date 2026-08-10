@@ -13,8 +13,10 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
       perspectiveAccountUid,
       searchType,
       pageSize,
+      pageToken,
       iriFilter,
       contentTypeFilter,
+      entityKindFilter,
     } = input
     const result = await grpcClient.entities.searchEntities({
       query,
@@ -24,11 +26,14 @@ export const Search: HMRequestImplementation<HMSearchRequest> = {
       loggedAccountUid: perspectiveAccountUid,
       searchType,
       pageSize,
+      pageToken,
       iriFilter,
       contentTypeFilter,
+      entityKindFilter,
     })
     return {
       searchQuery: query,
+      nextPageToken: result.nextPageToken || '',
       entities: result.entities
         .map((entity) => {
           const id = unpackHmId(entity.id)

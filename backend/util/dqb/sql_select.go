@@ -16,13 +16,14 @@ var queryCache = sync.Map{}
 
 // SelectQuery helps build a SQL query.
 type SelectQuery struct {
-	tables       []string
-	selectCols   []string
-	whereClauses []string
-	joins        []string
-	groupBy      string
-	orderBy      string
-	limit        string
+	tables        []string
+	selectCols    []string
+	whereClauses  []string
+	havingClauses []string
+	joins         []string
+	groupBy       string
+	orderBy       string
+	limit         string
 }
 
 // Select creates a new [SelectQuery].
@@ -44,9 +45,17 @@ func (qb *SelectQuery) LeftJoin(table string, on string) *SelectQuery {
 	return qb
 }
 
-// Where adds a WHERE clause.
+// Where adds expressions to the WHERE clause, joined with AND.
+// Use a single expression for OR conditions or explicit grouping.
 func (qb *SelectQuery) Where(expr ...string) *SelectQuery {
 	qb.whereClauses = append(qb.whereClauses, expr...)
+	return qb
+}
+
+// Having adds expressions to the HAVING clause, joined with AND.
+// Use a single expression for OR conditions or explicit grouping.
+func (qb *SelectQuery) Having(expr ...string) *SelectQuery {
+	qb.havingClauses = append(qb.havingClauses, expr...)
 	return qb
 }
 
@@ -70,6 +79,15 @@ func (qb *SelectQuery) Limit(expr string) *SelectQuery {
 
 // String constructs the SQL query as a string.
 func (qb *SelectQuery) String() string {
+	return qb.string(true)
+}
+
+// StringTransient constructs SQL without retaining it in the query cache.
+func (qb *SelectQuery) StringTransient() string {
+	return qb.string(false)
+}
+
+func (qb *SelectQuery) string(cache bool) string {
 	buf := bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	defer bufferPool.Put(buf)
@@ -118,6 +136,17 @@ func (qb *SelectQuery) String() string {
 		buf.WriteString(qb.groupBy)
 	}
 
+	// HAVING clause.
+	if len(qb.havingClauses) > 0 {
+		buf.WriteString("\nHAVING ")
+		for i, clause := range qb.havingClauses {
+			if i > 0 {
+				buf.WriteString(" AND ")
+			}
+			buf.WriteString(clause)
+		}
+	}
+
 	// ORDER BY clause.
 	if qb.orderBy != "" {
 		buf.WriteString("\nORDER BY ")
@@ -128,6 +157,10 @@ func (qb *SelectQuery) String() string {
 	if qb.limit != "" {
 		buf.WriteString("\nLIMIT ")
 		buf.WriteString(qb.limit)
+	}
+
+	if !cache {
+		return buf.String()
 	}
 
 	// Using unsafe string as a cache key for lookup,

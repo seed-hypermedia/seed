@@ -186,20 +186,53 @@ CREATE TABLE document_generations (
     comment_count INTEGER NOT NULL DEFAULT (0),
     -- Sorted JSON array of unique author ID values.
     authors JSON NOT NULL DEFAULT ('[]'),
-    -- Indexed document attributes,
-    -- values are timestamped with the timestamped of the change that introduced them.
-    metadata JSON NOT NULL DEFAULT ('{}'),
     -- Roaring bitmap of change blob IDs.
     changes BLOB,
+    visibility TEXT NOT NULL DEFAULT '',
+    visibility_timestamp INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (resource, generation, genesis)
 ) WITHOUT ROWID;
 
 -- Index to fullfill the rule of having an index on all foreign keys.
 CREATE INDEX document_generations_by_last_comment ON document_generations (last_comment) WHERE last_comment IS NOT NULL;
 
--- Index to quickly find resources whose generation redirects to a given IRI.
--- Used to walk redirect chains when aggregating comment activity for document listings.
-CREATE INDEX document_generations_by_redirect ON document_generations ((metadata->>'$."$db.redirect".v')) WHERE metadata->>'$."$db.redirect".v' IS NOT NULL;
+-- Document attribute names, interned by their exact global identity.
+-- `search_key` is the Unicode case-folded form used only for autocomplete.
+CREATE TABLE document_attribute_keys (
+    id INTEGER PRIMARY KEY,
+    key TEXT NOT NULL,
+    search_key TEXT NOT NULL,
+    UNIQUE (key)
+) STRICT;
+
+CREATE INDEX document_attribute_keys_by_search ON document_attribute_keys (search_key, key);
+
+-- Resolved, flattened attributes of the current document generation. `kind` is
+-- necessary because SQLite represents booleans and int64 values as INTEGER.
+-- A NULL value is a CRDT deletion and remains distinct from an absent row.
+CREATE TABLE document_attributes (
+    resource INTEGER REFERENCES resources (id) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+    key INTEGER REFERENCES document_attribute_keys (id) ON UPDATE CASCADE ON DELETE RESTRICT NOT NULL,
+    -- Value kind:
+    --   'n' = null
+    --   's' = string
+    --   'b' = boolean
+    --   'i' = integer
+    kind TEXT NOT NULL,
+    value,
+
+    -- The following columns are used for CRDT conflict resolution.
+
+    -- The timestamp of the change that created or updated this attribute.
+    timestamp INTEGER NOT NULL,
+    -- The index of the operation in the change that created or updated this attribute.
+    operation INTEGER NOT NULL,
+    -- The actor shorthand who authored the change. Only relevant when timestamps are equal.
+    actor INTEGER NOT NULL,
+    PRIMARY KEY (resource, key)
+) WITHOUT ROWID;
+
+CREATE INDEX document_attributes_by_key ON document_attributes (key, kind, value);
 
 -- Stores content-addressable links between blobs.
 -- Links are typed (rel) and directed.
@@ -381,7 +414,6 @@ CREATE VIRTUAL TABLE embeddings USING vec0(
     multilingual_minilm_l12_v2 int8[384] distance_metric=cosine,
     fts_id int
 );
-
 -- Bookkeeping for the embeddings table: one row per fts entry that has been embedded.
 -- The vec0 virtual table can't be indexed on fts_id, so finding not-yet-embedded
 -- fts entries would require a full scan of the vector table; this table gives that

@@ -360,6 +360,10 @@ describe('navRouteSchema', () => {
     expect(navRouteSchema.parse({key: 'api-inspector'})).toEqual({key: 'api-inspector'})
   })
 
+  test('parses the query documents route', () => {
+    expect(navRouteSchema.parse({key: 'query-documents'})).toEqual({key: 'query-documents'})
+  })
+
   test('parses the graph inspector tab', () => {
     expect(navRouteSchema.parse({key: 'inspect', id: testDocId, inspectTab: 'graph'})).toEqual({
       key: 'inspect',

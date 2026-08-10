@@ -134,6 +134,7 @@ import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
+import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
 
 const LazyDocumentMachineDebugDrawer = lazy(() =>
   import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({default: m.DocumentMachineDebugDrawer})),
@@ -765,6 +766,8 @@ export interface ResourcePageProps {
   linkExtensionOptions?: LinkExtensionOptions
   /** Optional site-header edit-nav pane rendered inside DocumentMachineProvider. */
   editNavPane?: ReactNode
+  /** Optional platform adapter for user-defined metadata autocomplete. */
+  attributeAutocomplete?: AttributeAutocomplete
 }
 
 /** Get panel title for display */
@@ -826,6 +829,7 @@ export function ResourcePage({
   perspectiveAccountUid,
   linkExtensionOptions,
   editNavPane,
+  attributeAutocomplete,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
@@ -1166,49 +1170,51 @@ export function ResourcePage({
       >
         <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
         {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
-        <DocumentBody
-          routeDocId={docId}
-          docId={renderedDocId}
-          document={document}
-          documentSyncRouteKey={documentResourceRouteKey}
-          documentIsPlaceholderData={getDocumentSyncIsPlaceholderData({
-            resourceFetchId,
-            hasUnpublishedDraft,
-            resourceIsPreviousData: resource.isPreviousData,
-          })}
-          activeView={getActiveView(route.key)}
-          isLatest={isLatest}
-          latestVersion={latestDocumentVersion}
-          siteUrl={siteHomeDocument?.metadata?.siteUrl}
-          CommentEditor={CommentEditor}
-          optionsMenuItems={optionsMenuItems}
-          extraMenuItems={extraMenuItems}
-          existingDraft={existingDraft}
-          reservedDraftId={reservedDraftId}
-          existingDraftVisibility={existingDraftVisibility}
-          existingDraftContent={existingDraftContent}
-          existingDraftCursorPosition={existingDraftCursorPosition}
-          existingDraftMineTouchedIds={existingDraftMineTouchedIds}
-          existingDraftBaseBlocks={existingDraftBaseBlocks}
-          existingDraftDeps={existingDraftDeps}
-          draftVersionEntry={draftVersionEntry}
-          floatingButtons={floatingButtons}
-          pageFooter={pageFooter}
-          inlineCards={inlineCards}
-          inlineInsert={inlineInsert}
-          DocumentContentComponent={DocumentContentComponent}
-          onEditorReady={onEditorReady}
-          canEdit={effectiveCanEdit}
-          editingFloatingActions={editingFloatingActions}
-          draftActions={draftActions}
-          signingAccountId={signingAccountId}
-          publishAccountUid={publishAccountUid}
-          fileUpload={fileUpload}
-          ssrContentHTML={ssrContentHTML}
-          perspectiveAccountUid={perspectiveAccountUid}
-          linkExtensionOptions={linkExtensionOptions}
-          transientResourceError={transientResourceError}
-        />
+        <AttributeAutocompleteProvider value={attributeAutocomplete}>
+          <DocumentBody
+            routeDocId={docId}
+            docId={renderedDocId}
+            document={document}
+            documentSyncRouteKey={documentResourceRouteKey}
+            documentIsPlaceholderData={getDocumentSyncIsPlaceholderData({
+              resourceFetchId,
+              hasUnpublishedDraft,
+              resourceIsPreviousData: resource.isPreviousData,
+            })}
+            activeView={getActiveView(route.key)}
+            isLatest={isLatest}
+            latestVersion={latestDocumentVersion}
+            siteUrl={siteHomeDocument?.metadata?.siteUrl}
+            CommentEditor={CommentEditor}
+            optionsMenuItems={optionsMenuItems}
+            extraMenuItems={extraMenuItems}
+            existingDraft={existingDraft}
+            reservedDraftId={reservedDraftId}
+            existingDraftVisibility={existingDraftVisibility}
+            existingDraftContent={existingDraftContent}
+            existingDraftCursorPosition={existingDraftCursorPosition}
+            existingDraftMineTouchedIds={existingDraftMineTouchedIds}
+            existingDraftBaseBlocks={existingDraftBaseBlocks}
+            existingDraftDeps={existingDraftDeps}
+            draftVersionEntry={draftVersionEntry}
+            floatingButtons={floatingButtons}
+            pageFooter={pageFooter}
+            inlineCards={inlineCards}
+            inlineInsert={inlineInsert}
+            DocumentContentComponent={DocumentContentComponent}
+            onEditorReady={onEditorReady}
+            canEdit={effectiveCanEdit}
+            editingFloatingActions={editingFloatingActions}
+            draftActions={draftActions}
+            signingAccountId={signingAccountId}
+            publishAccountUid={publishAccountUid}
+            fileUpload={fileUpload}
+            ssrContentHTML={ssrContentHTML}
+            perspectiveAccountUid={perspectiveAccountUid}
+            linkExtensionOptions={linkExtensionOptions}
+            transientResourceError={transientResourceError}
+          />
+        </AttributeAutocompleteProvider>
         {machineExtras}
         {inspect && (
           <Suspense fallback={null}>

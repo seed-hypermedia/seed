@@ -588,6 +588,32 @@ export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 /** Keys declared by HMDocumentMetadataSchema — the built-in document metadata fields. */
 export const BUILTIN_METADATA_KEYS: ReadonlySet<string> = new Set(Object.keys(HMDocumentMetadataSchema.shape))
 
+/** User-facing explanations for document attributes understood by Seed. */
+export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  name: 'Document or space title.',
+  summary: 'Short description shown in previews and cards.',
+  icon: 'Square document or space image.',
+  thumbnail: 'Deprecated image field kept for older documents.',
+  cover: 'Wide cover image shown in headers and cards.',
+  siteUrl: 'Published website URL for a space.',
+  layout: 'Legacy site header layout setting.',
+  displayPublishTime: 'Publication date shown to readers.',
+  displayAuthor: 'Author byline shown to readers.',
+  seedExperimentalLogo: 'Logo shown in the site header.',
+  seedExperimentalHomeOrder: 'Legacy ordering preference for a space home page.',
+  showOutline: 'Whether to show the document outline.',
+  showActivity: 'Whether to show document activity and tools.',
+  contentWidth: 'Width of the document content area.',
+  childrenType: 'Layout of the document’s root-level blocks.',
+  theme: 'Visual settings for a site.',
+  'theme.headerLayout': 'Alignment of the site header.',
+  importCategories: 'Categories retained from an imported document.',
+  importTags: 'Tags retained from an imported document.',
+  title: 'Legacy document title; new documents use name.',
+  alias: 'Legacy identity name used by older profiles.',
+  description: 'Legacy profile description; documents use summary.',
+}
+
 /**
  * Count of custom (user-authored) metadata fields on a document: keys not
  * declared by HMDocumentMetadataSchema. Null/undefined values (e.g. removed
@@ -1378,8 +1404,10 @@ export const HMSearchInputSchema = z.object({
   perspectiveAccountUid: z.string().optional(),
   searchType: z.number().optional(),
   pageSize: z.number().optional(),
+  pageToken: z.string().optional(),
   iriFilter: z.string().optional(),
   contentTypeFilter: z.array(z.number()).optional(),
+  entityKindFilter: z.array(z.number()).optional(),
 })
 export type HMSearchInput = z.infer<typeof HMSearchInputSchema>
 
@@ -1398,6 +1426,7 @@ export const HMSearchResultItemSchema = z.object({
 export const HMSearchPayloadSchema = z.object({
   entities: z.array(HMSearchResultItemSchema),
   searchQuery: z.string(),
+  nextPageToken: z.string(),
 })
 export type HMSearchPayload = z.infer<typeof HMSearchPayloadSchema>
 
