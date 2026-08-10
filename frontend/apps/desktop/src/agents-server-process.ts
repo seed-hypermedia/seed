@@ -154,6 +154,9 @@ async function spawnAgentsServer(): Promise<string> {
     // The desktop's own HM API server, so a local agent reads and writes through the user's node
     // instead of a public gateway.
     `--hm-server-url=${API_HTTP_URL}`,
+    // Subscription sign-in is a server opt-in; the desktop enables it for the server
+    // it owns because it can catch the OAuth redirect on localhost:1455 itself.
+    `--subscription-auth=true`,
   ]
 
   log.info('Starting local agents server', {binaryPath, port, args})

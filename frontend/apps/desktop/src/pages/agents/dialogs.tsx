@@ -3,6 +3,7 @@ import {
   DEFAULT_AGENT_SERVER_URL,
   isLocalAgentServer,
   prefetchAgentDetail,
+  useAgentServerHealth,
   useCreateAgent,
   useCreateSigningIdentity,
   useDeleteModelProvider,
@@ -44,6 +45,7 @@ import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
+import {SubscriptionSignIn} from './provider-oauth'
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
 import {ProviderSelect} from './provider-select'
 
@@ -55,6 +57,7 @@ export function ModelProvidersDialog({
 }) {
   const providers = useModelProviders(input.serverUrl, input.selectedAccountId)
   const deleteProvider = useDeleteModelProvider(input.serverUrl, input.selectedAccountId)
+  const health = useAgentServerHealth(input.serverUrl)
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
 
   async function handleDeleteProvider(name: string) {
@@ -78,28 +81,50 @@ export function ModelProvidersDialog({
       </div>
       <div className="grid gap-3">
         {providers.data?.map((provider) => (
-          <div
-            key={provider.id}
-            className="border-border flex items-center justify-between gap-3 rounded-lg border p-3"
-          >
-            <div className="flex items-center gap-3">
-              <ProviderIcon type={provider.type as ModelProviderType} className="text-muted-foreground size-5" />
-              <div className="flex flex-col gap-1.5">
-                <SizableText weight="bold">{provider.name}</SizableText>
-                <SizableText size="sm" color="muted">
-                  {provider.type}
-                </SizableText>
+          <div key={provider.id} className="border-border flex flex-col gap-2 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <ProviderIcon type={provider.type as ModelProviderType} className="text-muted-foreground size-5" />
+                <div className="flex flex-col gap-1.5">
+                  <SizableText weight="bold">{provider.name}</SizableText>
+                  <SizableText size="sm" color="muted">
+                    {provider.authMode === 'subscription'
+                      ? `${provider.type} · ${
+                          PROVIDER_METADATA[provider.type as ModelProviderType]?.subscription?.label ?? 'subscription'
+                        }`
+                      : provider.type}
+                  </SizableText>
+                </div>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete ${provider.name} provider key`}
+                onClick={() => void handleDeleteProvider(provider.name)}
+                disabled={deleteProvider.isLoading}
+              >
+                <Trash2 className="size-4" />
+              </Button>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`Delete ${provider.name} provider key`}
-              onClick={() => void handleDeleteProvider(provider.name)}
-              disabled={deleteProvider.isLoading}
-            >
-              <Trash2 className="size-4" />
-            </Button>
+            {provider.authMode === 'subscription' && provider.authStatus === 'needs-login' ? (
+              <div className="flex flex-col gap-2">
+                <SizableText size="sm" className="text-destructive">
+                  Sign-in expired — sign in again to keep using this provider.
+                </SizableText>
+                {health.data?.subscriptionAuth === true ? (
+                  <SubscriptionSignIn
+                    serverUrl={input.serverUrl}
+                    selectedAccountId={input.selectedAccountId}
+                    providerType={provider.type as ModelProviderType}
+                    onConnected={() => toast.success('Signed in again')}
+                  />
+                ) : (
+                  <SizableText size="sm" color="muted">
+                    This server no longer offers subscription sign-in. Delete this provider and use an API key instead.
+                  </SizableText>
+                )}
+              </div>
+            ) : null}
           </div>
         ))}
         {!providers.data?.length ? <SizableText color="muted">No providers configured yet.</SizableText> : null}
@@ -126,7 +151,9 @@ export function AddModelProviderDialog({
     <div className="flex min-w-[420px] flex-col gap-5">
       <div className="flex flex-col gap-3">
         <DialogTitle>Add model provider</DialogTitle>
-        <DialogDescription>Save this API key as an encrypted server-side secret.</DialogDescription>
+        <DialogDescription>
+          Connect with an API key (stored as an encrypted server-side secret) or a provider subscription sign-in.
+        </DialogDescription>
       </div>
       <AddModelProviderForm
         serverUrl={input.serverUrl}
@@ -156,22 +183,33 @@ function AddModelProviderForm({
   submitLabel?: string
 }) {
   const saveProvider = useSaveModelProvider(serverUrl, selectedAccountId)
+  const health = useAgentServerHealth(serverUrl)
   const [type, setType] = useState<ModelProviderType>('openai')
   const [name, setName] = useState(providerLabel('openai'))
   const [apiKey, setApiKey] = useState('')
   const [baseUrl, setBaseUrl] = useState(PROVIDER_METADATA.openai.defaultBaseUrl)
+  const [authMode, setAuthMode] = useState<'api-key' | 'subscription'>('api-key')
+  const [oauthSecretName, setOauthSecretName] = useState<string | null>(null)
 
   const metadata = PROVIDER_METADATA[type]
+  // Subscription sign-in is offered only when this server has explicitly
+  // enabled it (health.subscriptionAuth) — the flow needs this desktop app to
+  // catch the provider's localhost redirect on the server's behalf.
+  const subscriptionAvailable = Boolean(metadata.subscription) && health.data?.subscriptionAuth === true
+  const subscriptionMode = authMode === 'subscription' && subscriptionAvailable
 
   useEffect(() => {
     setName(providerLabel(type))
     setBaseUrl(PROVIDER_METADATA[type].defaultBaseUrl)
+    setAuthMode('api-key')
+    setOauthSecretName(null)
   }, [type])
 
   // Self-hosted/custom providers may run without a key; a custom endpoint must still
-  // supply a base URL since it has no sensible default.
-  const apiKeyOk = !metadata.requiresApiKey || apiKey.trim().length > 0
-  const baseUrlOk = !metadata.showBaseUrlField || baseUrl.trim().length > 0
+  // supply a base URL since it has no sensible default. Subscription mode needs a
+  // completed sign-in instead of a key.
+  const apiKeyOk = subscriptionMode ? Boolean(oauthSecretName) : !metadata.requiresApiKey || apiKey.trim().length > 0
+  const baseUrlOk = subscriptionMode || !metadata.showBaseUrlField || baseUrl.trim().length > 0
   const canSubmit = !saveProvider.isLoading && apiKeyOk && baseUrlOk
 
   async function handleSave() {
@@ -179,8 +217,9 @@ function AddModelProviderForm({
       await saveProvider.mutateAsync({
         type,
         name,
-        apiKey,
-        baseUrl: metadata.showBaseUrlField ? baseUrl.trim() : undefined,
+        apiKey: subscriptionMode ? '' : apiKey,
+        baseUrl: !subscriptionMode && metadata.showBaseUrlField ? baseUrl.trim() : undefined,
+        oauthSecretName: subscriptionMode && oauthSecretName ? oauthSecretName : undefined,
       })
       setApiKey('')
       toast.success('Model provider saved')
@@ -225,7 +264,36 @@ function AddModelProviderForm({
         </SizableText>
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={metadata.label} />
       </label>
-      {metadata.showBaseUrlField ? (
+      {metadata.subscription && subscriptionAvailable ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Authentication
+          </SizableText>
+          <div className="border-border flex gap-1 self-start rounded-lg border p-1" role="radiogroup">
+            <Button
+              type="button"
+              size="sm"
+              variant={authMode === 'api-key' ? 'secondary' : 'ghost'}
+              aria-checked={authMode === 'api-key'}
+              role="radio"
+              onClick={() => setAuthMode('api-key')}
+            >
+              API key
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={authMode === 'subscription' ? 'secondary' : 'ghost'}
+              aria-checked={authMode === 'subscription'}
+              role="radio"
+              onClick={() => setAuthMode('subscription')}
+            >
+              {metadata.subscription.label}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {!subscriptionMode && metadata.showBaseUrlField ? (
         <label className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
             Base URL
@@ -237,12 +305,22 @@ function AddModelProviderForm({
           />
         </label>
       ) : null}
-      <label className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          {metadata.requiresApiKey ? 'API key' : 'API key (optional)'}
-        </SizableText>
-        <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
-      </label>
+      {subscriptionMode ? (
+        <SubscriptionSignIn
+          serverUrl={serverUrl}
+          selectedAccountId={selectedAccountId}
+          providerType={type}
+          connectedSecretName={oauthSecretName ?? undefined}
+          onConnected={setOauthSecretName}
+        />
+      ) : (
+        <label className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            {metadata.requiresApiKey ? 'API key' : 'API key (optional)'}
+          </SizableText>
+          <Input type="password" value={apiKey} onChange={(event) => setApiKey(event.target.value)} />
+        </label>
+      )}
       <div className="flex justify-end gap-2">
         {onCancel ? (
           <Button type="button" variant="ghost" onClick={onCancel}>

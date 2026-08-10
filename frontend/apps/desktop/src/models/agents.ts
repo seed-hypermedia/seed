@@ -587,7 +587,7 @@ export function useDeleteModelProvider(serverUrl: string | undefined, accountUid
   })
 }
 
-/** Stores an API key and configures a model provider. */
+/** Stores an API key (or references OAuth credentials) and configures a model provider. */
 export function useSaveModelProvider(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({
@@ -595,16 +595,35 @@ export function useSaveModelProvider(serverUrl: string | undefined, accountUid: 
       name,
       apiKey,
       baseUrl,
+      oauthSecretName,
     }: {
       type: ModelProviderType
       name: string
       apiKey: string
       /** Custom endpoint for self-hosted/custom providers (e.g. Ollama). */
       baseUrl?: string
+      /**
+       * Server-side OAuth credentials secret from a completed subscription
+       * sign-in (`useStartProviderOAuth`). When set, the provider is saved in
+       * subscription auth mode and no API key secret is written.
+       */
+      oauthSecretName?: string
     }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       const providerName = name.trim()
       if (!providerName) throw new Error('Provider name is required')
+      if (oauthSecretName) {
+        // The OAuth credentials already live server-side; just reference them.
+        return sendAgentAction({
+          serverUrl,
+          accountUid,
+          action: {
+            _: 'SetModelProvider',
+            name: providerName,
+            provider: {type, authMode: 'subscription', secretRefs: {oauth: oauthSecretName}},
+          },
+        })
+      }
       const trimmed = apiKey.trim()
       // Only guard the secret transport when a key is actually being sent; local
       // providers (Ollama/custom) can be saved without one.
@@ -640,6 +659,76 @@ export function useSaveModelProvider(serverUrl: string | undefined, accountUid: 
     },
     onSuccess() {
       invalidateQueries(['agents'])
+    },
+  })
+}
+
+/**
+ * Starts a subscription OAuth sign-in (OpenAI: “Sign in with ChatGPT”) on the
+ * agent server. Returns the browser URL to open; completion is observed with
+ * `useProviderOAuthStatus`, and `useSubmitProviderOAuthCode` covers servers the
+ * browser redirect cannot reach (the user pastes the redirect URL instead).
+ */
+export function useStartProviderOAuth(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (providerType: ModelProviderType) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'StartProviderOAuth', providerType}})
+      if (res._ !== 'StartProviderOAuthResponse') throw new Error('Unexpected StartProviderOAuth response')
+      return res
+    },
+  })
+}
+
+/** Polls a pending subscription sign-in until it completes or fails. */
+export function useProviderOAuthStatus(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  loginId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'provider-oauth', serverUrl, accountUid, loginId],
+    queryFn: async () => {
+      if (!serverUrl || !accountUid || !loginId) return undefined
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'GetProviderOAuthStatus', loginId}})
+      if (res._ !== 'ProviderOAuthStatusResponse') throw new Error('Unexpected GetProviderOAuthStatus response')
+      return res
+    },
+    enabled: !!serverUrl && !!accountUid && !!loginId,
+    refetchInterval: (data) => (data?.status === 'pending' ? 1500 : false),
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Submits a manually pasted authorization code (or redirect URL) to a pending sign-in. */
+export function useSubmitProviderOAuthCode(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({loginId, code}: {loginId: string; code: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const trimmed = code.trim()
+      if (!trimmed) throw new Error('Paste the authorization code or redirect URL first')
+      return sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'SubmitProviderOAuthCode', loginId, code: trimmed},
+      })
+    },
+    onSuccess(_res, {loginId}) {
+      invalidateQueries(['agents', 'provider-oauth', serverUrl, accountUid, loginId])
+    },
+  })
+}
+
+/** Cancels a pending subscription sign-in. */
+export function useCancelProviderOAuth(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (loginId: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'CancelProviderOAuth', loginId}})
+    },
+    onSuccess(_res, loginId) {
+      invalidateQueries(['agents', 'provider-oauth', serverUrl, accountUid, loginId])
     },
   })
 }

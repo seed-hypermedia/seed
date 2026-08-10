@@ -68,6 +68,10 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as pi from '@mariozechner/pi-coding-agent'
+import {getModels} from '@mariozechner/pi-ai'
+import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
+import {openaiCodexOAuthProvider} from '@mariozechner/pi-ai/oauth'
+import {OAUTH_PROVIDER_TYPES, PersistedOAuthBackend, ProviderOAuthManager} from './provider-oauth'
 import {CID} from 'multiformats/cid'
 import {z} from 'zod'
 import * as fs from 'node:fs'
@@ -184,8 +188,19 @@ export class Service {
    */
   readonly #sessionSpawnDepth = new Map<string, number>()
   readonly #sessionSpawnCounts = new Map<string, number>()
+  /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
+  readonly #subscriptionAuthEnabled: boolean
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
+  /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
+  readonly #providerOAuth: ProviderOAuthManager
+  /**
+   * Shared per-`account+secret` OAuth credential backends. Sharing one backend
+   * across concurrent sessions serializes token refreshes (a refresh rotates the
+   * refresh token, so parallel refreshes would strand each other) and keeps every
+   * session on the freshest credentials.
+   */
+  readonly #oauthBackends = new Map<string, PersistedOAuthBackend>()
 
   constructor(
     db: Database,
@@ -196,20 +211,30 @@ export class Service {
       web?: WebToolsConfig
       exec?: CodeExecConfig
       codeExecutor?: CodeExecutor
+      providerOAuth?: ProviderOAuthManager
+      /** Offer subscription (OAuth) provider sign-in. Explicit server opt-in; default off. */
+      subscriptionAuth?: boolean
     } = {},
   ) {
     this.#db = db
     this.#dataDir = dataDir
     this.#onEvent = options.onEvent
+    this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
+    this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
    * connect their local node to it for discovery. */
   get hmServerUrl(): string {
     return this.#hmServerUrl
+  }
+
+  /** Whether subscription provider sign-in is offered, for client capability display. */
+  get subscriptionAuthEnabled(): boolean {
+    return this.#subscriptionAuthEnabled
   }
 
   /** Reports which optional web-tool backends this server has configured, for client capability display. */
@@ -258,6 +283,14 @@ export class Service {
         return this.#setModelProvider(verified.accountId, envelope.action.name, envelope.action.provider)
       case 'DeleteModelProvider':
         return this.#deleteModelProvider(verified.accountId, envelope.action.name)
+      case 'StartProviderOAuth':
+        return this.#startProviderOAuth(verified.accountId, envelope.action.providerType)
+      case 'SubmitProviderOAuthCode':
+        return this.#submitProviderOAuthCode(verified.accountId, envelope.action.loginId, envelope.action.code)
+      case 'GetProviderOAuthStatus':
+        return this.#getProviderOAuthStatus(verified.accountId, envelope.action.loginId)
+      case 'CancelProviderOAuth':
+        return this.#cancelProviderOAuth(verified.accountId, envelope.action.loginId)
       case 'SetSecret':
         return this.#setSecret(
           verified.accountId,
@@ -482,6 +515,7 @@ export class Service {
           name: row.name,
           type: row.type,
           hasSecrets: Object.keys(provider.secretRefs ?? {}).length > 0,
+          ...this.#providerAuthInfo(accountId, provider),
           createdAt: row.created_at,
           updatedAt: row.updated_at,
         }
@@ -500,6 +534,11 @@ export class Service {
 
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
     const spec = providerSpec(provider.type)
+    if (provider.authMode === 'subscription') {
+      // The ChatGPT backend has no models endpoint; serve Pi's static catalog of
+      // models the Codex subscription backend accepts.
+      return {_: 'ListProviderModelsResponse', models: subscriptionProviderModels()}
+    }
     const apiKeySecretName = provider.secretRefs?.apiKey
     if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${provider.type} API key is not configured`)
     const apiKey = apiKeySecretName
@@ -704,6 +743,7 @@ export class Service {
         name,
         type: provider.type,
         hasSecrets: Object.keys(provider.secretRefs ?? {}).length > 0,
+        ...this.#providerAuthInfo(accountId, provider),
         createdAt,
         updatedAt: now,
       },
@@ -721,11 +761,181 @@ export class Service {
 
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
     this.#db.run(`DELETE FROM model_providers WHERE account_id = ? AND name = ?`, [accountId, name])
-    const apiKeySecretName = provider.secretRefs?.apiKey
-    if (apiKeySecretName) {
-      this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, apiKeySecretName])
+    // Remove the provider's secrets (API key or OAuth credentials) unless another
+    // provider still references them — subscription providers share one OAuth
+    // secret per provider type.
+    const remaining = this.#db
+      .query<{config_cbor: Uint8Array}, [string]>(`SELECT config_cbor FROM model_providers WHERE account_id = ?`)
+      .all(accountId)
+    const stillReferenced = new Set(
+      remaining.flatMap((other) =>
+        Object.values(cbor.decode<api.ModelProviderConfig>(other.config_cbor).secretRefs ?? {}),
+      ),
+    )
+    for (const secretName of Object.values(provider.secretRefs ?? {})) {
+      if (stillReferenced.has(secretName)) continue
+      this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, secretName])
+      this.#oauthBackends.delete(`${accountId} ${secretName}`)
     }
     return {_: 'DeleteModelProviderResponse', name}
+  }
+
+  async #startProviderOAuth(accountId: string, rawProviderType: string): Promise<api.StartProviderOAuthResponse> {
+    if (!this.#subscriptionAuthEnabled) {
+      throw new APIError(403, 'Subscription sign-in is not enabled on this server')
+    }
+    const providerType = normalizeBoundedString(rawProviderType, 'Provider type', MAX_NAME_BYTES)
+    if (!(OAUTH_PROVIDER_TYPES as readonly string[]).includes(providerType)) {
+      throw new APIError(400, `Provider type does not support subscription sign-in: ${providerType}`)
+    }
+    try {
+      const snapshot = await this.#providerOAuth.start(accountId, providerType, async (credentials) => {
+        const secretName = subscriptionOAuthSecretName(providerType)
+        await this.#setSecret(accountId, secretName, new TextEncoder().encode(JSON.stringify(credentials)), {
+          provider: providerType,
+          kind: 'provider-oauth',
+        })
+        this.#emit({type: 'account-change', accountId, reason: 'model-provider-changed'})
+        return secretName
+      })
+      return {
+        _: 'StartProviderOAuthResponse',
+        loginId: snapshot.loginId,
+        authUrl: snapshot.authUrl,
+        expiresAt: snapshot.expiresAt,
+      }
+    } catch (error) {
+      throw new APIError(502, error instanceof Error ? error.message : 'Could not start provider sign-in')
+    }
+  }
+
+  #submitProviderOAuthCode(
+    accountId: string,
+    rawLoginId: string,
+    rawCode: string,
+  ): api.SubmitProviderOAuthCodeResponse {
+    const loginId = normalizeBoundedString(rawLoginId, 'Login id', MAX_NAME_BYTES)
+    const code = normalizeBoundedString(rawCode, 'Authorization code', 8192)
+    try {
+      this.#providerOAuth.submitCode(accountId, loginId, code)
+    } catch (error) {
+      throw new APIError(400, error instanceof Error ? error.message : 'Could not submit authorization code')
+    }
+    return {_: 'SubmitProviderOAuthCodeResponse'}
+  }
+
+  #getProviderOAuthStatus(accountId: string, rawLoginId: string): api.ProviderOAuthStatusResponse {
+    const loginId = normalizeBoundedString(rawLoginId, 'Login id', MAX_NAME_BYTES)
+    try {
+      const snapshot = this.#providerOAuth.status(accountId, loginId)
+      return {
+        _: 'ProviderOAuthStatusResponse',
+        loginId: snapshot.loginId,
+        status: snapshot.status,
+        ...(snapshot.secretName ? {secretName: snapshot.secretName} : {}),
+        ...(snapshot.error ? {error: snapshot.error} : {}),
+      }
+    } catch {
+      throw new APIError(404, 'Sign-in not found')
+    }
+  }
+
+  #cancelProviderOAuth(accountId: string, rawLoginId: string): api.CancelProviderOAuthResponse {
+    const loginId = normalizeBoundedString(rawLoginId, 'Login id', MAX_NAME_BYTES)
+    try {
+      this.#providerOAuth.cancel(accountId, loginId)
+    } catch {
+      throw new APIError(404, 'Sign-in not found')
+    }
+    return {_: 'CancelProviderOAuthResponse', loginId}
+  }
+
+  /** Auth fields exposed on redacted provider listings; `{}` for api-key providers. */
+  #providerAuthInfo(
+    accountId: string,
+    provider: api.ModelProviderConfig,
+  ): Pick<api.RedactedModelProvider, 'authMode' | 'authStatus'> {
+    if (provider.authMode !== 'subscription') return {}
+    const secretName = provider.secretRefs?.oauth
+    if (!secretName) return {authMode: 'subscription', authStatus: 'needs-login'}
+    const row = this.#db
+      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, secretName)
+    if (!row) return {authMode: 'subscription', authStatus: 'needs-login'}
+    const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
+    return {authMode: 'subscription', authStatus: metadata.needsReauth ? 'needs-login' : 'ok'}
+  }
+
+  /**
+   * Flags a subscription provider's stored OAuth credentials as unusable (the
+   * refresh token was rejected — expired or revoked). Listings then report
+   * `needs-login` until a new sign-in overwrites the secret.
+   */
+  #markOAuthSecretNeedsReauth(accountId: string, secretName: string): void {
+    const row = this.#db
+      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, secretName)
+    if (!row) return
+    const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
+    if (metadata.needsReauth) return
+    this.#db.run(`UPDATE secrets SET metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`, [
+      cbor.encode({...metadata, needsReauth: true}),
+      Date.now(),
+      accountId,
+      secretName,
+    ])
+    this.#emit({type: 'account-change', accountId, reason: 'model-provider-changed'})
+  }
+
+  /**
+   * Shared credential backend for one stored OAuth secret. Loads the decrypted
+   * credentials once and writes refreshed tokens back to the encrypted secret
+   * (also clearing a stale `needsReauth` flag — a successful refresh proves the
+   * credentials work again).
+   */
+  async #subscriptionAuthBackend(
+    accountId: string,
+    secretName: string,
+    piProviderId: string,
+  ): Promise<PersistedOAuthBackend> {
+    const key = `${accountId} ${secretName}`
+    const existing = this.#oauthBackends.get(key)
+    if (existing) return existing
+    const plaintext = await this.#getSecretPlaintext(accountId, secretName)
+    let credentials: OAuthCredentials
+    try {
+      credentials = JSON.parse(new TextDecoder().decode(plaintext))
+    } catch {
+      throw new APIError(400, 'Stored OAuth credentials are corrupted; sign in again')
+    }
+    const backend = new PersistedOAuthBackend(
+      JSON.stringify({[piProviderId]: {type: 'oauth', ...credentials}}),
+      async (json) => {
+        const data = JSON.parse(json) as Record<string, Record<string, unknown>>
+        const stored = data[piProviderId]
+        if (!stored) return
+        const {type: _credType, ...rest} = stored
+        const ciphertext = await encryptSecret(this.#db, new TextEncoder().encode(JSON.stringify(rest)))
+        const row = this.#db
+          .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+            `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+          )
+          .get(accountId, secretName)
+        if (!row) return // secret was deleted mid-session; nothing to persist into
+        const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
+        delete metadata.needsReauth
+        this.#db.run(
+          `UPDATE secrets SET ciphertext = ?, metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`,
+          [ciphertext, cbor.encode(metadata), Date.now(), accountId, secretName],
+        )
+      },
+    )
+    this.#oauthBackends.set(key, backend)
+    return backend
   }
 
   async #setSecret(
@@ -737,6 +947,8 @@ export class Service {
     const name = normalizeBoundedString(rawName, 'Secret name', MAX_NAME_BYTES)
     if (!(value instanceof Uint8Array)) throw new APIError(400, 'Secret value is required')
     if (value.byteLength > MAX_SECRET_BYTES) throw new APIError(400, 'Secret value is too large')
+    // A rewritten secret invalidates any cached OAuth credential backend built from it.
+    this.#oauthBackends.delete(`${accountId} ${name}`)
     const metadata = normalizeOptionalMetadata(rawMetadata)
     const ciphertext = await encryptSecret(this.#db, value)
     const now = Date.now()
@@ -1653,14 +1865,22 @@ export class Service {
     )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nFor write tool document and draft creation, set the visible Seed document title explicitly with input.name (or input.title) and include markdown body in input.content/body/text. A markdown # heading is content only; do not rely on it to set the document title. Example: {"command":"document.create","signer":{"publicKey":"..."},"input":{"name":"Test Document","path":"test-document","content":"# Test Document\\n\\nBody text.","format":"markdown"}}.\n\nDo not create a document at a nested path unless its parent path already exists as a published document. For example, before creating path "/team/notes" you must have already created the document at "/team". Create parent documents first; top-level documents (directly under the account) are always allowed.\n\nFor write tool document.move, pass the existing document as input.source/sourceId/id and either input.destination as a full hm:// target or input.path as the new path on the same account. To move a document to the account home/root, use input.path = "/".`
   }
 
-  async #runPiAgent(
+  /**
+   * Resolves an agent definition's provider into a ready-to-use Pi runtime:
+   * stored provider config, auth storage (API key, or auto-refreshing OAuth
+   * credentials for subscription providers), model registry, and the resolved
+   * model. Shared by agent runs and the session-titling call so both honor the
+   * provider's auth mode.
+   */
+  async #piProviderRuntime(
     accountId: string,
     definition: api.AgentDefinition,
-    sessionId: string,
-    runningSession?: RunningSession,
-  ): Promise<api.SessionEvent> {
-    const session = this.#getSessionInfo(accountId, sessionId)
-    if (!session) throw new APIError(404, 'Session not found')
+  ): Promise<{
+    provider: api.ModelProviderConfig
+    authStorage: pi.AuthStorage
+    modelRegistry: pi.ModelRegistry
+    model: NonNullable<ReturnType<pi.ModelRegistry['find']>>
+  }> {
     const providerRow = this.#db
       .query<{config_cbor: Uint8Array}, [string, string]>(
         `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
@@ -1669,27 +1889,67 @@ export class Service {
     if (!providerRow) throw new APIError(400, 'Model provider not found')
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
     const spec = providerSpec(provider.type)
-    const providerName = provider.type
-    const apiKeySecretName = provider.secretRefs?.apiKey
-    if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${providerName} API key is not configured`)
-    // Pi's registerProvider expects a non-empty apiKey when models are defined; local
-    // servers (Ollama/custom without a key) ignore the value, so pass a placeholder.
-    const apiKey = apiKeySecretName
-      ? new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
-      : 'local'
-    const baseUrl = resolveProviderBaseUrl(provider.type, provider.baseUrl)
-
-    const authStorage = pi.AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(providerName, apiKey)
+    const subscription = provider.authMode === 'subscription'
+    const providerName = subscription ? SUBSCRIPTION_PI_PROVIDER_ID : provider.type
+    let authStorage: pi.AuthStorage
+    let baseUrl: string
+    let registerAuth: {apiKey: string} | {oauth: typeof openaiCodexOAuthProvider}
+    if (subscription) {
+      const oauthSecretName = provider.secretRefs?.oauth
+      if (!oauthSecretName) throw new APIError(400, `${provider.type} subscription sign-in is not configured`)
+      baseUrl = SUBSCRIPTION_CODEX_BASE_URL
+      // Credentials live in AuthStorage (not a runtime api key): Pi re-resolves
+      // them per request and auto-refreshes expired access tokens through the
+      // shared persisted backend, so rotated tokens are saved for future runs.
+      authStorage = pi.AuthStorage.fromStorage(
+        await this.#subscriptionAuthBackend(accountId, oauthSecretName, providerName),
+      )
+      registerAuth = {oauth: openaiCodexOAuthProvider}
+      // Resolve (and if needed refresh) the access token up front: an expired or
+      // revoked sign-in should fail the run with a clear re-auth message, not a
+      // cryptic provider 401 mid-stream.
+      const accessToken = await authStorage.getApiKey(providerName)
+      if (!accessToken) {
+        this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
+        throw new APIError(
+          401,
+          'Your OpenAI subscription sign-in has expired or was revoked. Open model provider settings and sign in with ChatGPT again.',
+        )
+      }
+    } else {
+      const apiKeySecretName = provider.secretRefs?.apiKey
+      if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${providerName} API key is not configured`)
+      // Pi's registerProvider expects a non-empty apiKey when models are defined; local
+      // servers (Ollama/custom without a key) ignore the value, so pass a placeholder.
+      const apiKey = apiKeySecretName
+        ? new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
+        : 'local'
+      baseUrl = resolveProviderBaseUrl(provider.type, provider.baseUrl)
+      authStorage = pi.AuthStorage.inMemory()
+      authStorage.setRuntimeApiKey(providerName, apiKey)
+      registerAuth = {apiKey}
+    }
     const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
     modelRegistry.registerProvider(providerName, {
       baseUrl,
-      apiKey,
-      api: spec.api,
-      models: [piModelForDefinition(provider.type, baseUrl, definition)],
+      ...registerAuth,
+      api: subscription ? 'openai-codex-responses' : spec.api,
+      models: [piModelForDefinition(provider.type, baseUrl, definition, {subscription})],
     })
     const model = modelRegistry.find(providerName, definition.model)
     if (!model) throw new APIError(400, `Model not found: ${providerName}/${definition.model}`)
+    return {provider, authStorage, modelRegistry, model}
+  }
+
+  async #runPiAgent(
+    accountId: string,
+    definition: api.AgentDefinition,
+    sessionId: string,
+    runningSession?: RunningSession,
+  ): Promise<api.SessionEvent> {
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
 
     const cwd = this.#dataDir
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}})
@@ -1777,7 +2037,7 @@ export class Service {
       console.info('[agents/runtime] sending provider request', {
         sessionId,
         agentId: session.agentId,
-        provider: providerName,
+        provider: model.provider,
         model: definition.model,
         reasoningLevel: definition.reasoningLevel,
         activeTools: piSession.getActiveToolNames(),
@@ -1805,7 +2065,7 @@ export class Service {
       console.info(`[agents/runtime] ${message}`, {
         sessionId,
         agentId: session.agentId,
-        provider: providerName,
+        provider: model.provider,
         model: definition.model,
         ...fields,
       })
@@ -1814,7 +2074,7 @@ export class Service {
       console.error(`[agents/runtime] ${message}`, {
         sessionId,
         agentId: session.agentId,
-        provider: providerName,
+        provider: model.provider,
         model: definition.model,
         ...fields,
       })
@@ -3328,6 +3588,21 @@ function normalizeProvider(raw: api.ModelProviderConfig): api.ModelProviderConfi
   const type = normalizeBoundedString(raw.type, 'Provider type', MAX_NAME_BYTES)
   const provider: api.ModelProviderConfig = {type}
 
+  if (raw.authMode !== undefined) {
+    if (raw.authMode !== 'api-key' && raw.authMode !== 'subscription') {
+      throw new APIError(400, "Provider auth mode must be 'api-key' or 'subscription'")
+    }
+    if (raw.authMode === 'subscription') {
+      if (!(OAUTH_PROVIDER_TYPES as readonly string[]).includes(type)) {
+        throw new APIError(400, `Provider type does not support subscription auth: ${type}`)
+      }
+      if (!raw.secretRefs?.oauth) {
+        throw new APIError(400, 'Subscription providers require a secretRefs.oauth credential reference')
+      }
+    }
+    provider.authMode = raw.authMode
+  }
+
   if (raw.baseUrl !== undefined) {
     const baseUrl = normalizeBoundedString(raw.baseUrl, 'Provider base URL', 2048)
     try {
@@ -3474,6 +3749,40 @@ function providerSpec(type: string): ProviderSpec {
 }
 
 /**
+ * Subscription ("Sign in with ChatGPT") auth for the `openai` provider type
+ * rides Pi's `openai-codex` provider: OAuth access tokens as bearer auth
+ * against the ChatGPT Codex backend instead of an API key against
+ * api.openai.com. The Pi provider id doubles as the OAuth provider id that
+ * `AuthStorage` uses to auto-refresh expired tokens.
+ */
+const SUBSCRIPTION_PI_PROVIDER_ID = 'openai-codex'
+const SUBSCRIPTION_CODEX_BASE_URL = 'https://chatgpt.com/backend-api'
+
+/** Stable per-account secret name for a provider type's OAuth credentials; re-login overwrites in place. */
+function subscriptionOAuthSecretName(providerType: string): string {
+  return `${providerType}-subscription-oauth`
+}
+
+/**
+ * Static catalog of models the ChatGPT Codex backend accepts (it has no list
+ * endpoint). Mirrors the current Codex CLI's model picker rather than pi-ai's
+ * `openai-codex` catalog, which lags behind: the backend rejects its
+ * gpt-5.1…5.3-era ids outright ("model is not supported when using Codex with
+ * a ChatGPT account") and it misses the current generation entirely.
+ */
+const SUBSCRIPTION_CODEX_MODELS: api.ProviderModelInfo[] = [
+  {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'},
+  {id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra'},
+  {id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna'},
+  {id: 'gpt-5.5', name: 'GPT-5.5'},
+  {id: 'gpt-5.4', name: 'GPT-5.4'},
+]
+
+function subscriptionProviderModels(): api.ProviderModelInfo[] {
+  return SUBSCRIPTION_CODEX_MODELS
+}
+
+/**
  * Resolves the effective base URL for a provider record. A stored `baseUrl`
  * override is honored only for provider types that allow it (self-hosted/custom);
  * for pinned providers the spec default always wins, which keeps a stored API key
@@ -3565,7 +3874,27 @@ function piModelForDefinition(
   type: string,
   baseUrl: string,
   definition: api.AgentDefinition,
+  options: {subscription?: boolean} = {},
 ): NonNullable<Parameters<pi.ModelRegistry['registerProvider']>[1]['models']>[number] {
+  if (options.subscription) {
+    // Subscription runs go through the ChatGPT Codex backend. Prefer Pi's
+    // catalog entry (accurate context window, image support, cost); synthesize a
+    // sane default for ids the catalog does not know yet. Codex models are all
+    // reasoning models.
+    const catalogModel = getModels(SUBSCRIPTION_PI_PROVIDER_ID).find((model) => model.id === definition.model)
+    if (catalogModel) return catalogModel
+    return {
+      id: definition.model,
+      name: definition.model,
+      api: 'openai-codex-responses',
+      baseUrl,
+      reasoning: true,
+      input: ['text', 'image'],
+      cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
+      contextWindow: 272000,
+      maxTokens: 128000,
+    }
+  }
   const support = modelReasoningSupport(type, definition.model)
   // Pi only sends reasoning parameters for models flagged `reasoning`. The flag
   // goes on when a level is selected, and also when the model needs an explicit

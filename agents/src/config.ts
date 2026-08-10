@@ -17,6 +17,12 @@ export type Config = {
   http: Server
   dbPath: string
   dataDir: string
+  /**
+   * Offer subscription (OAuth) provider sign-in ("Sign in with ChatGPT").
+   * Explicit opt-in: the flow needs a client that can catch the provider's
+   * localhost redirect (the desktop app) or a user willing to paste it.
+   */
+  subscriptionAuth: boolean
   activity: {
     hmServerUrl: string
     pollIntervalMs: number
@@ -63,6 +69,7 @@ export type Flags = {
   'crawler-url': string
   'crawler-token': string
   'exec-backend': string
+  'subscription-auth': boolean
   'exec-image': string
   'exec-cpus': number
   'exec-memory-mib': number
@@ -86,6 +93,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'crawler-url': env.SEED_AGENTS_CRAWLER_URL || '',
     'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
     'exec-backend': env.SEED_AGENTS_EXEC_BACKEND ?? 'microsandbox',
+    'subscription-auth': isTruthyFlag(env.SEED_AGENTS_SUBSCRIPTION_AUTH ?? ''),
     'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
     'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
     'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
@@ -119,6 +127,8 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
 
     if (key === 'server-port') {
       parsed[key] = parsePort(value)
+    } else if (key === 'subscription-auth') {
+      parsed[key] = isTruthyFlag(value)
     } else if (
       key === 'activity-poll-interval-ms' ||
       key === 'activity-page-size' ||
@@ -169,7 +179,13 @@ export function create(pflags: Flags): Config {
       allowNetwork: isNetworkEnabled(pflags['exec-allow-network']),
       dnsServers: parseDnsServers(pflags['exec-dns']),
     },
+    subscriptionAuth: pflags['subscription-auth'],
   }
+}
+
+/** Interprets a boolean flag value; only explicit truthy spellings enable it. */
+function isTruthyFlag(value: string): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
 }
 
 /** Parses a comma-separated DNS server list; empty falls back to the executor default resolvers. */

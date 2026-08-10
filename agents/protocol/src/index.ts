@@ -135,6 +135,10 @@ export type UnsignedAgentAction =
   | DeleteSigningIdentity
   | SetModelProvider
   | DeleteModelProvider
+  | StartProviderOAuth
+  | SubmitProviderOAuthCode
+  | GetProviderOAuthStatus
+  | CancelProviderOAuth
   | SetSecret
   | GetAgent
   | UpdateAgent
@@ -239,6 +243,40 @@ export type SetModelProvider = {
 export type DeleteModelProvider = {
   _: 'DeleteModelProvider'
   name: string
+}
+
+/**
+ * Starts an OAuth sign-in flow for a subscription-authenticated provider
+ * (currently `openai` — “Sign in with ChatGPT”). The server begins the flow and
+ * returns the browser URL to open. Completion is observed via
+ * `GetProviderOAuthStatus`; when the browser redirect cannot reach the server
+ * (remote deployments), the client submits the pasted redirect URL with
+ * `SubmitProviderOAuthCode`. Only one login per account runs at a time —
+ * starting a new one cancels the previous pending flow.
+ */
+export type StartProviderOAuth = {
+  _: 'StartProviderOAuth'
+  /** Provider type to authenticate. Only `openai` is supported today. */
+  providerType: string
+}
+
+/** Feeds a manually pasted authorization code (or full redirect URL) into a pending OAuth login. */
+export type SubmitProviderOAuthCode = {
+  _: 'SubmitProviderOAuthCode'
+  loginId: string
+  code: string
+}
+
+/** Polls a pending OAuth login started with `StartProviderOAuth`. */
+export type GetProviderOAuthStatus = {
+  _: 'GetProviderOAuthStatus'
+  loginId: string
+}
+
+/** Cancels a pending OAuth login. */
+export type CancelProviderOAuth = {
+  _: 'CancelProviderOAuth'
+  loginId: string
 }
 
 /** Stores a secret value encrypted at rest. */
@@ -556,6 +594,13 @@ export type ModelProviderConfig = {
   modelDefaults?: Record<string, unknown>
   secretRefs?: Record<string, string>
   baseUrl?: string
+  /**
+   * How requests to the provider are authenticated. `api-key` (default) uses
+   * the `secretRefs.apiKey` secret. `subscription` uses OAuth credentials in
+   * the `secretRefs.oauth` secret (OpenAI: “Sign in with ChatGPT”, requests go
+   * to the ChatGPT Codex backend under the user's ChatGPT plan).
+   */
+  authMode?: 'api-key' | 'subscription'
 }
 
 /** Public metadata returned for an agent. */
@@ -705,6 +750,14 @@ export type RedactedModelProvider = {
   name: string
   type: string
   hasSecrets: boolean
+  /** Authentication mode; absent means `api-key`. */
+  authMode?: 'api-key' | 'subscription'
+  /**
+   * Subscription-auth health. `ok` when OAuth credentials are stored and usable;
+   * `needs-login` when they are missing or a token refresh failed (expired or
+   * revoked), meaning the user must sign in again. Absent for api-key providers.
+   */
+  authStatus?: 'ok' | 'needs-login'
   createdAt: number
   updatedAt: number
 }
@@ -773,6 +826,38 @@ export type SetModelProviderResponse = {
 export type DeleteModelProviderResponse = {
   _: 'DeleteModelProviderResponse'
   name: string
+}
+
+/** Successful response for `StartProviderOAuth`. */
+export type StartProviderOAuthResponse = {
+  _: 'StartProviderOAuthResponse'
+  loginId: string
+  /** Browser URL the user must open to authorize. */
+  authUrl: string
+  /** Unix epoch ms when the pending login times out server-side. */
+  expiresAt: number
+}
+
+/** Successful response for `SubmitProviderOAuthCode`. */
+export type SubmitProviderOAuthCodeResponse = {
+  _: 'SubmitProviderOAuthCodeResponse'
+}
+
+/** Snapshot of a pending or finished OAuth login. */
+export type ProviderOAuthStatusResponse = {
+  _: 'ProviderOAuthStatusResponse'
+  loginId: string
+  status: 'pending' | 'completed' | 'failed'
+  /** Set when `completed`: name of the stored OAuth credentials secret to reference as `secretRefs.oauth`. */
+  secretName?: string
+  /** Set when `failed`. */
+  error?: string
+}
+
+/** Successful response for `CancelProviderOAuth`. */
+export type CancelProviderOAuthResponse = {
+  _: 'CancelProviderOAuthResponse'
+  loginId: string
 }
 
 /** Successful response for `ListSigningIdentities`. */
@@ -1020,6 +1105,10 @@ export type AgentResponse =
   | CreateAgentResponse
   | SetModelProviderResponse
   | DeleteModelProviderResponse
+  | StartProviderOAuthResponse
+  | SubmitProviderOAuthCodeResponse
+  | ProviderOAuthStatusResponse
+  | CancelProviderOAuthResponse
   | SetSecretResponse
   | GetAgentResponse
   | DeleteAgentResponse

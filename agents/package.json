@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "SEED_AGENTS_SEARXNG_URL=${SEED_AGENTS_SEARXNG_URL:-http://127.0.0.1:8899} SEED_AGENTS_CRAWLER_URL=${SEED_AGENTS_CRAWLER_URL:-http://127.0.0.1:11235} SEED_AGENTS_CRAWLER_TOKEN=${SEED_AGENTS_CRAWLER_TOKEN:-dev-crawl-token} bun ../scripts/watch-file-deps.ts bun --hot src/main.ts",
+    "dev": "SEED_AGENTS_SEARXNG_URL=${SEED_AGENTS_SEARXNG_URL:-http://127.0.0.1:8899} SEED_AGENTS_CRAWLER_URL=${SEED_AGENTS_CRAWLER_URL:-http://127.0.0.1:11235} SEED_AGENTS_CRAWLER_TOKEN=${SEED_AGENTS_CRAWLER_TOKEN:-dev-crawl-token} SEED_AGENTS_SUBSCRIPTION_AUTH=${SEED_AGENTS_SUBSCRIPTION_AUTH:-true} bun ../scripts/watch-file-deps.ts bun --hot src/main.ts",
     "build": "NODE_ENV=production bun build.ts",
     "build:binary": "bun scripts/build-binary.ts",
     "test:build": "bun run build && bun scripts/smoke-build.ts",
@@ -21,6 +21,7 @@
     "@seed-hypermedia/client": "file:../frontend/packages/client"
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "0.70.6",
     "@mariozechner/pi-coding-agent": "0.70.2",
     "@mozilla/readability": "0.6.0",
     "@seed-hypermedia/agents-protocol": "file:./protocol",

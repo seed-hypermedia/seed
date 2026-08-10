@@ -28,6 +28,7 @@ import {hostApi} from './app-host'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {promptingApi} from './app-prompting'
+import {providerOAuthApi} from './app-provider-oauth'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
@@ -246,6 +247,7 @@ function getRouteRefocusKey(route: NavRoute): string | null {
 export const router = t.router({
   drafts: draftsApi,
   experiments: experimentsApi,
+  providerOAuth: providerOAuthApi,
   diagnosis: diagnosisApi,
   documentCardCleanup: documentCardCleanupApi,
   welcoming: welcomingApi,
