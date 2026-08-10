@@ -43,7 +43,8 @@ import (
 
 const (
 	defaultPageSize                = 100
-	maxPageAllocBuffer             = 400 // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
+	maxPageSize                    = 2000 // Hard cap on client-requested page sizes; clients wanting more must follow next_page_token.
+	maxPageAllocBuffer             = 400  // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
 	publicOnlyListVisibilityFilter = `COALESCE(json_extract(dg.metadata, '$."$db.visibility".v'), '') IS NOT 'Private'`
 )
 
@@ -84,6 +85,20 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 	idx.SetDeriveFirstContentImage(DeriveFirstContentImage)
 
 	return srv
+}
+
+// clampPageSize applies the default page size when the client didn't set one,
+// and caps huge page sizes: clients wanting more data must follow next_page_token.
+// The proto contract explicitly allows the server to ignore the requested size.
+func (srv *Server) clampPageSize(rpc string, pageSize *int32, defaultSize int32) {
+	if *pageSize <= 0 {
+		*pageSize = defaultSize
+		return
+	}
+	if *pageSize > maxPageSize {
+		srv.log.Warn("PageSizeClamped", zap.String("rpc", rpc), zap.Int32("requestedPageSize", *pageSize))
+		*pageSize = maxPageSize
+	}
 }
 
 // DeriveFirstContentImage rebuilds a document in memory from the given changes
@@ -492,9 +507,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		}
 	}
 
-	if in.PageSize <= 0 {
-		in.PageSize = defaultPageSize
-	}
+	srv.clampPageSize("ListDirectory", &in.PageSize, defaultPageSize)
 
 	var (
 		query string
@@ -545,28 +558,32 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			paginationCmp = ">"
 		}
 
+		var outerOrder string
 		switch in.SortOptions.Attribute {
 		case documents.SortAttribute_ACTIVITY_TIME:
 			qb.Where("activity_time " + paginationCmp + " ?")
 			args.Append(cursor.ActivityTime)
 
 			qb.OrderBy("activity_time " + order)
+			outerOrder = "activity_time " + order
 		case documents.SortAttribute_NAME:
 			qb.Where("COALESCE(dg.metadata->>'name', '') " + paginationCmp + " ?")
 			args.Append(cursor.NameOrPath)
 
 			qb.OrderBy("COALESCE(dg.metadata->>'name', '') " + order)
+			outerOrder = "COALESCE(i.metadata->>'name', '') " + order
 		case documents.SortAttribute_PATH:
 			qb.Where("r.iri " + paginationCmp + " ?")
 			args.Append(cursor.NameOrPath)
 
 			qb.OrderBy("r.iri " + order)
+			outerOrder = "i.iri " + order
 		default:
 			return nil, status.Errorf(codes.InvalidArgument, "unsupported sort attribute %v", in.SortOptions.Attribute)
 		}
 
 		args.Append(in.PageSize)
-		query = qb.String()
+		query = wrapDocumentsQuery(qb, outerOrder)
 	}
 
 	out := &documents.ListDirectoryResponse{
@@ -773,7 +790,7 @@ func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []bl
 	args = append(args, len(iris))
 
 	out = make(map[blob.IRI]*documents.DocumentInfo, len(iris))
-	rows, discard, check := sqlitex.Query(conn, qb.String(), args...).All()
+	rows, discard, check := sqlitex.Query(conn, wrapDocumentsQuery(qb, ""), args...).All()
 	defer discard(&err)
 	for row := range rows {
 		info, _, err := documentInfoFromRow(lookup, row)
@@ -1172,7 +1189,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		args.Append(cursor.ActivityTime, cursor.IRI)
 
 		args.Append(in.PageSize)
-		query = qb.String()
+		query = wrapDocumentsQuery(qb, "activity_time DESC")
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -1290,7 +1307,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		args.Append(cursor.ActivityTime, cursor.IRI)
 
 		args.Append(in.PageSize)
-		query = qb.String()
+		query = wrapDocumentsQuery(qb, "activity_time DESC")
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -1332,7 +1349,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 }
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
-	q := baseSingleDocumentQuery().Where("r.iri = ?").String()
+	q := wrapDocumentsQuery(baseSingleDocumentQuery().Where("r.iri = ?"), "")
 	// The IRI is bound twice: as the comment aggregation seed, and as the row filter.
 	// 0 is the page size parameter.
 	rows, discard, check := sqlitex.Query(conn, q, iri, iri, 0).All()
@@ -1578,20 +1595,6 @@ func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
 			// instead of dg.last_activity_time, which misses comments made on the
 			// document's previous paths.
 			"MAX(COALESCE(agg.last_comment_time, 0), dg.last_alive_ref_time) AS activity_time",
-			"(SELECT 1 FROM unread_resources WHERE iri = r.iri) AS is_unread",
-			// Alive direct children of the document, so listing cards can show
-			// the subdocument count without a per-document interaction-summary
-			// request. The prefix-range comparison (everything between
-			// 'iri/' and 'iri0', '0' being the character after '/') seeks the
-			// resources.iri index instead of scanning; the instr check drops
-			// grandchildren; the innermost subquery keeps only resources whose
-			// latest generation is alive.
-			`(SELECT count(*)
-			  FROM resources cr
-			  WHERE cr.iri > r.iri || '/' AND cr.iri < r.iri || '0'
-			    AND instr(substr(cr.iri, length(r.iri) + 2), '/') = 0
-			    AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
-			) AS children_count`,
 		).
 		// CROSS JOIN forces the join order: seek resources by IRI first, then probe
 		// document_generations by its (resource, ...) primary key. Left to itself, the
@@ -1605,6 +1608,51 @@ func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
 		Where("r.id = dg.resource").
 		GroupBy("dg.resource HAVING dg.generation = MAX(dg.generation) AND dg.is_deleted = 0").
 		Limit("? + 1")
+}
+
+// qDocumentsOuterColumns are the expensive per-row columns of the documents
+// queries, evaluated in the outer layer of [wrapDocumentsQuery], i.e. only for
+// the rows that survive the inner query's LIMIT. They reference the inner
+// query's alias `i`, and they must stay the LAST columns of the statement,
+// in this order, because [documentInfoFromRow] reads columns by position.
+const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = i.iri) AS is_unread,
+    -- Alive direct children of the document, so listing cards can show
+    -- the subdocument count without a per-document interaction-summary
+    -- request. The prefix-range comparison (everything between
+    -- 'iri/' and 'iri0', '0' being the character after '/') seeks the
+    -- resources.iri index instead of scanning; the instr check drops
+    -- grandchildren; the innermost subquery keeps only resources whose
+    -- latest generation is alive.
+    (SELECT count(*)
+      FROM resources cr
+      WHERE cr.iri > i.iri || '/' AND cr.iri < i.iri || '0'
+        AND instr(substr(cr.iri, length(i.iri) + 2), '/') = 0
+        AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
+    ) AS children_count`
+
+// wrapDocumentsQuery wraps a query built by [baseDocumentsQuery] into an outer
+// SELECT that appends [qDocumentsOuterColumns]. The inner query keeps all the
+// filtering, grouping, ordering and the LIMIT, so SQLite computes the expensive
+// per-row subqueries only for the final page instead of for every candidate row
+// of the scope (a recursive listing used to pay O(scope × children)
+// document_generations probes for children_count alone, of which only
+// page_size+1 rows survived the sorter).
+//
+// orderBy repeats the inner ordering in terms of the inner query's alias `i`
+// (the wrapper alone doesn't guarantee preserving the inner order); pass ""
+// for single-row lookups.
+func wrapDocumentsQuery(qb *dqb.SelectQuery, orderBy string) string {
+	var sb strings.Builder
+	sb.WriteString("SELECT\n    i.*,\n")
+	sb.WriteString(qDocumentsOuterColumns)
+	sb.WriteString("\nFROM (\n")
+	sb.WriteString(qb.String())
+	sb.WriteString("\n) i")
+	if orderBy != "" {
+		sb.WriteString("\nORDER BY ")
+		sb.WriteString(orderBy)
+	}
+	return sb.String()
 }
 
 // documentInfoFromRow decodes a row of the base documents query.

@@ -75,9 +75,7 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 		cursor.LinkID = math.MaxInt64
 	}
 
-	if in.PageSize == 0 {
-		in.PageSize = 10
-	}
+	srv.clampPageSize("ListCitations", &in.PageSize, 10)
 
 	publicOnly, err := srv.isPublicOnlyFor(ctx, targetAccount, targetURL.Path)
 	if err != nil {
@@ -484,6 +482,12 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 	}, nil
 }
 
+// maxTargetVersionLoads bounds how many distinct target versions
+// [Server.addTargetBlockRevisions] fully loads per request. Each distinct
+// version is a whole document load + hydration, so an unbounded citation list
+// used to trigger an unbounded number of them on a single RPC.
+const maxTargetVersionLoads = 16
+
 func (srv *Server) addTargetBlockRevisions(ctx context.Context, target string, account core.Principal, path string, citations []*documents.Citation) error {
 	cache := make(map[string]map[string]string)
 	for _, citation := range citations {
@@ -498,6 +502,13 @@ func (srv *Server) addTargetBlockRevisions(ctx context.Context, target string, a
 
 		revisions, ok := cache[citation.TargetVersion]
 		if !ok {
+			// Block revisions only decorate citations (see [isUnresolvableTarget]),
+			// so past the load budget we leave them blank instead of loading
+			// yet another version of the document.
+			if len(cache) == maxTargetVersionLoads {
+				continue
+			}
+
 			var err error
 			revisions, err = srv.targetBlockRevisionsAtVersion(ctx, account, path, citation.TargetVersion)
 			if err != nil {
