@@ -217,8 +217,27 @@ for (let n = el; n; n = n.parentElement) {
 ```
 
 Behaviors that look like regressions but are **pre-existing** in this harness — always re-run them on an unpatched tree
-before blaming a change: dragging an image by its media surface does not reorder the block, Enter inside a caption does
-not exit the caption, and clicking an embed card selects nothing.
+before blaming a change: dragging an image by its media surface does not reorder the block (a native drag starts and
+drop indicators appear, but the block order is unchanged on release), and clicking an embed card selects nothing.
+
+### Enter / Shift+Enter inside an image caption
+
+Enter in a caption is handled by the ProseMirror keymap (`KeyboardShortcuts/KeyboardShortcutsExtension.ts`), not by a
+React `onKeyDown` on the caption. Expected behavior when testing it:
+
+- Enter moves the selection out of the caption to the block after the image; the caption text is unchanged and the image
+  block is never split.
+- If the next block is an **atom** (video / file / embed / web-embed), the resulting selection is a `NodeSelection` on
+  that node, not a text caret — assert `pmSelection().kind === 'NodeSelection'`. Re-wrapping
+  `TextSelection.near(...).from` in `TextSelection.create()` is the bug shape to watch for; it produces an invalid caret
+  / `RangeError` for atoms.
+- If the image is the last block, Enter appends a paragraph and puts the caret in it. This case is hard to reach
+  manually because the editor keeps an empty trailing paragraph at the end of the document; prefer the Playwright spec
+  (`e2e/tests/image-caption.e2e.ts`) for it.
+- Shift+Enter stays inside the caption and inserts a line break (caption text gains `\n`, block count unchanged).
+
+If a future change reverts the caption to a separate editing host, the symptom is Enter/typing/selection silently doing
+nothing in the caption — dump the ancestor chain (recipe above) before anything else.
 
 ## Common pitfalls
 
@@ -227,5 +246,16 @@ not exit the caption, and clicking an embed card selects nothing.
   `Emulation.setEmitTouchEventsForMouse` or a newer `Emulation` domain method.
 - The `allBlocks` fixture intentionally uses a broken web-embed URL and a draft embed; expect `Error loading embed` and
   `Draft card` content — these are not failures.
+- External `<img>` / `<figure><img><figcaption>` HTML pastes are handled by `handle-local-media-paste-plugin.ts`, which
+  `fetch`es the image URL and uploads it. In an offline box this logs
+  `Error processing pasted HTML image: TypeError: Failed to fetch` and inserts nothing — that is an environment
+  limitation, not a parsing bug. Use a `data:` URL or a locally served image if you need this path to succeed.
+- CDP `Emulation.setDeviceMetricsOverride` survives page reloads and is **not** undone when the websocket closes right
+  after `clearDeviceMetricsOverride`; keep the CDP connection open for a moment after clearing, or check
+  `window.innerWidth` to confirm the override is gone before continuing desktop tests. Chrome also rejects CDP
+  websockets with `403` unless the client suppresses the `Origin` header
+  (`websocket.create_connection(..., suppress_origin=True)`).
+- On a touch viewport, a plain long-press does not create a text selection; long-press, then move the pointer a few
+  pixels before releasing to get a real range. A double-tap on an image opens the gallery lightbox instead.
 - Do not set a `TextSelection` to block-node boundary positions (e.g. 0, 1, or 19); this produces a
   `blockChildren`/`blockNode` endpoint warning and may fail to trigger the desired UI.
