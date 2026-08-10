@@ -3763,9 +3763,23 @@ function subscriptionOAuthSecretName(providerType: string): string {
   return `${providerType}-subscription-oauth`
 }
 
-/** Static catalog of models the ChatGPT Codex backend accepts (it has no list endpoint). */
+/**
+ * Static catalog of models the ChatGPT Codex backend accepts (it has no list
+ * endpoint). Mirrors the current Codex CLI's model picker rather than pi-ai's
+ * `openai-codex` catalog, which lags behind: the backend rejects its
+ * gpt-5.1…5.3-era ids outright ("model is not supported when using Codex with
+ * a ChatGPT account") and it misses the current generation entirely.
+ */
+const SUBSCRIPTION_CODEX_MODELS: api.ProviderModelInfo[] = [
+  {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'},
+  {id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra'},
+  {id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna'},
+  {id: 'gpt-5.5', name: 'GPT-5.5'},
+  {id: 'gpt-5.4', name: 'GPT-5.4'},
+]
+
 function subscriptionProviderModels(): api.ProviderModelInfo[] {
-  return getModels(SUBSCRIPTION_PI_PROVIDER_ID).map((model) => ({id: model.id, name: model.name}))
+  return SUBSCRIPTION_CODEX_MODELS
 }
 
 /**

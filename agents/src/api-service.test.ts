@@ -809,6 +809,9 @@ describe('api service', () => {
       if (models._ !== 'ListProviderModelsResponse') throw new Error('unexpected response')
       expect(models.models.length).toBeGreaterThan(0)
       for (const model of models.models) expect(model.id.startsWith('gpt-')).toBe(true)
+      // Current Codex generation is offered; retired ids the backend rejects are not.
+      expect(models.models.map((model) => model.id)).toContain('gpt-5.6-sol')
+      expect(models.models.map((model) => model.id)).not.toContain('gpt-5.1')
     } finally {
       globalThis.fetch = originalFetch
       db.close()
