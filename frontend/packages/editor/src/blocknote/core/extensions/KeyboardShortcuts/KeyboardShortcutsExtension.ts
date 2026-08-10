@@ -438,9 +438,12 @@ export const KeyboardShortcutsExtension = Extension.create<{
             if (!dispatch) return true
 
             const afterPos = blockInfo.block.afterPos
-            const nextTextPos = TextSelection.near(state.doc.resolve(afterPos), 1).from
-            if (nextTextPos > afterPos) {
-              tr.setSelection(TextSelection.create(tr.doc, nextTextPos))
+            // `near` returns a NodeSelection when the next block is an atom
+            // (video, file, embed), so it is used as-is instead of being
+            // rewrapped into a TextSelection that has no textblock to live in.
+            const nextSelection = TextSelection.near(state.doc.resolve(afterPos), 1)
+            if (nextSelection.from > afterPos) {
+              tr.setSelection(nextSelection)
             } else {
               // The image is the last block: Enter appends a paragraph to type in.
               const {blockNode, paragraph} = state.schema.nodes

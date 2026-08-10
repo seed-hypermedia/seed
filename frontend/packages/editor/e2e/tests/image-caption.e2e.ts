@@ -197,6 +197,65 @@ test.describe('Image caption editing', () => {
     expect(blocks[imageIndex + 1].content).toEqual([{type: 'text', text: 'New paragraph', styles: {}}])
   })
 
+  test('selects the next block as a node on Enter when it has no text to hold a cursor', async ({
+    editorHelpers,
+    page,
+  }) => {
+    await page.evaluate(() => {
+      const editor = window.TEST_EDITOR?.editor
+      const firstBlock = editor?.topLevelBlocks?.[0]
+      if (!editor || !firstBlock) throw new Error('Editor not ready')
+
+      editor.insertBlocks(
+        [
+          {
+            type: 'image',
+            props: {
+              url: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=',
+              name: 'caption-before-file.gif',
+              alt: 'Caption before file image',
+            },
+            content: [],
+          },
+          {
+            type: 'file',
+            props: {url: 'ipfs://bafyfile', name: 'attachment.pdf', size: '1024'},
+            content: [],
+          },
+        ],
+        firstBlock.id,
+        'after',
+      )
+    })
+
+    const errors: string[] = []
+    page.on('pageerror', (error: Error) => errors.push(error.message))
+
+    const blocksBefore = await editorHelpers.getAllBlocks()
+
+    const caption = page.locator('.image-caption').first()
+    await expect(caption).toBeVisible()
+    await caption.click()
+    await page.keyboard.type('Caption before a file')
+    await page.keyboard.press('Enter')
+    await page.waitForTimeout(100)
+
+    const selection = await page.evaluate(() => {
+      const view = (window.TEST_EDITOR?.editor as any)?._tiptapEditor?.view
+      const {selection: sel} = view.state
+      return {isNodeSelection: Boolean((sel as any).node), nodeType: (sel as any).node?.type?.name ?? null}
+    })
+    expect(selection.isNodeSelection).toBe(true)
+    expect(selection.nodeType).toBe('file')
+    expect(errors).toEqual([])
+
+    const blocksAfter = await editorHelpers.getAllBlocks()
+    expect(blocksAfter.length).toBe(blocksBefore.length)
+    const imageIndex = blocksAfter.findIndex((block: any) => block.type === 'image')
+    expect(blocksAfter[imageIndex].content).toEqual([{type: 'text', text: 'Caption before a file', styles: {}}])
+    expect(blocksAfter[imageIndex + 1].type).toBe('file')
+  })
+
   test('moves from the caption to the next block on Enter', async ({editorHelpers, page}) => {
     await page.evaluate(() => {
       const editor = window.TEST_EDITOR?.editor
