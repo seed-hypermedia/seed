@@ -30,6 +30,10 @@ procs:
   agents:
     shell: 'cd agents && bun run dev'
     autostart: true
+    env:
+      # Dev opt-in for subscription provider sign-in; the desktop app catches the
+      # OAuth redirect on localhost:1455 for the server.
+      SEED_AGENTS_SUBSCRIPTION_AUTH: 'true'
 
   # Remix/Vite web app (:3000). Talks to the daemon the desktop app spawns (:58001).
   web:

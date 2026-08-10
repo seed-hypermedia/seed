@@ -150,6 +150,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         version: buildInfo.version,
         hmServerUrl: svc.hmServerUrl,
         webTools: svc.webToolCapabilities(),
+        subscriptionAuth: svc.subscriptionAuthEnabled,
         codeExec: codeExec.available,
         codeExecReason: codeExec.reason,
         codeExecReasonCode: codeExec.code,
@@ -501,6 +502,7 @@ async function main(): Promise<void> {
     hmServerUrl: cfg.activity.hmServerUrl,
     web: cfg.web,
     exec: cfg.exec,
+    subscriptionAuth: cfg.subscriptionAuth,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})

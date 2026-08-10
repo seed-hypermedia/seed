@@ -1,6 +1,12 @@
 import {describe, expect, test} from 'bun:test'
 import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
-import {PersistedOAuthBackend, ProviderOAuthManager, type OAuthLoginFn} from '@/provider-oauth'
+import {
+  loginOpenAICodexHeadless,
+  parseAuthorizationInput,
+  PersistedOAuthBackend,
+  ProviderOAuthManager,
+  type OAuthLoginFn,
+} from '@/provider-oauth'
 
 const CREDENTIALS: OAuthCredentials = {
   access: 'access-token',
@@ -118,6 +124,76 @@ describe('ProviderOAuthManager', () => {
     await expect(manager.start('acc-1', 'anthropic', async () => 'secret')).rejects.toThrow(
       'does not support subscription sign-in',
     )
+  })
+})
+
+describe('parseAuthorizationInput', () => {
+  test('accepts a full redirect URL, a query string, code#state, and a bare code', () => {
+    expect(parseAuthorizationInput('http://localhost:1455/auth/callback?code=abc&state=xyz')).toEqual({
+      code: 'abc',
+      state: 'xyz',
+    })
+    expect(parseAuthorizationInput('code=abc&state=xyz')).toEqual({code: 'abc', state: 'xyz'})
+    expect(parseAuthorizationInput('abc#xyz')).toEqual({code: 'abc', state: 'xyz'})
+    expect(parseAuthorizationInput('  abc  ')).toEqual({code: 'abc'})
+    expect(parseAuthorizationInput('')).toEqual({})
+  })
+})
+
+describe('loginOpenAICodexHeadless', () => {
+  /** Unsigned JWT with the ChatGPT account claim, shaped like OpenAI's access token. */
+  function fakeAccessToken(chatgptAccountId: string): string {
+    const payload = Buffer.from(
+      JSON.stringify({'https://api.openai.com/auth': {chatgpt_account_id: chatgptAccountId}}),
+    ).toString('base64url')
+    return `x.${payload}.y`
+  }
+
+  test('never binds a listener: code arrives via submit, token exchange uses the PKCE verifier', async () => {
+    const originalFetch = globalThis.fetch
+    let tokenRequest: URLSearchParams | undefined
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      tokenRequest = new URLSearchParams(String(init?.body))
+      return Response.json({access_token: fakeAccessToken('acct_42'), refresh_token: 'refresh-42', expires_in: 3600})
+    }) as typeof fetch
+    try {
+      let authUrl = ''
+      const credentials = await loginOpenAICodexHeadless({
+        onAuth: (info) => {
+          authUrl = info.url
+        },
+        onPrompt: async () => {
+          throw new Error('unused')
+        },
+        onManualCodeInput: async () => {
+          const state = new URL(authUrl).searchParams.get('state')
+          return `http://localhost:1455/auth/callback?code=the-code&state=${state}`
+        },
+      })
+      const params = new URL(authUrl).searchParams
+      expect(params.get('client_id')).toBeTruthy()
+      expect(params.get('redirect_uri')).toBe('http://localhost:1455/auth/callback')
+      expect(params.get('code_challenge_method')).toBe('S256')
+      expect(tokenRequest?.get('code')).toBe('the-code')
+      expect(tokenRequest?.get('code_verifier')).toBeTruthy()
+      expect(credentials.accountId).toBe('acct_42')
+      expect(credentials.access).toContain('.')
+      expect(credentials.refresh).toBe('refresh-42')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('rejects a submitted redirect whose state does not match', async () => {
+    await expect(
+      loginOpenAICodexHeadless({
+        onAuth: () => {},
+        onPrompt: async () => {
+          throw new Error('unused')
+        },
+        onManualCodeInput: async () => 'http://localhost:1455/auth/callback?code=abc&state=wrong',
+      }),
+    ).rejects.toThrow('State mismatch')
   })
 })
 

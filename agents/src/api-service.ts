@@ -188,6 +188,8 @@ export class Service {
    */
   readonly #sessionSpawnDepth = new Map<string, number>()
   readonly #sessionSpawnCounts = new Map<string, number>()
+  /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
+  readonly #subscriptionAuthEnabled: boolean
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -210,6 +212,8 @@ export class Service {
       exec?: CodeExecConfig
       codeExecutor?: CodeExecutor
       providerOAuth?: ProviderOAuthManager
+      /** Offer subscription (OAuth) provider sign-in. Explicit server opt-in; default off. */
+      subscriptionAuth?: boolean
     } = {},
   ) {
     this.#db = db
@@ -219,12 +223,18 @@ export class Service {
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
+    this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
    * connect their local node to it for discovery. */
   get hmServerUrl(): string {
     return this.#hmServerUrl
+  }
+
+  /** Whether subscription provider sign-in is offered, for client capability display. */
+  get subscriptionAuthEnabled(): boolean {
+    return this.#subscriptionAuthEnabled
   }
 
   /** Reports which optional web-tool backends this server has configured, for client capability display. */
@@ -771,6 +781,9 @@ export class Service {
   }
 
   async #startProviderOAuth(accountId: string, rawProviderType: string): Promise<api.StartProviderOAuthResponse> {
+    if (!this.#subscriptionAuthEnabled) {
+      throw new APIError(403, 'Subscription sign-in is not enabled on this server')
+    }
     const providerType = normalizeBoundedString(rawProviderType, 'Provider type', MAX_NAME_BYTES)
     if (!(OAUTH_PROVIDER_TYPES as readonly string[]).includes(providerType)) {
       throw new APIError(400, `Provider type does not support subscription sign-in: ${providerType}`)

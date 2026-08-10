@@ -3,6 +3,7 @@ import {
   DEFAULT_AGENT_SERVER_URL,
   isLocalAgentServer,
   prefetchAgentDetail,
+  useAgentServerHealth,
   useCreateAgent,
   useCreateSigningIdentity,
   useDeleteModelProvider,
@@ -56,6 +57,7 @@ export function ModelProvidersDialog({
 }) {
   const providers = useModelProviders(input.serverUrl, input.selectedAccountId)
   const deleteProvider = useDeleteModelProvider(input.serverUrl, input.selectedAccountId)
+  const health = useAgentServerHealth(input.serverUrl)
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
 
   async function handleDeleteProvider(name: string) {
@@ -109,12 +111,18 @@ export function ModelProvidersDialog({
                 <SizableText size="sm" className="text-destructive">
                   Sign-in expired — sign in again to keep using this provider.
                 </SizableText>
-                <SubscriptionSignIn
-                  serverUrl={input.serverUrl}
-                  selectedAccountId={input.selectedAccountId}
-                  providerType={provider.type as ModelProviderType}
-                  onConnected={() => toast.success('Signed in again')}
-                />
+                {health.data?.subscriptionAuth === true ? (
+                  <SubscriptionSignIn
+                    serverUrl={input.serverUrl}
+                    selectedAccountId={input.selectedAccountId}
+                    providerType={provider.type as ModelProviderType}
+                    onConnected={() => toast.success('Signed in again')}
+                  />
+                ) : (
+                  <SizableText size="sm" color="muted">
+                    This server no longer offers subscription sign-in. Delete this provider and use an API key instead.
+                  </SizableText>
+                )}
               </div>
             ) : null}
           </div>
@@ -175,6 +183,7 @@ function AddModelProviderForm({
   submitLabel?: string
 }) {
   const saveProvider = useSaveModelProvider(serverUrl, selectedAccountId)
+  const health = useAgentServerHealth(serverUrl)
   const [type, setType] = useState<ModelProviderType>('openai')
   const [name, setName] = useState(providerLabel('openai'))
   const [apiKey, setApiKey] = useState('')
@@ -183,7 +192,11 @@ function AddModelProviderForm({
   const [oauthSecretName, setOauthSecretName] = useState<string | null>(null)
 
   const metadata = PROVIDER_METADATA[type]
-  const subscriptionMode = authMode === 'subscription' && Boolean(metadata.subscription)
+  // Subscription sign-in is offered only when this server has explicitly
+  // enabled it (health.subscriptionAuth) — the flow needs this desktop app to
+  // catch the provider's localhost redirect on the server's behalf.
+  const subscriptionAvailable = Boolean(metadata.subscription) && health.data?.subscriptionAuth === true
+  const subscriptionMode = authMode === 'subscription' && subscriptionAvailable
 
   useEffect(() => {
     setName(providerLabel(type))
@@ -251,7 +264,7 @@ function AddModelProviderForm({
         </SizableText>
         <Input value={name} onChange={(event) => setName(event.target.value)} placeholder={metadata.label} />
       </label>
-      {metadata.subscription ? (
+      {metadata.subscription && subscriptionAvailable ? (
         <div className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
             Authentication

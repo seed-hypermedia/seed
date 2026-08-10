@@ -6,6 +6,7 @@ import {
   useSubmitProviderOAuthCode,
 } from '@/models/agents'
 import {useOpenUrl} from '@/open-url'
+import {client} from '@/trpc'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Spinner} from '@shm/ui/spinner'
@@ -19,9 +20,11 @@ import {PROVIDER_METADATA} from './provider-registry'
 /**
  * Drives a subscription OAuth sign-in ("Sign in with ChatGPT") against the
  * agent server: starts the flow, opens the provider's authorization page in the
- * system browser, polls for completion, and offers a paste-the-redirect-URL
- * fallback for servers the browser redirect cannot reach (remote deployments —
- * the OAuth client only redirects to localhost).
+ * system browser, and polls for completion. The OAuth client redirects to
+ * `localhost:1455` — this machine, not the (possibly remote) agent server — so
+ * the desktop main process listens there, catches the redirect, and this
+ * component forwards it to the server via `SubmitProviderOAuthCode`. A
+ * paste-the-redirect-URL fallback covers the port being taken.
  *
  * Calls `onConnected` with the server-side credentials secret name once the
  * sign-in completes.
@@ -60,12 +63,44 @@ export function SubscriptionSignIn({
     onConnected(data.secretName)
   }, [status.data, onConnected])
 
+  // While a sign-in is pending, poll the main process for the browser redirect
+  // it caught on localhost:1455 and forward it to the agent server. The
+  // submittedRef guards against re-submitting the same redirect across polls.
+  const pending = Boolean(login) && (!status.data || status.data.status === 'pending')
+  const submittedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!pending || !login) return
+    const interval = setInterval(async () => {
+      try {
+        const captured = await client.providerOAuth.capturedCallback.query()
+        if (!captured.url || submittedRef.current === captured.url) return
+        submittedRef.current = captured.url
+        await submitCode.mutateAsync({loginId: login.loginId, code: captured.url})
+        void client.providerOAuth.stopCallback.mutate()
+      } catch {
+        // Poll again; persistent failures surface through the server-side status.
+      }
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [pending, login?.loginId])
+
+  // The listener must not outlive the sign-in UI.
+  useEffect(() => {
+    if (pending) return
+    void client.providerOAuth.stopCallback.mutate()
+  }, [pending])
+  useEffect(() => () => void client.providerOAuth.stopCallback.mutate(), [])
+
   if (!subscription) return null
 
   async function handleStart() {
     try {
       const started = await startOAuth.mutateAsync(providerType)
       setPastedCode('')
+      submittedRef.current = null
+      // Only accept the redirect belonging to this login; the state param ties them together.
+      const state = new URL(started.authUrl).searchParams.get('state')
+      await client.providerOAuth.startCallback.mutate({state}).catch(() => ({listening: false}))
       setLogin({loginId: started.loginId, authUrl: started.authUrl})
       openUrl(started.authUrl)
     } catch (error) {
@@ -115,7 +150,7 @@ export function SubscriptionSignIn({
         </Button>
         <div className="flex flex-col gap-1">
           <SizableText size="sm" color="muted">
-            If your browser cannot reach this server after signing in (a “can’t connect” page on localhost), paste that
+            Sign-in should finish here automatically. If your browser shows a “can’t connect” page instead, paste that
             page's full URL or the code here:
           </SizableText>
           <div className="flex gap-2">

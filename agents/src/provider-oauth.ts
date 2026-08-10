@@ -1,25 +1,23 @@
 /**
  * Server-side OAuth login flows for subscription-authenticated model providers.
  *
- * Currently one flow exists: OpenAI "Sign in with ChatGPT" (the Codex CLI
- * OAuth client), implemented by pi-ai's `loginOpenAICodex`. That helper runs a
- * PKCE authorization-code flow against auth.openai.com and races two ways of
- * receiving the authorization code:
- *
- *  - a loopback HTTP listener on 127.0.0.1:1455 (`http://localhost:1455/auth/callback`
- *    is the registered redirect URI), which works when the agents server runs on
- *    the same machine as the user's browser (the desktop-spawned server), and
- *  - manually submitted input (the user pastes the redirect URL from the stuck
- *    browser tab), which covers remote servers where the loopback redirect
- *    cannot reach us.
+ * Currently one flow exists: OpenAI "Sign in with ChatGPT" (the Codex CLI OAuth
+ * client). The client's registered redirect URI is fixed at
+ * `http://localhost:1455/auth/callback` — localhost of the machine running the
+ * user's *browser*, which is not the agents server for remote deployments. The
+ * server therefore never binds a loopback listener: it builds the PKCE
+ * authorization URL, hands it to the client, and waits for the authorization
+ * code to come back through the signed `SubmitProviderOAuthCode` action. The
+ * desktop app catches the browser redirect on the user's own 1455 and submits
+ * the redirect URL; users without that helper paste the URL manually.
  *
  * This module owns the pending-login state machine between the signed API
  * actions (`StartProviderOAuth` / `SubmitProviderOAuthCode` /
- * `GetProviderOAuthStatus` / `CancelProviderOAuth`) and that login helper. It is
+ * `GetProviderOAuthStatus` / `CancelProviderOAuth`) and the login flow. It is
  * storage-agnostic: the caller persists the resulting credentials and returns
  * the secret name clients should reference.
  */
-import {loginOpenAICodex, type OAuthCredentials} from '@mariozechner/pi-ai/oauth'
+import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
 import type {AuthStorageBackend} from '@mariozechner/pi-coding-agent'
 
 export type OAuthLoginFn = (options: {
@@ -30,6 +28,130 @@ export type OAuthLoginFn = (options: {
 
 /** Provider types that support subscription (OAuth) authentication. */
 export const OAUTH_PROVIDER_TYPES = ['openai'] as const
+
+// OpenAI "Sign in with ChatGPT" uses the official Codex CLI OAuth client; the
+// ChatGPT-subscription entitlement is tied to this client id, and its only
+// registered redirect URI is localhost:1455 (the user's machine, not ours).
+const OPENAI_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
+const OPENAI_AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize'
+const OPENAI_TOKEN_URL = 'https://auth.openai.com/oauth/token'
+const OPENAI_REDIRECT_URI = 'http://localhost:1455/auth/callback'
+const OPENAI_SCOPE = 'openid profile email offline_access'
+const OPENAI_JWT_CLAIM_PATH = 'https://api.openai.com/auth'
+
+function base64url(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64url')
+}
+
+function randomBytes(length: number): Uint8Array {
+  const bytes = new Uint8Array(length)
+  crypto.getRandomValues(bytes)
+  return bytes
+}
+
+/** Accepts a full redirect URL, a query string, `code#state`, or a bare code. */
+export function parseAuthorizationInput(input: string): {code?: string; state?: string} {
+  const value = input.trim()
+  if (!value) return {}
+  try {
+    const url = new URL(value)
+    return {
+      code: url.searchParams.get('code') ?? undefined,
+      state: url.searchParams.get('state') ?? undefined,
+    }
+  } catch {
+    // not a URL
+  }
+  if (value.includes('#')) {
+    const [code, state] = value.split('#', 2)
+    return {code, state}
+  }
+  if (value.includes('code=')) {
+    const params = new URLSearchParams(value)
+    return {
+      code: params.get('code') ?? undefined,
+      state: params.get('state') ?? undefined,
+    }
+  }
+  return {code: value}
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    return JSON.parse(Buffer.from(parts[1] ?? '', 'base64url').toString('utf8'))
+  } catch {
+    return null
+  }
+}
+
+function chatgptAccountId(accessToken: string): string | null {
+  const payload = decodeJwtPayload(accessToken)
+  const auth = payload?.[OPENAI_JWT_CLAIM_PATH] as {chatgpt_account_id?: unknown} | undefined
+  const accountId = auth?.chatgpt_account_id
+  return typeof accountId === 'string' && accountId.length > 0 ? accountId : null
+}
+
+/**
+ * OpenAI Codex PKCE login without a loopback listener: announce the
+ * authorization URL, wait for the redirect URL / code to arrive through
+ * `SubmitProviderOAuthCode`, then exchange it for tokens. The credential shape
+ * matches pi-ai's `OAuthCredentials`, so Pi's openai-codex provider and its
+ * token refresh consume the result unchanged.
+ */
+export const loginOpenAICodexHeadless: OAuthLoginFn = async (options) => {
+  const verifier = base64url(randomBytes(32))
+  const challenge = base64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))))
+  const state = Buffer.from(randomBytes(16)).toString('hex')
+
+  const url = new URL(OPENAI_AUTHORIZE_URL)
+  url.searchParams.set('response_type', 'code')
+  url.searchParams.set('client_id', OPENAI_CLIENT_ID)
+  url.searchParams.set('redirect_uri', OPENAI_REDIRECT_URI)
+  url.searchParams.set('scope', OPENAI_SCOPE)
+  url.searchParams.set('code_challenge', challenge)
+  url.searchParams.set('code_challenge_method', 'S256')
+  url.searchParams.set('state', state)
+  url.searchParams.set('id_token_add_organizations', 'true')
+  url.searchParams.set('codex_cli_simplified_flow', 'true')
+  url.searchParams.set('originator', 'pi')
+  options.onAuth({url: url.toString(), instructions: 'Complete the sign-in in your browser to finish.'})
+
+  const input = await options.onManualCodeInput()
+  const parsed = parseAuthorizationInput(input)
+  if (parsed.state && parsed.state !== state) throw new Error('State mismatch')
+  if (!parsed.code) throw new Error('Missing authorization code')
+
+  const response = await fetch(OPENAI_TOKEN_URL, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: OPENAI_CLIENT_ID,
+      code: parsed.code,
+      code_verifier: verifier,
+      redirect_uri: OPENAI_REDIRECT_URI,
+    }),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    console.error('[agents/oauth] openai code->token failed:', response.status, text)
+    throw new Error('Token exchange failed')
+  }
+  const json = (await response.json()) as {access_token?: string; refresh_token?: string; expires_in?: number}
+  if (!json.access_token || !json.refresh_token || typeof json.expires_in !== 'number') {
+    throw new Error('Token response missing fields')
+  }
+  const accountId = chatgptAccountId(json.access_token)
+  if (!accountId) throw new Error('Failed to extract accountId from token')
+  return {
+    access: json.access_token,
+    refresh: json.refresh_token,
+    expires: Date.now() + json.expires_in * 1000,
+    accountId,
+  }
+}
 
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000
 /** Finished logins stay queryable for this long so a polling client sees the outcome. */
@@ -63,7 +185,7 @@ export class ProviderOAuthManager {
 
   constructor(loginFns?: Partial<Record<string, OAuthLoginFn>>) {
     this.#loginFns = {
-      openai: (options) => loginOpenAICodex(options),
+      openai: loginOpenAICodexHeadless,
       ...loginFns,
     }
   }
@@ -71,8 +193,7 @@ export class ProviderOAuthManager {
   /**
    * Starts a login flow for the account. Resolves once the authorization URL is
    * known (the browser can then be opened). Any previous pending login for the
-   * same account is canceled — the loopback listener is a single shared port,
-   * and one login per account is all the UI can drive anyway.
+   * same account is canceled — one login per account is all the UI can drive.
    */
   async start(
     accountId: string,
@@ -174,9 +295,9 @@ export class ProviderOAuthManager {
     login.abortError = new Error(reason)
     const waiters = login.codeWaiters.splice(0)
     for (const waiter of waiters) waiter.reject(login.abortError)
-    // If the flow has not asked for a code yet it is blocked on the loopback
-    // listener; mark the login failed now so clients see the outcome immediately.
-    // The eventual flow rejection is absorbed by #finish's status guard.
+    // If the flow has not asked for a code yet, mark the login failed now so
+    // clients see the outcome immediately. The eventual flow rejection is
+    // absorbed by #finish's status guard.
     this.#finish(login, {status: 'failed', error: reason})
   }
 

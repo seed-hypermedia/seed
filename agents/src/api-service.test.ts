@@ -714,6 +714,7 @@ describe('api service', () => {
     try {
       const account = blobs.generateNobleKeyPair()
       const svc = new apisvc.Service(db, dataDir, {
+        subscriptionAuth: true,
         providerOAuth: new ProviderOAuthManager({
           openai: async ({onAuth, onManualCodeInput}) => {
             onAuth({url: 'https://auth.openai.com/oauth/authorize?client_id=test'})
@@ -819,7 +820,7 @@ describe('api service', () => {
     const {db, dataDir, cleanup} = createTestState()
     try {
       const account = blobs.generateNobleKeyPair()
-      const svc = new apisvc.Service(db, dataDir)
+      const svc = new apisvc.Service(db, dataDir, {subscriptionAuth: true})
       await expect(
         svc.message(
           await apisvc.createSignedEnvelope(account, {
@@ -849,6 +850,24 @@ describe('api service', () => {
           }),
         ),
       ).rejects.toThrow('does not support subscription sign-in')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('subscription sign-in is rejected unless the server explicitly enables it', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'StartProviderOAuth', providerType: 'openai'},
+          }),
+        ),
+      ).rejects.toThrow('not enabled on this server')
     } finally {
       db.close()
       cleanup()

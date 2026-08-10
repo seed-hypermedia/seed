@@ -85,6 +85,8 @@ export type AgentServerHealth = {
   hmServerUrl?: string
   /** Optional capability flags for tools that need server-side backends. Absent on older servers. */
   webTools?: {search: boolean; readBrowser: boolean}
+  /** Whether the server offers subscription (OAuth) provider sign-in. Absent on older servers. */
+  subscriptionAuth?: boolean
   /** Whether the server offers sandboxed code execution (execute_code). */
   codeExec?: boolean
   /** Human-readable explanation when codeExec is false. */
