@@ -28,6 +28,20 @@ describe('listAllPages', () => {
     expect(fetchPage).toHaveBeenCalledTimes(1)
   })
 
+  it('stops after maxPages round-trips even when more pages exist', async () => {
+    const pages: Record<string, {items: number[]; nextPageToken: string}> = {
+      '': {items: [1, 2], nextPageToken: 'p2'},
+      p2: {items: [3, 4], nextPageToken: 'p3'},
+      p3: {items: [5], nextPageToken: ''},
+    }
+    const fetchPage = vi.fn(async (token: string) => pages[token]!)
+
+    const items = await listAllPages(fetchPage, (r) => r, {maxPages: 2})
+
+    expect(items).toEqual([1, 2, 3, 4])
+    expect(fetchPage).toHaveBeenCalledTimes(2)
+  })
+
   it('stops at the safety cap even if the server keeps returning tokens', async () => {
     const page = Array.from({length: LIST_PAGE_SIZE}, (_, i) => i)
     const fetchPage = vi.fn(async () => ({items: page, nextPageToken: 'more'}))

@@ -14,6 +14,13 @@ export const ListCitations: HMRequestImplementation<HMListCitationsRequest> = {
           pageToken,
         }),
       (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
+      // Bounded on purpose: each ListCitations round-trip costs the daemon
+      // 0.3-2.5s regardless of page size, so a heavily-cited document must not
+      // fan out into an unbounded chain of them (2026-08-11 outage; see
+      // docs/daemon-saturation-incident.md). Documents with more than
+      // LIST_PAGE_SIZE citations show a truncated list until the daemon can
+      // page cheaply.
+      {maxPages: 1},
     )
     return {
       citations: citations.map((c) => c.toJson({emitDefaultValues: true, enumAsInteger: false}) as any),
