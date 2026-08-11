@@ -43,7 +43,7 @@
     "katex": "0.16.9",
     "lowlight": "3.1.0",
     "multiformats": "^13.4.1",
-    "nanoid": "^5.1.6",
+    "nanoid": "^5.1.16",
     "react-tweet": "3.2.0",
     "superjson": "2.2.1",
     "zod-to-json-schema": "3.25.1",
