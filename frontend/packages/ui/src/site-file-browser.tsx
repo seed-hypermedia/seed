@@ -120,7 +120,7 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate}: SiteFile
                       type="button"
                       aria-current={isActive ? 'page' : undefined}
                       onClick={() => onNavigate(doc.id)}
-                      className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-xs outline-none focus-visible:ring-2"
+                      className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
                       {doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-3 shrink-0" />

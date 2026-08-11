@@ -55,7 +55,10 @@ describe('SiteFileBrowser', () => {
     expect(caretButton?.className).toContain('size-6')
     expect(caretButton?.className).toContain('p-0')
     expect(caretButton?.className).not.toContain('min-w-8')
-    expect(container.querySelector('[aria-current="page"]')?.className).toContain('h-6')
+    const activeDocumentButton = container.querySelector('[aria-current="page"]')
+    expect(activeDocumentButton?.className).toContain('h-6')
+    expect(activeDocumentButton?.className).toContain('text-sm')
+    expect(activeDocumentButton?.className).not.toContain('text-xs')
   })
 
   it('shows title matches as a flat list and navigates', () => {
