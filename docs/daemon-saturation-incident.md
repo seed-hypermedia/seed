@@ -39,8 +39,8 @@ every time.
 
 ### State of the host after cleanup
 
-1. **`notify` is still stopped** (stopped deliberately by Eric 08:55 UTC; original exit 137 unexplained). Notification
-   emails are not delivered until it is restarted. Left for Eric.
+1. **`notify` is back up** — watchtower's first post-incident session (10:59 UTC) updated it to the freshly released
+   image and started it; serving 200s, zero restarts. The original 08:55 exit 137 remains unexplained.
 2. **Traefik still carries incident config** — bot-UA block and per-IP limits across 34 routers (both measured to have
    zero CPU effect). Original config preserved at `/home/ubuntu/.reverse-proxy/config.yml.pre-incident-20260811`. Left
    for Eric to revert when convenient.
