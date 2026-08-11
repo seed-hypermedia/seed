@@ -1,12 +1,17 @@
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import {
+  callableToolRegistry,
+  getSeedTool,
   isReasoningLevel,
   modelReasoningSupport,
   modelSupportsImageInput,
   normalizeSeedToolName,
   seedAssistantSystemPrompt,
   seedToolRegistry,
+  seedVerbRegistry,
+  toolContractMarkdown,
+  toolSummaryLine,
   type JsonSchema,
   type SeedToolMetadata,
 } from '@seed-hypermedia/agents-protocol'
@@ -218,7 +223,7 @@ type RunningSession = {
   completeAfterTools?: boolean
 }
 
-/** Validated sub_session tool input, embedded in the child run's `input` so the run is self-describing. */
+/** Validated delegate tool input for a model child, embedded in the child run's `input` so the run is self-describing. */
 type SubSessionSpec = {
   title?: string
   prompt?: string
@@ -228,38 +233,53 @@ type SubSessionSpec = {
   output?: JsonSchema
 }
 
-/** Tools a workflow's ctx.call may reach: everything session-independent the agent has enabled. */
-const WORKFLOW_CALLABLE_TOOLS = new Set(
-  [
-    seedToolRegistry.search,
-    seedToolRegistry.read,
-    seedToolRegistry.list_activity_feed,
-    seedToolRegistry.web_search,
-    seedToolRegistry.web_read,
-    seedToolRegistry.write,
-    seedToolRegistry.memory_list,
-    seedToolRegistry.memory_read,
-    seedToolRegistry.memory_write,
-    seedToolRegistry.memory_delete,
-    seedToolRegistry.memory_download,
-    seedToolRegistry.ipfs_read,
-    seedToolRegistry.ipfs_write,
-    seedToolRegistry.memory_publish_document,
-    seedToolRegistry.execute_code,
-  ].map((tool) => tool.name),
-)
+/**
+ * Verbs and callable tools a script's ctx.call may reach: everything session-independent.
+ * (delegate/plan have dedicated ctx.* forms; return_result is child-turn-only.)
+ */
+const WORKFLOW_CALLABLE_TOOLS = new Set([
+  seedVerbRegistry.read.name,
+  seedVerbRegistry.write.name,
+  ...Object.keys(callableToolRegistry),
+])
+
+/**
+ * The callable tools an agent may dispatch through `call`. `definition.tools` narrows the set
+ * (unknown and legacy names are ignored); omitting it grants every service-runtime callable.
+ * Execute drops out silently when this host cannot run sandboxes.
+ */
+/** Names of every callable tool the agent service can dispatch (excludes assistant-only tools). */
+function serviceCallableNames(): string[] {
+  return Object.values(callableToolRegistry as Record<string, SeedToolMetadata>)
+    .filter((tool) => tool.runtimes.includes('agent-service'))
+    .map((tool) => tool.name)
+}
+
+function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
+  const serviceCallables = serviceCallableNames()
+  const requested = definition.tools?.map(normalizeSeedToolName)
+  const enabled =
+    requested === undefined ? serviceCallables : serviceCallables.filter((name) => requested.includes(name))
+  return enabled.filter((name) => name !== callableToolRegistry.execute.name || codeExecAvailable)
+}
 
 /** Validates sub_session/ctx.agent input into the stored spec shape (shared by chat and workflows). */
 export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
   const input = isPlainRecord(raw) ? raw : {}
-  // Models often write the task brief into `prompt`. A prompt with no input is meaningless as a
+  // The model-facing field is `brief`; scripts' ctx.delegate may still pass `input`. Normalize to
+  // the stored `input` slot so child runs stay self-describing.
+  if (input.input === undefined && input.brief !== undefined) {
+    input.input = input.brief
+    delete input.brief
+  }
+  // Models often write the task brief into `prompt`. A prompt with no brief is meaningless as a
   // bare system prompt, so read it as the brief instead of bouncing the call for a retry.
   if (input.input === undefined && typeof input.prompt === 'string' && input.prompt) {
     input.input = input.prompt
     delete input.prompt
   }
   if (input.input === undefined) {
-    throw new APIError(400, 'A sub-session requires an `input` task brief (human-readable markdown)')
+    throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
   }
   if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
     throw new APIError(400, 'Provide either prompt or agentId, not both')
@@ -2184,8 +2204,11 @@ export class Service {
     const spec = (run.input as {spec?: SubSessionSpec} | null)?.spec
     if (spec?.prompt) definition.systemPrompt = spec.prompt
     if (spec?.tools) {
-      const base = definition.tools ?? [seedToolRegistry.read.name]
-      definition.tools = base.filter((tool) => spec.tools!.includes(normalizeSeedToolName(tool)))
+      // Undefined parent tools means "all callables" — narrowing must intersect against that
+      // full set, not a stale minimal default, or the child loses tools the parent granted.
+      const base = (definition.tools ?? serviceCallableNames()).map(normalizeSeedToolName)
+      const requested = spec.tools.map(normalizeSeedToolName)
+      definition.tools = base.filter((tool) => requested.includes(tool))
     }
     this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, sessionId)
     const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
@@ -2786,7 +2809,7 @@ export class Service {
   #resolveSubSessionResult(child: runs.RunRecord, parentToolCallId: string, parentToolName?: string): void {
     const parent = child.parentRunId ? runs.getRun(this.#db, child.accountId, child.parentRunId) : null
     if (!parent || parent.kind !== 'agent' || !parent.sessionId) return
-    const toolName = parentToolName ?? seedToolRegistry.sub_session.name
+    const toolName = parentToolName ?? seedVerbRegistry.delegate.name
     let result: Record<string, unknown>
     if (child.status === 'succeeded') {
       result = {status: 'succeeded', runId: child.id, sessionId: child.sessionId, output: child.output ?? null}
@@ -2899,7 +2922,7 @@ export class Service {
       title,
       sourceCid,
       sourceText: source,
-      input: {input: input.input ?? null, parentToolCallId: toolCallId, parentToolName: 'run_workflow'},
+      input: {input: input.input ?? null, parentToolCallId: toolCallId, parentToolName: seedVerbRegistry.delegate.name},
       queue: 'background',
       maxAttempts: 1,
     })
@@ -2992,14 +3015,12 @@ export class Service {
     if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found'}}
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const codeExecAvailable = (await this.#codeExec.availability()).available
-    const allowedTools = new Set(
-      (definition.tools === undefined ? [seedToolRegistry.read.name] : definition.tools)
-        .map(normalizeSeedToolName)
-        .filter(
-          (tool) =>
-            WORKFLOW_CALLABLE_TOOLS.has(tool) && (tool !== seedToolRegistry.execute_code.name || codeExecAvailable),
-        ),
-    )
+    // Scripts always hold the read/write verbs; definition.tools narrows only the callable set.
+    const allowedTools = new Set([
+      seedVerbRegistry.read.name,
+      seedVerbRegistry.write.name,
+      ...enabledCallableTools(definition, codeExecAvailable),
+    ])
     const stateDir = this.#agentMemoryStateDir(run.accountId, run.agentId)
     const partialId = crypto.randomUUID()
     const emitRunPartial = (patch: {
@@ -3015,7 +3036,7 @@ export class Service {
         patch,
       })
     }
-    const toolDefs = createAgentServicePiTools({
+    const piToolContext: AgentServicePiToolContext = {
       db: this.#db,
       accountId: run.accountId,
       agentId: run.agentId,
@@ -3043,13 +3064,12 @@ export class Service {
             outputTail: progress.outputTail,
           },
         }),
-      setSessionTitle: () => {
-        throw new APIError(400, 'set_session_title is not available in workflows')
-      },
+      callableTools: enabledCallableTools(definition, codeExecAvailable),
       startSession: () => {
-        throw new APIError(400, 'start_session is not available in workflows; use ctx.agent')
+        throw new APIError(400, 'Detached delegation is not available in scripts; use ctx.delegate')
       },
-    })
+    }
+    const toolDefs = createAgentServicePiTools(piToolContext)
     const toolsByName = new Map(toolDefs.map((def) => [def.name, def]))
 
     // Journal adapter with caps, backed by run_journal and streamed to runs/<root> subscribers.
@@ -3114,13 +3134,8 @@ export class Service {
             error.code = 'unknown-tool'
             throw error
           }
-          const def = toolsByName.get(normalizeSeedToolName(tool))
-          if (!def) {
-            const error = new Error(`Tool "${tool}" has no workflow executor`) as Error & {code: string}
-            error.code = 'unknown-tool'
-            throw error
-          }
-          const metadata = seedToolRegistry[normalizeSeedToolName(tool) as keyof typeof seedToolRegistry]
+          const name = normalizeSeedToolName(tool)
+          const metadata = getSeedTool(name)
           if (metadata) {
             const inputErrors = validateJsonSchemaValue(metadata.inputSchema, input ?? {})
             if (inputErrors.length > 0) {
@@ -3133,13 +3148,32 @@ export class Service {
           }
           toolCallCounter += 1
           emitRunPartial({activity: {phase: 'tool', toolName: tool}})
-          const execute = def.execute as unknown as (
-            toolCallId: string,
-            params: unknown,
-          ) => Promise<{details?: unknown}>
-          const result = await execute(`wf-${run.id}-${toolCallCounter}`, input)
-          emitRunPartial({activity: {phase: 'thinking'}})
-          return result.details ?? null
+          try {
+            // Callable tools (search, web_search, execute, …) have no standalone provider tool —
+            // scripts reach them through the same call-verb dispatch the model uses.
+            if (piToolContext.callableTools.includes(name)) {
+              const result = await executeCallVerb(
+                piToolContext,
+                {tool: name, input},
+                `wf-${run.id}-${toolCallCounter}`,
+              )
+              return result
+            }
+            const def = toolsByName.get(name)
+            if (!def) {
+              const error = new Error(`Tool "${tool}" has no workflow executor`) as Error & {code: string}
+              error.code = 'unknown-tool'
+              throw error
+            }
+            const execute = def.execute as unknown as (
+              toolCallId: string,
+              params: unknown,
+            ) => Promise<{details?: unknown}>
+            const result = await execute(`wf-${run.id}-${toolCallCounter}`, input)
+            return result.details ?? null
+          } finally {
+            emitRunPartial({activity: {phase: 'thinking'}})
+          }
         },
         spawnAgent: (spec, stepLabel) => this.#spawnWorkflowChildAgent(run, spec, stepLabel),
         awaitChild: async (childRunId): Promise<WorkflowChildResolution> => {
@@ -3294,33 +3328,21 @@ export class Service {
     )
     const sharedPrompt = seedAssistantSystemPrompt({
       currentTime: new Date().toISOString(),
-      includeTitleToolInstruction: true,
     })
-    const definitionTools = (definition.tools ?? []).map(normalizeSeedToolName)
-    const memoryToolNames = [
-      seedToolRegistry.memory_list.name,
-      seedToolRegistry.memory_read.name,
-      seedToolRegistry.memory_write.name,
-      seedToolRegistry.memory_delete.name,
-      seedToolRegistry.memory_download.name,
-      seedToolRegistry.ipfs_read.name,
-      seedToolRegistry.ipfs_write.name,
-      seedToolRegistry.memory_publish_document.name,
-    ]
-    const memoryEnabled = definitionTools.some((tool) => memoryToolNames.includes(tool))
-    const memoryPrompt = memoryEnabled
-      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory. Use ipfs_read to fetch an ipfs:// URL into memory, and ipfs_write to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content. Use memory_publish_document to publish a markdown memory file as a Seed Hypermedia document: frontmatter becomes metadata and relative image links are resolved from memory automatically. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can open them with view_attachment or save one with attachment_to_memory.' +
-        (stateDir ? memoryListingPrompt(stateDir) : '')
+    const memoryPrompt =
+      '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL you can reference from Hypermedia content. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.' +
+      (stateDir ? memoryListingPrompt(stateDir) : '')
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    const callables = enabledCallableTools(definition, codeExecAvailable)
+    const toolsIndex = callables.length
+      ? `\n\n<tools>\nCallable with the call verb (read ~/tools/<name> for a full contract):\n${callables
+          .map((name) => {
+            const tool = getSeedTool(name)
+            return tool ? `- ${toolSummaryLine(tool)}` : `- ${name}`
+          })
+          .join('\n')}\n</tools>`
       : ''
-    const execEnabled =
-      (definition.tools ?? []).includes(seedToolRegistry.execute_code.name) &&
-      (await this.#codeExec.availability()).available
-    const execPrompt = execEnabled
-      ? '\n\nYou can run Python or shell code with the execute_code tool. Code runs in an isolated sandbox with your memory mounted at /workspace (the working directory), so reading and writing files there directly reads and writes your persistent memory. Each call is a fresh sandbox: no variables, installed packages, or processes persist between calls — save anything durable as files. The sandbox has internet access, so you can install packages and fetch data, but it cannot reach private/local network addresses. To keep Python packages across calls, install them into the workspace, e.g. `pip install --target /workspace/pylibs <pkg>`, then add that directory to sys.path in later calls.'
-      : ''
-    const startSessionPrompt =
-      '\n\nYou can start a new independent session of yourself with the start_session tool, providing its first message; it begins running immediately in the background. Use it to delegate follow-up or parallel work. The new session does not share this conversation and you will not receive its results, so include all needed context in the prompt.'
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${execPrompt}${startSessionPrompt}`
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${toolsIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -3342,7 +3364,7 @@ export class Service {
     return `${basePrompt}\n\n<available_signing_identities>\n${safeJSONStringify(
       identities,
       2,
-    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nFor write tool document and draft creation, set the visible Seed document title explicitly with input.name (or input.title) and include markdown body in input.content/body/text. A markdown # heading is content only; do not rely on it to set the document title. Example: {"command":"document.create","signer":{"publicKey":"..."},"input":{"name":"Test Document","path":"test-document","content":"# Test Document\\n\\nBody text.","format":"markdown"}}.\n\nDo not create a document at a nested path unless its parent path already exists as a published document. For example, before creating path "/team/notes" you must have already created the document at "/team". Create parent documents first; top-level documents (directly under the account) are always allowed.\n\nFor write tool document.move, pass the existing document as input.source/sourceId/id and either input.destination as a full hm:// target or input.path as the new path on the same account. To move a document to the account home/root, use input.path = "/".`
+    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nTo publish a hypermedia document: write {address: "hm://<account>/<path>", content: "<markdown body>", options: {title: "Visible Title", signer: {publicKey: "..."}}}. The title option sets the visible document title — a markdown # heading is body content only. Do not create a document at a nested path unless its parent path already exists as a published document (create "/team" before "/team/notes"; top-level paths are always allowed). To move a document, write the existing hm:// address with options {action: "move", toPath: "/new-path"} ("/" moves it to the account home).`
   }
 
   /**
@@ -3474,9 +3496,9 @@ export class Service {
               outputTail: progress.outputTail,
             },
           }),
-        setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
         setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan),
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
+        callableTools: enabledCallableTools(definition, codeExecAvailable),
         ...this.#subSessionToolContext(
           accountId,
           sessionId,
@@ -3486,43 +3508,16 @@ export class Service {
           subSessionOutputSchema,
         ),
       }),
+      // The verbs are the whole provider-facing surface; everything else routes through `call`.
       tools: [
-        // Set-dedupe: legacy alias normalization can produce duplicate names.
-        ...new Set(
-          (definition.tools === undefined ? [seedToolRegistry.read.name] : definition.tools)
-            .map(normalizeSeedToolName)
-            .filter(
-              (tool) =>
-                tool === seedToolRegistry.search.name ||
-                tool === seedToolRegistry.read.name ||
-                tool === seedToolRegistry.list_activity_feed.name ||
-                tool === seedToolRegistry.web_search.name ||
-                tool === seedToolRegistry.web_read.name ||
-                tool === seedToolRegistry.write.name ||
-                tool === seedToolRegistry.memory_list.name ||
-                tool === seedToolRegistry.memory_read.name ||
-                tool === seedToolRegistry.memory_write.name ||
-                tool === seedToolRegistry.memory_delete.name ||
-                tool === seedToolRegistry.memory_download.name ||
-                tool === seedToolRegistry.ipfs_read.name ||
-                tool === seedToolRegistry.ipfs_write.name ||
-                tool === seedToolRegistry.attachment_to_memory.name ||
-                tool === seedToolRegistry.attachment_to_ipfs.name ||
-                tool === seedToolRegistry.memory_publish_document.name ||
-                (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
-            ),
-        ),
-        // Always available: attachments are session data the model was already told about.
-        seedToolRegistry.view_attachment.name,
-        seedToolRegistry.start_session.name,
-        // Delegation is always available in run-backed sessions, like start_session — an existing
-        // agent whose saved tools predate these must not fall back to fire-and-forget spawning
-        // when the user asks for awaited sub-agents or workflows.
-        ...(run !== undefined ? [seedToolRegistry.sub_session.name, seedToolRegistry.run_workflow.name] : []),
-        seedToolRegistry.set_session_title.name,
-        seedToolRegistry.update_plan.name,
-        // Typed sub-session children must deliver their result through this tool.
-        ...(subSessionOutputSchema ? [seedToolRegistry.return_result.name] : []),
+        seedVerbRegistry.read.name,
+        seedVerbRegistry.write.name,
+        seedVerbRegistry.call.name,
+        // Delegation needs a run to park on; the rare runless invocation simply omits it.
+        ...(run !== undefined ? [seedVerbRegistry.delegate.name] : []),
+        seedVerbRegistry.plan.name,
+        // Typed delegate children must deliver their result through this tool.
+        ...(subSessionOutputSchema ? [seedVerbRegistry.return_result.name] : []),
       ],
       noTools: 'builtin',
       sessionManager: pi.SessionManager.inMemory(cwd),
@@ -3688,8 +3683,8 @@ export class Service {
         return
       }
       if (event.type === 'tool_execution_start') {
-        if (event.toolName === seedToolRegistry.set_session_title.name) return
-        if (event.toolName === seedToolRegistry.update_plan.name) return
+        // Plan updates are session state, not conversation: they render as the checklist, not as tool rows.
+        if (event.toolName === seedVerbRegistry.plan.name) return
         endStreamingLog()
         if (currentAssistantHadDelta) {
           flushPartialAssistantMessage()
@@ -3720,8 +3715,7 @@ export class Service {
         return
       }
       if (event.type === 'tool_execution_end') {
-        if (event.toolName === seedToolRegistry.set_session_title.name) return
-        if (event.toolName === seedToolRegistry.update_plan.name) return
+        if (event.toolName === seedVerbRegistry.plan.name) return
         // Parked sub_session calls keep their durable tool_call unanswered: the real tool_result is
         // appended by the child's finalizer, and the resumed turn replays it from there.
         if (runningSession?.parkToolCallIds?.includes(event.toolCallId)) {
@@ -4940,7 +4934,7 @@ async function triggerPromptMessage(
         '</trigger_context>',
         '',
         '<trigger_instructions>',
-        'When responding to a comment activity with the write tool command comment.create, create a threaded reply, not a new top-level comment. Set input.replyCommentId to the exact parent comment id from trigger_context.activity.comment.id when present, or trigger_context.activity.commentId.id as a fallback. Set input.target to the target document id from trigger_context.activity.target.id.id or the activity comment target fields. Do not omit replyCommentId when the user was mentioned in a comment.',
+        'When responding to a comment activity, reply with the write verb as a THREADED reply, not a new top-level comment: write {address: <target document id>, content: <your reply>, options: {action: "comment", replyTo: <parent comment id>}}. Take the target document id from trigger_context.activity.target.id.id or the activity comment target fields, and replyTo from trigger_context.activity.comment.id when present, or trigger_context.activity.commentId.id as a fallback. Do not omit replyTo when the user was mentioned in a comment.',
         '</trigger_instructions>',
       ].join('\n'),
     },
@@ -5619,30 +5613,31 @@ type WriteToolContext = {
   hmServerUrl: string
 }
 
-type AgentServicePiToolContext = WriteToolContext & {
-  setSessionTitle: (title: string) => api.SessionInfo
+export type AgentServicePiToolContext = WriteToolContext & {
   web: WebToolsConfig
   /** Agent state directory holding the private memory filesystem. */
   stateDir: string
-  /** Session this run belongs to, scoping the attachment tools. */
+  /** Session this run belongs to, scoping attachment addresses. */
   sessionId: string
-  /** Whether the session's model accepts image content, gating view_attachment image output. */
+  /** Whether the session's model accepts image content, gating attachment image output. */
   modelAcceptsImages: boolean
-  /** Called after a memory tool mutates files, so clients watching the Memory tab refresh. */
+  /** Called after a write mutates memory files, so clients watching the Memory tab refresh. */
   onMemoryChange: () => void
   /** Reports live mid-call progress from a long-running tool, surfaced as run activity to clients. */
   onToolProgress: (toolName: string, progress: {toolCallId?: string; detail?: string; outputTail?: string}) => void
   /** Sandboxed code execution against the memory workspace. */
   codeExec: CodeExecutor
-  /** start_session tool: creates a new session of this agent and dispatches its first run in the background. */
+  /** Callable tool names this agent may dispatch through the call verb. */
+  callableTools: string[]
+  /** delegate {await: false}: creates a detached session of this agent and dispatches its first run. */
   startSession: (input: unknown) => {sessionId: string; title: string}
-  /** update_plan tool: stores the session's live todo snapshot. Absent in session-less (workflow) contexts. */
+  /** plan verb: stores the session's live checklist snapshot. Absent in session-less (script) contexts. */
   setSessionPlan?: (plan: unknown) => api.SessionInfo
-  /** sub_session tool: spawns an awaited child run + session and parks the calling turn on it. */
+  /** delegate (model child): spawns an awaited child run + session and parks the calling turn on it. */
   spawnSubSession?: (toolCallId: string, input: unknown) => unknown
-  /** run_workflow tool: lints + spawns a workflow child run and parks the calling turn on it. */
+  /** delegate {script}: lints + spawns a script child run and parks the calling turn on it. */
   spawnWorkflow?: (toolCallId: string, input: unknown) => unknown
-  /** When set, this run is a typed sub-session child: return_result uses this schema as its parameters. */
+  /** When set, this run is a typed delegate child: return_result uses this schema as its parameters. */
   returnResultSchema?: JsonSchema
   /** return_result tool: validates and records the typed result, ending the turn after the tool batch. */
   deliverResult?: (payload: unknown) => unknown
@@ -5779,87 +5774,291 @@ async function executeAgentServiceSearch(
   }
 }
 
-function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolDefinition[] {
-  return [
-    defineSeedPiTool(seedToolRegistry.search, (params) => executeAgentServiceSearch(context, params)),
-    defineSeedPiTool(seedToolRegistry.read, (params) => readHypermedia(params)),
-    defineSeedPiTool(seedToolRegistry.web_search, (params) => executeWebSearch(context.web, params)),
-    defineSeedPiTool(seedToolRegistry.web_read, (params) => executeWebRead(context.web, params)),
-    defineSeedPiTool(seedToolRegistry.list_activity_feed, async (params) => {
-      const input: Record<string, unknown> = isRecord(params) ? params : {}
-      const client = createSeedClient(context.hmServerUrl)
-      const output = await client.request('ListEvents', {
-        pageSize:
-          typeof input.pageSize === 'number' ? Math.max(1, Math.min(50, Math.floor(input.pageSize))) : undefined,
-        pageToken: typeof input.pageToken === 'string' ? input.pageToken : undefined,
-        trustedOnly: typeof input.trustedOnly === 'boolean' ? input.trustedOnly : undefined,
-        filterAuthors: Array.isArray(input.filterAuthors)
-          ? input.filterAuthors.filter((author): author is string => typeof author === 'string')
-          : undefined,
-        filterEventType: Array.isArray(input.filterEventType)
-          ? input.filterEventType.filter((eventType): eventType is string => typeof eventType === 'string')
-          : undefined,
-        filterResource: typeof input.filterResource === 'string' ? input.filterResource : undefined,
-        currentAccount: context.accountId,
-      })
+// ---------------------------------------------------------------------------------------------
+// Verb dispatch: address parsing shared by read and write
+// ---------------------------------------------------------------------------------------------
+
+/** `~/memory/...` → relative memory path ('' = root); null when the address is not a memory address. */
+function memoryPathFromAddress(address: string): string | null {
+  if (address === '~/memory' || address === '~/memory/') return ''
+  if (address.startsWith('~/memory/')) return address.slice('~/memory/'.length)
+  return null
+}
+
+/** hm://<account>[/path] → {account, path}; null when not an hm address. */
+function parseHmAddress(address: string): {account: string; path: string} | null {
+  const match = /^hm:\/\/([^/?#]+)(\/[^?#]*)?/.exec(address)
+  if (!match) return null
+  const path = match[2] && match[2] !== '/' ? match[2].replace(/\/+$/, '') : '/'
+  return {account: match[1]!, path}
+}
+
+/** Renders the ~/tools listing: every callable the agent holds, one summary line each. */
+function toolsListing(callableTools: string[]): Record<string, unknown> {
+  const verbs = Object.values(seedVerbRegistry as Record<string, SeedToolMetadata>).filter(
+    (tool) => !tool.hidden && tool.name !== 'return_result',
+  )
+  const callables = callableTools
+    .map((name) => getSeedTool(name))
+    .filter((tool): tool is SeedToolMetadata => tool !== undefined)
+  const lines = [
+    '# ~/tools',
+    '',
+    '## Verbs (always available)',
+    ...verbs.map((tool) => `- ${toolSummaryLine(tool)}`),
+    '',
+    '## Callable with the call verb',
+    ...callables.map((tool) => `- ${toolSummaryLine(tool)}`),
+  ]
+  return {
+    summary: `${verbs.length} verbs and ${callables.length} callable tools.`,
+    markdown: lines.join('\n'),
+    tools: callables.map((tool) => tool.name),
+  }
+}
+
+/** Reads a memory address: file content, or a directory listing for dir addresses. */
+function readMemoryAddress(context: AgentServicePiToolContext, memoryPath: string): Record<string, unknown> {
+  const list = (path: string): Record<string, unknown> => {
+    const level = withMemoryErrors(() => agentMemory.listMemoryDir(context.stateDir, path))
+    const fileCount = level.entries.filter((entry) => entry.type === 'file').length
+    const dirCount = level.entries.length - fileCount
+    const where = level.path ? `${level.path}/` : 'Memory root'
+    const dirNote = dirCount
+      ? ` and ${dirCount} director${dirCount === 1 ? 'y' : 'ies'} (read a directory address to see inside)`
+      : ''
+    return {
+      summary: level.entries.length
+        ? `${where} holds ${fileCount} file${fileCount === 1 ? '' : 's'} (${level.totalBytes} bytes)${dirNote}.`
+        : `${where} is empty.`,
+      ...level,
+    }
+  }
+  if (memoryPath === '' || memoryPath.endsWith('/')) return list(memoryPath.replace(/\/+$/, ''))
+  try {
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, memoryPath))
+    const {data: _data, ...meta} = file
+    if (file.encoding === 'binary') {
       return {
-        summary: `Loaded ${Array.isArray(output.events) ? output.events.length : 0} activity feed event${
-          Array.isArray(output.events) && output.events.length === 1 ? '' : 's'
-        }.`,
-        ...output,
+        summary: `${file.path} is a binary file (${file.size} bytes${
+          file.mimeType ? `, ${file.mimeType}` : ''
+        }); content not shown. Use write ipfs:// with {fromPath} to publish it for Hypermedia content.`,
+        ...meta,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.write, (params) => writeHypermedia(context, params)),
-    defineSeedPiTool(seedToolRegistry.memory_list, (params) => {
-      const input = isRecord(params) ? params : {}
-      const level = withMemoryErrors(() => agentMemory.listMemoryDir(context.stateDir, input.path))
-      const fileCount = level.entries.filter((entry) => entry.type === 'file').length
-      const dirCount = level.entries.length - fileCount
-      const where = level.path ? `${level.path}/` : 'Memory root'
-      const dirNote = dirCount
-        ? ` and ${dirCount} director${dirCount === 1 ? 'y' : 'ies'} (list a directory path to see inside)`
-        : ''
+    }
+    return {summary: `Read ${file.path} (${file.size} bytes).`, ...meta}
+  } catch (error) {
+    // A directory read without a trailing slash is a natural mistake; answer with the listing.
+    try {
+      return list(memoryPath)
+    } catch {
+      throw error
+    }
+  }
+}
+
+/** Reads an attachment address, inlining images for image-capable models. */
+function readAttachmentAddress(context: AgentServicePiToolContext, attachmentId: string): Record<string, unknown> {
+  const {info, data} = withAttachmentErrors(() =>
+    sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
+  )
+  const meta = {id: info.id, name: info.name, mimeType: info.mimeType, size: info.size}
+  const isImage = !!info.mimeType?.startsWith('image/')
+  if (isImage && context.modelAcceptsImages && info.size <= MAX_INLINE_IMAGE_BYTES) {
+    return {
+      summary: `Viewed ${info.name} (${info.mimeType}, ${info.size} bytes).`,
+      ...meta,
+      shownAsImage: true,
+      piContent: [
+        {type: 'text', text: `Attachment "${info.name}" (${info.mimeType}, ${info.size} bytes):`},
+        {type: 'image', data: Buffer.from(data).toString('base64'), mimeType: info.mimeType!},
+      ],
+    }
+  }
+  if (isTextMimeType(info.mimeType) && data.byteLength <= MAX_TOOL_RESULT_BYTES) {
+    const text = new TextDecoder('utf-8', {fatal: false}).decode(data)
+    return {summary: `Read ${info.name} (${info.size} bytes).`, ...meta, shownAsImage: false, content: text}
+  }
+  const reason = isImage
+    ? context.modelAcceptsImages
+      ? 'the image is too large to view inline'
+      : 'this model does not support image input'
+    : 'the content is not viewable inline'
+  return {
+    summary: `${info.name} (${info.mimeType || 'unknown type'}, ${
+      info.size
+    } bytes); ${reason}. Save it to memory with write and process it with the execute tool.`,
+    ...meta,
+    shownAsImage: false,
+  }
+}
+
+/** Reads a thread address: a compact transcript of one of this account's sessions. */
+function readThreadAddress(context: AgentServicePiToolContext, sessionId: string): Record<string, unknown> {
+  const session = context.db
+    .query<{id: string; title: string | null; agent_id: string}, [string, string]>(
+      `SELECT id, title, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+    )
+    .get(context.accountId, sessionId)
+  if (!session) throw new APIError(404, `No thread ${sessionId}`)
+  const rows = context.db
+    .query<SessionEventRow, [string]>(
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 200`,
+    )
+    .all(sessionId)
+    .reverse()
+    .map(sessionEventRowToInfo)
+  const lines = rows.map((row) => {
+    const event = row.event as {type?: string; role?: string; content?: unknown; name?: string; message?: string}
+    if (event.type === 'message') {
+      const content = typeof event.content === 'string' ? event.content : JSON.stringify(event.content)
+      return `**${event.role ?? 'unknown'}**: ${content}`
+    }
+    if (event.type === 'tool_call') return `→ tool call ${event.name ?? ''}`
+    if (event.type === 'tool_result') return `← tool result ${event.name ?? ''}`
+    if (event.type === 'error') return `⚠ error: ${event.message ?? ''}`
+    return `(${event.type ?? 'event'})`
+  })
+  const markdown = lines.join('\n\n')
+  const bounded =
+    markdown.length > MAX_TOOL_RESULT_BYTES
+      ? `[earlier events truncated]\n\n${markdown.slice(-MAX_TOOL_RESULT_BYTES)}`
+      : markdown
+  return {
+    summary: `Thread "${session.title ?? sessionId}": ${rows.length} recent events.`,
+    sessionId,
+    title: session.title,
+    markdown: bounded,
+  }
+}
+
+/** Reads a run address: the run's public record. */
+function readRunAddress(context: AgentServicePiToolContext, runId: string): Record<string, unknown> {
+  const run = runs.getRun(context.db, context.accountId, runId)
+  if (!run) throw new APIError(404, `No run ${runId}`)
+  return {
+    summary: `Run ${run.id} (${run.kind}) is ${run.status}.`,
+    ...runInfoFromRecord(run),
+    ...(run.sourceText ? {sourceText: run.sourceText} : {}),
+  }
+}
+
+/** Executes the read verb: one dispatcher over every address form. */
+export async function executeReadVerb(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const address = typeof input.address === 'string' ? input.address.trim() : ''
+  if (!address) throw new APIError(400, 'read requires an address')
+  const options = isRecord(input.options) ? input.options : {}
+  const format = input.format === 'json' ? 'json' : 'markdown'
+
+  const memoryPath = memoryPathFromAddress(address)
+  if (memoryPath !== null) return readMemoryAddress(context, memoryPath)
+
+  if (address === '~/tools' || address === '~/tools/') return toolsListing(context.callableTools)
+  if (address.startsWith('~/tools/')) {
+    const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
+    const tool = getSeedTool(name)
+    if (!tool) return {...toolsListing(context.callableTools), summary: `No tool named ${name}.`}
+    return {summary: `Contract for ${name}.`, name, markdown: toolContractMarkdown(tool)}
+  }
+
+  if (address.startsWith('ipfs://')) {
+    const cid = parseIpfsCid(address)
+    const gatewayUrl = `${context.hmServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
+    const targetPath = typeof options.path === 'string' && options.path.trim() ? options.path : `ipfs/${cid}`
+    const result = await withMemoryErrorsAsync(() =>
+      agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
+    )
+    context.onMemoryChange()
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, result.entry.path))
+    const base = {path: file.path, cid, size: file.size, mimeType: file.mimeType}
+    if (file.encoding === 'binary') {
       return {
-        summary: level.entries.length
-          ? `${where} holds ${fileCount} file${fileCount === 1 ? '' : 's'} (${level.totalBytes} bytes)${dirNote}.`
-          : `${where} is empty.`,
-        ...level,
+        summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes${
+          file.mimeType ? `, ${file.mimeType}` : ''
+        }); binary content not shown.`,
+        ...base,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_read, (params) => {
-      const input = isRecord(params) ? params : {}
-      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
-      // Raw bytes never go to the model: binary files return metadata only.
-      const {data: _data, ...meta} = file
-      if (file.encoding === 'binary') {
-        return {
-          summary: `${file.path} is a binary file (${file.size} bytes${
-            file.mimeType ? `, ${file.mimeType}` : ''
-          }); content not shown. Use ipfs_write to publish it for Hypermedia content.`,
-          ...meta,
-        }
-      }
-      return {summary: `Read ${file.path} (${file.size} bytes).`, ...meta}
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_write, (params) => {
-      const input = isRecord(params) ? params : {}
-      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, input.path, input.content))
-      context.onMemoryChange()
-      return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_delete, (params) => {
-      const input = isRecord(params) ? params : {}
-      const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, input.path))
+    }
+    return {summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes).`, ...base, content: file.content}
+  }
+
+  if (address === 'activity:' || address.startsWith('activity:')) {
+    const client = createSeedClient(context.hmServerUrl)
+    const output = await client.request('ListEvents', {
+      pageSize:
+        typeof options.pageSize === 'number' ? Math.max(1, Math.min(50, Math.floor(options.pageSize))) : undefined,
+      pageToken: typeof options.pageToken === 'string' ? options.pageToken : undefined,
+      trustedOnly: typeof options.trustedOnly === 'boolean' ? options.trustedOnly : undefined,
+      filterAuthors: Array.isArray(options.authors)
+        ? options.authors.filter((author): author is string => typeof author === 'string')
+        : undefined,
+      filterEventType: Array.isArray(options.eventTypes)
+        ? options.eventTypes.filter((eventType): eventType is string => typeof eventType === 'string')
+        : undefined,
+      filterResource: typeof options.resource === 'string' ? options.resource : undefined,
+      currentAccount: context.accountId,
+    })
+    return {
+      summary: `Loaded ${Array.isArray(output.events) ? output.events.length : 0} activity feed event${
+        Array.isArray(output.events) && output.events.length === 1 ? '' : 's'
+      }.`,
+      ...output,
+    }
+  }
+
+  if (address.startsWith('attachment:')) return readAttachmentAddress(context, address.slice('attachment:'.length))
+  if (address.startsWith('thread:')) return readThreadAddress(context, address.slice('thread:'.length))
+  if (address.startsWith('run:')) return readRunAddress(context, address.slice('run:'.length))
+
+  if (address.startsWith('hm://')) return readHypermedia({id: address, format})
+  if (/^https?:\/\//.test(address)) {
+    // Seed sites and gateway URLs resolve as hypermedia first; anything else is a web page.
+    // Only a failure to RESOLVE the URL as hypermedia falls through — once we know the URL is
+    // hypermedia, its errors (too-large, not-found, transient) surface instead of being silently
+    // replaced by scraped page HTML the model would mistake for the document.
+    try {
+      return await readHypermedia({id: address, format})
+    } catch (error) {
+      if (error instanceof APIError && error.status !== 404) throw error
+      return executeWebRead(context.web, {url: address, ...options})
+    }
+  }
+
+  throw new APIError(
+    400,
+    `Unrecognized address: ${address}. Supported: ~/memory/…, ~/tools/…, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread:<id>, run:<id>.`,
+  )
+}
+
+/** Executes the write verb: memory, ipfs publishing, and hypermedia documents. */
+export async function executeWriteVerb(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const address = typeof input.address === 'string' ? input.address.trim() : ''
+  if (!address) throw new APIError(400, 'write requires an address')
+  const options = isRecord(input.options) ? input.options : {}
+  const content = typeof input.content === 'string' ? input.content : undefined
+
+  const memoryPath = memoryPathFromAddress(address)
+  if (memoryPath !== null) {
+    if (options.delete === true) {
+      const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, memoryPath))
       if (result.deleted) context.onMemoryChange()
       return {
         summary: result.deleted ? `Deleted ${result.path}.` : `Nothing existed at ${result.path}.`,
         ...result,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_download, async (params) => {
-      const input = isRecord(params) ? params : {}
+    }
+    if (typeof options.fromUrl === 'string' && options.fromUrl) {
+      const fromUrl = options.fromUrl
       const result = await withMemoryErrorsAsync(() =>
-        agentMemory.downloadToMemory(context.stateDir, input.url, input.path),
+        agentMemory.downloadToMemory(context.stateDir, fromUrl, memoryPath),
       )
       context.onMemoryChange()
       return {
@@ -5872,21 +6071,227 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         finalUrl: result.finalUrl,
         contentType: result.contentType,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.execute_code, async (params, toolCallId) => {
-      const input = isRecord(params) ? params : {}
-      const language = typeof input.language === 'string' ? input.language : 'code'
+    }
+    if (typeof options.fromAttachment === 'string' && options.fromAttachment) {
+      const fromAttachment = options.fromAttachment
+      const {info, data} = withAttachmentErrors(() =>
+        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, fromAttachment),
+      )
+      const targetPath = memoryPath || `attachments/${info.name}`
+      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, targetPath, data))
+      context.onMemoryChange()
+      return {
+        summary: `Saved attachment ${info.name} to memory at ${entry.path} (${entry.size} bytes).`,
+        id: info.id,
+        path: entry.path,
+        size: entry.size,
+        mimeType: entry.mimeType,
+      }
+    }
+    if (content === undefined) {
+      throw new APIError(
+        400,
+        'write to ~/memory requires content (or options.delete / options.fromUrl / options.fromAttachment)',
+      )
+    }
+    const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, memoryPath, content))
+    context.onMemoryChange()
+    return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+  }
+
+  if (address.startsWith('ipfs:')) {
+    if (typeof options.fromAttachment === 'string' && options.fromAttachment) {
+      const fromAttachment = options.fromAttachment
+      const {info, data} = withAttachmentErrors(() =>
+        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, fromAttachment),
+      )
+      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, data, info.mimeType, info.name)
+      return {
+        summary: `Published attachment ${info.name} to IPFS as ${url}.`,
+        id: info.id,
+        name: info.name,
+        cid,
+        url,
+        size: info.size,
+        mimeType: info.mimeType,
+      }
+    }
+    const fromPath =
+      typeof options.fromPath === 'string' && options.fromPath
+        ? memoryPathFromAddress(options.fromPath) ?? options.fromPath
+        : undefined
+    if (!fromPath)
+      throw new APIError(400, 'write ipfs:// requires options.fromPath (a memory path) or options.fromAttachment')
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, fromPath))
+    const bytes =
+      file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
+    const fileName = file.path.split('/').at(-1) || 'file'
+    const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, bytes, file.mimeType, fileName)
+    return {
+      summary: `Uploaded ${file.path} to IPFS as ${url}.`,
+      path: file.path,
+      cid,
+      url,
+      size: file.size,
+      mimeType: file.mimeType,
+    }
+  }
+
+  const hm = parseHmAddress(address)
+  if (hm) {
+    // Publishing a memory markdown file (frontmatter + resolved images) keeps its dedicated pipeline.
+    const fromPath = typeof options.fromPath === 'string' && options.fromPath ? options.fromPath : undefined
+    if (fromPath) {
+      return publishMemoryDocument(context as AgentServicePiToolContext, {
+        path: memoryPathFromAddress(fromPath) ?? fromPath,
+        // '/' means "derive the path from the file's frontmatter title", matching the old tool.
+        ...(hm.path !== '/' ? {documentPath: hm.path} : {}),
+        account: hm.account,
+        signer: options.signer,
+        dryRun: options.dryRun === true,
+      })
+    }
+    const action = typeof options.action === 'string' ? options.action : 'document'
+    // Extra command fields ride ONLY in options.input, never as loose option keys: the command
+    // handlers accept aliases (reply, commentId, name, …), so a stray key silently changing the
+    // operation is a real hazard. Dotted raw commands get the same explicit envelope.
+    const passthrough = isRecord(options.input) ? options.input : {}
+    const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
+      command,
+      signer: options.signer,
+      dryRun: options.dryRun === true,
+      input: {...passthrough, ...commandInput},
+    })
+    switch (action) {
+      case 'document':
+        return writeHypermedia(
+          context,
+          envelope('document.create', {
+            account: hm.account,
+            path: hm.path,
+            ...(typeof options.title === 'string' ? {name: options.title} : {}),
+            ...(content !== undefined ? {content, format: 'markdown'} : {}),
+          }),
+        )
+      case 'update':
+        return writeHypermedia(
+          context,
+          envelope('document.update', {
+            account: hm.account,
+            path: hm.path,
+            ...(typeof options.title === 'string' ? {name: options.title} : {}),
+            ...(content !== undefined ? {content, format: 'markdown'} : {}),
+          }),
+        )
+      case 'comment':
+        return writeHypermedia(
+          context,
+          envelope('comment.create', {
+            target: typeof options.target === 'string' ? options.target : address,
+            ...(typeof options.replyTo === 'string' ? {replyTo: options.replyTo} : {}),
+            ...(content !== undefined ? {content} : {}),
+          }),
+        )
+      case 'move':
+        return writeHypermedia(
+          context,
+          envelope('document.move', {
+            source: address,
+            ...(typeof options.toPath === 'string' ? {path: options.toPath} : {}),
+          }),
+        )
+      case 'redirect':
+        return writeHypermedia(
+          context,
+          envelope('document.redirect', {
+            source: address,
+            ...(typeof options.toUrl === 'string' ? {destination: options.toUrl} : {}),
+          }),
+        )
+      case 'delete':
+        return writeHypermedia(context, envelope('document.delete', {account: hm.account, path: hm.path}))
+      case 'fork':
+        return writeHypermedia(
+          context,
+          envelope('document.fork', {
+            account: hm.account,
+            path: hm.path,
+            ...(typeof options.fromUrl === 'string' ? {source: options.fromUrl} : {}),
+          }),
+        )
+      default:
+        // Dotted actions pass through as raw hypermedia commands (profile.update, draft.create,
+        // contact.create, capability.grant, …) with the address filling account/path and options
+        // spread into the command input — full envelope fidelity behind one verb.
+        if (action.includes('.')) {
+          return writeHypermedia(
+            context,
+            envelope(action, {
+              account: hm.account,
+              ...(hm.path !== '/' ? {path: hm.path} : {}),
+              ...(typeof options.title === 'string' ? {name: options.title} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+          )
+        }
+        throw new APIError(
+          400,
+          `Unknown write action "${action}". Supported: document (default), update, comment, move, redirect, delete, fork, or a raw command like draft.create / profile.update.`,
+        )
+    }
+  }
+
+  throw new APIError(
+    400,
+    `Unrecognized write address: ${address}. Supported: ~/memory/…, ipfs://, hm://<account>/<path>.`,
+  )
+}
+
+/** Executes the call verb: contract-on-miss dispatch into the callable tool set. */
+export async function executeCallVerb(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+  toolCallId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const toolName = typeof input.tool === 'string' ? input.tool.trim() : ''
+  const tool = toolName ? getSeedTool(toolName) : undefined
+  if (!tool || !context.callableTools.includes(toolName)) {
+    return {
+      ...toolsListing(context.callableTools),
+      summary: toolName
+        ? `No callable tool named ${toolName}. Here is what you can call.`
+        : 'call requires a tool name. Here is what you can call.',
+    }
+  }
+  const toolInput = isRecord(input.input) ? input.input : {}
+  const validationErrors = validateJsonSchemaValue(tool.inputSchema, toolInput)
+  if (validationErrors.length > 0) {
+    // Touch-expand: a miss returns the contract instead of failing; the retry executes.
+    return {
+      summary: `Input for ${toolName} did not match its contract — here it is; call again with valid input.`,
+      contract: toolContractMarkdown(tool),
+      validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
+    }
+  }
+  switch (toolName) {
+    case 'search':
+      return executeAgentServiceSearch(context, toolInput)
+    case 'web_search':
+      return executeWebSearch(context.web, toolInput)
+    case 'execute': {
+      const runtime = typeof toolInput.runtime === 'string' ? toolInput.runtime : 'code'
       let result
       try {
         result = await context.codeExec.execute({
           stateDir: context.stateDir,
-          language: input.language as never,
-          code: typeof input.code === 'string' ? input.code : '',
-          timeoutSecs: typeof input.timeout_secs === 'number' ? input.timeout_secs : undefined,
+          language: toolInput.runtime as never,
+          code: typeof toolInput.code === 'string' ? toolInput.code : '',
+          timeoutSecs: typeof toolInput.timeout_secs === 'number' ? toolInput.timeout_secs : undefined,
           onProgress: (progress) =>
-            context.onToolProgress(seedToolRegistry.execute_code.name, {
+            context.onToolProgress(seedVerbRegistry.call.name, {
               toolCallId,
-              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${language} code…`,
+              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${runtime} code…`,
               outputTail: progress.outputTail,
             }),
         })
@@ -5899,154 +6304,72 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         ? `, ${result.changedFiles.length} memory file${result.changedFiles.length === 1 ? '' : 's'} changed`
         : ''
       return {
-        summary: `Ran ${input.language} code (exit ${result.exitCode}, ${result.durationMs}ms${changeSummary}).`,
+        summary: `Ran ${runtime} code (exit ${result.exitCode}, ${result.durationMs}ms${changeSummary}).`,
         ...result,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.ipfs_read, async (params) => {
-      const input = isRecord(params) ? params : {}
-      const cid = parseIpfsCid(input.url)
-      const gatewayUrl = `${context.hmServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
-      const targetPath = typeof input.path === 'string' && input.path.trim() ? input.path : `ipfs/${cid}`
-      const result = await withMemoryErrorsAsync(() =>
-        agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
-      )
-      context.onMemoryChange()
-      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, result.entry.path))
-      const base = {path: file.path, cid, size: file.size, mimeType: file.mimeType}
-      if (file.encoding === 'binary') {
+    }
+    default:
+      throw new APIError(400, `Tool ${toolName} has no executor in this runtime`)
+  }
+}
+
+function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolDefinition[] {
+  return [
+    defineSeedPiTool(seedVerbRegistry.read, (params) => executeReadVerb(context, params)),
+    defineSeedPiTool(seedVerbRegistry.write, (params) => executeWriteVerb(context, params)),
+    defineSeedPiTool(seedVerbRegistry.call, (params, toolCallId) => executeCallVerb(context, params, toolCallId)),
+    defineSeedPiTool(seedVerbRegistry.delegate, (params, toolCallId) => {
+      const input = isPlainRecord(params) ? params : {}
+      if (typeof input.script === 'string' && input.script) {
+        if (input.await === false) {
+          throw new APIError(400, 'Detached script children are not supported: scripts are awaited. Drop `await: false`, or delegate a model child instead.')
+        }
+        if (!context.spawnWorkflow) throw new APIError(400, 'Script delegation is not available in this run context')
+        return context.spawnWorkflow(toolCallId, {
+          ...(typeof input.title === 'string' ? {title: input.title} : {title: 'Script'}),
+          source: input.script,
+          input: input.input,
+        })
+      }
+      if (input.await === false) {
+        // Detached children run as this agent with the brief as their first message; the other
+        // model-child fields have no meaning without an awaited result, so reject them loudly
+        // instead of silently discarding what the model asked for.
+        for (const field of ['agentId', 'output', 'tools'] as const) {
+          if (input[field] !== undefined) {
+            throw new APIError(400, `delegate {await: false} does not support \`${field}\` — a detached child runs as this agent and returns nothing. Await the child, or drop ${field}.`)
+          }
+        }
+        const brief = input.brief ?? input.input ?? input.prompt
+        if (brief === undefined) throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
+        const started = context.startSession({
+          prompt: renderSubSessionInput(brief),
+          ...(typeof input.title === 'string' ? {title: input.title} : {}),
+        })
         return {
-          summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes${
-            file.mimeType ? `, ${file.mimeType}` : ''
-          }); binary content not shown.`,
-          ...base,
+          summary: `Started detached child "${started.title}"; it is now running in the background.`,
+          status: 'detached',
+          ...started,
         }
       }
-      return {summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes).`, ...base, content: file.content}
-    }),
-    defineSeedPiTool(seedToolRegistry.ipfs_write, async (params) => {
-      const input = isRecord(params) ? params : {}
-      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
-      const bytes =
-        file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
-      const fileName = file.path.split('/').at(-1) || 'file'
-      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, bytes, file.mimeType, fileName)
-      return {
-        summary: `Uploaded ${file.path} to IPFS as ${url}.`,
-        path: file.path,
-        cid,
-        url,
-        size: file.size,
-        mimeType: file.mimeType,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_publish_document, (params) => publishMemoryDocument(context, params)),
-    defineSeedPiTool(seedToolRegistry.view_attachment, (params) => {
-      const input = isRecord(params) ? params : {}
-      const attachmentId = typeof input.id === 'string' ? input.id : ''
-      const {info, data} = withAttachmentErrors(() =>
-        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
-      )
-      const meta = {id: info.id, name: info.name, mimeType: info.mimeType, size: info.size}
-      const isImage = !!info.mimeType?.startsWith('image/')
-      if (isImage && context.modelAcceptsImages && info.size <= MAX_INLINE_IMAGE_BYTES) {
-        return {
-          summary: `Viewed ${info.name} (${info.mimeType}, ${info.size} bytes).`,
-          ...meta,
-          shownAsImage: true,
-          piContent: [
-            {type: 'text', text: `Attachment "${info.name}" (${info.mimeType}, ${info.size} bytes):`},
-            {type: 'image', data: Buffer.from(data).toString('base64'), mimeType: info.mimeType!},
-          ],
-        }
-      }
-      if (isTextMimeType(info.mimeType) && data.byteLength <= MAX_TOOL_RESULT_BYTES) {
-        const text = new TextDecoder('utf-8', {fatal: false}).decode(data)
-        return {summary: `Read ${info.name} (${info.size} bytes).`, ...meta, shownAsImage: false, content: text}
-      }
-      const reason = isImage
-        ? context.modelAcceptsImages
-          ? 'the image is too large to view inline'
-          : 'this model does not support image input'
-        : 'the content is not viewable inline'
-      return {
-        summary: `${info.name} (${info.mimeType || 'unknown type'}, ${
-          info.size
-        } bytes); ${reason}. Use attachment_to_memory and execute_code to inspect or process it.`,
-        ...meta,
-        shownAsImage: false,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.attachment_to_memory, (params) => {
-      const input = isRecord(params) ? params : {}
-      const attachmentId = typeof input.id === 'string' ? input.id : ''
-      const {info, data} = withAttachmentErrors(() =>
-        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
-      )
-      const targetPath =
-        typeof input.path === 'string' && input.path.trim() ? input.path.trim() : `attachments/${info.name}`
-      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, targetPath, data))
-      context.onMemoryChange()
-      return {
-        summary: `Saved attachment ${info.name} to memory at ${entry.path} (${entry.size} bytes).`,
-        id: info.id,
-        path: entry.path,
-        size: entry.size,
-        mimeType: entry.mimeType,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.attachment_to_ipfs, async (params) => {
-      const input = isRecord(params) ? params : {}
-      const attachmentId = typeof input.id === 'string' ? input.id : ''
-      const {info, data} = withAttachmentErrors(() =>
-        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
-      )
-      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, data, info.mimeType, info.name)
-      return {
-        summary: `Published attachment ${info.name} to IPFS as ${url}.`,
-        id: info.id,
-        name: info.name,
-        cid,
-        url,
-        size: info.size,
-        mimeType: info.mimeType,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.start_session, (params) => {
-      const started = context.startSession(params)
-      return {
-        summary: `Started session "${started.title}"; it is now running in the background.`,
-        ...started,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.sub_session, (params, toolCallId) => {
-      if (!context.spawnSubSession) throw new APIError(400, 'sub_session is not available in this run context')
+      if (!context.spawnSubSession) throw new APIError(400, 'delegate is not available in this run context')
       return context.spawnSubSession(toolCallId, params)
     }),
-    defineSeedPiTool(seedToolRegistry.run_workflow, (params, toolCallId) => {
-      if (!context.spawnWorkflow) throw new APIError(400, 'run_workflow is not available in this run context')
-      return context.spawnWorkflow(toolCallId, params)
-    }),
-    defineSeedPiTool(
-      context.returnResultSchema
-        ? {...seedToolRegistry.return_result, inputSchema: context.returnResultSchema}
-        : seedToolRegistry.return_result,
-      (params) => {
-        if (!context.deliverResult) throw new APIError(400, 'return_result is only available in typed sub-sessions')
-        return context.deliverResult(params)
-      },
-    ),
-    defineSeedPiTool(seedToolRegistry.update_plan, (params) => {
-      if (!context.setSessionPlan) throw new APIError(400, 'update_plan is not available in this context')
+    defineSeedPiTool(seedVerbRegistry.plan, (params) => {
+      if (!context.setSessionPlan) throw new APIError(400, 'plan is not available in this context')
       const session = context.setSessionPlan(params)
       return {ok: true, steps: session.plan?.steps.length ?? 0}
     }),
-    defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
-      const title = isRecord(params) && typeof params.title === 'string' ? params.title : ''
-      console.info('[agents/runtime] set_session_title tool called')
-      const session = context.setSessionTitle(title)
-      return {ok: true, title: session.title || ''}
-    }),
+    defineSeedPiTool(
+      context.returnResultSchema
+        ? {...seedVerbRegistry.return_result, inputSchema: context.returnResultSchema}
+        : seedVerbRegistry.return_result,
+      (params) => {
+        if (!context.deliverResult)
+          throw new APIError(400, 'return_result is only available in typed delegate children')
+        return context.deliverResult(params)
+      },
+    ),
   ]
 }
 

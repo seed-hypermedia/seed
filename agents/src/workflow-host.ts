@@ -169,20 +169,24 @@ function __makeCtx(input, runId) {
     var index = openSteps.lastIndexOf(label);
     if (index >= 0) openSteps.splice(index, 1);
   }
+  function __delegate(spec) {
+    var step = openSteps.length ? openSteps[openSteps.length - 1] : undefined;
+    return __call('agent', {spec: spec, step: step}).then(function (res) {
+      if (res && res.status === 'succeeded') return res.output;
+      throw new ActionError({
+        code: res && res.status === 'canceled' ? 'canceled' : (res && res.error && res.error.code) || 'agent-failed',
+        message: (res && res.error && res.error.message) || 'Sub-agent ' + ((res && res.status) || 'failed'),
+      });
+    });
+  }
   return Object.freeze({
     input: input,
     runId: runId,
     call: function (tool, input2, opts) { return __call('tool', {tool: tool, input: input2, opts: opts}); },
-    agent: function (spec) {
-      var step = openSteps.length ? openSteps[openSteps.length - 1] : undefined;
-      return __call('agent', {spec: spec, step: step}).then(function (res) {
-        if (res && res.status === 'succeeded') return res.output;
-        throw new ActionError({
-          code: res && res.status === 'canceled' ? 'canceled' : (res && res.error && res.error.code) || 'agent-failed',
-          message: (res && res.error && res.error.message) || 'Sub-agent ' + ((res && res.status) || 'failed'),
-        });
-      });
-    },
+    // ctx.delegate is the documented name; ctx.agent stays as a synonym so both spellings share
+    // one journal op (content keys are computed from the spec, not the ctx method name).
+    delegate: __delegate,
+    agent: __delegate,
     sleep: function (ms) { return __call('sleep', {ms: ms}); },
     minutes: function (n) { return n * 60000; },
     hours: function (n) { return n * 3600000; },
