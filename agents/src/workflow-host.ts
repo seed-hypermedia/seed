@@ -473,7 +473,9 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         }
         if (remaining >= parkThresholdMs) {
           // Long sleep: request a park; the pump drains other work first, then parks the run.
-          parkState.timer = {wakeAt}
+          // Parallel sleeps keep the EARLIEST deadline — overwriting would silently delay the
+          // shorter sleep's continuation to the longer sleep's wake time.
+          parkState.timer = {wakeAt: parkState.timer ? Math.min(parkState.timer.wakeAt, wakeAt) : wakeAt}
           // The delivery happens on the post-wake replay, where `remaining <= 0` fires the timer.
           return
         }

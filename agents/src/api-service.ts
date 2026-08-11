@@ -31,6 +31,7 @@ import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
 import * as runs from '@/runs'
+import * as toolDocs from '@/tool-documents'
 import {
   lintWorkflowSource,
   normalizeRunPlan,
@@ -253,6 +254,19 @@ function serviceCallableNames(): string[] {
   return Object.values(callableToolRegistry as Record<string, SeedToolMetadata>)
     .filter((tool) => tool.runtimes.includes('agent-service'))
     .map((tool) => tool.name)
+}
+
+/**
+ * Whether this agent may publish signed public content (hm:// documents/comments, IPFS uploads).
+ * Memory writes are never gated. Grants are the pseudo-tool name 'publish' in definition.tools;
+ * legacy write-group names count so a pre-verbs agent keeps exactly the publishing posture its
+ * owner configured, and an undefined tools array (default agents) publishes.
+ */
+const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_write', 'attachment_to_ipfs']
+
+function publishGrantEnabled(definition: api.AgentDefinition): boolean {
+  if (definition.tools === undefined) return true
+  return definition.tools.some((tool) => tool === 'publish' || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
 }
 
 function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
@@ -1383,6 +1397,7 @@ export class Service {
     ])
     const response = this.#getAgent(accountId, agentId)
     this.#emit({type: 'agent-change', accountId, agent: response.agent})
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
     return response
   }
@@ -1430,6 +1445,7 @@ export class Service {
       this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agent_drafts WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
+      this.#db.run(`DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agents WHERE account_id = ? AND id = ?`, [accountId, agentId])
     })
     transaction()
@@ -1444,6 +1460,7 @@ export class Service {
       })
     }
 
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-deleted', agentId})
     return {_: 'DeleteAgentResponse', agentId}
   }
@@ -1475,6 +1492,7 @@ export class Service {
   ): api.WriteAgentMemoryFileResponse {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(stateDir, filePath, content))
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
     return {_: 'WriteAgentMemoryFileResponse', agentId, entry}
   }
@@ -1487,6 +1505,7 @@ export class Service {
   ): Promise<api.DownloadAgentMemoryFileResponse> {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const result = await withMemoryErrorsAsync(() => agentMemory.downloadToMemory(stateDir, url, filePath))
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
     return {
       _: 'DownloadAgentMemoryFileResponse',
@@ -1522,7 +1541,10 @@ export class Service {
   #deleteAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.DeleteAgentMemoryFileResponse {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(stateDir, filePath))
-    if (result.deleted) this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    if (result.deleted) {
+      invalidateSpaceIndex(accountId, agentId)
+      this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    }
     return {_: 'DeleteAgentMemoryFileResponse', agentId, path: result.path, deleted: result.deleted}
   }
 
@@ -1593,6 +1615,7 @@ export class Service {
     )
     const info = this.#getAgentTriggerInfo(accountId, id)
     if (!info) throw new APIError(500, 'Agent trigger was not created')
+    invalidateSpaceIndex(accountId)
     this.#emit({type: 'account-change', accountId, reason: 'trigger-created', agentId})
     return {_: 'CreateAgentTriggerResponse', trigger: info}
   }
@@ -1622,6 +1645,7 @@ export class Service {
     )
     const trigger = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!trigger) throw new APIError(404, 'Agent trigger not found')
+    invalidateSpaceIndex(accountId)
     this.#emit({type: 'account-change', accountId, reason: 'trigger-updated', agentId: trigger.agentId})
     return {_: 'UpdateAgentTriggerResponse', trigger}
   }
@@ -1640,6 +1664,7 @@ export class Service {
       this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND id = ?`, [accountId, triggerId])
     })
     transaction()
+    invalidateSpaceIndex(accountId)
     this.#emit({type: 'account-change', accountId, reason: 'trigger-deleted', agentId: existing.agentId})
     return {_: 'DeleteAgentTriggerResponse', triggerId}
   }
@@ -1865,6 +1890,7 @@ export class Service {
       if (target.kind === 'memory') {
         const stateDir = this.#agentMemoryStateDir(accountId, target.agentId)
         const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(stateDir, target.path, bytes))
+        invalidateSpaceIndex(accountId, target.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: target.agentId})
         return {_: 'CommitFileUploadResponse', entry}
       }
@@ -2006,6 +2032,15 @@ export class Service {
     this.#pendingTriggerSessions.add(dispatch)
     void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
     return {sessionId: session.sessionId, title}
+  }
+
+  /**
+   * Callables this session's transcript shows as expanded: a read of ~/tools/<name> or a call
+   * whose result carried the contract. Scans durable tool_call events only, so the answer is
+   * identical after resume, restart, or compaction — the transcript is the pin.
+   */
+  #expandedCallablesForSession(sessionId: string): string[] {
+    return expandedCallablesFromEvents(this.#db, sessionId)
   }
 
   /** Number of parent links above a session in the spawn chain (durable replacement for the old in-memory map). */
@@ -3032,13 +3067,15 @@ export class Service {
       sessionId: '',
       modelAcceptsImages: false,
       codeExec: this.#codeExec,
-      onMemoryChange: () =>
+      onMemoryChange: () => {
+        invalidateSpaceIndex(run.accountId, run.agentId)
         this.#emit({
           type: 'account-change',
           accountId: run.accountId,
           reason: 'agent-memory-changed',
           agentId: run.agentId,
-        }),
+        })
+      },
       onToolProgress: (toolName, progress) =>
         emitRunPartial({
           activity: {
@@ -3050,6 +3087,7 @@ export class Service {
           },
         }),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
+      publishEnabled: publishGrantEnabled(definition),
       startSession: () => {
         throw new APIError(400, 'Detached delegation is not available in scripts; use ctx.delegate')
       },
@@ -3305,7 +3343,12 @@ export class Service {
   }
 
   /** Builds the model-facing system prompt; `stateDir` enables the automatic memory listing. */
-  async #agentSystemPrompt(accountId: string, definition: api.AgentDefinition, stateDir?: string): Promise<string> {
+  async #agentSystemPrompt(
+    accountId: string,
+    agentId: string,
+    definition: api.AgentDefinition,
+    stateDir?: string,
+  ): Promise<string> {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
     const systemPrompt = await promptBlocksToResolvedMarkdown(
       normalizeSystemPromptBlocks(definition.systemPrompt),
@@ -3315,19 +3358,13 @@ export class Service {
       currentTime: new Date().toISOString(),
     })
     const memoryPrompt =
-      '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL you can reference from Hypermedia content. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.' +
-      (stateDir ? memoryListingPrompt(stateDir) : '')
+      '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL you can reference from Hypermedia content. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const codeExecAvailable = (await this.#codeExec.availability()).available
     const callables = enabledCallableTools(definition, codeExecAvailable)
-    const toolsIndex = callables.length
-      ? `\n\n<tools>\nCallable with the call verb (read ~/tools/<name> for a full contract):\n${callables
-          .map((name) => {
-            const tool = getSeedTool(name)
-            return tool ? `- ${toolSummaryLine(tool)}` : `- ${name}`
-          })
-          .join('\n')}\n</tools>`
+    const spaceIndex = stateDir
+      ? `\n\n${buildSpaceIndex({db: this.#db, accountId, agentId, stateDir, callableTools: callables})}`
       : ''
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${toolsIndex}`
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${spaceIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -3449,11 +3486,21 @@ export class Service {
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}})
     const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
     const resourceLoader = createSeedPiResourceLoader(
-      await this.#agentSystemPrompt(accountId, definition, agentStateDir),
+      await this.#agentSystemPrompt(accountId, session.agentId, definition, agentStateDir),
     )
     // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
     // (unsupported platform, missing runtime) so the model never sees a tool that can only fail.
     const codeExecAvailable = (await this.#codeExec.availability()).available
+    // Touch-expand is durable: any transcript read of ~/tools/<name> (or a call-miss that returned
+    // the contract) promotes that callable to a first-class provider tool for the rest of the
+    // thread — resume, park, and restart reconstruct the same set from the same events.
+    const enabledCallables = enabledCallableTools(definition, codeExecAvailable)
+    // SECURITY: promotion must never exceed the enabled callable set — a hallucinated
+    // `call {tool: 'bash'}` durably stores that name, and an unfiltered allowlist would hand it
+    // to Pi, activating Pi's own host bash/edit builtins outside the sandbox.
+    const expandedCallables = this.#expandedCallablesForSession(sessionId)
+      .map(normalizeSeedToolName)
+      .filter((name) => enabledCallables.includes(name))
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -3473,8 +3520,10 @@ export class Service {
         sessionId,
         modelAcceptsImages: model.input.includes('image'),
         codeExec: this.#codeExec,
-        onMemoryChange: () =>
-          this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId}),
+        onMemoryChange: () => {
+          invalidateSpaceIndex(accountId, session.agentId)
+          this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
+        },
         // emitProgress is declared below in this scope; tools only call this mid-run, after it exists.
         onToolProgress: (toolName, progress) =>
           emitProgress({
@@ -3488,7 +3537,9 @@ export class Service {
           }),
         setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan),
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
-        callableTools: enabledCallableTools(definition, codeExecAvailable),
+        callableTools: enabledCallables,
+        publishEnabled: publishGrantEnabled(definition),
+        expandedCallables,
         ...this.#subSessionToolContext(
           accountId,
           sessionId,
@@ -3498,8 +3549,9 @@ export class Service {
           subSessionOutputSchema,
         ),
       }),
-      // The verbs are the whole provider-facing surface; everything else routes through `call`.
+      // The verbs are the provider-facing surface; expanded callables are promoted beside them.
       tools: [
+        ...expandedCallables,
         seedVerbRegistry.read.name,
         seedVerbRegistry.write.name,
         seedVerbRegistry.call.name,
@@ -4072,7 +4124,7 @@ export class Service {
       _: 'GetSessionResponse',
       session: sessionRowToInfo(session, triggerContext ?? undefined),
       events: events.map(sessionEventRowToInfo),
-      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, definition, agent.state_dir),
+      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, agent.id, definition, agent.state_dir),
       ...(triggerContext ? {triggerContext} : {}),
     }
   }
@@ -4708,30 +4760,85 @@ async function publishSigningIdentityProfileAndHome(
 }
 
 /**
- * Renders the automatic top-level memory listing appended to memory-enabled system prompts.
- * Root files and folders only (with contained file counts), so the agent knows what it has
- * without an explicit memory_list call, while deep folders don't bloat the prompt.
+ * The Space index: the always-present, byte-budgeted summary of everything the agent could
+ * expand — callable tools (one line each, from tool documents), the memory top level, the live
+ * plan, and active triggers. Cached per agent and invalidated by memory/tool/trigger changes so
+ * long sessions stop paying a recursive tree walk on every turn.
  */
-function memoryListingPrompt(stateDir: string): string {
-  let summary: ReturnType<typeof agentMemory.summarizeMemoryTopLevel>
-  try {
-    summary = agentMemory.summarizeMemoryTopLevel(stateDir)
-  } catch {
-    return ''
+const SPACE_INDEX_BUDGET_BYTES = 2048
+
+type SpaceIndexInput = {
+  db: Database
+  accountId: string
+  agentId: string
+  stateDir: string
+  callableTools: string[]
+}
+
+const spaceIndexCache = new Map<string, string>()
+
+export function invalidateSpaceIndex(accountId: string, agentId?: string): void {
+  for (const key of spaceIndexCache.keys()) {
+    if (key.startsWith(agentId ? `${accountId}/${agentId}#` : `${accountId}/`)) {
+      spaceIndexCache.delete(key)
+    }
   }
-  if (!summary.entries.length) {
-    return '\n\n<memory_files>\n(empty)\n</memory_files>\nYour memory is currently empty.'
-  }
-  const lines = summary.entries.map((entry) =>
-    entry.type === 'dir'
-      ? `${entry.name}/ — ${entry.fileCount ?? 0} file${(entry.fileCount ?? 0) === 1 ? '' : 's'}`
-      : `${entry.name} — ${entry.size} bytes`,
+}
+
+export function buildSpaceIndex(input: SpaceIndexInput): string {
+  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}`
+  const cached = spaceIndexCache.get(cacheKey)
+  if (cached !== undefined) return cached
+
+  toolDocs.ensureBuiltinToolDocuments(input.db, input.accountId, input.agentId)
+  const tools = toolDocs
+    .listToolDocuments(input.db, input.accountId, input.agentId)
+    .filter((row) => row.enabled && (row.doc.kind !== 'builtin' || input.callableTools.includes(row.doc.name)))
+  const toolLines = tools.map(
+    (row) => `- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`,
   )
-  return `\n\n<memory_files>\n${lines.join('\n')}\n</memory_files>\nThis is the current top level of your memory (${
-    summary.totalFiles
-  } file${
-    summary.totalFiles === 1 ? '' : 's'
-  } total). Folder contents are not expanded here: use memory_list with a directory path to look inside a folder and memory_read to read a file.`
+
+  let memoryLine = 'memory/ — empty'
+  try {
+    const summary = agentMemory.summarizeMemoryTopLevel(input.stateDir)
+    if (summary.entries.length) {
+      const top = summary.entries
+        .slice(0, 12)
+        .map((entry) => (entry.type === 'dir' ? `${entry.name}/(${entry.fileCount ?? 0})` : entry.name))
+        .join(' · ')
+      memoryLine = `memory/ — ${summary.totalFiles} file${summary.totalFiles === 1 ? '' : 's'}: ${top}${
+        summary.entries.length > 12 ? ' · …' : ''
+      }`
+    }
+  } catch {}
+
+  const triggers = input.db
+    .query<{name: string}, [string, string]>(
+      `SELECT name FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND enabled = 1 ORDER BY name LIMIT 8`,
+    )
+    .all(input.accountId, input.agentId)
+
+  const parts = [
+    '<space>',
+    'tools/ (read ~/tools/<name> for a contract; call runs one; write ~/tools/<name> authors one)',
+    ...toolLines,
+    memoryLine,
+    ...(triggers.length ? [`triggers/ — active: ${triggers.map((row) => row.name).join(' · ')}`] : []),
+    '</space>',
+  ]
+  let index = parts.join('\n')
+  if (index.length > SPACE_INDEX_BUDGET_BYTES) {
+    // Over budget: drop the per-tool lines for a count, keeping the index honest but tiny.
+    index = [
+      '<space>',
+      `tools/ — ${tools.length} callable tools (read ~/tools/ to list them)`,
+      memoryLine,
+      ...(triggers.length ? [`triggers/ — ${triggers.length} active`] : []),
+      '</space>',
+    ].join('\n')
+  }
+  spaceIndexCache.set(cacheKey, index)
+  return index
 }
 
 /** Reraises agent-memory errors as API errors so they carry an HTTP status. */
@@ -5619,6 +5726,14 @@ export type AgentServicePiToolContext = WriteToolContext & {
   codeExec: CodeExecutor
   /** Callable tool names this agent may dispatch through the call verb. */
   callableTools: string[]
+  /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
+  publishEnabled: boolean
+  /**
+   * Callables the transcript shows the model has expanded (read the contract / hit touch-expand).
+   * Promoted to first-class provider tools so later turns get provider-side schema validation.
+   * Derived from durable events, so resume and compaction reconstruct the same set.
+   */
+  expandedCallables?: string[]
   /** delegate {await: false}: creates a detached session of this agent and dispatches its first run. */
   startSession: (input: unknown) => {sessionId: string; title: string}
   /** plan verb: stores the session's live checklist snapshot. Absent in session-less (script) contexts. */
@@ -5783,14 +5898,15 @@ function parseHmAddress(address: string): {account: string; path: string} | null
   return {account: match[1]!, path}
 }
 
-/** Renders the ~/tools listing: every callable the agent holds, one summary line each. */
-function toolsListing(callableTools: string[]): Record<string, unknown> {
+/** Renders the ~/tools listing from the agent's tool documents, one summary line each. */
+function toolsListing(context: AgentServicePiToolContext): Record<string, unknown> {
   const verbs = Object.values(seedVerbRegistry as Record<string, SeedToolMetadata>).filter(
     (tool) => !tool.hidden && tool.name !== 'return_result',
   )
-  const callables = callableTools
-    .map((name) => getSeedTool(name))
-    .filter((tool): tool is SeedToolMetadata => tool !== undefined)
+  toolDocs.ensureBuiltinToolDocuments(context.db, context.accountId, context.agentId)
+  const rows = toolDocs
+    .listToolDocuments(context.db, context.accountId, context.agentId)
+    .filter((row) => row.enabled && (row.doc.kind !== 'builtin' || context.callableTools.includes(row.doc.name)))
   const lines = [
     '# ~/tools',
     '',
@@ -5798,12 +5914,14 @@ function toolsListing(callableTools: string[]): Record<string, unknown> {
     ...verbs.map((tool) => `- ${toolSummaryLine(tool)}`),
     '',
     '## Callable with the call verb',
-    ...callables.map((tool) => `- ${toolSummaryLine(tool)}`),
+    ...rows.map((row) => `- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`),
+    '',
+    'Write a document to ~/tools/<name> ({description, input, output?, source, runtime?}) to author a new tool.',
   ]
   return {
-    summary: `${verbs.length} verbs and ${callables.length} callable tools.`,
+    summary: `${verbs.length} verbs and ${rows.length} callable tools.`,
     markdown: lines.join('\n'),
-    tools: callables.map((tool) => tool.name),
+    tools: rows.map((row) => row.doc.name),
   }
 }
 
@@ -5933,6 +6051,36 @@ function readRunAddress(context: AgentServicePiToolContext, runId: string): Reco
   }
 }
 
+/**
+ * Callables a session's transcript shows as expanded: a read of ~/tools/<name> or any call by
+ * name. Scans durable tool_call events only, so the answer is identical after resume, restart,
+ * or compaction — the transcript is the pin.
+ */
+export function expandedCallablesFromEvents(db: Database, sessionId: string): string[] {
+  const rows = db
+    .query<SessionEventRow, [string]>(
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+    )
+    .all(sessionId)
+  const expanded = new Set<string>()
+  for (const row of rows) {
+    const event = sessionEventRowToInfo(row).event as {
+      type?: string
+      name?: string
+      input?: {address?: unknown; tool?: unknown}
+    }
+    if (event.type !== 'tool_call' || !isRecord(event.input)) continue
+    if (event.name === seedVerbRegistry.read.name && typeof event.input.address === 'string') {
+      const address = event.input.address.trim()
+      if (address.startsWith('~/tools/')) expanded.add(address.slice('~/tools/'.length).replace(/\/+$/, ''))
+    }
+    if (event.name === seedVerbRegistry.call.name && typeof event.input.tool === 'string') {
+      expanded.add(event.input.tool.trim())
+    }
+  }
+  return [...expanded]
+}
+
 /** Executes the read verb: one dispatcher over every address form. */
 export async function executeReadVerb(
   context: AgentServicePiToolContext,
@@ -5947,12 +6095,23 @@ export async function executeReadVerb(
   const memoryPath = memoryPathFromAddress(address)
   if (memoryPath !== null) return readMemoryAddress(context, memoryPath)
 
-  if (address === '~/tools' || address === '~/tools/') return toolsListing(context.callableTools)
+  if (address === '~/tools' || address === '~/tools/') return toolsListing(context)
   if (address.startsWith('~/tools/')) {
     const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
-    const tool = getSeedTool(name)
-    if (!tool) return {...toolsListing(context.callableTools), summary: `No tool named ${name}.`}
-    return {summary: `Contract for ${name}.`, name, markdown: toolContractMarkdown(tool)}
+    const verb = (seedVerbRegistry as Record<string, SeedToolMetadata>)[name]
+    if (verb) return {summary: `Contract for ${name}.`, name, markdown: toolContractMarkdown(verb)}
+    toolDocs.ensureBuiltinToolDocuments(context.db, context.accountId, context.agentId)
+    const row = toolDocs.getToolDocument(context.db, context.accountId, context.agentId, name)
+    if (!row || (row.doc.kind === 'builtin' && !context.callableTools.includes(name))) {
+      return {...toolsListing(context), summary: `No tool named ${name}.`}
+    }
+    return {
+      summary: `Contract for ${name} (${row.cid}).`,
+      name,
+      cid: row.cid,
+      kind: row.doc.kind,
+      markdown: toolDocs.toolDocumentContractMarkdown(row),
+    }
   }
 
   if (address.startsWith('ipfs://')) {
@@ -6007,13 +6166,18 @@ export async function executeReadVerb(
   if (address.startsWith('hm://')) return readHypermedia({id: address, format})
   if (/^https?:\/\//.test(address)) {
     // Seed sites and gateway URLs resolve as hypermedia first; anything else is a web page.
-    // Only a failure to RESOLVE the URL as hypermedia falls through — once we know the URL is
-    // hypermedia, its errors (too-large, not-found, transient) surface instead of being silently
-    // replaced by scraped page HTML the model would mistake for the document.
+    // Fall through to the web reader ONLY when the URL is established as not-hypermedia (the
+    // resolver's explicit marker) or the document is absent (404 on a real Seed site can still be
+    // an ordinary web page). Every other failure — transient daemon errors, too-large, network —
+    // surfaces instead of being silently replaced by scraped page HTML the model would mistake
+    // for the document's real content.
     try {
       return await readHypermedia({id: address, format})
     } catch (error) {
-      if (error instanceof APIError && error.status !== 404) throw error
+      const notHypermedia =
+        error instanceof Error && error.message.includes('does not appear to be a Seed Hypermedia resource')
+      const notFound = error instanceof APIError && error.status === 404
+      if (!notHypermedia && !notFound) throw error
       return executeWebRead(context.web, {url: address, ...options})
     }
   }
@@ -6034,6 +6198,35 @@ export async function executeWriteVerb(
   if (!address) throw new APIError(400, 'write requires an address')
   const options = isRecord(input.options) ? input.options : {}
   const content = typeof input.content === 'string' ? input.content : undefined
+
+  if (address.startsWith('~/tools/')) {
+    const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
+    try {
+      if (options.delete === true) {
+        const deleted = toolDocs.deleteToolDocument(context.db, context.accountId, context.agentId, name)
+        context.onMemoryChange()
+        return {summary: deleted ? `Deleted tool ${name}.` : `No tool named ${name}.`, name, deleted}
+      }
+      const parsed = content !== undefined ? (JSON.parse(content) as unknown) : options.tool
+      const row = toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+        ...(isRecord(parsed) ? parsed : {}),
+        name,
+      })
+      context.onMemoryChange()
+      return {
+        summary: `Saved tool ${name} (${row.cid}). It becomes callable once lambda execution ships; its contract is live in ~/tools now.`,
+        name,
+        cid: row.cid,
+        kind: row.doc.kind,
+      }
+    } catch (error) {
+      if (error instanceof toolDocs.ToolDocumentError) throw new APIError(error.status, error.message)
+      if (error instanceof SyntaxError) {
+        throw new APIError(400, 'write ~/tools/<name> expects JSON content: {description, input, output?, source, runtime?}')
+      }
+      throw error
+    }
+  }
 
   const memoryPath = memoryPathFromAddress(address)
   if (memoryPath !== null) {
@@ -6090,6 +6283,9 @@ export async function executeWriteVerb(
   }
 
   if (address.startsWith('ipfs:')) {
+    if (!context.publishEnabled) {
+      throw new APIError(403, 'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.')
+    }
     if (typeof options.fromAttachment === 'string' && options.fromAttachment) {
       const fromAttachment = options.fromAttachment
       const {info, data} = withAttachmentErrors(() =>
@@ -6129,6 +6325,9 @@ export async function executeWriteVerb(
 
   const hm = parseHmAddress(address)
   if (hm) {
+    if (!context.publishEnabled) {
+      throw new APIError(403, 'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.')
+    }
     // Publishing a memory markdown file (frontmatter + resolved images) keeps its dedicated pipeline.
     const fromPath = typeof options.fromPath === 'string' && options.fromPath ? options.fromPath : undefined
     if (fromPath) {
@@ -6244,11 +6443,20 @@ export async function executeCallVerb(
   toolCallId: string | undefined,
 ): Promise<Record<string, unknown>> {
   const input = isRecord(raw) ? raw : {}
-  const toolName = typeof input.tool === 'string' ? input.tool.trim() : ''
+  const toolName = typeof input.tool === 'string' ? normalizeSeedToolName(input.tool.trim()) : ''
   const tool = toolName ? getSeedTool(toolName) : undefined
   if (!tool || !context.callableTools.includes(toolName)) {
+    const lambda = toolName
+      ? toolDocs.getToolDocument(context.db, context.accountId, context.agentId, toolName)
+      : undefined
+    if (lambda && lambda.doc.kind === 'lambda') {
+      throw new APIError(
+        400,
+        `Tool ${toolName} is an authored lambda; lambda execution is not enabled yet on this server. Its contract is at ~/tools/${toolName}.`,
+      )
+    }
     return {
-      ...toolsListing(context.callableTools),
+      ...toolsListing(context),
       summary: toolName
         ? `No callable tool named ${toolName}. Here is what you can call.`
         : 'call requires a tool name. Here is what you can call.',
@@ -6304,7 +6512,17 @@ export async function executeCallVerb(
 }
 
 function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolDefinition[] {
+  const promoted = (context.expandedCallables ?? [])
+    .filter((name) => context.callableTools.includes(name))
+    .flatMap((name) => {
+      const tool = getSeedTool(name)
+      if (!tool) return []
+      return [
+        defineSeedPiTool(tool, (params, toolCallId) => executeCallVerb(context, {tool: name, input: params}, toolCallId)),
+      ]
+    })
   return [
+    ...promoted,
     defineSeedPiTool(seedVerbRegistry.read, (params) => executeReadVerb(context, params)),
     defineSeedPiTool(seedVerbRegistry.write, (params) => executeWriteVerb(context, params)),
     defineSeedPiTool(seedVerbRegistry.call, (params, toolCallId) => executeCallVerb(context, params, toolCallId)),

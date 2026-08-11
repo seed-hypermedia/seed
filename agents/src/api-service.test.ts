@@ -267,7 +267,8 @@ describe('api service', () => {
         mimeType: 'image/png',
       })
 
-      // The session system prompt automatically lists top-level memory without expanding folders.
+      // The session system prompt carries the Space index: memory top level without expanding
+      // folders, plus the callable tool lines.
       const session = await svc.message(
         await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId}}),
       )
@@ -276,9 +277,9 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: session.sessionId}}),
       )
       if (loaded._ !== 'GetSessionResponse') throw new Error('unexpected response')
-      expect(loaded.systemPromptMarkdown).toContain('<memory_files>')
-      expect(loaded.systemPromptMarkdown).toContain('media/ — 1 file')
-      expect(loaded.systemPromptMarkdown).toContain('downloads/ — 1 file')
+      expect(loaded.systemPromptMarkdown).toContain('<space>')
+      expect(loaded.systemPromptMarkdown).toContain('media/(1)')
+      expect(loaded.systemPromptMarkdown).toContain('downloads/(1)')
       expect(loaded.systemPromptMarkdown).not.toContain('media/pic.png')
     } finally {
       globalThis.fetch = realFetch
@@ -3349,7 +3350,7 @@ describe('api service', () => {
               systemPrompt: 'Publish memory docs.',
               modelProvider: 'openai',
               model: 'gpt-test',
-              tools: [],
+              tools: ['publish'],
               signingKeys: [identity.identity.name],
             },
           },

@@ -5,7 +5,9 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {serialize} from 'superjson'
 import {unpackHmId} from '@seed-hypermedia/client'
+import * as apisvc from '@/api-service'
 import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiToolContext} from '@/api-service'
+import {encode as cborEncode} from '@/cbor'
 import * as sqlite from '@/sqlite'
 import type {CodeExecutor} from '@/code-exec'
 
@@ -23,6 +25,13 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'verbs-test-'))
   const db = new Database(':memory:')
   sqlite.openWithDatabase(db)
+  const now = Date.now()
+  db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)`, ['test-account', now, now])
+  db.run(
+    `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['test-agent', 'test-account', new Uint8Array([160]), 'x', 'ready', now, now],
+  )
   cleanups.push(() => {
     db.close()
     fs.rmSync(dataDir, {recursive: true, force: true})
@@ -53,6 +62,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     onToolProgress: mock(() => {}),
     codeExec: fakeExec,
     callableTools: ['search', 'web_search', 'execute'],
+    publishEnabled: true,
     startSession: mock(() => ({sessionId: 'child-session', title: 'Child'})),
     setSessionPlan: mock(() => ({plan: {steps: []}}) as never),
     spawnSubSession: mock(() => ({status: 'spawned', sessionId: 'sub-1', title: 'Sub'})),
@@ -85,7 +95,7 @@ describe('read verb', () => {
     const listing = await executeReadVerb(context, {address: '~/tools/'})
     expect(String(listing.markdown)).toContain('read —')
     expect(String(listing.markdown)).toContain('web_search —')
-    expect(listing.tools).toEqual(['search', 'web_search', 'execute'])
+    expect(listing.tools).toEqual(['execute', 'search', 'web_search'])
 
     const contract = await executeReadVerb(context, {address: '~/tools/web_search'})
     expect(String(contract.markdown)).toContain('## Input schema')
@@ -94,7 +104,7 @@ describe('read verb', () => {
     // Unknown tool answers with the listing, not an error.
     const unknown = await executeReadVerb(context, {address: '~/tools/nope'})
     expect(String(unknown.summary)).toContain('No tool named nope')
-    expect(unknown.tools).toEqual(['search', 'web_search', 'execute'])
+    expect(unknown.tools).toEqual(['execute', 'search', 'web_search'])
   })
 
   test('hm:// addresses resolve through the hypermedia reader', async () => {
@@ -160,12 +170,6 @@ describe('read verb', () => {
   test('thread: renders a transcript for an owned session and 404s otherwise', async () => {
     const context = makeContext()
     const now = Date.now()
-    context.db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)`, ['test-account', now, now])
-    context.db.run(
-      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ['test-agent', 'test-account', new Uint8Array([160]), 'x', 'ready', now, now],
-    )
     context.db.run(
       `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -230,7 +234,7 @@ describe('call verb', () => {
     const context = makeContext()
     const missing = await executeCallVerb(context, {}, undefined)
     expect(String(missing.summary)).toContain('call requires a tool name')
-    expect(missing.tools).toEqual(['search', 'web_search', 'execute'])
+    expect(missing.tools).toEqual(['execute', 'search', 'web_search'])
 
     const unknown = await executeCallVerb(context, {tool: 'navigate'}, undefined)
     expect(String(unknown.summary)).toContain('No callable tool named navigate')
@@ -280,5 +284,104 @@ describe('call verb', () => {
     }) as unknown as typeof fetch
     const result = await executeCallVerb(context, {tool: 'search', input: {query: 'hello'}}, undefined)
     expect(String(result.summary)).toContain('No results')
+  })
+})
+
+describe('space index and touch-expand pins', () => {
+  test('index stays under budget, lists tools and memory, and caches until invalidated', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/memory/notes/a.md', content: 'x'})
+    const index = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(index.length).toBeLessThanOrEqual(2048)
+    expect(index).toContain('<space>')
+    expect(index).toContain('search —')
+    expect(index).toContain('notes/(1)')
+
+    // Cached: a memory write without invalidation returns the same bytes; invalidation refreshes.
+    await executeWriteVerb(context, {address: '~/memory/notes/b.md', content: 'y'})
+    const stale = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(stale).toBe(index)
+    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+    const fresh = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(fresh).toContain('notes/(2)')
+  })
+
+  test('authored lambda appears in the index and the listing', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {
+      address: '~/tools/word_count',
+      content: JSON.stringify({
+        description: 'Count words in a text.',
+        input: {type: 'object', properties: {text: {type: 'string'}}, required: ['text']},
+        source: 'export default async ({text}) => ({words: text.split(/\\s+/).length})',
+      }),
+    })
+    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+    const index = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(index).toContain('word_count')
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(String(listing.markdown)).toContain('word_count — Count words in a text. (authored)')
+    const contract = await executeReadVerb(context, {address: '~/tools/word_count'})
+    expect(String(contract.markdown)).toContain('## Source')
+    expect(String(contract.cid)).toStartWith('b')
+  })
+
+  test('expanded set derives from durable read/call events', () => {
+    const context = makeContext()
+    const now = Date.now()
+    context.db.run(
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['s1', 'test-account', 'test-agent', null, 'system', 'idle', now, now],
+    )
+    const append = (seq: number, event: unknown) =>
+      context.db.run(
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [`e${seq}`, 's1', seq, cborEncode(event), now],
+      )
+    append(1, {type: 'message', role: 'user', content: 'hi'})
+    append(2, {type: 'tool_call', id: 't1', name: 'read', input: {address: '~/tools/web_search'}})
+    append(3, {type: 'tool_call', id: 't2', name: 'call', input: {tool: 'execute', input: {}}})
+    append(4, {type: 'tool_call', id: 't3', name: 'read', input: {address: '~/memory/x'}})
+    expect(apisvc.expandedCallablesFromEvents(context.db, 's1').sort()).toEqual(['execute', 'web_search'])
+    expect(apisvc.expandedCallablesFromEvents(context.db, 'missing')).toEqual([])
+  })
+})
+
+describe('publish grant', () => {
+  test('ungranted agents write memory freely but cannot publish hm:// or ipfs://', async () => {
+    const context = makeContext({publishEnabled: false})
+    const memoryWrite = await executeWriteVerb(context, {address: '~/memory/ok.txt', content: 'fine'})
+    expect(String(memoryWrite.summary)).toContain('Wrote')
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {title: 'X'}}),
+    ).rejects.toThrow('Publishing is not enabled')
+    await expect(
+      executeWriteVerb(context, {address: 'ipfs://', options: {fromPath: '~/memory/ok.txt'}}),
+    ).rejects.toThrow('Publishing is not enabled')
   })
 })
