@@ -96,7 +96,7 @@ import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
-import {FilePen, Info, Quote, Search} from 'lucide-react'
+import {ChevronUp, FilePen, Info, Quote, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
@@ -2012,30 +2012,8 @@ function DocumentBody({
     route,
   ])
 
-  // Track when DocumentTools becomes sticky
-  const [isToolsSticky, setIsToolsSticky] = useState(false)
-  const toolsSentinelRef = useRef<HTMLDivElement>(null)
-
   // Mobile panel open state derived from URL panel route
   const mobilePanelOpen = !!panelKey
-
-  useEffect(() => {
-    const sentinel = toolsSentinelRef.current
-    if (!sentinel) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0]
-        if (!entry) return
-        // When sentinel is not intersecting (scrolled out of view), tools are sticky
-        setIsToolsSticky(!entry.isIntersecting)
-      },
-      {threshold: 0.1, rootMargin: '0px'},
-    )
-
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [])
 
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
@@ -2377,13 +2355,21 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
-  const documentContentActionOverlay =
-    documentContentAction && !isMobile ? (
-      <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4">
-        {documentContentAction}
-      </div>
-    ) : null
-  const documentToolsRightAction = isMobile ? documentContentAction : null
+  // Page actions live in the same top-right corner on every platform. On desktop
+  // the page container does not scroll, so `absolute` is enough. Mobile scrolls the
+  // document itself, so the overlay must be `fixed` — offset below the site header
+  // so it never covers the header's own actions while the header is on screen.
+  const documentContentActionOverlay = documentContentAction ? (
+    <div
+      className={cn(
+        'top-2 right-2 z-50 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
+        isMobile ? 'fixed' : 'absolute',
+      )}
+      style={isMobile ? {top: 'calc(var(--site-header-live-h, 0px) + 0.5rem)'} : undefined}
+    >
+      {documentContentAction}
+    </div>
+  ) : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // Main page content (used in both mobile and desktop layouts)
@@ -2533,19 +2519,10 @@ function DocumentBody({
         </div>
       )}
 
-      {/* Sentinel element - important for doc tools sticky checking */}
-      <div ref={toolsSentinelRef} />
-
-      {/* DocumentTools - sticky with compact padding. Hidden when showActivity is false. */}
+      {/* DocumentTools - scrolls with the page; the border separates document
+          identity above from document body below. Hidden when showActivity is false. */}
       {showActivity && (
-        <div
-          className={cn(
-            'sticky top-0 z-10 px-5 py-1',
-            'dark:bg-background bg-white',
-            isToolsSticky ? 'shadow-md' : 'shadow-none',
-            'transition-shadow',
-          )}
-        >
+        <div className="border-border border-b px-5 py-1">
           <DocumentTools
             id={docId}
             activeTab={
@@ -2565,7 +2542,6 @@ function DocumentBody({
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
             metadataCount={countCustomMetadataFields(metadata)}
-            rightAction={documentToolsRightAction}
             layoutProps={
               isMobile
                 ? undefined
@@ -2671,7 +2647,9 @@ function DocumentBody({
       <>
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           {mainPageContent}
+          {documentContentActionOverlay}
           {floatingButtonsAction}
+          {mobilePanelOpen ? null : <MobileBackToTop />}
         </div>
 
         {mobilePanelOpen && (
@@ -2765,6 +2743,45 @@ function DocumentBody({
         </ScrollArea>
       </PanelLayout>
     </div>
+  )
+}
+
+/**
+ * Mobile-only "back to top" affordance. The tools row scrolls away with the
+ * document, so a reader deep in a long document needs one tap to reach the top
+ * (and therefore the tabs) again. Mobile web scrolls the document itself, so
+ * window scroll is the right target here.
+ */
+export function MobileBackToTop() {
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const updateVisibility = () => {
+      setVisible(window.scrollY > window.innerHeight * 1.5)
+    }
+    updateVisibility()
+    window.addEventListener('scroll', updateVisibility, {passive: true})
+    return () => window.removeEventListener('scroll', updateVisibility)
+  }, [])
+
+  return (
+    <button
+      type="button"
+      aria-label="Back to top"
+      aria-hidden={!visible}
+      onClick={() => {
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        window.scrollTo({top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth'})
+      }}
+      className={cn(
+        'fixed bottom-6 left-1/2 z-40 flex size-9 -translate-x-1/2 items-center justify-center rounded-full',
+        'bg-neutral-900 text-white shadow-md dark:bg-neutral-100 dark:text-neutral-900',
+        'transition-opacity duration-200 motion-reduce:transition-none',
+        visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+      )}
+    >
+      <ChevronUp className="size-5" />
+    </button>
   )
 }
 
@@ -3423,7 +3440,7 @@ function ContentViewWithOutline({
       {showSidebars && (
         <div {...sidebarProps}>
           {outline.length > 0 && (
-            <div className="sticky top-24 mt-4">
+            <div className="sticky top-4 mt-4">
               <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
                 <DocumentOutline
                   onActivateBlock={(blockId) => {

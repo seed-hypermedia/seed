@@ -10,8 +10,9 @@ export type BlockScrollOptions = {
   behavior?: ScrollBehavior
 }
 
-// Offset to clear sticky DocumentTools bar; matches .blocknode-content scroll-margin-top in blocks-content.css
-const STICKY_HEADER_OFFSET = 88
+// Breathing room above the target block. Nothing is pinned over the scroll
+// container anymore, so this only keeps the block off the very top edge.
+const SCROLL_TOP_MARGIN = 16
 
 const defaultOptions: BlockScrollOptions = {
   block: 'start',
@@ -72,7 +73,7 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
         // Scroll the container directly
         const containerRect = scrollContainer.getBoundingClientRect()
         const elementRect = element.getBoundingClientRect()
-        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - STICKY_HEADER_OFFSET
+        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - SCROLL_TOP_MARGIN
         scrollContainer.scrollTo({top: scrollTop, behavior})
       } else {
         // No scroll container, use standard scrollIntoView
@@ -132,7 +133,7 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
       if (scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect()
         const elementRect = element.getBoundingClientRect()
-        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - STICKY_HEADER_OFFSET
+        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - SCROLL_TOP_MARGIN
         scrollContainer.scrollTo({top: scrollTop, behavior})
       } else {
         element.scrollIntoView({behavior, block})
