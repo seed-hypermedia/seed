@@ -1,43 +1,43 @@
-import { useAppContext, useListen } from '@/app-context'
+import {useAppContext, useListen} from '@/app-context'
 
-import { CloseButton } from '@/components/window-controls'
+import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
-import { ipc } from '@/ipc'
-import { useDraft } from '@/models/accounts'
-import { useAgentServerUrls, useHasAnyAgent } from '@/models/agents'
-import { useConnectPeer } from '@/models/contacts'
-import { useCreateDraft } from '@/models/documents'
-import { useEnsureLocalAssistantAgent } from '@/models/local-assistant'
-import { useSelectedAccountId } from '@/selected-account'
-import { SidebarContextProvider, useSidebarContext } from '@/sidebar-context'
-import { draftDocumentRouteId } from '@/utils/draft-route'
-import { useNavigate } from '@/utils/useNavigate'
-import { useListenAppEvent } from '@/utils/window-events'
-import { getWindowType } from '@/utils/window-types'
-import { hmId } from '@shm/shared'
-import { defaultRoute, NavRoute } from '@shm/shared/routes'
-import { useStream } from '@shm/shared/use-stream'
-import { getRouteKey, useNavRoute } from '@shm/shared/utils/navigation'
-import { Button } from '@shm/ui/button'
-import { DialogTitle } from '@shm/ui/components/dialog'
-import { windowContainerStyles } from '@shm/ui/container'
-import { Spinner } from '@shm/ui/spinner'
-import { TitlebarWrapper, TitleText } from '@shm/ui/titlebar'
-import { toast } from '@shm/ui/toast'
-import { useAppDialog } from '@shm/ui/universal-dialog'
-import { cn } from '@shm/ui/utils'
-import { lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
-import { ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
-import { AppErrorPage, RootAppError } from '../components/app-error'
-import { AssistantPanel } from '../components/assistant-panel'
-import { AutoUpdater } from '../components/auto-updater'
+import {ipc} from '@/ipc'
+import {useDraft} from '@/models/accounts'
+import {useAgentServerUrls, useHasAnyAgent} from '@/models/agents'
+import {useConnectPeer} from '@/models/contacts'
+import {useCreateDraft} from '@/models/documents'
+import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
+import {useSelectedAccountId} from '@/selected-account'
+import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
+import {draftDocumentRouteId} from '@/utils/draft-route'
+import {useNavigate} from '@/utils/useNavigate'
+import {useListenAppEvent} from '@/utils/window-events'
+import {getWindowType} from '@/utils/window-types'
+import {hmId} from '@shm/shared'
+import {defaultRoute, NavRoute} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
+import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {Button} from '@shm/ui/button'
+import {DialogTitle} from '@shm/ui/components/dialog'
+import {windowContainerStyles} from '@shm/ui/container'
+import {Spinner} from '@shm/ui/spinner'
+import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
+import {toast} from '@shm/ui/toast'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {cn} from '@shm/ui/utils'
+import React, {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {ErrorBoundary} from 'react-error-boundary'
+import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {AppErrorPage, RootAppError} from '../components/app-error'
+import {AssistantPanel} from '../components/assistant-panel'
+import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
-import { HypermediaHighlight } from '../components/hypermedia-highlight'
-import { AppSidebar } from '../components/sidebar'
-import { TitleBar } from '../components/titlebar'
-import { BaseLoading, NotFoundPage } from './base'
-import { DocumentPlaceholder } from './document-placeholder'
+import {HypermediaHighlight} from '../components/hypermedia-highlight'
+import {AppSidebar} from '../components/sidebar'
+import {TitleBar} from '../components/titlebar'
+import {BaseLoading, NotFoundPage} from './base'
+import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
 
 var Onboarding = lazy(() => import('./onboarding'))
@@ -76,7 +76,7 @@ function DraftRouteRedirect() {
     const inlineUid = route.editUid || route.locationUid
     if (inlineUid) {
       const inlinePath = route.editUid ? route.editPath : route.locationPath
-      replace({ key: 'document', id: hmId(inlineUid, { path: inlinePath ?? [] }) })
+      replace({key: 'document', id: hmId(inlineUid, {path: inlinePath ?? []})})
       return
     }
     if (draftQuery.isLoading) return
@@ -90,13 +90,13 @@ function DraftRouteRedirect() {
       replace(defaultRoute)
       return
     }
-    replace({ key: 'document', id: targetId })
+    replace({key: 'document', id: targetId})
   }, [route, draftQuery.isLoading, draftQuery.data, replace])
   return <DocumentPlaceholder />
 }
 
 /** Renders the main desktop app window and optional assistant sidebar. */
-export default function Main({ className }: { className?: string }) {
+export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
   const replaceRemovedRoute = useNavigate('replace')
@@ -126,12 +126,12 @@ export default function Main({ className }: { className?: string }) {
   // On a fresh install the local server has no agents, which would keep the assistant hidden
   // forever — provision the built-in Assistant as soon as a model provider exists.
   useEnsureLocalAssistantAgent(selectedAccountId)
-  const { hasAgents, isSettled: agentsSettled } = useHasAnyAgent(agentServerUrls.data, selectedAccountId)
+  const {hasAgents, isSettled: agentsSettled} = useHasAnyAgent(agentServerUrls.data, selectedAccountId)
   const isAssistantAvailable = hasAgents || !agentsSettled
   const shouldRenderAssistantPanel = assistantOpen && isAssistantAvailable
 
   const sendAssistantState = useCallback((open: boolean, sessionId: string | null) => {
-    ipc.send('windowAssistantState', { assistantOpen: open, assistantSessionId: sessionId })
+    ipc.send('windowAssistantState', {assistantOpen: open, assistantSessionId: sessionId})
   }, [])
 
   const handleToggleAssistant = useCallback(() => {
@@ -169,8 +169,8 @@ export default function Main({ className }: { className?: string }) {
     }
   }, [assistantOpen, assistantSessionId, agentsSettled, hasAgents, sendAssistantState])
 
-  const { platform } = useAppContext()
-  const { PageComponent, Fallback } = useMemo(() => getPageComponent(navR), [navR])
+  const {platform} = useAppContext()
+  const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
   // Reset route-scoped crashes on navigation without forcing the entire page tree
   // to unmount. Document routes share a single page component and rely on staying
   // mounted so the site header and editor state do not flash between navigations.
@@ -290,7 +290,7 @@ export default function Main({ className }: { className?: string }) {
   )
 }
 
-function ConfirmConnectionDialogContent({ input, onClose }: { input: string; onClose: () => void }) {
+function ConfirmConnectionDialogContent({input, onClose}: {input: string; onClose: () => void}) {
   const connect = useConnectPeer({
     onSuccess: () => {
       onClose()
@@ -298,7 +298,7 @@ function ConfirmConnectionDialogContent({ input, onClose }: { input: string; onC
     },
     onError: (error) => {
       // @ts-expect-error
-      appError(`Connect to peer error: ${error?.rawMessage}`, { error })
+      appError(`Connect to peer error: ${error?.rawMessage}`, {error})
     },
   })
   return (
@@ -330,7 +330,7 @@ function ConfirmConnectionDialog() {
   return dialog.content
 }
 
-function PanelContent({ children }: { children: ReactNode }) {
+function PanelContent({children}: {children: ReactNode}) {
   const ctx = useSidebarContext()
   const isLocked = useStream(ctx.isLocked)
   const sidebarWidth = useStream(ctx.sidebarWidth)
