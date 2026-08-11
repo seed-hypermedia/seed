@@ -1,5 +1,8 @@
 # Explore Search Prototype
 
+> Superseded by `docs/projects/explore-advanced-search.md`, which redirects Explore at replacing the Query Documents
+> omnibar entry and adopts the wireframe design. Kept for the background on the existing result surfaces and APIs.
+
 ## Problem
 
 Seed needs a first useful Explore/search experience inside the existing desktop and web apps, not in the separate

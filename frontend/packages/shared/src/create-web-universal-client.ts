@@ -1,8 +1,10 @@
 import {createDocumentChange, createGenesisChange, createVersionRef, signDocumentChange} from '@seed-hypermedia/client'
 import type {HMRequest, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {PublishDocumentInput, UniversalClient} from './universal-client'
+import type {QueryDocumentsRequest, QueryDocumentsResponse} from './client/grpc-types'
 
 export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'> & {
+  queryDocuments?: (request: QueryDocumentsRequest, options?: {signal?: AbortSignal}) => Promise<QueryDocumentsResponse>
   CommentEditor: (props: {docId: UnpackedHypermediaId}) => JSX.Element
   fetchRecents?: () => Promise<any[]>
   deleteRecent?: (id: string) => Promise<void>
@@ -109,6 +111,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
 
     request: deps.request,
     publish: deps.publish,
+    queryDocuments: deps.queryDocuments,
 
     publishDocument: deps.getSigner ? publishDocument : undefined,
   }

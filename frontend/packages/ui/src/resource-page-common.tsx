@@ -32,7 +32,6 @@ import {
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {ContentTypeFilter, EntityKindFilter} from '@shm/shared/client/grpc-types'
 import type {
   BlockRangeSelectOptions,
   CitationFragmentClick,
@@ -54,8 +53,8 @@ import {
   useSiteMembers,
 } from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {parseExploreQuery, searchResultItemToExploreResult, type HMExploreResult} from '@shm/shared/explore'
-import {useSearch} from '@shm/shared/models/search'
+import {parseExploreQuery} from '@shm/shared/explore'
+import {useExploreResults} from '@shm/shared/models/explore'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -91,7 +90,6 @@ import {
   getCommentTargetId,
   hmIdToURL,
   latestId,
-  packHmId,
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
@@ -3201,44 +3199,21 @@ function MainContent({
 }) {
   const {openRouteNewWindow, originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
+  const replaceRoute = useNavigate('replace')
   const route = useNavRoute()
   const allDocumentsSiteId = !IS_DESKTOP && originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
-  const exploreQuery = route.key === 'explore' ? route.q || '' : ''
+  const rawExploreQuery = route.key === 'explore' ? route.q || '' : ''
+  const legacyExploreSort =
+    route.key === 'explore' && route.sort && !/\bsort:/.test(rawExploreQuery) ? `sort:${route.sort}` : ''
+  const exploreQuery = [rawExploreQuery, legacyExploreSort].filter(Boolean).join(' ')
   const parsedExploreQuery = useMemo(() => parseExploreQuery(exploreQuery), [exploreQuery])
-  const exploreSearch = useSearch(parsedExploreQuery.text, {
-    enabled: activeView === 'explore' && !!parsedExploreQuery.text,
-    includeBody: true,
-    contextSize: 96,
-    pageSize: 50,
-    iriFilter: `hm://${allDocumentsSiteId.uid}${
-      allDocumentsSiteId.path?.length ? `/${allDocumentsSiteId.path.join('/')}*` : '*'
-    }`,
-    contentTypeFilter: [
-      ContentTypeFilter.CONTENT_TYPE_TITLE,
-      ContentTypeFilter.CONTENT_TYPE_DOCUMENT,
-      ContentTypeFilter.CONTENT_TYPE_COMMENT,
-    ],
-    entityKindFilter: [
-      EntityKindFilter.ENTITY_KIND_SPACE,
-      EntityKindFilter.ENTITY_KIND_DOCUMENT,
-      EntityKindFilter.ENTITY_KIND_COMMENT,
-    ],
-  })
-  const exploreResults = useMemo<HMExploreResult[]>(() => {
-    const results: HMExploreResult[] = []
-    const seen = new Set<string>()
-    for (const item of exploreSearch.data?.entities || []) {
-      const result = searchResultItemToExploreResult(item)
-      if (!result) continue
-      if (parsedExploreQuery.types.length && !parsedExploreQuery.types.includes(result.type)) continue
-      const key =
-        result.type === 'comment' ? `${result.type}:${result.commentId}` : `${result.type}:${packHmId(result.id)}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      results.push(result)
-    }
-    return results
-  }, [exploreSearch.data?.entities, parsedExploreQuery.types])
+  const explore = useExploreResults(
+    parsedExploreQuery,
+    {type: 'site', id: allDocumentsSiteId},
+    {
+      enabled: activeView === 'explore',
+    },
+  )
 
   switch (activeView) {
     case 'all-documents':
@@ -3267,14 +3242,19 @@ function MainContent({
         <ExplorePage
           contextLabel={`Site: ${allDocumentsSiteId.uid}`}
           query={exploreQuery}
-          sort={route.key === 'explore' ? route.sort || 'relevance' : 'relevance'}
-          results={exploreResults}
-          isLoading={exploreSearch.isLoading}
-          error={exploreSearch.error instanceof Error ? exploreSearch.error.message : null}
-          onQueryChange={(q) => navigate({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q})}
-          onSortChange={(sort) =>
-            navigate({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q: exploreQuery, sort})
-          }
+          parsed={parsedExploreQuery}
+          results={explore.results}
+          counts={explore.counts}
+          textTerms={explore.textTerms}
+          diagnostics={explore.diagnostics}
+          blocksByDocument={explore.blocksByDocument}
+          hasMore={explore.hasMore}
+          intersectionPending={explore.intersectionPending}
+          intersectionTruncated={explore.intersectionTruncated}
+          onLoadMore={explore.loadMore}
+          isLoading={explore.isLoading}
+          error={explore.error instanceof Error ? explore.error.message : null}
+          onQueryChange={(q) => replaceRoute({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q})}
           onOpenResult={(result) => {
             if (result.type === 'comment') {
               navigate({key: 'comments', id: result.documentId, openComment: result.commentId})

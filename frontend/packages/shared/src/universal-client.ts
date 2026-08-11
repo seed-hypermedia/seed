@@ -8,6 +8,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
+import type {QueryDocumentsRequest, QueryDocumentsResponse} from './client/grpc-types'
 
 export type PublishDocumentInput = {
   account: string
@@ -40,6 +41,11 @@ export type DiscoveryService = {
 
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
+  /** Queries document metadata using the daemon's recursive attribute filter API. */
+  queryDocuments?: (
+    request: QueryDocumentsRequest,
+    options?: UniversalClientRequestOptions,
+  ) => Promise<QueryDocumentsResponse>
   // Comment editor component (platform-specific)
   CommentEditor?: React.ComponentType<{docId: UnpackedHypermediaId}>
 
