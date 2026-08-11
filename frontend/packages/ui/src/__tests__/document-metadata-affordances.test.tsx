@@ -163,6 +163,33 @@ describe('EditableDocumentMetadataFields', () => {
     )
   })
 
+  it('reflows the title when its container width changes', async () => {
+    let notifyResize: (() => void) | undefined
+    const OriginalResizeObserver = globalThis.ResizeObserver
+    globalThis.ResizeObserver = class {
+      constructor(callback: ResizeObserverCallback) {
+        notifyResize = () => callback([], this as unknown as ResizeObserver)
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+
+    try {
+      await renderFields({name: 'A title that wraps when the container gets narrower'})
+      const title = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Document title"]')!
+      let measuredHeight = 48
+      Object.defineProperty(title, 'scrollHeight', {get: () => measuredHeight})
+
+      measuredHeight = 144
+      act(() => notifyResize?.())
+
+      expect(title.style.height).toBe('144px')
+    } finally {
+      globalThis.ResizeObserver = OriginalResizeObserver
+    }
+  })
+
   it('reserves affordance space and only fades visibility', async () => {
     await renderFields({fileUpload: vi.fn()})
     const affordanceRow = container.querySelector('[data-document-metadata-affordances]')!

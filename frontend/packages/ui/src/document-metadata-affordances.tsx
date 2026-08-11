@@ -1,6 +1,6 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {FileText, ImagePlus, Smile} from 'lucide-react'
-import {ChangeEvent, useEffect, useRef, useState} from 'react'
+import {ChangeEvent, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {cn} from './utils'
 
@@ -194,6 +194,17 @@ export function EditableDocumentMetadataFields({
   const showSummaryInput = !!summaryText || summaryRequested || summaryFocused
   const showAffordances = hovered || summaryRequested
 
+  const reflowTextareas = useCallback(() => {
+    const resize = () => {
+      if (titleRef.current) resizeTextarea(titleRef.current)
+      if (summaryRef.current) resizeTextarea(summaryRef.current)
+    }
+
+    resize()
+    requestAnimationFrame(resize)
+    ;(document as Document & {fonts?: FontFaceSet}).fonts?.ready.then(resize).catch(() => {})
+  }, [])
+
   useEffect(() => {
     if (titleRef.current) resizeTextarea(titleRef.current)
   }, [name])
@@ -205,6 +216,20 @@ export function EditableDocumentMetadataFields({
   useEffect(() => {
     if (summaryRef.current) resizeTextarea(summaryRef.current)
   }, [summaryText, showSummaryInput])
+
+  useEffect(() => {
+    reflowTextareas()
+    window.addEventListener('resize', reflowTextareas)
+
+    const container = titleRef.current?.parentElement
+    const observer = container && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(reflowTextareas) : null
+    observer?.observe(container!)
+
+    return () => {
+      window.removeEventListener('resize', reflowTextareas)
+      observer?.disconnect()
+    }
+  }, [reflowTextareas])
 
   useEffect(() => {
     if (!summaryRequested) return
