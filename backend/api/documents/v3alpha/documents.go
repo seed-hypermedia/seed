@@ -2110,7 +2110,12 @@ func qListDocsCommentAggScoped(scope string) string {
 	targets AS (
 		SELECT id FROM resources tr WHERE (` + scope + `)
 	),
-	redirected AS (
+	redirected AS MATERIALIZED (
+		-- MATERIALIZED is load-bearing. This CTE is referenced from the recursive
+		-- term of ` + "`chains`" + ` below, and without the hint SQLite re-derives it for
+		-- every row the recursion visits, paying the correlated MAX(generation)
+		-- subquery each time: ~2.2k rows x ~2.5ms = 5.5s of CPU per listing call,
+		-- which saturated production on 2026-08-11. Materialized it's ~40ms.
 		SELECT
 			dg.resource AS resource,
 			da.value AS redirect_iri
