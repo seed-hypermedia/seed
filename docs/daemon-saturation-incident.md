@@ -1,10 +1,11 @@
-# ACTIVE INCIDENT: daemon CPU saturation — hyper.media and all hosted sites
+# RESOLVED: daemon CPU saturation — hyper.media and all hosted sites
 
-> **Status: ACTIVE / UNRESOLVED.** Last verified 2026-08-11 09:42 UTC. Production degrades to unusable roughly **10
-> minutes after each daemon restart**, under ordinary traffic. Two of three known causes are fixed and deployed; the
-> third is identified, has a written fix, and is **not deployed**.
+> **Status: RESOLVED.** All three causes fixed and deployed; the third (unbounded client-side citation enumeration) was
+> deployed 2026-08-11 09:53 UTC and verified against a 32-minute organic-traffic window **plus** a deliberate re-run of
+> the load test that previously killed the box (see §6). The decay cycle is gone. Merged to main in #946; daemon-side
+> removal of the remaining per-call cost is tracked in #947.
 >
-> **No data loss.** All damage is availability.
+> **No data loss.** All damage was availability.
 
 **Affected:** hyper.media, seedteamtalks, ifebitcoin.org, arkad.blog, and ~30 other custom domains — everything served
 by the single gateway host (`ssh hm`).
@@ -13,18 +14,45 @@ by the single gateway host (`ssh hm`).
 
 ## 1. Current state (update this section as things change)
 
-### Live numbers, 09:42 UTC
+### Resolution, 2026-08-11 ~10:30 UTC
 
-| Metric               | Value                                                              |
-| -------------------- | ------------------------------------------------------------------ |
-| `daemon_gateway` CPU | **671%** of 800% (saturating)                                      |
-| Load average         | 9.43                                                               |
-| hyper.media          | 200, but latency climbing                                          |
-| `notify` container   | Stopped 08:55 UTC — **deliberate**, stopped by Eric. Not a symptom |
+The citation cap (§6) — extended beyond the original written fix to cover **every** client-side `listAllPages` chain
+over `ListCitations` (`api-interaction-summary.ts`, `api-citations.ts`, and both sites in
+`models/comments-resolvers.ts`) — was deployed at 09:53 UTC and merged to main as #946 (`367221e2e`).
 
-### The decay cycle (measured, organic traffic only — no synthetic load)
+**Organic-traffic verification (32 minutes, restart at ~09:54):** every 2-minute sample healthy. TTFB 0.07–0.37s
+throughout, load average fell from 9.4 to ~1, daemon CPU averaged ~50% (oscillating 25–345%, spikes being single bounded
+`ListCitations` calls at ~1.1 CPU-s each). For contrast, the pre-fix cycle below hit 702% CPU and 26s TTFB by minute 10,
+every time.
 
-After a daemon restart at 09:35 UTC, with no load testing running:
+**Deliberate break attempt (10:17–10:21 UTC), same load test that killed it before:**
+
+| Test                                                 | Before the cap                                      | After the cap                                    |
+| ---------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------ |
+| 8 concurrent `/api/InteractionSummary`, hottest docs | 60%→677% in 6s; avg 51s, timeouts; no self-recovery | all 200 in **0.7–3.0s**                          |
+| 24 concurrent (3× original)                          | —                                                   | ~650% only while in flight (~12s), instant drain |
+| 30 requests abandoned by clients after 2s            | ~300 queued enumerations, ground 10+ min            | CPU never exceeded 88% in the 2 min after        |
+
+**Remaining live cost:** each `InteractionSummary` / citations-panel / discussions request still spends one
+`ListCitations` call (0.3–2.5s of daemon CPU, one pool slot). Bounded, not free. #947 (daemon-maintained summary, like
+`children_count`) removes it.
+
+### State of the host after cleanup
+
+1. **`notify` is still stopped** (stopped deliberately by Eric 08:55 UTC; original exit 137 unexplained). Notification
+   emails are not delivered until it is restarted. Left for Eric.
+2. **Traefik still carries incident config** — bot-UA block and per-IP limits across 34 routers (both measured to have
+   zero CPU effect). Original config preserved at `/home/ubuntu/.reverse-proxy/config.yml.pre-incident-20260811`. Left
+   for Eric to revert when convenient.
+3. **Rollback tags on the host:** `web:pre-cap-20260811` (`3b31a24b2a32`, the no-SSR image without the caps) and
+   `web:rollback-2026.8.4` (`956e35de2e49`). Daemon rollback remains re-pull of `site:latest` from Hub.
+4. **No automated database backups exist on this host.** The only backup is the one taken during this incident:
+   `/shm/backups/db-2026-08-11T0656Z.sqlite` (8GB, `PRAGMA quick_check` → `ok`), taken 06:56 UTC.
+5. Debug containers (`web_debug`, `web_debug2`) and the ~14GB in `/tmp/webdebug*-data` were removed 10:28 UTC.
+
+### The pre-fix decay cycle (kept for the record — this is what "broken" looked like)
+
+After a daemon restart at 09:35 UTC, organic traffic only:
 
 | Elapsed | Daemon CPU | hyper.media TTFB |
 | ------- | ---------- | ---------------- |
@@ -34,39 +62,8 @@ After a daemon restart at 09:35 UTC, with no load testing running:
 | +8m     | 394%       | 1.48s            |
 | +10m    | **702%**   | **26.1s**        |
 
-**This is the single most important fact in this document.** Ordinary traffic re-saturates the box in ~10 minutes. A
-restart buys roughly 6 minutes of good service. Any claim of "fixed" must survive at least 30 minutes of organic traffic
-before it is believed — this incident has produced three premature "recovered" calls, each from a measurement taken
-inside the quiet window after a restart.
-
-### What is deployed vs. what is in git
-
-| Component              | Running in production                                 | In git                                                            | On Docker Hub                                            |
-| ---------------------- | ----------------------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
-| Daemon (`site:latest`) | hand-built image `0450172e5bef`, contains the CTE fix | merged as `f2170df66` (#945)                                      | `:latest` rebuilt 07:53 with same fix — **never pulled** |
-| Web (`web:latest`)     | hand-built image `3b31a24b2a32`, no SSR summaries     | branch `fix/no-ssr-interaction-summaries`, **unmerged, unpushed** | **not published**                                        |
-| Citation cap           | **not deployed**                                      | uncommitted working-tree edit to `api-interaction-summary.ts`     | —                                                        |
-
-Production is running two images that exist **only on that host**. If the host's Docker storage is lost, the running
-configuration cannot be reproduced without rebuilding from the branch.
-
-### Risks currently being carried
-
-1. **`notify` is stopped deliberately** (by Eric, 08:55 UTC). Listed here only so nobody mistakes it for a symptom or
-   restarts it without intent. Notification emails are not being delivered while it is down.
-2. **Daemon rollback is gone.** `site:rollback-2026.8.4` and `site:hotfix-cte-20260811` tags no longer exist on the
-   host; only `site:latest` remains. Recovery path if the daemon needs replacing is now
-   `docker pull seedhypermedia/site:latest` from Hub (which contains the merged CTE fix, so this is acceptable — but it
-   is no longer a _rollback_, it is a re-pull). `web:rollback-2026.8.4` (`956e35de2e49`) does still exist.
-3. **Watchtower is stopped** (`autoupdater`, exited 2h ago). Nothing auto-deploys. This is deliberate — it would
-   overwrite the hand-built web image with Hub's `:latest`, which lacks the SSR fix — but it must be restarted once the
-   web fix ships. In July it sat silently stopped for 3 days and no deploys happened.
-4. **No automated database backups exist on this host.** The only backup is the one taken during this incident:
-   `/shm/backups/db-2026-08-11T0656Z.sqlite` (8GB, `PRAGMA quick_check` → `ok`), taken 06:56 UTC.
-5. **Two debug containers are still running** (`web_debug`, `web_debug2`) plus ~14GB of copied web data in
-   `/tmp/webdebug-data` and `/tmp/webdebug2-data`. Harmless but should be cleaned.
-6. **Traefik carries incident config** — a bot-UA block and per-IP limits across 34 routers. Neither had any measurable
-   effect on CPU. Original config preserved at `/home/ubuntu/.reverse-proxy/config.yml.pre-incident-20260811`.
+Any future claim of "fixed" must survive at least 30 minutes of organic traffic — this incident produced three premature
+"recovered" calls, each from a measurement taken inside the quiet window after a restart.
 
 ---
 
@@ -245,9 +242,13 @@ pure waste. Query-block cards and list items were never affected — their count
 
 ---
 
-## 6. Cause 3 — the client-side path is uncapped (IDENTIFIED, FIX WRITTEN, NOT DEPLOYED)
+## 6. Cause 3 — the client-side path is uncapped (FIXED, DEPLOYED 09:53 UTC, MERGED #946)
 
-**This is the open problem and the most likely explanation for the 10-minute decay cycle.**
+**This was the driver of the 10-minute decay cycle — confirmed by live measurement, not just hypothesis.** During a
+decay cycle (09:46 UTC, 15 min after restart), a CPU profile showed `ListCitations` at **77% of daemon CPU**, a
+20-second RPC capture counted 34 `ListCitations` calls, and the same window's HTTP capture at `web_gateway` showed 4
+browser `GET /api/InteractionSummary` + 4 `GET /api/ListCitations` — 8 browser hits amplified into 34 daemon calls by
+`listAllPages`.
 
 Removing the SSR prefetch did not remove the work — it _moved_ it. Real readers' browsers now call
 `/api/InteractionSummary`, which runs the identical unbounded enumeration through `web_gateway`. Crawlers stopped
@@ -268,15 +269,19 @@ Remix keeps running handlers after clients disconnect, so abandoned work is not 
 self-sustaining. This is reachable by an attacker, by an unlucky burst of readers on a popular document, or by a
 JS-executing crawler such as Googlebot.
 
-### The written fix (uncommitted, in the working tree)
+### The fix (merged in #946)
 
-Replace `listAllPages(...)` in `api-interaction-summary.ts` with a **single** `listCitations` page. This bounds every
-caller — SSR, client API, everything — to one enumeration instead of up to 13.
+The original written fix (single `listCitations` page in `api-interaction-summary.ts`) covered only one of **four**
+unbounded enumeration paths. The audit of `listAllPages` call sites found three more hitting the same expensive RPC:
+`api-citations.ts` (the `/api/ListCitations` handler behind the citations panel — browsers were observed hitting it
+directly), and two sites in `models/comments-resolvers.ts` (discussions + block comments). `listAllPages` gained a
+`maxPages` option and all citation-enumeration paths are capped to one page.
 
 Trade-off: documents with more than `LIST_PAGE_SIZE` (500) citations under-report their counts until the daemon can
-supply a real count. Two production documents exceed this (6,426 and 6,423 citations).
+supply a real count. Two production documents exceed this (6,426 and 6,423 citations — the ACM HyperText site root and
+its `/authors` page).
 
-Status: typecheck clean, prettier clean, 1010 shared-package tests pass. Not committed, not built, not deployed.
+Status: merged to main as `367221e2e` (#946), deployed 09:53 UTC, verified per §1. Follow-up: #947.
 
 **Honest caveat:** this bounds the blast radius, it does not eliminate it. One `ListCitations` still costs 0.3–2.5s and
 still holds a pool slot. Eight concurrent requests can still occupy 8 of 12 slots. The cap turns "unbounded and
@@ -286,12 +291,12 @@ self-sustaining" into "expensive but bounded"; the real fix is #7 below.
 
 ## 7. Follow-ups, priority order
 
-1. **Deploy the citation cap** (§6). Smallest change that meaningfully reduces the recurring saturation.
-2. **Merge and release the web fix.** Production is running an unreleased hand-built image; git and Docker Hub do not
-   reflect what is deployed. Then restart watchtower.
-3. **Daemon-maintained citation count**, exactly as `children_count` already works for directories — see
-   `getDocumentInfo` in the same `Promise.all`, which does the cheap indexed thing three lines away. This removes the
-   enumeration entirely and would let counts return to SSR if desired. **This is the real fix.**
+1. ~~**Deploy the citation cap** (§6).~~ Done 09:53 UTC.
+2. ~~**Merge and release the web fix.**~~ Merged as #946; images published via `Release - Docker Images` dispatch;
+   watchtower restarted after the host re-pulled Hub `:latest`.
+3. **Daemon-maintained citation count** — filed as #947 — exactly as `children_count` already works for directories —
+   see `getDocumentInfo` in the same `Promise.all`, which does the cheap indexed thing three lines away. This removes
+   the enumeration entirely and would let counts return to SSR if desired. **This is the real fix.**
 4. **Per-RPC deadlines and an in-flight cap on the daemon.** Goroutines reached 60,000 with no ceiling. The server
    should shed load rather than convoy.
 5. **Propagate client disconnects** from Remix into gRPC cancellation so abandoned work stops.
@@ -329,6 +334,12 @@ self-sustaining" into "expensive but bounded"; the real fix is #7 below.
 | ~09:19      | Load test (8× `/api/InteractionSummary`) re-saturates to 677%; does not self-recover         |
 | 09:35       | Daemon restarted to flush the induced backlog                                                |
 | 09:37–09:45 | **Organic-only decay measured: 54% → 702% over 10 minutes, TTFB 0.45s → 26.1s**              |
+| 09:46       | Cause 3 confirmed live: `ListCitations` 77% of CPU; 8 browser API hits → 34 daemon calls     |
+| 09:53       | Web with all four enumeration paths capped deployed; daemon restarted to flush backlog       |
+| 09:54–10:26 | **32-minute organic verification: TTFB 0.07–0.37s every sample, load 9.4 → ~1. Holds.**      |
+| 10:17–10:21 | Deliberate break attempts (8×, 24×, 30× abandoned) all fail to reproduce the decay (§1)      |
+| 10:26       | #946 merged to main (`367221e2e`); `Release - Docker Images` dispatched from main            |
+| 10:28       | Debug containers and ~14GB `/tmp/webdebug*` removed                                          |
 
 ---
 
@@ -351,12 +362,13 @@ self-sustaining" into "expensive but bounded"; the real fix is #7 below.
 
 - **Where did the `site:rollback-2026.8.4` and `site:hotfix-cte-20260811` tags go?** They were created at ~07:15 and are
   absent now. Watchtower was stopped before then and exited with code 1, which is itself unexplained.
+- ~~**What exactly drives the 10-minute decay**~~ — ANSWERED 09:46 UTC: simultaneous captures during a decay cycle
+  showed 4 browser `/api/InteractionSummary` + 4 `/api/ListCitations` hits amplifying into 34 daemon `ListCitations`
+  calls (77% of CPU) in 20 seconds. Cause 3 was the whole story; the decay never returned after capping it.
 - **Which documents** the live `ListCitations` calls target — payloads are protobuf and only method names were captured.
-  The hot candidates are known from the database (targets `382`, `10478`, `10644`) but not confirmed against live
-  traffic.
-- **What exactly drives the 10-minute decay** — cause 3 is the leading hypothesis but has not been proven to be the
-  whole story. It should be confirmed by capturing `/api/InteractionSummary` request rates from `web_gateway` logs
-  during a decay cycle.
+  The hot candidates by database fan-out: `10478` / `10644` (ACM HyperText root and `/authors`, ~6.4k links each) and
+  `382` (`/short-posts`, 1,369 links but the most expensive per call at 2.4–2.5s — cost tracks fan-out shape, not
+  count). Not confirmed against live traffic; moot once #947 lands.
 - **Average embeds per page** in real traffic — 30 was the ceiling, not an observed mean.
 
 ---
