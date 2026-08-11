@@ -3,7 +3,9 @@ import type {HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-ty
 import type {UniversalClient} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
 import {AuthenticateRequest} from '@shm/shared/client/grpc-types'
+import {QueryDocumentsResponse, type QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
+import {encode as cborEncode} from '@ipld/dag-cbor'
 import {peerIdFromString} from '@libp2p/peer-id'
 import {keyPairStore, type LocalWebIdentity} from './auth'
 import {preparePublicKey, signWithKeyPair} from './auth-utils'
@@ -140,6 +142,16 @@ const seedClient = createSeedClient('', {headers: daemonAuthHeaders})
 export const webUniversalClient = createWebUniversalClient({
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
+  queryDocuments: async (request: QueryDocumentsRequest, options) => {
+    const response = await fetch('/api/QueryDocuments', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/cbor'},
+      body: cborEncode(request.toJson()),
+      signal: options?.signal,
+    })
+    if (!response.ok) throw new Error(`QueryDocuments failed: ${response.status} ${await response.text()}`)
+    return QueryDocumentsResponse.fromJson(await response.json())
+  },
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
     return <WebCommenting key={docId.id} docId={docId} />
   },

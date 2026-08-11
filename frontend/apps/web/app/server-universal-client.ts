@@ -93,4 +93,5 @@ export const serverPublish: UniversalClient['publish'] = (input) => {
 export const serverUniversalClient: UniversalClient = {
   request: serverRequest as UniversalClient['request'],
   publish: serverPublish,
+  queryDocuments: (request, options) => grpcClient.documents.queryDocuments(request, options),
 }
