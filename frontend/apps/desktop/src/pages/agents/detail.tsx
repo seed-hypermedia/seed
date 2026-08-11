@@ -54,13 +54,12 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {getSeedToolMetadata, seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
+import {getSeedTool} from '../../../../../../agents/protocol/src/tool-registry'
 import {
-  AGENT_EXECUTE_CODE_TOOL,
-  AGENT_MEMORY_TOOL_GROUP,
-  AGENT_READ_TOOL_GROUP,
-  AGENT_WEB_TOOL_GROUP,
-  AGENT_WRITE_TOOL_GROUP,
+  AGENT_EXECUTE_TOOL,
+  AGENT_SEARCH_TOOL,
+  AGENT_WEB_SEARCH_TOOL,
+  DEFAULT_AGENT_TOOLS,
   getToolAvailability,
   type AgentServerWebCapabilities,
 } from './agent-tools'
@@ -676,7 +675,7 @@ function DeleteAgentDialog({
 
 /** Shows the exact model-facing prompt and JSON schemas for a single tool, for agent-owner transparency. */
 function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: () => void}) {
-  const meta = getSeedToolMetadata(input.toolName)
+  const meta = getSeedTool(input.toolName)
   if (!meta) {
     return (
       <div className="flex flex-col gap-3">
@@ -730,32 +729,23 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
   )
 }
 
+// Reading, memory, publishing, delegation, and plans are verbs — always on, not configuration.
+// What the user toggles here is the CALLABLE tool set dispatched through the call verb.
 const AGENT_TOOL_OPTIONS = [
   {
-    names: AGENT_READ_TOOL_GROUP,
-    title: 'Read, search, and browse activity',
-    description: 'Find and read Seed content.',
+    names: [AGENT_SEARCH_TOOL],
+    title: 'Search Seed content',
+    description: 'Search documents, contacts, and comments across the Hypermedia network.',
   },
   {
-    names: AGENT_WEB_TOOL_GROUP,
-    title: 'Search and read the web',
-    description: 'Search the public web and read web pages as markdown. Requires server web backends.',
+    names: [AGENT_WEB_SEARCH_TOOL],
+    title: 'Search the web',
+    description: 'Search the public web. Requires the server’s web search backend.',
   },
   {
-    names: AGENT_MEMORY_TOOL_GROUP,
-    title: 'Memory',
-    description: 'Read and write private files in this agent’s persistent memory, shown on the Memory tab.',
-  },
-  {
-    names: [AGENT_EXECUTE_CODE_TOOL],
+    names: [AGENT_EXECUTE_TOOL],
     title: 'Execute code',
     description: 'Run Python or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
-  },
-  {
-    names: AGENT_WRITE_TOOL_GROUP,
-    title: seedToolRegistry.write.label,
-    description:
-      'Create and publish Seed content, publish markdown files from memory as documents, and publish files to IPFS.',
   },
 ]
 
@@ -779,7 +769,7 @@ function AgentToolsTab({
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
   const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-  const defaultTools = [...AGENT_READ_TOOL_GROUP, ...AGENT_WEB_TOOL_GROUP]
+  const defaultTools = [...DEFAULT_AGENT_TOOLS]
   const [enabledTools, setEnabledTools] = useState<string[]>(definition.tools || defaultTools)
   const [signingKeys, setSigningKeys] = useState<string[]>(definitionSigningKeys)
   const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
@@ -830,7 +820,8 @@ function AgentToolsTab({
     }
   }
 
-  const writeEnabled = enabledTools.includes(seedToolRegistry.write.name)
+  // The write verb is always available, so signing identities are always relevant.
+  const writeEnabled = true
 
   return (
     <section className="flex min-h-0 max-w-3xl flex-1 flex-col gap-5 overflow-y-auto pr-1">
@@ -842,7 +833,7 @@ function AgentToolsTab({
         {AGENT_TOOL_OPTIONS.map((group) => {
           const members = group.names.map((name) => ({
             name,
-            label: getSeedToolMetadata(name)?.label ?? name,
+            label: getSeedTool(name)?.label ?? name,
             ...getToolAvailability(name, webCapabilities),
           }))
           const groupAvailable = members.some((member) => member.available)

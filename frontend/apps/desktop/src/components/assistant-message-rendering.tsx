@@ -1,6 +1,6 @@
 import {type AgentRunActivity, type SessionAttachmentInfo} from '@/agents-client'
 import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
-import {getSeedToolMetadata} from '../../../../../agents/protocol/src/tool-registry'
+import {getSeedTool} from '../../../../../agents/protocol/src/tool-registry'
 import {useOpenUrl} from '@/open-url'
 import {useSessionAttachmentDataUrls} from '@/models/agents'
 import {useSelectedAccountId} from '@/selected-account'
@@ -474,7 +474,7 @@ function ToolCallDebugDialog({
 }
 
 function getToolLinks(item: ChatToolPart) {
-  const metadata = getSeedToolMetadata(item.name)
+  const metadata = getSeedTool(item.name)
   const input = item.args
   const output = item.rawOutput
   const links = metadata?.render.links || []
@@ -501,7 +501,7 @@ function shortUrlLabel(url: string): string {
 }
 
 function getToolSummary(item: ChatToolPart): string | undefined {
-  const metadata = getSeedToolMetadata(item.name)
+  const metadata = getSeedTool(item.name)
   const outputSummary = firstInlinePathValue(item.rawOutput, metadata?.render.summaryOutputPath)
   if (outputSummary) return outputSummary
 
@@ -512,7 +512,7 @@ function getToolSummary(item: ChatToolPart): string | undefined {
 }
 
 function getToolDetails(item: ChatToolPart) {
-  const metadata = getSeedToolMetadata(item.name)
+  const metadata = getSeedTool(item.name)
   const details = metadata?.render.details || [
     {label: 'Input', source: 'input' as const},
     {label: 'Output', source: 'output' as const},
@@ -533,7 +533,7 @@ function getToolString(value: unknown, path: string): string | undefined {
 
 function getToolCustomView(item: ChatToolPart) {
   const command = getToolString(item.args, 'command') || getToolString(item.rawOutput, 'command')
-  return getSeedToolMetadata(item.name)?.render.customViews?.find((view) => view.command === command)
+  return getSeedTool(item.name)?.render.customViews?.find((view) => view.command === command)
 }
 
 function getFirstToolString(value: unknown, paths: string[]): string | undefined {
@@ -1309,8 +1309,12 @@ function ToolOutputPre({children, className}: {children: React.ReactNode; classN
  * info button's debug dialog still has the raw payloads).
  */
 function ExecuteCodeDetails({item, liveTail}: {item: ChatToolPart; liveTail?: string}) {
-  const code = getToolString(item.args, 'code')
-  const language = getToolString(item.args, 'language')
+  // Old transcripts: execute_code {language, code}. New transcripts: call {tool: 'execute', input: {runtime, code}}.
+  const code = getToolString(item.args, 'code') ?? getToolString(item.args, 'input.code')
+  const language =
+    getToolString(item.args, 'language') ??
+    getToolString(item.args, 'input.runtime') ??
+    getToolString(item.args, 'runtime')
   const output = isRecord(item.rawOutput) ? item.rawOutput : undefined
   const stdout = typeof output?.stdout === 'string' ? output.stdout : undefined
   const stderr = typeof output?.stderr === 'string' ? output.stderr : undefined
@@ -1359,13 +1363,14 @@ function ExecuteCodeDetails({item, liveTail}: {item: ChatToolPart; liveTail?: st
 }
 
 /**
- * The transcript a `sub_session` call created, once it has one.
+ * The transcript a delegation call created, once it has one. (`sub_session` covers transcripts
+ * recorded before the verb collapse.)
  *
  * Present in the result and in the spawn placeholder, so the title is a way in while the
- * sub-session is still working, not only after it finishes.
+ * child is still working, not only after it finishes.
  */
 function getToolSessionId(item: ChatToolPart): string | undefined {
-  if (item.name !== 'sub_session') return undefined
+  if (item.name !== 'delegate' && item.name !== 'sub_session') return undefined
   return getToolString(item.rawOutput, 'sessionId')
 }
 
@@ -1414,7 +1419,7 @@ function ToolCallLine({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const clickNavigate = useClickNavigate()
   const childSessionId = getToolSessionId(item)
-  const metadata = getSeedToolMetadata(item.name)
+  const metadata = getSeedTool(item.name)
   const render = metadata?.render
   const Icon = toolIcons[render?.kind || 'generic']
   const isPending = item.result === undefined && item.rawOutput === undefined
@@ -1513,7 +1518,8 @@ function ToolCallLine({
                 {item.result}
               </pre>
             ) : null}
-            {item.name === 'execute_code' ? (
+            {item.name === 'execute_code' ||
+            (item.name === 'call' && getToolString(item.args, 'tool') === 'execute') ? (
               <ExecuteCodeDetails item={item} liveTail={liveTool?.outputTail} />
             ) : item.name === 'read' ? (
               <ReadToolDetails item={item} />

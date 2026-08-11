@@ -341,8 +341,8 @@ describe('assistant message rendering', () => {
       {
         type: 'tool',
         id: 'tool-sub-session',
-        name: 'sub_session',
-        args: {title: 'Research Acme', input: 'go'},
+        name: 'delegate',
+        args: {title: 'Research Acme', brief: 'go'},
         rawOutput: {status: 'succeeded', sessionId: 'child-session-1', runId: 'child-run-1'},
       },
       'http://localhost:3050',
@@ -366,7 +366,7 @@ describe('assistant message rendering', () => {
       {
         type: 'tool',
         id: 'tool-sub-session-pending',
-        name: 'sub_session',
+        name: 'delegate',
         args: {title: 'Research Acme', input: 'go'},
       },
       'http://localhost:3050',
