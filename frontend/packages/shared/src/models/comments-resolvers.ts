@@ -155,9 +155,12 @@ export function createDiscussionsResolver(client: GRPCClient) {
           pageSize: BIG_INT,
         })
         .catch(() => null),
+      // maxPages bounded on purpose: unbounded ListCitations enumeration took
+      // production down on 2026-08-11 (docs/daemon-saturation-incident.md).
       listAllPages(
         (pageToken) => client.resources.listCitations({iri: targetId.id, pageSize: LIST_PAGE_SIZE, pageToken}),
         (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
+        {maxPages: 1},
       ).catch(() => null),
     ])
 
@@ -239,6 +242,8 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
     authors: Record<string, HMMetadataPayload>
   }> => {
     try {
+      // maxPages bounded on purpose: unbounded ListCitations enumeration took
+      // production down on 2026-08-11 (docs/daemon-saturation-incident.md).
       const citations = await listAllPages(
         (pageToken) =>
           client.resources.listCitations({
@@ -247,6 +252,7 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
             pageToken,
           }),
         (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
+        {maxPages: 1},
       )
 
       const commentCitations = citations.filter((m) => {

@@ -37,7 +37,6 @@ import {
   queryAccount,
   queryDirectory,
   queryDocumentCollaborators,
-  queryInteractionSummary,
   queryQueryBlock,
   queryResource,
 } from '@shm/shared/models/queries'
@@ -272,9 +271,10 @@ async function prefetchResourceData(
       instrument(ctx || noopCtx, `prefetchDirectory(${packHmId(docId)}, Children)`, () =>
         prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, docId, 'Children')),
       ),
-      instrument(ctx || noopCtx, `prefetchInteractionSummary(${packHmId(docId)})`, () =>
-        prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, docId)),
-      ),
+      // NOTE: the document's own interaction summary is deliberately NOT
+      // prefetched here. See the comment on Wave 3 below: computing it
+      // enumerates every citation of the document, which is unbounded work per
+      // render. `useInteractionSummary` fetches it on the client instead.
       // Collaborators drive the "People" tab count (and the home-doc members
       // facepile); without prefetch the count pops in and shifts the tab row.
       instrument(ctx || noopCtx, `prefetchCollaborators(${packHmId(docId)})`, () =>
@@ -323,27 +323,27 @@ async function prefetchResourceData(
     ]),
   )
 
-  // Wave 3: interaction summaries for embed cards, which show the target's
-  // comment count via useInteractionSummary. Query-block cards and list
-  // items DON'T need this: their comment/children counts ride on each
-  // listing item's activitySummary and reach them through the payload's
+  // Interaction summaries are deliberately NOT server-rendered.
+  //
+  // They used to be prefetched here for up to 30 embed cards per render. Each
+  // one costs an unbounded amount of work: InteractionSummary derives its
+  // counts by enumerating EVERY citation of its target through listAllPages
+  // (500 per page), and each ListCitations materialises the target's whole
+  // citation fan-out before applying its LIMIT — 0.3-2.5s of daemon CPU per
+  // call, measured against the production database. Thirty of those per page
+  // view took hyper.media and every hosted site down on 2026-08-11: ~1.9
+  // req/s was enough to pin all 8 cores, with ListCitations at 87% of CPU.
+  //
+  // Crawlers never run JS, so serving them these counts was pure waste. The
+  // counts now load client-side via useInteractionSummary, for the cards a
+  // real reader actually has on screen. Query-block cards and list items are
+  // unaffected either way: their comment/children counts ride on each listing
+  // item's activitySummary and reach them through the payload's
   // interactionSummaries, with no per-item requests.
-  const MAX_RESULT_SUMMARIES = 30
-  const resultIds = new Map<string, UnpackedHypermediaId>()
-  for (const ref of refs.slice(0, MAX_RESULT_SUMMARIES)) {
-    resultIds.set(ref.refId.id, ref.refId)
-  }
-  if (resultIds.size) {
-    await instrument(ctx || noopCtx, 'prefetchWave3', () =>
-      Promise.allSettled(
-        Array.from(resultIds.values()).map((id) =>
-          instrument(ctx || noopCtx, `prefetchResultSummary(${packHmId(id)})`, () =>
-            prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, id)),
-          ),
-        ),
-      ),
-    )
-  }
+  //
+  // Before restoring any of this, give the daemon a way to report citation
+  // counts without enumerating citations, the way children_count already works
+  // for directories (see getDocumentInfo in api-interaction-summary.ts).
 }
 
 /** JSON stringify that survives the bigint fields in daemon payloads. */
