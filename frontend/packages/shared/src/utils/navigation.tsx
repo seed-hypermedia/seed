@@ -71,6 +71,11 @@ export function getRouteKey(route: NavRoute): string {
     return route.key === 'inspect-ipfs'
       ? `inspect-ipfs:${route.ipfsPath}`
       : `document:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
+  if (route.key === 'explore') {
+    return route.context.type === 'node'
+      ? 'explore:node'
+      : `explore:site:${route.context.id.uid}:${route.context.id.path?.join(':')}`
+  }
   if (route.key === 'all-documents') return `all-documents:${route.id.uid}`
   if (route.key === 'feed') return `feed:${route.id.uid}:${route.id.path?.join(':')}` // version changes and publication page remains mounted
   return route.key

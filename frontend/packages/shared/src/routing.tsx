@@ -12,6 +12,7 @@ import {
   hypermediaUrlToRoute,
   idToUrl,
   routeToHmUrl,
+  routeToUrl,
   serializeBlockRange,
   unpackHmId,
 } from './utils'
@@ -274,6 +275,13 @@ export function routeToHref(
     }
     const basePath = options?.originHomeId ? '/inspect' : '/hm/inspect'
     return `${basePath}/ipfs/${route.ipfsPath}`
+  }
+
+  if (typeof route !== 'string' && route.key === 'explore') {
+    return routeToUrl(route, {
+      hostname: options?.hmUrlHref ? undefined : null,
+      originHomeId: options?.originHomeId,
+    })
   }
 
   // Handle view routes (activity, comments, directory, collaborators, feed, all-documents, metadata)

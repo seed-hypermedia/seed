@@ -32,6 +32,7 @@ import {
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {ContentTypeFilter, EntityKindFilter} from '@shm/shared/client/grpc-types'
 import type {
   BlockRangeSelectOptions,
   CitationFragmentClick,
@@ -53,6 +54,8 @@ import {
   useSiteMembers,
 } from '@shm/shared/models/entity'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {parseExploreQuery, searchResultItemToExploreResult, type HMExploreResult} from '@shm/shared/explore'
+import {useSearch} from '@shm/shared/models/search'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -88,6 +91,7 @@ import {
   getCommentTargetId,
   hmIdToURL,
   latestId,
+  packHmId,
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
@@ -101,6 +105,7 @@ import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useS
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
+import {ExplorePage} from './explore-page'
 import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
@@ -389,6 +394,7 @@ export type ActiveView =
   | 'collaborators'
   | 'site-profile'
   | 'all-documents'
+  | 'explore'
   | 'metadata'
 
 /** Returns the document and focused comment rendered by a comments panel. */
@@ -667,6 +673,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'collaborators'
     case 'all-documents':
       return 'all-documents'
+    case 'explore':
+      return 'explore'
     case 'site-profile':
       return 'site-profile'
     case 'metadata':
@@ -2471,7 +2479,8 @@ function DocumentBody({
                 : activeView === 'activity' ||
                     activeView === 'directory' ||
                     activeView === 'site-profile' ||
-                    activeView === 'all-documents'
+                    activeView === 'all-documents' ||
+                    activeView === 'explore'
                   ? undefined
                   : activeView
             }
@@ -2492,14 +2501,20 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
+              activeView !== 'content' &&
+              activeView !== 'site-profile' &&
+              activeView !== 'all-documents' &&
+              activeView !== 'explore' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
+                          key: activeView as Exclude<
+                            ActiveView,
+                            'content' | 'site-profile' | 'all-documents' | 'explore'
+                          >,
                           id: docId,
                         }
                   }
@@ -3101,7 +3116,44 @@ function MainContent({
 }) {
   const {openRouteNewWindow, originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
+  const route = useNavRoute()
   const allDocumentsSiteId = !IS_DESKTOP && originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
+  const exploreQuery = route.key === 'explore' ? route.q || '' : ''
+  const parsedExploreQuery = useMemo(() => parseExploreQuery(exploreQuery), [exploreQuery])
+  const exploreSearch = useSearch(parsedExploreQuery.text, {
+    enabled: activeView === 'explore' && !!parsedExploreQuery.text,
+    includeBody: true,
+    contextSize: 96,
+    pageSize: 50,
+    iriFilter: `hm://${allDocumentsSiteId.uid}${
+      allDocumentsSiteId.path?.length ? `/${allDocumentsSiteId.path.join('/')}*` : '*'
+    }`,
+    contentTypeFilter: [
+      ContentTypeFilter.CONTENT_TYPE_TITLE,
+      ContentTypeFilter.CONTENT_TYPE_DOCUMENT,
+      ContentTypeFilter.CONTENT_TYPE_COMMENT,
+    ],
+    entityKindFilter: [
+      EntityKindFilter.ENTITY_KIND_SPACE,
+      EntityKindFilter.ENTITY_KIND_DOCUMENT,
+      EntityKindFilter.ENTITY_KIND_COMMENT,
+    ],
+  })
+  const exploreResults = useMemo<HMExploreResult[]>(() => {
+    const results: HMExploreResult[] = []
+    const seen = new Set<string>()
+    for (const item of exploreSearch.data?.entities || []) {
+      const result = searchResultItemToExploreResult(item)
+      if (!result) continue
+      if (parsedExploreQuery.types.length && !parsedExploreQuery.types.includes(result.type)) continue
+      const key =
+        result.type === 'comment' ? `${result.type}:${result.commentId}` : `${result.type}:${packHmId(result.id)}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      results.push(result)
+    }
+    return results
+  }, [exploreSearch.data?.entities, parsedExploreQuery.types])
 
   switch (activeView) {
     case 'all-documents':
@@ -3121,6 +3173,29 @@ function MainContent({
               return
             }
             navigate(route)
+          }}
+        />
+      )
+
+    case 'explore':
+      return (
+        <ExplorePage
+          contextLabel={`Site: ${allDocumentsSiteId.uid}`}
+          query={exploreQuery}
+          sort={route.key === 'explore' ? route.sort || 'relevance' : 'relevance'}
+          results={exploreResults}
+          isLoading={exploreSearch.isLoading}
+          error={exploreSearch.error instanceof Error ? exploreSearch.error.message : null}
+          onQueryChange={(q) => navigate({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q})}
+          onSortChange={(sort) =>
+            navigate({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q: exploreQuery, sort})
+          }
+          onOpenResult={(result) => {
+            if (result.type === 'comment') {
+              navigate({key: 'comments', id: result.documentId, openComment: result.commentId})
+              return
+            }
+            navigate({key: 'document', id: result.id})
           }}
         />
       )

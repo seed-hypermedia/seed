@@ -57,6 +57,8 @@ import {shouldRevalidateDocumentRoute} from './revalidation'
 type ExtendedSitePayload = SiteDocumentPayload & {
   isInspect?: boolean
   viewTerm?: ViewRouteKey | null
+  exploreQ?: string | null
+  exploreSort?: 'relevance' | 'recently_updated' | 'newest' | 'oldest' | 'title' | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   openComment?: string | null
   accountUid?: string | null
@@ -263,6 +265,16 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   const latest = url.searchParams.get('l') === '' || !version
   const panelParam = url.searchParams.get('panel')
   const inspectTab = url.searchParams.get('tab')
+  const exploreQ = url.searchParams.get('q')
+  const rawExploreSort = url.searchParams.get('sort')
+  const exploreSort =
+    rawExploreSort === 'relevance' ||
+    rawExploreSort === 'recently_updated' ||
+    rawExploreSort === 'newest' ||
+    rawExploreSort === 'oldest' ||
+    rawExploreSort === 'title'
+      ? rawExploreSort
+      : null
 
   const serviceConfig = await instrument(ctx, 'getConfig', () => getConfig(hostname))
   if (!serviceConfig) {
@@ -383,6 +395,8 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   const siteResourceData = {
     prefersLanguages: parsedRequest.prefersLanguages,
     viewTerm,
+    exploreQ,
+    exploreSort,
     panelParam: effectivePanelParam,
     openComment,
     accountUid,
@@ -465,6 +479,14 @@ export default function UnifiedDocumentPage() {
     siteData.openComment,
     siteData.accountUid,
   )
+  const initialRouteWithExploreParams =
+    initialRoute.key === 'explore'
+      ? {
+          ...initialRoute,
+          q: siteData.exploreQ || undefined,
+          sort: siteData.exploreSort || undefined,
+        }
+      : initialRoute
   const initialInspectRoute = createInspectNavRoute(
     siteData.id,
     siteData.viewTerm,
@@ -480,7 +502,7 @@ export default function UnifiedDocumentPage() {
       originHomeId={siteData.originHomeId}
       siteHost={siteData.siteHost}
       dehydratedState={siteData.dehydratedState}
-      initialRoute={siteData.isInspect ? initialInspectRoute : initialRoute}
+      initialRoute={siteData.isInspect ? initialInspectRoute : initialRouteWithExploreParams}
     >
       {siteData.viewTerm === 'feed' && !siteData.isInspect ? (
         <WebFeedPage docId={siteData.id} />

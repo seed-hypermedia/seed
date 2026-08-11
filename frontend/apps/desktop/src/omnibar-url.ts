@@ -205,5 +205,9 @@ function applyResolvedViewTerm(
     }
   }
 
+  if (routeKey === 'explore') {
+    return {key: 'explore', context: {type: 'site', id: route.id}}
+  }
+
   return {key: routeKey, id: route.id}
 }

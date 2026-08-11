@@ -12,6 +12,7 @@ import {
 import {routeToHref} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
 import {appRouteOfId} from '../utils/navigation'
+import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')
 
@@ -801,6 +802,7 @@ describe('search-input gateway shortcut: profile URL via unpackHmId', () => {
     if (routeKey === 'profile' || routeKey === 'membership' || routeKey === 'followers' || routeKey === 'following') {
       return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
     }
+    if (routeKey === 'explore') return {key: 'explore', context: {type: 'site', id: route.id}}
     return {key: routeKey, id: route.id}
   }
 
@@ -906,5 +908,44 @@ describe('commentsRouteSchema reply version fields', () => {
     const parsed = commentsRouteSchema.parse(route)
     expect(parsed.replyCommentVersion).toBe('bafyReplyOnly')
     expect(parsed.rootReplyCommentVersion).toBeUndefined()
+  })
+})
+
+describe('explore routes', () => {
+  test('accepts desktop node and site explore routes', () => {
+    expect(navRouteSchema.parse({key: 'explore', context: {type: 'node'}, q: 'roadmap'})).toEqual({
+      key: 'explore',
+      context: {type: 'node'},
+      q: 'roadmap',
+    })
+    expect(navRouteSchema.parse({key: 'explore', context: {type: 'site', id: testDocId}, sort: 'title'})).toEqual({
+      key: 'explore',
+      context: {type: 'site', id: testDocId},
+      sort: 'title',
+    })
+  })
+
+  test('serializes site explore route to web and hm urls with query params', () => {
+    const route: NavRoute = {
+      key: 'explore',
+      context: {type: 'site', id: testDocId},
+      q: 'roadmap type:block',
+      sort: 'title',
+    }
+
+    expect(routeToUrl(route, {hostname: null, originHomeId: testDocId})).toBe(
+      '/:explore?q=roadmap+type%3Ablock&sort=title',
+    )
+    expect(routeToHref(route, {originHomeId: hmId('home')})).toBe(
+      '/hm/testuid123/:explore?q=roadmap+type%3Ablock&sort=title',
+    )
+  })
+
+  test('parses hm explore urls into site explore routes', () => {
+    expect(hypermediaUrlToRoute('hm://testuid123/:explore?q=roadmap&type=ignored')).toMatchObject({
+      key: 'explore',
+      context: {type: 'site', id: {uid: testDocId.uid, path: testDocId.path}},
+      q: 'roadmap',
+    })
   })
 })
