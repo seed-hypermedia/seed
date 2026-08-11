@@ -8,7 +8,6 @@ import type {ReasoningLevel} from './reasoning'
 export type SeedAssistantPromptOptions = {
   currentTime?: string
   contextLines?: string[]
-  includeTitleToolInstruction?: boolean
 }
 
 /** Returns the shared Seed assistant instructions used by desktop chat and hosted agents. */
@@ -25,14 +24,9 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'Profile/account URLs use `hm://ACCOUNT_UID/:profile` or Seed web URLs ending in `/:profile`. Read these as profiles/accounts, not as normal documents. Profile reads should use the Seed API/SDK account/profile data and should include recent activity from that account plus related keys such as contacts/capabilities when available.',
     'When asked to read a profile or account, preserve the pasted server context. For example, if the user pasted a dev.hyper.media profile URL, pass that URL to the read tool or set dev/server appropriately instead of stripping it to a production hm:// URL.',
     'Append /:attributes to a document URL (e.g. `hm://z6Mk.../notes/:attributes`) to read only its metadata/attributes without the content. Use it when the user is viewing the attributes view or asks about document metadata.',
-    'Use list_activity_feed for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
+    'Use `read` with the `activity:` address for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
     'To explore a section of a site, read the directory first, then read each child document.',
   ]
-  if (options.includeTitleToolInstruction) {
-    parts.push(
-      'Use the set_session_title tool to maintain this chat title. On the first assistant turn of a new session, call set_session_title with a concise one-line purpose title as soon as you understand the user request. Do not mention this title-setting step to the user. If the conversation purpose later changes, call set_session_title again with the new purpose.',
-    )
-  }
   if (options.currentTime) parts.push(`The current time is: ${options.currentTime}`)
   if (options.contextLines?.length) parts.push('', ...options.contextLines)
   return parts.join('\n')
