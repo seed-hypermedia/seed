@@ -17,6 +17,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'activity_watermarks')).toBe(true)
       expect(tableExists(db, 'runs')).toBe(true)
       expect(tableExists(db, 'run_journal')).toBe(true)
+      expect(tableExists(db, 'tool_documents')).toBe(true)
       expect(columnExists(db, 'sessions', 'title_source')).toBe(true)
       expect(columnExists(db, 'sessions', 'parent_session_id')).toBe(true)
     } finally {
@@ -50,6 +51,7 @@ describe('sqlite', () => {
           )
           .replace(/CREATE INDEX sessions_by_parent ON sessions \(parent_session_id, created_at\);\n\n/u, '')
           .replace(/CREATE TABLE runs[\s\S]*?CREATE TABLE agent_drafts/u, 'CREATE TABLE agent_drafts')
+          .replace(/CREATE TABLE tool_documents[\s\S]*?CREATE TABLE server_config/u, 'CREATE TABLE server_config')
           .replace(/CREATE TABLE agent_triggers[\s\S]*?CREATE TABLE sessions/u, 'CREATE TABLE sessions')
           .replace(/CREATE TABLE trigger_firings[\s\S]*?CREATE TABLE session_events/u, 'CREATE TABLE session_events')
           .replace(
@@ -71,6 +73,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'agent_drafts')).toBe(true)
       expect(tableExists(db, 'runs')).toBe(true)
       expect(tableExists(db, 'run_journal')).toBe(true)
+      expect(tableExists(db, 'tool_documents')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'cooldown_ms')).toBe(true)
       expect(columnExists(db, 'sessions', 'title_source')).toBe(true)
       expect(columnExists(db, 'sessions', 'parent_session_id')).toBe(true)

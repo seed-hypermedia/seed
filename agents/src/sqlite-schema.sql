@@ -203,6 +203,21 @@ CREATE TABLE action_idempotency (
     PRIMARY KEY (account_id, action, client_request_id)
 ) WITHOUT ROWID;
 
+CREATE TABLE tool_documents (
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    cid TEXT NOT NULL,
+    doc_cbor BLOB NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, agent_id, name)
+) WITHOUT ROWID;
+
+CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
+
 CREATE TABLE server_config (
     key TEXT PRIMARY KEY,
     value BLOB NOT NULL
