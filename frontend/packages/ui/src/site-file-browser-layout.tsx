@@ -1,6 +1,6 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {FolderTree, PanelLeftClose, X} from 'lucide-react'
+import {FolderTree, PanelLeft, X} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
@@ -138,15 +138,6 @@ export function SiteFileBrowserLayout({
 
   return (
     <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
-      {collapsed ? (
-        <div className="border-border dark:bg-background shrink-0 border-r bg-white p-2">
-          <Tooltip content="Show file explorer">
-            <Button variant="ghost" size="icon" aria-label="Open file browser" onClick={() => setCollapsed(false)}>
-              <FolderTree className="size-4" />
-            </Button>
-          </Tooltip>
-        </div>
-      ) : null}
       <PanelGroup direction="horizontal" className="min-h-0 flex-1">
         {!collapsed ? (
           <>
@@ -168,7 +159,7 @@ export function SiteFileBrowserLayout({
                       aria-label="Collapse file browser"
                       onClick={() => setCollapsed(true)}
                     >
-                      <PanelLeftClose className="size-4" />
+                      <PanelLeft className="size-4" />
                     </Button>
                   </Tooltip>
                 </div>
@@ -179,7 +170,23 @@ export function SiteFileBrowserLayout({
           </>
         ) : null}
         <Panel id="site-main-content" order={2} minSize={60}>
-          <div className="dark:bg-background flex h-full min-h-0 flex-col overflow-hidden bg-white">{children}</div>
+          <div className="dark:bg-background relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
+            {collapsed ? (
+              <div className="absolute top-2 left-2 z-50 md:top-4 md:left-4">
+                <Tooltip content="Show file explorer">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Open file browser"
+                    onClick={() => setCollapsed(false)}
+                  >
+                    <FolderTree className="size-4" />
+                  </Button>
+                </Tooltip>
+              </div>
+            ) : null}
+            {children}
+          </div>
         </Panel>
       </PanelGroup>
     </div>

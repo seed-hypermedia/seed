@@ -22,7 +22,7 @@ vi.mock('lucide-react', async () => {
   const makeIcon = (testId: string) => (props: React.SVGProps<SVGSVGElement>) => <svg data-testid={testId} {...props} />
   return {
     FolderTree: makeIcon('folder-tree-icon'),
-    PanelLeftClose: makeIcon('panel-left-close-icon'),
+    PanelLeft: makeIcon('panel-left-icon'),
     X: makeIcon('x-icon'),
   }
 })
@@ -87,17 +87,30 @@ describe('SiteFileBrowserLayout', () => {
     expect(html).not.toContain('animate-spin')
   })
 
-  it('labels the collapse and reopen controls with tooltips and uses folder tree when collapsed', () => {
+  it('fully collapses the explorer and overlays its reopen control on the main content', () => {
     renderLayout()
 
     expect(container.querySelector('[data-tooltip-content="Hide file explorer"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="panel-left-icon"]')).toBeTruthy()
 
     act(() => {
       container.querySelector<HTMLButtonElement>('[aria-label="Collapse file browser"]')?.click()
     })
 
-    expect(container.querySelector('[data-tooltip-content="Show file explorer"]')).toBeTruthy()
+    expect(container.querySelector('[data-panel-id="site-file-browser"]')).toBeNull()
+    expect(container.querySelector('[data-panel-resize-handle-id]')).toBeNull()
+    const reopenControl = container.querySelector('[data-tooltip-content="Show file explorer"]')
+    expect(reopenControl?.parentElement?.className).toContain('absolute')
+    expect(reopenControl?.parentElement?.className).toContain('top-2')
+    expect(reopenControl?.parentElement?.className).toContain('left-2')
     expect(container.querySelector('[data-testid="folder-tree-icon"]')).toBeTruthy()
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Open file browser"]')?.click()
+    })
+
+    expect(container.querySelector('[data-panel-id="site-file-browser"]')).toBeTruthy()
+    expect(container.querySelector('[data-tooltip-content="Show file explorer"]')).toBeNull()
   })
 
   it('keeps desktop main content in a constrained flex column for document scrolling', () => {
