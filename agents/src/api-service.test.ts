@@ -203,7 +203,7 @@ describe('api service', () => {
               systemPrompt: 'ok',
               modelProvider: 'openai',
               model: 'gpt',
-              tools: ['memory_list', 'memory_read', 'memory_write', 'memory_download', 'ipfs_read', 'ipfs_write'],
+              tools: [],
             },
           },
         }),
@@ -302,7 +302,7 @@ describe('api service', () => {
               systemPrompt: 'ok',
               modelProvider: 'openai',
               model: 'gpt',
-              tools: ['memory_list'],
+              tools: [],
             },
           },
         }),
@@ -1901,7 +1901,7 @@ describe('api service', () => {
         const body = JSON.parse(String(init?.body))
         expect(JSON.stringify(body.messages)).toContain('Summarize the comment.')
         expect(JSON.stringify(body.messages)).toContain('bafycomment')
-        expect(JSON.stringify(body.messages)).toContain('replyCommentId')
+        expect(JSON.stringify(body.messages)).toContain('replyTo')
         return openAIStreamResponse([
           {id: 'chat-trigger', choices: [{delta: {content: 'Handled trigger.'}}]},
           {id: 'chat-trigger', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
@@ -2337,7 +2337,7 @@ describe('api service', () => {
     }
   })
 
-  test('runs hidden session title tool without persisting tool events and respects manual title overrides', async () => {
+  test('manual session titles stick across turns and turns persist only message events', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     try {
@@ -2371,41 +2371,18 @@ describe('api service', () => {
       )
       if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
 
-      const titleCalls = ['Purpose Discovery', 'Agent Override']
       let openAICallCount = 0
       globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
         const body = JSON.parse(await fetchBodyText(url, init))
         openAICallCount += 1
-        expect(body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name)).toContain(
-          'set_session_title',
-        )
-        if (openAICallCount % 2 === 1) {
-          const title = titleCalls.shift() || 'Extra Title'
-          return openAIStreamResponse([
-            {
-              id: `chat-${openAICallCount}`,
-              choices: [
-                {
-                  delta: {
-                    tool_calls: [
-                      {
-                        index: 0,
-                        id: `title-call-${openAICallCount}`,
-                        type: 'function',
-                        function: {name: 'set_session_title', arguments: JSON.stringify({title})},
-                      },
-                    ],
-                  },
-                },
-              ],
-            },
-            {id: `chat-${openAICallCount}`, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
-          ])
-        }
+        // The deleted set_session_title tool must never reappear; the verbs are the whole surface.
+        const toolNames = body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name) ?? []
+        expect(toolNames).not.toContain('set_session_title')
+        expect(toolNames).toContain('read')
         return openAIStreamResponse([
           {
             id: `chat-${openAICallCount}-final`,
-            choices: [{delta: {content: openAICallCount === 2 ? 'Done.' : 'Still done.'}}],
+            choices: [{delta: {content: openAICallCount === 1 ? 'Done.' : 'Still done.'}}],
           },
           {
             id: `chat-${openAICallCount}-final`,
@@ -2429,7 +2406,8 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
       )
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
-      expect(session.session.title).toBe('Purpose Discovery')
+      // No title tool and titleGeneration is off: the session stays untitled until the user names it.
+      expect(session.session.title ?? null).toBeNull()
       expect(session.events.map((event) => (event.event as {type?: string}).type)).toEqual(['message', 'message'])
 
       const manual = await svc.message(
@@ -2535,12 +2513,10 @@ describe('api service', () => {
         if (openAICallCount === 1) {
           expect(body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name)).toEqual([
             'read',
-            'view_attachment',
-            'start_session',
-            'sub_session',
-            'run_workflow',
-            'set_session_title',
-            'update_plan',
+            'write',
+            'call',
+            'delegate',
+            'plan',
           ])
           return openAIStreamResponse([
             {id: 'chat-1', choices: [{delta: {content: "I'll read it first.\n"}}]},
@@ -2556,7 +2532,7 @@ describe('api service', () => {
                         type: 'function',
                         function: {
                           name: 'read',
-                          arguments: JSON.stringify({id: 'https://example.com/docs/example'}),
+                          arguments: JSON.stringify({address: 'https://example.com/docs/example'}),
                         },
                       },
                     ],
@@ -2732,7 +2708,10 @@ describe('api service', () => {
                         index: 0,
                         id: 'call-1',
                         type: 'function',
-                        function: {name: 'web_search', arguments: JSON.stringify({query: 'hypermedia'})},
+                        function: {
+                          name: 'call',
+                          arguments: JSON.stringify({tool: 'web_search', input: {query: 'hypermedia'}}),
+                        },
                       },
                     ],
                   },
@@ -2761,18 +2740,10 @@ describe('api service', () => {
       expect(searxngCalls).toBe(1)
       expect(searxngHref).toContain('format=json')
       expect(openAICallCount).toBeGreaterThanOrEqual(2)
-      // First provider request advertises exactly the enabled web tool plus the hidden title tool.
+      // First provider request advertises exactly the five-verb surface (delegate is run-backed).
       expect(
         (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
-      ).toEqual([
-        'web_search',
-        'view_attachment',
-        'start_session',
-        'sub_session',
-        'run_workflow',
-        'set_session_title',
-        'update_plan',
-      ])
+      ).toEqual(['read', 'write', 'call', 'delegate', 'plan'])
       // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
       const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
       expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
@@ -2785,10 +2756,7 @@ describe('api service', () => {
       const toolEvents = session.events
         .map((event) => event.event as {type?: string; name?: string})
         .filter((event) => event.type === 'tool_call' || event.type === 'tool_result')
-      expect(toolEvents.map((event) => `${event.type}:${event.name}`)).toEqual([
-        'tool_call:web_search',
-        'tool_result:web_search',
-      ])
+      expect(toolEvents.map((event) => `${event.type}:${event.name}`)).toEqual(['tool_call:call', 'tool_result:call'])
     } finally {
       globalThis.fetch = originalFetch
       db.close()
@@ -2869,18 +2837,13 @@ describe('api service', () => {
           expect(body.tools?.map((tool: {function?: {name?: string}}) => tool.function?.name)).toEqual([
             'read',
             'write',
-            'view_attachment',
-            'start_session',
-            'sub_session',
-            'run_workflow',
-            'set_session_title',
-            'update_plan',
+            'call',
+            'delegate',
+            'plan',
           ])
-          expect(JSON.stringify(body.tools)).toContain('replyCommentId')
-          expect(JSON.stringify(body.tools)).toContain('document title metadata')
-          expect(JSON.stringify(body.tools)).toContain('For document.move')
+          expect(JSON.stringify(body.tools)).toContain('hm://<account>/<path>')
           expect(JSON.stringify(body.messages)).toContain('Writer Bot')
-          expect(JSON.stringify(body.messages)).toContain('set the visible Seed document title explicitly')
+          expect(JSON.stringify(body.messages)).toContain('sets the visible document title')
           return openAIStreamResponse([
             {
               id: 'chat-1',
@@ -2895,9 +2858,12 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'profile.update',
-                            signer: {profileName: 'Writer Bot'},
-                            input: {name: 'Writer Bot Renamed', description: 'Publishes Seed content'},
+                            address: `hm://${signerPublicKey}`,
+                            options: {
+                              action: 'profile.update',
+                              signer: {profileName: 'Writer Bot'},
+                              input: {name: 'Writer Bot Renamed', description: 'Publishes Seed content'},
+                            },
                           }),
                         },
                       },
@@ -2908,11 +2874,10 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'draft.create',
-                            input: {
-                              body: '---\ntitle: Draft Title\nsummary: Draft summary\n---\n# Draft Title\n\nHello draft.',
-                              path: '/draft-title',
-                            },
+                            address: `hm://${signerPublicKey}/draft-title`,
+                            content:
+                              '---\ntitle: Draft Title\nsummary: Draft summary\n---\n# Draft Title\n\nHello draft.',
+                            options: {action: 'draft.create'},
                           }),
                         },
                       },
@@ -2923,9 +2888,12 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'capability.create',
-                            signer: {publicKey: signerPublicKey},
-                            input: {delegate: signerPublicKey, role: 'WRITER', path: '/docs', label: 'Docs writer'},
+                            address: `hm://${signerPublicKey}/docs`,
+                            options: {
+                              action: 'capability.create',
+                              signer: {publicKey: signerPublicKey},
+                              input: {delegate: signerPublicKey, role: 'WRITER', label: 'Docs writer'},
+                            },
                           }),
                         },
                       },
@@ -2936,9 +2904,12 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'contact.create',
-                            signer: {publicKey: signerPublicKey},
-                            input: {subject: signerPublicKey, name: 'Self contact'},
+                            address: `hm://${signerPublicKey}`,
+                            options: {
+                              action: 'contact.create',
+                              signer: {publicKey: signerPublicKey},
+                              input: {subject: signerPublicKey, name: 'Self contact'},
+                            },
                           }),
                         },
                       },
@@ -2949,11 +2920,9 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'document.create',
-                            signer: {publicKey: signerPublicKey},
-                            path: '/manual-doc',
-                            title: 'Manual Doc',
-                            body: '# Manual Doc\n\nCreated from root-level tool arguments.',
+                            address: `hm://${signerPublicKey}/manual-doc`,
+                            content: '# Manual Doc\n\nCreated from the write verb.',
+                            options: {title: 'Manual Doc', signer: {publicKey: signerPublicKey}},
                           }),
                         },
                       },
@@ -2964,13 +2933,13 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'comment.create',
-                            signer: {publicKey: signerPublicKey},
-                            id: `hm://${signerPublicKey}/manual-doc`,
-                            server: 'https://hm.test',
-                            dev: false,
-                            text: 'Root-level comment text works.',
-                            replyCommentId: `hm://${signerPublicKey}/parent-tsid`,
+                            address: `hm://${signerPublicKey}/manual-doc`,
+                            content: 'Comment through the write verb works.',
+                            options: {
+                              action: 'comment',
+                              signer: {publicKey: signerPublicKey},
+                              replyTo: `hm://${signerPublicKey}/parent-tsid`,
+                            },
                           }),
                         },
                       },
@@ -2981,10 +2950,8 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'document.move',
-                            signer: {publicKey: signerPublicKey},
-                            id: `hm://${signerPublicKey}/manual-doc`,
-                            path: '/',
+                            address: `hm://${signerPublicKey}/manual-doc`,
+                            options: {action: 'move', signer: {publicKey: signerPublicKey}, toPath: '/'},
                           }),
                         },
                       },
@@ -2995,14 +2962,9 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'document.create',
-                            signer: {publicKey: signerPublicKey},
-                            input: {
-                              path: '/',
-                              name: 'Home',
-                              body: '# Home\n\nRoot document.',
-                            },
-                            dryRun: true,
+                            address: `hm://${signerPublicKey}/`,
+                            content: '# Home\n\nRoot document.',
+                            options: {title: 'Home', signer: {publicKey: signerPublicKey}, dryRun: true},
                           }),
                         },
                       },
@@ -3179,9 +3141,9 @@ describe('api service', () => {
                         function: {
                           name: 'write',
                           arguments: JSON.stringify({
-                            command: 'document.create',
-                            signer: {publicKey: signerPublicKey},
-                            input: {path: '/parent/child', name: 'Child', body: '# Child'},
+                            address: `hm://${signerPublicKey}/parent/child`,
+                            content: '# Child',
+                            options: {title: 'Child', signer: {publicKey: signerPublicKey}},
                           }),
                         },
                       },
@@ -3334,8 +3296,11 @@ describe('api service', () => {
                         id: `call-${openAICallCount}`,
                         type: 'function',
                         function: {
-                          name: 'memory_publish_document',
-                          arguments: JSON.stringify({path: 'reports/weekly.md'}),
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}`,
+                            options: {fromPath: '~/memory/reports/weekly.md'},
+                          }),
                         },
                       },
                     ],
@@ -3384,7 +3349,7 @@ describe('api service', () => {
               systemPrompt: 'Publish memory docs.',
               modelProvider: 'openai',
               model: 'gpt-test',
-              tools: ['memory_list', 'memory_read', 'memory_publish_document'],
+              tools: [],
               signingKeys: [identity.identity.name],
             },
           },
@@ -3439,7 +3404,7 @@ describe('api service', () => {
                 output?: {command?: string; id?: string; version?: string; imagesUploaded?: number; summary?: string}
               },
           )
-          .filter((event) => event.type === 'tool_result' && event.name === 'memory_publish_document')
+          .filter((event) => event.type === 'tool_result' && event.name === 'write')
       }
 
       const [createResult] = await loadPublishResult()
@@ -3481,7 +3446,7 @@ describe('api service', () => {
     }
   })
 
-  test('start_session tool starts a new session of the same agent that auto-runs the provided prompt', async () => {
+  test('delegate {await: false} starts a detached session of the same agent that auto-runs the brief', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     try {
@@ -3507,9 +3472,10 @@ describe('api service', () => {
                         id: 'call-1',
                         type: 'function',
                         function: {
-                          name: 'start_session',
+                          name: 'delegate',
                           arguments: JSON.stringify({
-                            prompt: 'Research the flux capacitor and write notes.\nCover the 1985 archives.',
+                            brief: 'Research the flux capacitor and write notes.\nCover the 1985 archives.',
+                            await: false,
                           }),
                         },
                       },
@@ -3518,8 +3484,12 @@ describe('api service', () => {
                         id: 'call-2',
                         type: 'function',
                         function: {
-                          name: 'start_session',
-                          arguments: JSON.stringify({prompt: 'Summarize the archives.', title: 'Archive summary'}),
+                          name: 'delegate',
+                          arguments: JSON.stringify({
+                            brief: 'Summarize the archives.',
+                            title: 'Archive summary',
+                            await: false,
+                          }),
                         },
                       },
                     ],
@@ -3589,7 +3559,7 @@ describe('api service', () => {
       if (parentSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
       const startResults = parentSession.events
         .map((event) => event.event as {type?: string; name?: string; output?: {sessionId?: string; title?: string}})
-        .filter((event) => event.type === 'tool_result' && event.name === 'start_session')
+        .filter((event) => event.type === 'tool_result' && event.name === 'delegate')
       expect(startResults).toHaveLength(2)
       expect(startResults[0]?.output?.title).toBe('Research the flux capacitor and write notes.')
       expect(startResults[1]?.output?.title).toBe('Archive summary')
@@ -3882,7 +3852,7 @@ describe('api service', () => {
     expect(apisvc.restoreReasoningEffort(plain, definition)).toBe(plain)
   })
 
-  test('sub_session fan-out parks the parent and child results resume it', async () => {
+  test('delegate fan-out parks the parent and child results resume it', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     let svc: apisvc.Service | undefined
@@ -3912,7 +3882,7 @@ describe('api service', () => {
               systemPrompt: 'You are the coordinator.',
               modelProvider: 'openai',
               model: 'gpt',
-              tools: ['sub_session'],
+              tools: [],
             },
           },
         }),
@@ -3945,11 +3915,11 @@ describe('api service', () => {
                           id: 'spawn-a',
                           type: 'function',
                           function: {
-                            name: 'sub_session',
+                            name: 'delegate',
                             arguments: JSON.stringify({
                               title: 'Worker A',
                               prompt: 'You are worker Alpha.',
-                              input: 'Summarize topic A',
+                              brief: 'Summarize topic A',
                             }),
                           },
                         },
@@ -3958,7 +3928,7 @@ describe('api service', () => {
                           id: 'spawn-b',
                           type: 'function',
                           function: {
-                            name: 'sub_session',
+                            name: 'delegate',
                             arguments: JSON.stringify({
                               title: 'Worker B',
                               prompt: 'You are worker Beta.',
@@ -3974,7 +3944,7 @@ describe('api service', () => {
               {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
             ])
           }
-          expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+          expectToolResultHasPrecedingToolCall(body.messages, 'delegate')
           expect(messagesJSON).toContain('Alpha finished')
           expect(messagesJSON).toContain('Beta finished')
           return openAIStreamResponse([
@@ -4031,7 +4001,7 @@ describe('api service', () => {
       expect(topLevel.sessions).toHaveLength(1)
       expect(topLevel.sessions[0]?.childSessionCount).toBe(2)
       // Title generation is a server opt-in (off here), and the model never called
-      // set_session_title — the session legitimately stays untitled in this configuration.
+      // any title tool (there is none) — the session legitimately stays untitled in this configuration.
       expect(topLevel.sessions[0]?.title).toBeUndefined()
       const children = await svc.message(
         await apisvc.createSignedEnvelope(account, {
@@ -4084,7 +4054,7 @@ describe('api service', () => {
     }
   })
 
-  test('typed sub_session: return_result validation bounces back, then the payload resolves the parent', async () => {
+  test('typed delegate: return_result validation bounces back, then the payload resolves the parent', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     let svc: apisvc.Service | undefined
@@ -4114,7 +4084,7 @@ describe('api service', () => {
               systemPrompt: 'You are the coordinator.',
               modelProvider: 'openai',
               model: 'gpt',
-              tools: ['sub_session'],
+              tools: [],
             },
           },
         }),
@@ -4144,7 +4114,7 @@ describe('api service', () => {
                           id: 'spawn-typed',
                           type: 'function',
                           function: {
-                            name: 'sub_session',
+                            name: 'delegate',
                             arguments: JSON.stringify({
                               title: 'Scorer',
                               prompt: 'You are a scorer.',
@@ -4288,7 +4258,7 @@ describe('api service', () => {
         }
         if (messagesJSON.includes('Alpha done')) {
           // The resume, after the real result landed — sees the interleaved chat too.
-          expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+          expectToolResultHasPrecedingToolCall(body.messages, 'delegate')
           expect(messagesJSON).toContain('Quick answer')
           return openAIStreamResponse([
             {id: 'resume', choices: [{delta: {content: 'The background research is finished.'}}]},
@@ -4298,7 +4268,7 @@ describe('api service', () => {
         if (messagesJSON.includes('are you still there')) {
           // The mid-park turn: provider-legal transcript with a synthetic pending result adjacent
           // to the spawn call, telling the model to answer now rather than wait.
-          expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+          expectToolResultHasPrecedingToolCall(body.messages, 'delegate')
           expect(messagesJSON).toContain('Still running in the background')
           return openAIStreamResponse([
             {id: 'mid', choices: [{delta: {content: 'Quick answer: yes, the research is still running.'}}]},
@@ -4317,7 +4287,7 @@ describe('api service', () => {
                       id: 'spawn-alpha',
                       type: 'function',
                       function: {
-                        name: 'sub_session',
+                        name: 'delegate',
                         arguments: JSON.stringify({
                           title: 'Research',
                           prompt: 'REPRO you are worker Alpha.',
@@ -4414,7 +4384,7 @@ describe('api service', () => {
               systemPrompt: 'You are the coordinator.',
               modelProvider: 'openai',
               model: 'gpt',
-              tools: ['sub_session'],
+              tools: [],
             },
           },
         }),
@@ -4445,7 +4415,7 @@ describe('api service', () => {
       putEvent(createdParent.sessionId, 2, {
         type: 'tool_call',
         id: 'spawn-1',
-        name: 'sub_session',
+        name: 'delegate',
         input: {title: 'Worker', prompt: 'You are worker Alpha.', input: 'Do the thing'},
       })
       putEvent(createdChild.sessionId, 1, {type: 'message', role: 'user', content: 'Do the thing'})
@@ -4489,7 +4459,7 @@ describe('api service', () => {
         const body = JSON.parse(await fetchBodyText(url, init))
         const messagesJSON = JSON.stringify(body.messages)
         // Route on the system message: the parent transcript also mentions the child prompt
-        // (inside the sub_session tool_call arguments), so a substring match anywhere is wrong.
+        // (inside the delegate tool_call arguments), so a substring match anywhere is wrong.
         const system = String((body.messages?.[0] as {content?: string} | undefined)?.content ?? '')
         if (system.includes('worker Alpha')) {
           return openAIStreamResponse([
@@ -4497,7 +4467,7 @@ describe('api service', () => {
             {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
           ])
         }
-        expectToolResultHasPrecedingToolCall(body.messages, 'sub_session')
+        expectToolResultHasPrecedingToolCall(body.messages, 'delegate')
         expect(messagesJSON).toContain('Alpha finished after reboot')
         return openAIStreamResponse([
           {id: 'parent', choices: [{delta: {content: 'Resumed and done.'}}]},
@@ -4527,7 +4497,7 @@ describe('api service', () => {
     }
   })
 
-  test('run_workflow: a model-authored workflow calls tools, spawns a sub-agent, and resolves the parent', async () => {
+  test('delegate {script}: a model-authored script calls verbs, spawns a sub-agent, and resolves the parent', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     let svc: apisvc.Service | undefined
@@ -4557,7 +4527,7 @@ describe('api service', () => {
               systemPrompt: 'You are the orchestrator.',
               modelProvider: 'openai',
               model: 'gpt',
-              tools: ['run_workflow', 'memory_write'],
+              tools: [],
             },
           },
         }),
@@ -4572,7 +4542,7 @@ describe('api service', () => {
         'export default async function (input, ctx) {',
         "  await ctx.plan({title: 'Demo', steps: [{id: 'write', label: 'Write note', status: 'pending'}]})",
         "  await ctx.step('Write note', function () {",
-        "    return ctx.call('memory_write', {path: 'notes/wf.txt', content: input.note})",
+        "    return ctx.call('write', {address: '~/memory/notes/wf.txt', content: input.note})",
         '  })',
         "  const worker = await ctx.agent({title: 'Worker', prompt: 'You are worker Gamma.', input: 'Say hi'})",
         "  await ctx.log('info', 'worker replied')",
@@ -4603,10 +4573,10 @@ describe('api service', () => {
                         id: 'wf-call',
                         type: 'function',
                         function: {
-                          name: 'run_workflow',
+                          name: 'delegate',
                           arguments: JSON.stringify({
                             title: 'Demo workflow',
-                            source: workflowSource,
+                            script: workflowSource,
                             input: {note: 'hello from the workflow'},
                           }),
                         },
@@ -5121,7 +5091,18 @@ describe('normalizeSubSessionSpec', () => {
   })
 
   test('still requires some form of brief', () => {
-    expect(() => apisvc.normalizeSubSessionSpec({title: 'Nothing'})).toThrow(/task brief/)
+    expect(() => apisvc.normalizeSubSessionSpec({title: 'Nothing'})).toThrow(/brief/)
+  })
+
+  test('brief is the canonical field and wins alongside a system prompt', () => {
+    const spec = apisvc.normalizeSubSessionSpec({prompt: 'You are a researcher.', brief: 'Find sources.'})
+    expect(spec.prompt).toBe('You are a researcher.')
+    expect(spec.input).toBe('Find sources.')
+  })
+
+  test('brief accepts non-string payloads like input did', () => {
+    const spec = apisvc.normalizeSubSessionSpec({brief: {topic: 'B'}})
+    expect(spec.input).toEqual({topic: 'B'})
   })
 })
 
@@ -5179,7 +5160,7 @@ describe('session plan settling', () => {
                         id: 'plan-call-1',
                         type: 'function',
                         function: {
-                          name: 'update_plan',
+                          name: 'plan',
                           arguments: JSON.stringify({
                             title: 'Review knowledge base',
                             steps: [

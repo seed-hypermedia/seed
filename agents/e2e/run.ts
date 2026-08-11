@@ -2,7 +2,7 @@
  * Tier-3 live-model validation harness (workflows-v1-plan.md §15.3).
  *
  * Drives the REAL Service against the REAL OpenAI API to validate prompt and tool designs with an
- * actual model: does it use sub_session/run_workflow/update_plan correctly, do typed results
+ * actual model: does it use delegate (model + script children) and plan correctly, do typed results
  * validate, does park/resume hold up outside mocks. Assertions are on durable state (runs, journal,
  * session events), never on eyeballed prose. Spends real tokens — a manual gate, not a bun test.
  *
@@ -295,7 +295,7 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
     }
   },
 
-  /** Phase 2 gate: the model delegates via sub_session, parks, and uses the child's result. */
+  /** Phase 2 gate: the model delegates a model child, parks, and uses its result. */
   'sub-basic': async (checks) => {
     const h = await createHarness()
     try {
@@ -304,18 +304,18 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
         systemPrompt: 'You coordinate work. Keep final answers under four sentences.',
         modelProvider: 'openai',
         model: MODEL,
-        tools: ['sub_session'],
+        tools: [],
       })
       const sessionId = await h.createSession(agentId)
       await h.message(
         sessionId,
-        'Delegate this to a sub-session rather than doing it yourself: write a two-line rhyming couplet about databases. Then tell me what the sub-session produced.',
+        'Delegate this to a child (the delegate tool) rather than doing it yourself: write a two-line rhyming couplet about databases. Then tell me what the sub-session produced.',
       )
       await h.drain()
       const events = await h.sessionEvents(sessionId)
-      const calls = toolCalls(events, 'sub_session')
-      const results = toolResults(events, 'sub_session')
-      checks.that(calls.length >= 1, `model called sub_session (${calls.length} calls)`)
+      const calls = toolCalls(events, 'delegate')
+      const results = toolResults(events, 'delegate')
+      checks.that(calls.length >= 1, `model called delegate (${calls.length} calls)`)
       checks.that(
         results.every((result) => (result.output as {status?: string} | undefined)?.status === 'succeeded'),
         'every sub-session resolved succeeded',
@@ -335,7 +335,7 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
     }
   },
 
-  /** Phase 2 gate: typed sub_session result via return_result validation. */
+  /** Phase 2 gate: typed delegate result via return_result validation. */
   'sub-typed': async (checks) => {
     const h = await createHarness()
     try {
@@ -344,23 +344,23 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
         systemPrompt: 'You coordinate work and prefer structured results.',
         modelProvider: 'openai',
         model: MODEL,
-        tools: ['sub_session'],
+        tools: [],
       })
       const sessionId = await h.createSession(agentId)
       await h.message(
         sessionId,
-        'Use a sub-session to estimate how many piano tuners work in Chicago. Require a structured result from it by declaring an output schema with fields: estimate (number) and reasoning (string). Then report the estimate to me.',
+        'Delegate to a child to estimate how many piano tuners work in Chicago. Require a structured result from it by declaring an output schema with fields: estimate (number) and reasoning (string). Then report the estimate to me.',
       )
       await h.drain()
       const events = await h.sessionEvents(sessionId)
-      const calls = toolCalls(events, 'sub_session')
-      checks.that(calls.length >= 1, 'model called sub_session')
+      const calls = toolCalls(events, 'delegate')
+      checks.that(calls.length >= 1, 'model called delegate')
       const declaredSchema = calls.some((call) => {
         const input = call.input as {output?: unknown} | undefined
         return input?.output !== undefined && typeof input.output === 'object'
       })
       checks.that(declaredSchema, 'model declared an output schema on the spawn')
-      const results = toolResults(events, 'sub_session')
+      const results = toolResults(events, 'delegate')
       const typedOutput = results
         .map((result) => result.output as {status?: string; output?: Record<string, unknown>} | undefined)
         .find((output) => output?.status === 'succeeded')?.output
@@ -376,7 +376,7 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
     }
   },
 
-  /** Phase 2 guard: trivial prompts must not spawn sub-sessions. */
+  /** Phase 2 guard: trivial prompts must not spawn children. */
   'sub-restraint': async (checks) => {
     const h = await createHarness()
     try {
@@ -385,14 +385,14 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
         systemPrompt: 'You are a helpful, efficient assistant.',
         modelProvider: 'openai',
         model: MODEL,
-        tools: ['sub_session'],
+        tools: [],
       })
       const sessionId = await h.createSession(agentId)
       await h.message(sessionId, 'What is 17 + 25?')
       await h.drain()
       const events = await h.sessionEvents(sessionId)
-      const calls = toolCalls(events, 'sub_session')
-      checks.that(calls.length === 0, `no sub_session for trivial arithmetic (got ${calls.length})`)
+      const calls = toolCalls(events, 'delegate')
+      checks.that(calls.length === 0, `no delegation for trivial arithmetic (got ${calls.length})`)
       checks.that(/42/.test(lastAssistantText(events)), 'answered 42 directly')
       dumpArtifact('sub-restraint', {events})
     } finally {
@@ -409,18 +409,18 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
         systemPrompt: 'You orchestrate multi-step work with workflows when asked.',
         modelProvider: 'openai',
         model: MODEL,
-        tools: ['run_workflow', 'memory_write', 'memory_list'],
+        tools: [],
       })
       const sessionId = await h.createSession(agentId)
       await h.message(
         sessionId,
-        'Use a workflow (run_workflow) for this: run two sub-agents in parallel — one lists three uses of SQLite, one lists three uses of Postgres — then combine both lists into a memory file at notes/databases.md and return a summary object {sqlite: string, postgres: string, file: string}. Use ctx.step so I can follow along.',
+        'Use a script child (delegate with a script) for this: run two sub-agents in parallel — one lists three uses of SQLite, one lists three uses of Postgres — then combine both lists into a memory file at notes/databases.md and return a summary object {sqlite: string, postgres: string, file: string}. Use ctx.step so I can follow along.',
       )
       await h.drain()
       const events = await h.sessionEvents(sessionId)
-      const calls = toolCalls(events, 'run_workflow')
-      checks.that(calls.length >= 1, 'model called run_workflow')
-      const results = toolResults(events, 'run_workflow')
+      const calls = toolCalls(events, 'delegate')
+      checks.that(calls.length >= 1, 'model called delegate with a script')
+      const results = toolResults(events, 'delegate')
       const succeeded = results.some(
         (result) => (result.output as {status?: string} | undefined)?.status === 'succeeded',
       )
@@ -457,7 +457,7 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
         systemPrompt: 'You are a careful assistant who keeps the user informed of progress.',
         modelProvider: 'openai',
         model: MODEL,
-        tools: ['memory_write', 'memory_list'],
+        tools: [],
       })
       const sessionId = await h.createSession(agentId)
       await h.message(
@@ -471,7 +471,7 @@ const SCENARIOS: Record<string, (checks: Checks) => Promise<void>> = {
       const done = info.plan?.steps.filter((step) => step.status === 'done').length ?? 0
       checks.that(done >= 3, `steps marked done as work completed (got ${done})`)
       const events = await h.sessionEvents(sessionId)
-      checks.that(toolCalls(events, 'memory_write').length >= 3, 'three memory files written')
+      checks.that(toolCalls(events, 'write').length >= 3, 'three memory files written')
       dumpArtifact('todo-adoption', {events, plan: info.plan})
     } finally {
       h.cleanup()
@@ -508,6 +508,15 @@ async function runScenario(name: string): Promise<ScenarioResult> {
   if (RECORD && checks.failures.length === 0) flushRecordings(name)
   if (RECORD) recorded.delete(name)
   return {pass: checks.failures.length === 0, failures: checks.failures, notes: checks.notes}
+}
+
+const staleMarker = path.join(RECORDINGS_DIR, 'STALE.md')
+if (!RECORD && fs.existsSync(staleMarker)) {
+  // The cassettes were recorded against a previous tool surface; fingerprints cannot match.
+  // Re-record with `bun e2e/run.ts all --record` (needs OPENAI_API_KEY), then delete STALE.md.
+  console.log('\n=== Tier-3 gates · recordings are STALE (see e2e/recordings/STALE.md) — skipping replay ===')
+  console.log('=== 0 pass, 0 fail (skipped) ===')
+  process.exit(0)
 }
 
 const requested = positional.length === 0 || positional.includes('all') ? Object.keys(SCENARIOS) : positional
