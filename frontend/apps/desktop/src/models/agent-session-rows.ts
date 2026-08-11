@@ -6,6 +6,7 @@ import {
 } from '@/agents-client'
 import {type ChatBubbleMessage} from '@/components/assistant-message-rendering'
 import {type ChatToolPart} from '@/models/chat-parts'
+import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
 /**
@@ -230,6 +231,7 @@ export function buildAgentSessionChatRows(
         id: payload.id,
         name: payload.name,
         args: isRecord(payload.input) ? payload.input : {input: payload.input},
+        actor: sessionEventActor(event.event),
       }
       const row: Extract<AgentSessionChatRow, {kind: 'message'}> = {
         key: event.id,
@@ -252,12 +254,17 @@ export function buildAgentSessionChatRows(
     if (payload.type === 'tool_result' && typeof payload.toolCallId === 'string' && typeof payload.name === 'string') {
       const existingRow = toolRowsById.get(payload.toolCallId)
       const resultText = payload.error || getToolResultSummary(payload.output)
+      // Only an EXPLICIT actor on the result event may override the call part's actor at merge
+      // time: deriving a default here would stamp 'agent' onto results of user-run calls whose
+      // result events omit the field, silently clobbering the attribution.
+      const explicitResultActor = (event.event as {actor?: ChatToolPart['actor']}).actor
       const resultPart: ChatToolPart = {
         type: 'tool',
         id: payload.toolCallId,
         name: payload.name,
         result: resultText,
         rawOutput: payload.output,
+        ...(explicitResultActor ? {actor: explicitResultActor} : {}),
         ...(payload.error ? {isError: true} : {}),
       }
 
@@ -273,7 +280,7 @@ export function buildAgentSessionChatRows(
           createdAt: event.createdAt,
           message: {
             role: 'assistant',
-            parts: [resultPart],
+            parts: [{...resultPart, actor: resultPart.actor ?? sessionEventActor(event.event)}],
             eventId: event.id,
             sessionId: event.sessionId,
             seq: event.seq,

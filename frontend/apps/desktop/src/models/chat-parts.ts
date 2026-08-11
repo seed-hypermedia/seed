@@ -30,6 +30,8 @@ export type ChatToolPart = {
   rawOutput?: unknown
   /** The result was an error (validation failure, tool crash) — `result` holds the message. */
   isError?: boolean
+  /** Who ran the tool. The log is shared: 'user' marks verbs the user ran themselves. */
+  actor?: 'user' | 'agent' | 'system' | 'trigger'
 }
 
 /** Ordered assistant message content used to interleave text and tool activity. */

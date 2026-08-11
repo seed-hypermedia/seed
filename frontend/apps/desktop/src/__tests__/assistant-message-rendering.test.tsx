@@ -441,3 +441,18 @@ describe('agent error rows', () => {
     cleanupRendered(root, container)
   })
 })
+
+  it('marks user-run tool rows with a You chip', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'user-tool-1',
+      name: 'read',
+      actor: 'user',
+      args: {address: '~/memory/notes.md'},
+      result: 'Read notes.md (120 bytes).',
+      rawOutput: {summary: 'Read notes.md (120 bytes).'},
+    })
+    expect(container.textContent).toContain('You')
+    expect(container.textContent).toContain('Read')
+    cleanupRendered(root, container)
+  })

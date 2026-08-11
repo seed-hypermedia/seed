@@ -64,6 +64,7 @@ import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {UserToolPalette} from './user-tool-palette'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -585,6 +586,8 @@ function AgentSessionPage({
               serverUrl={serverUrl}
               accountId={selectedAccountId ?? null}
               sessionId={sessionId}
+              agentTools={agent.data?.agent.definition.tools}
+              agentToolsLoading={agent.isLoading}
               onSend={(message) => void handleSendMessage(message)}
               onStop={() => void handleStopSession()}
             />
@@ -680,6 +683,8 @@ function AgentRichMessageComposer({
   serverUrl,
   accountId,
   sessionId,
+  agentTools,
+  agentToolsLoading,
   onSend,
   onStop,
 }: {
@@ -691,6 +696,10 @@ function AgentRichMessageComposer({
   serverUrl: string
   accountId: string | null
   sessionId: string
+  /** The agent definition's tools array, for the user tool palette's callable list. */
+  agentTools?: string[]
+  /** True while the agent definition is loading; the palette shows a loading state. */
+  agentToolsLoading?: boolean
   onSend: (message: AgentSessionDraftMessage) => void
   onStop: () => void
 }) {
@@ -789,6 +798,14 @@ function AgentRichMessageComposer({
           />
         </div>
         <div className="flex shrink-0 gap-1 pb-1">
+          <UserToolPalette
+            serverUrl={serverUrl}
+            accountId={accountId}
+            sessionId={sessionId}
+            agentTools={agentTools}
+            agentToolsLoading={agentToolsLoading}
+            disabled={isBusy}
+          />
           {draftMarkdown.trim() ? (
             <Button
               size="sm"

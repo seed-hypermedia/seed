@@ -1461,6 +1461,11 @@ function ToolCallLine({
             {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
           </button>
           {isPending ? <Loader2 className="size-3 shrink-0 animate-spin" /> : <Icon className="size-3 shrink-0" />}
+          {item.actor === 'user' ? (
+            <span className="border-primary/40 bg-primary/10 text-primary shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[9px] font-medium tracking-wide uppercase">
+              You
+            </span>
+          ) : null}
           {item.name === 'read' ? (
             <ReadToolSummary item={item} />
           ) : customView?.kind === 'write-command' ? (

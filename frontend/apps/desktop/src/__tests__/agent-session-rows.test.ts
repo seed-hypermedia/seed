@@ -266,3 +266,36 @@ describe('assistant session refs', () => {
     expect(decodeAssistantSessionRef('http://localhost:3050 | ')).toBeNull()
   })
 })
+
+describe('symmetric log actors', () => {
+  it('stamps actor on tool parts from the event payload, defaulting historical events to agent', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'u1', name: 'read', input: {address: '~/memory/x'}, actor: 'user'}),
+        event(2, {type: 'tool_result', toolCallId: 'u1', name: 'read', output: {summary: 'Read.'}, actor: 'user'}),
+        event(3, {type: 'tool_call', id: 'a1', name: 'call', input: {tool: 'search'}}),
+      ],
+      CONTEXT,
+    )
+    expect(rows).toHaveLength(2)
+    const userRow = rows[0]!
+    if (userRow.kind !== 'message') throw new Error('expected a message row')
+    expect(userRow.message.parts?.[0]).toMatchObject({type: 'tool', id: 'u1', actor: 'user', result: 'Read.'})
+    const agentRow = rows[1]!
+    if (agentRow.kind !== 'message') throw new Error('expected a message row')
+    expect(agentRow.message.parts?.[0]).toMatchObject({type: 'tool', id: 'a1', actor: 'agent'})
+  })
+
+  it('keeps the user actor when the result event omits it', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'u1', name: 'write', input: {address: '~/memory/x'}, actor: 'user'}),
+        event(2, {type: 'tool_result', toolCallId: 'u1', name: 'write', output: {summary: 'Wrote.'}}),
+      ],
+      CONTEXT,
+    )
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    expect(row.message.parts?.[0]).toMatchObject({actor: 'user'})
+  })
+})

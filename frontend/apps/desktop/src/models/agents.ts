@@ -1025,6 +1025,31 @@ export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid:
   })
 }
 
+/**
+ * Runs one verb (read/write/call) AS THE USER on a session's shared log. No optimistic rows: the
+ * durable actor-'user' events arrive over the session WS subscription — the log is the truth.
+ */
+export function useInvokeSessionTool(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      verb,
+      input,
+    }: {
+      sessionId: string
+      verb: 'read' | 'write' | 'call'
+      input: unknown
+    }) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'InvokeSessionTool', sessionId, verb, input}})
+    },
+    onSuccess() {
+      // The WS append is primary, but a stale socket must never hide a durable action.
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
 /** Updates an existing activity trigger. */
 export function useUpdateAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
