@@ -2768,7 +2768,8 @@ export function MobileBackToTop() {
     <button
       type="button"
       aria-label="Back to top"
-      aria-hidden={!visible}
+      aria-hidden={visible ? undefined : true}
+      tabIndex={visible ? undefined : -1}
       onClick={() => {
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
         window.scrollTo({top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth'})
@@ -2776,8 +2777,8 @@ export function MobileBackToTop() {
       className={cn(
         'fixed bottom-6 left-1/2 z-40 flex size-9 -translate-x-1/2 items-center justify-center rounded-full',
         'bg-neutral-900 text-white shadow-md dark:bg-neutral-100 dark:text-neutral-900',
-        'transition-opacity duration-200 motion-reduce:transition-none',
-        visible ? 'opacity-100' : 'pointer-events-none opacity-0',
+        'transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+        visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0',
       )}
     >
       <ChevronUp className="size-5" />

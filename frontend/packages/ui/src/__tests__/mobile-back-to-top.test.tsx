@@ -41,6 +41,9 @@ describe('MobileBackToTop', () => {
 
     expect(button().className).toContain('pointer-events-none')
     expect(button().className).toContain('opacity-0')
+    // Hidden from assistive tech must also mean out of the tab order
+    expect(button().getAttribute('aria-hidden')).toBe('true')
+    expect(button().tabIndex).toBe(-1)
 
     // Just under 1.5 viewport heights: still hidden.
     scrollWindowTo(1100)
@@ -49,6 +52,8 @@ describe('MobileBackToTop', () => {
     scrollWindowTo(1300)
     expect(button().className).toContain('opacity-100')
     expect(button().className).not.toContain('pointer-events-none')
+    expect(button().getAttribute('aria-hidden')).toBe(null)
+    expect(button().tabIndex).toBe(0)
   })
 
   it('scrolls the window back to the top, honoring reduced motion', () => {
