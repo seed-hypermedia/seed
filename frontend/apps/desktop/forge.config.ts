@@ -407,13 +407,16 @@ function notarizeMaybe() {
 
   // @ts-expect-error
   config.packagerConfig.osxSign = {
-    // @ts-expect-error
-    entitlements: './entitlements.plist',
-    executableName: 'Mintter',
-    entitlementsInherit: './entitlements.plist',
-    gatekeeperAssess: false,
-    hardenedRuntime: true,
     identity: 'Developer ID Application: Mintter Technologies S.L. (XSKC6RJDD8)',
+    // @electron/osx-sign v1 only honors entitlements via optionsForFile; the old flat
+    // `entitlements`/`entitlementsInherit` options are silently ignored, which signed every
+    // binary with the library's default entitlements and stripped com.apple.security.hypervisor
+    // from msb — breaking execute_code microVMs in shipped builds while dev (npm-signed msb)
+    // kept working.
+    optionsForFile: () => ({
+      entitlements: './entitlements.plist',
+      hardenedRuntime: true,
+    }),
     // Every nested executable must be listed, or notarization ships an unsigned binary that
     // refuses to launch on other machines. The microsandbox native pieces staged next to the
     // agents binary are Mach-O files too; re-signing `msb` is safe because entitlements.plist
