@@ -55,11 +55,9 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
-  File,
   Folder,
   History,
   LayoutList,
-  Library,
   Lock,
   MessageSquare,
   MoreHorizontal,
@@ -116,18 +114,6 @@ export function MainAppSidebar() {
           <SidebarMenu className="py-4">
             <SidebarMenuItem>
               <SmallListItem
-                active={route.key == 'library'}
-                onClick={() => {
-                  navigate({key: 'library'})
-                }}
-                title="Library"
-                bold
-                icon={<Library className="size-4" />}
-                rightHover={[]}
-              />
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SmallListItem
                 active={route.key == 'agents'}
                 onClick={() => {
                   navigate({key: 'agents'})
@@ -148,17 +134,6 @@ export function MainAppSidebar() {
                 bold
               />
             </SidebarMenuItem> */}
-            <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'drafts'}
-                onClick={() => {
-                  navigate({key: 'drafts'})
-                }}
-                icon={<File className="size-4" />}
-                title="Drafts"
-                bold
-              />
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooterLayout>
       )}

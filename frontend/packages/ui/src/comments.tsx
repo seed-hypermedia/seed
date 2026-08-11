@@ -148,6 +148,20 @@ export function CommentDiscussions({
     return () => clearTimeout(timer)
   }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
 
+  const commentEditorSlot = commentEditor ? (
+    <div className="relative max-h-1/2 py-4">
+      <div
+        className="bg-border absolute w-px"
+        style={{
+          height: isEntirelyHighlighted ? 40 : 56,
+          top: isEntirelyHighlighted ? -16 : -32,
+          left: 26,
+        }}
+      />
+      <div className="px-2 pr-4 pl-3">{commentEditor}</div>
+    </div>
+  ) : null
+
   if (!commentId) return null
 
   if (commentsService.error) {
@@ -158,6 +172,7 @@ export function CommentDiscussions({
             Failed to load comment thread
           </SizableText>
         </div>
+        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -168,6 +183,7 @@ export function CommentDiscussions({
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
+        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -178,6 +194,7 @@ export function CommentDiscussions({
         <div className="p-2">
           <DeletedCommentPreview comment={deletedLastVersion!} />
         </div>
+        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -188,6 +205,7 @@ export function CommentDiscussions({
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
+        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -201,6 +219,7 @@ export function CommentDiscussions({
               This comment was deleted.
             </SizableText>
           </div>
+          {commentEditorSlot}
         </SelectionContent>
       )
     }
@@ -211,6 +230,7 @@ export function CommentDiscussions({
             This comment could not be found.
           </SizableText>
         </div>
+        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -254,17 +274,7 @@ export function CommentDiscussions({
         </div>
       )}
 
-      <div className="relative max-h-1/2 py-4">
-        <div
-          className="bg-border absolute w-px"
-          style={{
-            height: isEntirelyHighlighted ? 40 : 56,
-            top: isEntirelyHighlighted ? -16 : -32,
-            left: 26,
-          }}
-        />
-        <div className="px-2 pr-4 pl-3">{commentEditor}</div>
-      </div>
+      {commentEditorSlot}
 
       {commentGroupReplies.data?.length > 0
         ? commentGroupReplies.data.map((cg) => {

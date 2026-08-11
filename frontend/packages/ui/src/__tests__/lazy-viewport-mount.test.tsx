@@ -2,7 +2,7 @@
 import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
-import {afterEach, beforeEach, describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {LazyViewportMount} from '../lazy-viewport-mount'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -42,6 +42,7 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
+  vi.restoreAllMocks()
 })
 
 describe('LazyViewportMount', () => {
@@ -59,6 +60,18 @@ describe('LazyViewportMount', () => {
   })
 
   it('mounts children after entering the viewport', () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 10_000,
+      top: 10_000,
+      bottom: 10_020,
+      left: 0,
+      right: 100,
+      width: 100,
+      height: 20,
+      toJSON: () => ({}),
+    })
+
     act(() => {
       root.render(
         <LazyViewportMount>

@@ -13,7 +13,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {hmId} from '@shm/shared'
-import {NavRoute} from '@shm/shared/routes'
+import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -50,7 +50,6 @@ var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
-var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
@@ -58,7 +57,6 @@ var Agents = lazy(() => import('./agents'))
 var AgentServer = lazy(() => import('./agents/server'))
 var AgentDetail = lazy(() => import('./agents/detail'))
 var AgentSession = lazy(() => import('./agents/session'))
-var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
 var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
@@ -84,12 +82,12 @@ function DraftRouteRedirect() {
     if (draftQuery.isLoading) return
     const draft = draftQuery.data
     if (!draft) {
-      replace({key: 'drafts'})
+      replace(defaultRoute)
       return
     }
     const targetId = draftDocumentRouteId(draft)
     if (!targetId) {
-      replace({key: 'drafts'})
+      replace(defaultRoute)
       return
     }
     replace({key: 'document', id: targetId})
@@ -101,6 +99,12 @@ function DraftRouteRedirect() {
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
+  const replaceRemovedRoute = useNavigate('replace')
+  useEffect(() => {
+    if (navR.key === 'library' || navR.key === 'drafts') {
+      replaceRemovedRoute(defaultRoute)
+    }
+  }, [navR.key, replaceRemovedRoute])
   const selectedAccountId = useSelectedAccountId()
   const createNewDocument = useCreateDraft({
     locationUid: selectedAccountId ?? undefined,
@@ -420,12 +424,6 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: SiteSettings,
         Fallback: BaseLoading,
       }
-    case 'library': {
-      return {
-        PageComponent: Library,
-        Fallback: BaseLoading,
-      }
-    }
     case 'deleted-content':
       return {
         PageComponent: DeletedContent,
@@ -459,11 +457,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'agent-session':
       return {
         PageComponent: AgentSession,
-        Fallback: BaseLoading,
-      }
-    case 'drafts':
-      return {
-        PageComponent: Drafts,
         Fallback: BaseLoading,
       }
     case 'feed':

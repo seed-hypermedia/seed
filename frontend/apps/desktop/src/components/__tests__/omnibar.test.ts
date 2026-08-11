@@ -245,16 +245,6 @@ describe('Route ID extraction', () => {
     const route = {key: 'bookmarks'}
     expect(getRouteId(route)).toBeNull()
   })
-
-  it('should return null for library route', () => {
-    const route = {key: 'library'}
-    expect(getRouteId(route)).toBeNull()
-  })
-
-  it('should return null for drafts route', () => {
-    const route = {key: 'drafts'}
-    expect(getRouteId(route)).toBeNull()
-  })
 })
 
 describe('Draft route detection', () => {
