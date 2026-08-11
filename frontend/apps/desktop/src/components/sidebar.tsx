@@ -59,7 +59,6 @@ import {
   Folder,
   History,
   LayoutList,
-  Library,
   Lock,
   MessageSquare,
   MoreHorizontal,
@@ -114,18 +113,6 @@ export function MainAppSidebar() {
           </SidebarMenu>
           <SidebarSeparator />
           <SidebarMenu className="py-4">
-            <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'library'}
-                onClick={() => {
-                  navigate({key: 'library'})
-                }}
-                title="Library"
-                bold
-                icon={<Library className="size-4" />}
-                rightHover={[]}
-              />
-            </SidebarMenuItem>
             <SidebarMenuItem>
               <SmallListItem
                 active={route.key == 'agents'}

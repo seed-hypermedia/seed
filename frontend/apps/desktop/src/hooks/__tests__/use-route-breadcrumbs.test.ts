@@ -38,9 +38,6 @@ describe('getIconForRoute', () => {
   it('document -> null', () => {
     expect(getIconForRoute('document')).toBeNull()
   })
-  it('library -> null', () => {
-    expect(getIconForRoute('library')).toBeNull()
-  })
   it('feed -> null', () => {
     expect(getIconForRoute('feed')).toBeNull()
   })
@@ -52,9 +49,6 @@ describe('getWindowTitle', () => {
   })
   it('bookmarks -> Bookmarks', () => {
     expect(getWindowTitle('bookmarks')).toBe('Bookmarks')
-  })
-  it('library -> Library', () => {
-    expect(getWindowTitle('library')).toBe('Library')
   })
   it('drafts -> Drafts', () => {
     expect(getWindowTitle('drafts')).toBe('Drafts')
@@ -116,13 +110,6 @@ describe('computeSimpleRouteBreadcrumbs', () => {
     expect(result!.items).toHaveLength(1)
     expect(result!.items[0].name).toBe('Drafts')
     expect(result!.icon).toBe('file')
-  })
-  it('library', () => {
-    const result = computeSimpleRouteBreadcrumbs('library')
-    expect(result).not.toBeNull()
-    expect(result!.items).toHaveLength(1)
-    expect(result!.items[0].name).toBe('Library')
-    expect(result!.icon).toBeNull()
   })
   it('api-inspector', () => {
     const result = computeSimpleRouteBreadcrumbs('api-inspector')

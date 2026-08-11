@@ -148,8 +148,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       if (account) {
         // Ensure the account is selected when onboarding was previously completed
         setSelectedIdentity?.(account.uid)
-        // Navigate to library — vault-created accounts may not have home docs.
-        navigate({key: 'library'})
+        navigate({key: 'document', id: account})
       }
       onComplete()
     }
@@ -202,7 +201,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       const resolvedAccount = nextAccount ?? account
       if (resolvedAccount) {
         setSelectedIdentity?.(resolvedAccount.uid)
-        navigate({key: 'library'})
+        navigate({key: 'document', id: resolvedAccount})
       }
 
       onComplete()

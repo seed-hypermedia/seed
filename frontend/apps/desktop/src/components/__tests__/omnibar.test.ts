@@ -246,11 +246,6 @@ describe('Route ID extraction', () => {
     expect(getRouteId(route)).toBeNull()
   })
 
-  it('should return null for library route', () => {
-    const route = {key: 'library'}
-    expect(getRouteId(route)).toBeNull()
-  })
-
   it('should return null for drafts route', () => {
     const route = {key: 'drafts'}
     expect(getRouteId(route)).toBeNull()

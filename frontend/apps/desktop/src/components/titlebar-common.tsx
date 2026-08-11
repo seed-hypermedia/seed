@@ -599,8 +599,6 @@ function getRouteLabel(route: NavRoute): string | null {
   switch (route.key) {
     case 'onboarding':
       return 'Welcome to Seed Hypermedia'
-    case 'library':
-      return 'Library'
     case 'agents':
       return 'Agents'
     case 'drafts':

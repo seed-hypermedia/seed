@@ -72,7 +72,7 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
 }
 
 // Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set(['library', 'contacts', 'settings', 'drafts', 'agents', 'api-inspector'])
+const SINGLE_INSTANCE_ROUTES = new Set(['contacts', 'settings', 'drafts', 'agents', 'api-inspector'])
 
 // Check if a route key should prevent duplicate windows
 function shouldPreventDuplicateWindow(routeKey: string): boolean {
@@ -382,7 +382,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   }
 
   // Check if we should prevent duplicate windows for this route
-  const initRoutes = input?.routes || [{key: 'library'}]
+  const initRoutes = input?.routes || [defaultRoute]
   const initRouteIndex = input?.routeIndex || 0
   const targetRoute = initRoutes[initRouteIndex]
 

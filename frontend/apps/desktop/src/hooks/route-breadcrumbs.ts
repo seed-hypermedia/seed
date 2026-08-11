@@ -79,8 +79,6 @@ export function getWindowTitle(routeKey: string, activeName?: string): string | 
       return 'Contacts'
     case 'bookmarks':
       return 'Bookmarks'
-    case 'library':
-      return 'Library'
     case 'drafts':
       return 'Drafts'
     case 'api-inspector':
@@ -128,12 +126,6 @@ export function computeSimpleRouteBreadcrumbs(routeKey: string): {
         items: [{name: 'Drafts', id: null, crumbKey: 'drafts'}],
         icon: 'file',
         windowTitle: 'Drafts',
-      }
-    case 'library':
-      return {
-        items: [{name: 'Library', id: null, crumbKey: 'library'}],
-        icon: null,
-        windowTitle: 'Library',
       }
     case 'api-inspector':
       return {
