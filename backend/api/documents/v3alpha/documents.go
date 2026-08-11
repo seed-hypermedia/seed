@@ -2102,8 +2102,15 @@ var (
 // targets)` was quadratic: `chains` is a recursive CTE consumed as a co-routine, so SQLite
 // re-evaluated the IN list per row instead of materializing it once (~2k chain rows × ~7k
 // target rows ≈ 15M scans ≈ 2.5s on a real database, and MATERIALIZED hints on `targets`,
-// `redirected` or `chains` did not help). Applying the predicate directly to `tr.iri`
-// makes it a filter on a row already in hand: same rows, ~0.07s instead of ~2.5s.
+// `redirected` or `chains` did not fix THAT problem). Applying the predicate directly to
+// `tr.iri` makes it a filter on a row already in hand: same rows, ~0.07s instead of ~2.5s.
+//
+// The parenthetical above used to read "did not help", full stop. It is scoped to the
+// IN-list pathology, and reading it more broadly steered the 2026-08-11 outage response
+// away from the actual fix: `redirected` is also referenced from the recursive term of
+// `chains`, where it was re-derived once per visited row at ~5.5s per listing call. It now
+// carries a MATERIALIZED hint for that separate reason (see the comment on it below). That
+// win was invisible when the note was written, because the 2.5s IN-list scan dominated.
 func qListDocsCommentAggScoped(scope string) string {
 	return `(
 	WITH RECURSIVE
