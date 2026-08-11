@@ -57,7 +57,6 @@ var Agents = lazy(() => import('./agents'))
 var AgentServer = lazy(() => import('./agents/server'))
 var AgentDetail = lazy(() => import('./agents/detail'))
 var AgentSession = lazy(() => import('./agents/session'))
-var Drafts = lazy(() => import('./drafts'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
 var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
@@ -83,12 +82,12 @@ function DraftRouteRedirect() {
     if (draftQuery.isLoading) return
     const draft = draftQuery.data
     if (!draft) {
-      replace({key: 'drafts'})
+      replace(defaultRoute)
       return
     }
     const targetId = draftDocumentRouteId(draft)
     if (!targetId) {
-      replace({key: 'drafts'})
+      replace(defaultRoute)
       return
     }
     replace({key: 'document', id: targetId})
@@ -102,7 +101,7 @@ export default function Main({className}: {className?: string}) {
   const navigate = useNavigate()
   const replaceRemovedRoute = useNavigate('replace')
   useEffect(() => {
-    if (navR.key === 'library') {
+    if (navR.key === 'library' || navR.key === 'drafts') {
       replaceRemovedRoute(defaultRoute)
     }
   }, [navR.key, replaceRemovedRoute])
@@ -458,11 +457,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'agent-session':
       return {
         PageComponent: AgentSession,
-        Fallback: BaseLoading,
-      }
-    case 'drafts':
-      return {
-        PageComponent: Drafts,
         Fallback: BaseLoading,
       }
     case 'feed':

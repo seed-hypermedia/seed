@@ -29,9 +29,6 @@ describe('getIconForRoute', () => {
   it('bookmarks -> star', () => {
     expect(getIconForRoute('bookmarks')).toBe('star')
   })
-  it('drafts -> file', () => {
-    expect(getIconForRoute('drafts')).toBe('file')
-  })
   it('draft -> file', () => {
     expect(getIconForRoute('draft')).toBe('file')
   })
@@ -49,9 +46,6 @@ describe('getWindowTitle', () => {
   })
   it('bookmarks -> Bookmarks', () => {
     expect(getWindowTitle('bookmarks')).toBe('Bookmarks')
-  })
-  it('drafts -> Drafts', () => {
-    expect(getWindowTitle('drafts')).toBe('Drafts')
   })
   it('api-inspector -> API Inspector', () => {
     expect(getWindowTitle('api-inspector')).toBe('API Inspector')
@@ -103,13 +97,6 @@ describe('computeSimpleRouteBreadcrumbs', () => {
     expect(result!.items).toHaveLength(1)
     expect(result!.items[0].name).toBe('Bookmarks')
     expect(result!.icon).toBe('star')
-  })
-  it('drafts', () => {
-    const result = computeSimpleRouteBreadcrumbs('drafts')
-    expect(result).not.toBeNull()
-    expect(result!.items).toHaveLength(1)
-    expect(result!.items[0].name).toBe('Drafts')
-    expect(result!.icon).toBe('file')
   })
   it('api-inspector', () => {
     const result = computeSimpleRouteBreadcrumbs('api-inspector')

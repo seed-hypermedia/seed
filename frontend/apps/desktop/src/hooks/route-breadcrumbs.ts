@@ -65,7 +65,6 @@ export function getIconForRoute(routeKey: string): BreadcrumbIconKey {
       return 'contact'
     case 'bookmarks':
       return 'star'
-    case 'drafts':
     case 'draft':
       return 'file'
     default:
@@ -79,8 +78,6 @@ export function getWindowTitle(routeKey: string, activeName?: string): string | 
       return 'Contacts'
     case 'bookmarks':
       return 'Bookmarks'
-    case 'drafts':
-      return 'Drafts'
     case 'api-inspector':
       return 'API Inspector'
     case 'contact':
@@ -120,12 +117,6 @@ export function computeSimpleRouteBreadcrumbs(routeKey: string): {
         items: [{name: 'Bookmarks', id: null, crumbKey: 'bookmarks'}],
         icon: 'star',
         windowTitle: 'Bookmarks',
-      }
-    case 'drafts':
-      return {
-        items: [{name: 'Drafts', id: null, crumbKey: 'drafts'}],
-        icon: 'file',
-        windowTitle: 'Drafts',
       }
     case 'api-inspector':
       return {

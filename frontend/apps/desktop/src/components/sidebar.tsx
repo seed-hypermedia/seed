@@ -55,7 +55,6 @@ import {
   Bot,
   ChevronDown,
   ChevronRight,
-  File,
   Folder,
   History,
   LayoutList,
@@ -135,17 +134,6 @@ export function MainAppSidebar() {
                 bold
               />
             </SidebarMenuItem> */}
-            <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'drafts'}
-                onClick={() => {
-                  navigate({key: 'drafts'})
-                }}
-                icon={<File className="size-4" />}
-                title="Drafts"
-                bold
-              />
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooterLayout>
       )}

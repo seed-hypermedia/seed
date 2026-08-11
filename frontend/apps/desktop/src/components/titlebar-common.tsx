@@ -601,8 +601,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Welcome to Seed Hypermedia'
     case 'agents':
       return 'Agents'
-    case 'drafts':
-      return 'Drafts'
     case 'contacts':
       return 'Contacts'
     case 'bookmarks':
