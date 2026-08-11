@@ -615,6 +615,8 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'API Inspector'
     case 'query-documents':
       return 'Query Documents'
+    case 'explore':
+      return 'Explore'
     case 'notifications':
       return 'Notifications'
     case 'draft':
@@ -866,6 +868,9 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
   ) {
     return route.id
   }
+  if (route.key === 'explore') {
+    return route.context.type === 'site' ? route.context.id : null
+  }
   if (route.key === 'site-settings-emails') {
     return route.accountUid ? hmId(route.accountUid) : null
   }
@@ -887,6 +892,7 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'comments' ||
     route.key === 'all-documents' ||
     route.key === 'metadata' ||
+    (route.key === 'explore' && route.context.type === 'site') ||
     route.key === 'site-profile' ||
     route.key === 'site-settings-emails' ||
     route.key === 'site-settings'

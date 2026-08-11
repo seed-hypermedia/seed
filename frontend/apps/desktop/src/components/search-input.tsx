@@ -20,6 +20,7 @@ import {
   isHypermediaScheme,
   isSiteProfileTab,
   packHmId,
+  hmId,
   parseCustomURL,
   parseFragment,
   unpackHmId,
@@ -245,9 +246,28 @@ export const SearchInput = forwardRef<
     onMouseEnter: () => {},
     onSelect: () => onSelect({route: {key: 'query-documents'}}),
   }
+  const exploreItem: SearchResult = {
+    key: 'explore-results',
+    title: debouncedSearch ? `Explore results for “${debouncedSearch}”` : 'Explore',
+    path: [],
+    onFocus: () => {},
+    onMouseEnter: () => {},
+    onSelect: () => {
+      const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
+      const siteId = routeId?.uid ? hmId(routeId.uid) : null
+      onSelect({
+        route: {
+          key: 'explore',
+          context: siteId ? {type: 'site', id: siteId} : {type: 'node'},
+          q: debouncedSearch || undefined,
+        },
+      })
+    },
+  }
   const isDisplayingRecents = !debouncedSearch.length
   const resultItems = isDisplayingRecents ? recentItems : [...(queryItem ? [queryItem] : []), ...searchItems]
-  const activeItems = [...resultItems, queryDocumentsItem]
+  const footerItems = debouncedSearch ? [exploreItem, queryDocumentsItem] : [queryDocumentsItem]
+  const activeItems = [...resultItems, ...footerItems]
 
   // Expose keyboard handlers via ref
   const handleArrowUp = useCallback(() => {
@@ -353,23 +373,30 @@ export const SearchInput = forwardRef<
     </>
   )
 
-  const queryDocumentsFooter = (
-    <div ref={(el) => (itemRefs.current[resultItems.length] = el)} className="border-border border-t px-1 pt-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        className={`text-primary h-7 w-full justify-start px-2 text-xs font-medium underline-offset-4 hover:underline ${
-          focusedIndex === resultItems.length ? 'bg-muted' : ''
-        }`}
-        onFocus={() => setFocusedIndex(resultItems.length)}
-        onMouseEnter={() => setFocusedIndex(resultItems.length)}
-        onClick={() => {
-          onClose?.()
-          queryDocumentsItem.onSelect?.()
-        }}
-      >
-        Query documents
-      </Button>
+  const searchFooter = (
+    <div className="border-border space-y-1 border-t px-1 pt-1">
+      {footerItems.map((item, index) => {
+        const activeItemIndex = resultItems.length + index
+        return (
+          <div key={item.key} ref={(el) => (itemRefs.current[activeItemIndex] = el)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`text-primary h-7 w-full justify-start px-2 text-xs font-medium underline-offset-4 hover:underline ${
+                focusedIndex === activeItemIndex ? 'bg-muted' : ''
+              }`}
+              onFocus={() => setFocusedIndex(activeItemIndex)}
+              onMouseEnter={() => setFocusedIndex(activeItemIndex)}
+              onClick={() => {
+                onClose?.()
+                item.onSelect?.()
+              }}
+            >
+              {item.title}
+            </Button>
+          </div>
+        )
+      })}
     </div>
   )
 
@@ -378,7 +405,7 @@ export const SearchInput = forwardRef<
     return (
       <div className="flex h-full w-full flex-col gap-2">
         <div className="max-h-[200px] min-h-0 flex-1 overflow-y-auto">{content || <p>working…</p>}</div>
-        {queryDocumentsFooter}
+        {searchFooter}
       </div>
     )
   }
@@ -411,7 +438,7 @@ export const SearchInput = forwardRef<
       focusedIndex={focusedIndex}
     >
       {content || <p>working…</p>}
-      {queryDocumentsFooter}
+      {searchFooter}
     </SearchInputUI>
   )
 })
@@ -443,6 +470,9 @@ function applyViewTermToRoute(
   }
   if (isSiteProfileTab(routeKey)) {
     return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
+  }
+  if (routeKey === 'explore') {
+    return {key: 'explore', context: {type: 'site', id: route.id}}
   }
   return {key: routeKey, id: route.id}
 }

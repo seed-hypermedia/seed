@@ -370,6 +370,19 @@ export const queryDocumentsRouteSchema = z.object({
 /** Navigation route for the desktop Query Documents playground. */
 export type QueryDocumentsRoute = z.infer<typeof queryDocumentsRouteSchema>
 
+/** Route for the Explore search prototype. */
+export const exploreRouteSchema = z.object({
+  key: z.literal('explore'),
+  context: z.discriminatedUnion('type', [
+    z.object({type: z.literal('node')}),
+    z.object({type: z.literal('site'), id: unpackedHmIdSchema}),
+  ]),
+  q: z.string().optional(),
+  sort: z.enum(['relevance', 'recently_updated', 'newest', 'oldest', 'title']).optional(),
+})
+/** Navigation route for the Explore search prototype. */
+export type ExploreRoute = z.infer<typeof exploreRouteSchema>
+
 export const draftRebaseRouteSchema = z.object({
   key: z.literal('draft-rebase'),
   documentId: z.string(),
@@ -409,6 +422,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentSessionRouteSchema,
   apiInspectorRouteSchema,
   queryDocumentsRouteSchema,
+  exploreRouteSchema,
   feedRouteSchema,
   allDocumentsRouteSchema,
   inspectRouteSchema,
@@ -519,6 +533,13 @@ export function replaceRouteDocumentId(route: NavRoute, targetId: UnpackedHyperm
         ...route,
         id: targetId,
       }
+    case 'explore':
+      return route.context.type === 'site'
+        ? {
+            ...route,
+            context: {...route.context, id: targetId},
+          }
+        : route
     case 'site-profile':
       return {
         ...route,
@@ -633,6 +654,8 @@ export function createDocumentNavRoute(
       return {key: 'feed', id: docId, panel}
     case 'all-documents':
       return {key: 'all-documents', id: docId}
+    case 'explore':
+      return {key: 'explore', context: {type: 'site', id: docId}}
     case 'site-settings':
       return {key: 'site-settings', id: docId}
     case 'metadata':
@@ -662,7 +685,7 @@ export function createInspectNavRoute(
     key: 'inspect',
     id: docId,
   }
-  if (targetView && targetView !== 'site-settings') route.targetView = targetView
+  if (targetView && targetView !== 'site-settings' && targetView !== 'explore') route.targetView = targetView
   if (targetActivityFilter) route.targetActivityFilter = targetActivityFilter
   if (targetView === 'comments' && openComment) route.targetOpenComment = openComment
   if (isSiteProfileTab(targetView) && accountUid) route.targetAccountUid = accountUid

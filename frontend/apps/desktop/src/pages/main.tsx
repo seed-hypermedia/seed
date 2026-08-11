@@ -54,6 +54,7 @@ var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
+var Explore = lazy(() => import('./explore'))
 var Agents = lazy(() => import('./agents'))
 var AgentServer = lazy(() => import('./agents/server'))
 var AgentDetail = lazy(() => import('./agents/detail'))
@@ -439,6 +440,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'query-documents':
       return {
         PageComponent: QueryDocuments,
+        Fallback: BaseLoading,
+      }
+    case 'explore':
+      return {
+        PageComponent: Explore,
         Fallback: BaseLoading,
       }
     case 'agents':
