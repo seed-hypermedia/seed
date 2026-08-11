@@ -2428,31 +2428,16 @@ export class Service {
     definition: api.AgentDefinition,
     digest: string,
   ): Promise<string | null> {
-    const providerRow = this.#db
-      .query<{config_cbor: Uint8Array}, [string, string]>(
-        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
-      )
-      .get(accountId, definition.modelProvider)
-    if (!providerRow) return null
-    const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
-    const spec = providerSpec(provider.type)
-    const apiKeySecretName = provider.secretRefs?.apiKey
-    if (spec.requireApiKey && !apiKeySecretName) return null
-    const apiKey = apiKeySecretName
-      ? new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
-      : 'local'
-    const baseUrl = resolveProviderBaseUrl(provider.type, provider.baseUrl)
-    const authStorage = pi.AuthStorage.inMemory()
-    authStorage.setRuntimeApiKey(provider.type, apiKey)
-    const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
-    modelRegistry.registerProvider(provider.type, {
-      baseUrl,
-      apiKey,
-      api: spec.api,
-      models: [piModelForDefinition(provider.type, baseUrl, definition)],
-    })
-    const model = modelRegistry.find(provider.type, definition.model)
-    if (!model) return null
+    // The shared provider runtime, NOT an inline resolution: titling must honor the provider's
+    // auth mode (subscription OAuth has no apiKey secret — the old inline path silently bailed
+    // and left every subscription-provider session untitled).
+    let runtime: Awaited<ReturnType<Service['piProviderRuntimeForTitle']>>
+    try {
+      runtime = await this.piProviderRuntimeForTitle(accountId, definition)
+    } catch {
+      return null
+    }
+    const {provider, authStorage, modelRegistry, model} = runtime
     const {session: piSession} = await pi.createAgentSession({
       cwd: this.#dataDir,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -3374,6 +3359,11 @@ export class Service {
    * model. Shared by agent runs and the session-titling call so both honor the
    * provider's auth mode.
    */
+  /** Internal alias so helper signatures can name the runtime type (private #-methods cannot be referenced in types). */
+  piProviderRuntimeForTitle(accountId: string, definition: api.AgentDefinition) {
+    return this.#piProviderRuntime(accountId, definition)
+  }
+
   async #piProviderRuntime(
     accountId: string,
     definition: api.AgentDefinition,
