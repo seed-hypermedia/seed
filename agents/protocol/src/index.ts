@@ -154,6 +154,7 @@ export type UnsignedAgentAction =
   | DeleteSession
   | GetSession
   | MessageSession
+  | InvokeSessionTool
   | UploadSessionAttachment
   | ReadSessionAttachment
   | BeginFileUpload
@@ -553,6 +554,27 @@ export type MessageSession = {
 }
 
 /**
+ * Runs one verb (read, write, or call) AS THE USER on a session's shared log. The call and its
+ * result append as actor-'user' events the agent reads on its next turn — the same log, the same
+ * verbs, no side channel. Rejected while the session has a live run.
+ */
+export type InvokeSessionTool = {
+  _: 'InvokeSessionTool'
+  sessionId: string
+  verb: 'read' | 'write' | 'call'
+  input: unknown
+}
+
+export type InvokeSessionToolResponse = {
+  _: 'InvokeSessionToolResponse'
+  sessionId: string
+  /** Durable event id of the appended tool_result. */
+  resultEventId: string
+  output?: unknown
+  error?: string
+}
+
+/**
  * Uploads one session-private attachment so a later `MessageSession` can reference it. Uploading
  * the same bytes twice returns the same attachment id. Attachments are deleted with the session.
  */
@@ -788,6 +810,24 @@ export type SessionEvent = {
   createdAt: number
 }
 
+/**
+ * Who performed a logged action. The session log is a shared workspace log, not a chat: the user
+ * holds the same verbs the agent does, and every entry says who acted. Events recorded before
+ * this field existed derive their actor from shape via {@link sessionEventActor}.
+ */
+export type SessionActor = 'user' | 'agent' | 'system' | 'trigger'
+
+/** Resolves an event payload's actor, deriving the pre-actor-field default from its shape. */
+export function sessionEventActor(payload: SessionEventPayload): SessionActor {
+  const value = payload as {actor?: unknown; type?: unknown; role?: unknown}
+  if (value.actor === 'user' || value.actor === 'agent' || value.actor === 'system' || value.actor === 'trigger') {
+    return value.actor
+  }
+  if (value.type === 'message' && value.role === 'user') return 'user'
+  if (value.type === 'error') return 'system'
+  return 'agent'
+}
+
 /** Durable event payloads stored for a session. */
 export type SessionEventPayload =
   | {
@@ -804,10 +844,11 @@ export type SessionEventPayload =
       contextLines?: string[]
       /** Session-private attachments that accompanied this user message. */
       attachments?: SessionAttachmentInfo[]
+      actor?: SessionActor
     }
-  | {type: 'tool_call'; id: string; name: string; input: unknown}
-  | {type: 'tool_result'; toolCallId: string; name: string; output?: unknown; error?: string}
-  | {type: 'error'; message: string}
+  | {type: 'tool_call'; id: string; name: string; input: unknown; actor?: SessionActor}
+  | {type: 'tool_result'; toolCallId: string; name: string; output?: unknown; error?: string; actor?: SessionActor}
+  | {type: 'error'; message: string; actor?: SessionActor}
   | Record<string, unknown>
 
 /** Cumulative token usage for the current agent run, updated as turns complete. */
@@ -1304,6 +1345,7 @@ export type AgentResponse =
   | DeleteSessionResponse
   | GetSessionResponse
   | MessageSessionResponse
+  | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse
   | BeginFileUploadResponse

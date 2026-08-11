@@ -3,6 +3,7 @@ import type * as api from '@/api'
 import {
   callableToolRegistry,
   getSeedTool,
+  sessionEventActor,
   isReasoningLevel,
   modelReasoningSupport,
   modelSupportsImageInput,
@@ -401,6 +402,8 @@ export class Service {
   readonly #runningSessions = new Map<string, RunningSession>()
   /** In-flight background dispatch setup (trigger prompt builds + enqueues); the runs themselves live in the queue. */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
+  /** Sessions with a user verb mid-execution: agent runs must not start under them (reverse 409). */
+  readonly #liveUserVerbs = new Map<string, number>()
   /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
   readonly #subscriptionAuthEnabled: boolean
   /** Durable run records + dispatch queue; every agent execution goes through it. */
@@ -643,6 +646,13 @@ export class Service {
         return this.#deleteSession(verified.accountId, envelope.action.sessionId)
       case 'GetSession':
         return await this.#getSession(verified.accountId, envelope.action.sessionId, envelope.action.afterSeq)
+      case 'InvokeSessionTool':
+        return this.#invokeSessionTool(
+          verified.accountId,
+          envelope.action.sessionId,
+          envelope.action.verb,
+          envelope.action.input,
+        )
       case 'MessageSession':
         return this.#messageSession(
           verified.accountId,
@@ -2061,6 +2071,105 @@ export class Service {
     )
   }
 
+  /**
+   * Runs one verb AS THE USER on the session's shared log. The call and result append as
+   * actor-'user' events, so the agent reads them on its next turn exactly as it reads its own —
+   * the log is the interface, there is no side channel. Execution failures are themselves log
+   * entries (the user's failed attempt is context too) and come back in the response; only
+   * pre-execution validation rejects the request outright.
+   */
+  async #invokeSessionTool(
+    accountId: string,
+    sessionId: string,
+    verb: string,
+    input: unknown,
+  ): Promise<api.InvokeSessionToolResponse> {
+    if (verb !== 'read' && verb !== 'write' && verb !== 'call') {
+      throw new APIError(400, 'verb must be read, write, or call')
+    }
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) {
+      throw new APIError(409, 'The agent is working in this thread right now; wait for its turn to finish')
+    }
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, session.agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    const context: AgentServicePiToolContext = {
+      db: this.#db,
+      accountId,
+      agentId: session.agentId,
+      definition,
+      hmServerUrl: this.#hmServerUrl,
+      web: this.#web,
+      stateDir: this.#agentMemoryStateDir(accountId, session.agentId),
+      sessionId,
+      modelAcceptsImages: false,
+      onMemoryChange: () => {
+        invalidateSpaceIndex(accountId, session.agentId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
+      },
+      onToolProgress: () => {},
+      codeExec: this.#codeExec,
+      callableTools: enabledCallableTools(definition, codeExecAvailable),
+      publishEnabled: publishGrantEnabled(definition),
+      startSession: () => {
+        throw new APIError(400, 'Delegation is a conversational ask; message the agent instead')
+      },
+    }
+    const toolCallId = `user-${crypto.randomUUID()}`
+    this.#liveUserVerbs.set(sessionId, (this.#liveUserVerbs.get(sessionId) ?? 0) + 1)
+    this.#appendSessionEvent(
+      accountId,
+      session.agentId,
+      sessionId,
+      {type: 'tool_call', id: toolCallId, name: verb, input, actor: 'user'},
+      Date.now(),
+    )
+    let output: Record<string, unknown> | undefined
+    let error: string | undefined
+    try {
+      output =
+        verb === 'read'
+          ? await executeReadVerb(context, input)
+          : verb === 'write'
+            ? await executeWriteVerb(context, input)
+            : await executeCallVerb(context, input, toolCallId)
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : String(caught)
+    } finally {
+      const remaining = (this.#liveUserVerbs.get(sessionId) ?? 1) - 1
+      if (remaining <= 0) this.#liveUserVerbs.delete(sessionId)
+      else this.#liveUserVerbs.set(sessionId, remaining)
+    }
+    const safeOutput = jsonSafeToolOutput(output ?? {})
+    const resultEvent = this.#appendSessionEvent(
+      accountId,
+      session.agentId,
+      sessionId,
+      {
+        type: 'tool_result',
+        toolCallId,
+        name: verb,
+        ...(error !== undefined ? {error} : {output: safeOutput}),
+        actor: 'user',
+      },
+      Date.now(),
+    )
+    return {
+      _: 'InvokeSessionToolResponse',
+      sessionId,
+      resultEventId: resultEvent.id,
+      ...(error !== undefined ? {error} : {output: safeOutput}),
+    }
+  }
+
   async #messageSession(
     accountId: string,
     sessionId: string,
@@ -2123,6 +2232,9 @@ export class Service {
     if (!session) throw new APIError(404, 'Session not found')
     // Liveness is lease-based (run rows), not the status column, so a crash can never wedge this guard.
     if (runs.sessionHasLiveRun(this.#db, sessionId)) throw new APIError(409, 'Session is already streaming')
+    if (this.#liveUserVerbs.has(sessionId)) {
+      throw new APIError(409, 'A user tool action is still running in this thread; wait for it to finish')
+    }
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
@@ -2628,6 +2740,9 @@ export class Service {
     const unmatched = new Map<string, string>()
     for (const event of events) {
       const value = event.event as {type?: string; id?: string; toolCallId?: string; name?: string}
+      // User-run verbs are not the model's dangling work: synthesizing an actor-less result for
+      // one creates a provider-illegal orphan on replay that permanently bricks the session.
+      if (sessionEventActor(event.event as never) === 'user') continue
       if (value.type === 'tool_call') {
         const toolCallId = typeof value.id === 'string' ? value.id : value.toolCallId
         if (toolCallId) unmatched.set(toolCallId, typeof value.name === 'string' ? value.name : '')
@@ -3364,7 +3479,9 @@ export class Service {
     const spaceIndex = stateDir
       ? `\n\n${buildSpaceIndex({db: this.#db, accountId, agentId, stateDir, callableTools: callables})}`
       : ''
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${spaceIndex}`
+    const userActionsPrompt =
+      '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${userActionsPrompt}${spaceIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -3888,6 +4005,7 @@ export class Service {
     type ToolResultEvent = {toolCallId: string; name?: string; output?: unknown; error?: string; createdAt: number}
     const resultsByCallId = new Map<string, ToolResultEvent>()
     const knownCallIds = new Set<string>()
+    const userToolCallIds = new Set<string>()
     for (const event of events) {
       const value = event.event as {
         type?: string
@@ -3896,6 +4014,16 @@ export class Service {
         name?: string
         output?: unknown
         error?: string
+      }
+      const eventActor = sessionEventActor(event.event as never)
+      if (eventActor === 'user') {
+        // Track user calls so a stray actor-less result for one (e.g. a pre-fix synthetic) can be
+        // recognized and dropped instead of replaying as a provider-illegal orphan.
+        if (value.type === 'tool_call') {
+          const callId = typeof value.id === 'string' ? value.id : value.toolCallId
+          if (callId) userToolCallIds.add(callId)
+        }
+        continue
       }
       if (value.type === 'tool_call') {
         const callId = typeof value.id === 'string' ? value.id : value.toolCallId
@@ -3985,6 +4113,43 @@ export class Service {
         error?: string
         contextLines?: unknown
         attachments?: unknown
+      }
+      const eventActor = sessionEventActor(value as never)
+      // Poison guard: an actor-less result answering a USER call (a synthetic from before the
+      // synthesizer learned about actors) must not replay as an orphan provider toolResult.
+      if (
+        value.type === 'tool_result' &&
+        eventActor !== 'user' &&
+        typeof value.toolCallId === 'string' &&
+        userToolCallIds.has(value.toolCallId)
+      ) {
+        continue
+      }
+      if (eventActor === 'user' && (value.type === 'tool_call' || value.type === 'tool_result')) {
+        // The user acted on the shared log with their own verbs. Provider transcripts have no
+        // notion of user-made tool calls, so these replay as tagged user messages the model reads
+        // as ground truth.
+        flushPendingAssistant()
+        if (value.type === 'tool_call') {
+          messages.push({
+            role: 'user',
+            content: `<user_action verb="${value.name ?? ''}">\n${escapeActionFraming(
+              ensureToolResultSize(safeJSONStringify(value.input ?? {})),
+            )}\n</user_action>`,
+            timestamp: event.createdAt,
+          })
+        } else {
+          messages.push({
+            role: 'user',
+            content: `<user_action_result verb="${value.name ?? ''}">\n${escapeActionFraming(
+              ensureToolResultSize(
+                value.error !== undefined ? String(value.error) : safeJSONStringify(value.output ?? {}),
+              ),
+            )}\n</user_action_result>`,
+            timestamp: event.createdAt,
+          })
+        }
+        continue
       }
       if (value.type === 'message' && value.role === 'user' && typeof value.content === 'string') {
         flushPendingAssistant()
@@ -6070,6 +6235,9 @@ export function expandedCallablesFromEvents(db: Database, sessionId: string): st
       input?: {address?: unknown; tool?: unknown}
     }
     if (event.type !== 'tool_call' || !isRecord(event.input)) continue
+    // Only the AGENT's own touches expand its provider toolset; a user's palette call replays as
+    // a text block, not a tool exchange, and must not silently reshape the agent's active tools.
+    if (sessionEventActor(event as never) === 'user') continue
     if (event.name === seedVerbRegistry.read.name && typeof event.input.address === 'string') {
       const address = event.input.address.trim()
       if (address.startsWith('~/tools/')) expanded.add(address.slice('~/tools/'.length).replace(/\/+$/, ''))
@@ -7802,6 +7970,15 @@ function writeToolResult(
 
 function writeToolError(command: string, message: string, details?: Record<string, unknown>): Record<string, unknown> {
   return {type: 'hypermedia_write_error', command, message, ...(details ? {details} : {})}
+}
+
+/**
+ * Neutralizes tag-framing inside user-action payloads: fetched content must not be able to close
+ * the <user_action_result> frame and forge trusted user actions (\u003c stays valid in JSON and
+ * renders as '<' to humans, but can never form a tag).
+ */
+function escapeActionFraming(text: string): string {
+  return text.replace(/</g, '\\u003c')
 }
 
 function ensureToolResultSize(text: string): string {

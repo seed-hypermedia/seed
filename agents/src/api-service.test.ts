@@ -5213,3 +5213,168 @@ describe('session plan settling', () => {
     }
   })
 })
+
+describe('symmetric log: user tool calls', () => {
+  test('InvokeSessionTool runs verbs as the user, logs actor-stamped events, and the agent reads them', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Logger',
+              systemPrompt: 'You are terse.',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: [],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const sessionId = createdSession.sessionId
+
+      // The user writes a memory file through their own write verb.
+      const written = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'InvokeSessionTool',
+            sessionId,
+            verb: 'write',
+            input: {address: '~/memory/from-user.md', content: 'the user wrote this'},
+          },
+        }),
+      )
+      if (written._ !== 'InvokeSessionToolResponse') throw new Error(`unexpected: ${written._}`)
+      expect(written.error).toBeUndefined()
+      expect((written.output as {summary?: string})?.summary).toContain('Wrote')
+
+      // A failing verb still logs, and reports the error in the response instead of throwing.
+      const failed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'InvokeSessionTool', sessionId, verb: 'read', input: {address: 'gopher://x'}},
+        }),
+      )
+      if (failed._ !== 'InvokeSessionToolResponse') throw new Error('unexpected response')
+      expect(failed.error).toContain('Unrecognized address')
+
+      // Both actions are durable actor-'user' events on the log.
+      const loaded = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (loaded._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const toolEvents = loaded.events.filter((event) => {
+        const value = event.event as {type?: string; actor?: string}
+        return (value.type === 'tool_call' || value.type === 'tool_result') && value.actor === 'user'
+      })
+      expect(toolEvents.length).toBe(4)
+
+      // The agent's next turn sees the user's actions as tagged ground truth.
+      let sawUserAction = false
+      globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url)
+        if (href.includes('chat/completions')) {
+          const body = JSON.parse(String(init?.body))
+          const rendered = JSON.stringify(body.messages)
+          if (rendered.includes('<user_action') && rendered.includes('from-user.md')) sawUserAction = true
+          return openAIStreamResponse([
+            {id: 'chat-1', choices: [{delta: {content: 'I see your note.'}}]},
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'What did I just do?'}]},
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+      expect(sawUserAction).toBe(true)
+
+      // Crash-shaped history: a user tool_call whose result never landed must not brick the
+      // session — no synthetic 'Interrupted' result is fabricated for it, and the next turn's
+      // provider request contains no orphan tool message for its call id.
+      const now = Date.now()
+      const danglingId = 'user-dangling-1'
+      const maxSeq =
+        db.query<{m: number}, [string]>(`SELECT MAX(seq) AS m FROM session_events WHERE session_id = ?`).get(sessionId)
+          ?.m ?? 0
+      db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
+        'ev-dangling',
+        sessionId,
+        maxSeq + 1,
+        cbor.encode({type: 'tool_call', id: danglingId, name: 'read', input: {address: '~/memory/'}, actor: 'user'}),
+        now,
+      ])
+      let orphanToolMessage = false
+      globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url)
+        if (href.includes('chat/completions')) {
+          const body = JSON.parse(String(init?.body))
+          for (const message of body.messages) {
+            if (message.role === 'tool' && String(message.tool_call_id ?? '').startsWith('user-')) {
+              orphanToolMessage = true
+            }
+          }
+          return openAIStreamResponse([
+            {id: 'chat-2', choices: [{delta: {content: 'Still fine.'}}]},
+            {id: 'chat-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+      const afterDangling = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Still with me?'}]},
+        }),
+      )
+      expect(afterDangling._).toBe('MessageSessionResponse')
+      expect(orphanToolMessage).toBe(false)
+      const reloaded = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (reloaded._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const syntheticForUser = reloaded.events.some((event) => {
+        const value = event.event as {type?: string; toolCallId?: string; error?: string}
+        return value.type === 'tool_result' && value.toolCallId === danglingId
+      })
+      expect(syntheticForUser).toBe(false)
+
+      // Invalid verbs are rejected outright, before anything is logged.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'InvokeSessionTool', sessionId, verb: 'delegate' as never, input: {}},
+          }),
+        ),
+      ).rejects.toThrow('verb must be read, write, or call')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+})
