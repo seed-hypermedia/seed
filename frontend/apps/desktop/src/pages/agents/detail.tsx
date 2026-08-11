@@ -57,9 +57,11 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '../../../../../../agents/protocol/src/tool-registry'
 import {
   AGENT_EXECUTE_TOOL,
+  AGENT_PUBLISH_GRANT,
   AGENT_SEARCH_TOOL,
   AGENT_WEB_SEARCH_TOOL,
   DEFAULT_AGENT_TOOLS,
+  normalizeStoredAgentTools,
   getToolAvailability,
   type AgentServerWebCapabilities,
 } from './agent-tools'
@@ -747,6 +749,12 @@ const AGENT_TOOL_OPTIONS = [
     title: 'Execute code',
     description: 'Run Python or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
   },
+  {
+    names: [AGENT_PUBLISH_GRANT],
+    title: 'Publish Seed content',
+    description:
+      'Create and publish signed public documents, comments, and IPFS files under this agent’s signing identities. Private memory writing is always available.',
+  },
 ]
 
 function AgentToolsTab({
@@ -770,13 +778,15 @@ function AgentToolsTab({
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
   const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
   const defaultTools = [...DEFAULT_AGENT_TOOLS]
-  const [enabledTools, setEnabledTools] = useState<string[]>(definition.tools || defaultTools)
+  const [enabledTools, setEnabledTools] = useState<string[]>(
+    definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools,
+  )
   const [signingKeys, setSigningKeys] = useState<string[]>(definitionSigningKeys)
   const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
   const [newIdentityName, setNewIdentityName] = useState('Agent publisher')
 
   useEffect(() => {
-    setEnabledTools(definition.tools || defaultTools)
+    setEnabledTools(definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools)
     setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
   }, [definition])
 
@@ -792,7 +802,7 @@ function AgentToolsTab({
       }
       await onSave(nextDefinition)
     } catch (error) {
-      setEnabledTools(definition.tools || defaultTools)
+      setEnabledTools(definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools)
       setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
       toast.error(error instanceof Error ? error.message : 'Could not update agent tools')
     }
@@ -820,8 +830,7 @@ function AgentToolsTab({
     }
   }
 
-  // The write verb is always available, so signing identities are always relevant.
-  const writeEnabled = true
+  const writeEnabled = enabledTools.includes(AGENT_PUBLISH_GRANT)
 
   return (
     <section className="flex min-h-0 max-w-3xl flex-1 flex-col gap-5 overflow-y-auto pr-1">
