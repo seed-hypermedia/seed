@@ -962,14 +962,28 @@ export function mergeMetadata(
 
 /**
  * Convert an HMMetadata object to a SetAttributes operation.
- * Only includes fields with defined values.
+ * Only includes fields with defined values, flattening nested objects into key paths.
  */
 function metadataToSetAttributes(metadata: HMMetadata): DocumentOperation | null {
-  const attrs: Array<{key: string[]; value: unknown}> = []
-  for (const [key, value] of Object.entries(metadata)) {
-    if (value !== undefined) {
-      attrs.push({key: [key], value})
+  const attrs: Array<{key: string[]; value: string | number | boolean | null}> = []
+
+  const flatten = (value: unknown, key: string[]) => {
+    if (value === undefined) return
+
+    if (value !== null && typeof value === 'object') {
+      for (const [nestedKey, nestedValue] of Object.entries(value)) {
+        flatten(nestedValue, [...key, nestedKey])
+      }
+      return
     }
+
+    if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      attrs.push({key, value})
+    }
+  }
+
+  for (const [key, value] of Object.entries(metadata)) {
+    flatten(value, [key])
   }
   if (attrs.length === 0) return null
   return {type: 'SetAttributes', attrs}

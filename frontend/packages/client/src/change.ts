@@ -17,7 +17,7 @@ import {createVersionRef} from './ref'
 import {cborCodec, normalizeBytes} from './signing'
 
 export type DocumentOperation =
-  | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: unknown}>}
+  | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: string | number | boolean | null}>}
   | {type: 'MoveBlocks'; blocks: string[]; parent: string}
   | {type: 'ReplaceBlock'; block: unknown}
   | {type: 'DeleteBlocks'; blocks: string[]}
