@@ -33,12 +33,12 @@ export type CodeExecConfig = {
   /** OCI image for the sandbox rootfs. Must provide `python` and `/bin/sh`. */
   image: string
   /**
-   * OCI image used for the `ts` runtime, which needs `bun` on PATH (for example `oven/bun`).
+   * OCI image used for the `ts` runtime, which needs `bun` on PATH (default `oven/bun`).
    *
-   * The default rootfs is a Python image with no JavaScript runtime in it, so TypeScript execution
-   * is an operator opt-in: leave this empty and the `ts` runtime is simply not offered — the tool
-   * contract the model sees lists only the runtimes this server can actually run, instead of
-   * advertising one that would fail inside the sandbox.
+   * The main rootfs is a Python image with no JavaScript runtime in it, so `ts` runs in its own
+   * image. An operator can set this explicitly empty to withhold TypeScript — the runtime is then
+   * simply not offered: the tool contract the model sees lists only the runtimes this server can
+   * actually run, instead of advertising one that would fail inside the sandbox.
    */
   tsImage: string
   /** Virtual CPUs per sandbox. */
@@ -99,10 +99,25 @@ export type SandboxSdk = {
   Sandbox: {
     builder(name: string): SandboxBuilderLike
   }
-  /** Network policy factories; `nonLocal` permits public internet but not private/link-local ranges. */
+  /**
+   * Network policy factories. `fromProfiles(['public'])` (SDK >= 0.6.8) and the older `nonLocal()`
+   * both mean: public internet allowed, private/link-local/metadata ranges are not.
+   */
   NetworkPolicy: {
-    nonLocal(): unknown
+    fromProfiles?(profiles: Iterable<string>): unknown
+    nonLocal?(): unknown
   }
+}
+
+/**
+ * The non-local egress policy in whichever dialect the loaded SDK speaks. A staged runtime can be
+ * older than the code that loads it (a packaged app updates its binary and its staged modules
+ * independently), so both dialects stay supported.
+ */
+function nonLocalNetworkPolicy(sdk: SandboxSdk): unknown {
+  if (typeof sdk.NetworkPolicy.fromProfiles === 'function') return sdk.NetworkPolicy.fromProfiles(['public'])
+  if (typeof sdk.NetworkPolicy.nonLocal === 'function') return sdk.NetworkPolicy.nonLocal()
+  throw new CodeExecError('The sandbox SDK offers no non-local network policy', 502)
 }
 
 export type MountBuilderLike = {
@@ -214,12 +229,12 @@ export class CodeExecError extends Error {
 /** Default public DNS resolvers used inside sandboxes when networking is enabled. */
 export const DEFAULT_EXEC_DNS_SERVERS = ['1.1.1.1', '8.8.8.8']
 
-/** Default configuration: microsandbox backend, python image, network enabled with public DNS. */
+/** Default configuration: microsandbox backend, python image (bun image for ts), network enabled with public DNS. */
 export function defaultCodeExecConfig(): CodeExecConfig {
   return {
     backend: 'microsandbox',
     image: 'python',
-    tsImage: '',
+    tsImage: 'oven/bun',
     cpus: 1,
     memoryMib: 512,
     timeoutSecs: 60,
@@ -393,7 +408,7 @@ export function createCodeExecutor(
             network
               .enabled(true)
               .dns((dns) => dns.nameservers(dnsServers))
-              .policy(sdk.NetworkPolicy.nonLocal()),
+              .policy(nonLocalNetworkPolicy(sdk)),
           )
         } else {
           builder = builder.disableNetwork()

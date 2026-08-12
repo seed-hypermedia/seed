@@ -128,6 +128,7 @@ Config source: `agents/src/config.ts`.
 | `SEED_AGENTS_CRAWLER_TOKEN`             | _(unset)_              | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9).                     |
 | `SEED_AGENTS_EXEC_BACKEND`              | `microsandbox`         | Code-execution backend for `execute_code`. Set empty/`off` to disable.       |
 | `SEED_AGENTS_EXEC_IMAGE`                | `python`               | OCI image used for execution sandboxes.                                      |
+| `SEED_AGENTS_EXEC_TS_IMAGE`             | `oven/bun`             | OCI image for the `ts` runtime (needs bun). Set empty to withhold ts.        |
 | `SEED_AGENTS_EXEC_CPUS`                 | `1`                    | Virtual CPUs per execution sandbox.                                          |
 | `SEED_AGENTS_EXEC_MEMORY_MIB`           | `512`                  | Guest memory per execution sandbox (MiB).                                    |
 | `SEED_AGENTS_EXEC_TIMEOUT_SECS`         | `60`                   | Default per-execution timeout (tool may request up to 300s).                 |

@@ -44,7 +44,7 @@ export type Config = {
     backend: '' | 'microsandbox'
     /** OCI image for sandbox rootfs. */
     image: string
-    /** OCI image for the `ts` runtime; needs bun on PATH. Empty leaves TypeScript unavailable. */
+    /** OCI image for the `ts` runtime; needs bun on PATH. Defaults to `oven/bun`; explicitly empty leaves TypeScript unavailable. */
     tsImage: string
     /** Virtual CPUs per sandbox. */
     cpus: number
@@ -102,7 +102,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'subscription-auth': isTruthyFlag(env.SEED_AGENTS_SUBSCRIPTION_AUTH ?? ''),
     'session-title-generation': env.SEED_AGENTS_SESSION_TITLE_GENERATION !== 'false',
     'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
-    'exec-ts-image': env.SEED_AGENTS_EXEC_TS_IMAGE || '',
+    'exec-ts-image': env.SEED_AGENTS_EXEC_TS_IMAGE ?? 'oven/bun',
     'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
     'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
     'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,

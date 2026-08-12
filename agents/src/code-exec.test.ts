@@ -148,7 +148,7 @@ function fakeSdk(
         return builder as never
       },
     },
-    NetworkPolicy: {nonLocal: () => 'nonLocal'},
+    NetworkPolicy: {fromProfiles: (profiles: Iterable<string>) => `profiles:${[...profiles].join(',')}`},
   }
 }
 
@@ -169,7 +169,7 @@ describe('code exec', () => {
       expect(call.networkDisabled).toBeUndefined()
       expect(call.networkEnabled).toBe(true)
       expect(call.dnsServers).toEqual(['1.1.1.1', '8.8.8.8'])
-      expect(call.networkPolicy).toBe('nonLocal')
+      expect(call.networkPolicy).toBe('profiles:public')
       expect(call.workdir).toBe(EXEC_WORKSPACE_GUEST_PATH)
       expect(call.maxDurationSecs).toBe(90)
       expect(call.mounts).toEqual([{guest: EXEC_WORKSPACE_GUEST_PATH, host: memoryRootPath(stateDir)}])
@@ -180,8 +180,10 @@ describe('code exec', () => {
 
   test('offers ts only when an image with bun is configured, and runs it there with bun -e', async () => {
     await withStateDir(async (stateDir) => {
-      // Default rootfs has no JavaScript runtime, so the runtime is simply not offered…
-      const withoutBun = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk({mounts: []}))
+      // An operator can withhold the ts image; the runtime is then simply not offered…
+      const withoutBun = createCodeExecutor({...defaultCodeExecConfig(), tsImage: ''}, async () =>
+        fakeSdk({mounts: []}),
+      )
       expect(withoutBun.runtimes).toEqual(['python', 'shell'])
       expect((await withoutBun.availability()).runtimes).toEqual(['python', 'shell'])
       await expect(withoutBun.execute({stateDir, runtime: 'ts', code: 'console.log(1)'})).rejects.toThrow(
@@ -221,6 +223,16 @@ describe('code exec', () => {
       )
       await custom.execute({stateDir, runtime: 'python', code: 'x'})
       expect(dnsCall.dnsServers).toEqual(['9.9.9.9'])
+    })
+  })
+
+  test('falls back to the older nonLocal policy dialect when the staged SDK lacks fromProfiles', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const oldSdk = {...fakeSdk(call), NetworkPolicy: {nonLocal: () => 'nonLocal'}}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () => oldSdk)
+      await executor.execute({stateDir, runtime: 'python', code: 'x'})
+      expect(call.networkPolicy).toBe('nonLocal')
     })
   })
 
@@ -410,7 +422,7 @@ describe('code exec', () => {
       expect(executor.enabled).toBe(true)
       await expect(executor.execute({stateDir, runtime: 'python', code: '  '})).rejects.toThrow('Code is required')
       await expect(executor.execute({stateDir, runtime: 'ruby' as never, code: 'x'})).rejects.toThrow(
-        'Runtime must be one of: python, shell',
+        'Runtime must be one of: ts, python, shell',
       )
 
       const broken = createCodeExecutor(defaultCodeExecConfig(), async () => {
