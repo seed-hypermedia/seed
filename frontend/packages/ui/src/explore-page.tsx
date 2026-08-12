@@ -25,8 +25,19 @@ import {
   useExploreAttributeNames,
   useExploreAttributeValues,
 } from '@shm/shared/models/explore'
-import {packHmId} from '@shm/shared/utils/entity-id-url'
-import {FileText, Loader2, MessageSquare, Pilcrow, Search, X} from 'lucide-react'
+import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  FileText,
+  Loader2,
+  MessageSquare,
+  Pilcrow,
+  Search,
+  X,
+} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import * as Ariakit from '@ariakit/react'
 import {Button} from './button'
@@ -60,6 +71,171 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function exploreColumnLabel(column: string) {
+  const builtIns: Record<string, string> = {
+    title: 'Title',
+    space: 'Space',
+    path: 'Path',
+    updated: 'Updated',
+    version: 'Version',
+  }
+  return builtIns[column] ?? column
+}
+
+function ExploreScopePill({
+  context,
+  contextLabel,
+  accounts,
+  onChange,
+}: {
+  context: HMExploreContext
+  contextLabel: string
+  accounts: Array<{value: string; label: string}>
+  onChange?: (scope: HMExploreContext) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (!onChange) {
+    return (
+      <span className="border-border bg-muted/30 text-muted-foreground rounded-md border px-3 py-2 text-xs">
+        {contextLabel}
+      </span>
+    )
+  }
+  const scopeLabel = context.type === 'node' ? 'Whole node' : context.id.uid
+  return (
+    <div className="relative">
+      <Button size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
+        {scopeLabel}
+        <ChevronDown className="ml-1 size-3.5" aria-hidden />
+      </Button>
+      {open ? (
+        <div className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-2 min-w-48 rounded-md border p-1 shadow-md">
+          <button
+            type="button"
+            className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+            onClick={() => {
+              onChange({type: 'node'})
+              setOpen(false)
+            }}
+          >
+            {context.type === 'node' ? <Check className="size-3.5" /> : <span className="size-3.5" />}
+            Whole node
+          </button>
+          {accounts.map((account) => (
+            <button
+              key={account.value}
+              type="button"
+              className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+              onClick={() => {
+                onChange({type: 'site', id: hmId(account.value)})
+                setOpen(false)
+              }}
+            >
+              {context.type === 'site' && context.id.uid === account.value ? (
+                <Check className="size-3.5" />
+              ) : (
+                <span className="size-3.5" />
+              )}
+              {account.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function ExploreColumnsMenu({
+  columns,
+  selected,
+  onToggle,
+}: {
+  columns: string[]
+  selected: string[]
+  onToggle: (column: string) => void
+}) {
+  return (
+    <div className="bg-popover text-popover-foreground absolute top-full right-24 z-30 mt-2 min-w-48 rounded-md border p-1 shadow-md">
+      <p className="text-muted-foreground px-2 py-1.5 text-[11px] font-medium uppercase">Columns</p>
+      {columns.map((column) => (
+        <button
+          type="button"
+          key={column}
+          className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+          onClick={() => onToggle(column)}
+        >
+          {selected.includes(column) ? <Check className="size-3.5" /> : <span className="size-3.5" />}
+          {exploreColumnLabel(column)}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function ExploreSortMenu({
+  rules,
+  availableKeys,
+  onCycleDirection,
+  onRemove,
+  onAdd,
+}: {
+  rules: ExploreSortRule[]
+  availableKeys: string[]
+  onCycleDirection: (key: string) => void
+  onRemove: (key: string) => void
+  onAdd: (key: string) => void
+}) {
+  const activeKeys = new Set(rules.map((rule) => rule.key))
+  return (
+    <div className="bg-popover text-popover-foreground absolute top-full right-0 z-30 mt-2 min-w-56 rounded-md border p-1 shadow-md">
+      <p className="text-muted-foreground px-2 py-1.5 text-[11px] font-medium uppercase">Sort order</p>
+      {rules.length
+        ? rules.map((rule) => (
+            <div key={rule.key} className="flex items-center gap-2 rounded px-2 py-1.5 text-xs">
+              <button
+                type="button"
+                className="hover:bg-accent rounded p-1"
+                onClick={() => onCycleDirection(rule.key)}
+                aria-label={`Change ${rule.key} sort direction`}
+              >
+                {rule.direction === 'asc' ? <ArrowUp className="size-3.5" /> : <ArrowDown className="size-3.5" />}
+              </button>
+              <span className="min-w-0 flex-1 truncate">{rule.key}</span>
+              <button
+                type="button"
+                className="text-muted-foreground hover:text-foreground rounded px-1 text-[11px]"
+                onClick={() => onRemove(rule.key)}
+                aria-label={`Remove ${rule.key} sort`}
+              >
+                Remove
+              </button>
+            </div>
+          ))
+        : null}
+      <div className="border-border mt-1 border-t pt-1">
+        <p className="text-muted-foreground px-2 py-1.5 text-[11px] font-medium uppercase">Add attribute sort</p>
+        {availableKeys
+          .filter((key) => !activeKeys.has(key))
+          .map((key) => (
+            <button
+              key={key}
+              type="button"
+              className="hover:bg-accent flex w-full items-center rounded px-2 py-1.5 text-left text-xs"
+              onClick={() => onAdd(key)}
+            >
+              {key}
+            </button>
+          ))}
+        {!availableKeys.some((key) => !activeKeys.has(key)) ? (
+          <p className="text-muted-foreground px-2 py-2 text-xs">
+            {rules.length ? 'All attributes are already selected.' : 'No attribute names available.'}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export type ExplorePageProps = {
   contextLabel: string
   query: string
@@ -79,6 +255,7 @@ export type ExplorePageProps = {
   onOpenResult: (result: HMExploreResult) => void
   accountUid?: string
   context: HMExploreContext
+  onScopeChange?: (scope: HMExploreContext) => void
 }
 
 type ResultTab = 'all' | HMExploreResultType
@@ -146,6 +323,16 @@ export function ExplorePage(props: ExplorePageProps) {
     const nextRules = cycleExploreSort(sortRules, key)
     updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
   }
+  const cycleSortDirection = (key: string) => {
+    const nextRules = sortRules.map((rule) =>
+      rule.key === key ? {...rule, direction: rule.direction === 'asc' ? ('desc' as const) : ('asc' as const)} : rule,
+    )
+    updatePresentation({...props.parsed.presentation, sort: nextRules})
+  }
+  const removeSort = (key: string) => {
+    const nextRules = sortRules.filter((rule) => rule.key !== key)
+    updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
+  }
   const tableMode = props.parsed.presentation.view === 'table' && activeTab !== 'block' && activeTab !== 'comment'
 
   return (
@@ -156,9 +343,12 @@ export function ExplorePage(props: ExplorePageProps) {
             <div className="text-muted-foreground text-[11px] font-semibold tracking-[0.2em] uppercase">Explore</div>
             <h1 className="mt-1 text-2xl font-semibold tracking-tight">Advanced search</h1>
           </div>
-          <span className="border-border bg-muted/30 text-muted-foreground rounded-md border px-3 py-2 text-xs">
-            {props.contextLabel}
-          </span>
+          <ExploreScopePill
+            context={props.context}
+            contextLabel={props.contextLabel}
+            accounts={accounts.data ?? []}
+            onChange={props.onScopeChange}
+          />
         </div>
         <Input
           value={draft}
@@ -167,7 +357,7 @@ export function ExplorePage(props: ExplorePageProps) {
           aria-label="Explore query"
           className="bg-background h-11 font-mono text-sm"
         />
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">
             <Button
               size="sm"
@@ -201,21 +391,22 @@ export function ExplorePage(props: ExplorePageProps) {
             </Button>
           </div>
           {columnsOpen ? (
-            <ExploreFilterMenu
-              options={availableColumns.map((column) => `column:${column}`)}
-              activeTokens={selectedColumns.map((column) => `column:${column}`)}
-              onToggle={(token) => {
-                const column = token.slice('column:'.length)
+            <ExploreColumnsMenu
+              columns={availableColumns}
+              selected={selectedColumns}
+              onToggle={(column) => {
                 const next = toggleExploreColumn(selectedColumns, column)
                 updatePresentation({...props.parsed.presentation, columns: next.length ? next : ['title']})
               }}
             />
           ) : null}
           {sortOpen ? (
-            <ExploreFilterMenu
-              options={(attributeNames.data ?? []).map((name) => `sort:${name}`)}
-              activeTokens={sortRules.map((rule) => `sort:${rule.key}`)}
-              onToggle={(token) => cycleSort(token.slice('sort:'.length))}
+            <ExploreSortMenu
+              rules={sortRules}
+              availableKeys={attributeNames.data ?? []}
+              onCycleDirection={cycleSortDirection}
+              onRemove={removeSort}
+              onAdd={cycleSort}
             />
           ) : null}
           {(['type', 'in', 'attributes'] as const).map((kind) => (
@@ -425,10 +616,6 @@ function appendExploreNode(ast: ExploreQueryNode | null, next: ExploreQueryNode)
   if (!ast) return next
   if (ast.kind === 'and') return {kind: 'and', children: [...ast.children, next]}
   return {kind: 'and', children: [ast, next]}
-}
-
-function removeBuilderGroup(node: ExploreQueryNode): ExploreQueryNode | null {
-  return clearExploreConditions(node)
 }
 
 function withPresentation(ast: ExploreQueryNode | null, presentation: ExplorePresentation) {
@@ -676,7 +863,7 @@ function BuilderNodeEditor({
             Add group
           </Button>
           {path.length ? (
-            <Button size="xs" variant="ghost" onClick={() => replace(removeBuilderGroup(node))}>
+            <Button size="xs" variant="ghost" onClick={() => replace(clearExploreConditions(node))}>
               Remove
             </Button>
           ) : null}

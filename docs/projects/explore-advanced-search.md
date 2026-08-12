@@ -90,7 +90,7 @@ half:
   author · date, snippet with highlighted terms, matched-attribute chips (`status In Progress`) for every attribute the
   query references, grouped block matches. Highlighting is computed client-side from the query terms against
   title/snippet (`SearchEntities` returns a context snippet, not match ranges).
-- **Table view**: column picker over built-ins (title, space, path, author, updated, version) plus any attribute,
+- **Table view**: column picker over renderable built-ins (title, space, path, updated, version) plus any attribute,
   click-to-sort headers building the multi-key `sort:` directive, all encoded in `q`.
 - Loading, error, empty and end-of-results states for every stream.
 
@@ -148,13 +148,16 @@ Sequential phases; each is one working session unless noted, and each leaves the
 ## No Gos
 
 - No backend, daemon or proto changes. Everything is a client-side workaround.
-- No `Author` or `Date` facets, and no relevance/recency/title sorts on the document stream: the daemon can only sort by
-  attribute keys, and client-side sorting would be wrong past the first page. Free-text results keep the search API's
-  own relevance order.
+- No `Author` column or `Date` facets: the current document metadata does not expose a reliable renderable author field.
+  There are no relevance/recency/title sorts on the document stream: the daemon can only sort by attribute keys, and
+  client-side sorting would be wrong past the first page. Free-text results keep the search API's own relevance order.
 - No `Media` result type — nothing indexes media as a result today.
 - Query Documents is not removed and its route keeps working; only the omnibar entry changes.
 - No saved views, no server-side persistence of any Explore state — `q` is the only state.
 - No cross-site scope on web: web Explore stays scoped to its own site.
+- Search text queries with multiple explicit scopes omit the Search API's single `iriFilter` and widen the text stream;
+  the document-side intersection then enforces the complete scope expression. Combined queries are capped at 1000
+  documents for that intersection and display a truncation notice when more remain.
 - No changes to the omnibar's existing quick-search results beyond the relabelled entry, and no changes to the existing
   web header search.
 - No new dependencies; existing design tokens and `@shm/ui` components only.
