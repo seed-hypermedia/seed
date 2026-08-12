@@ -16,7 +16,7 @@ import {collectChildDraftIds} from '@shm/shared/utils/child-draft-refs'
 import {hmLinkTargetsDocument} from '@shm/shared/utils/document-card-cleanup'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {Extension} from '@tiptap/core'
-import {NodeSelection as PMNodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
+import {Plugin, PluginKey, NodeSelection as PMNodeSelection, TextSelection} from 'prosemirror-state'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   BlockHoverActionsPositioner,
@@ -481,12 +481,6 @@ export function DocumentEditor({
   // - Notifies parent via `onEditorReady`
   // - Registers imperative handlers the machine calls when entering/exiting `editing`
   useEffect(() => {
-    const onRootChildrenTypeChange = (childrenType: DocumentContentProps['rootChildrenType']) => {
-      if (childrenType === 'Unordered' || childrenType === 'Ordered') {
-        actorRef.send({type: 'rootChildrenType.change', childrenType})
-      }
-    }
-    ;(editor as any)._onRootChildrenTypeChange = onRootChildrenTypeChange
     ;(editor as any)._suppressChangeRef = suppressChangeRef
 
     onEditorReadyRef.current?.(editor)
@@ -626,7 +620,6 @@ export function DocumentEditor({
     }
 
     return () => {
-      delete (editor as any)._onRootChildrenTypeChange
       handlersRef.current = null
     }
   }, [editor, actorRef, handlersRef])

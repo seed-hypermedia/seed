@@ -2,7 +2,7 @@ import {Schema} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {getGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
-import {updateGroupCommand} from '../commands/updateGroup'
+import {nestFirstRootSlotItemCommand, updateGroupCommand} from '../commands/updateGroup'
 import {buildDoc, createMinimalSchema, createMockEditor, findPosInBlock} from './test-helpers-prosemirror'
 
 describe('updateGroup command', () => {
@@ -52,20 +52,43 @@ describe('updateGroup command', () => {
     return editor.state
   }
 
-  it('updates the root group and notifies metadata when the first root block becomes a list', () => {
+  it('wraps a root block in a Slot when it becomes a list', () => {
     const doc = buildDoc(schema, [{id: 'item-1', text: '- '}])
-    const state = EditorState.create({doc, schema})
+    const state = EditorState.create({
+      doc,
+      schema,
+      selection: TextSelection.create(doc, findPosInBlock(doc, 'item-1')),
+    })
     const editor = createMockEditor(state)
     const onRootChildrenTypeChange = vi.fn()
     editor._onRootChildrenTypeChange = onRootChildrenTypeChange
 
     const pos = findPosInBlock(doc, 'item-1')
     const command = updateGroupCommand(pos, 'Unordered', false)
-    const newState = runCommand(state, editor, command)!
+    const newState = runDeferredCommand(state, editor, command)
 
-    expect(newState.doc.firstChild!.attrs.listType).toBe('Unordered')
-    expect(newState.doc.firstChild!.attrs.listLevel).toBe('1')
-    expect(onRootChildrenTypeChange).toHaveBeenCalledWith('Unordered')
+    // Root blockChildren stays Group.
+    const rootGroup = newState.doc.firstChild!
+    expect(rootGroup.type.name).toBe('blockChildren')
+    expect(rootGroup.attrs.listType).toBe('Group')
+
+    // The root block is now wrapped in a Slot blockNode.
+    const slotBlock = rootGroup.firstChild!
+    expect(slotBlock.type.name).toBe('blockNode')
+    expect(slotBlock.firstChild!.type.name).toBe('slot')
+
+    // The slot's blockChildren carries the Unordered grouping and holds item-1.
+    const innerGroup = slotBlock.lastChild!
+    expect(innerGroup.type.name).toBe('blockChildren')
+    expect(innerGroup.attrs.listType).toBe('Unordered')
+
+    const item = innerGroup.firstChild!
+    expect(item.type.name).toBe('blockNode')
+    expect(item.attrs.id).toBe('item-1')
+    expect(item.firstChild!.textContent).toBe('- ')
+
+    // The legacy metadata side-channel must not fire anymore.
+    expect(onRootChildrenTypeChange).not.toHaveBeenCalled()
   })
 
   // Test 1: Toggle blockChildren from Group to Unordered
@@ -135,26 +158,169 @@ describe('updateGroup command', () => {
     })
   })
 
-  // Test 2: Sink second blockNode into first as child list
-  //
-  // Uses setTimeout + editor.chain().sinkListItem() internally.
-  // We use vi.useFakeTimers() + vi.runAllTimers() to execute it synchronously.
+  // Unwrap: turning a slot's item back into a Group lifts it to the root and
+  // discards the slot.
+  it('unwraps a Slot when its item is turned back into a Group', () => {
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'blockChildren',
+          attrs: {listType: 'Group', listLevel: '1', columnCount: null},
+          content: [
+            {
+              type: 'blockNode',
+              attrs: {id: 'slot-wrapper'},
+              content: [
+                {type: 'slot', attrs: {childrenType: 'Unordered', listLevel: '1', columnCount: ''}},
+                {
+                  type: 'blockChildren',
+                  attrs: {listType: 'Unordered', listLevel: '1', columnCount: null},
+                  content: [
+                    {
+                      type: 'blockNode',
+                      attrs: {id: 'item-1'},
+                      content: [{type: 'paragraph', content: [{type: 'text', text: 'test'}]}],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const pos = findPosInBlock(doc, 'item-1')
+    const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+    const editor = createMockEditor(state)
+
+    const command = updateGroupCommand(pos, 'Group', false, undefined, true)
+    const newState = runCommand(state, editor, command)!
+
+    // The slot is gone and item-1 is now a plain root child.
+    const rootGroup = newState.doc.firstChild!
+    expect(rootGroup.attrs.listType).toBe('Group')
+    expect(rootGroup.childCount).toBe(1)
+
+    const lifted = rootGroup.firstChild!
+    expect(lifted.type.name).toBe('blockNode')
+    expect(lifted.attrs.id).toBe('item-1')
+    expect(lifted.firstChild!.type.name).toBe('paragraph')
+    expect(lifted.firstChild!.textContent).toBe('test')
+
+    // No slot node remains anywhere.
+    let hasSlot = false
+    newState.doc.descendants((node) => {
+      if (node.type.name === 'slot') hasSlot = true
+    })
+    expect(hasSlot).toBe(false)
+  })
+
+  it('leaves the cursor inside the wrapped item, not the next block', () => {
+    // Mimics the state right after the input rule's deleteRange: an empty
+    // paragraph followed by another block.
+    const doc = buildDoc(schema, [
+      {id: 'item-1', text: ''},
+      {id: 'next', text: 'next'},
+    ])
+    const pos = findPosInBlock(doc, 'item-1')
+    const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+    const editor = createMockEditor(state)
+
+    const newState = runDeferredCommand(state, editor, updateGroupCommand(pos, 'Unordered', false))
+
+    // Check the cursor is in correct block by ID.
+    const $from = newState.selection.$from
+    let containerId: string | null = null
+    for (let d = $from.depth; d > 0; d--) {
+      if ($from.node(d).type.name === 'blockNode') {
+        containerId = $from.node(d).attrs.id
+        break
+      }
+    }
+    expect(containerId).toBe('item-1')
+  })
+
+  // Tab on the first item of a root-level slot list nests the whole list under
+  // the previous root block and drops the slot.
+  it('nests a root Slot list under its previous sibling on Tab', () => {
+    const doc = schema.nodeFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'blockChildren',
+          attrs: {listType: 'Group', listLevel: '1', columnCount: null},
+          content: [
+            {
+              type: 'blockNode',
+              attrs: {id: 'prev'},
+              content: [{type: 'paragraph', content: [{type: 'text', text: 'test'}]}],
+            },
+            {
+              type: 'blockNode',
+              attrs: {id: 'slot-wrapper'},
+              content: [
+                {type: 'slot', attrs: {childrenType: 'Unordered', listLevel: '1', columnCount: ''}},
+                {
+                  type: 'blockChildren',
+                  attrs: {listType: 'Unordered', listLevel: '1', columnCount: null},
+                  content: [
+                    {
+                      type: 'blockNode',
+                      attrs: {id: 'item-1'},
+                      content: [{type: 'paragraph', content: [{type: 'text', text: 'bullet'}]}],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const pos = findPosInBlock(doc, 'item-1')
+    const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+    const editor = createMockEditor(state)
+
+    const newState = runCommand(state, editor, nestFirstRootSlotItemCommand())!
+
+    // Root now has one child: the previous block, with the list nested under it.
+    const rootGroup = newState.doc.firstChild!
+    expect(rootGroup.childCount).toBe(1)
+
+    const prev = rootGroup.firstChild!
+    expect(prev.attrs.id).toBe('prev')
+    expect(prev.firstChild!.textContent).toBe('test')
+
+    const nested = prev.lastChild!
+    expect(nested.type.name).toBe('blockChildren')
+    expect(nested.attrs.listType).toBe('Unordered')
+    expect(nested.firstChild!.attrs.id).toBe('item-1')
+    expect(nested.firstChild!.firstChild!.textContent).toBe('bullet')
+
+    let hasSlot = false
+    newState.doc.descendants((node) => {
+      if (node.type.name === 'slot') hasSlot = true
+    })
+    expect(hasSlot).toBe(false)
+  })
   //
   // BEFORE:                                    AFTER:
   //   blockChildren (Group)                      blockChildren (Group)
   //     blockNode (block-1)                        blockNode (block-1)
   //       paragraph "First"                          paragraph "First"
-  //     blockNode (block-2)                →         blockChildren (Unordered)
-  //       paragraph "Second"                           blockNode (block-2)
+  //     blockNode (block-2)                →       blockNode (slot wrapper)
+  //       paragraph "Second"                         slot
+  //                                                  blockChildren (Unordered)
+  //                                                    blockNode (block-2)
   //                                                      paragraph "Second"
   //
-  describe('sink blockNode into sibling with updateGroupCommand', () => {
-    it('sinks second block into first as unordered list', () => {
+  describe('list on a non-first root block', () => {
+    it('wraps the block in a root-level Slot instead of nesting it', () => {
       const doc = buildDoc(schema, [
         {id: 'block-1', text: 'First'},
         {id: 'block-2', text: 'Second'},
       ])
-      // Place selection inside block-2 so sinkListItem knows what to sink
       const pos = findPosInBlock(doc, 'block-2')
       const state = EditorState.create({
         doc,
@@ -163,27 +329,30 @@ describe('updateGroup command', () => {
       })
       const editor = createMockEditor(state)
 
-      const groupInfo = getGroupInfoFromPos(pos, state)
-      const command = updateGroupCommand(groupInfo.$pos.start(), 'Unordered', false)
-
+      const command = updateGroupCommand(pos, 'Unordered', false)
+      // The root wrap is deferred (so an input rule's deleteRange runs first).
       const newState = runDeferredCommand(state, editor, command)
 
-      // Top group should now have 1 child (block-1 with nested children)
+      // Root stays Group with two children: the plain paragraph and the Slot.
       const topGroup = newState.doc.firstChild!
+      expect(topGroup.attrs.listType).toBe('Group')
+      expect(topGroup.childCount).toBe(2)
+
+      // First child is untouched.
       const block1 = topGroup.firstChild!
-      expect(block1.type.name).toBe('blockNode')
       expect(block1.attrs.id).toBe('block-1')
       expect(block1.firstChild!.textContent).toBe('First')
 
-      // block-1 should have a child blockChildren
-      const childGroup = block1.lastChild!
-      expect(childGroup.type.name).toBe('blockChildren')
-      // sinkListItem creates with default attrs, then updateGroup sets listType
-      expect(childGroup.attrs.listType).toBe('Unordered')
+      // Second child is the Slot wrapper.
+      const slotBlock = topGroup.lastChild!
+      expect(slotBlock.type.name).toBe('blockNode')
+      expect(slotBlock.firstChild!.type.name).toBe('slot')
 
-      // Contains block-2's content
-      const block2 = childGroup.firstChild!
-      expect(block2.type.name).toBe('blockNode')
+      const innerGroup = slotBlock.lastChild!
+      expect(innerGroup.type.name).toBe('blockChildren')
+      expect(innerGroup.attrs.listType).toBe('Unordered')
+
+      const block2 = innerGroup.firstChild!
       expect(block2.attrs.id).toBe('block-2')
       expect(block2.firstChild!.textContent).toBe('Second')
     })

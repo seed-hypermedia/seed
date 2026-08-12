@@ -37,6 +37,7 @@ function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   if (hmBlockType === 'Table') return 'table'
   if (hmBlockType === 'TableRow') return 'tableRow'
   if (hmBlockType === 'TableColumn') return 'tableColumn'
+  if (hmBlockType === 'Slot') return 'slot'
   return 'unknown'
 }
 
