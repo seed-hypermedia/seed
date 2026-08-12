@@ -5,7 +5,7 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 // vi.mock calls below are hoisted above these imports, so components get the mocked hooks.
 import {journalToolParts, RunWorkHierarchy} from '../run-work'
-import {ToolCallLine} from '@/components/assistant-message-rendering'
+import {ChatMessageBubble, ToolCallLine} from '@/components/assistant-message-rendering'
 
 /**
  * The elegant work view: journal calls rendered as chat tool rows labeled by the script's own
@@ -382,6 +382,41 @@ describe('delegate expanded view', () => {
       sessionId: 'child-session-2',
       serverUrl: 'http://localhost:3050',
     })
+  })
+
+  it('shows a live child’s work before it reports back, found by the call that spawned it', () => {
+    // The parked delegate has no result yet — no runId, no sessionId, nothing in the transcript
+    // names the child. The link lives on the run: parentToolCallId.
+    mockState.runs = [makeRun({id: 'turn-1', status: 'waiting', sessionId: 'session-1'} as never)]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeRun({
+        id: 'child-live',
+        status: 'running',
+        rootRunId: 'turn-1',
+        parentRunId: 'turn-1',
+        sessionId: 'child-session-live',
+        parentToolCallId: 'call-live',
+        title: 'Researcher',
+        plan: {steps: [{id: 's1', label: 'Read the pricing page', status: 'running'}]},
+      } as never),
+    ]
+    render(
+      <ChatMessageBubble
+        message={{
+          role: 'assistant',
+          sessionId: 'session-1',
+          parts: [{type: 'tool', id: 'call-live', name: 'delegate', args: {title: 'Researcher', brief: 'Go look.'}}],
+        }}
+        serverUrl="http://localhost:3050"
+        accountUid="account-1"
+      />,
+    )
+    click(container.querySelector('button[title="Show tool details"]'))
+
+    // The child's own plan is on screen instead of "starting the child…".
+    expect(container.textContent).toContain('Read the pricing page')
+    expect(container.textContent).not.toContain('Starting the child')
   })
 
   it("shows only this run's own calls, never a sibling script's", () => {

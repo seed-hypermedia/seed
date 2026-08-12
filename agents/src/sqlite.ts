@@ -13,6 +13,11 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // The tool call that spawned a child run. It also rides in the run's input payload (the
+  // executor's contract), but only a column can be read back without decoding every run: this is
+  // what lets a delegate row in a transcript find the child it started while that child is
+  // still working.
+  `ALTER TABLE runs ADD COLUMN parent_tool_call_id TEXT;`,
   `CREATE TABLE tool_documents (
       account_id TEXT NOT NULL REFERENCES accounts (id),
       agent_id TEXT NOT NULL REFERENCES agents (id),

@@ -1,4 +1,4 @@
-import {type AgentRunActivity, type SessionAttachmentInfo} from '@/agents-client'
+import {type AgentRunActivity, type RunInfo, type SessionAttachmentInfo} from '@/agents-client'
 import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {getSeedTool, type SeedToolMetadata} from '../../../../../agents/protocol/src/tool-registry'
 import {
@@ -19,7 +19,7 @@ import {
   type ToolRowSummary,
 } from './tool-summary'
 import {useOpenUrl} from '@/open-url'
-import {useRun, useSessionAttachmentDataUrls} from '@/models/agents'
+import {useRun, useSessionAttachmentDataUrls, useSessionRuns} from '@/models/agents'
 import {descendantsOf, isTerminalRun, RunWorkHierarchy, useRunTreeView} from '@/pages/agents/run-work'
 import {useSelectedAccountId} from '@/selected-account'
 import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
@@ -92,6 +92,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
           serverUrl={serverUrl}
           accountUid={accountUid}
           agentId={agentId}
+          sessionId={message.sessionId}
           rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
         />
       )}
@@ -163,6 +164,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   serverUrl,
   accountUid,
   agentId,
+  sessionId,
 }: {
   parts: ChatMessagePart[]
   isStreaming?: boolean
@@ -174,6 +176,8 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   accountUid?: string | null
   /** The agent that ran these calls, so memory and tool addresses link into its own pages. */
   agentId?: string
+  /** The transcript these parts belong to, so a delegate row can find the run it spawned. */
+  sessionId?: string
 }) {
   const rawButtonIndex = rawMarkdownButton
     ? parts.reduce((lastTextIndex, part, index) => (part.type === 'text' ? index : lastTextIndex), -1)
@@ -189,6 +193,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
           serverUrl={serverUrl}
           accountUid={accountUid}
           agentId={agentId}
+          sessionId={sessionId}
         />
       )
     }
@@ -458,7 +463,13 @@ function ToolTextLink({url, children}: {url: string; children: React.ReactNode})
  * summary or a detail knows where it leads. Context rather than props: the address links live deep
  * inside the detail views, and threading three ids through every one of them would be noise.
  */
-const ToolRowContext = React.createContext<{serverUrl?: string; accountUid?: string | null; agentId?: string}>({})
+const ToolRowContext = React.createContext<{
+  serverUrl?: string
+  accountUid?: string | null
+  agentId?: string
+  /** The transcript this row belongs to — how a delegate row finds the child it started. */
+  sessionId?: string
+}>({})
 
 /** Opens an address target the way the app opens everything else, honouring cmd/shift-click. */
 function useToolLinkOpener() {
@@ -1625,12 +1636,19 @@ function DelegateWorkDetails({
   // The panel does not thread a signing account through its bubbles, and the delegate view is the
   // only consumer that needs one — so it asks for itself rather than degrading silently.
   const selectedAccountId = useSelectedAccountId()
+  const {sessionId: transcriptSessionId} = React.useContext(ToolRowContext)
   const signingAccount = accountUid || selectedAccountId
-  const runId = getToolString(item.rawOutput, 'runId')
+  const reportedRunId = getToolString(item.rawOutput, 'runId')
   const sessionId = getToolSessionId(item)
   const brief = getToolString(item.args, 'brief')
   const isPending = item.result === undefined && item.rawOutput === undefined
   const typedOutput = getFirstToolValue(item.rawOutput, ['output'])
+  // A model child reports no runId until it comes back, so while it works the only link is the one
+  // the run itself carries. Only an unresolved call looks: a finished one always has its runId, so
+  // a transcript of them opens nothing. (On the session page these queries are the very ones the
+  // pinned card already holds, so resolving costs no extra traffic.)
+  const spawnedChild = useSpawnedChildRun(serverUrl, signingAccount, transcriptSessionId, item.id, isPending)
+  const runId = reportedRunId ?? spawnedChild?.id
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -1645,7 +1663,7 @@ function DelegateWorkDetails({
       ) : null}
 
       {serverUrl && signingAccount && runId ? (
-        <DelegateRunView serverUrl={serverUrl} accountUid={signingAccount} runId={runId} />
+        <DelegateRunView serverUrl={serverUrl} accountUid={signingAccount} runId={runId} seed={spawnedChild} />
       ) : isPending ? (
         <div className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
           <Loader2 className="size-3 shrink-0 animate-spin" />
@@ -1678,11 +1696,54 @@ function OpenTranscriptLink({sessionId, serverUrl}: {sessionId: string; serverUr
   )
 }
 
+/**
+ * The run a delegate call spawned, found while that child is still working.
+ *
+ * A parked delegate has no result yet, so nothing in the transcript names its child — but the
+ * child run itself records the tool call that started it. This walks the same tree the pinned card
+ * watches (the session's current turn and everything under it) and picks out the run answering
+ * this call. Idle unless asked: a call that already reported its runId never opens these queries.
+ */
+function useSpawnedChildRun(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  sessionId: string | undefined,
+  toolCallId: string,
+  enabled: boolean,
+): RunInfo | undefined {
+  const sessionRuns = useSessionRuns(serverUrl, accountUid, enabled ? sessionId : undefined)
+  // The turn making this call is the session's newest root run. A call from an older turn that
+  // never recorded a child stays unresolved, and keeps the transcript link as its way in.
+  const turn = sessionRuns.data?.[0]
+  const {runsById} = useRunTreeView(
+    serverUrl ?? '',
+    accountUid,
+    turn?.rootRunId,
+    turn,
+    enabled && !!turn && !isTerminalRun(turn.status),
+  )
+  return useMemo(
+    () => Object.values(runsById).find((run) => run.parentToolCallId === toolCallId),
+    [runsById, toolCallId],
+  )
+}
+
 /** The child run's own account of its work — the same hierarchy the run card shows. */
-function DelegateRunView({serverUrl, accountUid, runId}: {serverUrl: string; accountUid: string; runId: string}) {
+function DelegateRunView({
+  serverUrl,
+  accountUid,
+  runId,
+  seed: seedRun,
+}: {
+  serverUrl: string
+  accountUid: string
+  runId: string
+  /** The run record when the caller already holds a live copy of it, so it is not fetched twice. */
+  seed?: RunInfo
+}) {
   const navigate = useNavigate()
-  const direct = useRun(serverUrl, accountUid, runId)
-  const seed = direct.data ?? undefined
+  const direct = useRun(serverUrl, accountUid, seedRun ? undefined : runId)
+  const seed = seedRun ?? direct.data ?? undefined
   // A finished run never changes again: no socket, no tree query, on a transcript full of them.
   const isLive = !!seed && !isTerminalRun(seed.status)
   const {runsById, liveState} = useRunTreeView(serverUrl, accountUid, seed?.rootRunId, seed, isLive)
@@ -1757,6 +1818,7 @@ export function ToolCallLine({
   serverUrl,
   accountUid,
   agentId,
+  sessionId,
 }: {
   item: ChatToolPart
   liveActivity?: AgentRunActivity
@@ -1766,6 +1828,8 @@ export function ToolCallLine({
   accountUid?: string | null
   /** The agent whose memory and tools these addresses belong to, so its rows link into them. */
   agentId?: string
+  /** The session this row is part of, so a delegate row can find the run it spawned. */
+  sessionId?: string
 }) {
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -1784,7 +1848,10 @@ export function ToolCallLine({
     ? 'border-destructive/30 bg-destructive/5'
     : toolColorClasses[render?.color || 'muted']
   const customView = getToolCustomView(item)
-  const rowContext = useMemo(() => ({serverUrl, accountUid, agentId}), [serverUrl, accountUid, agentId])
+  const rowContext = useMemo(
+    () => ({serverUrl, accountUid, agentId, sessionId}),
+    [serverUrl, accountUid, agentId, sessionId],
+  )
   // Live progress for this specific call while it runs (matched by call ID, with a
   // tool-name fallback for servers that don't report the ID yet).
   const liveTool =
@@ -1939,12 +2006,14 @@ function ToolCallItem({
   serverUrl,
   accountUid,
   agentId,
+  sessionId,
 }: {
   item: ChatToolPart
   liveActivity?: AgentRunActivity
   serverUrl?: string
   accountUid?: string | null
   agentId?: string
+  sessionId?: string
 }) {
   return (
     <ToolCallLine
@@ -1953,6 +2022,7 @@ function ToolCallItem({
       serverUrl={serverUrl}
       accountUid={accountUid}
       agentId={agentId}
+      sessionId={sessionId}
     />
   )
 }

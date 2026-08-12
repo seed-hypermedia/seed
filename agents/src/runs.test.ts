@@ -242,6 +242,22 @@ describe('runs queue', () => {
     expect(finalized.sort()).toEqual(['child', 'grandchild', 'root'])
   })
 
+  test('a child remembers the tool call that spawned it, and is found by it', () => {
+    const db = createDb()
+    const queue = new runs.RunQueue(db, {executors: {}})
+    track(db, queue)
+    const root = queue.enqueue(agentSpec({id: 'root', dispatch: false}))
+    queue.enqueue(agentSpec({id: 'child', parentRunId: root.id, parentToolCallId: 'call-42', dispatch: false}))
+    // Not every run answers a tool call — a user's own turn answers nobody.
+    expect(runs.getRun(db, ACCOUNT, 'root')?.parentToolCallId).toBeUndefined()
+
+    // The link survives the round trip through the column, which is what makes it queryable…
+    expect(runs.getRun(db, ACCOUNT, 'child')?.parentToolCallId).toBe('call-42')
+    // …including from the tree the transcript subscribes to.
+    const tree = runs.listRunTree(db, ACCOUNT, root.id)
+    expect(tree.find((run) => run.parentToolCallId === 'call-42')?.id).toBe('child')
+  })
+
   test('child usage rolls up into the parent when the child finalizes', async () => {
     const db = createDb()
     const queue = new runs.RunQueue(db, {

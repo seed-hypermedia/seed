@@ -4047,6 +4047,20 @@ describe('api service', () => {
       if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
       expect(tree.runs).toHaveLength(3)
       expect(tree.runs.filter((run) => run.depth === 1)).toHaveLength(2)
+      // Each child names the delegate call that spawned it, which is what lets that call's row in
+      // the transcript find its child — including while the child is still working.
+      const spawnCallIds = session.events
+        .map((event) => event.event as {type?: string; id?: string; name?: string})
+        .filter((event) => event.type === 'tool_call' && event.name === 'delegate')
+        .map((event) => event.id)
+      expect(spawnCallIds).toHaveLength(2)
+      expect(
+        tree.runs
+          .filter((run) => run.depth === 1)
+          .map((run) => run.parentToolCallId)
+          .sort(),
+      ).toEqual([...spawnCallIds].sort())
+      expect(tree.runs.find((run) => run.depth === 0)?.parentToolCallId).toBeUndefined()
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()

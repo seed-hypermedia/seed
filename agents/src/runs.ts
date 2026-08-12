@@ -52,6 +52,8 @@ export type RunRecord = {
   accountId: string
   rootRunId: string
   parentRunId?: string
+  /** The parent's tool call this run was spawned by, when a tool call spawned it. */
+  parentToolCallId?: string
   depth: number
   kind: RunKind
   agentId?: string
@@ -96,6 +98,11 @@ export type EnqueueRunSpec = {
   kind: RunKind
   origin: RunOrigin
   parentRunId?: string
+  /**
+   * The parent's tool call this run answers, persisted as a column so the row can be found by it.
+   * The executors read the same id from `input`; this is its queryable projection.
+   */
+  parentToolCallId?: string
   /** Root/depth are derived from the parent when given; both default to a self-rooted depth-0 run. */
   agentId?: string
   sessionId?: string
@@ -128,6 +135,7 @@ type RunRow = {
   account_id: string
   root_run_id: string
   parent_run_id: string | null
+  parent_tool_call_id: string | null
   depth: number
   kind: string
   agent_id: string | null
@@ -158,7 +166,7 @@ type RunRow = {
   updated_at: number
 }
 
-const RUN_COLUMNS = `id, account_id, root_run_id, parent_run_id, depth, kind, agent_id, session_id,
+const RUN_COLUMNS = `id, account_id, root_run_id, parent_run_id, parent_tool_call_id, depth, kind, agent_id, session_id,
   trigger_firing_id, origin, title, model, source_cid, source_text, input_cbor, output_cbor, error_cbor,
   status, wait_cbor, attempt, max_attempts, not_before, queue, lease_owner, lease_expires_at,
   budget_cbor, usage_cbor, plan_cbor, created_at, started_at, finished_at, updated_at`
@@ -174,6 +182,7 @@ export function rowToRun(row: RunRow): RunRecord {
     accountId: row.account_id,
     rootRunId: row.root_run_id,
     parentRunId: row.parent_run_id ?? undefined,
+    parentToolCallId: row.parent_tool_call_id ?? undefined,
     depth: row.depth,
     kind: row.kind as RunKind,
     agentId: row.agent_id ?? undefined,
@@ -378,16 +387,17 @@ export class RunQueue {
       depth = parent.depth + 1
     }
     this.#db.run(
-      `INSERT INTO runs (id, account_id, root_run_id, parent_run_id, depth, kind, agent_id, session_id,
-         trigger_firing_id, origin, title, model, source_cid, source_text, input_cbor, status, attempt,
+      `INSERT INTO runs (id, account_id, root_run_id, parent_run_id, parent_tool_call_id, depth, kind, agent_id,
+         session_id, trigger_firing_id, origin, title, model, source_cid, source_text, input_cbor, status, attempt,
          max_attempts, not_before, queue, budget_cbor, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO NOTHING`,
       [
         id,
         spec.accountId,
         rootRunId,
         spec.parentRunId ?? null,
+        spec.parentToolCallId ?? null,
         depth,
         spec.kind,
         spec.agentId ?? null,

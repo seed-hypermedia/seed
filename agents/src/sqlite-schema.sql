@@ -124,6 +124,7 @@ CREATE TABLE runs (
     account_id TEXT NOT NULL REFERENCES accounts (id),
     root_run_id TEXT NOT NULL,
     parent_run_id TEXT REFERENCES runs (id),
+    parent_tool_call_id TEXT,
     depth INTEGER NOT NULL DEFAULT 0,
     kind TEXT NOT NULL,
     agent_id TEXT REFERENCES agents (id),

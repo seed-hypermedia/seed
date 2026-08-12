@@ -20,6 +20,9 @@ describe('sqlite', () => {
       expect(tableExists(db, 'tool_documents')).toBe(true)
       expect(columnExists(db, 'sessions', 'title_source')).toBe(true)
       expect(columnExists(db, 'sessions', 'parent_session_id')).toBe(true)
+      // A fresh database is built from the baseline file alone, so every column a migration adds
+      // must also be in that file — this is the assertion that catches the two drifting apart.
+      expect(columnExists(db, 'runs', 'parent_tool_call_id')).toBe(true)
     } finally {
       db.close()
     }
@@ -79,6 +82,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'sessions', 'parent_session_id')).toBe(true)
       expect(columnExists(db, 'sessions', 'run_id')).toBe(true)
       expect(columnExists(db, 'sessions', 'plan_cbor')).toBe(true)
+      expect(columnExists(db, 'runs', 'parent_tool_call_id')).toBe(true)
       expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
     } finally {
       db.close()

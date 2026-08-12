@@ -749,6 +749,12 @@ export type RunInfo = {
   account: string
   rootRunId: string
   parentRunId?: string
+  /**
+   * The parent's tool call that spawned this run, when one did. It is how a delegate row in a
+   * transcript finds the child it started — including while that child is still working, before
+   * any result has been recorded against the call.
+   */
+  parentToolCallId?: string
   depth: number
   kind: 'agent' | 'workflow'
   agentId?: string

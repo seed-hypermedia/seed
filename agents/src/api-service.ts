@@ -358,11 +358,16 @@ function classifyRunError(error: unknown): runs.RunErrorInfo {
 function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
   const inputRecord = isPlainRecord(run.input) ? run.input : undefined
   const stepLabel = typeof inputRecord?.planStepLabel === 'string' ? inputRecord.planStepLabel : undefined
+  // Runs written before the column existed carry the id only in their input payload.
+  const parentToolCallId =
+    run.parentToolCallId ??
+    (typeof inputRecord?.parentToolCallId === 'string' ? inputRecord.parentToolCallId : undefined)
   return {
     id: run.id,
     account: run.accountId,
     rootRunId: run.rootRunId,
     ...(run.parentRunId ? {parentRunId: run.parentRunId} : {}),
+    ...(parentToolCallId ? {parentToolCallId} : {}),
     depth: run.depth,
     kind: run.kind,
     ...(run.agentId ? {agentId: run.agentId} : {}),
@@ -2918,6 +2923,7 @@ export class Service {
       kind: 'agent',
       origin: 'agent',
       parentRunId: parentRun.id,
+      parentToolCallId: toolCallId,
       agentId: childAgentId,
       sessionId: session.sessionId,
       title,
@@ -3053,6 +3059,7 @@ export class Service {
       kind: 'workflow',
       origin: 'agent',
       parentRunId: parentRun.id,
+      parentToolCallId: toolCallId,
       agentId: parentAgentId,
       title,
       sourceCid,
@@ -6390,7 +6397,10 @@ export async function executeWriteVerb(
     } catch (error) {
       if (error instanceof toolDocs.ToolDocumentError) throw new APIError(error.status, error.message)
       if (error instanceof SyntaxError) {
-        throw new APIError(400, 'write ~/tools/<name> expects JSON content: {description, input, output?, source, runtime?}')
+        throw new APIError(
+          400,
+          'write ~/tools/<name> expects JSON content: {description, input, output?, source, runtime?}',
+        )
       }
       throw error
     }
@@ -6452,7 +6462,10 @@ export async function executeWriteVerb(
 
   if (address.startsWith('ipfs:')) {
     if (!context.publishEnabled) {
-      throw new APIError(403, 'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.')
+      throw new APIError(
+        403,
+        'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.',
+      )
     }
     if (typeof options.fromAttachment === 'string' && options.fromAttachment) {
       const fromAttachment = options.fromAttachment
@@ -6494,7 +6507,10 @@ export async function executeWriteVerb(
   const hm = parseHmAddress(address)
   if (hm) {
     if (!context.publishEnabled) {
-      throw new APIError(403, 'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.')
+      throw new APIError(
+        403,
+        'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.',
+      )
     }
     // Publishing a memory markdown file (frontmatter + resolved images) keeps its dedicated pipeline.
     const fromPath = typeof options.fromPath === 'string' && options.fromPath ? options.fromPath : undefined
@@ -6686,7 +6702,9 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
       const tool = getSeedTool(name)
       if (!tool) return []
       return [
-        defineSeedPiTool(tool, (params, toolCallId) => executeCallVerb(context, {tool: name, input: params}, toolCallId)),
+        defineSeedPiTool(tool, (params, toolCallId) =>
+          executeCallVerb(context, {tool: name, input: params}, toolCallId),
+        ),
       ]
     })
   return [
@@ -6698,7 +6716,10 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
       const input = isPlainRecord(params) ? params : {}
       if (typeof input.script === 'string' && input.script) {
         if (input.await === false) {
-          throw new APIError(400, 'Detached script children are not supported: scripts are awaited. Drop `await: false`, or delegate a model child instead.')
+          throw new APIError(
+            400,
+            'Detached script children are not supported: scripts are awaited. Drop `await: false`, or delegate a model child instead.',
+          )
         }
         if (!context.spawnWorkflow) throw new APIError(400, 'Script delegation is not available in this run context')
         return context.spawnWorkflow(toolCallId, {
@@ -6713,11 +6734,15 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         // instead of silently discarding what the model asked for.
         for (const field of ['agentId', 'output', 'tools'] as const) {
           if (input[field] !== undefined) {
-            throw new APIError(400, `delegate {await: false} does not support \`${field}\` — a detached child runs as this agent and returns nothing. Await the child, or drop ${field}.`)
+            throw new APIError(
+              400,
+              `delegate {await: false} does not support \`${field}\` — a detached child runs as this agent and returns nothing. Await the child, or drop ${field}.`,
+            )
           }
         }
         const brief = input.brief ?? input.input ?? input.prompt
-        if (brief === undefined) throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
+        if (brief === undefined)
+          throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
         const started = context.startSession({
           prompt: renderSubSessionInput(brief),
           ...(typeof input.title === 'string' ? {title: input.title} : {}),
