@@ -60,6 +60,7 @@ export default function ExploreDesktopPage() {
           error={explore.error instanceof Error ? explore.error.message : null}
           onQueryChange={updateRoute}
           accountUid={exploreRoute.context?.type === 'site' ? exploreRoute.context.id.uid : undefined}
+          context={context}
           onOpenResult={openResult}
         />
       </MainWrapper>

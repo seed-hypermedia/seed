@@ -2,6 +2,8 @@ import {describe, expect, test} from 'vitest'
 import {DocumentFilter_Comparison_Operator} from '../client/grpc-types'
 import {
   compileExploreQuery,
+  clearExploreConditions,
+  cycleExploreSort,
   documentInfoToExploreResultDocument,
   exploreQueryChips,
   parseExploreQuery,
@@ -9,6 +11,7 @@ import {
   searchResultItemToExploreResult,
   serializeExploreQuery,
   toggleExplorePredicate,
+  toggleExploreColumn,
 } from '../explore'
 import {hmId} from '../utils/entity-id-url'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
@@ -36,6 +39,24 @@ describe('Explore query grammar', () => {
     const withoutStatus = toggleExplorePredicate(withStatus, 'status:active')
     expect(serializeExploreQuery(withoutStatus)).not.toContain('status:active')
     expect(withoutStatus.presentation).toEqual(parsed.presentation)
+  })
+
+  test('cycles table sorts and preserves a usable column selection', () => {
+    expect(cycleExploreSort([], 'status')).toEqual([{key: 'status', direction: 'asc'}])
+    expect(cycleExploreSort([{key: 'status', direction: 'asc'}], 'status')).toEqual([
+      {key: 'status', direction: 'desc'},
+    ])
+    expect(cycleExploreSort([{key: 'status', direction: 'desc'}], 'status')).toEqual([])
+    expect(toggleExploreColumn(['title', 'status'], 'status')).toEqual(['title'])
+    expect(toggleExploreColumn(['title'], 'priority')).toEqual(['title', 'priority'])
+    expect(toggleExploreColumn(['title'], 'title')).toEqual(['title'])
+  })
+
+  test('clearing builder conditions retains text leaves', () => {
+    const parsed = parseExploreQuery('engelbart status:x')
+    expect(serializeExploreQuery(clearExploreConditions(parsed.ast), parsed.presentation)).toBe('engelbart')
+    const grouped = parseExploreQuery('(engelbart status:x)')
+    expect(serializeExploreQuery(clearExploreConditions(grouped.ast), grouped.presentation)).toBe('engelbart')
   })
 
   test('parses nested boolean structure, typed values, scopes, and free text', () => {

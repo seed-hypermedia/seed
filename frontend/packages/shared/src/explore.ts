@@ -718,6 +718,36 @@ export function toggleExplorePredicate(parsed: ParsedExploreQuery, token: string
         : predicate
   return {ast, presentation: parsed.presentation, diagnostics: []}
 }
+
+/** Cycles an attribute sort rule through ascending, descending, and inactive states. */
+export function cycleExploreSort(sort: ExploreSortRule[], key: string): ExploreSortRule[] {
+  const current = sort.find((rule) => rule.key === key)
+  if (!current) return [...sort, {key, direction: 'asc'}]
+  if (current.direction === 'asc')
+    return sort.map((rule) => (rule.key === key ? {...rule, direction: 'desc' as const} : rule))
+  return sort.filter((rule) => rule.key !== key)
+}
+
+/** Toggles a query-table column while retaining a usable title column. */
+export function toggleExploreColumn(columns: string[], key: string): string[] {
+  const next = columns.includes(key) ? columns.filter((column) => column !== key) : [...columns, key]
+  return next.length ? next : ['title']
+}
+
+/** Removes predicate leaves while retaining all free-text leaves and their order. */
+export function clearExploreConditions(ast: ExploreQueryNode | null): ExploreQueryNode | null {
+  if (!ast) return null
+  if (ast.kind === 'text') return ast
+  if (ast.kind === 'predicate') return null
+  const children = ast.kind === 'not' ? [ast.child] : ast.children
+  const retained = children.flatMap((child) => {
+    const next = clearExploreConditions(child)
+    return next ? [next] : []
+  })
+  if (!retained.length) return null
+  if (retained.length === 1) return retained[0]!
+  return ast.kind === 'not' ? {kind: 'and', children: retained} : {...ast, children: retained}
+}
 /** Converts the existing SearchResultItem shape into a typed Explore result. */
 export function searchResultItemToExploreResult(item: SearchResultItem): HMExploreResult | null {
   if (item.type === 'contact') return null
