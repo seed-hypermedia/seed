@@ -96,7 +96,7 @@ import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
-import {ChevronUp, FilePen, Info, Quote, Search} from 'lucide-react'
+import {FilePen, Info, Quote, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
@@ -107,9 +107,10 @@ import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
+import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {EditableDocumentMetadataFields, HomeDocumentMetadataAffordanceBar} from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
+import {DocumentTopBar} from './document-top-bar'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
 import {Feed, type DraftVersionEntry} from './feed'
@@ -2355,22 +2356,18 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
-  // Page actions live in the same top-right corner on every platform. On desktop
-  // the page container does not scroll, so `absolute` is enough. Mobile scrolls the
-  // document itself, so the overlay must be `fixed` — offset below the site header
-  // so it never covers the header's own actions while the header is on screen.
-  const documentContentActionOverlay = documentContentAction ? (
-    <div
-      className={cn(
-        'top-2 right-2 z-50 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4',
-        isMobile ? 'fixed' : 'absolute',
-      )}
-      style={isMobile ? {top: 'calc(var(--site-header-live-h, 0px) + 0.5rem)'} : undefined}
-    >
-      {documentContentAction}
-    </div>
-  ) : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
+
+  // The bar always states where you are, so a home document is its own single crumb.
+  const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
+  const documentTopBar = (
+    <DocumentTopBar
+      breadcrumbs={topBarBreadcrumbs}
+      actions={documentContentAction}
+      isMobile={isMobile}
+      layoutProps={isMobile ? undefined : {wrapperProps, sidebarProps, mainContentProps, showSidebars}}
+    />
+  )
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
@@ -2403,33 +2400,6 @@ function DocumentBody({
                   <MembersFacepile members={siteMembers.members} siteId={siteId} />
                 </div>
               )}
-            {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
-              <div className="mt-4 px-6">
-                <Breadcrumbs
-                  breadcrumbs={[
-                    {id: hmId(docId.uid, {latest: true}), metadata: metadata},
-                    ...(activeView !== 'content'
-                      ? [
-                          {
-                            label:
-                              (
-                                {
-                                  comments: 'Comments',
-                                  collaborators: 'People',
-                                  activity: 'Activity',
-                                  directory: 'Sub documents',
-                                  'all-documents': 'All Documents',
-                                  'site-profile': 'Profile',
-                                  metadata: 'Attributes',
-                                } as Record<string, string>
-                              )[activeView] || '',
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-              </div>
-            )}
             {!isHomeDoc &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
@@ -2437,7 +2407,6 @@ function DocumentBody({
                   docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
-                  breadcrumbs={breadcrumbs}
                   visibility={headerVisibility}
                   version={document.version}
                   fileUpload={fileUpload}
@@ -2448,7 +2417,6 @@ function DocumentBody({
                   docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
-                  breadcrumbs={breadcrumbs}
                   visibility={headerVisibility}
                   version={document.version}
                 />
@@ -2466,33 +2434,6 @@ function DocumentBody({
                 <MembersFacepile members={siteMembers.members} siteId={siteId} />
               </div>
             )}
-          {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
-            <div className="mt-4 px-6">
-              <Breadcrumbs
-                breadcrumbs={[
-                  {id: hmId(docId.uid, {latest: true}), metadata: metadata},
-                  ...(activeView !== 'content'
-                    ? [
-                        {
-                          label:
-                            (
-                              {
-                                comments: 'Comments',
-                                collaborators: 'People',
-                                activity: 'Activity',
-                                directory: 'Sub documents',
-                                'all-documents': 'All Documents',
-                                'site-profile': 'Profile',
-                                metadata: 'Attributes',
-                              } as Record<string, string>
-                            )[activeView] || '',
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            </div>
-          )}
           {!isHomeDoc &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
@@ -2500,7 +2441,6 @@ function DocumentBody({
                 docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
                 visibility={headerVisibility}
                 version={document.version}
                 fileUpload={fileUpload}
@@ -2511,7 +2451,6 @@ function DocumentBody({
                 docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
                 visibility={headerVisibility}
                 version={document.version}
               />
@@ -2646,10 +2585,9 @@ function DocumentBody({
     return (
       <>
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+          {documentTopBar}
           {mainPageContent}
-          {documentContentActionOverlay}
           {floatingButtonsAction}
-          {mobilePanelOpen ? null : <MobileBackToTop />}
         </div>
 
         {mobilePanelOpen && (
@@ -2729,66 +2667,25 @@ function DocumentBody({
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
-        {/* Floating action buttons — when editing, show editing toolbar;
-            when a draft exists but not editing, show draft toolbar (publish + menu);
-            otherwise show the options menu */}
-        {documentContentActionOverlay}
-        <ScrollArea
-          id="scroll-page-wrapper"
-          className="h-full"
-          viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
-          fillViewportContent
-        >
-          {mainPageContent}
-        </ScrollArea>
+        <div className="flex h-full min-h-0 flex-col">
+          {documentTopBar}
+          <ScrollArea
+            id="scroll-page-wrapper"
+            className="min-h-0 flex-1"
+            viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+            fillViewportContent
+          >
+            {mainPageContent}
+          </ScrollArea>
+        </div>
       </PanelLayout>
     </div>
   )
 }
 
 /**
- * Mobile-only "back to top" affordance. The tools row scrolls away with the
- * document, so a reader deep in a long document needs one tap to reach the top
- * (and therefore the tabs) again. Mobile web scrolls the document itself, so
- * window scroll is the right target here.
- */
-export function MobileBackToTop() {
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const updateVisibility = () => {
-      setVisible(window.scrollY > window.innerHeight * 1.5)
-    }
-    updateVisibility()
-    window.addEventListener('scroll', updateVisibility, {passive: true})
-    return () => window.removeEventListener('scroll', updateVisibility)
-  }, [])
-
-  return (
-    <button
-      type="button"
-      aria-label="Back to top"
-      aria-hidden={visible ? undefined : true}
-      tabIndex={visible ? undefined : -1}
-      onClick={() => {
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        window.scrollTo({top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth'})
-      }}
-      className={cn(
-        'fixed bottom-6 left-1/2 z-40 flex size-9 -translate-x-1/2 items-center justify-center rounded-full',
-        'bg-neutral-900 text-white shadow-md dark:bg-neutral-100 dark:text-neutral-900',
-        'transition-[opacity,translate] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
-        visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0',
-      )}
-    >
-      <ChevronUp className="size-5" />
-    </button>
-  )
-}
-
-/**
  * Editable document header shown when in editing mode.
- * Renders the same breadcrumbs/authors/date via DocumentHeader but replaces
+ * Renders the same authors/date via DocumentHeader but replaces
  * the static title and summary with editable textareas that send `change`
  * events to the document machine.
  */
@@ -2797,7 +2694,6 @@ function EditableDocumentHeader({
   docMetadata,
   authors,
   updateTime,
-  breadcrumbs,
   visibility,
   version,
   fileUpload,
@@ -2806,7 +2702,6 @@ function EditableDocumentHeader({
   docMetadata: HMDocument['metadata']
   authors: AuthorPayload[]
   updateTime: HMDocument['updateTime']
-  breadcrumbs?: BreadcrumbEntry[]
   visibility?: string
   version?: HMDocument['version'] | null
   fileUpload?: (file: File) => Promise<string>
@@ -2827,7 +2722,6 @@ function EditableDocumentHeader({
       docMetadata={docMetadata}
       authors={authors}
       updateTime={updateTime}
-      breadcrumbs={breadcrumbs}
       visibility={visibility as any}
       version={version}
       showTitle={false}

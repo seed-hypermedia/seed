@@ -93,6 +93,30 @@ and deserves its own profiling rather than being smuggled into a UX change.
 Verification for each phase runs on all three surfaces (Electron, web desktop, web mobile) using the local-stack
 procedure captured in `.agents/skills/testing-local-web-desktop-stack/SKILL.md`.
 
+## Revision — persistent document top bar
+
+Reviewing Phase 1 on device showed the fixed overlay and the back-to-top button as two workarounds for the same missing
+thing: a place in the layout that does not scroll. So the page now has one, and both workarounds are gone.
+
+`DocumentTopBar` (`frontend/packages/ui/src/document-top-bar.tsx`) is a 48px row and a **sibling of the content scroll
+area**, not a `sticky` child of it: on desktop and Electron it simply sits above the `ScrollArea` in a flex column, so
+persistence is a layout fact rather than a paint trick. Mobile web scrolls the document itself, so there the same bar is
+`sticky top-0` and pins under the site header as it scrolls away.
+
+- Left: the file-explorer reveal button, then the breadcrumbs. Right: Publish/save and the `...` menu — the exact
+  `documentContentAction` composition the overlay used, unchanged.
+- Breadcrumbs move out of `DocumentHeader`/`EditableDocumentHeader` (the `breadcrumbs` prop is gone) and out of the
+  home-document-only trail that rendered view labels in the page body. `Breadcrumbs` now renders a single crumb instead
+  of bailing out at `length <= 1`, so a home document reads as just the Home icon, `aria-current`, not a link.
+- The reveal button's state belongs to `SiteFileBrowserLayout`, so that component now publishes `collapsed`/`setCollapsed`
+  through context. The bar *claims* the button while it renders one, and the layout keeps its own floating fallback for
+  routes that have no bar (feed, inspector) rather than duplicating the state.
+- `use-block-scroll.ts` scrolls the window explicitly on the no-scroll-container path, subtracting the bar's height when
+  it is actually pinned (measured from the `data-document-top-bar` element, not hardcoded), which also fixes the mobile
+  deep-link landing under the bar.
+- Electron gets the same bar with the same contents. Its titlebar shows the sidebar toggle and the omnibar, never the
+  breadcrumbs, so this is the only place that says where you are.
+
 ## Rabbit Holes
 
 - **Rebuilding the information architecture.** Rendering discussions inline at the end of the Content view, or echoing

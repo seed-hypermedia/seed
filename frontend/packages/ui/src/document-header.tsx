@@ -48,7 +48,6 @@ export function DocumentHeader({
   docMetadata,
   authors = [],
   updateTime = null,
-  breadcrumbs,
   siteUrl,
   documentTools,
   visibility,
@@ -61,7 +60,6 @@ export function DocumentHeader({
   docMetadata: HMMetadata | null
   authors: AuthorPayload[]
   updateTime: HMDocument['updateTime'] | null
-  breadcrumbs?: BreadcrumbEntry[]
   siteUrl?: string
   documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
@@ -121,7 +119,6 @@ export function DocumentHeader({
             ) : null}
           </div>
         ) : null}
-        {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
         {(isPrivate || headCount > 1) && (
           <div className="flex flex-wrap items-center gap-2">
             {isPrivate && <PrivateBadge />}
@@ -201,10 +198,11 @@ function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string})
 }
 
 /**
- * Renders document breadcrumbs when there is at least one navigable item beyond the home/root crumb.
+ * Renders the document's location trail, ending with the current document as
+ * non-navigable text. A lone crumb still renders: it is the home document.
  */
 export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
-  if (breadcrumbs.length <= 1) return null
+  if (breadcrumbs.length === 0) return null
 
   const [first, ...rest] = breadcrumbs
   const lastIndex = breadcrumbs.length - 1

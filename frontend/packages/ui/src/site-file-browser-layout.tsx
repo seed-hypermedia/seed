@@ -1,13 +1,31 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {FolderTree, PanelLeft, X} from 'lucide-react'
-import {ReactNode, useEffect, useRef, useState} from 'react'
+import {createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Button} from './button'
 import {SiteFileBrowser} from './site-file-browser'
 import {Tooltip} from './tooltip'
 import {useMedia} from './use-media'
+
+/** Collapse state of the inline file browser, shared with the page chrome below it. */
+export interface SiteFileBrowserControls {
+  collapsed: boolean
+  setCollapsed: (collapsed: boolean) => void
+  /**
+   * Claims the reveal button so the layout stops rendering its own floating
+   * fallback. Returns a release callback.
+   */
+  claimRevealButton: () => () => void
+}
+
+const SiteFileBrowserContext = createContext<SiteFileBrowserControls | null>(null)
+
+/** Returns the inline file browser controls, or null outside a site layout (Electron, embeds). */
+export function useSiteFileBrowserControls(): SiteFileBrowserControls | null {
+  return useContext(SiteFileBrowserContext)
+}
 
 /** Props for the responsive site file browser layout. */
 export interface SiteFileBrowserLayoutProps {
@@ -37,8 +55,22 @@ export function SiteFileBrowserLayout({
   const desktopContainerRef = useRef<HTMLDivElement>(null)
   const browserPanelRef = useRef<ImperativePanelHandle>(null)
   const [minimumPercent, setMinimumPercent] = useState(20)
+  const [revealClaims, setRevealClaims] = useState(0)
   const didSetInitialWidth = useRef(false)
   const browser = <SiteFileBrowser siteId={siteId} activeDocumentId={activeDocumentId} onNavigate={onNavigate} />
+  // Only the inline (wide) layout has a collapse affordance; the mobile drawer is
+  // opened from the site header, so page chrome below gets no controls there.
+  const controls = useMemo<SiteFileBrowserControls>(
+    () => ({
+      collapsed,
+      setCollapsed,
+      claimRevealButton: () => {
+        setRevealClaims((claims) => claims + 1)
+        return () => setRevealClaims((claims) => claims - 1)
+      },
+    }),
+    [collapsed],
+  )
 
   useEffect(() => {
     setIsClient(true)
@@ -137,58 +169,60 @@ export function SiteFileBrowserLayout({
   }
 
   return (
-    <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
-      <PanelGroup direction="horizontal" className="min-h-0 flex-1">
-        {!collapsed ? (
-          <>
-            <Panel
-              id="site-file-browser"
-              ref={browserPanelRef}
-              order={1}
-              defaultSize={24}
-              minSize={minimumPercent}
-              maxSize={40}
-            >
-              <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
-                <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
-                  <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
-                  <Tooltip content="Hide file explorer">
+    <SiteFileBrowserContext.Provider value={controls}>
+      <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
+        <PanelGroup direction="horizontal" className="min-h-0 flex-1">
+          {!collapsed ? (
+            <>
+              <Panel
+                id="site-file-browser"
+                ref={browserPanelRef}
+                order={1}
+                defaultSize={24}
+                minSize={minimumPercent}
+                maxSize={40}
+              >
+                <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
+                  <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
+                    <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
+                    <Tooltip content="Hide file explorer">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Collapse file browser"
+                        onClick={() => setCollapsed(true)}
+                      >
+                        <PanelLeft className="size-4" />
+                      </Button>
+                    </Tooltip>
+                  </div>
+                  <div className="min-h-0 flex-1">{browser}</div>
+                </aside>
+              </Panel>
+              <PanelResizeHandle className="panel-resize-handle" />
+            </>
+          ) : null}
+          <Panel id="site-main-content" order={2} minSize={60}>
+            <div className="dark:bg-background relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
+              {collapsed && revealClaims === 0 ? (
+                <div className="absolute top-2 left-2 z-50 md:top-4 md:left-4">
+                  <Tooltip content="Show file explorer">
                     <Button
                       variant="ghost"
                       size="icon"
-                      aria-label="Collapse file browser"
-                      onClick={() => setCollapsed(true)}
+                      aria-label="Open file browser"
+                      onClick={() => setCollapsed(false)}
                     >
-                      <PanelLeft className="size-4" />
+                      <FolderTree className="size-4" />
                     </Button>
                   </Tooltip>
                 </div>
-                <div className="min-h-0 flex-1">{browser}</div>
-              </aside>
-            </Panel>
-            <PanelResizeHandle className="panel-resize-handle" />
-          </>
-        ) : null}
-        <Panel id="site-main-content" order={2} minSize={60}>
-          <div className="dark:bg-background relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
-            {collapsed ? (
-              <div className="absolute top-2 left-2 z-50 md:top-4 md:left-4">
-                <Tooltip content="Show file explorer">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Open file browser"
-                    onClick={() => setCollapsed(false)}
-                  >
-                    <FolderTree className="size-4" />
-                  </Button>
-                </Tooltip>
-              </div>
-            ) : null}
-            {children}
-          </div>
-        </Panel>
-      </PanelGroup>
-    </div>
+              ) : null}
+              {children}
+            </div>
+          </Panel>
+        </PanelGroup>
+      </div>
+    </SiteFileBrowserContext.Provider>
   )
 }
