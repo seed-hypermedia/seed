@@ -3449,6 +3449,411 @@ describe('api service', () => {
     }
   })
 
+  test('a provider outage on a delegated child retries itself and succeeds without human action', async () => {
+    // Live incident: a child's turn died on a Codex 503 and the parent was left parked. Retryable
+    // failures on background runs must ride out the outage on the queue's backoff.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let childCalls = 0
+    try {
+      const account = blobs.generateNobleKeyPair()
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        if (messagesJSON.includes('You are the worker.')) {
+          childCalls += 1
+          // First attempt hits an overloaded provider; the queue must try again by itself.
+          // The outage must outlast the provider client's OWN retries, so the run itself fails and
+          // only the queue's attempt budget can rescue it. A single 503 proves nothing here:
+          // pi-ai already absorbs one of those without the run ever noticing.
+          if (childCalls <= 4) return new Response('overloaded', {status: 503})
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Worker finished the task.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'Worker done.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-a',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({
+                          title: 'Worker',
+                          brief: 'Do the thing',
+                          prompt: 'You are the worker.',
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const sessionId = await seedAgentSession(svc, account, 'You are the coordinator.')
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Delegate it'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const result = session.events
+        .map((event) => event.event as {type?: string; name?: string; output?: {status?: string}})
+        .find((event) => event.type === 'tool_result' && event.name === 'delegate')
+      // Nobody intervened: the child rode out the outage and answered the parent.
+      expect(childCalls).toBeGreaterThan(4)
+      expect(result?.output?.status).toBe('succeeded')
+      const runs = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId}}))
+      if (runs._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const tree = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', rootRunId: runs.runs[0]!.rootRunId}}),
+      )
+      if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const child = tree.runs.find((run) => run.depth === 1)
+      expect(child?.status).toBe('succeeded')
+      // The proof it was the QUEUE's doing: the same run row was claimed more than once.
+      const attempts = db.query<{attempt: number}, [string]>(`SELECT attempt FROM runs WHERE id = ?`).get(child!.id)
+        ?.attempt
+      expect(attempts).toBeGreaterThan(1)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  }, 30_000)
+
+  test('a later run on a typed child session still holds the contract: return_result, its schema, its parent', async () => {
+    // The spec rides the SPAWNING run's input. A retry or a new message creates a run without it,
+    // and before this the child lost the schema, the tool, and the way to answer its parent — it
+    // could never fulfil the contract, and said so ("No return_result tool is available").
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const schema = {
+      type: 'object',
+      required: ['notes'],
+      properties: {notes: {type: 'string'}},
+      additionalProperties: false,
+    }
+    let sawReturnResultTool = false
+    let rejectedOnce = false
+    try {
+      const account = blobs.generateNobleKeyPair()
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        const toolNames: string[] = (body.tools ?? []).map((tool: any) => tool?.function?.name)
+        if (messagesJSON.includes('You are the researcher.')) {
+          if (toolNames.includes('return_result')) sawReturnResultTool = true
+          // The later run is asked to deliver. First try a payload that violates the ORIGINAL
+          // schema — proving the schema came back with the tool — then a valid one.
+          if (messagesJSON.includes('deliver your result')) {
+            if (!rejectedOnce) {
+              rejectedOnce = true
+              return openAIStreamResponse([
+                {
+                  id: 'late-1',
+                  choices: [
+                    {
+                      delta: {
+                        tool_calls: [
+                          {
+                            index: 0,
+                            id: 'rr-bad',
+                            type: 'function',
+                            function: {name: 'return_result', arguments: JSON.stringify({wrong: 1})},
+                          },
+                        ],
+                      },
+                    },
+                  ],
+                },
+                {id: 'late-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+              ])
+            }
+            return openAIStreamResponse([
+              {
+                id: 'late-2',
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: 0,
+                          id: 'rr-good',
+                          type: 'function',
+                          function: {
+                            name: 'return_result',
+                            arguments: JSON.stringify({notes: 'SQLite began in 2000.'}),
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {id: 'late-2', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+            ])
+          }
+          // The original run: answer as prose and never call return_result, exactly as it happened.
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Here are my notes as text.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'Understood.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-typed',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({
+                          title: 'Research SQLite history',
+                          brief: 'Research SQLite history',
+                          prompt: 'You are the researcher.',
+                          output: schema,
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const parentSessionId = await seedAgentSession(svc, account, 'You are the coordinator.')
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId: parentSessionId, content: [{type: 'text', text: 'Research it'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      // The child ended without delivering: its run failed and the parent already has that answer.
+      const children = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ListSessions', parentSessionId},
+        }),
+      )
+      if (children._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      const childSessionId = children.sessions[0]!.id
+      const parentBefore = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: parentSessionId}}),
+      )
+      if (parentBefore._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const failedResults = parentBefore.events
+        .map((event) => event.event as {type?: string; name?: string; output?: {status?: string}})
+        .filter((event) => event.type === 'tool_result' && event.name === 'delegate')
+      expect(failedResults).toHaveLength(1)
+      expect(failedResults[0]?.output?.status).toBe('failed')
+
+      // A new run on that child session — the recovery a human would reach for.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: childSessionId,
+            content: [{type: 'text', text: 'Please deliver your result now'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      // The contract came back: the tool was offered, and the ORIGINAL schema rejected a bad payload.
+      expect(sawReturnResultTool).toBe(true)
+      expect(rejectedOnce).toBe(true)
+      const childRuns = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId: childSessionId}}),
+      )
+      if (childRuns._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const latest = childRuns.runs.find((run) => run.status === 'succeeded')
+      expect(latest).toBeTruthy()
+      const child = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: childSessionId}}),
+      )
+      if (child._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const delivered = child.events
+        .map((event) => event.event as {type?: string; name?: string; input?: {notes?: string}})
+        .filter((event) => event.type === 'tool_call' && event.name === 'return_result')
+      expect(delivered.at(-1)?.input?.notes).toBe('SQLite began in 2000.')
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  }, 30_000)
+
+  test('a late result whose parent already moved on is logged honestly, not forced onto the parent', async () => {
+    // Same construction as above; here the assertion is the PARENT side. Its call was answered by
+    // the child's failure, so a late success must not rewrite history — and must not vanish either.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        if (messagesJSON.includes('You are the researcher.')) {
+          if (messagesJSON.includes('deliver your result')) {
+            return openAIStreamResponse([
+              {
+                id: 'late',
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: 0,
+                          id: 'rr',
+                          type: 'function',
+                          function: {name: 'return_result', arguments: JSON.stringify({notes: 'late but valid'})},
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {id: 'late', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+            ])
+          }
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Prose, not a result.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'Noted.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-typed',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({
+                          title: 'Researcher',
+                          brief: 'Research',
+                          prompt: 'You are the researcher.',
+                          output: {
+                            type: 'object',
+                            required: ['notes'],
+                            properties: {notes: {type: 'string'}},
+                            additionalProperties: false,
+                          },
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const parentSessionId = await seedAgentSession(svc, account, 'You are the coordinator.')
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId: parentSessionId, content: [{type: 'text', text: 'Research it'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+      const children = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', parentSessionId}}),
+      )
+      if (children._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      const childSessionId = children.sessions[0]!.id
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: childSessionId,
+            content: [{type: 'text', text: 'Please deliver your result now'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      // The parent keeps exactly one delegate result, still the original failure — no duplicate,
+      // no rewrite, and no exception thrown on the delivery path.
+      const parent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: parentSessionId}}),
+      )
+      if (parent._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const results = parent.events
+        .map((event) => event.event as {type?: string; name?: string; output?: {status?: string}})
+        .filter((event) => event.type === 'tool_result' && event.name === 'delegate')
+      expect(results).toHaveLength(1)
+      expect(results[0]?.output?.status).toBe('failed')
+
+      // And the child's log says plainly that the valid result went nowhere.
+      const child = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: childSessionId}}),
+      )
+      if (child._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const notes = child.events
+        .map((event) => event.event as {type?: string; message?: string})
+        .filter((event) => event.type === 'error' && event.message?.includes('already stopped waiting'))
+      expect(notes).toHaveLength(1)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  }, 30_000)
+
   test('a parallel batch stamps every child with the running step id, stable across a rename', async () => {
     // The model's plan verb writes the SESSION plan, not the run plan. Stamping used to read only
     // the run plan, so model children were never labeled and the UI attached them by the accident
@@ -5225,6 +5630,38 @@ async function setDefaultProvider(svc: apisvc.Service, account: blobs.Signer): P
       action: {_: 'SetModelProvider', name: 'openai', provider: {type: 'openai'}},
     }),
   )
+}
+
+/** Provider + agent + session in one step, for tests whose subject is what happens after that. */
+async function seedAgentSession(svc: apisvc.Service, account: blobs.Signer, systemPrompt: string): Promise<string> {
+  await svc.message(
+    await apisvc.createSignedEnvelope(account, {
+      action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+    }),
+  )
+  await svc.message(
+    await apisvc.createSignedEnvelope(account, {
+      action: {
+        _: 'SetModelProvider',
+        name: 'openai',
+        provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+      },
+    }),
+  )
+  const agent = await svc.message(
+    await apisvc.createSignedEnvelope(account, {
+      action: {
+        _: 'CreateAgent',
+        definition: {name: 'Agent', systemPrompt, modelProvider: 'openai', model: 'gpt-test', tools: []},
+      },
+    }),
+  )
+  if (agent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+  const session = await svc.message(
+    await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: agent.agentId}}),
+  )
+  if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+  return session.sessionId
 }
 
 function agentPromptText(prompt: unknown): string {

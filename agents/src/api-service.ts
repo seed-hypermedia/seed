@@ -114,6 +114,13 @@ const MAX_SESSION_SPAWN_DEPTH = 3
 const MAX_SESSION_SPAWNS_PER_SESSION = 10
 /** Failed return_result validation attempts before a typed sub-session fails `output-schema`. */
 const MAX_RETURN_RESULT_RETRIES = 3
+/**
+ * Attempts an agent run gets before it is finally failed. Only RETRYABLE outcomes consume the extra
+ * ones (the queue re-queues 5xx/provider-overload with exponential backoff); anything classified
+ * non-retryable still fails on the first attempt. Three is what it takes to ride out a provider
+ * that is briefly overloaded — the failure mode that stranded a parked parent in live testing.
+ */
+const AGENT_RUN_MAX_ATTEMPTS = 3
 /** Workflow journal caps: replay cost is bounded by these; split bigger jobs into smaller workflows. */
 const WORKFLOW_JOURNAL_MAX_ENTRIES = 5_000
 const WORKFLOW_JOURNAL_MAX_BYTES = 8 * 1024 * 1024
@@ -517,7 +524,7 @@ export class Service {
             parentRunId: run.id,
             childRunId: child.id,
           })
-          this.#resolveSubSessionResult(child, input.parentToolCallId, input.parentToolName)
+          this.#resolveSubSessionResult(child, run.id, input.parentToolCallId, input.parentToolName)
         }
       }
       const refreshed = runs.getRun(this.#db, run.accountId, run.id)
@@ -2334,7 +2341,10 @@ export class Service {
       title: opts.title,
       input: {kind: 'session-message'},
       queue: opts.background ? 'background' : 'interactive',
-      maxAttempts: 1,
+      // Background turns ride out a flaky provider; a turn the user is watching fails fast instead,
+      // because retrying holds the session lock through the backoff — the error would never reach
+      // them and their next message would bounce off "already streaming". They have Retry.
+      maxAttempts: opts.background ? AGENT_RUN_MAX_ATTEMPTS : 1,
       dispatch: opts.background === true,
     })
     // Background callers (triggers, agent-started sessions) return as soon as the run is durably
@@ -2380,7 +2390,7 @@ export class Service {
     if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found', httpStatus: 404}}
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
-    const spec = (run.input as {spec?: SubSessionSpec} | null)?.spec
+    const spec = this.#spawnContextForRun(run).spec
     if (spec?.prompt) definition.systemPrompt = spec.prompt
     if (spec?.tools) {
       // Undefined parent tools means "all callables" — narrowing must intersect against that
@@ -2677,14 +2687,16 @@ export class Service {
     }
     // An automation can start where another finished; this is the one moment that knows a run is done.
     this.#fireRunCompletedTriggers(run)
-    if (run.parentRunId) {
-      const input = run.input as {parentToolCallId?: string; parentToolName?: string} | null
+    {
       // A run that continued as a new run is NOT finished work: its successor inherited the same
       // tool call and answers the parent when it is really done. Resolving here would hand the
       // parent a result while the work is still going.
       const continued = isPlainRecord(run.output) && typeof run.output.continuedAsRunId === 'string'
-      if (!continued && typeof input?.parentToolCallId === 'string' && input.parentToolCallId) {
-        this.#resolveSubSessionResult(run, input.parentToolCallId, input.parentToolName)
+      // The parent link is read through the spawn context, so a RETRY of a delegated session can
+      // still answer the call that spawned it — a retry run has no parentRunId of its own.
+      const spawn = this.#spawnContextForRun(run)
+      if (!continued && spawn.parentRunId && spawn.parentToolCallId) {
+        this.#resolveSubSessionResult(run, spawn.parentRunId, spawn.parentToolCallId, spawn.parentToolName)
       }
     }
     if (run.kind === 'agent' && run.sessionId && run.status === 'failed' && run.error) {
@@ -3115,7 +3127,7 @@ export class Service {
         ...(step?.id ? {planStepId: step.id} : {}),
       },
       queue: 'background',
-      maxAttempts: 2,
+      maxAttempts: AGENT_RUN_MAX_ATTEMPTS,
     })
     runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
     console.info('[agents/runtime] sub-session spawned', {
@@ -3133,8 +3145,58 @@ export class Service {
    * Child terminal status → parent resolution: appends the durable sub_session tool_result on the
    * parent transcript and shrinks the parent's wait set, requeuing it when the set empties.
    */
-  #resolveSubSessionResult(child: runs.RunRecord, parentToolCallId: string, parentToolName?: string): void {
-    const parent = child.parentRunId ? runs.getRun(this.#db, child.accountId, child.parentRunId) : null
+  /**
+   * The delegation contract a run is executing: the spec it must satisfy and the parent tool call
+   * its result answers.
+   *
+   * A typed child's spec rides the input of the run that SPAWNED it. Any later run on the same
+   * session — a user retry, a new message — carries no spec of its own, and before this inherited
+   * nothing: the output schema, the return_result tool, the typed-completion semantics and the
+   * parent link all vanished, so the child could not fulfil its contract and the parent parked
+   * forever. `sessions.run_id` is the durable record of that spawn, so later runs inherit from it.
+   */
+  #spawnContextForRun(run: runs.RunRecord): {
+    spec?: SubSessionSpec
+    parentRunId?: string
+    parentToolCallId?: string
+    parentToolName?: string
+    /** True when the contract came from the session's spawning run rather than this run's input. */
+    inherited: boolean
+  } {
+    const readFrom = (input: unknown, parentRunId: string | undefined, inherited: boolean) => {
+      const record = isPlainRecord(input) ? input : {}
+      const spec = record.spec as SubSessionSpec | undefined
+      const parentToolCallId = typeof record.parentToolCallId === 'string' ? record.parentToolCallId : undefined
+      // Linkage alone is enough: workflow children carry a parent tool call and no spec at all.
+      if (!spec && !parentToolCallId) return undefined
+      return {
+        ...(spec ? {spec} : {}),
+        ...(parentRunId ? {parentRunId} : {}),
+        ...(parentToolCallId ? {parentToolCallId} : {}),
+        ...(typeof record.parentToolName === 'string' ? {parentToolName: record.parentToolName} : {}),
+        inherited,
+      }
+    }
+    const own = readFrom(run.input, run.parentRunId, false)
+    if (own) return own
+    if (!run.sessionId) return {inherited: false}
+    const row = this.#db
+      .query<{run_id: string | null}, [string, string]>(`SELECT run_id FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(run.accountId, run.sessionId)
+    const spawningRunId = row?.run_id
+    if (!spawningRunId || spawningRunId === run.id) return {inherited: false}
+    const spawning = runs.getRun(this.#db, run.accountId, spawningRunId)
+    if (!spawning) return {inherited: false}
+    return readFrom(spawning.input, spawning.parentRunId, true) ?? {inherited: false}
+  }
+
+  #resolveSubSessionResult(
+    child: runs.RunRecord,
+    parentRunId: string,
+    parentToolCallId: string,
+    parentToolName?: string,
+  ): void {
+    const parent = runs.getRun(this.#db, child.accountId, parentRunId)
     if (!parent || parent.kind !== 'agent' || !parent.sessionId) return
     const toolName = parentToolName ?? seedVerbRegistry.delegate.name
     let result: Record<string, unknown>
@@ -3152,12 +3214,29 @@ export class Service {
     }
     // Append the durable result at most once, but ALWAYS resolve the wait: a crash (or double
     // resolution) can leave the tool_result written while the parent still parks on the call.
-    if (!this.#sessionHasToolResult(parent.sessionId, parentToolCallId)) {
+    const alreadyAnswered = this.#sessionHasToolResult(parent.sessionId, parentToolCallId)
+    if (!alreadyAnswered) {
       this.#appendSessionEvent(
         child.accountId,
         parent.agentId ?? '',
         parent.sessionId,
         {type: 'tool_result', toolCallId: parentToolCallId, name: toolName, output: result},
+        Date.now(),
+      )
+    } else if (child.status === 'succeeded' && child.sessionId) {
+      // A late delivery: the child finally satisfied its contract, but the parent's call already
+      // has an answer (typically this child's own earlier failure). Say so in the child's log —
+      // silently dropping a valid result is how a session looks finished and changes nothing.
+      this.#appendSessionEvent(
+        child.accountId,
+        child.agentId ?? '',
+        child.sessionId,
+        {
+          type: 'error',
+          actor: 'system',
+          message:
+            'Result accepted, but the task that delegated this one had already stopped waiting for it — nothing was delivered upstream.',
+        },
         Date.now(),
       )
     }
@@ -3329,7 +3408,7 @@ export class Service {
         ...(stepId ? {planStepId: stepId} : {}),
       },
       queue: 'background',
-      maxAttempts: 2,
+      maxAttempts: AGENT_RUN_MAX_ATTEMPTS,
     })
     return {childRunId, sessionId: session.sessionId}
   }
@@ -3866,7 +3945,7 @@ export class Service {
   ): Promise<api.SessionEvent> {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
-    const subSessionOutputSchema = (run?.input as {spec?: SubSessionSpec} | null)?.spec?.output
+    const subSessionOutputSchema = run ? this.#spawnContextForRun(run).spec?.output : undefined
     const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
 
     const cwd = this.#dataDir

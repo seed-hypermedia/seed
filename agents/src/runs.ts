@@ -603,7 +603,14 @@ export class RunQueue {
   /** Resolves when no runs are queued, claimed, running, or executing in this process. */
   async awaitIdle(): Promise<void> {
     for (;;) {
-      if (this.#inflight.size === 0 && !this.#hasDispatchableWork() && this.#wakeTimer === null) return
+      if (
+        this.#inflight.size === 0 &&
+        !this.#hasDispatchableWork() &&
+        !this.#hasPendingRetry() &&
+        this.#wakeTimer === null
+      ) {
+        return
+      }
       await Promise.allSettled([...this.#inflight.values()])
       await new Promise<void>((resolve) => {
         this.#idleWaiters.push(resolve)
@@ -651,6 +658,24 @@ export class RunQueue {
           `SELECT id FROM runs WHERE status = 'queued' AND (not_before IS NULL OR not_before <= ?) LIMIT 1`,
         )
         .get(now) !== null
+    )
+  }
+
+  /**
+   * A run waiting out a retry backoff: queued, but not yet dispatchable.
+   *
+   * It is invisible to {@link RunQueue.#hasDispatchableWork} until its `not_before` passes, so
+   * without this the queue reads as idle mid-retry — a drain would return while a run is still
+   * going to execute. Bounded by RETRY_CAP_MS, unlike `waiting` runs (durable sleeps can be days),
+   * which is why only this narrow case belongs in the idle condition.
+   */
+  #hasPendingRetry(): boolean {
+    return (
+      this.#db
+        .query<{id: string}, [number]>(
+          `SELECT id FROM runs WHERE status = 'queued' AND not_before IS NOT NULL AND not_before > ? LIMIT 1`,
+        )
+        .get(Date.now()) !== null
     )
   }
 
