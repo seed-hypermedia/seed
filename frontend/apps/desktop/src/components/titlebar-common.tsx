@@ -1,13 +1,13 @@
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
+import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
 import {
   agentRouteServerUrl,
-  DEFAULT_AGENT_SERVER_URL,
   isLocalAgentServer,
   LOCAL_AGENT_SERVER_LABEL,
   useAgentSession,
   useLocalAgentServerUrl,
-} from '@/models/agents'
+} from '@shm/ui/agents/models'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl} from '@/models/gateway-settings'

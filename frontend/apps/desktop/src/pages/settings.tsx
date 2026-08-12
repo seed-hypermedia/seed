@@ -1,8 +1,8 @@
 import {useAppContext, useIPC} from '@/app-context'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {reportError} from '@/errors'
+import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
 import {
-  DEFAULT_AGENT_SERVER_URL,
   useAgentServerHealth,
   useAgentServerUrl,
   LOCAL_AGENT_SERVER_LABEL,
@@ -10,7 +10,7 @@ import {
   useLocalAgentServerUrl,
   useSetAgentServerUrl,
   useSetAgentServerUrls,
-} from '@/models/agents'
+} from '@shm/ui/agents/models'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'

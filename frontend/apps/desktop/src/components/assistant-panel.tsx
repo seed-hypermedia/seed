@@ -19,7 +19,7 @@ import {
   useStopAgentSession,
   type AgentSessionDraftMessage,
   type AgentSessionListEntry,
-} from '@/models/agents'
+} from '@shm/ui/agents/models'
 import {
   buildAgentSessionChatRows,
   interleaveRunRecords,
@@ -27,13 +27,13 @@ import {
   chatRowHasPendingToolCall,
   frozenRunIds,
   retryableErrorRowKey,
-} from '@/models/agent-session-rows'
+} from '@shm/ui/agents/agent-session-rows'
 import {
   resolveAssistantSelection,
   type AssistantAgentKey,
   type AssistantAgentOption,
 } from '@/models/assistant-selection'
-import {CreateAgentDialog} from '@/pages/agents/dialogs'
+import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
@@ -62,19 +62,20 @@ import {
   Trash2,
 } from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
-import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './assistant-message-rendering'
-import {useChatAutoScroll} from './chat-autoscroll'
+import {AgentRunStatusBar, useRunStartedAt} from '@shm/ui/agents/agent-run-status'
+import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from '@shm/ui/agents/message-rendering'
+import {useChatAutoScroll} from '@shm/ui/agents/chat-autoscroll'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {
   AgentRichMessageComposer,
   SUB_SESSION_DRIVEN_MESSAGE,
   TERMINAL_RUN_STATUSES,
-} from '@/pages/agents/rich-message-composer'
+} from '@shm/ui/agents/rich-message-composer'
 import type {CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
-import {RunRecordCard, SessionRunCard} from '@/pages/agents/run-card'
-import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
+import {RunRecordCard, SessionRunCard} from '@shm/ui/agents/run-card'
+import {SessionStatusDot, SubSessionsDisclosure} from '@shm/ui/agents/session-children'
+import {QueuedChatMessages, useQueuedChatMessages} from '@shm/ui/agents/chat-message-queue'
 
 /**
  * Assistant sidebar.

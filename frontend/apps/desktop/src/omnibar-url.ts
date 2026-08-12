@@ -1,4 +1,4 @@
-import {normalizeAgentServerUrl} from '@/agents-client'
+import {normalizeAgentServerUrl} from '@shm/ui/agents/client'
 import {resolveHypermediaUrl, type ResolveOptions} from '@seed-hypermedia/client'
 import {createDocumentNavRoute, createInspectNavRoute, type NavRoute} from '@shm/shared/routes'
 import {

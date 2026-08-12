@@ -20,8 +20,12 @@ vi.mock('@/grpc-client', () => ({
   },
 }))
 
-import type {SessionInfo} from '@/agents-client'
-import {addOptimisticSessionMessage, addOptimisticSessionToCaches, type AgentSessionListEntry} from '@/models/agents'
+import type {SessionInfo} from '@shm/ui/agents/client'
+import {
+  addOptimisticSessionMessage,
+  addOptimisticSessionToCaches,
+  type AgentSessionListEntry,
+} from '@shm/ui/agents/models'
 import {resolveAssistantSelection, type AssistantAgentOption} from '@/models/assistant-selection'
 import {queryClient} from '@shm/shared/models/query-client'
 

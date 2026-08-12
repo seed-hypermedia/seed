@@ -21,7 +21,7 @@ let mockServers: string[] = ['http://localhost:3050']
 /** The desktop-managed server, which is always shown but never persisted. */
 let mockLocalServer: string | null = null
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   DEFAULT_AGENT_SERVER_URL: 'http://localhost:3050',
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   useAgentServerHealth: () => ({isError: true, isLoading: false}),

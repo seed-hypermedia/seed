@@ -1,10 +1,10 @@
-import {sendAgentAction, type AgentDefinition, type AgentInfo, type ModelProviderInfo} from '@/agents-client'
-import {ASSISTANT_DEFAULT_TOOLS} from '@/pages/agents/agent-tools'
-import {pickDefaultProviderModel} from '@/pages/agents/model-utils'
-import type {ProviderModelInfo} from '@/agents-client'
+import {sendAgentAction, type AgentDefinition, type AgentInfo, type ModelProviderInfo} from '@shm/ui/agents/client'
+import {ASSISTANT_DEFAULT_TOOLS} from '@shm/ui/agents/agent-tools'
+import {pickDefaultProviderModel} from '@shm/ui/agents/model-utils'
+import type {ProviderModelInfo} from '@shm/ui/agents/client'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useEffect, useMemo, useRef} from 'react'
-import {useAgentLists, useLocalAgentServerUrl, useModelProviders, useProviderModels} from './agents'
+import {useAgentLists, useLocalAgentServerUrl, useModelProviders, useProviderModels} from '@shm/ui/agents/models'
 
 /**
  * Auto-provisioning for the built-in local Assistant.

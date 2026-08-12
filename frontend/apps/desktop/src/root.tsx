@@ -1,3 +1,4 @@
+import {registerDesktopAgentsPlatform} from '@/agents-platform'
 import {AppContextProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
 import {cleanupAllEntitySubscriptions} from '@/models/entities'
@@ -172,6 +173,9 @@ function useDarkMode(): boolean {
 
 // Register the desktop QueryClient so shared invalidateQueries() works
 registerQueryClient(queryClient)
+
+// Register the desktop adapter for the shared Agents UI, before any agents page renders
+registerDesktopAgentsPlatform()
 
 // Dev-only: expose the QueryClient on window so we can poke the React Query cache from
 // DevTools (e.g. forcing transient resource errors to verify the document banner).

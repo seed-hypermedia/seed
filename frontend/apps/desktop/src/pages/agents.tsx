@@ -1,1 +1,1 @@
-export {default} from './agents/list'
+export {default} from '@shm/ui/agents/list'

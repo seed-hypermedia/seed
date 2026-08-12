@@ -19,6 +19,7 @@ import {tmpdir} from 'node:os'
 import * as path from 'node:path'
 import React from 'react'
 import * as blobs from '@shm/shared/blobs'
+import {setAgentsPlatform} from '@shm/ui/agents/platform'
 
 const PROVIDER_PORT = 45891
 const SERVER_PORT = 45892
@@ -29,24 +30,22 @@ const REPO_AGENTS_DIR = path.resolve(__dirname, '../../../../../agents')
 const keyPair = blobs.generateNobleKeyPair()
 const accountUid = blobs.principalToString(keyPair.principal)
 
-vi.mock('@/trpc', () => ({
-  client: {
-    localAgentsServer: {query: async () => ({url: null})},
-  },
-}))
-vi.mock('@/grpc-client', () => ({
-  grpcClient: {
-    daemon: {
-      signData: async ({data}: {signingKeyName: string; data: Uint8Array}) => ({
-        signature: await keyPair.sign(data),
-      }),
-    },
-    entities: {discoverEntity: async () => ({state: 'noop', version: ''})},
-  },
-}))
+// The agents UI reaches the outside world through its platform adapter; here the "daemon" is the
+// local keypair above and there is no local server to attach to.
+setAgentsPlatform({
+  defaultServerUrl: () => SERVER_URL,
+  getSigner: async () => keyPair,
+  getSetting: async () => null,
+  setSetting: async () => {},
+  getLocalServerUrl: async () => null,
+  useAccountUid: () => accountUid,
+  useNavigate: () => () => {},
+  useOpenUrl: () => () => {},
+  CommentEditor: () => null,
+})
 
-import {sendAgentAction} from '@/agents-client'
-import {useAllAgentSessions} from '@/models/agents'
+import {sendAgentAction} from '@shm/ui/agents/client'
+import {useAllAgentSessions} from '@shm/ui/agents/models'
 import {queryClient} from '@shm/shared/models/query-client'
 import {QueryClientProvider} from '@tanstack/react-query'
 

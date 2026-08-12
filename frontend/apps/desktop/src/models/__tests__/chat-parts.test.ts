@@ -1,4 +1,9 @@
-import {appendChatTextPart, appendChatToolCalls, applyChatToolResults, buildLegacyChatMessageParts} from '../chat-parts'
+import {
+  appendChatTextPart,
+  appendChatToolCalls,
+  applyChatToolResults,
+  buildLegacyChatMessageParts,
+} from '@shm/ui/agents/chat-parts'
 import {describe, expect, it} from 'vitest'
 
 describe('chat parts', () => {
