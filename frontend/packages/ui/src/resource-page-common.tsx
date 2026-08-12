@@ -835,6 +835,7 @@ export function ResourcePage({
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
   const isSiteProfile = route.key === 'site-profile'
+  const media = useMedia()
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
@@ -930,6 +931,10 @@ export function ResourcePage({
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
       >
+        <DocumentTopBar
+          breadcrumbs={[{id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
+          isMobile={media.xs && !IS_DESKTOP}
+        />
         <SiteProfileContent
           siteUid={docId.uid}
           accountUid={accountUid}
@@ -2672,7 +2677,7 @@ function DocumentBody({
           <ScrollArea
             id="scroll-page-wrapper"
             className="min-h-0 flex-1"
-            viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+            viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
             fillViewportContent
           >
             {mainPageContent}
