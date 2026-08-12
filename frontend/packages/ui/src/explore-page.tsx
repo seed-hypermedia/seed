@@ -1,6 +1,9 @@
 import type {
+  ExplorePresentation,
+  ExploreSortRule,
   ExplorePredicate,
   ExploreQueryNode,
+  HMExploreContext,
   HMExploreResult,
   HMExploreResultType,
   ParsedExploreQuery,
@@ -8,11 +11,14 @@ import type {
 import {
   exploreQueryChips,
   compileExploreQuery,
-  parseExploreQuery,
+  cycleExploreSort,
+  clearExploreConditions,
   removeExploreQueryChip,
   serializeExploreQuery,
+  toggleExplorePredicate,
+  toggleExploreColumn,
 } from '@shm/shared/explore'
-import {QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
+import {DocumentSort, QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
 import {
   exploreDocumentKey,
   useExploreAccounts,
@@ -22,8 +28,10 @@ import {
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {FileText, Loader2, MessageSquare, Pilcrow, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import * as Ariakit from '@ariakit/react'
 import {Button} from './button'
 import {Input} from './components/input'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {cn} from './utils'
 
 /** Highlights query terms in text without interpreting them as a regular expression. */
@@ -70,6 +78,7 @@ export type ExplorePageProps = {
   onQueryChange: (query: string) => void
   onOpenResult: (result: HMExploreResult) => void
   accountUid?: string
+  context: HMExploreContext
 }
 
 type ResultTab = 'all' | HMExploreResultType
@@ -89,6 +98,8 @@ export function ExplorePage(props: ExplorePageProps) {
   const [builderAst, setBuilderAst] = useState<ExploreQueryNode | null>(props.parsed.ast)
   const [activeValueField, setActiveValueField] = useState('')
   const [activeValueKind, setActiveValueKind] = useState<'string' | 'int' | 'bool'>('string')
+  const [columnsOpen, setColumnsOpen] = useState(false)
+  const [sortOpen, setSortOpen] = useState(false)
   const debounceRef = useRef<number | null>(null)
   const onQueryChangeRef = useRef(props.onQueryChange)
   onQueryChangeRef.current = props.onQueryChange
@@ -123,12 +134,19 @@ export function ExplorePage(props: ExplorePageProps) {
     setBuilderAst(nextAst)
     updateQuery(serializeExploreQuery({ast: nextAst, presentation: props.parsed.presentation, diagnostics: []}))
   }
-  const addPredicate = (predicate: string) => {
-    const next = parseExploreQuery(predicate).ast
-    if (!next) return
-    commitBuilderAst(appendExploreNode(builderAst, next))
-    setMenu(null)
+  const updatePresentation = (presentation: ExplorePresentation) =>
+    updateQuery(withPresentation(props.parsed.ast, presentation))
+  const builtInColumns = ['title', 'space', 'path', 'updated', 'version']
+  const availableColumns = [...builtInColumns, ...(attributeNames.data ?? [])]
+  const selectedColumns = props.parsed.presentation.columns?.length
+    ? props.parsed.presentation.columns
+    : ['title', 'space', 'path', 'updated']
+  const sortRules = props.parsed.presentation.sort ?? []
+  const cycleSort = (key: string) => {
+    const nextRules = cycleExploreSort(sortRules, key)
+    updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
   }
+  const tableMode = props.parsed.presentation.view === 'table' && activeTab !== 'block' && activeTab !== 'comment'
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-6 lg:px-8">
@@ -150,6 +168,56 @@ export function ExplorePage(props: ExplorePageProps) {
           className="bg-background h-11 font-mono text-sm"
         />
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant={props.parsed.presentation.view === 'table' ? 'secondary' : 'outline'}
+              onClick={() =>
+                updatePresentation({
+                  ...props.parsed.presentation,
+                  view: props.parsed.presentation.view === 'table' ? 'list' : 'table',
+                })
+              }
+            >
+              {props.parsed.presentation.view === 'table' ? 'Table' : 'List'}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!tableMode}
+              onClick={() => setColumnsOpen((open) => !open)}
+              title={!tableMode ? 'Columns are available for document results.' : undefined}
+            >
+              Columns
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!tableMode}
+              onClick={() => setSortOpen((open) => !open)}
+              title={!tableMode ? 'Sorting is available for document results.' : undefined}
+            >
+              Sort{sortRules.length ? ` (${sortRules.length})` : ''}
+            </Button>
+          </div>
+          {columnsOpen ? (
+            <ExploreFilterMenu
+              options={availableColumns.map((column) => `column:${column}`)}
+              activeTokens={selectedColumns.map((column) => `column:${column}`)}
+              onToggle={(token) => {
+                const column = token.slice('column:'.length)
+                const next = toggleExploreColumn(selectedColumns, column)
+                updatePresentation({...props.parsed.presentation, columns: next.length ? next : ['title']})
+              }}
+            />
+          ) : null}
+          {sortOpen ? (
+            <ExploreFilterMenu
+              options={(attributeNames.data ?? []).map((name) => `sort:${name}`)}
+              activeTokens={sortRules.map((rule) => `sort:${rule.key}`)}
+              onToggle={(token) => cycleSort(token.slice('sort:'.length))}
+            />
+          ) : null}
           {(['type', 'in', 'attributes'] as const).map((kind) => (
             <div key={kind} className="relative">
               <Button size="sm" variant="outline" onClick={() => setMenu(menu === kind ? null : kind)}>
@@ -166,12 +234,9 @@ export function ExplorePage(props: ExplorePageProps) {
                   }
                   activeTokens={chips.map((chip) => chip.token)}
                   onToggle={(predicate) => {
-                    const existing = chips.find((chip) => chip.token === predicate)
-                    if (existing) {
-                      updateQuery(serializeExploreQuery(removeExploreQueryChip(props.parsed, existing.id)))
-                    } else {
-                      addPredicate(predicate)
-                    }
+                    const next = toggleExplorePredicate(props.parsed, predicate)
+                    updateQuery(serializeExploreQuery(next))
+                    setMenu(null)
                   }}
                 />
               ) : null}
@@ -220,6 +285,8 @@ export function ExplorePage(props: ExplorePageProps) {
           attributeNames={attributeNames.data ?? []}
           attributeValues={attributeValues.data ?? []}
           accounts={accounts.data ?? []}
+          context={props.context}
+          presentation={props.parsed.presentation}
           onFocusValue={(field, kind) => {
             setActiveValueField(field)
             setActiveValueKind(kind)
@@ -274,7 +341,17 @@ export function ExplorePage(props: ExplorePageProps) {
         {!props.isLoading && !props.intersectionPending && !props.error && !visibleResults.length ? (
           <ExploreState icon={<Search />} title="No results" detail="Try a broader search or remove a filter." />
         ) : null}
-        {visibleResults.length ? (
+        {visibleResults.length && tableMode ? (
+          <ExploreTable
+            results={visibleResults.filter(
+              (result): result is Extract<HMExploreResult, {type: 'document'}> => result.type === 'document',
+            )}
+            columns={selectedColumns}
+            sortRules={sortRules}
+            onSort={cycleSort}
+            onOpen={props.onOpenResult}
+          />
+        ) : visibleResults.length ? (
           <div className="border-border divide-border bg-background overflow-hidden rounded-lg border">
             {visibleResults.map((result) => (
               <ExploreResultRow
@@ -350,6 +427,14 @@ function appendExploreNode(ast: ExploreQueryNode | null, next: ExploreQueryNode)
   return {kind: 'and', children: [ast, next]}
 }
 
+function removeBuilderGroup(node: ExploreQueryNode): ExploreQueryNode | null {
+  return clearExploreConditions(node)
+}
+
+function withPresentation(ast: ExploreQueryNode | null, presentation: ExplorePresentation) {
+  return serializeExploreQuery({ast, presentation, diagnostics: []})
+}
+
 function predicateToDraft(predicate: ExplorePredicate): {
   field: string
   kind: 'comparison' | 'contains' | 'prefix' | 'exists' | 'missing'
@@ -408,6 +493,8 @@ function ExploreBuilder({
   attributeNames,
   attributeValues,
   accounts,
+  context,
+  presentation,
   onFocusValue,
   onChange,
 }: {
@@ -415,6 +502,8 @@ function ExploreBuilder({
   attributeNames: string[]
   attributeValues: string[]
   accounts: Array<{value: string; label: string}>
+  context: HMExploreContext
+  presentation: ExplorePresentation
   onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void
   onChange: (ast: ExploreQueryNode | null) => void
 }) {
@@ -434,7 +523,7 @@ function ExploreBuilder({
             Edit document conditions without losing text or presentation directives.
           </p>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => onChange(null)}>
+        <Button size="sm" variant="ghost" onClick={() => onChange(clearExploreConditions(ast))}>
           Clear conditions
         </Button>
       </div>
@@ -453,7 +542,10 @@ function ExploreBuilder({
         <pre className="text-muted-foreground mt-2 overflow-auto text-[11px]">
           {JSON.stringify(
             new QueryDocumentsRequest({
-              filter: compileExploreQuery({ast, presentation: {}, diagnostics: []}, {type: 'node'}).filter,
+              filter: compileExploreQuery({ast, presentation, diagnostics: []}, context).filter,
+              sort: (presentation.sort ?? []).map(
+                (rule) => new DocumentSort({key: rule.key, descending: rule.direction === 'desc'}),
+              ),
             }).toJson(),
             null,
             2,
@@ -524,7 +616,12 @@ function BuilderNodeEditor({
   if (node.kind === 'not') {
     return (
       <div className="border-border border-l-2 pl-3">
-        <div className="text-muted-foreground mb-2 text-xs font-medium">Not</div>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="text-muted-foreground text-xs font-medium">Not</div>
+          <Button size="xs" variant="ghost" onClick={() => onChange(node.child)}>
+            Remove Not
+          </Button>
+        </div>
         <BuilderNodeEditor
           node={node.child}
           path={[...path, 0]}
@@ -532,7 +629,7 @@ function BuilderNodeEditor({
           attributeValues={attributeValues}
           accounts={accounts}
           onFocusValue={onFocusValue}
-          onChange={onChange}
+          onChange={(next) => onChange(next ? {kind: 'not', child: next} : null)}
         />
       </div>
     )
@@ -540,19 +637,21 @@ function BuilderNodeEditor({
   return (
     <div className="border-border bg-background flex flex-col gap-3 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
-        <select
-          className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+        <Select
           value={node.kind}
-          onChange={(event) => {
-            const mode = event.target.value
-            if (mode === 'not') onChange({kind: 'not', child: node})
-            else onChange({...node, kind: mode as 'and' | 'or'})
-          }}
+          onValueChange={(mode) =>
+            onChange(mode === 'not' ? {kind: 'not', child: node} : {...node, kind: mode as 'and' | 'or'})
+          }
         >
-          <option value="and">All</option>
-          <option value="or">Any</option>
-          <option value="not">Not</option>
-        </select>
+          <SelectTrigger size="sm" className="w-24">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="and">All</SelectItem>
+            <SelectItem value="or">Any</SelectItem>
+            <SelectItem value="not">Not</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="flex gap-1">
           <Button
             size="xs"
@@ -577,7 +676,7 @@ function BuilderNodeEditor({
             Add group
           </Button>
           {path.length ? (
-            <Button size="xs" variant="ghost" onClick={() => replace(null)}>
+            <Button size="xs" variant="ghost" onClick={() => replace(removeBuilderGroup(node))}>
               Remove
             </Button>
           ) : null}
@@ -644,72 +743,198 @@ function BuilderCondition({
   }
   return (
     <div className="border-border flex flex-wrap items-center gap-2 rounded-md border p-2">
-      <Input
-        list="explore-attribute-names"
+      <ExploreAutocomplete
         value={field}
-        onChangeText={(next) => commit({field: next})}
+        options={[...attributeNames, '$space', '$path']}
+        onChange={(next) => commit({field: next})}
         placeholder="field"
         className="h-8 w-36 text-xs"
       />
-      <datalist id="explore-attribute-names">
-        {[...attributeNames, '$space', '$path'].map((name) => (
-          <option key={name} value={name} />
-        ))}
-      </datalist>
-      <select
-        className="border-input bg-background h-8 rounded-md border px-2 text-xs"
-        value={kind}
-        onChange={(event) => commit({kind: event.target.value as typeof kind})}
-      >
-        <option value="comparison">Compare</option>
-        <option value="contains">Contains</option>
-        <option value="prefix">Starts with</option>
-        <option value="exists">Exists</option>
-        <option value="missing">Missing</option>
-      </select>
+      <Select value={kind} onValueChange={(next) => commit({kind: next as typeof kind})}>
+        <SelectTrigger size="sm" className="w-28">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="comparison">Compare</SelectItem>
+          <SelectItem value="contains">Contains</SelectItem>
+          <SelectItem value="prefix">Starts with</SelectItem>
+          <SelectItem value="exists">Exists</SelectItem>
+          <SelectItem value="missing">Missing</SelectItem>
+        </SelectContent>
+      </Select>
       {kind === 'comparison' ? (
-        <select
-          className="border-input bg-background h-8 rounded-md border px-2 text-xs"
-          value={operator}
-          onChange={(event) => commit({operator: event.target.value as typeof operator})}
-        >
-          <option>=</option>
-          <option>!=</option>
-          <option>&lt;</option>
-          <option>&lt;=</option>
-          <option>&gt;</option>
-          <option>&gt;=</option>
-        </select>
+        <Select value={operator} onValueChange={(next) => commit({operator: next as typeof operator})}>
+          <SelectTrigger size="sm" className="w-16">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {['=', '!=', '<', '<=', '>', '>='].map((item) => (
+              <SelectItem key={item} value={item}>
+                {item}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       ) : null}
       {kind !== 'exists' && kind !== 'missing' ? (
-        <select
-          className="border-input bg-background h-8 rounded-md border px-2 text-xs"
-          value={valueKind}
-          onChange={(event) => commit({valueKind: event.target.value as typeof valueKind})}
-        >
-          <option value="string">Text</option>
-          <option value="int">Integer</option>
-          <option value="bool">Boolean</option>
-        </select>
+        <Select value={valueKind} onValueChange={(next) => commit({valueKind: next as typeof valueKind})}>
+          <SelectTrigger size="sm" className="w-24">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="string">Text</SelectItem>
+            <SelectItem value="int">Integer</SelectItem>
+            <SelectItem value="bool">Boolean</SelectItem>
+          </SelectContent>
+        </Select>
       ) : null}
       {kind !== 'exists' && kind !== 'missing' ? (
-        <Input
-          list="explore-attribute-values"
+        <ExploreAutocomplete
           value={value}
+          options={attributeValues.length ? attributeValues : accounts.map((account) => account.value)}
           onFocus={() => onFocusValue(field, valueKind)}
-          onChangeText={(next) => commit({value: next})}
+          onChange={(next) => commit({value: next})}
           placeholder="value"
           className="h-8 min-w-32 flex-1 text-xs"
         />
       ) : null}
-      <datalist id="explore-attribute-values">
-        {[...attributeValues, ...accounts.map((account) => account.value)].map((item) => (
-          <option key={item} value={item} />
-        ))}
-      </datalist>
       <Button size="iconSm" variant="ghost" aria-label="Remove condition" onClick={onRemove}>
         ×
       </Button>
+    </div>
+  )
+}
+
+function ExploreAutocomplete({
+  value,
+  options,
+  onChange,
+  onFocus,
+  placeholder,
+  className,
+}: {
+  value: string
+  options: string[]
+  onChange: (value: string) => void
+  onFocus?: () => void
+  placeholder: string
+  className?: string
+}) {
+  const store = Ariakit.useComboboxStore({value, setValue: onChange})
+  const query = value.trim().toLocaleLowerCase()
+  const suggestions = options.filter((option) => !query || option.toLocaleLowerCase().includes(query)).slice(0, 50)
+  return (
+    <div className="relative min-w-0 flex-1">
+      <Ariakit.Combobox
+        store={store}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        onFocus={onFocus}
+        placeholder={placeholder}
+        className={cn(
+          'border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-full rounded-md border px-2 text-xs outline-none focus-visible:ring-2',
+          className,
+        )}
+      />
+      <Ariakit.ComboboxPopover
+        store={store}
+        gutter={4}
+        sameWidth
+        className="bg-popover text-popover-foreground z-50 max-h-48 overflow-auto rounded-md border p-1 shadow-md"
+      >
+        {suggestions.map((suggestion) => (
+          <Ariakit.ComboboxItem
+            key={suggestion}
+            store={store}
+            value={suggestion}
+            className="hover:bg-accent focus:bg-accent w-full rounded px-2 py-1 text-left text-xs outline-none"
+          />
+        ))}
+      </Ariakit.ComboboxPopover>
+    </div>
+  )
+}
+
+function tableCellValue(result: Extract<HMExploreResult, {type: 'document'}>, column: string) {
+  const document = result.document
+  if (column === 'title') return document?.metadata?.name || result.matchText || 'Untitled'
+  if (column === 'space') return result.id.uid
+  if (column === 'path') return `/${result.id.path?.join('/') || ''}`
+  if (column === 'updated') return result.versionTime || '—'
+  if (column === 'version') return result.id.version || '—'
+  let value: unknown = document?.metadata
+  for (const segment of column.split('.')) {
+    if (!value || typeof value !== 'object') return '—'
+    value = (value as Record<string, unknown>)[segment]
+  }
+  return value === undefined || value === null ? '—' : typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+function ExploreTable({
+  results,
+  columns,
+  sortRules,
+  onSort,
+  onOpen,
+}: {
+  results: Extract<HMExploreResult, {type: 'document'}>[]
+  columns: string[]
+  sortRules: ExploreSortRule[]
+  onSort: (key: string) => void
+  onOpen: (result: HMExploreResult) => void
+}) {
+  return (
+    <div className="border-border bg-background overflow-x-auto rounded-lg border">
+      <table className="w-full min-w-max border-collapse text-left text-sm">
+        <thead className="bg-muted/40 text-muted-foreground">
+          <tr>
+            {columns.map((column) => {
+              const sort = sortRules.find((rule) => rule.key === column)
+              const sortable = !['title', 'space', 'path', 'updated', 'version'].includes(column)
+              return (
+                <th key={column} className="border-border border-b px-3 py-2 font-medium whitespace-nowrap">
+                  <button
+                    type="button"
+                    className={cn(
+                      'rounded px-1 text-left',
+                      sortable
+                        ? 'hover:bg-muted focus-visible:ring-ring outline-none focus-visible:ring-2'
+                        : 'cursor-default',
+                    )}
+                    disabled={!sortable}
+                    onClick={() => onSort(column)}
+                    aria-label={sortable ? `Sort by ${column}` : undefined}
+                  >
+                    {column}
+                    {sort ? <span className="ml-1">{sort.direction === 'asc' ? '↑' : '↓'}</span> : null}
+                  </button>
+                </th>
+              )
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {results.map((result) => (
+            <tr key={exploreDocumentKey(result.id)} className="hover:bg-muted/20 border-b last:border-b-0">
+              {columns.map((column) => (
+                <td key={column} className="max-w-80 px-3 py-2 align-top">
+                  {column === 'title' ? (
+                    <button
+                      type="button"
+                      className="text-foreground focus-visible:ring-ring rounded text-left outline-none hover:underline focus-visible:ring-2"
+                      onClick={() => onOpen(result)}
+                    >
+                      {tableCellValue(result, column)}
+                    </button>
+                  ) : (
+                    tableCellValue(result, column)
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
