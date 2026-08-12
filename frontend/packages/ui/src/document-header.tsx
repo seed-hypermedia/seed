@@ -24,6 +24,7 @@ import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 export type AuthorPayload = HMMetadataPayload
 
@@ -55,6 +56,7 @@ export function DocumentHeader({
   showTitle = true,
   children,
   onRemoveIcon,
+  mobileBylineAction,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -67,6 +69,7 @@ export function DocumentHeader({
   showTitle?: boolean
   children?: React.ReactNode
   onRemoveIcon?: () => void
+  mobileBylineAction?: React.ReactNode
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
@@ -86,13 +89,12 @@ export function DocumentHeader({
 
   return (
     <Container
-      className="dark:bg-background relative w-full rounded-lg bg-white"
+      className={cn('dark:bg-background relative w-full rounded-lg bg-white', hasCover ? 'pt-6' : 'pt-4 md:pt-15')}
       style={{
         marginTop: hasCover ? -40 : 0,
-        paddingTop: !hasCover ? 60 : 24,
       }}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 md:gap-4">
         {!isHomeDoc && docId && hasIcon ? (
           <div
             className="group/icon relative flex w-fit"
@@ -130,7 +132,11 @@ export function DocumentHeader({
         ) : (
           <>
             {showTitle && (
-              <SizableText className="text-3xl md:text-4xl lg:text-5xl" weight="bold" {...highlighter(docId)}>
+              <SizableText
+                className="text-2xl max-md:leading-tight md:text-4xl lg:text-5xl"
+                weight="bold"
+                {...highlighter(docId)}
+              >
                 {isHomeDoc ? 'Home' : docMetadata?.name}
               </SizableText>
             )}
@@ -139,10 +145,10 @@ export function DocumentHeader({
             ) : null}
           </>
         )}
-        <div className="border-border flex flex-col gap-2 border-b pb-4">
+        <div className="border-border flex flex-col gap-2 border-b pb-2 md:pb-4">
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
-            <div className="flex flex-1 flex-wrap items-center gap-3">
+            <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">
               {displayAuthors.length ? (
                 <>
                   <p className="text-sm font-bold">
@@ -168,6 +174,33 @@ export function DocumentHeader({
               ) : null}
               {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
             </div>
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
+              {displayAuthors.length ? (
+                <>
+                  <div className="flex shrink-0 items-center -space-x-2">
+                    {displayAuthors.slice(0, 3).map((author) => (
+                      <div
+                        key={author.id.id}
+                        className="dark:border-background dark:bg-background size-5 overflow-hidden rounded-full border-2 border-white bg-white"
+                      >
+                        <HMIcon id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} size={20} />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="min-w-0 truncate text-xs font-medium">
+                    <AuthorLink id={displayAuthors[0]!.id} siteUid={docId?.uid} />
+                    {displayAuthors.length > 1 ? ` & ${displayAuthors.length - 1} others` : null}
+                  </p>
+                </>
+              ) : null}
+              {displayAuthors.length && updateTime ? (
+                <SizableText size="xs" className="shrink-0" aria-hidden="true">
+                  ·
+                </SizableText>
+              ) : null}
+              {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
+            </div>
+            {mobileBylineAction}
           </div>
         </div>
       </div>
@@ -201,14 +234,14 @@ function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string})
  * Renders the document's location trail, ending with the current document as
  * non-navigable text. A lone crumb still renders: it is the home document.
  */
-export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
+export function Breadcrumbs({breadcrumbs, className}: {breadcrumbs: BreadcrumbEntry[]; className?: string}) {
   if (breadcrumbs.length === 0) return null
 
   const [first, ...rest] = breadcrumbs
   const lastIndex = breadcrumbs.length - 1
 
   return (
-    <nav aria-label="Breadcrumb" className="text-muted-foreground flex min-w-0 flex-1 items-center">
+    <nav aria-label="Breadcrumb" className={cn('text-muted-foreground flex min-w-0 flex-1 items-center', className)}>
       <ol className="flex min-w-0 flex-1 items-center gap-2">
         {first && 'id' in first ? (
           <li className="flex shrink-0 items-center">
