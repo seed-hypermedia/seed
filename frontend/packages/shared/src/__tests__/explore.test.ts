@@ -33,6 +33,33 @@ function searchItem(overrides: Partial<SearchResultItem>): SearchResultItem {
 }
 
 describe('Explore query grammar', () => {
+  test('round-trips an empty string attribute value', () => {
+    const parsed = parseExploreQuery('status!=""')
+    expect(serializeExploreQuery(parsed)).toBe('status!=""')
+    expect(parseExploreQuery(serializeExploreQuery(parsed)).ast).toMatchObject({
+      predicate: {kind: 'attribute', key: 'status', operator: 'comparison', comparison: '!=', value: ''},
+    })
+  })
+
+  test('keeps an empty string value separate from following presentation directives', () => {
+    const parsed = parseExploreQuery('status!="" cols:title,status')
+    const serialized = serializeExploreQuery(parsed)
+    expect(serialized).toBe('status!="" cols:title,status')
+    expect(parseExploreQuery(serialized)).toMatchObject({
+      presentation: {columns: ['title', 'status']},
+      ast: {predicate: {key: 'status', comparison: '!=', value: ''}},
+    })
+  })
+
+  test('quotes string values that would otherwise parse as scalars', () => {
+    const parsed = parseExploreQuery('status="true" priority="42"')
+    expect(serializeExploreQuery(parsed)).toBe('status="true" AND priority="42"')
+    expect(parseExploreQuery(serializeExploreQuery(parsed)).ast).toMatchObject({
+      kind: 'and',
+      children: [{predicate: {value: 'true'}}, {predicate: {value: '42'}}],
+    })
+  })
+
   test('canonicalizes contains shorthand while preserving its operator', () => {
     const parsed = parseExploreQuery('name~Fixture')
     expect(serializeExploreQuery(parsed)).toBe('name:Fixture')

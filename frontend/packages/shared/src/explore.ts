@@ -233,7 +233,8 @@ function parseScalar(value: string): ExploreScalar {
 }
 
 function quoteValue(value: string): string {
-  return /[\s()"=<>~^]/.test(value) ? `"${value.replace(/"/g, '\\"')}"` : value
+  const needsQuotes = value.length === 0 || /[\s()"=<>~^]/.test(value) || /^(?:-?\d+|true|false)$/.test(value)
+  return needsQuotes ? `"${value.replace(/"/g, '\\"')}"` : value
 }
 
 function flatten(kind: 'and' | 'or', children: ExploreQueryNode[]): ExploreQueryNode {
@@ -388,7 +389,7 @@ class ExploreParser {
           key: token.value,
           operator: 'comparison',
           comparison: operator.value as ComparisonOperator,
-          value: parseScalar(value),
+          value: valueToken.kind === 'quoted' ? value : parseScalar(value),
         },
       }
     }
