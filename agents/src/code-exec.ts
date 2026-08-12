@@ -115,9 +115,10 @@ export type SandboxSdk = {
  * independently), so both dialects stay supported.
  */
 function nonLocalNetworkPolicy(sdk: SandboxSdk): unknown {
-  if (typeof sdk.NetworkPolicy.fromProfiles === 'function') return sdk.NetworkPolicy.fromProfiles(['public'])
-  if (typeof sdk.NetworkPolicy.nonLocal === 'function') return sdk.NetworkPolicy.nonLocal()
-  throw new CodeExecError('The sandbox SDK offers no non-local network policy', 502)
+  const {fromProfiles, nonLocal} = sdk.NetworkPolicy
+  if (typeof fromProfiles === 'function') return fromProfiles(['public'])
+  if (typeof nonLocal === 'function') return nonLocal()
+  throw new CodeExecError(502, 'The sandbox SDK offers no non-local network policy')
 }
 
 export type MountBuilderLike = {
