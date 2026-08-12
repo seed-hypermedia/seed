@@ -68,8 +68,8 @@ The 25-tool registry is replaced by five always-on verbs plus a callable-tool di
   rejected; brief required and rendered verbatim); write's contract now names `action: "update"` and the default's
   new-document semantics; child tool narrowing intersects against the full callable set instead of a stale `['read']`
   base; trigger instructions rewritten from the dead command envelope to the write-verb reply shape; the deleted
-  set_session_title instruction removed from the shared prompt (and the activity-feed line moved to `read activity:`);
-  https reads fall back to the web reader only on hypermedia _resolution_ failure (real hypermedia errors surface);
+  set*session_title instruction removed from the shared prompt (and the activity-feed line moved to `read activity:`);
+  https reads fall back to the web reader only on hypermedia \_resolution* failure (real hypermedia errors surface);
   write option passthrough moved from a blacklist to explicit `options.input` (alias-collision hazard closed); thread
   transcript truncation marked. Accepted as-is: the per-turn memory-listing walk (cache follow-up noted for M2) and the
   hand-cleared STALE.md marker (deliberate, documented). Refuted by the reviewer's own verification: the

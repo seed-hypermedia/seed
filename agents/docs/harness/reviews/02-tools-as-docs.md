@@ -36,27 +36,23 @@ byte-budgeted index of that Space.
   matrix, delete protection, contract markdown) and three additions to `verbs.test.ts` (index
   budget/caching/invalidation, authored-lambda listing + contract + CID, expanded-set derivation from durable events).
 - Full agents suite **229 pass / 0 fail**; typecheck clean.
-- **Adversarial review (high): 11 confirmed correctness findings, all dispositioned.** Fixed:
-  a genuine security hole — unfiltered touch-expand promotion let a hallucinated
-  `call {tool: "bash"}` durably store that name and next turn hand it to Pi's provider allowlist,
-  activating Pi's own host bash/edit builtins outside the sandbox (promotion now normalizes and
-  intersects with the enabled callable set); agent deletion FK-violating on tool_documents
-  (undeletable agents); the write verb silently re-granting publishing to deliberately read-only
-  agents — restored as a `publish` grant (legacy write-group names map onto it, the desktop gets a
-  "Publish Seed content" toggle, memory writes never gated); space-index cache keyed without the
-  callable set and never invalidated on agent update/delete; call-verb gate missing legacy-name
-  normalization (execute_code loops); the desktop Tools tab misreporting legacy execute_code
-  agents with no UI path to disable (stored arrays now normalize on load and save); the space
-  index listing other agents' triggers (missing agent_id filter); lambda names allowed to shadow
-  the five verbs; parallel long sleeps overwriting each other's wake time instead of keeping the
-  earliest; and the https hypermedia fallback swallowing transient daemon errors (now falls
-  through only on the resolver's explicit not-hypermedia marker or a 404). Also removed the
-  orphaned memoryListingPrompt. Cut-list items deferred with reasons: run-card live-subscription
-  and query-invalidation efficiency belong to M3's UI pass; transcript-rescan caching noted for
-  M5 when the scan gains wake sources.
+- **Adversarial review (high): 11 confirmed correctness findings, all dispositioned.** Fixed: a genuine security hole —
+  unfiltered touch-expand promotion let a hallucinated `call {tool: "bash"}` durably store that name and next turn hand
+  it to Pi's provider allowlist, activating Pi's own host bash/edit builtins outside the sandbox (promotion now
+  normalizes and intersects with the enabled callable set); agent deletion FK-violating on tool_documents (undeletable
+  agents); the write verb silently re-granting publishing to deliberately read-only agents — restored as a `publish`
+  grant (legacy write-group names map onto it, the desktop gets a "Publish Seed content" toggle, memory writes never
+  gated); space-index cache keyed without the callable set and never invalidated on agent update/delete; call-verb gate
+  missing legacy-name normalization (execute_code loops); the desktop Tools tab misreporting legacy execute_code agents
+  with no UI path to disable (stored arrays now normalize on load and save); the space index listing other agents'
+  triggers (missing agent_id filter); lambda names allowed to shadow the five verbs; parallel long sleeps overwriting
+  each other's wake time instead of keeping the earliest; and the https hypermedia fallback swallowing transient daemon
+  errors (now falls through only on the resolver's explicit not-hypermedia marker or a 404). Also removed the orphaned
+  memoryListingPrompt. Cut-list items deferred with reasons: run-card live-subscription and query-invalidation
+  efficiency belong to M3's UI pass; transcript-rescan caching noted for M5 when the scan gains wake sources.
 - Post-fix gates: agents **230 pass / 0 fail**, desktop **259 pass / 0 fail**, typechecks clean.
-- Desktop spot-check: system prompt viewer shows `<space>`; the Tools tab gains the publish
-  toggle; no other UI changes required.
+- Desktop spot-check: system prompt viewer shows `<space>`; the Tools tab gains the publish toggle; no other UI changes
+  required.
 
 ## Known gaps / decisions to flag
 

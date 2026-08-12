@@ -66,14 +66,12 @@ describe('tool documents', () => {
     const changed = toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {...good, source: good.source + ' '})
     expect(changed.cid).not.toBe(saved.cid)
 
-    expect(() => toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {...good, name: 'Bad Name'})).toThrow(
-      'lowercase',
-    )
+    expect(() => toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {...good, name: 'Bad Name'})).toThrow('lowercase')
     expect(() => toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {...good, name: 'search'})).toThrow('builtin')
     expect(() => toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {...good, source: ''})).toThrow('source')
-    expect(() =>
-      toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {...good, input: {type: 'wat'}}),
-    ).toThrow('schema')
+    expect(() => toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {...good, input: {type: 'wat'}})).toThrow(
+      'schema',
+    )
   })
 
   test('delete removes lambdas and refuses builtins', () => {
