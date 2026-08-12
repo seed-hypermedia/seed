@@ -87,11 +87,14 @@ function AgentDetailPage({
   routeServerUrl,
   tab = 'sessions',
   triggerId,
+  memoryPath,
 }: {
   agentId: string
   routeServerUrl?: string
   tab?: AgentPageTab
   triggerId?: string
+  /** Memory file the route asked to open, set when a tool row linked to it. */
+  memoryPath?: string
 }) {
   const selectedAccountId = useSelectedAccountId()
   const navigate = useNavigate()
@@ -439,7 +442,12 @@ function AgentDetailPage({
               ) : null}
 
               {tab === 'memory' ? (
-                <AgentMemoryTab serverUrl={serverUrl} accountUid={selectedAccountId ?? null} agentId={agentId} />
+                <AgentMemoryTab
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  agentId={agentId}
+                  openPath={memoryPath}
+                />
               ) : null}
 
               {tab === 'tools' ? (
@@ -1640,6 +1648,7 @@ export default function AgentDetailRoutePage() {
       routeServerUrl={route.serverUrl}
       tab={route.tab}
       triggerId={route.triggerId}
+      memoryPath={route.memoryPath}
     />
   )
 }

@@ -1,22 +1,19 @@
 import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} from '@/agents-client'
-import {formatElapsed, formatTokenCount} from '@/components/agent-run-status'
-import {SessionStatusDot} from '@/components/session-children'
+import {ToolCallLine} from '@/components/assistant-message-rendering'
 import {
-  useAgentRunTreeSubscription,
-  useCancelRun,
-  useRun,
-  useRunTree,
-  useSessionRuns,
-  type AgentRunTreeLiveState,
-} from '@/models/agents'
+  RunWorkHierarchy,
+  PlanStepRow,
+  descendantsOf,
+  isTerminalRun,
+  runTitle,
+  useRunTreeView,
+  type PlanSettle,
+} from '@/pages/agents/run-work'
+import {formatElapsed, formatTokenCount} from '@/components/agent-run-status'
+import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from '@/models/agents'
 import {Button} from '@shm/ui/button'
-import {Bot, Check, ChevronDown, ChevronRight, CircleDashed, Loader2, Minus, Workflow, X} from 'lucide-react'
+import {ChevronDown, ChevronRight, Loader2, Workflow} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
-
-/** Statuses a run can no longer leave. */
-const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
-
-const isTerminalRun = (status: RunStatus) => TERMINAL_RUN_STATUSES.has(status)
 
 /** How a run's status reads in the header pill. */
 const RUN_STATUS_LABELS: Record<RunStatus, string> = {
@@ -34,72 +31,6 @@ function runStatusClass(status: RunStatus): string {
   if (status === 'succeeded') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
   if (status === 'canceled') return 'border-border bg-muted text-muted-foreground'
   return 'border-primary/30 bg-primary/10 text-primary'
-}
-
-/** Session status a run maps onto, so child rows reuse the one status dot the lists use. */
-function runStatusAsSessionStatus(status: RunStatus): 'idle' | 'streaming' | 'error' {
-  if (status === 'failed' || status === 'canceled') return 'error'
-  if (isTerminalRun(status)) return 'idle'
-  return 'streaming'
-}
-
-/** A run's own title, or what it is when it never got one. */
-function runTitle(run: RunInfo): string {
-  if (run.title) return run.title
-  if (run.kind === 'workflow') return 'Workflow'
-  // Only child runs are sub-sessions; an untitled root is just this session's own turn.
-  return run.parentRunId ? 'Sub-session' : 'Agent turn'
-}
-
-/**
- * The run tree behind a card: durable rows from `ListRuns`, overlaid by the socket's replay.
- *
- * `live: false` opens no socket and skips the tree query — used by transcript cards that are
- * collapsed, so a long chat full of finished workflows costs nothing until one is opened.
- */
-function useRunTreeView(
-  serverUrl: string,
-  accountUid: string | null | undefined,
-  rootRunId: string | undefined,
-  seed: RunInfo | undefined,
-  live: boolean,
-): {runsById: Record<string, RunInfo>; liveState: AgentRunTreeLiveState} {
-  const tree = useRunTree(serverUrl, accountUid, live ? rootRunId : undefined)
-  const liveState = useAgentRunTreeSubscription(serverUrl, accountUid, live ? rootRunId : undefined)
-
-  const runsById = useMemo(() => {
-    const merged: Record<string, RunInfo> = {}
-    for (const run of tree.data || []) merged[run.id] = run
-    if (seed && !merged[seed.id]) merged[seed.id] = seed
-    // The socket's replay is at least as fresh as the query, so it wins.
-    for (const run of Object.values(liveState.runs)) merged[run.id] = run
-    return merged
-  }, [tree.data, liveState.runs, seed])
-
-  return {runsById, liveState}
-}
-
-/**
- * Every run spawned under `focusRunId`, at any depth, oldest first.
- *
- * A subscription is keyed by the tree's root, so a card focused on one run inside that tree (a
- * workflow bubble, say) receives its siblings too and has to narrow to its own branch.
- */
-function descendantsOf(runsById: Record<string, RunInfo>, focusRunId: string): RunInfo[] {
-  const isDescendant = (run: RunInfo): boolean => {
-    let current: RunInfo | undefined = run
-    // Bounded walk: a cycle would otherwise hang the render.
-    for (let depth = 0; depth < 32 && current; depth += 1) {
-      const parentId: string | undefined = current.parentRunId
-      if (!parentId) return false
-      if (parentId === focusRunId) return true
-      current = runsById[parentId]
-    }
-    return false
-  }
-  return Object.values(runsById)
-    .filter((run) => run.id !== focusRunId && isDescendant(run))
-    .sort((a, b) => a.createdAt - b.createdAt)
 }
 
 /**
@@ -156,6 +87,8 @@ export function SessionRunCard({
     return (
       <RunCardShell compact={compact} column>
         <RunCardBody
+          serverUrl={serverUrl}
+          accountUid={accountUid}
           run={root}
           childRuns={children}
           liveState={liveState}
@@ -216,6 +149,8 @@ export function RunRecordCard({
     // Same shell as the pinned card: this IS that card, frozen where the run finished.
     <div className="border-border bg-card mr-6 flex flex-col gap-2 rounded-lg border p-2.5">
       <RunCardBody
+        serverUrl={serverUrl}
+        accountUid={accountUid}
         run={focus}
         childRuns={children}
         liveState={liveState}
@@ -234,6 +169,8 @@ export function RunRecordCard({
  * Shared by the pinned card and the transcript record so a run looks the same wherever it is read.
  */
 function RunCardBody({
+  serverUrl,
+  accountUid,
   run,
   childRuns,
   liveState,
@@ -243,6 +180,9 @@ function RunCardBody({
   onCancelRun,
   cancelPending,
 }: {
+  /** Agent server this run lives on, so its tool rows can link into the agent's own pages. */
+  serverUrl: string
+  accountUid: string | null | undefined
   run: RunInfo
   childRuns: RunInfo[]
   liveState: AgentRunTreeLiveState
@@ -262,29 +202,6 @@ function RunCardBody({
   useEffect(() => {
     if (isTerminal) setConfirmingCancel(false)
   }, [isTerminal])
-
-  // A step and the sub-agent working it are one item, not two. A child attaches to a step when the
-  // spawner recorded the step label (`stepLabel`, stamped by ctx.step / the running update_plan
-  // step), or — legacy runs — when its title happens to equal a step label. Attached children render
-  // in the step's position, replacing the step row: the child row is clickable, cancelable, and
-  // live, which is everything the step row would have said and more.
-  const {childrenByStep, unattachedChildren} = useMemo(() => {
-    const byStep = new Map<string, RunInfo[]>()
-    if (!plan?.steps.length) return {childrenByStep: byStep, unattachedChildren: childRuns}
-    const stepLabels = new Set(plan.steps.map((step) => step.label.trim().toLowerCase()))
-    const loose: RunInfo[] = []
-    for (const child of childRuns) {
-      const stamped = (child.stepLabel || '').trim().toLowerCase()
-      const titled = (child.title || '').trim().toLowerCase()
-      const label = stamped && stepLabels.has(stamped) ? stamped : titled && stepLabels.has(titled) ? titled : undefined
-      if (!label) {
-        loose.push(child)
-        continue
-      }
-      byStep.set(label, [...(byStep.get(label) ?? []), child])
-    }
-    return {childrenByStep: byStep, unattachedChildren: loose}
-  }, [plan, childRuns])
 
   return (
     <>
@@ -339,49 +256,20 @@ function RunCardBody({
         </div>
       ) : null}
 
-      {plan?.steps.length || unattachedChildren.length ? (
-        <div className="flex min-w-0 flex-col gap-0.5">
-          {plan?.title ? (
-            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
-          ) : null}
-          {(plan?.steps ?? []).map((step) => {
-            const attached = childrenByStep.get(step.label.trim().toLowerCase())
-            if (attached?.length) {
-              return attached.map((child) => (
-                <RunChildRow
-                  key={child.id}
-                  run={child}
-                  ownerTerminal={isTerminal}
-                  activityDetail={liveState.activity[child.id]?.detail}
-                  onOpen={
-                    child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined
-                  }
-                  onCancel={() => onCancelRun(child.id)}
-                  cancelPending={cancelPending}
-                />
-              ))
-            }
-            return (
-              <PlanStepRow key={step.id} step={step} compact={compact} settle={isTerminal ? 'run-finished' : 'live'} />
-            )
-          })}
-          {/* Children with no home step live in the same list — the plan and the delegated work
-              are one account of the run, never two stacked lists. */}
-          {unattachedChildren.map((child) => (
-            <RunChildRow
-              key={child.id}
-              run={child}
-              ownerTerminal={isTerminal}
-              activityDetail={liveState.activity[child.id]?.detail}
-              onOpen={
-                child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined
-              }
-              onCancel={() => onCancelRun(child.id)}
-              cancelPending={cancelPending}
-            />
-          ))}
-        </div>
-      ) : null}
+      <RunWorkHierarchy
+        run={run}
+        childRuns={childRuns}
+        plan={plan}
+        journal={liveState.journal}
+        liveState={liveState}
+        compact={compact}
+        onOpenSession={onOpenSession}
+        onCancelRun={onCancelRun}
+        cancelPending={cancelPending}
+        renderToolPart={(part) => (
+          <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
+        )}
+      />
 
       <RunSourceDrawer runs={[run, ...childRuns]} />
 
@@ -606,65 +494,6 @@ function RunElapsed({run}: {run: RunInfo}) {
   )
 }
 
-const STEP_ICONS = {
-  pending: CircleDashed,
-  running: Loader2,
-  done: Check,
-  failed: X,
-  skipped: Minus,
-}
-
-const STEP_CLASSES = {
-  pending: 'text-muted-foreground',
-  running: 'text-primary',
-  done: 'text-emerald-600 dark:text-emerald-400',
-  failed: 'text-destructive',
-  skipped: 'text-muted-foreground line-through',
-}
-
-type StepStatus = keyof typeof STEP_ICONS
-
-/**
- * How much of the plan's own account of itself to still believe.
- *
- * - `live`: verbatim.
- * - `run-finished`: the run that owns this plan is over, so nothing in it is running and nothing
- *   pending will start. Mirrors the settling the service now does in `plan_cbor`, so plans written
- *   before that landed read identically.
- * - `idle`: a session todo list with no run behind it right now. The session lives on, so pending
- *   steps stay pending — but a step left mid-flight is not running either, and a spinner under a
- *   finished turn is exactly the lie that makes the whole card untrustworthy.
- */
-type PlanSettle = 'live' | 'run-finished' | 'idle'
-
-function displayStepStatus(status: StepStatus, settle: PlanSettle): StepStatus {
-  if (settle === 'live') return status
-  if (settle === 'idle') return status === 'running' ? 'pending' : status
-  if (status === 'running') return 'done'
-  if (status === 'pending') return 'skipped'
-  return status
-}
-
-/** One plan step row: status icon and label. */
-function PlanStepRow({
-  step,
-  compact,
-  settle = 'live',
-}: {
-  step: RunPlan['steps'][number]
-  compact?: boolean
-  settle?: PlanSettle
-}) {
-  const status = displayStepStatus(step.status, settle)
-  const Icon = STEP_ICONS[status]
-  return (
-    <div className={`flex min-w-0 items-center gap-1.5 ${compact ? 'text-[11px]' : 'text-xs'}`}>
-      <Icon className={`size-3 flex-none ${STEP_CLASSES[status]} ${status === 'running' ? 'animate-spin' : ''}`} />
-      <span className={`min-w-0 truncate ${STEP_CLASSES[status]}`}>{step.label}</span>
-    </div>
-  )
-}
-
 /** The step list, fed by a run's plan or by the session's `update_plan` todo list. */
 function RunPlanSteps({plan, compact, settle = 'live'}: {plan: RunPlan; compact?: boolean; settle?: PlanSettle}) {
   return (
@@ -675,76 +504,6 @@ function RunPlanSteps({plan, compact, settle = 'live'}: {plan: RunPlan; compact?
       {plan.steps.map((step) => (
         <PlanStepRow key={step.id} step={step} compact={compact} settle={settle} />
       ))}
-    </div>
-  )
-}
-
-/** One child run in the strip: status, what it is, a way into its transcript, and a way to stop it. */
-function RunChildRow({
-  run,
-  ownerTerminal,
-  activityDetail,
-  onOpen,
-  onCancel,
-  cancelPending,
-}: {
-  run: RunInfo
-  /** The parent run has finished, so this child cannot still be going however it was last recorded. */
-  ownerTerminal?: boolean
-  activityDetail?: string
-  onOpen?: () => void
-  onCancel?: () => void
-  cancelPending?: boolean
-}) {
-  const KindIcon = run.kind === 'workflow' ? Workflow : Bot
-  const isLive = !isTerminalRun(run.status) && !ownerTerminal
-  const status = runStatusAsSessionStatus(run.status)
-  // A stale "still running" child under a finished parent gets the quiet dot, never the pulse.
-  const dotStatus = status === 'streaming' && !isLive ? 'idle' : status
-  const content = (
-    <>
-      <SessionStatusDot status={dotStatus} className="size-2" />
-      <KindIcon className="text-muted-foreground size-3 flex-none" />
-      {/* The title is the click target: it holds its ground (truncating only past 55%), while the
-          error text yields — truncated into the remaining space with the full text on hover.
-          A flex-none error span let long provider errors crush the title entirely. */}
-      <span className="max-w-[55%] flex-none truncate">{runTitle(run)}</span>
-      {isLive && activityDetail ? (
-        <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">{activityDetail}</span>
-      ) : null}
-      {run.error ? (
-        <span className="text-destructive min-w-0 flex-1 truncate text-[10px]" title={run.error.message}>
-          {run.error.message}
-        </span>
-      ) : null}
-    </>
-  )
-  return (
-    <div className="flex min-w-0 items-center gap-1">
-      {onOpen ? (
-        <button
-          type="button"
-          className="hover:bg-muted flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px]"
-          onClick={onOpen}
-        >
-          {content}
-        </button>
-      ) : (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 px-1 py-0.5 text-[11px]">{content}</div>
-      )}
-      {isLive && onCancel ? (
-        <button
-          type="button"
-          // One child is low-stakes to stop, unlike the whole run — no confirmation step in the way.
-          aria-label={`Cancel ${runTitle(run)}`}
-          title={`Cancel ${runTitle(run)}`}
-          className="text-muted-foreground hover:text-destructive flex-none rounded p-0.5"
-          disabled={cancelPending}
-          onClick={onCancel}
-        >
-          <X className="size-3" />
-        </button>
-      ) : null}
     </div>
   )
 }

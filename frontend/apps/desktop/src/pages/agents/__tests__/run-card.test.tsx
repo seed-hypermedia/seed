@@ -22,6 +22,25 @@ const mockState = vi.hoisted(() => ({
   cancel: vi.fn(),
 }))
 
+// The card renders the chat's own tool rows, which reach for navigation and the app context —
+// neither exists in this environment, and neither is what these tests are about.
+vi.mock('@/utils/useNavigate', () => ({
+  useNavigate: () => vi.fn(),
+  useClickNavigate: () => vi.fn(),
+}))
+
+vi.mock('@/open-url', () => ({
+  useOpenUrl: () => vi.fn(),
+}))
+
+vi.mock('@/selected-account', () => ({
+  useSelectedAccountId: () => 'account-1',
+}))
+
+vi.mock('@/components/markdown', () => ({
+  Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
+}))
+
 vi.mock('@/models/agents', () => ({
   useSessionRuns: () => ({data: mockState.runs}),
   useRunTree: () => ({data: mockState.tree}),
@@ -225,9 +244,10 @@ describe('SessionRunCard (pinned)', () => {
         }}
       />,
     )
-    // The child row is authoritative for its own step: one mention of it, not two.
-    expect(container.textContent).not.toContain('research acme')
-    expect(container.textContent).toContain('Research Acme')
+    // The step and the child working it are ONE row, labeled by the step — the child rides along
+    // as status and as the row's way in, never as a second row saying the same thing.
+    expect(container.textContent).toContain('research acme')
+    expect(container.textContent).not.toContain('Research Acme')
     expect(container.textContent).toContain('Write the summary')
   })
 
@@ -255,13 +275,10 @@ describe('SessionRunCard (pinned)', () => {
         }}
       />,
     )
-    expect(container.textContent).not.toContain('Research common supplements' + 'Draft')
-    expect(container.textContent).toContain('Research common health supplements')
-    // The step's own row is gone: its label appears nowhere outside the child row.
-    const rows = Array.from(container.querySelectorAll('span')).filter(
-      (span) => span.textContent === 'Research common supplements',
-    )
-    expect(rows).toHaveLength(0)
+    // One row for the pair, labeled by the step; the differently-titled child is its way in, and
+    // never renders again as a loose row.
+    expect(container.textContent).not.toContain('Research common health supplements')
+    expect(container.textContent).toContain('Research common supplements')
     expect(container.textContent).toContain('Draft knowledge base structure')
   })
 

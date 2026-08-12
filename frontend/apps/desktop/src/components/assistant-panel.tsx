@@ -685,6 +685,8 @@ function AssistantSessionChat({
                   message={row.message}
                   liveActivity={chatRowHasPendingToolCall(row) ? live.activity : undefined}
                   serverUrl={serverUrl}
+                  accountUid={accountUid}
+                  agentId={session.data?.session.agentId}
                 />
               )
             if (row.kind === 'error') {

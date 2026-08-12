@@ -47,10 +47,13 @@ export function AgentMemoryTab({
   serverUrl,
   accountUid,
   agentId,
+  openPath,
 }: {
   serverUrl: string
   accountUid: string | null
   agentId: string
+  /** File the route asked for — a tool row linking to `~/memory/<path>` lands the user on it. */
+  openPath?: string
 }) {
   const memory = useAgentMemory(serverUrl, accountUid, agentId)
   const writeFile = useWriteAgentMemoryFile(serverUrl, accountUid)
@@ -113,6 +116,22 @@ export function AgentMemoryTab({
       return next
     })
   }
+
+  // Arriving from a `~/memory/…` link: open that file (or reveal that folder) ONCE per requested
+  // path — a later poll of the listing must not yank the user back off whatever they opened next.
+  const openedPathRef = useRef<string | undefined>(undefined)
+  useEffect(() => {
+    // Waiting for the listing keeps a directory link from being opened as if it were a file.
+    if (!openPath || !memory.data || openedPathRef.current === openPath) return
+    openedPathRef.current = openPath
+    if (memory.data.entries.some((entry) => entry.path === openPath && entry.type === 'dir')) {
+      setExpandedDirs((current) => new Set(current).add(openPath))
+      revealPath(openPath)
+      return
+    }
+    selectFile(openPath)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one reveal per requested path
+  }, [openPath, memory.data])
 
   /** Expands every ancestor directory of a path so it is visible in the tree. */
   function revealPath(path: string) {

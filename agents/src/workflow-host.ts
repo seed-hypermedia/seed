@@ -27,7 +27,7 @@ import type {RunPlanState} from '@/runs'
  * occur).
  */
 export type WorkflowJournalEntry = {callSeq: number; key?: string} & (
-  | {kind: 'call'; op: 'tool' | 'agent'; tool?: string; input: unknown; childRunId?: string}
+  | {kind: 'call'; op: 'tool' | 'agent'; tool?: string; input: unknown; childRunId?: string; description?: string}
   | {
       kind: 'result'
       status: 'succeeded' | 'failed'
@@ -60,7 +60,7 @@ export type WorkflowAdapters = {
     append(entry: WorkflowJournalEntry): void
   }
   effects: {
-    callTool(tool: string, input: unknown): Promise<unknown>
+    callTool(tool: string, input: unknown, description?: string): Promise<unknown>
     /** Creates the child run (queued) and returns its id; the pump awaits it separately. */
     spawnAgent(spec: unknown, stepLabel?: string): {childRunId: string; sessionId?: string}
     awaitChild(childRunId: string): Promise<WorkflowChildResolution>
@@ -419,15 +419,30 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
     switch (effect.op) {
       case 'tool': {
         const tool = String(args.tool ?? '')
+        // Scripts narrate their own work: ctx.call(tool, input, {description}) labels this call
+        // for the run card and live activity. Descriptions are display metadata — they ride the
+        // journal entry but stay OUT of the content key, so relabeling never breaks replay.
+        const opts = args.opts as {description?: unknown} | undefined
+        const description = typeof opts?.description === 'string' ? opts.description : undefined
         if (journaledResult) {
           const [ok, value] = journaledResultValue(journaledResult)
           scheduleDelivery(effect.callId, ok, value)
           return
         }
-        if (!journaledCall) adapters.journal.append({kind: 'call', callSeq, key, op: 'tool', tool, input: args.input})
+        if (!journaledCall) {
+          adapters.journal.append({
+            kind: 'call',
+            callSeq,
+            key,
+            op: 'tool',
+            tool,
+            input: args.input,
+            ...(description ? {description} : {}),
+          })
+        }
         // A call journaled without a result was interrupted mid-execution; whether it took effect is
         // unknowable, so it re-executes (workflow tools should be idempotent or cheap).
-        startInflight(effect.callId, callSeq, () => adapters.effects.callTool(tool, args.input))
+        startInflight(effect.callId, callSeq, () => adapters.effects.callTool(tool, args.input, description))
         return
       }
       case 'agent': {

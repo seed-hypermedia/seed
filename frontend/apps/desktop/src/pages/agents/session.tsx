@@ -882,7 +882,13 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
       return (
         <div className="flex flex-col gap-1.5">
           {row.message.content?.trim() || row.message.blocks?.length ? (
-            <ChatMessageBubble message={row.message} liveActivity={liveActivity} serverUrl={serverUrl} />
+            <ChatMessageBubble
+              message={row.message}
+              liveActivity={liveActivity}
+              serverUrl={serverUrl}
+              accountUid={accountUid}
+              agentId={agentId}
+            />
           ) : null}
           <TriggerContextView
             context={row.triggerContext}
@@ -893,7 +899,15 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
         </div>
       )
     }
-    return <ChatMessageBubble message={row.message} liveActivity={liveActivity} serverUrl={serverUrl} />
+    return (
+      <ChatMessageBubble
+        message={row.message}
+        liveActivity={liveActivity}
+        serverUrl={serverUrl}
+        accountUid={accountUid}
+        agentId={agentId}
+      />
+    )
   }
 
   if (row.kind === 'error') {

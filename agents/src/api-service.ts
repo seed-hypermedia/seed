@@ -3259,7 +3259,7 @@ export class Service {
         },
       },
       effects: {
-        callTool: async (rawTool, input) => {
+        callTool: async (rawTool, input, description) => {
           // Models occasionally leak the provider's function namespace into tool names
           // (`functions.memory_write`); accept it rather than failing a real workflow over it.
           const tool = rawTool.replace(/^functions\./, '')
@@ -3285,7 +3285,7 @@ export class Service {
             }
           }
           toolCallCounter += 1
-          emitRunPartial({activity: {phase: 'tool', toolName: tool}})
+          emitRunPartial({activity: {phase: 'tool', toolName: tool, ...(description ? {detail: description} : {})}})
           try {
             // Callable tools (search, web_search, execute, …) have no standalone provider tool —
             // scripts reach them through the same call-verb dispatch the model uses.

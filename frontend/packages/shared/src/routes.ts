@@ -342,6 +342,8 @@ export const agentRouteSchema = z.object({
   serverUrl: z.string().optional(),
   tab: z.enum(['sessions', 'triggers', 'memory', 'tools', 'prompt', 'settings']).optional(),
   triggerId: z.string().optional(),
+  /** Memory tab: the file to open, so a `~/memory/…` link in a tool row lands on that file. */
+  memoryPath: z.string().optional(),
 })
 /** Navigation route for one server-hosted agent. */
 export type AgentRoute = z.infer<typeof agentRouteSchema>

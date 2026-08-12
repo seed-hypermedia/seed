@@ -130,8 +130,10 @@ const readVerb = {
   render: {
     kind: 'read',
     label: 'Read',
+    pendingLabel: 'Reading',
     color: 'sky',
     primaryArg: 'address',
+    summaryArg: 'address',
     resourceArg: 'address',
     summaryOutputPath: 'summary',
     details: [{label: 'Content', source: 'output'}],
@@ -178,8 +180,10 @@ const writeVerb = {
   render: {
     kind: 'write',
     label: 'Write',
+    pendingLabel: 'Writing',
     color: 'emerald',
     primaryArg: 'address',
+    summaryArg: 'address',
     resourceArg: 'address',
     summaryOutputPath: 'summary',
     details: [
@@ -245,6 +249,7 @@ const callVerb = {
   render: {
     kind: 'generic',
     label: 'Call',
+    pendingLabel: 'Calling',
     color: 'amber',
     primaryArg: 'tool',
     summaryArg: 'tool',
@@ -264,7 +269,7 @@ const delegateVerb = {
   description: [
     'Spawn a child run to do work for you. Two kinds of child, one verb:',
     '- A **model child** (default): pass `brief` — human-readable markdown that becomes the child conversation\'s first message VERBATIM. The user reviews it as the child\'s full context, so write a real briefing: goal, all needed background, expectations, data in fenced blocks. The child is a fresh context and never sees this conversation; it does share your persistent memory when it runs as you. Pass `prompt` for an anonymous worker persona or `agentId` to run one of your other agents; pass `tools` only to narrow its toolset. Declare `output` (a JSON schema, root type "object") to get a validated structured result; otherwise you get its final text.',
-    '- A **script child**: pass `script` — a JavaScript module `export default async function (input, ctx) {…}` that orchestrates tools with real control flow (loops, parallel fan-out, durable sleeps). No imports, Date, Math.random, setTimeout, or fetch; everything external goes through ctx: `ctx.call(tool, input)` — where tool is the read or write verb or any callable tool — `ctx.delegate({...})` for nested model children (resolves DIRECTLY to the validated output object, or {text} when no output schema was declared; throws a coded error on failure), `ctx.parallel([...thunks])` (array of zero-arg functions, resolves to results in the same order), `ctx.sleep(ms)`, `ctx.step(label, fn)`, `ctx.plan({steps})`, `ctx.now()`, `ctx.log(...)`, `ctx.progress(...)`, `ctx.input`, `ctx.runId`. Scripts run durably: they survive restarts and completed steps never re-execute. Pass `input` for the JSON value handed to the module.',
+    '- A **script child**: pass `script` — a JavaScript module `export default async function (input, ctx) {…}` that orchestrates tools with real control flow (loops, parallel fan-out, durable sleeps). No imports, Date, Math.random, setTimeout, or fetch; everything external goes through ctx: `ctx.call(tool, input, {description})` — where tool is the read or write verb or any callable tool, and description is a short human-readable label for what this call is doing (shown live to the user; always provide one) — `ctx.delegate({...})` for nested model children (resolves DIRECTLY to the validated output object, or {text} when no output schema was declared; throws a coded error on failure), `ctx.parallel([...thunks])` (array of zero-arg functions, resolves to results in the same order), `ctx.sleep(ms)`, `ctx.step(label, fn)`, `ctx.plan({steps})`, `ctx.now()`, `ctx.log(...)`, `ctx.progress(...)`, `ctx.input`, `ctx.runId`. Scripts run durably: they survive restarts and completed steps never re-execute. Pass `input` for the JSON value handed to the module.',
     'By default your turn pauses (cheaply — parked, restart-proof) until every child spawned this turn resolves; spawn several in one reply to fan out in parallel — each delegate call receives its own result, so parallel children never mix up. Pass `await: false` only for fire-and-forget work whose outcome you do not need.',
     'Keep a plan: update it so the step this delegation serves is the running step, and the child is tracked under it. Do NOT delegate work you can simply do yourself, and never delegate just to make one tool call.',
   ].join('\n'),
@@ -328,6 +333,10 @@ const delegateVerb = {
     color: 'violet',
     primaryArg: 'title',
     summaryArg: 'title',
+    // The full account of a delegation, for any surface without a purpose-built view: what the
+    // child was asked to do, the code if it was a script child, and what came back. (The desktop
+    // bubble renders the brief and the child's own run hierarchy instead, and keeps the raw
+    // payloads behind its info dialog.) Absent fields render nothing.
     details: [
       {label: 'Brief', source: 'input', path: 'brief', format: 'markdown'},
       {label: 'Script', source: 'input', path: 'script'},

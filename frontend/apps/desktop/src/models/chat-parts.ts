@@ -32,6 +32,11 @@ export type ChatToolPart = {
   isError?: boolean
   /** Who ran the tool. The log is shared: 'user' marks verbs the user ran themselves. */
   actor?: 'user' | 'agent' | 'system' | 'trigger'
+  /**
+   * Display label that outranks the derived summary — a workflow's own description of what a
+   * journaled call was doing ("Checking the pricing page"), with the tool name as secondary.
+   */
+  summaryOverride?: string
 }
 
 /** Ordered assistant message content used to interleave text and tool activity. */

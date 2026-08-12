@@ -70,12 +70,18 @@ vi.mock('@/models/agents', () => ({
 import {AgentErrorRow, ChatMessageBubble} from '../components/assistant-message-rendering'
 
 /** Renders one assistant bubble carrying the given tool part. */
-function renderToolPart(part: ChatMessagePart, serverUrl?: string) {
+function renderToolPart(part: ChatMessagePart, serverUrl?: string, agentId?: string) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
   act(() => {
-    root.render(<ChatMessageBubble message={{role: 'assistant', content: '', parts: [part]}} serverUrl={serverUrl} />)
+    root.render(
+      <ChatMessageBubble
+        message={{role: 'assistant', content: '', parts: [part]}}
+        serverUrl={serverUrl}
+        agentId={agentId}
+      />,
+    )
   })
   return {container, root}
 }
@@ -207,25 +213,25 @@ describe('assistant message rendering', () => {
     cleanupRendered(root, container)
   })
 
-  it('renders a user-facing read tool bubble', () => {
+  it('names the hypermedia document a read returned, and opens it', () => {
     const {container, root} = renderToolPart({
       type: 'tool',
       id: 'tool-1',
       name: 'read',
-      args: {id: 'hm://z6Mkabc/projects/seed'},
+      args: {address: 'hm://z6Mkabc/projects/seed'},
       result: 'Read "Seed Notes".',
       rawOutput: {
-        summary: 'Read "Seed Notes".',
-        resourceUrl: 'hm://z6Mkabc/projects/seed',
-        view: 'document',
+        type: 'hypermedia_document',
+        id: 'hm://z6Mkabc/projects/seed',
         title: 'Seed Notes',
-        displayLabel: 'Seed Notes in Seed',
         markdown: '# Seed Notes\n\nProject status and notes.',
       },
     })
 
-    expect(container.textContent).toContain('Read document: Seed Notes')
-    expect(container.textContent).not.toContain('hm://z6Mkabc/projects/seed')
+    // The document's own name, plus which world it came from — never "Read document: document".
+    expect(container.textContent).toContain('Read')
+    expect(container.textContent).toContain('Seed Notes')
+    expect(container.textContent).toContain('hm doc')
     expect(container.textContent).not.toContain('Project status and notes.')
 
     click(findButton(container, (element) => element.textContent === 'Seed Notes'))
@@ -233,6 +239,153 @@ describe('assistant message rendering', () => {
 
     click(findButton(container, (element) => element.getAttribute('title') === 'Show tool details'))
     expect(container.textContent).toContain('Project status and notes.')
+    // The address itself is a way in, not a string to read.
+    expect(findButton(container, (element) => element.textContent === 'hm://z6Mkabc/projects/seed')).toBeTruthy()
+
+    cleanupRendered(root, container)
+  })
+
+  it('shows the memory file a read touched, and opens it in the agent Memory tab', () => {
+    const {container, root} = renderToolPart(
+      {
+        type: 'tool',
+        id: 'tool-memory-read',
+        name: 'read',
+        args: {address: '~/memory/notes/competitors.md'},
+        result: 'Read notes/competitors.md (412 bytes).',
+        rawOutput: {
+          summary: 'Read notes/competitors.md (412 bytes).',
+          path: 'notes/competitors.md',
+          size: 412,
+          content: 'Acme ships weekly.',
+        },
+      },
+      'http://localhost:3050',
+      'agent-1',
+    )
+
+    expect(container.textContent).toContain('Read')
+    expect(container.textContent).toContain('notes/competitors.md')
+    expect(container.textContent).toContain('memory')
+    expect(container.textContent).not.toContain('Acme ships weekly.')
+
+    click(findButton(container, (element) => element.textContent === 'notes/competitors.md'))
+    expect(mockState.clickNavigate).toHaveBeenCalledWith(
+      {
+        key: 'agent',
+        agentId: 'agent-1',
+        serverUrl: 'http://localhost:3050',
+        tab: 'memory',
+        memoryPath: 'notes/competitors.md',
+      },
+      expect.anything(),
+    )
+
+    click(findButton(container, (element) => element.getAttribute('title') === 'Show tool details'))
+    expect(container.textContent).toContain('Acme ships weekly.')
+
+    cleanupRendered(root, container)
+  })
+
+  it('lists a memory directory read with its entries as links', () => {
+    const {container, root} = renderToolPart(
+      {
+        type: 'tool',
+        id: 'tool-memory-list',
+        name: 'read',
+        args: {address: '~/memory/notes/'},
+        rawOutput: {
+          summary: 'notes/ holds 2 files (500 bytes).',
+          path: 'notes',
+          entries: [
+            {path: 'notes/competitors.md', type: 'file', size: 412},
+            {path: 'notes/archive', type: 'dir'},
+          ],
+        },
+      },
+      'http://localhost:3050',
+      'agent-1',
+    )
+
+    expect(container.textContent).toContain('Listed')
+    expect(container.textContent).toContain('2 entries')
+
+    click(findButton(container, (element) => element.getAttribute('title') === 'Show tool details'))
+    click(findButton(container, (element) => element.textContent === 'notes/competitors.md'))
+    expect(mockState.clickNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({tab: 'memory', memoryPath: 'notes/competitors.md'}),
+      expect.anything(),
+    )
+
+    cleanupRendered(root, container)
+  })
+
+  it('names a web page read by its host and path', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'tool-web-read',
+      name: 'read',
+      args: {address: 'https://bun.sh/blog/bun-v1.2'},
+      rawOutput: {
+        summary: 'Read Bun 1.2 via the static reader.',
+        finalUrl: 'https://bun.sh/blog/bun-v1.2',
+        title: 'Bun 1.2',
+        markdown: 'Bun 1.2 is here.',
+      },
+    })
+
+    expect(container.textContent).toContain('bun.sh/blog/bun-v1.2')
+    expect(container.textContent).toContain('web')
+
+    click(findButton(container, (element) => element.textContent === 'bun.sh/blog/bun-v1.2'))
+    expect(mockState.openUrl).toHaveBeenCalledWith('https://bun.sh/blog/bun-v1.2', false)
+
+    cleanupRendered(root, container)
+  })
+
+  it('says what a memory write saved, and where', () => {
+    const {container, root} = renderToolPart(
+      {
+        type: 'tool',
+        id: 'tool-memory-write',
+        name: 'write',
+        args: {address: '~/memory/dl.txt', options: {fromUrl: 'https://example.com/dl.txt'}},
+        rawOutput: {
+          summary: 'Downloaded https://example.com/dl.txt to dl.txt (12 bytes).',
+          path: 'dl.txt',
+          size: 12,
+          finalUrl: 'https://example.com/dl.txt',
+        },
+      },
+      'http://localhost:3050',
+      'agent-1',
+    )
+
+    expect(container.textContent).toContain('Downloaded')
+    expect(container.textContent).toContain('dl.txt')
+    expect(container.textContent).toContain('from example.com/dl.txt')
+    expect(container.textContent).toContain('memory')
+
+    cleanupRendered(root, container)
+  })
+
+  it('renders a call row as the tool it called, not as "Call"', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'tool-call-search',
+      name: 'call',
+      args: {tool: 'search', input: {query: 'seed'}},
+      rawOutput: {
+        summary: 'Found 1 result for "seed".',
+        results: [{title: 'Seed Notes', url: 'hm://z6Mkabc/projects/seed'}],
+      },
+    })
+
+    expect(container.textContent).toContain('Search')
+    expect(container.textContent).not.toContain('Call')
+    // The called tool's own links come along: its result is one click away.
+    click(findButton(container, (element) => element.textContent?.includes('Seed Notes') ?? false))
+    expect(mockState.openUrl).toHaveBeenCalledWith('hm://z6Mkabc/projects/seed', false)
 
     cleanupRendered(root, container)
   })
@@ -442,17 +595,17 @@ describe('agent error rows', () => {
   })
 })
 
-  it('marks user-run tool rows with a You chip', () => {
-    const {container, root} = renderToolPart({
-      type: 'tool',
-      id: 'user-tool-1',
-      name: 'read',
-      actor: 'user',
-      args: {address: '~/memory/notes.md'},
-      result: 'Read notes.md (120 bytes).',
-      rawOutput: {summary: 'Read notes.md (120 bytes).'},
-    })
-    expect(container.textContent).toContain('You')
-    expect(container.textContent).toContain('Read')
-    cleanupRendered(root, container)
+it('marks user-run tool rows with a You chip', () => {
+  const {container, root} = renderToolPart({
+    type: 'tool',
+    id: 'user-tool-1',
+    name: 'read',
+    actor: 'user',
+    args: {address: '~/memory/notes.md'},
+    result: 'Read notes.md (120 bytes).',
+    rawOutput: {summary: 'Read notes.md (120 bytes).'},
   })
+  expect(container.textContent).toContain('You')
+  expect(container.textContent).toContain('Read')
+  cleanupRendered(root, container)
+})
