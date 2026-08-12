@@ -239,12 +239,21 @@ export const SearchInput = forwardRef<
         }
       }) || []
   const queryDocumentsItem: SearchResult = {
-    key: 'query-documents',
-    title: 'Query documents',
+    key: 'advanced-search',
+    title: 'Advanced search',
     path: [],
     onFocus: () => {},
     onMouseEnter: () => {},
-    onSelect: () => onSelect({route: {key: 'query-documents'}}),
+    onSelect: () => {
+      const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
+      const siteId = routeId?.uid ? hmId(routeId.uid) : null
+      onSelect({
+        route: {
+          key: 'explore',
+          context: siteId ? {type: 'site', id: siteId} : {type: 'node'},
+        },
+      })
+    },
   }
   const exploreItem: SearchResult = {
     key: 'explore-results',

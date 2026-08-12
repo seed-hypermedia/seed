@@ -1,7 +1,7 @@
 # Explore Search Prototype
 
-> Superseded by `docs/projects/explore-advanced-search.md`, which redirects Explore at replacing the Query Documents
-> omnibar entry and adopts the wireframe design. Kept for the background on the existing result surfaces and APIs.
+> Superseded by `docs/projects/explore-advanced-search.md`, which redirects the Query Documents omnibar entry to
+> Explore and adopts the wireframe design. Kept for background on the existing result surfaces and APIs.
 
 ## Problem
 

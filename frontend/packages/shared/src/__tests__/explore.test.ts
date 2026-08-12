@@ -146,6 +146,7 @@ describe('Explore query grammar', () => {
 describe('Explore query serialization', () => {
   const corpus = [
     '(in:alice OR in:bob) AND type:document status="In Progress" engelbart',
+    '(in:alice OR in:bob) AND type:task status="In Progress" engelbart view:table cols:title,status sort:-status',
     'NOT (missing:status OR priority!=low)',
     'project.phase:launch estimate>=3 enabled=true "quoted phrase"',
     'path:/specs/* view:table cols:title,status sort:status,-priority',

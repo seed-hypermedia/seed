@@ -61,6 +61,9 @@ export default function ExploreDesktopPage() {
           onQueryChange={updateRoute}
           accountUid={exploreRoute.context?.type === 'site' ? exploreRoute.context.id.uid : undefined}
           context={context}
+          onScopeChange={(nextContext) => {
+            if (exploreRoute) replace({...exploreRoute, context: nextContext, sort: undefined})
+          }}
           onOpenResult={openResult}
         />
       </MainWrapper>
