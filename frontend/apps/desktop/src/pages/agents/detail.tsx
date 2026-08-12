@@ -1,5 +1,6 @@
 import {
   type AgentDefinition,
+  type AgentToolInfo,
   type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerSource,
@@ -14,6 +15,7 @@ import {
   useAgentServerHealth,
   useAgentServerUrl,
   useLocalAgentServerUrl,
+  useAgentTools,
   useAgentTrigger,
   useAgentTriggers,
   useAgentWebSocketSubscription,
@@ -37,6 +39,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -452,6 +455,9 @@ function AgentDetailPage({
 
               {tab === 'tools' ? (
                 <AgentToolsTab
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  agentId={agentId}
                   definition={agent.data.agent.definition}
                   identities={signingIdentities.data || []}
                   identitiesLoading={signingIdentities.isLoading}
@@ -683,6 +689,82 @@ function DeleteAgentDialog({
   )
 }
 
+/**
+ * The full document behind an authored lambda tool: contract, source, and content address. The
+ * owner reads exactly what the agent wrote for itself.
+ */
+function AuthoredToolDialog({input}: {input: {tool: AgentToolInfo}; onClose: () => void}) {
+  const {tool} = input
+  return (
+    <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
+      <div className="flex flex-col gap-1">
+        <DialogTitle>
+          <span className="font-mono">{tool.name}</span>
+        </DialogTitle>
+        <div className="flex items-center gap-2">
+          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+            {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
+          </span>
+          <SizableText size="xs" color="muted">
+            Updated {formattedDateMedium(new Date(tool.updatedAt))}
+          </SizableText>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Description sent to the model
+        </SizableText>
+        <SizableText size="sm" color="muted">
+          {tool.description}
+        </SizableText>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Source
+        </SizableText>
+        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">{tool.source}</pre>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Input schema
+        </SizableText>
+        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+          {JSON.stringify(tool.input, null, 2)}
+        </pre>
+      </div>
+      {tool.output ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Output schema
+          </SizableText>
+          <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+            {JSON.stringify(tool.output, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Version
+        </SizableText>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground cursor-pointer truncate text-left font-mono text-xs"
+          title="Copy content address"
+          onClick={() => {
+            copyTextToClipboard(tool.cid)
+            toast.success('Content address copied')
+          }}
+        >
+          {tool.cid}
+        </button>
+        <SizableText size="xs" color="muted">
+          The document's content address — it changes every time the agent rewrites the tool.
+        </SizableText>
+      </div>
+    </div>
+  )
+}
+
 /** Shows the exact model-facing prompt and JSON schemas for a single tool, for agent-owner transparency. */
 function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: () => void}) {
   const meta = getSeedTool(input.toolName)
@@ -766,6 +848,9 @@ const AGENT_TOOL_OPTIONS = [
 ]
 
 function AgentToolsTab({
+  serverUrl,
+  accountUid,
+  agentId,
   definition,
   identities,
   identitiesLoading,
@@ -774,6 +859,9 @@ function AgentToolsTab({
   onCreateIdentity,
   saving,
 }: {
+  serverUrl: string | undefined
+  accountUid: string | null
+  agentId: string
   definition: AgentDefinition
   identities: SigningIdentity[]
   identitiesLoading: boolean
@@ -783,6 +871,9 @@ function AgentToolsTab({
   saving: boolean
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
+  const authoredToolDialog = useAppDialog(AuthoredToolDialog)
+  const agentTools = useAgentTools(serverUrl, accountUid, agentId)
+  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
   const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
   const defaultTools = [...DEFAULT_AGENT_TOOLS]
@@ -948,7 +1039,63 @@ function AgentToolsTab({
           )
         })}
       </div>
+      <div className="mt-2">
+        <SizableText weight="bold">Authored tools</SizableText>
+        <SizableText size="sm" color="muted" className="mt-0.5 block">
+          Tools this agent wrote for itself — documents in <span className="font-mono">~/tools</span>. Click one to read
+          its contract and source.
+        </SizableText>
+      </div>
+      {authoredTools.length > 0 ? (
+        <div className="grid gap-2">
+          {authoredTools.map((tool) => (
+            <button
+              key={tool.name}
+              type="button"
+              className={`border-border bg-card hover:bg-accent/40 flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-left ${
+                tool.enabled ? '' : 'opacity-60'
+              }`}
+              onClick={() => authoredToolDialog.open({tool})}
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <SizableText size="sm" weight="bold" className="font-mono">
+                    {tool.name}
+                  </SizableText>
+                  <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                    {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
+                  </span>
+                  {!tool.enabled ? (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                      Disabled
+                    </span>
+                  ) : null}
+                </div>
+                <SizableText size="sm" color="muted" className="line-clamp-2">
+                  {tool.summary}
+                </SizableText>
+                <SizableText size="xs" color="muted">
+                  Updated {formattedDateMedium(new Date(tool.updatedAt))}
+                </SizableText>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : agentTools.isLoading ? (
+        <SizableText size="sm" color="muted">
+          Loading this agent's authored tools…
+        </SizableText>
+      ) : (
+        <div className="border-border flex flex-col rounded-xl border border-dashed p-4">
+          <SizableText size="sm" color="muted">
+            Nothing yet. Ask the agent to write itself a tool — it lands here, versioned by content address, the moment
+            it's saved.
+          </SizableText>
+        </div>
+      )}
+
       {toolInfoDialog.content}
+      {authoredToolDialog.content}
       {enableWhpDialog.content}
 
       {writeEnabled ? (

@@ -50,6 +50,8 @@ export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
 export type ModelProviderAuthMode = NonNullable<AgentsProtocol.ModelProviderConfig['authMode']>
 /** Snapshot of a pending or finished provider OAuth sign-in. */
 export type ProviderOAuthStatus = AgentsProtocol.ProviderOAuthStatusResponse
+/** One tool document from an agent's ~/tools: a builtin binding or an authored lambda. */
+export type AgentToolInfo = AgentsProtocol.AgentToolInfo
 /** One file or directory inside an agent's private memory filesystem. */
 export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 /** Contents of one agent memory file. */

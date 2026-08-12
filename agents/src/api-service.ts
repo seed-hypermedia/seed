@@ -718,6 +718,8 @@ export class Service {
         return this.#deleteAgentTrigger(verified.accountId, envelope.action.triggerId)
       case 'ListAgentMemory':
         return this.#listAgentMemory(verified.accountId, envelope.action.agentId)
+      case 'ListAgentTools':
+        return this.#listAgentTools(verified.accountId, envelope.action.agentId)
       case 'ReadAgentMemoryFile':
         return this.#readAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
       case 'WriteAgentMemoryFile':
@@ -1607,6 +1609,36 @@ export class Service {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const {entries, totalBytes} = withMemoryErrors(() => agentMemory.listMemory(stateDir))
     return {_: 'ListAgentMemoryResponse', agentId, entries, totalBytes}
+  }
+
+  /**
+   * The owner's view of `~/tools`: every tool document with its source, plus whether the agent's
+   * grant set actually offers it. The GUI shows the same documents the agent reads.
+   */
+  async #listAgentTools(accountId: string, agentId: string): Promise<api.ListAgentToolsResponse> {
+    const agent = this.#getAgentInfo(accountId, agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    const callables = enabledCallableTools(agent.definition, codeExecAvailable)
+    toolDocs.ensureBuiltinToolDocuments(this.#db, accountId, agentId)
+    const tools = toolDocs.listToolDocuments(this.#db, accountId, agentId).map(
+      (row): api.AgentToolInfo => ({
+        name: row.doc.name,
+        kind: row.doc.kind,
+        summary: row.doc.summary,
+        description: row.doc.description,
+        input: row.doc.input as Record<string, unknown>,
+        output: row.doc.output as Record<string, unknown> | undefined,
+        source: row.doc.source,
+        runtime: row.doc.runtime,
+        cid: row.cid,
+        enabled: row.enabled,
+        granted: row.doc.kind !== 'builtin' || callables.includes(row.doc.name),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      }),
+    )
+    return {_: 'ListAgentToolsResponse', agentId, tools}
   }
 
   #readAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.ReadAgentMemoryFileResponse {

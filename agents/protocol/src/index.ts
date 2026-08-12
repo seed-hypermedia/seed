@@ -143,6 +143,7 @@ export type UnsignedAgentAction =
   | UpdateAgentTrigger
   | DeleteAgentTrigger
   | ListAgentMemory
+  | ListAgentTools
   | ReadAgentMemoryFile
   | WriteAgentMemoryFile
   | DeleteAgentMemoryFile
@@ -427,6 +428,16 @@ export type AgentMemoryFile = {
 /** Lists every file and directory in an agent's memory. */
 export type ListAgentMemory = {
   _: 'ListAgentMemory'
+  agentId: string
+}
+
+/**
+ * Lists every tool document in an agent's `~/tools` — builtin bindings and authored lambdas alike,
+ * source included. This is the owner's transparency view: the same documents the agent itself sees
+ * when it reads `~/tools/`.
+ */
+export type ListAgentTools = {
+  _: 'ListAgentTools'
   agentId: string
 }
 
@@ -1245,6 +1256,41 @@ export type ListAgentMemoryResponse = {
   totalBytes: number
 }
 
+/** One tool document from an agent's `~/tools`: a builtin binding or an authored lambda. */
+export type AgentToolInfo = {
+  name: string
+  kind: 'builtin' | 'lambda'
+  /** One line for listings and the Space index. */
+  summary: string
+  /** Full model-facing instructions, shown on expansion. */
+  description: string
+  /** JSON Schema for the tool's input. */
+  input: Record<string, unknown>
+  /** JSON Schema for the tool's return value, when the tool declares one. */
+  output?: Record<string, unknown>
+  /** Lambda source code, exactly as authored. Builtins carry none. */
+  source?: string
+  /** Lambda source language. */
+  runtime?: 'typescript' | 'python'
+  /** Content address of the tool document (DAG-CBOR, CIDv1); changes on every edit. */
+  cid: string
+  enabled: boolean
+  /**
+   * For builtins: whether the agent's grant set actually offers this tool. Authored lambdas are
+   * always callable, so this is always true for them.
+   */
+  granted: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/** Successful response for `ListAgentTools`. */
+export type ListAgentToolsResponse = {
+  _: 'ListAgentToolsResponse'
+  agentId: string
+  tools: AgentToolInfo[]
+}
+
 /** Successful response for `ReadAgentMemoryFile`. */
 export type ReadAgentMemoryFileResponse = {
   _: 'ReadAgentMemoryFileResponse'
@@ -1468,6 +1514,7 @@ export type AgentResponse =
   | UpdateAgentTriggerResponse
   | DeleteAgentTriggerResponse
   | ListAgentMemoryResponse
+  | ListAgentToolsResponse
   | ReadAgentMemoryFileResponse
   | WriteAgentMemoryFileResponse
   | DeleteAgentMemoryFileResponse

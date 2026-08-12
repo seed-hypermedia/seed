@@ -920,6 +920,28 @@ export function useAgentMemory(
   })
 }
 
+/** Lists the tool documents in an agent's ~/tools — authored lambdas with their source, and builtins. */
+export function useAgentTools(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'tools', serverUrl, accountUid, agentId],
+    queryFn: async () => {
+      if (!serverUrl || !accountUid || !agentId) return null
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentTools', agentId}})
+      if (res._ !== 'ListAgentToolsResponse') throw new Error('Unexpected ListAgentTools response')
+      return res
+    },
+    enabled: !!serverUrl && !!accountUid && !!agentId,
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
 /** Reads one file from an agent's private memory. */
 export function useAgentMemoryFile(
   serverUrl: string | undefined,
