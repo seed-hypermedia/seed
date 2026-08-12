@@ -589,6 +589,7 @@ export type ExploreCompilation = {
   excludedTypes: HMExploreResultType[]
   positiveScopes: Array<Extract<ExplorePredicate, {kind: 'scope'}>>
   presentation: ExplorePresentation
+  diagnostics: ExploreDiagnostic[]
 }
 /** Compiles the AST while preserving boolean structure and reporting dropped search terms. */
 export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExploreContext): ExploreCompilation {
@@ -597,6 +598,21 @@ export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExplo
   const requestedTypes: HMExploreResultType[] = []
   const excludedTypes: HMExploreResultType[] = []
   const positiveScopes: Array<Extract<ExplorePredicate, {kind: 'scope'}>> = []
+  const diagnostics: ExploreDiagnostic[] = []
+  const containsText = (node: ExploreQueryNode | null): boolean => {
+    if (!node) return false
+    if (node.kind === 'text') return true
+    if (node.kind === 'not') return containsText(node.child)
+    if (node.kind === 'and' || node.kind === 'or') return node.children.some(containsText)
+    return false
+  }
+  const containsPredicate = (node: ExploreQueryNode | null): boolean => {
+    if (!node) return false
+    if (node.kind === 'predicate') return true
+    if (node.kind === 'not') return containsPredicate(node.child)
+    if (node.kind === 'and' || node.kind === 'or') return node.children.some(containsPredicate)
+    return false
+  }
   const walkWithPolarity = (node: ExploreQueryNode | null, positive = true) => {
     if (!node) return
     if (node.kind === 'text') textTerms.push({value: node.value, phrase: node.phrase})
@@ -610,7 +626,19 @@ export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExplo
       }
       return
     }
-    if (node.kind === 'not') return walkWithPolarity(node.child, !positive)
+    if (node.kind === 'not') {
+      const child = compileNode(node.child)
+      if (positive && child.unconstrained && containsText(node.child) && containsPredicate(node.child)) {
+        diagnostics.push(
+          diagnostic(
+            'This exclusion could not be applied to the text part; results may include excluded documents.',
+            0,
+            0,
+          ),
+        )
+      }
+      return walkWithPolarity(node.child, !positive)
+    }
     if (node.kind === 'and' || node.kind === 'or') node.children.forEach((child) => walkWithPolarity(child, positive))
   }
   walkWithPolarity(parsed.ast)
@@ -630,6 +658,7 @@ export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExplo
     excludedTypes: Array.from(new Set(excludedTypes)),
     positiveScopes,
     presentation: parsed.presentation,
+    diagnostics,
   }
 }
 function chipLabel(node: ExploreQueryNode): {label: string; token: string; kind: ExploreChip['kind']} | null {

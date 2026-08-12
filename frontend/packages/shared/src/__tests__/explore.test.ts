@@ -211,9 +211,12 @@ describe('Explore document filter compilation', () => {
   })
 
   test('does not compile a partially representable conjunction under NOT', () => {
-    expect(
-      compileExploreQuery(parseExploreQuery('NOT (status:x AND engelbart)'), {type: 'node'}).filter,
-    ).toBeUndefined()
+    const compilation = compileExploreQuery(parseExploreQuery('NOT (status:x AND engelbart)'), {type: 'node'})
+    expect(compilation.filter).toBeUndefined()
+    expect(compilation.diagnostics.map((item) => item.message)).toContain(
+      'This exclusion could not be applied to the text part; results may include excluded documents.',
+    )
+    expect(compileExploreQuery(parseExploreQuery('NOT status:x'), {type: 'node'}).diagnostics).toEqual([])
   })
 
   test('keeps negated scopes and types out of positive search projections', () => {
@@ -343,9 +346,27 @@ describe('search result mapping', () => {
     const result = assembleExploreResults({
       parsed: parseExploreQuery('NOT type:comment NOT in:alice roadmap'),
       context: {type: 'node'},
+      documentPages: [
+        {
+          documents: [
+            {
+              type: 'document',
+              id: hmId('bob', {path: ['roadmap']}),
+              path: ['roadmap'],
+              metadata: {name: 'Roadmap'},
+              updateTime: '2026-01-01T00:00:00.000Z',
+              breadcrumbs: [],
+            } as unknown as HMDocumentInfo,
+          ],
+          nextPageToken: '',
+        },
+      ],
       textPages: [
         {
-          entities: [searchItem({type: 'document'}), searchItem({type: 'comment', commentId: 'excluded'})],
+          entities: [
+            searchItem({id: hmId('bob', {path: ['roadmap']}), type: 'document'}),
+            searchItem({id: hmId('bob', {path: ['roadmap']}), type: 'comment', commentId: 'excluded'}),
+          ],
           nextPageToken: '',
         },
       ],
@@ -405,6 +426,31 @@ describe('search result mapping', () => {
       documents: true,
       intersection: true,
     })
+  })
+
+  test('ignores pages from streams not selected by the current query', () => {
+    const result = assembleExploreResults({
+      parsed: parseExploreQuery('roadmap'),
+      context: {type: 'node'},
+      documentPages: [
+        {
+          documents: [
+            {
+              type: 'document',
+              id: hmId('alice', {path: ['stale']}),
+              path: ['stale'],
+              metadata: {name: 'Stale result'},
+              updateTime: '2026-01-01T00:00:00.000Z',
+              breadcrumbs: [],
+            } as unknown as HMDocumentInfo,
+          ],
+          nextPageToken: '',
+        },
+      ],
+      textPages: [{entities: [searchItem({title: 'Current result'})], nextPageToken: ''}],
+    })
+    expect(result.results).toHaveLength(1)
+    expect(result.results[0]).toMatchObject({type: 'document', matchText: 'Current result'})
   })
 
   test('applies global type filters while retaining text terms and diagnostics', () => {

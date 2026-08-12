@@ -246,6 +246,7 @@ export type ExplorePageProps = {
   diagnostics?: ParsedExploreQuery['diagnostics']
   blocksByDocument?: Record<string, Extract<HMExploreResult, {type: 'block'}>[]>
   isLoading?: boolean
+  isRefetching?: boolean
   error?: string | null
   hasMore?: boolean
   intersectionPending?: boolean
@@ -309,7 +310,8 @@ export function ExplorePage(props: ExplorePageProps) {
   }
   const commitBuilderAst = (nextAst: ExploreQueryNode | null) => {
     setBuilderAst(nextAst)
-    updateQuery(serializeExploreQuery({ast: nextAst, presentation: props.parsed.presentation, diagnostics: []}))
+    const nextQuery = serializeExploreBuilderQuery(nextAst, props.parsed.presentation)
+    if (nextQuery !== props.query) updateQuery(nextQuery)
   }
   const updatePresentation = (presentation: ExplorePresentation) =>
     updateQuery(withPresentation(props.parsed.ast, presentation))
@@ -519,17 +521,28 @@ export function ExplorePage(props: ExplorePageProps) {
       </div>
 
       <section aria-live="polite" className="min-h-48">
-        {props.isLoading || props.intersectionPending ? (
-          <ExploreState
-            icon={<Loader2 className="animate-spin" />}
-            title="Searching"
-            detail="Loading Explore results."
-          />
+        {props.isLoading || props.intersectionPending || props.isRefetching ? (
+          visibleResults.length ? (
+            <p className="text-muted-foreground mb-3 flex items-center gap-2 text-xs">
+              <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              Updating results…
+            </p>
+          ) : (
+            <ExploreState
+              icon={<Loader2 className="animate-spin" />}
+              title="Searching"
+              detail="Loading Explore results."
+            />
+          )
         ) : null}
         {props.error ? (
           <ExploreState icon={<Search />} title="Search failed" detail={props.error} tone="error" />
         ) : null}
-        {!props.isLoading && !props.intersectionPending && !props.error && !visibleResults.length ? (
+        {!props.isLoading &&
+        !props.intersectionPending &&
+        !props.isRefetching &&
+        !props.error &&
+        !visibleResults.length ? (
           <ExploreState icon={<Search />} title="No results" detail="Try a broader search or remove a filter." />
         ) : null}
         {visibleResults.length && tableMode ? (
@@ -611,6 +624,32 @@ function ExploreFilterMenu({
 }
 
 type BuilderNode = ExploreQueryNode
+
+function builderPredicateIsComplete(predicate: ExplorePredicate) {
+  if (predicate.kind === 'type') return Boolean(predicate.value)
+  if (predicate.kind === 'scope') return Boolean(predicate.value.trim())
+  if (predicate.operator === 'exists' || predicate.operator === 'missing') return Boolean(predicate.key.trim())
+  return Boolean(predicate.key.trim() && 'value' in predicate && String(predicate.value).trim())
+}
+
+function serializableBuilderNode(node: ExploreQueryNode | null): ExploreQueryNode | null {
+  if (!node || (node.kind === 'predicate' && !builderPredicateIsComplete(node.predicate))) return null
+  if (node.kind === 'text' || node.kind === 'predicate') return node
+  if (node.kind === 'not') {
+    const child = serializableBuilderNode(node.child)
+    return child ? {kind: 'not', child} : null
+  }
+  const children = node.children.flatMap((child) => {
+    const next = serializableBuilderNode(child)
+    return next ? [next] : []
+  })
+  return children.length ? {...node, children} : null
+}
+
+/** Serializes the completed portion of a builder AST while retaining pending UI nodes locally. */
+export function serializeExploreBuilderQuery(ast: ExploreQueryNode | null, presentation: ExplorePresentation) {
+  return serializeExploreQuery({ast: serializableBuilderNode(ast), presentation, diagnostics: []})
+}
 
 function appendExploreNode(ast: ExploreQueryNode | null, next: ExploreQueryNode): ExploreQueryNode {
   if (!ast) return next
@@ -882,7 +921,7 @@ function BuilderNodeEditor({
             const children = [...node.children]
             if (next) children[index] = next
             else children.splice(index, 1)
-            onChange(children.length === 1 ? children[0] ?? null : {...node, children})
+            onChange(children.length ? {...node, children} : null)
           }}
         />
       ))}
