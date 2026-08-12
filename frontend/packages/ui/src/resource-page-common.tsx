@@ -3170,6 +3170,7 @@ function MainContent({
           isLoading={explore.isLoading}
           error={explore.error instanceof Error ? explore.error.message : null}
           onQueryChange={(q) => replaceRoute({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q})}
+          accountUid={allDocumentsSiteId.uid}
           onOpenResult={(result) => {
             if (result.type === 'comment') {
               navigate({key: 'comments', id: result.documentId, openComment: result.commentId})

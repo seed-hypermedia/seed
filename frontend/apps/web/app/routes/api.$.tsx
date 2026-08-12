@@ -5,7 +5,12 @@ import {ActionFunctionArgs, LoaderFunctionArgs} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
 import {decode as cborDecode} from '@ipld/dag-cbor'
-import {QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
+import {
+  ListAccountsRequest,
+  ListDocumentAttributeNamesRequest,
+  ListDocumentAttributeValuesRequest,
+  QueryDocumentsRequest,
+} from '@shm/shared/client/grpc-types'
 import type {JsonValue} from '@bufbuild/protobuf'
 
 function isJsonValue(value: unknown): value is JsonValue {
@@ -87,12 +92,27 @@ export async function action({request, params}: ActionFunctionArgs) {
   return withDaemonAuthToken(cookieToken, async () => {
     const key = (params['*']?.split('/') || [])[0] || ''
     const body = new Uint8Array(await request.arrayBuffer())
-    if (key === 'QueryDocuments') {
+    const documentRpcRequests = {
+      QueryDocuments: QueryDocumentsRequest,
+      ListAccounts: ListAccountsRequest,
+      ListDocumentAttributeNames: ListDocumentAttributeNamesRequest,
+      ListDocumentAttributeValues: ListDocumentAttributeValuesRequest,
+    } as const
+    if (key in documentRpcRequests) {
       try {
         const decoded = cborDecode(body)
-        if (!isJsonValue(decoded)) throw new Error('Invalid QueryDocuments request payload.')
-        const query = QueryDocumentsRequest.fromJson(decoded)
-        const result = await withAuthorizationHeader(grpcClient, authorization).documents.queryDocuments(query)
+        if (!isJsonValue(decoded)) throw new Error(`Invalid ${key} request payload.`)
+        const Request = documentRpcRequests[key as keyof typeof documentRpcRequests]
+        const query = Request.fromJson(decoded)
+        const documents = withAuthorizationHeader(grpcClient, authorization).documents
+        const result =
+          key === 'QueryDocuments'
+            ? await documents.queryDocuments(query)
+            : key === 'ListAccounts'
+              ? await documents.listAccounts(query)
+              : key === 'ListDocumentAttributeNames'
+                ? await documents.listDocumentAttributeNames(query)
+                : await documents.listDocumentAttributeValues(query)
         return withCors(
           new Response(JSON.stringify(result.toJson()), {
             status: 200,

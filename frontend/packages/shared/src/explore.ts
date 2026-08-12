@@ -541,26 +541,38 @@ function predicateFilter(predicate: ExplorePredicate): DocumentFilter | undefine
     },
   })
 }
-function compileNode(node: ExploreQueryNode | null): DocumentFilter | undefined {
-  if (!node || node.kind === 'text' || (node.kind === 'predicate' && node.predicate.kind === 'type')) return undefined
-  if (node.kind === 'predicate') return predicateFilter(node.predicate)
+type CompiledNode = {filter?: DocumentFilter; unconstrained: boolean}
+
+function compileNode(node: ExploreQueryNode | null): CompiledNode {
+  if (!node || node.kind === 'text' || (node.kind === 'predicate' && node.predicate.kind === 'type'))
+    return {unconstrained: true}
+  if (node.kind === 'predicate') {
+    const filter = predicateFilter(node.predicate)
+    return filter ? {filter, unconstrained: false} : {unconstrained: true}
+  }
   if (node.kind === 'not') {
     const child = compileNode(node.child)
-    return child
-      ? new DocumentFilter({filter: {case: 'not', value: new DocumentFilter_Not({filter: child})}})
-      : undefined
+    return child.filter && !child.unconstrained
+      ? {
+          filter: new DocumentFilter({filter: {case: 'not', value: new DocumentFilter_Not({filter: child.filter})}}),
+          unconstrained: false,
+        }
+      : {unconstrained: true}
   }
   const children = node.children.map(compileNode)
-  if (node.kind === 'or' && children.some((child) => !child)) return undefined
-  const filters = children.filter((child): child is DocumentFilter => !!child)
-  if (!filters.length) return undefined
-  if (filters.length === 1) return filters[0]!
-  return new DocumentFilter({
-    filter: {
-      case: node.kind,
-      value: node.kind === 'and' ? new DocumentFilter_And({filters}) : new DocumentFilter_Or({filters}),
-    },
-  })
+  if (node.kind === 'or' && children.some((child) => child.unconstrained)) return {unconstrained: true}
+  const filters = children.flatMap((child) => (child.filter ? [child.filter] : []))
+  if (!filters.length) return {unconstrained: true}
+  if (filters.length === 1) return {filter: filters[0], unconstrained: children.some((child) => child.unconstrained)}
+  return {
+    filter: new DocumentFilter({
+      filter: {
+        case: node.kind,
+        value: node.kind === 'and' ? new DocumentFilter_And({filters}) : new DocumentFilter_Or({filters}),
+      },
+    }),
+    unconstrained: children.some((child) => child.unconstrained),
+  }
 }
 function contextFilter(context: HMExploreContext): DocumentFilter | null {
   if (context.type !== 'site') return null
@@ -574,6 +586,8 @@ export type ExploreCompilation = {
   documentPredicates: ExplorePredicate[]
   textTerms: Array<{value: string; phrase: boolean}>
   requestedTypes: HMExploreResultType[]
+  excludedTypes: HMExploreResultType[]
+  positiveScopes: Array<Extract<ExplorePredicate, {kind: 'scope'}>>
   presentation: ExplorePresentation
 }
 /** Compiles the AST while preserving boolean structure and reporting dropped search terms. */
@@ -581,15 +595,27 @@ export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExplo
   const documentPredicates: ExplorePredicate[] = []
   const textTerms: Array<{value: string; phrase: boolean}> = []
   const requestedTypes: HMExploreResultType[] = []
-  walk(parsed.ast, (node) => {
+  const excludedTypes: HMExploreResultType[] = []
+  const positiveScopes: Array<Extract<ExplorePredicate, {kind: 'scope'}>> = []
+  const walkWithPolarity = (node: ExploreQueryNode | null, positive = true) => {
+    if (!node) return
     if (node.kind === 'text') textTerms.push({value: node.value, phrase: node.phrase})
-    if (node.kind !== 'predicate') return
-    if (node.predicate.kind === 'type') requestedTypes.push(node.predicate.value)
-    else documentPredicates.push(node.predicate)
-  })
-  const filters = [contextFilter(context), compileNode(parsed.ast)].filter(
-    (filter): filter is DocumentFilter => !!filter,
-  )
+    if (node.kind === 'predicate') {
+      if (node.predicate.kind === 'type') {
+        if (positive) requestedTypes.push(node.predicate.value)
+        else excludedTypes.push(node.predicate.value)
+      } else {
+        documentPredicates.push(node.predicate)
+        if (positive && node.predicate.kind === 'scope') positiveScopes.push(node.predicate)
+      }
+      return
+    }
+    if (node.kind === 'not') return walkWithPolarity(node.child, !positive)
+    if (node.kind === 'and' || node.kind === 'or') node.children.forEach((child) => walkWithPolarity(child, positive))
+  }
+  walkWithPolarity(parsed.ast)
+  const compiled = compileNode(parsed.ast)
+  const filters = [contextFilter(context), compiled.filter].filter((filter): filter is DocumentFilter => !!filter)
   const filter =
     filters.length === 0
       ? undefined
@@ -601,6 +627,8 @@ export function compileExploreQuery(parsed: ParsedExploreQuery, context: HMExplo
     documentPredicates,
     textTerms,
     requestedTypes: Array.from(new Set(requestedTypes)),
+    excludedTypes: Array.from(new Set(excludedTypes)),
+    positiveScopes,
     presentation: parsed.presentation,
   }
 }
@@ -674,6 +702,21 @@ export function removeExploreQueryChip(parsed: ParsedExploreQuery, chipId: strin
   if (!chip) return parsed
   const next = parseExploreQuery(serializeExploreQuery(removeAtPath(parsed.ast, chip.path), parsed.presentation))
   return {...next, diagnostics: parsed.diagnostics.concat(next.diagnostics)}
+}
+
+/** Toggles one serialized predicate in the query while preserving presentation directives. */
+export function toggleExplorePredicate(parsed: ParsedExploreQuery, token: string): ParsedExploreQuery {
+  const existing = exploreQueryChips(parsed).find((chip) => chip.token === token)
+  if (existing) return removeExploreQueryChip(parsed, existing.id)
+  const predicate = parseExploreQuery(token).ast
+  if (!predicate) return parsed
+  const ast =
+    parsed.ast?.kind === 'and'
+      ? {kind: 'and' as const, children: [...parsed.ast.children, predicate]}
+      : parsed.ast
+        ? {kind: 'and' as const, children: [parsed.ast, predicate]}
+        : predicate
+  return {ast, presentation: parsed.presentation, diagnostics: []}
 }
 /** Converts the existing SearchResultItem shape into a typed Explore result. */
 export function searchResultItemToExploreResult(item: SearchResultItem): HMExploreResult | null {
