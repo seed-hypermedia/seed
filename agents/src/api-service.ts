@@ -405,10 +405,17 @@ function isPlanFullySettled(plan: runs.RunPlanState | undefined): boolean {
  * Rendered fresh from session state and injected into the replay — never stored as an event, so the
  * transcript keeps exactly one copy of the truth and the log stays a record of what happened rather
  * than of what the runtime reminded the model about.
+ *
+ * Step ids and labels are whatever the model last wrote, so they are escaped the same way user-action
+ * payloads are: text the model authored is being handed back to it inside a frame whose syntax it
+ * knows, and a label carrying `</plan_state>` would otherwise close the frame early and turn
+ * everything after it into instructions that nothing vouched for.
  */
 function planStateBlock(plan: runs.RunPlanState | undefined): string | undefined {
   if (!plan?.steps.length) return undefined
-  const lines = plan.steps.map((step) => `${step.id} · ${step.label} · ${step.status}`)
+  const lines = plan.steps.map(
+    (step) => `${escapeActionFraming(step.id)} · ${escapeActionFraming(step.label)} · ${step.status}`,
+  )
   return [
     '<plan_state>',
     ...lines,
