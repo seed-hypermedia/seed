@@ -4,6 +4,22 @@ import {withCors} from '@/utils/cors'
 import {ActionFunctionArgs, LoaderFunctionArgs} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
+import {decode as cborDecode} from '@ipld/dag-cbor'
+import {
+  ListAccountsRequest,
+  ListDocumentAttributeNamesRequest,
+  ListDocumentAttributeValuesRequest,
+  QueryDocumentsRequest,
+} from '@shm/shared/client/grpc-types'
+import type {JsonValue} from '@bufbuild/protobuf'
+
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number')
+    return true
+  if (Array.isArray(value)) return value.every(isJsonValue)
+  if (typeof value !== 'object') return false
+  return Object.values(value).every(isJsonValue)
+}
 
 function getBearerAuthorization(request: Request): string | null {
   const authorization = request.headers.get('Authorization')
@@ -76,6 +92,42 @@ export async function action({request, params}: ActionFunctionArgs) {
   return withDaemonAuthToken(cookieToken, async () => {
     const key = (params['*']?.split('/') || [])[0] || ''
     const body = new Uint8Array(await request.arrayBuffer())
+    const documentRpcRequests = {
+      QueryDocuments: QueryDocumentsRequest,
+      ListAccounts: ListAccountsRequest,
+      ListDocumentAttributeNames: ListDocumentAttributeNamesRequest,
+      ListDocumentAttributeValues: ListDocumentAttributeValuesRequest,
+    } as const
+    if (key in documentRpcRequests) {
+      try {
+        const decoded = cborDecode(body)
+        if (!isJsonValue(decoded)) throw new Error(`Invalid ${key} request payload.`)
+        const Request = documentRpcRequests[key as keyof typeof documentRpcRequests]
+        const query = Request.fromJson(decoded)
+        const documents = withAuthorizationHeader(grpcClient, authorization).documents
+        const result =
+          key === 'QueryDocuments'
+            ? await documents.queryDocuments(query)
+            : key === 'ListAccounts'
+              ? await documents.listAccounts(query)
+              : key === 'ListDocumentAttributeNames'
+                ? await documents.listDocumentAttributeNames(query)
+                : await documents.listDocumentAttributeValues(query)
+        return withCors(
+          new Response(JSON.stringify(result.toJson()), {
+            status: 200,
+            headers: {'Content-Type': 'application/json'},
+          }),
+        )
+      } catch (error) {
+        return withCors(
+          new Response(JSON.stringify({error: error instanceof Error ? error.message : 'QueryDocuments failed'}), {
+            status: 500,
+            headers: {'Content-Type': 'application/json'},
+          }),
+        )
+      }
+    }
     const result = await handleApiAction(
       key,
       body,

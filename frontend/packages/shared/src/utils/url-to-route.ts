@@ -18,6 +18,9 @@ import {
 import {appRouteOfId} from './navigation'
 import {unpackHmId} from './entity-id-url'
 
+const EXPLORE_SORTS = ['relevance', 'recently_updated', 'newest', 'oldest', 'title'] as const
+type ExploreSort = (typeof EXPLORE_SORTS)[number]
+
 /**
  * Converts a directly parseable Hypermedia app URL into an application route.
  */
@@ -45,6 +48,16 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   if (!id) return null
 
   const query = parseCustomURL(cleanUrl)?.query
+  if (routeKey === 'explore') {
+    const sort =
+      query?.sort && (EXPLORE_SORTS as readonly string[]).includes(query.sort) ? (query.sort as ExploreSort) : undefined
+    return {
+      key: 'explore',
+      context: {type: 'site', id},
+      q: query?.q || undefined,
+      sort,
+    }
+  }
   const panelParam = query?.panel || null
   const effectivePanelParam =
     !panelParam && routeKey === 'activity' && activityFilter ? `activity/${activityFilter}` : panelParam

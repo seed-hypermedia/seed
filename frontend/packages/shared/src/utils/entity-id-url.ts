@@ -49,6 +49,7 @@ export const VIEW_TERMS = [
   ':directory',
   ':feed',
   ':all-documents',
+  ':explore',
   ':settings',
   ':attributes',
   ':metadata', // backward compat: the metadata view is now surfaced as :attributes
@@ -64,6 +65,7 @@ export type ViewRouteKey =
   | 'directory'
   | 'feed'
   | 'all-documents'
+  | 'explore'
   | 'site-settings'
   | 'metadata'
   | SiteProfileTab
@@ -182,6 +184,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':directory': 'directory',
     ':feed': 'feed',
     ':all-documents': 'all-documents',
+    ':explore': 'explore',
     ':settings': 'site-settings',
     ':attributes': 'metadata',
     ':metadata': 'metadata', // backward compat
@@ -576,6 +579,21 @@ export function routeToUrl(
     return createWebInspectIpfsUrl(route, opts)
   }
 
+  if (route.key === 'explore') {
+    if (route.context.type !== 'site') return null
+    const siteId = route.context.id
+    return appendExploreQuery(
+      createWebHMUrl(siteId.uid, {
+        ...siteId,
+        hostname: opts?.hostname,
+        originHomeId: opts?.originHomeId,
+        viewTerm: ':explore',
+      }),
+      route.q,
+      route.sort,
+    )
+  }
+
   if (route.key === 'document') {
     const url = createWebHMUrl(route.id.uid, {
       ...route.id,
@@ -659,6 +677,12 @@ export function routeToHmUrl(route: NavRoute): string | null {
   }
   if (route.key === 'inspect-ipfs') {
     return createHmInspectIpfsUrl(route)
+  }
+
+  if (route.key === 'explore') {
+    if (route.context.type !== 'site') return null
+    const siteId = route.context.id
+    return appendExploreQuery(`${packBaseId(siteId.uid, siteId.path)}/:explore`, route.q, route.sort)
   }
 
   if (route.key === 'document') {
@@ -964,6 +988,15 @@ function serializeQueryString(query: Record<string, string | null>) {
     .join('&')
   if (!queryString) return ''
   return `?${queryString}`
+}
+
+function appendExploreQuery(url: string, q?: string | null, sort?: string | null) {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (sort) params.set('sort', sort)
+  const query = params.toString()
+  if (!query) return url
+  return `${url}${url.includes('?') ? '&' : '?'}${query}`
 }
 
 /** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */
