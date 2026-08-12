@@ -246,7 +246,10 @@ export function PlanStepRow({
   const body = (
     <>
       <Icon className={`size-3 flex-none ${STEP_CLASSES[status]} ${status === 'running' ? 'animate-spin' : ''}`} />
-      <span className={`max-w-[60%] min-w-0 truncate ${STEP_CLASSES[status]}`}>{step.label}</span>
+      {/* The label owns the row's space (2:1 over presence detail) and truncates only when the
+          row genuinely runs out — percentage caps collapse inside shrink-wrapped ancestors and
+          were cutting short labels at a fraction of the available width. */}
+      <span className={`min-w-0 flex-[2] truncate ${STEP_CLASSES[status]}`}>{step.label}</span>
       {child ? <ChildRunPresence run={child} live={childLive} activityDetail={activityDetail} /> : null}
     </>
   )
@@ -291,8 +294,9 @@ export function RunChildRow({
   const isLive = !isTerminalRun(run.status) && !ownerTerminal
   const content = (
     <>
-      {/* The title holds its ground (truncating only past 55%) while the presence detail yields. */}
-      <span className="max-w-[55%] flex-none truncate">{runTitle(run)}</span>
+      {/* The title owns the row's space (2:1 over presence detail) and truncates only when the
+          row genuinely runs out; percentage caps collapsed in shrink-wrapped ancestors. */}
+      <span className="min-w-0 flex-[2] truncate">{runTitle(run)}</span>
       <ChildRunPresence run={run} live={isLive} activityDetail={activityDetail} />
     </>
   )
