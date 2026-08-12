@@ -12,7 +12,7 @@ type FakeAdapterOptions = {
   source: string
   input?: unknown
   journal?: WorkflowJournalEntry[]
-  callTool?: (tool: string, input: unknown) => Promise<unknown>
+  callTool?: (tool: string, input: unknown, description?: string) => Promise<unknown>
   spawnAgent?: (spec: unknown, stepLabel?: string) => {childRunId: string; sessionId?: string}
   awaitChild?: (childRunId: string) => Promise<WorkflowChildResolution>
   isCanceled?: () => boolean
@@ -83,6 +83,55 @@ describe('workflow host', () => {
     expect(outcome).toEqual({type: 'succeeded', output: {echoed: 1}})
     expect(calls).toEqual([{tool: 'echo', input: {x: 1}}])
     expect(journal.map((entry) => entry.kind)).toEqual(['call', 'result'])
+  })
+
+  test('ctx.call carries its {description} to the journal and the tool adapter', async () => {
+    const calls: Array<{tool: string; description?: string}> = []
+    const {adapters, journal} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        await ctx.call('write', {address: '~/memory/a.md', content: 'a'}, {description: 'Writing the first note'})
+        await ctx.call('read', {address: '~/memory/a.md'}, {description: 'Reading it back'})
+        await ctx.call('write', {address: '~/memory/b.md', content: 'b'})
+        return {done: true}
+      }`,
+      callTool: async (tool, _input, description) => {
+        calls.push({tool, description})
+        return {ok: true}
+      },
+    })
+    const outcome = await runWorkflowVM(adapters)
+    expect(outcome).toEqual({type: 'succeeded', output: {done: true}})
+    // The run card reads the journal; the transcript reads the adapter. The label must reach both.
+    expect(
+      journal.filter((entry) => entry.kind === 'call').map((entry) => (entry as {description?: string}).description),
+    ).toEqual(['Writing the first note', 'Reading it back', undefined])
+    expect(calls).toEqual([
+      {tool: 'write', description: 'Writing the first note'},
+      {tool: 'read', description: 'Reading it back'},
+      {tool: 'write', description: undefined},
+    ])
+  })
+
+  test('relabeling a call does not re-execute it on replay', async () => {
+    // Descriptions are display metadata outside the content key. An agent that rewrites its own
+    // narration between attempts must still resume from the journal instead of redoing the work.
+    const labeled = (description: string) =>
+      `export default async function (input, ctx) {
+        const res = await ctx.call('op', {step: 1}, {description: ${JSON.stringify(description)}})
+        return {res}
+      }`
+    const first = fakeAdapters({source: labeled('Doing the thing'), callTool: async () => ({done: 1})})
+    const firstOutcome = await runWorkflowVM(first.adapters)
+    expect(firstOutcome).toEqual({type: 'succeeded', output: {res: {done: 1}}})
+
+    const replay = fakeAdapters({
+      source: labeled('Doing the thing, rephrased'),
+      journal: [...first.journal],
+      callTool: async () => {
+        throw new Error('tool must not re-execute after a relabel')
+      },
+    })
+    expect(await runWorkflowVM(replay.adapters)).toEqual({type: 'succeeded', output: {res: {done: 1}}})
   })
 
   test('ctx.parallel results are positionally stable under reversed completion order', async () => {
