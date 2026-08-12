@@ -609,3 +609,188 @@ it('marks user-run tool rows with a You chip', () => {
   expect(container.textContent).toContain('Read')
   cleanupRendered(root, container)
 })
+
+/** Renders one bubble and hands back its container, matching the helpers above. */
+function renderMessage(message: React.ComponentProps<typeof ChatMessageBubble>['message']) {
+  const container = document.createElement('div')
+  document.body.appendChild(container)
+  const root = createRoot(container)
+  act(() => {
+    root.render(<ChatMessageBubble message={message} />)
+  })
+  return {container, root}
+}
+
+/**
+ * The harness writes to the log too — continuation prompts, unmet-obligation notices, late
+ * deliveries — and it writes them as user turns because that is the turn a model takes instruction
+ * from. The transcript must not therefore claim the reader said them.
+ */
+describe('runtime-authored messages', () => {
+  beforeEach(() => {
+    ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  it('renders a system-actor message as a quiet aside rather than the user bubble', () => {
+    const {container, root} = renderMessage({
+      role: 'user',
+      actor: 'system',
+      content: 'Two plan steps are still open. Finish them or say why not.',
+    })
+
+    expect(container.querySelector('[data-message-kind="system"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="system-message"]')).toBeTruthy()
+    // Not the user's bubble: no sky fill, and it reads as subordinate muted text.
+    expect(container.innerHTML).not.toContain('bg-sky-100')
+    expect(container.querySelector('[data-testid="system-message"]')?.className).toContain('text-muted-foreground')
+    expect(container.textContent).toContain('Two plan steps are still open.')
+
+    cleanupRendered(root, container)
+  })
+
+  it('takes the same quiet path when the runtime speaks as the assistant', () => {
+    const {container, root} = renderMessage({
+      role: 'assistant',
+      actor: 'system',
+      content: 'The child delivered its result after this thread had moved on.',
+    })
+
+    expect(container.querySelector('[data-message-kind="system"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="system-message"]')).toBeTruthy()
+
+    cleanupRendered(root, container)
+  })
+
+  it('still gives a message the user typed their own bubble', () => {
+    const {container, root} = renderMessage({role: 'user', actor: 'user', content: 'Hello'})
+
+    expect(container.querySelector('[data-message-kind="user"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="system-message"]')).toBeNull()
+    expect(container.innerHTML).toContain('bg-sky-100')
+
+    cleanupRendered(root, container)
+  })
+
+  it('leaves a trigger-actor message rendering as it always did', () => {
+    const {container, root} = renderMessage({role: 'user', actor: 'trigger', content: 'Nightly review.'})
+
+    expect(container.querySelector('[data-message-kind="user"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="system-message"]')).toBeNull()
+
+    cleanupRendered(root, container)
+  })
+})
+
+/**
+ * What an event cost and where it came from, behind the ⓘ. The log is older than the stamp, so
+ * every one of these dialogs has to work on events that carry nothing at all.
+ */
+describe('event info dialogs', () => {
+  const STAMP = {
+    model: 'gpt-5-mini',
+    provider: 'openai',
+    durationMs: 1420,
+    usage: {input: 9102, output: 3381, cacheRead: 0, cacheWrite: 0, total: 12483},
+  }
+
+  beforeEach(() => {
+    ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+  })
+
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  function openMessageDialog(container: HTMLElement) {
+    click(findButton(container, (element) => element.getAttribute('aria-label') === 'Show markdown sent to the LLM'))
+  }
+
+  function openToolDialog(container: HTMLElement) {
+    click(findButton(container, (element) => element.getAttribute('title') === 'View raw tool input/output'))
+  }
+
+  it('shows model, provider, timing and token usage for a stamped assistant message', () => {
+    const {container, root} = renderMessage({role: 'assistant', content: 'Done.', meta: STAMP})
+
+    openMessageDialog(container)
+    expect(document.body.textContent).toContain('gpt-5-mini')
+    expect(document.body.textContent).toContain('openai')
+    expect(document.body.textContent).toContain('1.4s')
+    expect(document.body.textContent).toContain('12,483 tokens')
+    expect(document.body.textContent).toContain('9,102')
+    expect(document.body.textContent).toContain('3,381')
+    // A category that cost nothing is not a fact worth a row.
+    expect(document.body.textContent).not.toContain('Cache read')
+
+    cleanupRendered(root, container)
+  })
+
+  it('shows the same stats on a runtime-authored message', () => {
+    const {container, root} = renderMessage({
+      role: 'user',
+      actor: 'system',
+      content: 'Finishing the plan you left open.',
+      meta: {model: 'gpt-5-mini', provider: 'openai', durationMs: 240},
+    })
+
+    openMessageDialog(container)
+    expect(document.body.textContent).toContain('gpt-5-mini')
+    expect(document.body.textContent).toContain('240ms')
+
+    cleanupRendered(root, container)
+  })
+
+  it('still opens a working dialog on a legacy message with no stamp', () => {
+    const {container, root} = renderMessage({role: 'assistant', content: 'From an older transcript.', seq: 4})
+
+    openMessageDialog(container)
+    expect(document.body.textContent).toContain('Message details')
+    expect(document.body.textContent).toContain('From an older transcript.')
+    // Nothing is known, so nothing is labelled: no empty stat rows.
+    expect(document.body.textContent).not.toContain('Duration')
+    expect(document.body.textContent).not.toContain('Provider')
+
+    cleanupRendered(root, container)
+  })
+
+  it('shows a tool row its own timing and cost', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'tool-meta-1',
+      name: 'read',
+      args: {address: '~/memory/notes.md'},
+      result: 'Read notes.md.',
+      rawOutput: {summary: 'Read notes.md.'},
+      meta: {durationMs: 62_000, model: 'gpt-5-mini', provider: 'openai'},
+    })
+
+    openToolDialog(container)
+    expect(document.body.textContent).toContain('1m 2s')
+    expect(document.body.textContent).toContain('gpt-5-mini')
+    expect(document.body.textContent).toContain('openai')
+
+    cleanupRendered(root, container)
+  })
+
+  it('opens a legacy tool row dialog with its payloads and no stat block', () => {
+    const {container, root} = renderToolPart({
+      type: 'tool',
+      id: 'tool-meta-2',
+      name: 'read',
+      args: {address: '~/memory/notes.md'},
+      result: 'Read notes.md.',
+      rawOutput: {summary: 'Read notes.md.'},
+    })
+
+    openToolDialog(container)
+    expect(document.body.textContent).toContain('Input')
+    expect(document.body.textContent).toContain('Output')
+    expect(document.body.textContent).not.toContain('Duration')
+
+    cleanupRendered(root, container)
+  })
+})

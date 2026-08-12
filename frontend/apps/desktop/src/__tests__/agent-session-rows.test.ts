@@ -1,6 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import type {RunInfo, SessionEvent} from '@/agents-client'
-import {buildAgentSessionChatRows, interleaveRunRecords, retryableErrorRowKey} from '@/models/agent-session-rows'
+import {
+  buildAgentSessionChatRows,
+  frozenRunIds,
+  interleaveRunRecords,
+  isOptimisticUserEcho,
+  retryableErrorRowKey,
+} from '@/models/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@/components/assistant-session-ref'
 
 const CONTEXT = {serverUrl: 'http://localhost:3050', agentId: 'agent-1', sessionId: 'session-1'}
@@ -245,6 +251,203 @@ describe('interleaveRunRecords', () => {
     ])
     expect(rows.at(-1)).toMatchObject({kind: 'run-record', run: {id: 'planned'}})
   })
+
+  /**
+   * A transcript around a live run whose checklist has already finished.
+   *
+   * Deliberately free of plan rows: the plan verb writes none — the checklist is session state,
+   * rendered as the card rather than as conversation — so the settle moment can only come from the
+   * server's `settledAt` stamp.
+   */
+  const settledPlanRows = () =>
+    buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'go'}),
+        event(3, {type: 'message', role: 'assistant', content: 'Working on it.'}),
+        event(8, {type: 'message', role: 'assistant', content: 'And here is the summary.'}),
+      ],
+      CONTEXT,
+    )
+
+  const SETTLED_AT = 1_700_000_000_004
+
+  const settledPlan = {
+    settledAt: SETTLED_AT,
+    steps: [
+      {id: 's1', label: 'Research', status: 'done' as const},
+      {id: 's2', label: 'Draft', status: 'skipped' as const},
+    ],
+  }
+
+  it('freezes a live agent run at the moment the server stamped its session plan settled', () => {
+    // A model-driven run carries no plan of its own — its checklist is the session's, which is why
+    // the session plan has to reach this decision the same way it reaches the pinned card.
+    const rows = interleaveRunRecords(
+      settledPlanRows(),
+      [run({id: 'live', status: 'running', childRunCount: 2, updatedAt: 1_700_000_000_999})],
+      settledPlan,
+    )
+    // Between the two assistant turns, where it settled — not at the bottom, and not dragged down by
+    // `updatedAt`, which keeps advancing while the run finishes talking.
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'message', 'run-record', 'message'])
+    expect(rows[2]).toMatchObject({kind: 'run-record', run: {id: 'live'}, createdAt: SETTLED_AT})
+  })
+
+  it('carries the session checklist onto the frozen row, so the card still has its story', () => {
+    // `RunInfo.plan` is written by the workflow host alone. Without carrying the session's plan
+    // across, an agent run's frozen card would render a title and no steps.
+    const rows = interleaveRunRecords(
+      settledPlanRows(),
+      [run({id: 'live', status: 'running', childRunCount: 2})],
+      settledPlan,
+    )
+    expect(rows[2]).toMatchObject({kind: 'run-record', plan: {steps: settledPlan.steps}})
+  })
+
+  it('freezes a workflow run on its own settled plan', () => {
+    const rows = interleaveRunRecords(settledPlanRows(), [
+      run({id: 'wf', status: 'running', kind: 'workflow', plan: settledPlan, updatedAt: 1_700_000_000_999}),
+    ])
+    expect(rows[2]).toMatchObject({kind: 'run-record', run: {id: 'wf'}, createdAt: SETTLED_AT})
+  })
+
+  it('lends the session checklist only to the newest run', () => {
+    // ListRuns is newest-first, and the session's checklist belongs to whichever run is writing it
+    // now — the same run the pinned card would show it on. An older turn does not settle by it.
+    const rows = interleaveRunRecords(
+      settledPlanRows(),
+      [
+        run({id: 'newest', status: 'running', childRunCount: 1}),
+        run({id: 'older', status: 'running', childRunCount: 1}),
+      ],
+      settledPlan,
+    )
+    const frozen = frozenRunIds(rows)
+    expect(frozen.has('newest')).toBe(true)
+    expect(frozen.has('older')).toBe(false)
+  })
+
+  it('leaves a run with an unfinished step pinned, exactly as before', () => {
+    const rows = interleaveRunRecords(settledPlanRows(), [run({id: 'live', status: 'running', childRunCount: 2})], {
+      steps: [...settledPlan.steps, {id: 's3', label: 'Publish', status: 'running'}],
+    })
+    expect(rows.every((row) => row.kind !== 'run-record')).toBe(true)
+    expect(frozenRunIds(rows).size).toBe(0)
+  })
+
+  it('stays pinned when a settled plan carries no stamp, rather than inventing a moment', () => {
+    // A plan settled before the server recorded when. There is no honest position for the card, and
+    // `updatedAt` would drag it down the scroll on every heartbeat — so it keeps its pinned slot.
+    const {settledAt: _unstamped, ...unstampedPlan} = settledPlan
+    const rows = interleaveRunRecords(
+      settledPlanRows(),
+      [run({id: 'live', status: 'running', childRunCount: 2, updatedAt: 1_700_000_000_999})],
+      unstampedPlan,
+    )
+    expect(frozenRunIds(rows).size).toBe(0)
+  })
+
+  it('freezes a live run once it delivers its typed result', () => {
+    const rows = interleaveRunRecords(
+      buildAgentSessionChatRows(
+        [
+          event(1, {type: 'message', role: 'user', content: 'go'}),
+          event(4, {type: 'tool_call', id: 'r1', name: 'return_result', input: {output: {ok: true}}}),
+          event(5, {type: 'tool_result', toolCallId: 'r1', name: 'return_result', output: {summary: 'Delivered.'}}),
+          event(9, {type: 'message', role: 'assistant', content: 'Anything else?'}),
+        ],
+        CONTEXT,
+      ),
+      // No settled plan and no terminal status: the delivered result is what completes the story.
+      [
+        run({
+          id: 'live',
+          status: 'running',
+          childRunCount: 1,
+          plan: {steps: [{id: 's1', label: 'Do', status: 'running'}]},
+        }),
+      ],
+    )
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'message', 'run-record', 'message'])
+  })
+
+  it('keeps a parked run pinned even with a fully settled plan — it is asking you something', () => {
+    const rows = interleaveRunRecords(
+      settledPlanRows(),
+      [
+        run({
+          id: 'parked',
+          status: 'waiting',
+          childRunCount: 1,
+          wait: {reason: 'event', answerWith: 'approval'},
+        }),
+      ],
+      settledPlan,
+    )
+    expect(frozenRunIds(rows).size).toBe(0)
+  })
+
+  it('never freezes a plain turn, however settled it looks', () => {
+    // No children, no workflow, and the session checklist is empty: nothing to put on a card.
+    const rows = interleaveRunRecords(settledPlanRows(), [run({id: 'plain', status: 'running'})], {
+      settledAt: SETTLED_AT,
+      steps: [],
+    })
+    expect(frozenRunIds(rows).size).toBe(0)
+  })
+
+  it('does not lend a settled session checklist to a finished plain turn', () => {
+    // The session's plan may have settled during a later turn. A finished turn is judged on what it
+    // carried itself, or an old plain reply would sprout an orchestration card it never earned.
+    const rows = interleaveRunRecords(
+      settledPlanRows(),
+      [run({id: 'done', status: 'succeeded', finishedAt: 1_700_000_000_006})],
+      settledPlan,
+    )
+    expect(frozenRunIds(rows).size).toBe(0)
+  })
+
+  it('names the frozen runs so the pinned card can stop repeating them', () => {
+    const rows = interleaveRunRecords(
+      settledPlanRows(),
+      [run({id: 'live', status: 'running', childRunCount: 2})],
+      settledPlan,
+    )
+    const frozen = frozenRunIds(rows)
+    expect(frozen.size).toBe(1)
+    expect(frozen.has('live')).toBe(true)
+  })
+})
+
+describe('isOptimisticUserEcho', () => {
+  const pending = {type: 'message', role: 'user', content: 'Finish the plan.'} as never
+
+  it('recognises the server echoing back the message the user just sent', () => {
+    expect(isOptimisticUserEcho({type: 'message', role: 'user', content: 'Finish the plan.'} as never, pending)).toBe(
+      true,
+    )
+  })
+
+  it('never mistakes a runtime-authored turn for the user`s pending message', () => {
+    // The runtime writes mid-run, as `role: 'user'`, over the very socket the optimistic row is
+    // waiting on. Matching on shape alone would delete the user's own words from the transcript.
+    expect(
+      isOptimisticUserEcho(
+        {type: 'message', role: 'user', actor: 'system', content: 'Finish the plan.'} as never,
+        pending,
+      ),
+    ).toBe(false)
+  })
+
+  it('leaves rows that are not the user`s message alone', () => {
+    expect(
+      isOptimisticUserEcho({type: 'message', role: 'assistant', content: 'Finish the plan.'} as never, pending),
+    ).toBe(false)
+    expect(isOptimisticUserEcho({type: 'message', role: 'user', content: 'Something else.'} as never, pending)).toBe(
+      false,
+    )
+    expect(isOptimisticUserEcho({type: 'tool_call', id: 'c1', name: 'plan'} as never, pending)).toBe(false)
+  })
 })
 
 describe('assistant session refs', () => {
@@ -284,6 +487,65 @@ describe('symmetric log actors', () => {
     const agentRow = rows[1]!
     if (agentRow.kind !== 'message') throw new Error('expected a message row')
     expect(agentRow.message.parts?.[0]).toMatchObject({type: 'tool', id: 'a1', actor: 'agent'})
+  })
+
+  it('stamps the message row with its author, so a runtime-written turn is not read as the user', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', content: 'Go.'}),
+        // The runtime asks as a user turn so the model obeys it — the actor is the only thing that
+        // says nobody typed this.
+        event(2, {type: 'message', role: 'user', content: 'Two plan steps are still open.', actor: 'system'}),
+        event(3, {type: 'message', role: 'assistant', content: 'On it.'}),
+      ],
+      CONTEXT,
+    )
+    expect(rows.map((row) => (row.kind === 'message' ? row.message.actor : null))).toEqual(['user', 'system', 'agent'])
+  })
+
+  it('carries the runtime stamp onto assistant messages and leaves legacy ones bare', () => {
+    const meta = {model: 'gpt-5-mini', provider: 'openai', durationMs: 1420}
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'assistant', content: 'Stamped.', meta}),
+        event(2, {type: 'message', role: 'assistant', content: 'Legacy.'}),
+      ],
+      CONTEXT,
+    )
+    expect(rows.map((row) => (row.kind === 'message' ? row.message.meta : null))).toEqual([meta, undefined])
+  })
+
+  it('derives a tool call duration from its own two log entries when the runtime stamped none', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'c1', name: 'read', input: {address: '~/memory/x'}}),
+        // event(n).createdAt is base + n, so this result lands 3ms after the call.
+        event(4, {type: 'tool_result', toolCallId: 'c1', name: 'read', output: {summary: 'Read.'}}),
+        event(5, {type: 'tool_call', id: 'c2', name: 'call', input: {tool: 'search'}}),
+        event(6, {
+          type: 'tool_result',
+          toolCallId: 'c2',
+          name: 'call',
+          output: {summary: 'Found.'},
+          meta: {durationMs: 8_000, model: 'gpt-5-mini'},
+        }),
+      ],
+      CONTEXT,
+    )
+    const metas = rows.map((row) => (row.kind === 'message' ? row.message.parts?.[0] : null))
+    expect(metas[0]).toMatchObject({meta: {durationMs: 3}})
+    // A stamped duration is the truth about the tool, not the truth about the log's clock.
+    expect(metas[1]).toMatchObject({meta: {durationMs: 8_000, model: 'gpt-5-mini'}})
+  })
+
+  it('leaves a tool row with nothing to say carrying no stat block at all', () => {
+    const rows = buildAgentSessionChatRows(
+      [event(1, {type: 'tool_result', toolCallId: 'orphan', name: 'read', output: {summary: 'Read.'}})],
+      CONTEXT,
+    )
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    expect((row.message.parts?.[0] as {meta?: unknown}).meta).toBeUndefined()
   })
 
   it('keeps the user actor when the result event omits it', () => {

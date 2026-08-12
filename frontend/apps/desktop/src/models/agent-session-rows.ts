@@ -1,8 +1,11 @@
 import {
   type AgentSessionTriggerContext,
   type RunInfo,
+  type RunPlan,
   type SessionAttachmentInfo,
   type SessionEvent,
+  type SessionEventMeta,
+  type SessionEventPayload,
 } from '@/agents-client'
 import {type ChatBubbleMessage} from '@/components/assistant-message-rendering'
 import {type ChatToolPart} from '@/models/chat-parts'
@@ -29,48 +32,190 @@ export type AgentSessionChatRow =
     }
   | {key: string; kind: 'error'; message: string; createdAt?: number}
   | {key: string; kind: 'raw'; event: SessionEvent; createdAt?: number}
-  | {key: string; kind: 'run-record'; run: RunInfo; createdAt?: number}
+  | {
+      key: string
+      kind: 'run-record'
+      run: RunInfo
+      /**
+       * The checklist this card must render, when it is not the run's own. A model-driven agent run
+       * keeps its plan on the session, so freezing the run without carrying the plan across would
+       * put a card in the log with the story missing from it.
+       */
+      plan?: RunPlan
+      createdAt?: number
+    }
 
 /** Statuses a run can no longer leave (mirrored from the run card; kept dependency-free here). */
 const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'canceled'])
 
+/** Step statuses a plan step can no longer leave — done, written off, or given up on. */
+const TERMINAL_STEP_STATUSES = new Set(['done', 'failed', 'skipped'])
+
 /**
- * Whether a finished run deserves its own record row in the transcript: it orchestrated something —
- * a workflow, spawned children, or a step plan. A plain chat turn's story is its messages.
+ * Whether a run deserves its own record row in the transcript: it orchestrated something — a
+ * workflow, spawned children, or a step plan. A plain chat turn's story is its messages.
+ *
+ * `plan` is the checklist the card would actually render, which is not always the run's own: a
+ * model-driven agent run never carries one (`RunInfo.plan` is written by the workflow host alone),
+ * and its checklist lives on the session. The pinned card resolves the same way — `root.plan ??
+ * sessionPlan` — so both surfaces agree on what counts as an orchestration.
  */
-function isOrchestrationRecord(run: RunInfo): boolean {
-  return run.kind === 'workflow' || (run.childRunCount ?? 0) > 0 || (run.plan?.steps.length ?? 0) > 0
+function isOrchestrationRecord(run: RunInfo, plan?: RunPlan): boolean {
+  return run.kind === 'workflow' || (run.childRunCount ?? 0) > 0 || (plan?.steps.length ?? 0) > 0
+}
+
+/** A plan with steps, none of which can move again. An empty plan has settled nothing. */
+function isPlanFullySettled(plan: RunPlan | undefined): boolean {
+  if (!plan?.steps.length) return false
+  return plan.steps.every((step) => TERMINAL_STEP_STATUSES.has(step.status))
 }
 
 /**
- * Places each finished orchestration's record card into the transcript at the moment it completed.
+ * A moment in the log where a run's story could have finished being told.
  *
- * This is the second half of the pinned card's contract: while a run is live it is pinned above the
- * composer; once it finalizes, the same card joins the chat log — after the last event that
- * happened before it finished, which for the newest run is the bottom of the log. Live runs are
- * skipped (the pinned card owns them), as are plain turns.
+ * Only one thing qualifies: a delivered typed result. The plan verb deliberately writes no tool
+ * rows — the checklist is session state, rendered as the card rather than as conversation — so there
+ * is nothing in the transcript to scan for it, and the server stamps `RunPlan.settledAt` instead.
  */
-export function interleaveRunRecords(rows: AgentSessionChatRow[], runs: RunInfo[]): AgentSessionChatRow[] {
+type SettleMarker = {kind: 'typed-result'; at: number}
+
+function settleMarkers(rows: AgentSessionChatRow[]): SettleMarker[] {
+  const markers: SettleMarker[] = []
+  for (const row of rows) {
+    if (row.kind !== 'message' || row.createdAt === undefined) continue
+    for (const part of row.message.parts ?? []) {
+      if (part.type !== 'tool') continue
+      if (part.name === 'return_result' && !part.isError && (part.result !== undefined || part.rawOutput)) {
+        markers.push({kind: 'typed-result', at: row.createdAt})
+      }
+    }
+  }
+  return markers
+}
+
+/** Whether a log moment belongs to this run's lifetime, so its marker can speak for that run. */
+function runOwnsMoment(run: RunInfo, at: number): boolean {
+  return at >= (run.startedAt ?? run.createdAt) && (run.finishedAt === undefined || at <= run.finishedAt)
+}
+
+/**
+ * When a run's story stopped changing, or `undefined` while it is still being told.
+ *
+ * A run ending is the obvious answer, and was for a long time the only one — but it is not the only
+ * moment a story completes. A run whose every plan step has settled, or that has delivered the typed
+ * result it was spawned to deliver, has said everything it came to say; whatever it does afterwards
+ * (a closing summary, a final tool call) belongs to the conversation, not to the card. Freezing at
+ * that moment is what lets the card leave the pinned slot mid-session instead of hovering, complete
+ * and unchanging, above the composer.
+ *
+ * Every answer here is a durable timestamp that never moves again — the run's own finish, the
+ * server's `settledAt` stamp, or the log position of the result row. Nothing is anchored to
+ * `updatedAt`, which advances with every heartbeat and would drag a frozen card down the scroll for
+ * as long as its run lived. A settled plan the server never stamped (a workflow plan predating the
+ * field) therefore stays pinned: no honest moment, no freeze.
+ *
+ * Only orchestrations freeze: a plain turn's story is its messages, and always was.
+ */
+export function runStoryFrozenAt(
+  run: RunInfo,
+  context: {markers?: SettleMarker[]; plan?: RunPlan} = {},
+): number | undefined {
+  const {markers = [], plan} = context
+  // A finished run is judged on what it carried itself. The session's checklist may have moved on to
+  // a later turn, and lending it to an old plain turn would invent an orchestration that never was.
+  if (TERMINAL_RUN_STATUSES.has(run.status)) {
+    return isOrchestrationRecord(run, run.plan) ? run.finishedAt ?? run.updatedAt : undefined
+  }
+  // A parked run is the one thing on screen that may be waiting on YOU — for an answer, for a
+  // budget. Whatever its checklist says, that story is not over, and the place to answer it is the
+  // pinned slot above the composer, not somewhere up the scroll.
+  if (run.status === 'waiting') return undefined
+  if (!isOrchestrationRecord(run, plan)) return undefined
+  const typedResult = markers.filter((marker) => marker.kind === 'typed-result' && runOwnsMoment(run, marker.at)).at(-1)
+  if (typedResult) return typedResult.at
+  return isPlanFullySettled(plan) ? plan?.settledAt : undefined
+}
+
+/**
+ * Places each run's record card into the transcript at the moment its story stopped changing.
+ *
+ * This is the second half of the pinned card's contract: while a run's story is still being told it
+ * is pinned above the composer; once the story is complete — the run ended, its plan fully settled,
+ * or its typed result landed — the same card joins the chat log after the last event that predates
+ * that moment, which for the newest run is the bottom of the log. Runs still telling their story are
+ * skipped (the pinned card owns them), as are plain turns.
+ *
+ * `sessionPlan` is the session's own checklist, which is where a model-driven agent's plan lives. It
+ * belongs to the newest run — the same run the pinned card would show it on — so only that run may
+ * settle by it.
+ */
+export function interleaveRunRecords(
+  rows: AgentSessionChatRow[],
+  runs: RunInfo[],
+  sessionPlan?: RunPlan,
+): AgentSessionChatRow[] {
+  const markers = settleMarkers(rows)
   const records = runs
-    .filter((run) => TERMINAL_RUN_STATUSES.has(run.status) && isOrchestrationRecord(run))
-    .sort((a, b) => (a.finishedAt ?? a.updatedAt) - (b.finishedAt ?? b.updatedAt))
+    .flatMap((run, index) => {
+      // A finished run is read from what it carried itself; only a live newest run borrows the
+      // session's checklist, which is the one the pinned card would be showing on it right now.
+      const borrowsSessionPlan = index === 0 && !TERMINAL_RUN_STATUSES.has(run.status) && !run.plan
+      const plan = borrowsSessionPlan ? sessionPlan : run.plan
+      const frozenAt = runStoryFrozenAt(run, {markers, plan})
+      if (frozenAt === undefined) return []
+      // Carried onto the row only when it is the settled checklist the card exists to show.
+      const carried = borrowsSessionPlan && isPlanFullySettled(plan) ? plan : undefined
+      return [{run, frozenAt, plan: carried}]
+    })
+    .sort((a, b) => a.frozenAt - b.frozenAt)
   if (!records.length) return rows
   const result = [...rows]
-  for (const run of records) {
-    const finishedAt = run.finishedAt ?? run.updatedAt
+  for (const {run, frozenAt, plan} of records) {
     let index = result.length
-    // Insert after the last row that predates the finish; rows without timestamps keep their place.
+    // Insert after the last row that predates the freeze; rows without timestamps keep their place.
     for (let i = result.length - 1; i >= 0; i -= 1) {
       const at = result[i]?.createdAt
-      if (at !== undefined && at <= finishedAt) {
+      if (at !== undefined && at <= frozenAt) {
         index = i + 1
         break
       }
       if (at !== undefined) index = i
     }
-    result.splice(index, 0, {key: `run-${run.id}`, kind: 'run-record', run, createdAt: finishedAt})
+    result.splice(index, 0, {key: `run-${run.id}`, kind: 'run-record', run, plan, createdAt: frozenAt})
   }
   return result
+}
+
+/**
+ * The runs whose card already lives in the transcript, so no surface repeats them.
+ *
+ * The pinned slot reads this: a run frozen into the log is told there and only there, even while it
+ * is still running. Two copies of one card — one pinned, one in the scroll — is the same story told
+ * twice, and the pinned one is the copy that has stopped meaning anything.
+ */
+export function frozenRunIds(rows: AgentSessionChatRow[]): Set<string> {
+  const ids = new Set<string>()
+  for (const row of rows) if (row.kind === 'run-record') ids.add(row.run.id)
+  return ids
+}
+
+/**
+ * Whether a durable event arriving over the socket is the server's echo of an optimistic row the
+ * user's own send left in the cache — the one case where the pending row must be dropped rather
+ * than duplicated.
+ *
+ * Content equality alone is not enough, because `role: 'user'` no longer means "a person typed
+ * this". The runtime writes to the log as a user turn too (continuation prompts, unmet-obligation
+ * notices), and those arrive mid-run over the same stream; matching one against a message the user
+ * is still waiting on would delete their own words from the transcript. The actor is what separates
+ * them, so it is checked first.
+ */
+export function isOptimisticUserEcho(incoming: SessionEventPayload, optimistic: SessionEventPayload): boolean {
+  const arrived = incoming as {type?: unknown; role?: unknown; content?: unknown}
+  if (arrived.type !== 'message' || arrived.role !== 'user') return false
+  if (sessionEventActor(incoming) !== 'user') return false
+  const pending = optimistic as {type?: unknown; role?: unknown; content?: unknown}
+  return pending.type === 'message' && pending.role === 'user' && pending.content === arrived.content
 }
 
 /**
@@ -158,6 +303,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+/**
+ * A tool row's provenance, preferring what the runtime stamped and filling only the gap it left.
+ *
+ * Returns nothing at all when nothing is known, so the info dialog can tell "no stats" from "stats
+ * that are all blank" — a legacy row with no timings must render no section, not empty labels.
+ */
+function resolveToolMeta(
+  stamped: SessionEventMeta | undefined,
+  derivedDurationMs: number | undefined,
+): SessionEventMeta | undefined {
+  const durationMs = stamped?.durationMs ?? derivedDurationMs
+  if (!stamped && durationMs === undefined) return undefined
+  return {...stamped, ...(durationMs === undefined ? {} : {durationMs})}
+}
+
 /** Converts durable session events into chat rows, pairing tool calls with their results. */
 export function buildAgentSessionChatRows(
   events: SessionEvent[],
@@ -183,6 +343,7 @@ export function buildAgentSessionChatRows(
       blocks?: HMBlockNode[]
       contextLines?: unknown
       attachments?: unknown
+      meta?: SessionEventMeta
     }
 
     if (payload.type === 'message' && typeof payload.content === 'string') {
@@ -206,6 +367,12 @@ export function buildAgentSessionChatRows(
         createdAt: event.createdAt,
         message: {
           role: payload.role,
+          // Who wrote it, on a log that four kinds of actor write to. Stamped on the message and not
+          // only on its tool parts: a message the runtime itself authored (a continuation prompt, an
+          // unmet-obligation notice) carries role 'user' so the model reads it as instruction, and
+          // without the actor the transcript would show it as something the user typed.
+          actor: sessionEventActor(event.event),
+          meta: payload.meta,
           content: displayContent,
           rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
           blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
@@ -258,6 +425,11 @@ export function buildAgentSessionChatRows(
       // time: deriving a default here would stamp 'agent' onto results of user-run calls whose
       // result events omit the field, silently clobbering the attribution.
       const explicitResultActor = (event.event as {actor?: ChatToolPart['actor']}).actor
+      // How long the call took: the runtime's own stamp when it left one, otherwise the distance
+      // between the call and its result on the log — the same wall time, measured from outside.
+      const derivedDurationMs =
+        existingRow?.createdAt !== undefined ? Math.max(0, event.createdAt - existingRow.createdAt) : undefined
+      const meta = resolveToolMeta(payload.meta, derivedDurationMs)
       const resultPart: ChatToolPart = {
         type: 'tool',
         id: payload.toolCallId,
@@ -265,6 +437,7 @@ export function buildAgentSessionChatRows(
         result: resultText,
         rawOutput: payload.output,
         ...(explicitResultActor ? {actor: explicitResultActor} : {}),
+        ...(meta ? {meta} : {}),
         ...(payload.error ? {isError: true} : {}),
       }
 

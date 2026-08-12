@@ -23,6 +23,11 @@ export type RunErrorInfo = {
   retryable?: boolean
   /** HTTP status to surface when an interactive caller is waiting on this run. */
   httpStatus?: number
+  /**
+   * Obligations the run still owed when it failed (an undelivered typed result, an unfinished plan).
+   * A succeeded run carries the same list on its output instead; either way the debt is visible.
+   */
+  unmetObligations?: Array<{kind: 'typed-result'} | {kind: 'plan'; steps: string[]}>
 }
 
 /**
@@ -55,6 +60,8 @@ export type RunUsage = {
 export type RunPlanState = {
   title?: string
   steps: Array<{id: string; label: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'}>
+  /** When every step last became terminal; cleared if an edit reopens one. See `RunPlan.settledAt`. */
+  settledAt?: number
 }
 
 export type RunRecord = {

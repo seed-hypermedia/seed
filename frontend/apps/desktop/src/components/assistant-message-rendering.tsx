@@ -1,4 +1,11 @@
-import {type AgentRunActivity, type RunInfo, type SessionAttachmentInfo} from '@/agents-client'
+import {
+  type AgentRunActivity,
+  type RunInfo,
+  type SessionActor,
+  type SessionAttachmentInfo,
+  type SessionEventMeta,
+} from '@/agents-client'
+import {eventMetaRows} from '@/models/event-meta'
 import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
 import {getSeedTool, type SeedToolMetadata} from '../../../../../agents/protocol/src/tool-registry'
 import {
@@ -64,13 +71,21 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
   agentId?: string
 }) {
   const [showRawMarkdown, setShowRawMarkdown] = useState(false)
-  const isUser = message.role === 'user'
+  // The runtime writes to the log too, and it writes as 'user' so the model obeys. The actor is
+  // what separates those messages from the ones a person typed, so it is checked before the role.
+  const isSystem = message.actor === 'system'
+  const isUser = !isSystem && message.role === 'user'
   const rawMarkdown = message.rawMarkdown ?? message.content
   const resolvedBlocks = useAttachmentResolvedBlocks(serverUrl, message)
 
   return (
-    <div className="group/message my-1.5">
-      {isUser ? (
+    <div className="group/message my-1.5" data-message-kind={isSystem ? 'system' : isUser ? 'user' : 'assistant'}>
+      {isSystem ? (
+        <SystemMessageRow
+          content={message.content || ''}
+          rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
+        />
+      ) : isUser ? (
         <div className="flex items-start gap-1">
           <div className="ml-6 min-w-0 flex-1 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-[13px] text-slate-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-50 [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
             {resolvedBlocks?.length ? (
@@ -136,6 +151,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
                 <span className="bg-muted rounded px-2 py-1">Seq: {message.seq}</span>
               ) : null}
             </div>
+            <EventMetaSection meta={message.meta} />
             <pre className="bg-muted max-h-[50vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
               {rawMarkdown}
             </pre>
@@ -155,6 +171,56 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
     </div>
   )
 })
+
+/**
+ * A message the runtime wrote, told as an aside.
+ *
+ * The harness itself writes to the log — asking an agent to finish the plan it left open, noting an
+ * obligation it ended without meeting, recording a result that arrived after everyone stopped
+ * waiting. Every one of those is addressed to the model as a user turn, because that is the only
+ * turn a model takes instruction from. But nobody typed them, and a blue bubble under the reader's
+ * own name for a sentence they never wrote is a lie the transcript cannot afford.
+ *
+ * So: no bubble, no name, quiet grey and set in from the conversation — visibly the machinery
+ * talking about the conversation rather than a voice in it. The ⓘ keeps the exact text and stamp.
+ */
+function SystemMessageRow({content, rawMarkdownButton}: {content: string; rawMarkdownButton?: React.ReactNode}) {
+  return (
+    <div className="flex items-start gap-1">
+      <div
+        data-testid="system-message"
+        className="border-border/70 text-muted-foreground my-0.5 ml-6 min-w-0 flex-1 border-l-2 py-0.5 pl-2.5 text-[11px] leading-4 [&_.hm-prose]:!text-[11px] [&_p]:!my-0"
+      >
+        <Markdown>{content}</Markdown>
+      </div>
+      {rawMarkdownButton}
+    </div>
+  )
+}
+
+/**
+ * What the log knows about one event's cost and timing, when it knows anything.
+ *
+ * Renders nothing when the event predates the stamp — an older transcript's dialog is smaller, not
+ * broken, and a labelled row with nothing behind it would be worse than no row.
+ */
+function EventMetaSection({meta}: {meta?: SessionEventMeta}) {
+  const rows = eventMetaRows(meta)
+  if (!rows.length) return null
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Details</div>
+      <div className="bg-muted grid gap-x-4 gap-y-1 rounded-md p-2 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label} className="flex min-w-0 items-baseline justify-between gap-2 text-xs">
+            <span className="text-muted-foreground shrink-0">{row.label}</span>
+            <span className="min-w-0 truncate text-right font-medium">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /** Renders assistant message parts with the same markdown, tool, and streaming cursor UI used by the desktop assistant. */
 export const AssistantMessageParts = React.memo(function AssistantMessageParts({
@@ -280,6 +346,14 @@ export type ChatBubbleMessage = {
   contextLines?: string[]
   /** Session-private attachments that accompanied this user message. */
   attachments?: SessionAttachmentInfo[]
+  /**
+   * Who wrote this message on the shared log. `role` says how the model reads it; this says who put
+   * it there — and they disagree exactly where it matters, on the runtime's own messages, which the
+   * model must read as instruction (role 'user') and the reader must not mistake for the user.
+   */
+  actor?: SessionActor
+  /** Model, provider, per-turn usage, and wall time, as the runtime stamped them. */
+  meta?: SessionEventMeta
 }
 
 /**
@@ -576,6 +650,7 @@ function ToolCallDebugDialog({
           <DialogDescription>Raw tool call payload captured during the assistant response.</DialogDescription>
         </DialogHeader>
         <div className="grid min-h-0 gap-3">
+          <EventMetaSection meta={item.meta} />
           {typeof item.args?.script === 'string' && item.args.script ? (
             <div className="min-h-0 space-y-1">
               <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Script</div>

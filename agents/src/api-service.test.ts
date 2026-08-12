@@ -11,6 +11,19 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 
+/**
+ * An event payload with its provenance stamp dropped.
+ *
+ * Assistant messages and tool results carry a `meta` block (model, provider, per-turn usage, wall
+ * time) written at append time. Its values are clock- and provider-dependent, so structural
+ * assertions about a transcript compare everything else; the stamp has its own tests.
+ */
+function withoutMeta(payload: unknown): unknown {
+  if (payload === null || typeof payload !== 'object') return payload
+  const {meta: _meta, ...rest} = payload as Record<string, unknown>
+  return rest
+}
+
 describe('api service', () => {
   test('read tool returns only metadata for :attributes URLs', async () => {
     // Mirrors the desktop's attributes tab: `<doc>/:attributes` is a view term, not a path
@@ -2113,7 +2126,7 @@ describe('api service', () => {
       expect(session._).toBe('GetSessionResponse')
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(session.session.status).toBe('idle')
-      expect(session.events.map((event) => event.event)).toEqual([
+      expect(session.events.map((event) => withoutMeta(event.event))).toEqual([
         {
           type: 'message',
           role: 'user',
@@ -2628,7 +2641,21 @@ describe('api service', () => {
         'message',
         'message',
       ])
-      expect(session.events[1]?.event).toEqual({type: 'message', role: 'assistant', content: "I'll read it first.\n"})
+      expect(withoutMeta(session.events[1]?.event)).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: "I'll read it first.\n",
+      })
+      // Provenance is stamped as the events are written, so an info dialog can explain any row long
+      // after the run is gone: which model answered, on which provider, at what cost and how long.
+      const assistantMeta = (session.events[1]?.event as {meta?: Record<string, unknown>}).meta
+      expect(assistantMeta?.model).toBe('gpt-test')
+      expect(assistantMeta?.provider).toBe('openai')
+      expect(assistantMeta?.usage).toMatchObject({input: expect.any(Number), output: expect.any(Number)})
+      expect(assistantMeta?.durationMs).toBeGreaterThanOrEqual(0)
+      // A tool row's timing comes from the executor, which is the only thing that knows the real span.
+      const toolMeta = (session.events[3]?.event as {meta?: {durationMs?: number}}).meta
+      expect(toolMeta?.durationMs).toBeGreaterThanOrEqual(0)
     } finally {
       globalThis.fetch = originalFetch
       db.close()
@@ -3843,10 +3870,13 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: childSessionId}}),
       )
       if (child._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      // A runtime-authored note, stamped 'system': the log shows it as the machine speaking, and the
+      // agent reads it on its next turn like anything else it is told.
       const notes = child.events
-        .map((event) => event.event as {type?: string; message?: string})
-        .filter((event) => event.type === 'error' && event.message?.includes('already stopped waiting'))
+        .map((event) => event.event as {type?: string; actor?: string; content?: string})
+        .filter((event) => event.type === 'message' && event.content?.includes('already stopped waiting'))
       expect(notes).toHaveLength(1)
+      expect(notes[0]?.actor).toBe('system')
     } finally {
       globalThis.fetch = originalFetch
       db.close()
@@ -4586,7 +4616,7 @@ describe('api service', () => {
       const types = session.events.map((event) => (event.event as {type?: string}).type)
       expect(types.filter((type) => type === 'tool_call')).toHaveLength(2)
       expect(types.filter((type) => type === 'tool_result')).toHaveLength(2)
-      expect(session.events.at(-1)?.event).toEqual({
+      expect(withoutMeta(session.events.at(-1)?.event)).toEqual({
         type: 'message',
         role: 'assistant',
         content: 'All workers finished.',
@@ -4812,7 +4842,11 @@ describe('api service', () => {
         .find((event) => event.type === 'tool_result')
       expect(result?.output?.status).toBe('succeeded')
       expect(result?.output?.output).toEqual({answer: 'forty-two', confidence: 0.9})
-      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Score received.'})
+      expect(withoutMeta(session.events.at(-1)?.event)).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Score received.',
+      })
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
@@ -5109,7 +5143,11 @@ describe('api service', () => {
       )
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(session.session.status).toBe('idle')
-      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Resumed and done.'})
+      expect(withoutMeta(session.events.at(-1)?.event)).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Resumed and done.',
+      })
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()
@@ -5235,7 +5273,11 @@ describe('api service', () => {
       )
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(session.session.status).toBe('idle')
-      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Workflow complete.'})
+      expect(withoutMeta(session.events.at(-1)?.event)).toEqual({
+        type: 'message',
+        role: 'assistant',
+        content: 'Workflow complete.',
+      })
       const workflowResult = session.events
         .map(
           (event) =>
@@ -5504,7 +5546,7 @@ describe('api service', () => {
       )
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(session.session.status).toBe('idle')
-      expect(session.events.at(-1)?.event).toEqual({type: 'message', role: 'assistant', content: 'Paris.'})
+      expect(withoutMeta(session.events.at(-1)?.event)).toEqual({type: 'message', role: 'assistant', content: 'Paris.'})
       const userMessages = session.events.filter(
         (event) => (event.event as {type?: string; role?: string}).role === 'user',
       )
@@ -5605,7 +5647,7 @@ describe('api service', () => {
         (event) => event.type === 'tool_result' && (event as {toolCallId?: string}).toolCallId === 'call-lost',
       ) as {error?: string} | undefined
       expect(synthesized?.error).toContain('Interrupted by a service restart')
-      expect(eventTypes.at(-1)).toEqual({type: 'message', role: 'assistant', content: 'Recovered.'})
+      expect(withoutMeta(eventTypes.at(-1))).toEqual({type: 'message', role: 'assistant', content: 'Recovered.'})
       expect(providerBodies.length).toBe(1)
 
       const runRow = db
@@ -5759,6 +5801,504 @@ describe('normalizeSubSessionSpec', () => {
   })
 })
 
+describe('obligations: what a run owes before it may end', () => {
+  /** Drives one session whose agent publishes a plan, with the provider scripted per turn. */
+  async function runPlanScenario(
+    turns: (call: number, messagesJSON: string) => unknown[],
+  ): Promise<{svc: apisvc.Service; sessionId: string; account: blobs.Signer; calls: () => number; close: () => void}> {
+    const {db, dataDir, cleanup} = createTestState()
+    const account = blobs.generateNobleKeyPair()
+    let calls = 0
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(await fetchBodyText(url, init))
+      calls += 1
+      return openAIStreamResponse(turns(calls, JSON.stringify(body.messages)))
+    }) as unknown as typeof fetch
+    const svc = new apisvc.Service(db, dataDir)
+    const sessionId = await seedAgentSession(svc, account, 'You keep a plan.')
+    await svc.message(
+      await apisvc.createSignedEnvelope(account, {
+        action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Do the two-step job'}]},
+      }),
+    )
+    await svc.awaitQueueIdle()
+    return {
+      svc,
+      sessionId,
+      account,
+      calls: () => calls,
+      close: () => {
+        db.close()
+        cleanup()
+      },
+    }
+  }
+
+  const planCall = (id: string, steps: Array<[string, string, string]>) => ({
+    id,
+    choices: [
+      {
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: `plan-${id}`,
+              type: 'function',
+              function: {
+                name: 'plan',
+                arguments: JSON.stringify({
+                  steps: steps.map(([stepId, label, status]) => ({id: stepId, label, status})),
+                }),
+              },
+            },
+          ],
+        },
+      },
+    ],
+  })
+  const say = (id: string, content: string) => [
+    {id, choices: [{delta: {content}}]},
+    {id, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+  ]
+  const toolTurn = (chunk: unknown, id: string) => [
+    chunk,
+    {id, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+  ]
+
+  test("Eric's shape: work done but the last step never checked — one continuation and the agent closes it", async () => {
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
+    try {
+      scenario = await runPlanScenario((call) => {
+        // 1: publish the plan. 2: do the work, leaving step two pending (the live bug).
+        // 3: the continuation arrives — close the plan out honestly.
+        if (call === 1) {
+          return toolTurn(
+            planCall('t1', [
+              ['s1', 'Research both histories', 'done'],
+              ['s2', 'Write the comparison', 'pending'],
+            ]),
+            't1',
+          )
+        }
+        if (call === 2) return say('t2', 'Here is the comparison you asked for.')
+        if (call === 3) {
+          return toolTurn(
+            planCall('t3', [
+              ['s1', 'Research both histories', 'done'],
+              ['s2', 'Write the comparison', 'done'],
+            ]),
+            't3',
+          )
+        }
+        // A tool call is not the end of a turn — without a closing text turn the model would be
+        // asked again forever.
+        return say(`t${call}`, 'Both steps are closed out.')
+      })
+      const session = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'GetSession', sessionId: scenario.sessionId},
+        }),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const prompts = session.events
+        .map((event) => event.event as {type?: string; actor?: string; content?: string})
+        .filter((event) => event.content?.includes('Your plan has unfinished steps'))
+      expect(prompts).toHaveLength(1)
+      expect(prompts[0]?.content).toContain('Write the comparison')
+      // The runtime wrote it, and the log says so — it is not the user speaking.
+      expect(prompts[0]?.actor).toBe('system')
+      expect(session.session.plan?.steps.map((step) => step.status)).toEqual(['done', 'done'])
+      const runsList = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'ListRuns', sessionId: scenario.sessionId},
+        }),
+      )
+      if (runsList._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(runsList.runs[0]?.status).toBe('succeeded')
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  })
+
+  test('an agent that ignores every continuation ends owing the plan, in the log and on the run', async () => {
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
+    try {
+      scenario = await runPlanScenario((call) => {
+        if (call === 1) {
+          return toolTurn(
+            planCall('t1', [
+              ['s1', 'Do the thing', 'done'],
+              ['s2', 'Do the other thing', 'pending'],
+            ]),
+            't1',
+          )
+        }
+        // Every later turn just talks; the step stays pending no matter how often we ask.
+        return say(`t${call}`, 'Anything else?')
+      })
+      const session = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'GetSession', sessionId: scenario.sessionId},
+        }),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const prompts = session.events
+        .map((event) => event.event as {type?: string; content?: string})
+        .filter((event) => event.content?.includes('Your plan has unfinished steps'))
+      // Capped by the run's one continuation budget, then the run ends rather than nagging forever.
+      expect(prompts).toHaveLength(3)
+      // Nothing was completed on the agent's behalf — the checklist still tells the truth.
+      expect(session.session.plan?.steps.map((step) => step.status)).toEqual(['done', 'pending'])
+      // The ending is visible in the log, as the system speaking rather than as an error.
+      const notes = session.events
+        .map((event) => event.event as {type?: string; actor?: string; content?: string})
+        .filter((event) => event.content?.includes('This run ended with work still open'))
+      expect(notes).toHaveLength(1)
+      expect(notes[0]?.type).toBe('message')
+      expect(notes[0]?.actor).toBe('system')
+      expect(notes[0]?.content).toContain('Do the other thing')
+      const runsList = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'ListRuns', sessionId: scenario.sessionId},
+        }),
+      )
+      if (runsList._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      // An unfinished plan is not a failure — the work that did happen still happened — but the run
+      // carries the debt where any client can see it.
+      expect(runsList.runs[0]?.status).toBe('succeeded')
+      expect(runsList.runs[0]?.unmetObligations).toEqual([{kind: 'plan', steps: ['Do the other thing']}])
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  })
+
+  test('a continued agent that starts new work parks on its child instead of being asked again', async () => {
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
+    let delegated = false
+    try {
+      scenario = await runPlanScenario((call, messagesJSON) => {
+        if (messagesJSON.includes('You are the helper.')) return say('child', 'Helper done.')
+        if (call === 1) {
+          return toolTurn(
+            planCall('t1', [
+              ['s1', 'Kick off', 'done'],
+              ['s2', 'Delegate the rest', 'running'],
+            ]),
+            't1',
+          )
+        }
+        if (call === 2) return say('t2', 'Starting on it.')
+        // The continuation lands: answer it by actually doing the work — delegate, which parks the
+        // run. One-shot: the prompt stays in history, so a bare content check would re-delegate
+        // forever.
+        if (!delegated && messagesJSON.includes('Your plan has unfinished steps')) {
+          delegated = true
+          return toolTurn(
+            {
+              id: 't3',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'spawn-1',
+                        type: 'function',
+                        function: {
+                          name: 'delegate',
+                          arguments: JSON.stringify({
+                            title: 'Helper',
+                            brief: 'Finish it',
+                            prompt: 'You are the helper.',
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            't3',
+          )
+        }
+        return say(`t${call}`, 'All done.')
+      })
+      const runsList = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'ListRuns', sessionId: scenario.sessionId},
+        }),
+      )
+      if (runsList._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const tree = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'ListRuns', rootRunId: runsList.runs[0]!.rootRunId},
+        }),
+      )
+      if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      // The delegation really happened and resolved: parking is a legitimate answer to a
+      // continuation, and a step held open by a live child is not an open obligation.
+      expect(tree.runs.filter((run) => run.depth === 1)).toHaveLength(1)
+      expect(tree.runs.every((run) => run.status === 'succeeded')).toBe(true)
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  })
+
+  test('a run that owes nothing — no plan, no schema — is never continued', async () => {
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
+    try {
+      scenario = await runPlanScenario((call) => say(`t${call}`, 'Answered without a plan.'))
+      // Exactly one provider call: the turn answered, owed nothing, and ended.
+      expect(scenario.calls()).toBe(1)
+      const session = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'GetSession', sessionId: scenario.sessionId},
+        }),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(
+        session.events.map((event) => event.event as {actor?: string}).filter((event) => event.actor === 'system'),
+      ).toHaveLength(0)
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  })
+
+  test('the moment the last step settles is dated once, holds still, and clears when a step reopens', async () => {
+    // The checklist is session state with no durable event of its own, so nothing else in the system
+    // can say WHEN it finished — and the card that freezes into the transcript at that moment needs
+    // exactly that. Restamping it on every later write would drag the frozen card down the log.
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
+    const planOf = async (svc: apisvc.Service, account: blobs.Signer, sessionId: string) => {
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      return session.session.plan
+    }
+    try {
+      scenario = await runPlanScenario((call) => {
+        // Message 1: publish an open plan, get asked about it, close it out.
+        if (call === 1) {
+          return toolTurn(
+            planCall('t1', [
+              ['s1', 'First', 'done'],
+              ['s2', 'Second', 'pending'],
+            ]),
+            't1',
+          )
+        }
+        if (call === 3) {
+          return toolTurn(
+            planCall('t3', [
+              ['s1', 'First', 'done'],
+              ['s2', 'Second', 'done'],
+            ]),
+            't3',
+          )
+        }
+        // Message 2: rewrite the very same settled plan — nothing about it has changed.
+        if (call === 5) {
+          return toolTurn(
+            planCall('t5', [
+              ['s1', 'First', 'done'],
+              ['s2', 'Second', 'done'],
+            ]),
+            't5',
+          )
+        }
+        // Message 3: reopen a step. The story is being told again.
+        if (call === 7) {
+          return toolTurn(
+            planCall('t7', [
+              ['s1', 'First', 'done'],
+              ['s2', 'Second', 'pending'],
+            ]),
+            't7',
+          )
+        }
+        return say(`t${call}`, 'Ready.')
+      })
+      const firstSettledAt = (await planOf(scenario.svc, scenario.account, scenario.sessionId))?.settledAt
+      expect(typeof firstSettledAt).toBe('number')
+
+      await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: scenario.sessionId,
+            content: [{type: 'text', text: 'Confirm the plan again'}],
+          },
+        }),
+      )
+      await scenario.svc.awaitQueueIdle()
+      // Rewritten, still settled, still the same moment: the date marks the transition, not the write.
+      expect((await planOf(scenario.svc, scenario.account, scenario.sessionId))?.settledAt).toBe(firstSettledAt)
+
+      await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: scenario.sessionId,
+            content: [{type: 'text', text: 'Actually there is more to do'}],
+          },
+        }),
+      )
+      await scenario.svc.awaitQueueIdle()
+      const reopened = await planOf(scenario.svc, scenario.account, scenario.sessionId)
+      expect(reopened?.steps.map((step) => step.status)).toEqual(['done', 'pending'])
+      expect(reopened?.settledAt).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  }, 30_000)
+
+  test('a typed child owing both a result and a plan is asked for both in one prompt, then fails owing both', async () => {
+    // The old runtime had two counters and two nudges: one for return_result, one for the plan. A
+    // child owing both was asked about them separately, and the return_result path failed the run
+    // before the plan was ever mentioned. One model, one prompt, one budget — and the typed debt
+    // still fails the run, because the parent is blocked on a payload that is never coming.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      let childCalls = 0
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        if (messagesJSON.includes('You are the analyst.')) {
+          childCalls += 1
+          // First turn: publish a plan and leave a step open. Every later turn: talk, never
+          // deliver, never close the step.
+          if (childCalls === 1) {
+            return openAIStreamResponse([
+              {
+                id: 'c1',
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: 0,
+                          id: 'plan-c1',
+                          type: 'function',
+                          function: {
+                            name: 'plan',
+                            arguments: JSON.stringify({
+                              steps: [{id: 's1', label: 'Check the numbers', status: 'pending'}],
+                            }),
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {id: 'c1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+            ])
+          }
+          return openAIStreamResponse([
+            {id: `c${childCalls}`, choices: [{delta: {content: 'Still thinking about it.'}}]},
+            {id: `c${childCalls}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'p2', choices: [{delta: {content: 'Understood.'}}]},
+            {id: 'p2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'p1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-typed',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({
+                          title: 'Analyze',
+                          brief: 'Analyze the numbers',
+                          prompt: 'You are the analyst.',
+                          output: {
+                            type: 'object',
+                            required: ['verdict'],
+                            properties: {verdict: {type: 'string'}},
+                            additionalProperties: false,
+                          },
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'p1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      svc = new apisvc.Service(db, dataDir)
+      const sessionId = await seedAgentSession(svc, account, 'You delegate typed work.')
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Get me a verdict'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const runsList = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId}}),
+      )
+      if (runsList._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const tree = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ListRuns', rootRunId: runsList.runs[0]!.rootRunId},
+        }),
+      )
+      if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const child = tree.runs.find((run) => run.depth === 1)
+      expect(child?.status).toBe('failed')
+      expect(child?.error?.code).toBe('output-schema')
+      expect(child?.unmetObligations).toEqual([{kind: 'typed-result'}, {kind: 'plan', steps: ['Check the numbers']}])
+
+      const childSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: child!.sessionId!}}),
+      )
+      if (childSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const prompts = childSession.events
+        .map((event) => event.event as {type?: string; actor?: string; content?: string})
+        .filter((event) => event.content?.includes('This turn is ending with work you committed to still open'))
+      expect(prompts).toHaveLength(3)
+      // BOTH debts in the SAME message — one ask, not one ask per feature.
+      expect(prompts[0]?.content).toContain('You have not delivered the result yet')
+      expect(prompts[0]?.content).toContain('Your plan has unfinished steps: Check the numbers')
+      expect(prompts[0]?.actor).toBe('system')
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  }, 30_000)
+})
+
 describe('session plan settling', () => {
   test('a step left running settles to done when its turn succeeds', async () => {
     // Live gap: the model marked "Summarize findings" running, did the work, and ended the turn
@@ -5853,7 +6393,14 @@ describe('session plan settling', () => {
         await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
       )
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
-      expect(openAICallCount).toBe(2)
+      // Five calls, not two: the run spends its whole continuation budget asking about the step
+      // that is still open before the settle rule closes it, so the agent gets every chance to
+      // finish or write it off in its own words first.
+      expect(openAICallCount).toBe(5)
+      const nudges = session.events
+        .map((event) => event.event as {type?: string; role?: string; content?: string})
+        .filter((event) => event.type === 'message' && event.content?.includes('Your plan has unfinished steps'))
+      expect(nudges).toHaveLength(3)
       expect(session.session.plan?.steps.map((step) => `${step.label}:${step.status}`)).toEqual([
         'Review memory files:done',
         'Summarize findings:done',

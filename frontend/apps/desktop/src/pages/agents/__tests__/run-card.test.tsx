@@ -132,6 +132,28 @@ describe('SessionRunCard (pinned)', () => {
     expect(buttonWithText('Cancel')).toBeTruthy()
   })
 
+  it('clears the pinned slot as soon as the transcript has frozen the run, mid-flight', () => {
+    // The run is still going, but its story settled: the scroll already holds this card at the
+    // moment it settled, so pinning a second copy would tell it twice.
+    mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Compare competitors'})]
+    mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'succeeded', title: 'Research Acme'})]
+    render(
+      <SessionRunCard
+        {...baseProps}
+        sessionPlan={{steps: [{id: 's1', label: 'Fan out research', status: 'done'}]}}
+        frozenRunIds={new Set(['root-1'])}
+      />,
+    )
+    expect(container.textContent).toBe('')
+  })
+
+  it('keeps pinning a live run the transcript has not frozen', () => {
+    mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Compare competitors'})]
+    mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'running', title: 'Research Acme'})]
+    render(<SessionRunCard {...baseProps} frozenRunIds={new Set(['some-other-run'])} />)
+    expect(container.textContent).toContain('Compare competitors')
+  })
+
   it('disappears once the run finishes — the transcript keeps the record', () => {
     mockState.runs = [makeRun({id: 'root-1', status: 'succeeded', title: 'All done', finishedAt: 5000})]
     mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'succeeded', title: 'Child'})]
@@ -412,6 +434,16 @@ describe('SessionRunCard (pinned)', () => {
 
 describe('RunRecordCard (in the chat bubble)', () => {
   const recordProps = {serverUrl: 'http://localhost:3050', accountUid: 'account-1', runId: 'root-1'}
+
+  it('renders the checklist carried by the transcript row when the run has none of its own', () => {
+    // `RunInfo.plan` is written by the workflow host alone, so a model-driven run's frozen card
+    // would show a title and no steps unless the row hands it the session's checklist.
+    mockState.run = makeRun({id: 'root-1', status: 'running', title: 'Compare competitors'})
+    mockState.tree = [mockState.run]
+    render(<RunRecordCard {...recordProps} plan={{steps: [{id: 's1', label: 'Fan out research', status: 'done'}]}} />)
+
+    expect(container.textContent).toContain('Fan out research')
+  })
 
   it('shows the workflow module behind a Code drawer', () => {
     mockState.run = makeRun({

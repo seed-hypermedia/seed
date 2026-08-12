@@ -78,6 +78,7 @@ export function SessionRunCard({
   sessionId,
   sessionPlan,
   compact,
+  frozenRunIds,
   onOpenSession,
 }: {
   serverUrl: string
@@ -87,6 +88,12 @@ export function SessionRunCard({
   sessionPlan?: RunPlan
   /** Sidebar sizing: tighter rows, no footer. */
   compact?: boolean
+  /**
+   * Runs whose card the transcript already holds. A run whose story settled mid-flight is told in
+   * the scroll, at the moment it settled; pinning the same card here too would show one story twice,
+   * and this copy would be the one that has stopped changing.
+   */
+  frozenRunIds?: ReadonlySet<string>
   /** Opens the transcript of an agent child run. */
   onOpenSession?: (sessionId: string, agentId?: string) => void
 }) {
@@ -113,6 +120,10 @@ export function SessionRunCard({
   const isOrchestration =
     !!root &&
     (root.kind === 'workflow' || children.length > 0 || root.status === 'waiting' || (root.plan?.steps.length ?? 0) > 0)
+
+  // Frozen mid-flight: the transcript is already telling this run's story at the place it settled,
+  // so the pinned slot clears early rather than holding a finished summary over the composer.
+  if (root && !isTerminalRun(root.status) && frozenRunIds?.has(root.id)) return null
 
   if (root && isOrchestration && !isTerminalRun(root.status)) {
     return (
@@ -158,11 +169,17 @@ export function RunRecordCard({
   serverUrl,
   accountUid,
   runId,
+  plan,
   onOpenSession,
 }: {
   serverUrl: string
   accountUid: string | null | undefined
   runId: string
+  /**
+   * The checklist to render when the run has none of its own — a model-driven run keeps its plan on
+   * the session, and the frozen card would otherwise show a story with its steps missing.
+   */
+  plan?: RunPlan
   onOpenSession?: (sessionId: string, agentId?: string) => void
 }) {
   const run = useRun(serverUrl, accountUid, runId)
@@ -185,7 +202,7 @@ export function RunRecordCard({
         run={focus}
         childRuns={children}
         liveState={liveState}
-        plan={focus.plan}
+        plan={focus.plan ?? plan}
         onOpenSession={onOpenSession}
         onCancelRun={(id) => cancelRun.mutate(id)}
         cancelPending={cancelRun.isPending}

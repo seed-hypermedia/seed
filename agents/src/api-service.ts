@@ -115,6 +115,25 @@ const MAX_SESSION_SPAWNS_PER_SESSION = 10
 /** Failed return_result validation attempts before a typed sub-session fails `output-schema`. */
 const MAX_RETURN_RESULT_RETRIES = 3
 /**
+ * Times a run will hand the turn back to the agent because it ended owing something — an
+ * undelivered typed result, an unfinished plan, whatever obligations grow to cover next.
+ *
+ * ONE budget for the whole run, not one per kind of debt: a run that owes a result AND a finished
+ * checklist is one agent failing to finish one job, and three chances to finish it is three
+ * chances, not six.
+ *
+ * A run that PARKS and resumes starts the budget again, deliberately: its children have delivered
+ * since, so it is being asked about a different world than the one it stalled in. Parking is itself
+ * bounded (a session may spawn only so many children), so this cannot run away.
+ */
+const MAX_RUN_CONTINUATIONS = 3
+/** Plan step statuses that can never move again: the work is done, written off, or given up on. */
+const TERMINAL_PLAN_STEP_STATUSES: ReadonlyArray<runs.RunPlanState['steps'][number]['status']> = [
+  'done',
+  'failed',
+  'skipped',
+]
+/**
  * Attempts an agent run gets before it is finally failed. Only RETRYABLE outcomes consume the extra
  * ones (the queue re-queues 5xx/provider-overload with exponential backoff); anything classified
  * non-retryable still fails on the first attempt. Three is what it takes to ride out a provider
@@ -349,6 +368,68 @@ function assistantMessageText(event: api.SessionEvent): string {
   return payload.type === 'message' && typeof payload.content === 'string' ? payload.content : ''
 }
 
+/**
+ * Reads an unmet-obligation list back off a persisted run. Runs are decoded from CBOR written by
+ * older builds, so anything unrecognized is dropped rather than trusted into the API surface.
+ */
+function normalizeUnmetObligations(raw: unknown): api.UnmetObligation[] {
+  if (!Array.isArray(raw)) return []
+  const obligations: api.UnmetObligation[] = []
+  for (const entry of raw) {
+    if (!isPlainRecord(entry)) continue
+    if (entry.kind === 'typed-result') obligations.push({kind: 'typed-result'})
+    else if (entry.kind === 'plan' && Array.isArray(entry.steps)) {
+      obligations.push({kind: 'plan', steps: entry.steps.filter((step): step is string => typeof step === 'string')})
+    }
+  }
+  return obligations
+}
+
+/**
+ * What a finished agent turn hands back. A delegate child answers its parent with the text it
+ * produced; a run driving a user's session answers the request with the event to render.
+ */
+function turnOutput(spec: SubSessionSpec | undefined, assistantEvent: api.SessionEvent): Record<string, unknown> {
+  return spec ? {text: assistantMessageText(assistantEvent)} : {assistantEventId: assistantEvent.id}
+}
+
+/** One line per obligation, in the second person, as the agent will read it. */
+function obligationLine(obligation: api.UnmetObligation): string {
+  return obligation.kind === 'typed-result'
+    ? '- You have not delivered the result yet. Call the return_result tool now with a payload matching the required schema; that is how this task completes.'
+    : `- Your plan has unfinished steps: ${obligation.steps.join(
+        ', ',
+      )}. Continue that work now, or set every step to an honest terminal status — done, failed, or skipped.`
+}
+
+/**
+ * The message a run hands itself when a turn ends with work still owed. It lists every open
+ * obligation at once, so an agent that owes two things is asked once rather than nudged twice.
+ */
+function continuationPrompt(obligations: api.UnmetObligation[]): string {
+  return [
+    'This turn is ending with work you committed to still open:',
+    ...obligations.map(obligationLine),
+    '',
+    "Finish it now, or say plainly why you are stopping and close it out honestly. Don't leave the record claiming something you did not do.",
+  ].join('\n')
+}
+
+/** The notice a run leaves on the log when it runs out of chances with obligations still open. */
+function unmetObligationsNotice(obligations: api.UnmetObligation[]): string {
+  const lines = obligations.map((obligation) =>
+    obligation.kind === 'typed-result'
+      ? '- No result was delivered, so this task has no answer to hand back.'
+      : `- Unfinished plan steps: ${obligation.steps.join(', ')}.`,
+  )
+  return [
+    'This run ended with work still open:',
+    ...lines,
+    '',
+    'Nothing was completed on the agent’s behalf — the record shows the work exactly as it was left.',
+  ].join('\n')
+}
+
 /** Classifies an executor error into the persisted run-error shape with retryability. */
 function classifyRunError(error: unknown): runs.RunErrorInfo {
   if (error instanceof APIError) {
@@ -375,6 +456,8 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
   const parentToolCallId =
     run.parentToolCallId ??
     (typeof inputRecord?.parentToolCallId === 'string' ? inputRecord.parentToolCallId : undefined)
+  const outputRecord = isPlainRecord(run.output) ? run.output : undefined
+  const unmetObligations = normalizeUnmetObligations(outputRecord?.unmetObligations ?? run.error?.unmetObligations)
   return {
     id: run.id,
     account: run.accountId,
@@ -411,6 +494,9 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
       : {}),
     ...(run.plan ? {plan: run.plan} : {}),
     ...(run.error ? {error: {code: run.error.code, message: run.error.message}} : {}),
+    // A succeeded run carries its debts on its output, a failed one on its error; the surface says
+    // "this run ended owing something" either way, so clients need only look in one place.
+    ...(unmetObligations.length > 0 ? {unmetObligations} : {}),
     ...(run.usage ? {usage: run.usage} : {}),
     createdAt: run.createdAt,
     ...(run.startedAt !== undefined ? {startedAt: run.startedAt} : {}),
@@ -1966,7 +2052,7 @@ export class Service {
 
   /** update_plan tool: stores the session's todo snapshot, rendered by the pinned progress card. */
   #setSessionPlanFromAgent(accountId: string, sessionId: string, raw: unknown): api.SessionInfo {
-    const plan = normalizeRunPlan(raw)
+    const plan = this.#stampPlanSettledAt(accountId, sessionId, normalizeRunPlan(raw))
     const changes = this.#db.run(`UPDATE sessions SET plan_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
       cbor.encode(plan),
       Date.now(),
@@ -1980,6 +2066,38 @@ export class Service {
       this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
     }
     return session
+  }
+
+  /**
+   * Dates the moment a plan finished settling, carrying the old date forward while it stays settled.
+   *
+   * Plan edits leave no durable event — the checklist is session state, and the plan verb is
+   * deliberately kept out of the transcript — so a client watching the snapshot can see THAT every
+   * step is terminal but has no way to know WHEN that became true. Without a fixed moment the card
+   * showing the plan can never freeze into the log at the right place; it can only float at the
+   * bottom. So the one process that witnesses the transition writes it down.
+   */
+  #stampPlanSettledAt(accountId: string, sessionId: string, plan: runs.RunPlanState): runs.RunPlanState {
+    const settled =
+      plan.steps.length > 0 && plan.steps.every((step) => TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
+    if (!settled) {
+      // Reopened (or never settled): the story is being told again, so the old moment is not it.
+      const {settledAt: _cleared, ...rest} = plan
+      return rest
+    }
+    const previous = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    const previousPlan = previous?.plan_cbor ? cbor.decode<runs.RunPlanState>(previous.plan_cbor) : undefined
+    const previousSettledAt =
+      previousPlan?.settledAt !== undefined &&
+      previousPlan.steps.length > 0 &&
+      previousPlan.steps.every((step) => TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
+        ? previousPlan.settledAt
+        : undefined
+    return {...plan, settledAt: previousSettledAt ?? Date.now()}
   }
 
   #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {
@@ -2373,8 +2491,11 @@ export class Service {
   /**
    * Executes one claimed agent run: repairs interrupted tool calls, then replays the transcript
    * into Pi. Sub-session child runs (a `spec` in the run input) get their definition overridden
-   * (inline prompt, tool restriction) and — when a typed `output` schema was declared — must
-   * deliver a valid `return_result` payload, with one nudge turn before failing `output-schema`.
+   * (inline prompt, tool restriction).
+   *
+   * A turn that ends still owing something — an undelivered typed result, an unfinished plan — does
+   * not simply end: the run hands the turn back with every open obligation named, up to
+   * {@link MAX_RUN_CONTINUATIONS} times, and only then finishes and says what was left undone.
    */
   async #executeAgentRun(run: runs.RunRecord): Promise<runs.RunOutcome> {
     if (!run.sessionId || !run.agentId) {
@@ -2402,36 +2523,55 @@ export class Service {
     this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, sessionId)
     const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
     this.#runningSessions.set(this.#runningSessionKey(run.accountId, sessionId), runningSession)
-    let nudged = false
+    let continuations = 0
     for (;;) {
       try {
         const assistantEvent = await this.#runPiAgent(run.accountId, definition, sessionId, runningSession, run)
         if (runningSession.stopped) return {type: 'canceled', output: {assistantEventId: assistantEvent.id}}
-        if (spec?.output) {
-          if (runningSession.subResult) return {type: 'succeeded', output: runningSession.subResult.value}
-          if (!nudged) {
-            nudged = true
+        // A delivered typed result IS the end of a typed child: its parent is waiting on that
+        // payload and has it. Nothing else the child might still owe is worth another turn.
+        if (spec?.output && runningSession.subResult) return {type: 'succeeded', output: runningSession.subResult.value}
+        const obligations = this.#openObligations(run, sessionId, spec, runningSession)
+        if (obligations.length > 0) {
+          if (continuations < MAX_RUN_CONTINUATIONS) {
+            // One prompt, every open obligation: the agent sees the whole debt at once instead of
+            // being told about one thing, answering it, and being told about the next.
+            continuations += 1
             this.#appendSessionEvent(
               run.accountId,
               run.agentId,
               sessionId,
-              {
-                type: 'message',
-                role: 'user',
-                content:
-                  'You have not delivered the result yet. Call the return_result tool now with a payload matching the required schema; that is how this task completes.',
-              },
+              {type: 'message', role: 'user', actor: 'system', content: continuationPrompt(obligations)},
               Date.now(),
             )
             continue
           }
-          return {
-            type: 'failed',
-            error: {code: 'output-schema', message: 'Sub-session ended without delivering a valid return_result'},
+          // Budget spent. The run ends carrying the debt in the open — nothing is ticked off on the
+          // agent's behalf, and the log says exactly what was left: a record that quietly disagrees
+          // with reality is worse than one that admits it.
+          this.#appendSessionEvent(
+            run.accountId,
+            run.agentId,
+            sessionId,
+            {type: 'message', role: 'user', actor: 'system', content: unmetObligationsNotice(obligations)},
+            Date.now(),
+          )
+          // A typed child that never delivered FAILS: its parent is blocked on a result that is
+          // never coming, and only a failure resolves that call. An unfinished plan is a lesser
+          // thing — the work that did happen still happened — so the run succeeds owing it.
+          if (obligations.some((obligation) => obligation.kind === 'typed-result')) {
+            return {
+              type: 'failed',
+              error: {
+                code: 'output-schema',
+                message: 'Sub-session ended without delivering a valid return_result',
+                unmetObligations: obligations,
+              },
+            }
           }
+          return {type: 'succeeded', output: {...turnOutput(spec, assistantEvent), unmetObligations: obligations}}
         }
-        if (spec) return {type: 'succeeded', output: {text: assistantMessageText(assistantEvent)}}
-        return {type: 'succeeded', output: {assistantEventId: assistantEvent.id}}
+        return {type: 'succeeded', output: turnOutput(spec, assistantEvent)}
       } catch (error) {
         if (error instanceof SessionParkedError) {
           const pending = (runningSession.parkToolCallIds ?? []).filter(
@@ -2462,6 +2602,62 @@ export class Service {
         return {type: 'failed', error: classifyRunError(error)}
       }
     }
+  }
+
+  /**
+   * Everything this run still owes, as one list.
+   *
+   * A run makes promises: a typed child promises its parent a schema-valid payload; a published plan
+   * promises the user a checklist that will be finished or honestly closed. Both are the same kind
+   * of thing — an obligation — so there is one place that knows what is open, one loop that asks for
+   * it, and one ending that admits what was never delivered. Adding a third kind of promise means
+   * adding a case here, and nothing else.
+   *
+   * Two things are deliberately NOT obligations. Steps left open while children are still working
+   * are not abandoned — someone else is carrying them. And `failed` / `skipped` steps are terminal:
+   * an agent that says it could not do something has kept the contract, and must never be nagged
+   * into pretending otherwise.
+   */
+  #openObligations(
+    run: runs.RunRecord,
+    sessionId: string,
+    spec: SubSessionSpec | undefined,
+    runningSession: RunningSession,
+  ): api.UnmetObligation[] {
+    const obligations: api.UnmetObligation[] = []
+    if (spec?.output && !runningSession.subResult) obligations.push({kind: 'typed-result'})
+    const steps = this.#unfinishedPlanSteps(run.accountId, sessionId)
+    if (steps.length > 0 && !this.#hasLiveChildRuns(run.id)) obligations.push({kind: 'plan', steps})
+    return obligations
+  }
+
+  /**
+   * Plan steps this session has neither finished nor written off. Sessions with no plan return
+   * nothing, so a plain conversation is never touched by any of this.
+   */
+  #unfinishedPlanSteps(accountId: string, sessionId: string): string[] {
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    if (!row?.plan_cbor) return []
+    const plan = cbor.decode<api.RunPlan>(row.plan_cbor)
+    return (plan.steps ?? [])
+      .filter((step) => !TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
+      .map((step) => step.label)
+  }
+
+  /** Whether this run still has children working — a step left open for them is not abandoned. */
+  #hasLiveChildRuns(runId: string): boolean {
+    const placeholders = runs.TERMINAL_RUN_STATUSES.map(() => '?').join(', ')
+    return (
+      this.#db
+        .query<{id: string}, string[]>(
+          `SELECT id FROM runs WHERE parent_run_id = ? AND status NOT IN (${placeholders}) LIMIT 1`,
+        )
+        .get(runId, ...runs.TERMINAL_RUN_STATUSES) !== null
+    )
   }
 
   /** The sub_session/return_result slice of the Pi tool context, present only for run-backed turns. */
@@ -3226,15 +3422,18 @@ export class Service {
     } else if (child.status === 'succeeded' && child.sessionId) {
       // A late delivery: the child finally satisfied its contract, but the parent's call already
       // has an answer (typically this child's own earlier failure). Say so in the child's log —
-      // silently dropping a valid result is how a session looks finished and changes nothing.
+      // silently dropping a valid result is how a session looks finished and changes nothing. It is
+      // a runtime-authored message, not an error: the agent did nothing wrong, and it should read
+      // this on its next turn the same way it reads anything else the system tells it.
       this.#appendSessionEvent(
         child.accountId,
         child.agentId ?? '',
         child.sessionId,
         {
-          type: 'error',
+          type: 'message',
+          role: 'user',
           actor: 'system',
-          message:
+          content:
             'Result accepted, but the task that delegated this one had already stopped waiting for it — nothing was delivered upstream.',
         },
         Date.now(),
@@ -4115,6 +4314,18 @@ export class Service {
       this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, ...patch})
     }
 
+    // Provenance for the messages this turn produces. The run knows what model answered, on which
+    // provider, what the turn cost and how long it took — none of which is recoverable later, so it
+    // is stamped on the event as it is written and the transcript stays able to explain itself.
+    let turnStartedAt = Date.now()
+    let turnUsageForMeta: api.AgentRunUsage | undefined
+    const messageMeta = (): api.SessionEventMeta => ({
+      ...(definition.model ? {model: definition.model} : {}),
+      ...(model.provider ? {provider: model.provider} : {}),
+      ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
+      durationMs: Math.max(0, Date.now() - turnStartedAt),
+    })
+
     const appendAssistantMessage = (content: string): void => {
       if (!content.trim()) return
       this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, done: true})
@@ -4122,9 +4333,13 @@ export class Service {
         accountId,
         session.agentId,
         sessionId,
-        {type: 'message', role: 'assistant', content},
+        {type: 'message', role: 'assistant', content, meta: messageMeta()},
         Date.now(),
       )
+      // Text flushed mid-turn (before a tool batch) already spent its share of the clock; the next
+      // message is timed from here so no stretch of wall time is counted twice.
+      turnStartedAt = Date.now()
+      turnUsageForMeta = undefined
       partialId = crypto.randomUUID()
     }
 
@@ -4165,6 +4380,17 @@ export class Service {
         turnCount += 1
         const turnUsage = assistantMessage.usage
         if (turnUsage) {
+          turnUsageForMeta = {
+            input: turnUsage.input ?? 0,
+            output: turnUsage.output ?? 0,
+            cacheRead: turnUsage.cacheRead ?? 0,
+            cacheWrite: turnUsage.cacheWrite ?? 0,
+            total:
+              (turnUsage.input ?? 0) +
+              (turnUsage.output ?? 0) +
+              (turnUsage.cacheRead ?? 0) +
+              (turnUsage.cacheWrite ?? 0),
+          }
           runUsage.input += turnUsage.input ?? 0
           runUsage.output += turnUsage.output ?? 0
           runUsage.cacheRead += turnUsage.cacheRead ?? 0
@@ -4248,6 +4474,10 @@ export class Service {
             Date.now(),
           )
         }
+        // How long the tool actually ran, stamped while the start time is still in hand: the pair of
+        // event timestamps is a decent guess, but only the executor knows the real span.
+        const toolMeta: api.SessionEventMeta | undefined =
+          startedAt === undefined ? undefined : {durationMs: Math.max(0, Date.now() - startedAt)}
         this.#appendSessionEvent(
           accountId,
           session.agentId,
@@ -4258,12 +4488,14 @@ export class Service {
                 toolCallId: event.toolCallId,
                 name: event.toolName,
                 error: piToolResultText(event.result),
+                ...(toolMeta ? {meta: toolMeta} : {}),
               }
             : {
                 type: 'tool_result',
                 toolCallId: event.toolCallId,
                 name: event.toolName,
                 output: piToolResultOutput(event.result),
+                ...(toolMeta ? {meta: toolMeta} : {}),
               },
           Date.now(),
         )

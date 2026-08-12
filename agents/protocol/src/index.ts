@@ -794,12 +794,33 @@ export type RunWaitInfo = {
 export type RunPlan = {
   title?: string
   steps: Array<{id: string; label: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'}>
+  /**
+   * When the last step stopped being able to move — every step done, failed or skipped.
+   *
+   * A checklist that has fully settled has finished telling its story, and the card showing it can
+   * leave the pinned slot and freeze into the log at this moment. That needs a timestamp that does
+   * not drift, which is why the server records it: plan edits leave no durable event of their own,
+   * so a client watching only the plan snapshot has no other way to say WHEN it settled. Cleared
+   * again if a later edit reopens a step, and absent on plans that have never fully settled.
+   */
+  settledAt?: number
 }
 
 /** Cumulative persisted usage for a run, including rolled-up child usage. */
 export type RunUsageInfo = AgentRunUsage & {
   children?: AgentRunUsage & {runs: number}
 }
+
+/**
+ * Something a run committed to and had not delivered when it ended. Runs are asked to finish or
+ * honestly close their obligations before ending; when a run spends that budget without doing so it
+ * still ends, carrying the debt in the open rather than quietly writing it off.
+ */
+export type UnmetObligation =
+  /** A typed delegate child that never delivered a schema-valid `return_result` payload. */
+  | {kind: 'typed-result'}
+  /** Plan steps left neither finished nor written off — labels as the agent last wrote them. */
+  | {kind: 'plan'; steps: string[]}
 
 /** Public metadata returned for a durable run. */
 export type RunInfo = {
@@ -843,6 +864,11 @@ export type RunInfo = {
   wait?: RunWaitInfo
   plan?: RunPlan
   error?: {code: string; message: string}
+  /**
+   * Obligations this run ended without meeting. Absent on every run that kept its word — which is
+   * nearly all of them — so its presence is the signal.
+   */
+  unmetObligations?: UnmetObligation[]
   usage?: RunUsageInfo
   createdAt: number
   startedAt?: number
@@ -905,6 +931,23 @@ export function sessionEventActor(payload: SessionEventPayload): SessionActor {
   return 'agent'
 }
 
+/**
+ * Provenance stamped on runtime-produced events at append time: what produced it, what it cost, how
+ * long it took. Written once, so an event still explains itself long after the run that made it is
+ * gone. Events recorded before this field existed simply have none — every reader treats it as
+ * optional detail, never as required structure.
+ */
+export type SessionEventMeta = {
+  /** Model that produced the message, e.g. `gpt-5-mini`. */
+  model?: string
+  /** Provider the model ran on, e.g. `openai`. */
+  provider?: string
+  /** Token usage for this one turn (not the run's cumulative total). */
+  usage?: AgentRunUsage
+  /** Wall time this message or tool call took, in milliseconds. */
+  durationMs?: number
+}
+
 /** Durable event payloads stored for a session. */
 export type SessionEventPayload =
   | {
@@ -922,9 +965,20 @@ export type SessionEventPayload =
       /** Session-private attachments that accompanied this user message. */
       attachments?: SessionAttachmentInfo[]
       actor?: SessionActor
+      /** Model/provider/usage/timing behind an assistant message. Absent on user and legacy events. */
+      meta?: SessionEventMeta
     }
   | {type: 'tool_call'; id: string; name: string; input: unknown; actor?: SessionActor}
-  | {type: 'tool_result'; toolCallId: string; name: string; output?: unknown; error?: string; actor?: SessionActor}
+  | {
+      type: 'tool_result'
+      toolCallId: string
+      name: string
+      output?: unknown
+      error?: string
+      actor?: SessionActor
+      /** How long the tool took. Absent on legacy events and on results appended by a child's finalizer. */
+      meta?: SessionEventMeta
+    }
   | {type: 'error'; message: string; actor?: SessionActor}
   | Record<string, unknown>
 

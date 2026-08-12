@@ -323,6 +323,102 @@ describe('integrated step rows', () => {
     expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
   })
 
+  it('a batch step becomes a plain header and its children render as uniform peers', () => {
+    // Two children on one step: promoting one of them into the step row would dress a single
+    // sibling as the work itself and leave the rest hanging off it. Peers look like peers.
+    const batchPlan = {
+      title: 'Research',
+      steps: [{id: 's1', label: 'Research both tools', status: 'running' as const}],
+    }
+    const notion = makeRun({
+      id: 'child-notion',
+      status: 'running',
+      rootRunId: 'root-1',
+      parentRunId: 'root-1',
+      sessionId: 'session-notion',
+      planStepId: 's1',
+      title: 'Notion researcher',
+    } as never)
+    const coda = makeRun({
+      id: 'child-coda',
+      status: 'running',
+      rootRunId: 'root-1',
+      parentRunId: 'root-1',
+      sessionId: 'session-coda',
+      planStepId: 's1',
+      title: 'Coda researcher',
+    } as never)
+    const onOpenSession = vi.fn()
+    const onCancelRun = vi.fn()
+    render(
+      <RunWorkHierarchy
+        run={parent}
+        childRuns={[notion, coda]}
+        plan={batchPlan}
+        journal={[]}
+        liveState={{runs: {}, progress: {}, activity: {}, journal: []}}
+        onOpenSession={onOpenSession}
+        onCancelRun={onCancelRun}
+      />,
+    )
+
+    // The step is still on screen with its label…
+    expect(container.textContent).toContain('Research both tools')
+    // …but it is no longer a way into anybody's session.
+    const stepButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Research both tools'),
+    )
+    expect(stepButton).toBeUndefined()
+
+    // Both children are there, each its own click target into its own session.
+    const notionRow = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Notion researcher',
+    )
+    const codaRow = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Coda researcher',
+    )
+    expect(notionRow).toBeTruthy()
+    expect(codaRow).toBeTruthy()
+    // Peers are peers: the same row treatment, so nothing distinguishes one from the other.
+    expect(notionRow!.className).toBe(codaRow!.className)
+    expect(notionRow!.parentElement!.className).toBe(codaRow!.parentElement!.className)
+
+    click(notionRow)
+    expect(onOpenSession).toHaveBeenCalledWith('session-notion', undefined)
+    click(codaRow)
+    expect(onOpenSession).toHaveBeenCalledWith('session-coda', undefined)
+
+    // And each carries its own cancel.
+    click(container.querySelector('button[aria-label="Cancel Notion researcher"]'))
+    expect(onCancelRun).toHaveBeenCalledWith('child-notion')
+    click(container.querySelector('button[aria-label="Cancel Coda researcher"]'))
+    expect(onCancelRun).toHaveBeenCalledWith('child-coda')
+  })
+
+  it('a step with exactly one attached child stays the integrated row', () => {
+    // The batch treatment must not leak down to the ordinary case: one child still rides the step.
+    const onOpenSession = vi.fn()
+    render(
+      <RunWorkHierarchy
+        run={parent}
+        childRuns={[child]}
+        plan={plan}
+        journal={[]}
+        liveState={{runs: {}, progress: {}, activity: {}, journal: []}}
+        onOpenSession={onOpenSession}
+        onCancelRun={vi.fn()}
+      />,
+    )
+    const stepRow = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Research Notion'),
+    )
+    expect(stepRow).toBeTruthy()
+    click(stepRow)
+    expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
+    // No peer row below it — the step is the only place the child appears.
+    expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
+  })
+
   it('a live attached child exposes its cancel on the step row', () => {
     const onCancelRun = vi.fn()
     render(

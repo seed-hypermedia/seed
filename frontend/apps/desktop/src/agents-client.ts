@@ -30,6 +30,10 @@ export type AgentTriggerSource = AgentsProtocol.AgentTriggerSource
 export type SessionEvent = AgentsProtocol.SessionEvent
 /** Durable event payload returned by the agents service. */
 export type SessionEventPayload = AgentsProtocol.SessionEventPayload
+/** Who performed a logged action: the log is shared, so every entry says who acted. */
+export type SessionActor = AgentsProtocol.SessionActor
+/** Model/provider/usage/timing stamped on a runtime-produced event at append time. */
+export type SessionEventMeta = AgentsProtocol.SessionEventMeta
 /** Server-sent WebSocket event after a signed subscription. */
 export type AgentWSEvent = AgentsProtocol.AgentWSEvent
 /** Cumulative token usage for the current agent run. */

@@ -1,3 +1,5 @@
+import type {SessionEventMeta} from '@/agents-client'
+
 /** A streamed or persisted tool invocation attached to an assistant message. */
 export type ChatToolCall = {
   id: string
@@ -32,6 +34,12 @@ export type ChatToolPart = {
   isError?: boolean
   /** Who ran the tool. The log is shared: 'user' marks verbs the user ran themselves. */
   actor?: 'user' | 'agent' | 'system' | 'trigger'
+  /**
+   * What the log knows about this call's cost and timing. Stamped by the runtime on the result
+   * event; on transcripts older than that stamp the duration is derived from the call and result
+   * event timestamps instead, which is the same wall time measured from the other side.
+   */
+  meta?: SessionEventMeta
   /**
    * Display label that outranks the derived summary — a workflow's own description of what a
    * journaled call was doing ("Checking the pricing page"), with the tool name as secondary.

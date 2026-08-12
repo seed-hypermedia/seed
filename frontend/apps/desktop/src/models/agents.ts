@@ -27,6 +27,7 @@ import {
   type SigningIdentity,
   type SigningIdentityIcon,
 } from '@/agents-client'
+import {isOptimisticUserEcho} from '@/models/agent-session-rows'
 import {client} from '@/trpc'
 import {grpcClient} from '@/grpc-client'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
@@ -1756,14 +1757,9 @@ export function useAgentWebSocketSubscription(
         if (old.events.some((existing: any) => existing.id === event.event.id)) return old
         const events = old.events.filter((existing: any) => {
           if (typeof existing.id !== 'string' || !existing.id.startsWith('optimistic-')) return true
-          const existingPayload = existing.event as {type?: string; role?: string; content?: string}
-          return !(
-            eventPayload.type === 'message' &&
-            eventPayload.role === 'user' &&
-            existingPayload.type === 'message' &&
-            existingPayload.role === 'user' &&
-            existingPayload.content === eventPayload.content
-          )
+          // Only a message the USER wrote can be the echo of a message the user is waiting on. The
+          // runtime writes as `role: 'user'` too, mid-run, over this same stream.
+          return !isOptimisticUserEcho(event.event.event, existing.event)
         })
         return {...old, events: [...events, event.event]}
       })
@@ -1934,6 +1930,9 @@ export function addOptimisticSessionMessage(
           event: {
             type: 'message',
             role: 'user',
+            // Stamped rather than inferred: `role: 'user'` is a shape the runtime writes too, and
+            // this row is the one case where the app knows for certain a person typed it.
+            actor: 'user',
             content: message.text,
             rawMarkdown: message.text,
             ...(message.blocks ? {blocks: message.blocks} : {}),

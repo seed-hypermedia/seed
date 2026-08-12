@@ -21,6 +21,7 @@ import {
   interleaveRunRecords,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
+  frozenRunIds,
   retryableErrorRowKey,
 } from '@/models/agent-session-rows'
 import {
@@ -628,9 +629,22 @@ function AssistantSessionChat({
           triggerContext: session.data?.triggerContext,
         }),
         sessionRuns.data || [],
+        // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
+        // decision needs it here for the same reason the pinned card does.
+        session.data?.session.plan,
       ),
-    [events, serverUrl, sessionId, session.data?.session.agentId, session.data?.triggerContext, sessionRuns.data],
+    [
+      events,
+      serverUrl,
+      sessionId,
+      session.data?.session.agentId,
+      session.data?.session.plan,
+      session.data?.triggerContext,
+      sessionRuns.data,
+    ],
   )
+  // Which runs the scroll already owns, so the pinned slot does not tell the same story twice.
+  const frozenRuns = useMemo(() => frozenRunIds(rows), [rows])
 
   const doSendMessage = useCallback(
     (content: string | string[]) => {
@@ -707,6 +721,7 @@ function AssistantSessionChat({
                   serverUrl={serverUrl}
                   accountUid={accountUid}
                   runId={row.run.id}
+                  plan={row.plan}
                   onOpenSession={(childSessionId, childAgentId) =>
                     navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
                   }
@@ -742,6 +757,7 @@ function AssistantSessionChat({
         accountUid={accountUid}
         sessionId={sessionId}
         sessionPlan={session.data?.session.plan}
+        frozenRunIds={frozenRuns}
         onOpenSession={(childSessionId, childAgentId) =>
           navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
         }

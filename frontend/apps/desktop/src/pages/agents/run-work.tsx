@@ -212,9 +212,12 @@ function CancelRunButton({run, onCancel, pending}: {run: RunInfo; onCancel: () =
 
 /**
  * One plan step, integrated with the child working it. The step IS the interactive row: when a
- * child is attached, clicking the row opens its sub-session, its status dot and live activity
- * ride along, and the child's cancel sits at the row's edge — one list, never a step row with
- * duplicate child rows stacked beneath it.
+ * single child is attached, clicking the row opens its sub-session, its status dot and live
+ * activity ride along, and the child's cancel sits at the row's edge — one list, never a step row
+ * with a duplicate child row stacked beneath it.
+ *
+ * With no child (either a plain step, or a batch step whose children render as peers below) the
+ * row is inert: label and status only, nothing to click.
  */
 export function PlanStepRow({
   step,
@@ -379,6 +382,21 @@ export function RunWorkHierarchy({
     const own = new Set([run.id, ...childRuns.map((child) => child.id)])
     return journalToolParts(journal.filter((entry) => own.has(entry.runId)))
   }, [journal, run.id, childRuns])
+  /**
+   * One child, rendered the one way children are rendered — batch peers under a step and children
+   * with no home step alike, so a peer can never be told apart from its siblings by its styling.
+   */
+  const childRow = (child: RunInfo) => (
+    <RunChildRow
+      run={child}
+      ownerTerminal={isTerminal}
+      activityDetail={liveState.activity[child.id]?.detail}
+      onOpen={child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined}
+      onCancel={onCancelRun ? () => onCancelRun(child.id) : undefined}
+      cancelPending={cancelPending}
+    />
+  )
+
   const [toolsOpen, setToolsOpen] = useState<boolean | undefined>(undefined)
   const showTools = toolsOpen ?? toolParts.length <= OPEN_TOOL_CALLS_LIMIT
   const hasWork = !!(plan?.steps.length || unattachedChildren.length || (toolParts.length && renderToolPart))
@@ -395,7 +413,13 @@ export function RunWorkHierarchy({
           ) : null}
           {(plan?.steps ?? []).flatMap((step) => {
             const attached = childrenByStep.get(step.id) ?? []
-            const [primary, ...extra] = attached
+            // One child: the step IS that child's row — clicking it opens the sub-session.
+            // A BATCH (two or more): the step stops privileging any one of them. It falls back to a
+            // plain grouping header and every child renders beneath it as a uniform peer, so no
+            // sibling is dressed as the step while the rest hang off it.
+            const batch = attached.length > 1
+            const primary = batch ? undefined : attached[0]
+            const peers = batch ? attached : []
             return [
               <PlanStepRow
                 key={step.id}
@@ -413,37 +437,15 @@ export function RunWorkHierarchy({
                 onCancel={primary && onCancelRun ? () => onCancelRun(primary.id) : undefined}
                 cancelPending={cancelPending}
               />,
-              // Rare: several children on one step; the extras nest under the integrated row.
-              ...extra.map((child) => (
+              ...peers.map((child) => (
                 <div key={child.id} className="pl-4">
-                  <RunChildRow
-                    run={child}
-                    ownerTerminal={isTerminal}
-                    activityDetail={liveState.activity[child.id]?.detail}
-                    onOpen={
-                      child.sessionId && onOpenSession
-                        ? () => onOpenSession(child.sessionId!, child.agentId)
-                        : undefined
-                    }
-                    onCancel={onCancelRun ? () => onCancelRun(child.id) : undefined}
-                    cancelPending={cancelPending}
-                  />
+                  {childRow(child)}
                 </div>
               )),
             ]
           })}
           {unattachedChildren.map((child) => (
-            <RunChildRow
-              key={child.id}
-              run={child}
-              ownerTerminal={isTerminal}
-              activityDetail={liveState.activity[child.id]?.detail}
-              onOpen={
-                child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined
-              }
-              onCancel={onCancelRun ? () => onCancelRun(child.id) : undefined}
-              cancelPending={cancelPending}
-            />
+            <React.Fragment key={child.id}>{childRow(child)}</React.Fragment>
           ))}
         </div>
       ) : null}

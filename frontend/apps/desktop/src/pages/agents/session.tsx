@@ -39,6 +39,7 @@ import {
   interleaveRunRecords,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
+  frozenRunIds,
   getSharedEventIdFromHash,
   retryableErrorRowKey,
   type AgentSessionChatRow as AgentSessionChatRowData,
@@ -264,9 +265,22 @@ function AgentSessionPage({
           triggerContext: session.data?.triggerContext ?? null,
         }),
         sessionRuns.data || [],
+        // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
+        // decision needs it here for the same reason the pinned card does.
+        session.data?.session.plan,
       ),
-    [agentId, serverUrl, session.data?.events, session.data?.triggerContext, sessionId, sessionRuns.data],
+    [
+      agentId,
+      serverUrl,
+      session.data?.events,
+      session.data?.session.plan,
+      session.data?.triggerContext,
+      sessionId,
+      sessionRuns.data,
+    ],
   )
+  // Which runs the scroll already owns, so the pinned slot does not tell the same story twice.
+  const frozenRuns = useMemo(() => frozenRunIds(chatRows), [chatRows])
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
   const retrySession = useRetrySession(serverUrl, selectedAccountId)
@@ -573,6 +587,7 @@ function AgentSessionPage({
               accountUid={selectedAccountId}
               sessionId={sessionId}
               sessionPlan={session.data.session.plan}
+              frozenRunIds={frozenRuns}
               onOpenSession={(childSessionId, childAgentId) =>
                 navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
               }
@@ -917,7 +932,13 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   if (row.kind === 'run-record') {
     // The pinned card's afterlife: the same card, frozen at the moment the run completed.
     return (
-      <RunRecordCard serverUrl={serverUrl} accountUid={accountUid} runId={row.run.id} onOpenSession={onOpenSession} />
+      <RunRecordCard
+        serverUrl={serverUrl}
+        accountUid={accountUid}
+        runId={row.run.id}
+        plan={row.plan}
+        onOpenSession={onOpenSession}
+      />
     )
   }
 
