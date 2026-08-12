@@ -10,6 +10,8 @@ import {
   removeExploreQueryChip,
   searchResultItemToExploreResult,
   serializeExploreQuery,
+  exploreFacetValues,
+  replaceExploreFacet,
   toggleExplorePredicate,
   toggleExploreColumn,
 } from '../explore'
@@ -31,6 +33,15 @@ function searchItem(overrides: Partial<SearchResultItem>): SearchResultItem {
 }
 
 describe('Explore query grammar', () => {
+  test('canonicalizes contains shorthand while preserving its operator', () => {
+    const parsed = parseExploreQuery('name~Fixture')
+    expect(serializeExploreQuery(parsed)).toBe('name:Fixture')
+    expect(parseExploreQuery(serializeExploreQuery(parsed)).ast).toMatchObject({
+      kind: 'predicate',
+      predicate: {kind: 'attribute', key: 'name', operator: 'contains', value: 'Fixture'},
+    })
+  })
+
   test('toggles filter predicates on and off without losing presentation directives', () => {
     const parsed = parseExploreQuery('roadmap view:table sort:status')
     const withStatus = toggleExplorePredicate(parsed, 'status:active')
@@ -426,6 +437,21 @@ describe('search result mapping', () => {
       documents: true,
       intersection: true,
     })
+    expect(exploreStreamSelection(parseExploreQuery('type:document'), {type: 'node'}).documents).toBe(true)
+    expect(exploreStreamSelection(parseExploreQuery('type:document'), {type: 'node'}).text).toBe(false)
+  })
+
+  test('round-trips multi-select facets as OR groups', () => {
+    const parsed = parseExploreQuery('engelbart')
+    const withSpaces = replaceExploreFacet(parsed, 'space', ['alice', 'bob'])
+    expect(serializeExploreQuery(withSpaces)).toBe('engelbart AND (in:alice OR in:bob)')
+    expect(exploreFacetValues(parseExploreQuery(serializeExploreQuery(withSpaces)), 'space')).toEqual(['alice', 'bob'])
+  })
+
+  test('round-trips a prefix path facet', () => {
+    const parsed = replaceExploreFacet(parseExploreQuery('engelbart'), 'path', ['/specs/*'])
+    expect(serializeExploreQuery(parsed)).toBe('engelbart AND path:/specs/*')
+    expect(exploreFacetValues(parseExploreQuery(serializeExploreQuery(parsed)), 'path')).toEqual(['/specs/*'])
   })
 
   test('ignores pages from streams not selected by the current query', () => {

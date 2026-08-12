@@ -1,6 +1,11 @@
 import {describe, expect, test} from 'vitest'
 import {renderToStaticMarkup} from 'react-dom/server'
-import {createExploreEditorState, exploreEditorReducer, highlightExploreText} from '../explore-page'
+import {
+  createExploreEditorState,
+  exploreEditorReducer,
+  filterExploreAttributeNames,
+  highlightExploreText,
+} from '../explore-page'
 import {parseExploreQuery} from '@shm/shared/explore'
 
 describe('Explore highlighting', () => {
@@ -16,6 +21,21 @@ describe('Explore highlighting', () => {
   test('treats regex metacharacters as literal query text', () => {
     const html = renderToStaticMarkup(highlightExploreText('Use C++ (v2)', ['C++', '(v2)']))
     expect(html.match(/<mark/g)).toHaveLength(2)
+  })
+})
+
+describe('Explore facets and builder predicates', () => {
+  test('excludes schema and Seed metadata keys from attribute suggestions', () => {
+    expect(
+      filterExploreAttributeNames([
+        'Status',
+        'name',
+        'contentWidth',
+        'theme.headerLayout',
+        'seedExperimentalHomeOrder',
+        'customField',
+      ]),
+    ).toEqual(['Status', 'customField'])
   })
 })
 

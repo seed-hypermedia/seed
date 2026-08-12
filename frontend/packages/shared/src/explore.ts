@@ -84,6 +84,8 @@ export type ExploreQueryNode =
 export type ExploreSortRule = {key: string; direction: 'asc' | 'desc'}
 /** Presentation directives kept separate from the boolean query tree. */
 export type ExplorePresentation = {view?: 'list' | 'table'; columns?: string[]; sort?: ExploreSortRule[]}
+/** Faceted predicate families exposed by the Explore filter bar. */
+export type ExploreFacet = 'space' | 'type' | 'path'
 /** A recoverable parser diagnostic. */
 export type ExploreDiagnostic = {message: string; start: number; end: number; severity: 'warning' | 'error'}
 /** A stable, removable projection of one AST leaf. */
@@ -462,6 +464,91 @@ export function serializeExploreQuery(
   if (directives?.sort?.length)
     parts.push(`sort:${directives.sort.map((rule) => `${rule.direction === 'desc' ? '-' : ''}${rule.key}`).join(',')}`)
   return parts.join(' ')
+}
+
+function isFacetPredicate(node: ExploreQueryNode, facet: ExploreFacet): boolean {
+  if (node.kind !== 'predicate') return false
+  return facet === 'type'
+    ? node.predicate.kind === 'type'
+    : node.predicate.kind === 'scope' &&
+        (facet === 'space' ? node.predicate.scope === 'space' : node.predicate.scope === 'path')
+}
+
+/** Returns the currently selected positive values for an Explore facet. */
+export function exploreFacetValues(parsed: ParsedExploreQuery, facet: ExploreFacet): string[] {
+  const values: string[] = []
+  const visit = (node: ExploreQueryNode | null, positive = true) => {
+    if (!node) return
+    if (node.kind === 'predicate' && positive && isFacetPredicate(node, facet)) {
+      const predicate = node.predicate
+      if (predicate.kind === 'type' || (predicate.kind === 'scope' && predicate.scope === 'space')) {
+        values.push(predicate.value)
+      } else if (predicate.kind === 'scope' && predicate.scope === 'path') {
+        values.push(`${predicate.value}${predicate.prefix ? '/*' : ''}`)
+      }
+      return
+    }
+    if (node.kind === 'not') return visit(node.child, !positive)
+    if (node.kind === 'and' || node.kind === 'or') node.children.forEach((child) => visit(child, positive))
+  }
+  visit(parsed.ast)
+  return Array.from(new Set(values))
+}
+
+/** Replaces one positive facet family while preserving text and other predicates. */
+export function replaceExploreFacet(
+  parsed: ParsedExploreQuery,
+  facet: ExploreFacet,
+  values: string[],
+): ParsedExploreQuery {
+  const selected = Array.from(new Set(values.filter(Boolean)))
+  const facetValues = facet === 'path' ? selected.slice(0, 1) : selected
+  const remove = (node: ExploreQueryNode | null, positive = true): ExploreQueryNode | null => {
+    if (!node) return null
+    if (positive && isFacetPredicate(node, facet)) return null
+    if (node.kind === 'not') {
+      const child = remove(node.child, !positive)
+      return child ? {kind: 'not', child} : null
+    }
+    if (node.kind !== 'and' && node.kind !== 'or') return node
+    const children = node.children.flatMap((child) => {
+      const next = remove(child, positive)
+      return next ? [next] : []
+    })
+    if (!children.length) return null
+    if (children.length === 1) return children[0]!
+    return {...node, children}
+  }
+  const facetNode = facetValues.length
+    ? facetValues.length === 1
+      ? {
+          kind: 'predicate' as const,
+          predicate:
+            facet === 'type'
+              ? {kind: 'type' as const, value: facetValues[0] as HMExploreResultType}
+              : facet === 'space'
+                ? {kind: 'scope' as const, scope: 'space' as const, value: facetValues[0]!}
+                : {
+                    kind: 'scope' as const,
+                    scope: 'path' as const,
+                    value: facetValues[0]!.endsWith('/*') ? facetValues[0]!.slice(0, -2) : facetValues[0]!,
+                    prefix: facetValues[0]!.endsWith('/*'),
+                  },
+        }
+      : {
+          kind: 'or' as const,
+          children: facetValues.map((value) => ({
+            kind: 'predicate' as const,
+            predicate:
+              facet === 'type'
+                ? {kind: 'type' as const, value: value as HMExploreResultType}
+                : {kind: 'scope' as const, scope: 'space' as const, value},
+          })),
+        }
+    : null
+  const remaining = remove(parsed.ast)
+  const ast = facetNode ? (remaining ? {kind: 'and' as const, children: [remaining, facetNode]} : facetNode) : remaining
+  return {...parsed, ast}
 }
 
 function attributeValue(value: ExploreScalar) {

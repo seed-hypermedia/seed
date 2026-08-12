@@ -7,6 +7,7 @@ import type {
   HMExploreResult,
   HMExploreResultType,
   ParsedExploreQuery,
+  ExploreFacet,
 } from '@shm/shared/explore'
 import {
   exploreQueryChips,
@@ -15,11 +16,13 @@ import {
   clearExploreConditions,
   removeExploreQueryChip,
   parseExploreQuery,
+  exploreFacetValues,
+  replaceExploreFacet,
   serializeExploreQuery,
-  toggleExplorePredicate,
   toggleExploreColumn,
 } from '@shm/shared/explore'
 import {DocumentSort, QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
+import {BUILTIN_METADATA_KEYS, DOCUMENT_ATTRIBUTE_DESCRIPTIONS} from '@seed-hypermedia/client/hm-types'
 import {
   exploreDocumentKey,
   useExploreAccounts,
@@ -39,12 +42,13 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import {useMemo, useReducer, useRef, useState, type ReactNode} from 'react'
+import {useEffect, useMemo, useReducer, useRef, useState, type ReactNode} from 'react'
 import * as Ariakit from '@ariakit/react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {cn} from './utils'
+import {HMIcon} from './hm-icon'
 
 /** Highlights query terms in text without interpreting them as a regular expression. */
 export function highlightExploreText(text: string, terms: string[]): ReactNode {
@@ -66,6 +70,24 @@ export function highlightExploreText(text: string, terms: string[]): ReactNode {
       <span key={index}>{part}</span>
     ),
   )
+}
+
+/** Identifies metadata keys reserved by the document schema or Seed internals. */
+export function isExploreSystemAttribute(name: string): boolean {
+  return (
+    BUILTIN_METADATA_KEYS.has(name) ||
+    Object.prototype.hasOwnProperty.call(DOCUMENT_ATTRIBUTE_DESCRIPTIONS, name) ||
+    name.startsWith('theme.') ||
+    name.startsWith('seedExperimental') ||
+    name.startsWith('display') ||
+    name.startsWith('import') ||
+    name.startsWith('originalPublish')
+  )
+}
+
+/** Keeps only user-authored fields in Explore's attribute suggestions. */
+export function filterExploreAttributeNames(names: string[]): string[] {
+  return names.filter((name) => !isExploreSystemAttribute(name))
 }
 
 function escapeRegExp(value: string) {
@@ -91,7 +113,7 @@ function ExploreScopePill({
 }: {
   context: HMExploreContext
   contextLabel: string
-  accounts: Array<{value: string; label: string}>
+  accounts: Array<{value: string; label: string; metadata?: {name?: string; icon?: string}}>
   onChange?: (scope: HMExploreContext) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -102,10 +124,20 @@ function ExploreScopePill({
       </span>
     )
   }
-  const scopeLabel = context.type === 'node' ? 'Whole node' : context.id.uid
+  const selectedAccount =
+    context.type === 'site' ? accounts.find((account) => account.value === context.id.uid) : undefined
+  const scopeLabel = context.type === 'node' ? 'Whole node' : selectedAccount?.label || context.id.uid
   return (
     <div className="relative">
       <Button size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
+        {selectedAccount ? (
+          <HMIcon
+            id={hmId(selectedAccount.value)}
+            name={selectedAccount.metadata?.name}
+            icon={selectedAccount.metadata?.icon}
+            size={18}
+          />
+        ) : null}
         {scopeLabel}
         <ChevronDown className="ml-1 size-3.5" aria-hidden />
       </Button>
@@ -137,11 +169,111 @@ function ExploreScopePill({
               ) : (
                 <span className="size-3.5" />
               )}
-              {account.label}
+              <HMIcon id={hmId(account.value)} name={account.metadata?.name} icon={account.metadata?.icon} size={18} />
+              <span className="truncate">{account.label}</span>
             </button>
           ))}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function ExploreFacetMenu({
+  title,
+  values,
+  selected,
+  counts,
+  onChange,
+  onApply,
+  onClose,
+  path,
+  triggerRef,
+}: {
+  title: string
+  values?: Array<{value: string; label: string; icon?: {id: string; name?: string; icon?: string}}>
+  selected: string[]
+  counts?: Record<string, number>
+  onChange: (value: string) => void
+  onApply: () => void
+  onClose: () => void
+  path?: string
+  triggerRef?: {current: HTMLButtonElement | null}
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    menuRef.current?.focus()
+    return () => triggerRef?.current?.focus()
+  }, [triggerRef])
+  return (
+    <div
+      ref={menuRef}
+      tabIndex={-1}
+      className="bg-popover text-popover-foreground absolute top-full left-0 z-30 mt-2 min-w-64 rounded-xl border p-3 shadow-lg"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onClose()
+        }
+      }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-sm font-semibold">{title}</p>
+        <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground rounded p-1">
+          <X className="size-4" aria-label="Close" />
+        </button>
+      </div>
+      {path !== undefined ? (
+        <Input
+          value={path}
+          onChangeText={onChange}
+          placeholder="Any path"
+          aria-label="Path filter"
+          className="mb-3 h-9"
+        />
+      ) : (
+        <div className="max-h-64 space-y-1 overflow-y-auto">
+          {(values ?? []).map((option) => {
+            const checked = selected.includes(option.value)
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="checkbox"
+                aria-checked={checked}
+                onClick={() => onChange(option.value)}
+                onKeyDown={(event) => {
+                  if (event.key === ' ' || event.key === 'Enter') {
+                    event.preventDefault()
+                    onChange(option.value)
+                  }
+                }}
+                className="hover:bg-accent focus-visible:ring-ring flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm focus-visible:ring-2 focus-visible:outline-none"
+              >
+                <span
+                  className={cn(
+                    'border-muted-foreground/50 flex size-4 items-center justify-center rounded border',
+                    checked && 'bg-primary border-primary text-primary-foreground',
+                  )}
+                >
+                  {checked ? <Check className="size-3" /> : null}
+                </span>
+                {option.icon ? (
+                  <HMIcon id={hmId(option.icon.id)} name={option.icon.name} icon={option.icon.icon} size={18} />
+                ) : null}
+                <span className="flex-1 truncate">{option.label}</span>
+                {counts?.[option.value] !== undefined ? (
+                  <span className="text-muted-foreground text-xs">{counts[option.value]}</span>
+                ) : null}
+              </button>
+            )
+          })}
+          {!values?.length ? <p className="text-muted-foreground px-2 py-3 text-sm">No options available.</p> : null}
+        </div>
+      )}
+      <Button className="mt-3 w-full" size="sm" onClick={onApply}>
+        Apply filters
+      </Button>
     </div>
   )
 }
@@ -270,7 +402,8 @@ const tabs: Array<{id: ResultTab; label: string}> = [
 
 export type ExploreEditorState = {
   activeTab: ResultTab
-  menu: 'type' | 'in' | 'attributes' | null
+  menu: ExploreFacet | 'path' | null
+  facetValues: string[]
   advancedOpen: boolean
   draft: string
   draftQuery: string
@@ -284,7 +417,8 @@ export type ExploreEditorState = {
 
 export type ExploreEditorAction =
   | {type: 'set-active-tab'; tab: ResultTab}
-  | {type: 'toggle-menu'; menu: 'type' | 'in' | 'attributes'}
+  | {type: 'toggle-menu'; menu: ExploreFacet | 'path'; values?: string[]}
+  | {type: 'set-facet-values'; values: string[]}
   | {type: 'toggle-advanced'}
   | {type: 'set-draft'; draft: string}
   | {type: 'commit-query'; query: string; builderAst?: ExploreQueryNode | null}
@@ -299,6 +433,7 @@ export function createExploreEditorState(query: string, ast: ExploreQueryNode | 
   return {
     activeTab: 'all',
     menu: null,
+    facetValues: [],
     advancedOpen: false,
     draft: query,
     draftQuery: query,
@@ -317,7 +452,13 @@ export function exploreEditorReducer(state: ExploreEditorState, action: ExploreE
     case 'set-active-tab':
       return {...state, activeTab: action.tab}
     case 'toggle-menu':
-      return {...state, menu: state.menu === action.menu ? null : action.menu}
+      return {
+        ...state,
+        menu: state.menu === action.menu ? null : action.menu,
+        facetValues: action.values ?? state.facetValues,
+      }
+    case 'set-facet-values':
+      return {...state, facetValues: action.values}
     case 'toggle-advanced':
       return {...state, advancedOpen: !state.advancedOpen}
     case 'set-draft':
@@ -369,12 +510,31 @@ export function ExplorePage(props: ExplorePageProps) {
   const activeValueKind = editor.activeValueKind
   const columnsOpen = editor.columnsOpen
   const sortOpen = editor.sortOpen
+  const facetValues = editor.facetValues
+  const facetButtonRefs = useRef<Record<ExploreFacet, {current: HTMLButtonElement | null}>>({
+    space: {current: null},
+    type: {current: null},
+    path: {current: null},
+  })
 
   const chips = useMemo(() => exploreQueryChips(props.parsed), [props.parsed])
   const editingParsed = draft === props.query ? props.parsed : parseExploreQuery(draft)
   const accounts = useExploreAccounts(true)
   const attributeNames = useExploreAttributeNames(props.accountUid || '', true)
   const attributeValues = useExploreAttributeValues(activeValueField, activeValueKind, '', true)
+  const visibleAttributeNames = filterExploreAttributeNames(attributeNames.data ?? [])
+  const selectedSpaces = exploreFacetValues(editingParsed, 'space')
+  const selectedTypes = exploreFacetValues(editingParsed, 'type')
+  const selectedPath = exploreFacetValues(editingParsed, 'path')[0] ?? ''
+  const selectedSpaceLabels = selectedSpaces.map(
+    (value) => accounts.data?.find((account) => account.value === value)?.label ?? value,
+  )
+  const spaceLabel =
+    selectedSpaceLabels.length === 0
+      ? 'All spaces'
+      : `${selectedSpaceLabels.slice(0, 2).join(', ')}${
+          selectedSpaceLabels.length > 2 ? ` +${selectedSpaceLabels.length - 2}` : ''
+        }`
   const visibleResults = props.results.filter((result) => activeTab === 'all' || result.type === activeTab)
   const documentOnly = activeTab !== 'all' && activeTab !== 'document'
   const cancelPendingDraft = () => {
@@ -411,7 +571,7 @@ export function ExplorePage(props: ExplorePageProps) {
   const updatePresentation = (presentation: ExplorePresentation) =>
     updateQuery(withPresentation(editingParsed.ast, presentation))
   const builtInColumns = ['title', 'space', 'path', 'updated', 'version']
-  const availableColumns = [...builtInColumns, ...(attributeNames.data ?? [])]
+  const availableColumns = [...builtInColumns, ...visibleAttributeNames]
   const selectedColumns = editingParsed.presentation.columns?.length
     ? editingParsed.presentation.columns
     : ['title', 'space', 'path', 'updated']
@@ -429,6 +589,24 @@ export function ExplorePage(props: ExplorePageProps) {
   const removeSort = (key: string) => {
     const nextRules = sortRules.filter((rule) => rule.key !== key)
     updatePresentation({...editingParsed.presentation, sort: nextRules.length ? nextRules : undefined})
+  }
+  const toggleFacetValue = (value: string) => {
+    dispatch({
+      type: 'set-facet-values',
+      values: facetValues.includes(value) ? facetValues.filter((item) => item !== value) : [...facetValues, value],
+    })
+  }
+  const openFacet = (facet: ExploreFacet) => {
+    dispatch({
+      type: 'toggle-menu',
+      menu: facet,
+      values:
+        facet === 'space' ? selectedSpaces : facet === 'type' ? selectedTypes : selectedPath ? [selectedPath] : [],
+    })
+  }
+  const applyFacet = (facet: ExploreFacet) => {
+    updateQuery(serializeExploreQuery(replaceExploreFacet(editingParsed, facet, facetValues)))
+    dispatch({type: 'close-menu'})
   }
   const tableMode = editingParsed.presentation.view === 'table' && activeTab !== 'block' && activeTab !== 'comment'
 
@@ -500,43 +678,99 @@ export function ExplorePage(props: ExplorePageProps) {
           {sortOpen ? (
             <ExploreSortMenu
               rules={sortRules}
-              availableKeys={attributeNames.data ?? []}
+              availableKeys={visibleAttributeNames}
               onCycleDirection={cycleSortDirection}
               onRemove={removeSort}
               onAdd={cycleSort}
             />
           ) : null}
-          {(['type', 'in', 'attributes'] as const).map((kind) => (
-            <div key={kind} className="relative">
-              <Button size="sm" variant="outline" onClick={() => dispatch({type: 'toggle-menu', menu: kind})}>
-                {kind[0]!.toUpperCase() + kind.slice(1)}
+          {[
+            {
+              facet: 'space' as const,
+              label: spaceLabel,
+              options: (accounts.data ?? []).map((account) => ({
+                value: account.value,
+                label: account.label,
+                icon: {id: account.value, name: account.metadata?.name, icon: account.metadata?.icon},
+              })),
+            },
+            {
+              facet: 'type' as const,
+              label: selectedTypes.length
+                ? selectedTypes.map((type) => type[0]!.toUpperCase() + type.slice(1)).join(', ')
+                : 'All types',
+              options: [
+                {value: 'document', label: 'Documents'},
+                {value: 'block', label: 'Text blocks'},
+                {value: 'comment', label: 'Conversations'},
+              ],
+            },
+          ].map(({facet, label, options}) => (
+            <div key={facet} className="relative">
+              <Button
+                ref={(element) => {
+                  facetButtonRefs.current[facet].current = element
+                }}
+                size="sm"
+                variant={menu === facet ? 'secondary' : 'outline'}
+                onClick={() => openFacet(facet)}
+              >
+                {label}
+                <ChevronDown className="ml-1 size-3.5" />
               </Button>
-              {menu === kind ? (
-                <ExploreFilterMenu
-                  options={
-                    kind === 'type'
-                      ? ['type:document', 'type:block', 'type:comment']
-                      : kind === 'in'
-                        ? accounts.data?.map((account) => `in:${account.value}`) ?? []
-                        : attributeNames.data?.map((name) => `has:${name}`) ?? []
+              {menu === facet ? (
+                <ExploreFacetMenu
+                  title={facet === 'space' ? 'Spaces' : 'Types'}
+                  values={options}
+                  selected={facetValues}
+                  counts={
+                    facet === 'type' && selectedTypes.length === 0
+                      ? {
+                          document: props.counts.document,
+                          block: props.counts.block,
+                          comment: props.counts.comment,
+                        }
+                      : undefined
                   }
-                  activeTokens={chips.map((chip) => chip.token)}
-                  onToggle={(predicate) => {
-                    const next = toggleExplorePredicate(editingParsed, predicate)
-                    updateQuery(serializeExploreQuery(next))
-                    dispatch({type: 'close-menu'})
-                  }}
+                  onChange={toggleFacetValue}
+                  onApply={() => applyFacet(facet)}
+                  onClose={() => dispatch({type: 'close-menu'})}
+                  triggerRef={facetButtonRefs.current[facet]}
                 />
               ) : null}
             </div>
           ))}
-          <Button
-            size="sm"
-            variant={advancedOpen ? 'secondary' : 'outline'}
+          <div className="relative">
+            <Button
+              ref={(element) => {
+                facetButtonRefs.current.path.current = element
+              }}
+              size="sm"
+              variant={menu === 'path' ? 'secondary' : 'outline'}
+              onClick={() => openFacet('path')}
+            >
+              {selectedPath ? `In ${selectedPath}` : 'In'}
+              <ChevronDown className="ml-1 size-3.5" />
+            </Button>
+            {menu === 'path' ? (
+              <ExploreFacetMenu
+                title="Path"
+                path={facetValues[0] ?? ''}
+                selected={facetValues}
+                onChange={(value) => dispatch({type: 'set-facet-values', values: [value]})}
+                onApply={() => applyFacet('path')}
+                onClose={() => dispatch({type: 'close-menu'})}
+                triggerRef={facetButtonRefs.current.path}
+              />
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground px-2 text-sm underline-offset-4 hover:underline"
             onClick={() => dispatch({type: 'toggle-advanced'})}
           >
-            Advanced
-          </Button>
+            {advancedOpen ? 'Hide all filters' : 'See all filters'}
+          </button>
         </div>
         {chips.length ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -570,7 +804,7 @@ export function ExplorePage(props: ExplorePageProps) {
       {advancedOpen ? (
         <ExploreBuilder
           ast={builderAst}
-          attributeNames={attributeNames.data ?? []}
+          attributeNames={visibleAttributeNames}
           attributeValues={attributeValues.data ?? []}
           accounts={accounts.data ?? []}
           context={props.context}
@@ -683,38 +917,6 @@ export function ExplorePage(props: ExplorePageProps) {
   )
 }
 
-function ExploreFilterMenu({
-  options,
-  activeTokens,
-  onToggle,
-}: {
-  options: string[]
-  activeTokens: string[]
-  onToggle: (predicate: string) => void
-}) {
-  return (
-    <div className="border-border bg-popover absolute top-10 left-0 z-10 flex min-w-44 flex-col rounded-md border p-1 shadow-md">
-      {options.length ? (
-        options.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={cn(
-              'hover:bg-muted rounded px-2 py-1.5 text-left font-mono text-xs',
-              activeTokens.includes(option) && 'bg-accent',
-            )}
-            onClick={() => onToggle(option)}
-          >
-            {option}
-          </button>
-        ))
-      ) : (
-        <p className="text-muted-foreground px-2 py-2 text-xs">No suggestions available.</p>
-      )}
-    </div>
-  )
-}
-
 type BuilderNode = ExploreQueryNode
 
 function builderPredicateIsComplete(predicate: ExplorePredicate) {
@@ -805,7 +1007,8 @@ function draftToPredicate(
   if (field === '$path') return {kind: 'scope', scope: 'path', value: value.trim() || '/', prefix: kind === 'prefix'}
   if (kind === 'exists' || kind === 'missing') return {kind: 'attribute', key: field.trim(), operator: kind}
   if (!value.trim()) return null
-  if (kind === 'contains' || kind === 'prefix') return {kind: 'attribute', key: field.trim(), operator: kind, value}
+  if (kind === 'contains') return {kind: 'attribute', key: field.trim(), operator: 'contains', value}
+  if (kind === 'prefix') return {kind: 'attribute', key: field.trim(), operator: 'prefix', value}
   const typedValue = valueKind === 'int' ? Number(value) : valueKind === 'bool' ? value === 'true' : value
   return {kind: 'attribute', key: field.trim(), operator: 'comparison', comparison: operator, value: typedValue}
 }
@@ -823,7 +1026,7 @@ function ExploreBuilder({
   ast: ExploreQueryNode | null
   attributeNames: string[]
   attributeValues: string[]
-  accounts: Array<{value: string; label: string}>
+  accounts: Array<{value: string; label: string; metadata?: {name?: string; icon?: string}}>
   context: HMExploreContext
   presentation: ExplorePresentation
   onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void

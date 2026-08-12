@@ -1,5 +1,6 @@
 import {useInfiniteQuery, useQuery} from '@tanstack/react-query'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import {accountMetadataFromAccount} from '../account-metadata'
 import {
   ContentTypeFilter,
   DocumentAttributeKind,
@@ -64,7 +65,14 @@ export function useExploreAccounts(enabled = true) {
     queryFn: async () => {
       if (!client.listAccounts) return []
       const response = await client.listAccounts(new ListAccountsRequest({pageSize: 1000}))
-      return response.accounts.map((account) => ({value: account.id, label: account.id}))
+      return response.accounts.map((account) => {
+        const metadata = accountMetadataFromAccount(account)
+        return {
+          value: account.id,
+          label: metadata.name || account.id,
+          metadata,
+        }
+      })
     },
   })
 }
@@ -124,7 +132,9 @@ export function exploreStreamSelection(parsed: ParsedExploreQuery, context: HMEx
   const compilation = compileExploreQuery(parsed, context)
   return {
     text: compilation.textTerms.length > 0,
-    documents: compilation.documentPredicates.length > 0 && !!compilation.filter,
+    documents:
+      (compilation.documentPredicates.length > 0 || compilation.requestedTypes.includes('document')) &&
+      (Boolean(compilation.filter) || compilation.requestedTypes.includes('document')),
     intersection: compilation.textTerms.length > 0 && compilation.documentPredicates.length > 0 && !!compilation.filter,
   }
 }
@@ -325,7 +335,8 @@ export function useExploreResults(
   const pageSize = options.pageSize ?? 50
   const hasText = compilation.textTerms.length > 0
   const hasDocuments = compilation.documentPredicates.length > 0
-  const shouldFetchDocuments = enabled && hasDocuments && Boolean(client.queryDocuments)
+  const typeOnlyQuery = compilation.requestedTypes.includes('document') && !hasDocuments && !hasText
+  const shouldFetchDocuments = enabled && (hasDocuments || typeOnlyQuery) && Boolean(client.queryDocuments)
   const shouldFetchText = enabled && hasText
 
   const documentQuery = useInfiniteQuery({
