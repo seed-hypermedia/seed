@@ -36,6 +36,7 @@ import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
 import * as runs from '@/runs'
+import * as runEvents from '@/run-events'
 import * as toolDocs from '@/tool-documents'
 import {
   lintWorkflowSource,
@@ -362,6 +363,7 @@ function classifyRunError(error: unknown): runs.RunErrorInfo {
 function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
   const inputRecord = isPlainRecord(run.input) ? run.input : undefined
   const stepLabel = typeof inputRecord?.planStepLabel === 'string' ? inputRecord.planStepLabel : undefined
+  const planStepId = typeof inputRecord?.planStepId === 'string' ? inputRecord.planStepId : undefined
   // Runs written before the column existed carry the id only in their input payload.
   const parentToolCallId =
     run.parentToolCallId ??
@@ -372,6 +374,7 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
     rootRunId: run.rootRunId,
     ...(run.parentRunId ? {parentRunId: run.parentRunId} : {}),
     ...(parentToolCallId ? {parentToolCallId} : {}),
+    ...(run.continuedFromRunId ? {continuedFromRunId: run.continuedFromRunId} : {}),
     depth: run.depth,
     kind: run.kind,
     ...(run.agentId ? {agentId: run.agentId} : {}),
@@ -379,6 +382,7 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
     origin: run.origin,
     ...(run.title ? {title: run.title} : {}),
     ...(stepLabel ? {stepLabel} : {}),
+    ...(planStepId ? {planStepId} : {}),
     ...(run.kind === 'workflow' && run.sourceText ? {sourceText: run.sourceText} : {}),
     status: run.status,
     ...(run.wait
@@ -387,6 +391,14 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
             reason: run.wait.reason,
             ...(run.wait.reason === 'timer' ? {wakeAt: run.wait.wakeAt} : {}),
             ...(run.wait.reason === 'children' ? {pendingChildren: run.wait.toolCallIds.length} : {}),
+            ...(run.wait.reason === 'event'
+              ? {
+                  ...(run.wait.timeoutAt === undefined ? {} : {wakeAt: run.wait.timeoutAt}),
+                  ...(run.wait.label ? {label: run.wait.label} : {}),
+                  ...(run.wait.answerWith ? {answerWith: run.wait.answerWith} : {}),
+                }
+              : {}),
+            ...(run.wait.reason === 'budget-pause' && run.wait.note ? {label: run.wait.note} : {}),
           },
         }
       : {}),
@@ -702,6 +714,13 @@ export class Service {
         return this.#listRuns(verified.accountId, envelope.action)
       case 'CancelRun':
         return this.#cancelRun(verified.accountId, envelope.action.runId)
+      case 'SignalRun':
+        return this.#signalRun(
+          verified.accountId,
+          envelope.action.runId,
+          envelope.action.signal,
+          envelope.action.payload,
+        )
       case 'GetRunJournal':
         return this.#getRunJournal(verified.accountId, envelope.action.runId, envelope.action.afterSeq)
       case 'Subscribe':
@@ -1571,7 +1590,7 @@ export class Service {
     this.#requireAgent(accountId, agentId)
     const rows = this.#db
       .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND agent_id = ?
@@ -1618,8 +1637,9 @@ export class Service {
     const now = Date.now()
     const id = crypto.randomUUID()
     this.#db.run(
-      `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt,
+         continuation_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         accountId,
@@ -1628,6 +1648,7 @@ export class Service {
         trigger.enabled ? 1 : 0,
         cbor.encode(trigger.source),
         serializePromptBlocksForStorage(trigger.prompt),
+        trigger.continuation ? cbor.encode(trigger.continuation) : null,
         now,
         now,
       ],
@@ -1650,13 +1671,15 @@ export class Service {
     const next: api.AgentTriggerInfo = {...existing, ...patch, updatedAt: Date.now()}
     this.#db.run(
       `UPDATE agent_triggers
-       SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, updated_at = ?, last_error = NULL
+       SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, continuation_cbor = ?, updated_at = ?,
+           last_error = NULL
        WHERE account_id = ? AND id = ?`,
       [
         next.name,
         next.enabled ? 1 : 0,
         cbor.encode(next.source),
         serializePromptBlocksForStorage(next.prompt),
+        next.continuation ? cbor.encode(next.continuation) : null,
         next.updatedAt,
         accountId,
         triggerId,
@@ -2652,9 +2675,15 @@ export class Service {
       this.#runWaiters.delete(run.id)
       for (const resolve of waiters) resolve(run)
     }
+    // An automation can start where another finished; this is the one moment that knows a run is done.
+    this.#fireRunCompletedTriggers(run)
     if (run.parentRunId) {
       const input = run.input as {parentToolCallId?: string; parentToolName?: string} | null
-      if (typeof input?.parentToolCallId === 'string' && input.parentToolCallId) {
+      // A run that continued as a new run is NOT finished work: its successor inherited the same
+      // tool call and answers the parent when it is really done. Resolving here would hand the
+      // parent a result while the work is still going.
+      const continued = isPlainRecord(run.output) && typeof run.output.continuedAsRunId === 'string'
+      if (!continued && typeof input?.parentToolCallId === 'string' && input.parentToolCallId) {
         this.#resolveSubSessionResult(run, input.parentToolCallId, input.parentToolName)
       }
     }
@@ -2696,6 +2725,37 @@ export class Service {
    * run plans settle: running→done on success, running→failed on failure. Pending steps are left
    * alone — a session todo list legitimately spans turns.
    */
+  /**
+   * The plan step a spawn is working on, or undefined when that is ambiguous.
+   *
+   * The model's `plan` verb maintains the SESSION plan (`sessions.plan_cbor`); `runs.plan_cbor` is
+   * only ever written by the workflow host. Reading the run plan alone therefore stamped nothing on
+   * model-spawned children, and step↔child attachment survived only by the coincidence of a child's
+   * title matching a step label — which breaks precisely when one step is named for a whole batch.
+   * So: session plan first, run plan as the fallback that still serves workflow children.
+   *
+   * Both the id and the label are returned. The id is the durable join: labels are display strings
+   * the model rewrites freely between turns, so a stamped label goes stale and stops naming any
+   * step in the plan it came from. Step ids are declared stable by the plan verb's own contract.
+   */
+  #runningPlanStep(
+    accountId: string,
+    parentRun: runs.RunRecord,
+    sessionId: string,
+  ): {id?: string; label: string} | undefined {
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    const sessionPlan = row?.plan_cbor ? cbor.decode<api.RunPlan>(row.plan_cbor) : undefined
+    const plan = sessionPlan ?? runs.getRun(this.#db, accountId, parentRun.id)?.plan
+    const running = (plan?.steps ?? []).filter((step) => step.status === 'running')
+    if (running.length !== 1) return undefined
+    const step = running[0]!
+    return {...(step.id ? {id: step.id} : {}), label: step.label}
+  }
+
   #settleSessionPlanAfterRun(run: runs.RunRecord): void {
     if (!run.sessionId) return
     if (run.status !== 'succeeded' && run.status !== 'failed') return
@@ -2852,6 +2912,125 @@ export class Service {
     return {_: 'CancelRunResponse', runId: normalized, canceled: affected.length > 0}
   }
 
+  /**
+   * Answers a run parked on `ctx.waitForEvent`: delivers the signal's payload into its journal and
+   * puts it back in the queue. Not delivering is a normal outcome (the run finished, timed out, or
+   * is listening for something else), so it reports rather than throws.
+   */
+  #signalRun(accountId: string, runId: string, signal: string, payload: unknown): api.SignalRunResponse {
+    const normalized = normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES)
+    const signalName = normalizeBoundedString(signal, 'Signal', MAX_NAME_BYTES)
+    const run = runs.getRun(this.#db, accountId, normalized)
+    if (!run) throw new APIError(404, 'Run not found')
+    // A budget-paused run is not listening for a payload — it is waiting for permission. Any
+    // signal is that permission.
+    if (run.status === 'waiting' && run.wait?.reason === 'budget-pause') {
+      const resumed = this.#runQueue.resumeBudgetPause(normalized)
+      return {_: 'SignalRunResponse', runId: normalized, delivered: !!resumed}
+    }
+    const target = runEvents
+      .listRunEventWaits(this.#db, normalized)
+      .find((wait) => runEvents.signalMatchesWait(wait.match, signalName))
+    if (!target) return {_: 'SignalRunResponse', runId: normalized, delivered: false}
+    const delivered = this.#deliverRunEvent(run, target.waitId, {
+      source: 'signal',
+      signal: signalName,
+      ...(payload === undefined ? {} : {payload: jsonSafeToolOutput(payload)}),
+    })
+    return {_: 'SignalRunResponse', runId: normalized, delivered}
+  }
+
+  /**
+   * Wakes one parked run with a payload, exactly once.
+   *
+   * The journal write and the requeue happen in a single transaction, so a signal that loses the
+   * race — to a timeout wake, a cancellation, or another signal — leaves nothing behind at all;
+   * there is no window where a run is woken without its payload, or handed two.
+   */
+  #deliverRunEvent(run: runs.RunRecord, waitId: string, delivery: runEvents.RunEventDelivery): boolean {
+    const now = Date.now()
+    let appended: {seq: number; entry: WorkflowJournalEntry} | null = null
+    const commit = this.#db.transaction(() => {
+      const current = runs.getRun(this.#db, run.accountId, run.id)
+      if (!current || current.status !== 'waiting' || current.wait?.reason !== 'event') return false
+      // The run's own journal says which call this wait belongs to, so the delivery files itself
+      // under the exact ctx.waitForEvent the script is awaiting.
+      const registration = this.#db
+        .query<{entry_cbor: Uint8Array}, [string]>(
+          `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
+        )
+        .all(run.id)
+        .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor))
+        .find((entry) => entry.kind === 'wait' && entry.waitId === waitId) as
+        | Extract<WorkflowJournalEntry, {kind: 'wait'}>
+        | undefined
+      if (!registration) return false
+      const seq =
+        (this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)
+          ?.n ?? 0) + 1
+      const entry: WorkflowJournalEntry = {
+        kind: 'event',
+        callSeq: registration.callSeq,
+        ...(registration.key ? {key: registration.key} : {}),
+        waitId,
+        delivery,
+      }
+      this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
+        run.id,
+        seq,
+        cbor.encode(entry),
+        now,
+      ])
+      this.#db.run(
+        `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = NULL, updated_at = ? WHERE id = ?`,
+        [now, run.id],
+      )
+      this.#db.run(`DELETE FROM run_event_waits WHERE run_id = ?`, [run.id])
+      appended = {seq, entry}
+      return true
+    })
+    if (!commit()) return false
+    const written = appended as {seq: number; entry: WorkflowJournalEntry} | null
+    if (written) {
+      this.#emit({
+        type: 'run-append',
+        accountId: run.accountId,
+        rootRunId: run.rootRunId,
+        entry: {
+          runId: run.id,
+          seq: written.seq,
+          entry: written.entry as unknown as Record<string, unknown>,
+          createdAt: now,
+        },
+      })
+    }
+    const woken = runs.getRun(this.#db, run.accountId, run.id)
+    if (woken) this.#emit({type: 'run-change', accountId: run.accountId, run: runInfoFromRecord(woken)})
+    this.#runQueue.wake()
+    return true
+  }
+
+  /**
+   * Delivers an activity-feed event to every run listening for it. Runs a script parked on
+   * `ctx.waitForEvent({eventType, resource, author})` alongside the trigger machinery: a wait is
+   * one run's private business, a trigger is the agent's standing configuration.
+   */
+  #deliverActivityToRunWaits(accountId: string, event: activityTriggers.ActivityFeedEvent): void {
+    for (const wait of runEvents.listAccountEventWaits(this.#db, accountId)) {
+      if (!runEvents.activityMatchesWait(wait.match, event)) continue
+      const run = runs.getRun(this.#db, accountId, wait.runId)
+      if (!run) continue
+      const delivered = this.#deliverRunEvent(run, wait.waitId, {source: 'activity', payload: event})
+      if (delivered) {
+        console.info('[agents/runs] activity woke a waiting run', {
+          accountId,
+          runId: wait.runId,
+          waitId: wait.waitId,
+        })
+      }
+    }
+  }
+
   #getRunJournal(accountId: string, runId: string, afterSeq?: number): api.GetRunJournalResponse {
     if (afterSeq !== undefined && (!Number.isInteger(afterSeq) || afterSeq < 0)) {
       throw new APIError(400, 'afterSeq must be a non-negative integer')
@@ -2918,9 +3097,7 @@ export class Service {
     )
     // If exactly one plan step is running right now, that step is what this spawn is working on —
     // record it so the progress card shows the step and its sub-agent as one item.
-    const currentPlan = runs.getRun(this.#db, accountId, parentRun.id)?.plan
-    const runningSteps = (currentPlan?.steps ?? []).filter((step) => step.status === 'running')
-    const stepLabel = runningSteps.length === 1 ? runningSteps[0]?.label : undefined
+    const step = this.#runningPlanStep(accountId, parentRun, parentSessionId)
     this.#runQueue.enqueue({
       id: childRunId,
       accountId,
@@ -2931,7 +3108,12 @@ export class Service {
       agentId: childAgentId,
       sessionId: session.sessionId,
       title,
-      input: {spec, parentToolCallId: toolCallId, ...(stepLabel ? {planStepLabel: stepLabel} : {})},
+      input: {
+        spec,
+        parentToolCallId: toolCallId,
+        ...(step ? {planStepLabel: step.label} : {}),
+        ...(step?.id ? {planStepId: step.id} : {}),
+      },
       queue: 'background',
       maxAttempts: 2,
     })
@@ -3094,6 +3276,8 @@ export class Service {
     if (workflowRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
       throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
     }
+    const currentPlan = runs.getRun(this.#db, workflowRun.accountId, workflowRun.id)?.plan ?? workflowRun.plan
+    const stepId = stepLabel ? currentPlan?.steps.find((step) => step.label === stepLabel)?.id : undefined
     const childCount =
       this.#db
         .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`)
@@ -3137,7 +3321,13 @@ export class Service {
       agentId: childAgentId,
       sessionId: session.sessionId,
       title,
-      input: {spec, ...(stepLabel ? {planStepLabel: stepLabel} : {})},
+      input: {
+        spec,
+        ...(stepLabel ? {planStepLabel: stepLabel} : {}),
+        // ctx.delegate({step}) names the step by label; the workflow's own plan (which IS written to
+        // runs.plan_cbor) is where that label has an id, so resolve it here for the same durable join.
+        ...(stepId ? {planStepId: stepId} : {}),
+      },
       queue: 'background',
       maxAttempts: 2,
     })
@@ -3148,6 +3338,14 @@ export class Service {
   async #executeWorkflowRun(run: runs.RunRecord): Promise<runs.RunOutcome> {
     if (!run.sourceText) {
       return {type: 'failed', error: {code: 'config-error', message: 'Workflow run is missing its source'}}
+    }
+    // A run that has used up its wall-clock budget PAUSES rather than fails: the work so far is
+    // journaled and correct, and a person can look at it and let it continue. Failing here would
+    // throw that away over a limit that is a policy, not an error.
+    const budgetPause = budgetPauseFor(run)
+    if (budgetPause) {
+      console.info('[agents/workflow] run paused on its time budget', {runId: run.id, note: budgetPause.note})
+      return {type: 'parked', wait: budgetPause}
     }
     if (!run.agentId) {
       return {type: 'failed', error: {code: 'config-error', message: 'Workflow run is missing its agent'}}
@@ -3341,15 +3539,76 @@ export class Service {
           this.#runQueue.updatePlan(run.id, plan)
         },
         progress: (patch) => emitRunPartial({progress: patch}),
+        registerEventWait: (wait) =>
+          runEvents.putRunEventWait(this.#db, {
+            runId: run.id,
+            waitId: wait.waitId,
+            accountId: run.accountId,
+            match: (isPlainRecord(wait.match) ? wait.match : {}) as runEvents.RunEventMatch,
+            ...(wait.timeoutAt === undefined ? {} : {timeoutAt: wait.timeoutAt}),
+          }),
       },
       isCanceled: () => this.#workflowCancelFlags.has(run.id),
     })
 
-    if (outcome.type !== 'parked') this.#finalizeWorkflowPlan(run, outcome.type)
     if (outcome.type === 'parked') return {type: 'parked', wait: outcome.wait}
+    if (outcome.type === 'continued') {
+      // The plan settles as a success: this generation finished what it set out to do, and the
+      // successor brings its own plan.
+      this.#finalizeWorkflowPlan(run, 'succeeded')
+      const continuedAsRunId = this.#continueWorkflowAsNew(run, outcome.state)
+      return {type: 'succeeded', output: {continued: true, continuedAsRunId}}
+    }
+    this.#finalizeWorkflowPlan(run, outcome.type)
     if (outcome.type === 'succeeded') return {type: 'succeeded', output: outcome.output}
     if (outcome.type === 'canceled') return {type: 'canceled'}
     return {type: 'failed', error: outcome.error}
+  }
+
+  /**
+   * Starts the successor of a run that called `ctx.continueAsNew`.
+   *
+   * The successor is the SAME work, not a child: it keeps the predecessor's place in the run tree
+   * (same parent, same session, same tool call to answer) and carries only the state the script
+   * declared. What it does not keep is the journal — a fresh run id means a fresh journal, which is
+   * the whole point: a loop that runs for weeks never grows an unbounded replay log. Parent linkage
+   * is deliberately NOT reused for the chain (nesting each generation under the last would grow the
+   * tree without bound and eventually hit the depth limit); the link is `continuedFromRunId` here
+   * and `continuedAsRunId` on the predecessor's output.
+   */
+  #continueWorkflowAsNew(run: runs.RunRecord, state: unknown): string {
+    const previousInput = isPlainRecord(run.input) ? run.input : {}
+    const successorId = crypto.randomUUID()
+    this.#runQueue.enqueue({
+      id: successorId,
+      accountId: run.accountId,
+      kind: 'workflow',
+      origin: run.origin,
+      ...(run.parentRunId ? {parentRunId: run.parentRunId} : {}),
+      ...(run.parentToolCallId ? {parentToolCallId: run.parentToolCallId} : {}),
+      continuedFromRunId: run.id,
+      ...(run.agentId ? {agentId: run.agentId} : {}),
+      ...(run.sessionId ? {sessionId: run.sessionId} : {}),
+      ...(run.title ? {title: run.title} : {}),
+      ...(run.sourceCid ? {sourceCid: run.sourceCid} : {}),
+      ...(run.sourceText ? {sourceText: run.sourceText} : {}),
+      input: {
+        input: state ?? null,
+        ...(typeof previousInput.parentToolCallId === 'string'
+          ? {parentToolCallId: previousInput.parentToolCallId}
+          : {}),
+        ...(typeof previousInput.parentToolName === 'string' ? {parentToolName: previousInput.parentToolName} : {}),
+      },
+      queue: run.queue,
+      ...(run.budget ? {budget: run.budget} : {}),
+      maxAttempts: run.maxAttempts,
+    })
+    console.info('[agents/workflow] continued as new run', {
+      runId: run.id,
+      successorId,
+      accountId: run.accountId,
+    })
+    return successorId
   }
 
   /**
@@ -4417,7 +4676,7 @@ export class Service {
   #getAgentTriggerInfo(accountId: string, triggerId: string): api.AgentTriggerInfo | null {
     const trigger = this.#db
       .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers WHERE account_id = ? AND id = ?`,
       )
@@ -4484,7 +4743,7 @@ export class Service {
   async processScheduledTriggers(now = Date.now()): Promise<TriggerProcessingResult> {
     const rows = this.#db
       .query<AgentTriggerRow, []>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE enabled = 1
@@ -4529,6 +4788,11 @@ export class Service {
         continue
       }
       try {
+        if (trigger.continuation?.kind === 'wake') {
+          if (this.#wakeFromTrigger(trigger.account, trigger, firingId, occurrence.activity)) fired += 1
+          else skipped += 1
+          continue
+        }
         const session = this.#createSessionOnce(
           trigger.account,
           trigger.agentId,
@@ -4579,6 +4843,9 @@ export class Service {
     accountId: string,
     event: activityTriggers.ActivityFeedEvent,
   ): Promise<TriggerProcessingResult> {
+    // A parked run listening for this event is woken first: it is work already underway, and it
+    // does not care whether the event also fires somebody's trigger.
+    this.#deliverActivityToRunWaits(accountId, event)
     const activityKey = activityTriggers.activityEventKey(event)
     if (!activityKey) {
       console.log('[Agents Trigger] Skipping activity without stable key', {
@@ -4592,7 +4859,7 @@ export class Service {
     const firingKey = activityTriggers.activityFiringKey(event) ?? activityKey
     const rows = this.#db
       .query<AgentTriggerRow, [string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND enabled = 1
@@ -4643,6 +4910,11 @@ export class Service {
         continue
       }
       try {
+        if (trigger.continuation?.kind === 'wake') {
+          if (this.#wakeFromTrigger(accountId, trigger, firingId, event)) fired += 1
+          else skipped += 1
+          continue
+        }
         const session = this.#createSessionOnce(
           accountId,
           trigger.agentId,
@@ -4691,6 +4963,189 @@ export class Service {
       }
     }
     return {checked, matched, fired, skipped, errors}
+  }
+
+  /**
+   * A trigger whose continuation is `wake`: instead of starting a thread, it answers a run that is
+   * already parked on `ctx.waitForEvent`.
+   *
+   * This rides the SignalRun delivery path unchanged, so a trigger-sent signal has exactly the
+   * properties a hand-sent one does — one transaction, exactly once, and "nobody was listening" as
+   * a normal outcome rather than an error. Without an explicit `runId` it looks for any parked run
+   * of this account whose wait this signal satisfies, which is what makes "when the doc changes,
+   * unblock whoever is waiting on it" expressible without knowing run ids in advance.
+   */
+  #wakeFromTrigger(
+    accountId: string,
+    trigger: api.AgentTriggerInfo,
+    firingId: string,
+    event: activityTriggers.ActivityFeedEvent,
+  ): boolean {
+    const continuation = trigger.continuation
+    if (continuation?.kind !== 'wake') return false
+    const delivery: runEvents.RunEventDelivery = {
+      source: 'trigger',
+      signal: continuation.signal,
+      payload: continuation.payload === undefined ? event : continuation.payload,
+    }
+    const candidates = continuation.runId
+      ? runEvents.listRunEventWaits(this.#db, continuation.runId)
+      : runEvents.listAccountEventWaits(this.#db, accountId)
+    for (const wait of candidates) {
+      if (!runEvents.signalMatchesWait(wait.match, continuation.signal)) continue
+      const run = runs.getRun(this.#db, accountId, wait.runId)
+      if (!run) continue
+      if (!this.#deliverRunEvent(run, wait.waitId, delivery)) continue
+      this.#db.run(`UPDATE trigger_firings SET status = ?, session_id = NULL WHERE account_id = ? AND id = ?`, [
+        'delivered',
+        accountId,
+        firingId,
+      ])
+      this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
+        Date.now(),
+        accountId,
+        trigger.id,
+      ])
+      console.info('[Agents Trigger] Trigger woke a parked run', {
+        accountId,
+        triggerId: trigger.id,
+        runId: wait.runId,
+        signal: continuation.signal,
+      })
+      return true
+    }
+    // Nobody was listening. The firing row records that honestly rather than being deleted, so the
+    // history shows the trigger fired and found no one — which is what a user needs to debug it.
+    this.#db.run(`UPDATE trigger_firings SET status = ? WHERE account_id = ? AND id = ?`, [
+      'no-listener',
+      accountId,
+      firingId,
+    ])
+    console.info('[Agents Trigger] Trigger fired with no run listening', {
+      accountId,
+      triggerId: trigger.id,
+      signal: continuation.signal,
+    })
+    return false
+  }
+
+  /**
+   * Fires `run-completed` triggers for a run that just reached a terminal status — the source that
+   * lets one automation start the next.
+   *
+   * Runs inline on the finalize path (no new monitor, no new poll): finalization is already the one
+   * moment that knows a run is done. Every firing is deduped on the run id, so a replayed or
+   * re-finalized run cannot fire the same trigger twice.
+   */
+  #fireRunCompletedTriggers(run: runs.RunRecord): void {
+    if (!runs.TERMINAL_RUN_STATUSES.includes(run.status)) return
+    const rows = this.#db
+      .query<AgentTriggerRow, [string]>(
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
+                last_checked_at, last_fired_at, last_error
+         FROM agent_triggers WHERE account_id = ? AND enabled = 1 ORDER BY created_at ASC`,
+      )
+      .all(run.accountId)
+    const event: activityTriggers.ActivityFeedEvent = {
+      type: 'run-completed',
+      runId: run.id,
+      runTitle: run.title ?? '',
+      runStatus: run.status,
+      agentId: run.agentId ?? '',
+      ...(run.sessionId ? {sessionId: run.sessionId} : {}),
+    }
+    for (const row of rows) {
+      const trigger = agentTriggerRowToInfo(row)
+      if (trigger.source.type !== 'run-completed') continue
+      if (!matchesRunCompleted(trigger.source, run)) continue
+      if (this.#triggerAlreadyInChain(run, trigger.id)) {
+        console.info('[Agents Trigger] Skipping run-completed trigger already in this chain', {
+          accountId: run.accountId,
+          triggerId: trigger.id,
+          runId: run.id,
+        })
+        continue
+      }
+      const firingId = crypto.randomUUID()
+      const inserted = this.#db.run(
+        `INSERT OR IGNORE INTO trigger_firings
+           (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          firingId,
+          run.accountId,
+          trigger.agentId,
+          trigger.id,
+          `run:${run.id}`,
+          cbor.encode(event),
+          'created',
+          Date.now(),
+        ],
+      )
+      if (inserted.changes === 0) continue
+      try {
+        if (trigger.continuation?.kind === 'wake') {
+          this.#wakeFromTrigger(run.accountId, trigger, firingId, event)
+          continue
+        }
+        const session = this.#createSessionOnce(
+          run.accountId,
+          trigger.agentId,
+          `${trigger.name} — ${activityTriggers.activitySummary(event)}`,
+        )
+        this.#db.run(`UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`, [
+          session.sessionId,
+          run.accountId,
+          firingId,
+        ])
+        this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
+          Date.now(),
+          run.accountId,
+          trigger.id,
+        ])
+        this.#dispatchTriggerSession(run.accountId, trigger, firingId, session.sessionId, event)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Trigger firing failed'
+        this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+          'error',
+          message,
+          run.accountId,
+          firingId,
+        ])
+        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+          message,
+          run.accountId,
+          trigger.id,
+        ])
+      }
+    }
+  }
+
+  /**
+   * Has this trigger already fired somewhere in the chain that produced this run?
+   *
+   * Two run-completed triggers can otherwise feed each other forever: A finishes, B fires, B's run
+   * finishes, A fires. Walking back through the firings that caused each run catches that cycle at
+   * any length up to the cap, and the cap catches anything longer — a chain deeper than this is a
+   * loop whether or not it repeats a trigger id.
+   */
+  #triggerAlreadyInChain(run: runs.RunRecord, triggerId: string): boolean {
+    let current: runs.RunRecord | null = run
+    for (let hop = 0; hop < TRIGGER_CHAIN_MAX_HOPS && current?.triggerFiringId; hop += 1) {
+      const firing = this.#db
+        .query<{trigger_id: string; activity_cbor: Uint8Array}, [string]>(
+          `SELECT trigger_id, activity_cbor FROM trigger_firings WHERE id = ?`,
+        )
+        .get(current.triggerFiringId)
+      if (!firing) return false
+      if (firing.trigger_id === triggerId) return true
+      // A run-completed firing names the run that caused it, which is how the walk continues.
+      const activity = cbor.decode<{runId?: unknown}>(firing.activity_cbor)
+      const sourceRunId = typeof activity?.runId === 'string' ? activity.runId : undefined
+      current = sourceRunId ? runs.getRun(this.#db, run.accountId, sourceRunId) : null
+    }
+    // Ran out of hops with the trigger not yet seen: treat a chain this deep as a loop.
+    return !!current?.triggerFiringId
   }
 
   /**
@@ -4792,6 +5247,7 @@ type AgentTriggerRow = {
   enabled: number
   source_cbor: Uint8Array
   prompt: string
+  continuation_cbor: Uint8Array | null
   created_at: number
   updated_at: number
   last_checked_at: number | null
@@ -5099,6 +5555,23 @@ function agentRowToInfo(row: AgentRow): api.AgentInfo {
   }
 }
 
+/** How far back a run-completed chain is followed before it is called a loop. */
+const TRIGGER_CHAIN_MAX_HOPS = 8
+
+/** Does a finished run match what a `run-completed` trigger is watching for? */
+function matchesRunCompleted(
+  source: Extract<api.AgentTriggerSource, {type: 'run-completed'}>,
+  run: runs.RunRecord,
+): boolean {
+  if (source.agentId !== undefined && source.agentId !== run.agentId) return false
+  if (source.status !== undefined && source.status !== run.status) return false
+  if (source.titleMatch !== undefined) {
+    const title = (run.title ?? '').toLowerCase()
+    if (!title.includes(source.titleMatch.toLowerCase())) return false
+  }
+  return true
+}
+
 function agentTriggerRowToInfo(row: AgentTriggerRow): api.AgentTriggerInfo {
   return {
     id: row.id,
@@ -5108,6 +5581,7 @@ function agentTriggerRowToInfo(row: AgentTriggerRow): api.AgentTriggerInfo {
     enabled: row.enabled !== 0,
     source: cbor.decode<api.AgentTriggerSource>(row.source_cbor),
     prompt: parseStoredPromptBlocks(row.prompt),
+    ...(row.continuation_cbor ? {continuation: cbor.decode<api.TriggerContinuation>(row.continuation_cbor)} : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.last_checked_at === null ? {} : {lastCheckedAt: row.last_checked_at}),
@@ -5398,6 +5872,7 @@ function normalizeAgentTriggerInput(
     enabled: raw.enabled === undefined ? true : normalizeBoolean(raw.enabled, 'Trigger enabled'),
     source,
     prompt: normalizePromptBlocks(raw.prompt, 'Trigger prompt'),
+    ...(raw.continuation === undefined ? {} : {continuation: normalizeTriggerContinuation(raw.continuation)}),
   }
 }
 
@@ -5410,6 +5885,7 @@ function normalizeAgentTriggerPatch(
   if (raw.enabled !== undefined) patch.enabled = normalizeBoolean(raw.enabled, 'Trigger enabled')
   if (raw.source !== undefined) patch.source = normalizeAgentTriggerSource(raw.source)
   if (raw.prompt !== undefined) patch.prompt = normalizePromptBlocks(raw.prompt, 'Trigger prompt')
+  if (raw.continuation !== undefined) patch.continuation = normalizeTriggerContinuation(raw.continuation)
   if (Object.keys(patch).length === 0) throw new APIError(400, 'Agent trigger patch is empty')
   return patch
 }
@@ -5463,7 +5939,36 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
   if (raw.type === 'schedule') {
     return {type: 'schedule', schedule: normalizeScheduleTrigger(raw.schedule)}
   }
+  if (raw.type === 'run-completed') {
+    if (raw.status !== undefined && !runs.TERMINAL_RUN_STATUSES.includes(raw.status)) {
+      throw new APIError(400, 'Trigger run status must be succeeded, failed, or canceled')
+    }
+    return {
+      type: 'run-completed',
+      ...(raw.agentId === undefined
+        ? {}
+        : {agentId: normalizeBoundedString(raw.agentId, 'Trigger agent ID', MAX_NAME_BYTES)}),
+      ...(raw.status === undefined ? {} : {status: raw.status}),
+      ...(raw.titleMatch === undefined
+        ? {}
+        : {titleMatch: normalizeBoundedString(raw.titleMatch, 'Trigger title match', MAX_NAME_BYTES)}),
+    }
+  }
   throw new APIError(400, 'Trigger source type is unsupported')
+}
+
+function normalizeTriggerContinuation(raw: api.TriggerContinuation): api.TriggerContinuation {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Trigger continuation is required')
+  if (raw.kind === 'newThread') return {kind: 'newThread'}
+  if (raw.kind === 'wake') {
+    return {
+      kind: 'wake',
+      signal: normalizeBoundedString(raw.signal, 'Trigger signal', MAX_NAME_BYTES),
+      ...(raw.runId === undefined ? {} : {runId: normalizeBoundedString(raw.runId, 'Trigger run ID', MAX_NAME_BYTES)}),
+      ...(raw.payload === undefined ? {} : {payload: jsonSafeToolOutput(raw.payload)}),
+    }
+  }
+  throw new APIError(400, 'Trigger continuation kind is unsupported')
 }
 
 function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentScheduleTrigger {
@@ -6770,6 +7275,39 @@ async function executeLambdaTool(
     ...(execution.changedFiles.length ? {changedFiles: execution.changedFiles} : {}),
     durationMs: execution.durationMs,
   }
+}
+
+/**
+ * The pause a run has earned by outliving its wall-clock budget, or nothing when it still has time.
+ * Measured from when the run was created, so sleeps and parks count — the budget is about how long
+ * a piece of work may stay open, not how much CPU it burns.
+ */
+function budgetPauseFor(run: runs.RunRecord): {reason: 'budget-pause'; note: string} | null {
+  const maxWallMs = run.budget?.maxWallMs
+  if (maxWallMs === undefined || maxWallMs <= 0) return null
+  const elapsed = Date.now() - run.createdAt
+  if (elapsed < maxWallMs) return null
+  return {
+    reason: 'budget-pause',
+    note: `Paused after ${formatDurationForHumans(elapsed)}: its time budget was ${formatDurationForHumans(maxWallMs)}`,
+  }
+}
+
+/** Rough, readable duration for parked-state copy: "40 minutes", "3 hours", "2 days". */
+function formatDurationForHumans(ms: number): string {
+  const units: Array<[number, string]> = [
+    [86_400_000, 'day'],
+    [3_600_000, 'hour'],
+    [60_000, 'minute'],
+    [1_000, 'second'],
+  ]
+  for (const [size, name] of units) {
+    if (ms >= size) {
+      const count = Math.round(ms / size)
+      return `${count} ${name}${count === 1 ? '' : 's'}`
+    }
+  }
+  return 'less than a second'
 }
 
 /** Executes the call verb: contract-on-miss dispatch into the callable tool set. */

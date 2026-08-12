@@ -43,3 +43,12 @@ Queue (in order):
   cases there (exact prompt + expected outcome + verification marker). Live gate re-runnable:
   agents/e2e/live-gate.ts --base http://localhost:3051 (daemon gRPC :56001 signData signing).
 - F3 (from UX disposition): server-side child link runs.parent_tool_call_id + RunInfo surface so delegate bubbles can resolve live model children; then restore live-child hierarchy in DelegateRunView. Do in M4.
+- F4 (from F1 final gate): attachment joins on MUTABLE label — models rename steps, stamps go stale (2/3 runs detached). Fix: stamp planStepId at spawn + RunInfo.planStepId + run-work.tsx childrenByStep keyed by id w/ label fallback. Assigned live-gate.
+- F5 resilience: upstream 503 (Codex server_is_overloaded) kills the whole parent turn, no retry despite retryable classification — attempt budget for provider-errors, queue with M5.
+- F6 BACKGROUND PUMP ORPHANED BY `bun --hot` RELOAD (dev-only, hit :3051 at ~01:2x): child runs
+  enqueue and never leave `queued` while interactive turns keep working, so it silently reads as
+  "the agent is thinking" — a delegation demo just hangs. Reproduced twice ten minutes apart;
+  killing the inner `bun --hot src/main.ts` (the watch-file-deps supervisor respawns it) restored
+  draining immediately, and `script-parallel` passed in 25.3s straight after. Fix: re-arm the
+  dispatch loop on hot reload, or at minimum expose queue depth + last-drain timestamp on
+  /agents/api/health so the stall is visible instead of looking like slow thinking.

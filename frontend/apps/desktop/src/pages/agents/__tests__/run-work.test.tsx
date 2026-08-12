@@ -28,6 +28,7 @@ vi.mock('@/models/agents', () => ({
   useRun: () => ({data: mockState.run, isLoading: false}),
   useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: mockState.journal}),
   useCancelRun: () => ({mutate: vi.fn(), isPending: false}),
+  useSignalRun: () => ({mutate: vi.fn(), isPending: false}),
   useSessionAttachmentDataUrls: () => ({}),
 }))
 
@@ -258,6 +259,68 @@ describe('integrated step rows', () => {
     expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
     // The pending step renders as a plain, non-interactive row.
     expect(container.textContent).toContain('Write comparison')
+  })
+
+  it('a child attaches through a step rename, because the join is the step id', () => {
+    // Agents rephrase their plans between turns. A child stamped with the label it was spawned
+    // under would come loose the moment that happens; the stamped id still names the same step.
+    const renamedPlan = {
+      title: 'Research',
+      steps: [
+        {id: 's1', label: 'Research Notion and Coda in parallel', status: 'running' as const},
+        {id: 's2', label: 'Write comparison', status: 'pending' as const},
+      ],
+    }
+    const stamped = makeRun({
+      id: 'child-1',
+      status: 'running',
+      rootRunId: 'root-1',
+      parentRunId: 'root-1',
+      sessionId: 'child-session-1',
+      stepLabel: 'Research Notion',
+      planStepId: 's1',
+      title: 'Notion researcher',
+    } as never)
+    const onOpenSession = vi.fn()
+    render(
+      <RunWorkHierarchy
+        run={parent}
+        childRuns={[stamped]}
+        plan={renamedPlan}
+        journal={[]}
+        liveState={{runs: {}, progress: {}, activity: {}, journal: []}}
+        onOpenSession={onOpenSession}
+        onCancelRun={vi.fn()}
+      />,
+    )
+    // The child rides the renamed step, not a loose row.
+    const stepRow = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Research Notion and Coda in parallel'),
+    )
+    expect(stepRow).toBeTruthy()
+    click(stepRow)
+    expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
+    expect(container.textContent?.match(/Notion researcher/g) ?? []).toHaveLength(0)
+  })
+
+  it('a legacy child with no step id still attaches by its stamped label', () => {
+    const onOpenSession = vi.fn()
+    render(
+      <RunWorkHierarchy
+        run={parent}
+        childRuns={[child]}
+        plan={plan}
+        journal={[]}
+        liveState={{runs: {}, progress: {}, activity: {}, journal: []}}
+        onOpenSession={onOpenSession}
+        onCancelRun={vi.fn()}
+      />,
+    )
+    const stepRow = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Research Notion'),
+    )
+    click(stepRow)
+    expect(onOpenSession).toHaveBeenCalledWith('child-session-1', undefined)
   })
 
   it('a live attached child exposes its cancel on the step row', () => {

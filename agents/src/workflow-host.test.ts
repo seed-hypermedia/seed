@@ -1,5 +1,7 @@
 import {describe, expect, test} from 'bun:test'
+import {signalMatchesWait} from './run-events.ts'
 import {
+  answerSignalFor,
   lintWorkflowSource,
   runWorkflowVM,
   type WorkflowAdapters,
@@ -26,10 +28,12 @@ function fakeAdapters(options: FakeAdapterOptions): {
   journal: WorkflowJournalEntry[]
   plans: RunPlanState[]
   progress: Array<{fraction?: number; label?: string}>
+  waits: Array<{waitId: string; match: unknown; timeoutAt?: number}>
 } {
   const journal = options.journal ?? []
   const plans: RunPlanState[] = []
   const progress: Array<{fraction?: number; label?: string}> = []
+  const waits: Array<{waitId: string; match: unknown; timeoutAt?: number}> = []
   const adapters: WorkflowAdapters = {
     runId: 'wf-run-1',
     input: options.input ?? null,
@@ -49,12 +53,13 @@ function fakeAdapters(options: FakeAdapterOptions): {
       awaitChild: options.awaitChild ?? (async () => ({status: 'succeeded', output: {text: 'done'}})),
       updatePlan: (plan) => plans.push(structuredClone(plan)),
       progress: (patch) => progress.push(patch),
+      registerEventWait: (wait) => waits.push(wait),
     },
     isCanceled: options.isCanceled ?? (() => false),
     timerParkThresholdMs: options.timerParkThresholdMs,
     fuelMs: options.fuelMs,
   }
-  return {adapters, journal, plans, progress}
+  return {adapters, journal, plans, progress, waits}
 }
 
 describe('workflow host', () => {
@@ -304,11 +309,124 @@ describe('workflow host', () => {
     expect(outcome.type).toBe('parked')
     if (outcome.type !== 'parked') return
     expect(outcome.wait.reason).toBe('timer')
+    if (outcome.wait.reason !== 'timer') return
     expect(outcome.wait.wakeAt).toBeGreaterThan(Date.now() - 1_000)
     await new Promise((resolve) => setTimeout(resolve, 100))
     const resumed = fakeAdapters({source, journal: [...first.journal], timerParkThresholdMs: 50})
     const resumedOutcome = await runWorkflowVM(resumed.adapters)
     expect(resumedOutcome).toEqual({type: 'succeeded', output: 'woke late'})
+  })
+
+  test('ctx.waitForEvent parks on a registered wait, and a delivered payload resumes it', async () => {
+    const source = `export default async function (input, ctx) {
+      const approval = await ctx.waitForEvent({signal: 'approved'}, {label: 'approval from the reviewer'})
+      return 'got ' + approval.payload.by
+    }`
+    const first = fakeAdapters({source})
+    const parked = await runWorkflowVM(first.adapters)
+    expect(parked.type).toBe('parked')
+    if (parked.type !== 'parked') return
+    expect(parked.wait.reason).toBe('event')
+    if (parked.wait.reason !== 'event') return
+    expect(parked.wait.label).toBe('approval from the reviewer')
+    // The host was told what to listen for, under the id the journal recorded.
+    expect(first.waits).toHaveLength(1)
+    expect(first.waits[0]).toMatchObject({waitId: parked.wait.waitId, match: {signal: 'approved'}})
+    const registration = first.journal.find((entry) => entry.kind === 'wait')
+    expect(registration).toMatchObject({waitId: parked.wait.waitId})
+
+    // Delivery is journaled by whoever wakes the run; the replay reads it as the call's result.
+    const delivered = [
+      ...first.journal,
+      {
+        kind: 'event' as const,
+        callSeq: registration!.callSeq,
+        key: registration!.key,
+        waitId: parked.wait.waitId,
+        delivery: {source: 'signal', payload: {by: 'Ada'}},
+      },
+    ]
+    const resumed = fakeAdapters({source, journal: delivered})
+    expect(await runWorkflowVM(resumed.adapters)).toEqual({type: 'succeeded', output: 'got Ada'})
+    // Replay does not re-register a wait that has already been answered.
+    expect(resumed.waits).toHaveLength(0)
+  })
+
+  test('a wait that runs out of time resolves as null on the next replay', async () => {
+    const source = `export default async function (input, ctx) {
+      const answer = await ctx.waitForEvent({signal: 'approved'}, {timeoutMs: 40})
+      return answer === null ? 'gave up' : 'answered'
+    }`
+    const first = fakeAdapters({source})
+    const parked = await runWorkflowVM(first.adapters)
+    expect(parked.type).toBe('parked')
+    if (parked.type !== 'parked' || parked.wait.reason !== 'event') return
+    // The timeout is the wake time the queue parks on.
+    expect(parked.wait.timeoutAt).toBeGreaterThan(Date.now() - 1_000)
+
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    const resumed = fakeAdapters({source, journal: [...first.journal]})
+    expect(await runWorkflowVM(resumed.adapters)).toEqual({type: 'succeeded', output: 'gave up'})
+    // A timed-out wait is settled: it is not registered again.
+    expect(resumed.waits).toHaveLength(0)
+  })
+
+  test('a delivered payload beats a timeout that has already passed', async () => {
+    const source = `export default async function (input, ctx) {
+      const answer = await ctx.waitForEvent({signal: 'approved'}, {timeoutMs: 5})
+      return answer === null ? 'gave up' : 'answered'
+    }`
+    const first = fakeAdapters({source})
+    const parked = await runWorkflowVM(first.adapters)
+    if (parked.type !== 'parked' || parked.wait.reason !== 'event') throw new Error('expected an event park')
+    const registration = first.journal.find((entry) => entry.kind === 'wait')!
+    await new Promise((resolve) => setTimeout(resolve, 20))
+
+    // The signal won the race in the database, so the run resumes with its payload even though the
+    // deadline has since passed — the journal, not the clock, is the record of what happened.
+    const resumed = fakeAdapters({
+      source,
+      journal: [
+        ...first.journal,
+        {
+          kind: 'event' as const,
+          callSeq: registration.callSeq,
+          key: registration.key,
+          waitId: parked.wait.waitId,
+          delivery: {source: 'signal'},
+        },
+      ],
+    })
+    expect(await runWorkflowVM(resumed.adapters)).toEqual({type: 'succeeded', output: 'answered'})
+  })
+
+  test('the answer signal a wait advertises is one that would actually satisfy it', () => {
+    // The host decides what to offer a person; run-events decides what to accept on delivery. If
+    // those two ever disagree, the button sends a signal the run ignores.
+    for (const match of [{}, {signal: 'approved'}, {signal: 'ship-it'}]) {
+      const offered = answerSignalFor(match)
+      expect(offered).toBeString()
+      expect(signalMatchesWait(match, offered!)).toBe(true)
+    }
+    // A wait watching the activity feed cannot be answered by hand, and says so by offering nothing.
+    for (const match of [{eventType: 'Comment'}, {resource: 'hm://z6MkDoc/spec'}, {author: 'z6Mk'}]) {
+      expect(answerSignalFor(match)).toBeUndefined()
+      expect(signalMatchesWait(match, 'answer')).toBe(false)
+    }
+  })
+
+  test('ctx.continueAsNew ends the run and hands its state to a successor', async () => {
+    const source = `export default async function (input, ctx) {
+      const seen = (input && input.seen) || 0
+      await ctx.log('info', 'generation ' + seen)
+      await ctx.continueAsNew({seen: seen + 1})
+      return 'never reached'
+    }`
+    const {adapters, journal} = fakeAdapters({source, input: {seen: 2}})
+    const outcome = await runWorkflowVM(adapters)
+    expect(outcome).toEqual({type: 'continued', state: {seen: 3}})
+    // Work done before the handoff is journaled; nothing after continueAsNew ran.
+    expect(journal.some((entry) => entry.kind === 'log' && entry.message === 'generation 2')).toBe(true)
   })
 
   test('ctx.agent unwraps success and surfaces child failure as a catchable coded error', async () => {

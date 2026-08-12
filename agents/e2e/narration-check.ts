@@ -38,6 +38,7 @@ const adapters: WorkflowAdapters = {
     awaitChild: async () => ({status: 'succeeded', output: {text: 'done'}}),
     updatePlan: () => {},
     progress: () => {},
+    registerEventWait: () => {},
   },
   isCanceled: () => false,
 }

@@ -21,6 +21,7 @@ import {
 import {useOpenUrl} from '@/open-url'
 import {useRun, useSessionAttachmentDataUrls, useSessionRuns} from '@/models/agents'
 import {descendantsOf, isTerminalRun, RunWorkHierarchy, useRunTreeView} from '@/pages/agents/run-work'
+import {ParkedRunActions} from '@/pages/agents/run-parked-actions'
 import {useSelectedAccountId} from '@/selected-account'
 import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
@@ -1754,18 +1755,22 @@ function DelegateRunView({
     return direct.isLoading ? <div className="text-muted-foreground text-[11px]">Loading the child run…</div> : null
   }
   return (
-    <RunWorkHierarchy
-      run={focus}
-      childRuns={children}
-      plan={focus.plan}
-      journal={liveState.journal}
-      liveState={liveState}
-      compact
-      onOpenSession={(childSessionId) => navigate({key: 'agent-session', sessionId: childSessionId, serverUrl})}
-      renderToolPart={(part) => (
-        <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={focus.agentId} />
-      )}
-    />
+    <div className="flex min-w-0 flex-col gap-2">
+      {/* A delegated child can be the thing waiting on you, so it gets the same answer affordance. */}
+      <ParkedRunActions run={focus} serverUrl={serverUrl} accountUid={accountUid} />
+      <RunWorkHierarchy
+        run={focus}
+        childRuns={children}
+        plan={focus.plan}
+        journal={liveState.journal}
+        liveState={liveState}
+        compact
+        onOpenSession={(childSessionId) => navigate({key: 'agent-session', sessionId: childSessionId, serverUrl})}
+        renderToolPart={(part) => (
+          <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={focus.agentId} />
+        )}
+      />
+    </div>
   )
 }
 

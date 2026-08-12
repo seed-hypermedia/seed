@@ -3449,6 +3449,205 @@ describe('api service', () => {
     }
   })
 
+  test('a parallel batch stamps every child with the running step id, stable across a rename', async () => {
+    // The model's plan verb writes the SESSION plan, not the run plan. Stamping used to read only
+    // the run plan, so model children were never labeled and the UI attached them by the accident
+    // of a child's title matching a step label — which fails exactly when one step names a batch.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const BATCH_STEP = 'Research both databases'
+    const RENAMED_STEP = 'Research SQLite and PostgreSQL in parallel'
+    let renamedPlan = false
+    try {
+      const account = blobs.generateNobleKeyPair()
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        if (!messagesJSON.includes('You are the batcher.')) {
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Child finished the task.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          // Resuming: rewrite the step's LABEL while keeping its id. Agents rephrase their plans
+          // constantly, which is exactly what makes a stamped label useless as a join key.
+          if (!renamedPlan) {
+            renamedPlan = true
+            return openAIStreamResponse([
+              {
+                id: 'parent-2',
+                choices: [
+                  {
+                    delta: {
+                      tool_calls: [
+                        {
+                          index: 0,
+                          id: 'plan-2',
+                          type: 'function',
+                          function: {
+                            name: 'plan',
+                            arguments: JSON.stringify({
+                              steps: [
+                                {id: 's1', label: RENAMED_STEP, status: 'done'},
+                                {id: 's2', label: 'Combine findings', status: 'running'},
+                              ],
+                            }),
+                          },
+                        },
+                      ],
+                    },
+                  },
+                ],
+              },
+              {id: 'parent-2', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+            ])
+          }
+          return openAIStreamResponse([
+            {id: 'parent-3', choices: [{delta: {content: 'Both done.'}}]},
+            {id: 'parent-3', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        // One reply: name the batch step running, then fan out two children under it.
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'plan-1',
+                      type: 'function',
+                      function: {
+                        name: 'plan',
+                        arguments: JSON.stringify({
+                          steps: [
+                            {id: 's1', label: BATCH_STEP, status: 'running'},
+                            {id: 's2', label: 'Combine findings', status: 'pending'},
+                          ],
+                        }),
+                      },
+                    },
+                    {
+                      index: 1,
+                      id: 'spawn-a',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({
+                          title: 'SQLite strengths',
+                          brief: 'List SQLite strengths',
+                          prompt: 'You are a worker.',
+                        }),
+                      },
+                    },
+                    {
+                      index: 2,
+                      id: 'spawn-b',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({
+                          title: 'Postgres strengths',
+                          brief: 'List Postgres strengths',
+                          prompt: 'You are a worker.',
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Batcher',
+              systemPrompt: 'You are the batcher.',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: [],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Research both in parallel'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const rootRuns = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId: createdSession.sessionId}}),
+      )
+      if (rootRuns._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const tree = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', rootRunId: rootRuns.runs[0]!.rootRunId}}),
+      )
+      if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const children = tree.runs.filter((run) => run.depth === 1)
+      expect(children).toHaveLength(2)
+      // Both children belong to the one running step — a step owns a whole batch, not one child.
+      expect(children.map((run) => run.stepLabel)).toEqual([BATCH_STEP, BATCH_STEP])
+      // And the labels are real step labels, not echoes of the child titles (ListRuns order is not
+      // part of this contract, so compare the set).
+      expect(children.map((run) => run.title).sort()).toEqual(['Postgres strengths', 'SQLite strengths'])
+
+      // The id is the durable join. The agent renamed the step on its resume turn, so the stamped
+      // LABEL is now stale — it names no step in the plan — while the stamped ID still resolves.
+      expect(renamedPlan).toBe(true)
+      expect(children.map((run) => run.planStepId)).toEqual(['s1', 's1'])
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const steps = session.session.plan?.steps ?? []
+      expect(steps.map((step) => step.label)).toEqual([RENAMED_STEP, 'Combine findings'])
+      for (const child of children) {
+        expect(steps.some((step) => step.id === child.planStepId)).toBe(true)
+        expect(steps.some((step) => step.label === child.stepLabel)).toBe(false)
+      }
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('delegate {await: false} starts a detached session of the same agent that auto-runs the brief', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

@@ -1285,6 +1285,33 @@ export function useCancelRun(serverUrl: string | undefined, accountUid: string |
   })
 }
 
+/**
+ * Answers a run that is parked on `ctx.waitForEvent`, or releases one paused on its budget.
+ *
+ * Both are the same action: a budget pause is not listening for a payload, it is waiting for
+ * permission, and any signal is that permission. `delivered: false` is a normal outcome — the run
+ * finished, timed out, or was listening for something else — so callers report it rather than
+ * treating it as a failure.
+ */
+export function useSignalRun(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({runId, signal, payload}: {runId: string; signal: string; payload?: unknown}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'SignalRun', runId, signal, ...(payload === undefined ? {} : {payload})},
+      })
+      if (res._ !== 'SignalRunResponse') throw new Error('Unexpected SignalRun response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'runs'])
+      invalidateQueries(['agents', 'session'])
+    },
+  })
+}
+
 /** Updates an existing server-hosted agent. */
 export function useUpdateAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({

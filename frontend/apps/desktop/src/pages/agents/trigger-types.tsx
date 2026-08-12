@@ -11,7 +11,7 @@ import {getEventRoute} from '@shm/ui/feed'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {AtSign, CalendarClock, ChevronDown, ChevronRight, FileText, MessageSquare} from 'lucide-react'
+import {AtSign, CalendarClock, ChevronDown, ChevronRight, FileText, MessageSquare, Workflow} from 'lucide-react'
 import React, {useMemo, useState} from 'react'
 
 /**
@@ -66,6 +66,11 @@ export function summarizeTriggerSource(source: AgentTriggerSource): string {
   }
   if (source.type === 'site-update') {
     return `Update in ${source.resourcePrefix}${source.eventTypes?.length ? ` (${source.eventTypes.join(', ')})` : ''}`
+  }
+  if (source.type === 'run-completed') {
+    const whose = source.agentId ? ' by this agent' : ''
+    const named = source.titleMatch ? ` named like “${source.titleMatch}”` : ''
+    return `When a run${named}${whose} ${source.status ?? 'finishes'}`
   }
   if (source.schedule.kind === 'interval') return `Every ${source.schedule.every} ${source.schedule.unit}`
   if (source.schedule.kind === 'once') return `Once at ${formattedDateMedium(new Date(source.schedule.runAt))}`
@@ -500,6 +505,7 @@ const TRIGGER_TYPE_ICONS: Record<AgentTriggerSource['type'], React.ComponentType
   'user-mention': AtSign,
   'site-update': FileText,
   schedule: CalendarClock,
+  'run-completed': Workflow,
 }
 
 /**

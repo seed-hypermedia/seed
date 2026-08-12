@@ -13,6 +13,31 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // What a trigger does when it fires. NULL means the only thing triggers used to do: start a new
+  // thread. The event bus milestone moves this (and the rest of a trigger) into a Space document;
+  // the column is where it lives until then.
+  `ALTER TABLE agent_triggers ADD COLUMN continuation_cbor BLOB;`,
+  // Waiting for something to happen, and continuing as a fresh run.
+  //
+  // Event waits get their own table rather than a marker on agent_triggers: a trigger is user
+  // configuration (listed and edited in the desktop, carrying cooldowns and prompts), while a wait
+  // is transient run state created by a running script and deleted the moment it is delivered,
+  // times out, or its run dies. Sharing the table would mean filtering the marker out of every
+  // trigger listing and mutation, forever, and a leaked row would read as a trigger the user never
+  // made.
+  `CREATE TABLE run_event_waits (
+      run_id TEXT NOT NULL REFERENCES runs (id),
+      wait_id TEXT NOT NULL,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      match_cbor BLOB NOT NULL,
+      timeout_at INTEGER,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, wait_id)
+  ) WITHOUT ROWID;
+
+  CREATE INDEX run_event_waits_by_account ON run_event_waits (account_id, created_at);
+
+  ALTER TABLE runs ADD COLUMN continued_from_run_id TEXT;`,
   // The tool call that spawned a child run. It also rides in the run's input payload (the
   // executor's contract), but only a column can be read back without decoding every run: this is
   // what lets a delegate row in a transcript find the child it started while that child is

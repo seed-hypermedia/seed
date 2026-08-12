@@ -25,8 +25,18 @@ export type RunErrorInfo = {
   httpStatus?: number
 }
 
-/** Why a run is parked in `waiting` (holding no worker slot). */
-export type RunWait = {reason: 'children'; toolCallIds: string[]} | {reason: 'timer'; wakeAt: number}
+/**
+ * Why a run is parked in `waiting` (holding no worker slot).
+ *
+ * `timer` and `event` both carry a wake time, which the queue writes to `not_before` so one sweep
+ * wakes either kind; an `event` wait ALSO has a row in run_event_waits saying what would satisfy
+ * it early. `budget-pause` has no wake time at all: only a person resumes it.
+ */
+export type RunWait =
+  | {reason: 'children'; toolCallIds: string[]}
+  | {reason: 'timer'; wakeAt: number}
+  | {reason: 'event'; waitId: string; timeoutAt?: number; label?: string; answerWith?: string}
+  | {reason: 'budget-pause'; note?: string}
 
 export type RunBudget = {maxWallMs?: number; maxChildren?: number; maxDepth?: number}
 
@@ -54,6 +64,8 @@ export type RunRecord = {
   parentRunId?: string
   /** The parent's tool call this run was spawned by, when a tool call spawned it. */
   parentToolCallId?: string
+  /** The run this one continues (ctx.continueAsNew): same work, fresh journal. */
+  continuedFromRunId?: string
   depth: number
   kind: RunKind
   agentId?: string
@@ -103,6 +115,8 @@ export type EnqueueRunSpec = {
    * The executors read the same id from `input`; this is its queryable projection.
    */
   parentToolCallId?: string
+  /** Set when this run continues another (ctx.continueAsNew); see RunRecord.continuedFromRunId. */
+  continuedFromRunId?: string
   /** Root/depth are derived from the parent when given; both default to a self-rooted depth-0 run. */
   agentId?: string
   sessionId?: string
@@ -136,6 +150,7 @@ type RunRow = {
   root_run_id: string
   parent_run_id: string | null
   parent_tool_call_id: string | null
+  continued_from_run_id: string | null
   depth: number
   kind: string
   agent_id: string | null
@@ -166,10 +181,21 @@ type RunRow = {
   updated_at: number
 }
 
-const RUN_COLUMNS = `id, account_id, root_run_id, parent_run_id, parent_tool_call_id, depth, kind, agent_id, session_id,
+const RUN_COLUMNS = `id, account_id, root_run_id, parent_run_id, parent_tool_call_id, continued_from_run_id, depth, kind, agent_id, session_id,
   trigger_firing_id, origin, title, model, source_cid, source_text, input_cbor, output_cbor, error_cbor,
   status, wait_cbor, attempt, max_attempts, not_before, queue, lease_owner, lease_expires_at,
   budget_cbor, usage_cbor, plan_cbor, created_at, started_at, finished_at, updated_at`
+
+/**
+ * When the queue should wake a parked run on its own. Timers and event timeouts both land in
+ * `not_before` so one sweep covers both; children and budget pauses are woken by something else
+ * happening (a child finishing, a person resuming), never by the clock.
+ */
+function parkWakeAt(wait: RunWait): number | null {
+  if (wait.reason === 'timer') return wait.wakeAt
+  if (wait.reason === 'event') return wait.timeoutAt ?? null
+  return null
+}
 
 function decodeMaybe<T>(bytes: Uint8Array | null): T | undefined {
   if (!bytes) return undefined
@@ -183,6 +209,7 @@ export function rowToRun(row: RunRow): RunRecord {
     rootRunId: row.root_run_id,
     parentRunId: row.parent_run_id ?? undefined,
     parentToolCallId: row.parent_tool_call_id ?? undefined,
+    continuedFromRunId: row.continued_from_run_id ?? undefined,
     depth: row.depth,
     kind: row.kind as RunKind,
     agentId: row.agent_id ?? undefined,
@@ -387,10 +414,10 @@ export class RunQueue {
       depth = parent.depth + 1
     }
     this.#db.run(
-      `INSERT INTO runs (id, account_id, root_run_id, parent_run_id, parent_tool_call_id, depth, kind, agent_id,
-         session_id, trigger_firing_id, origin, title, model, source_cid, source_text, input_cbor, status, attempt,
-         max_attempts, not_before, queue, budget_cbor, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO runs (id, account_id, root_run_id, parent_run_id, parent_tool_call_id, continued_from_run_id,
+         depth, kind, agent_id, session_id, trigger_firing_id, origin, title, model, source_cid, source_text,
+         input_cbor, status, attempt, max_attempts, not_before, queue, budget_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', 0, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (id) DO NOTHING`,
       [
         id,
@@ -398,6 +425,7 @@ export class RunQueue {
         rootRunId,
         spec.parentRunId ?? null,
         spec.parentToolCallId ?? null,
+        spec.continuedFromRunId ?? null,
         depth,
         spec.kind,
         spec.agentId ?? null,
@@ -448,10 +476,32 @@ export class RunQueue {
       )
       .get(opts.notBefore ?? null, now, runId)
     if (!row) return null
+    this.#clearEventWaits(runId)
     const run = rowToRun(row)
     this.#onRunChanged?.(run)
     this.wake()
     return run
+  }
+
+  /**
+   * Lets a budget-paused run keep going, because a person said so.
+   *
+   * The wall-clock budget that stopped it is dropped rather than extended: the run would otherwise
+   * park again on its very next tick, and "resume" that resumes nothing is worse than no button.
+   * Every other budget dimension stays in force.
+   */
+  resumeBudgetPause(runId: string): RunRecord | null {
+    const current = this.#getRunAnyAccount(runId)
+    if (!current || current.status !== 'waiting' || current.wait?.reason !== 'budget-pause') return null
+    if (current.budget) {
+      const {maxWallMs: _dropped, ...rest} = current.budget
+      this.#db.run(`UPDATE runs SET budget_cbor = ?, updated_at = ? WHERE id = ?`, [
+        cbor.encode(rest),
+        Date.now(),
+        runId,
+      ])
+    }
+    return this.requeueWaiting(runId)
   }
 
   /**
@@ -500,6 +550,7 @@ export class RunQueue {
       .all(now, runId, accountId)
     const canceled = rows.map(rowToRun)
     for (const run of canceled) {
+      this.#clearEventWaits(run.id)
       this.#onRunChanged?.(run)
       this.#onRunFinalized?.(run)
     }
@@ -532,6 +583,7 @@ export class RunQueue {
       .all(now, accountId, sessionId)
     const canceled = rows.map(rowToRun)
     for (const run of canceled) {
+      this.#clearEventWaits(run.id)
       this.#onRunChanged?.(run)
       this.#onRunFinalized?.(run)
     }
@@ -689,7 +741,11 @@ export class RunQueue {
     return row ? rowToRun(row) : null
   }
 
-  /** Timer-parked runs whose wake time arrived move back to queued. */
+  /**
+   * Parked runs whose wake time arrived move back to queued — a plain sleep, or an event wait that
+   * ran out of patience. The wait rows go with it: the run will re-register them if it parks again,
+   * and a stale row would deliver into a run that is no longer listening.
+   */
   #wakeDueTimers(): void {
     const now = Date.now()
     const rows = this.#db
@@ -698,7 +754,15 @@ export class RunQueue {
          WHERE status = 'waiting' AND not_before IS NOT NULL AND not_before <= ?2 RETURNING ${RUN_COLUMNS}`,
       )
       .all(now, now)
-    for (const row of rows) this.#onRunChanged?.(rowToRun(row))
+    for (const row of rows) {
+      this.#clearEventWaits(row.id)
+      this.#onRunChanged?.(rowToRun(row))
+    }
+  }
+
+  /** Forgets what a run was listening for; safe to call for runs that were never listening. */
+  #clearEventWaits(runId: string): void {
+    this.#db.run(`DELETE FROM run_event_waits WHERE run_id = ?`, [runId])
   }
 
   #claimSpecific(runId: string): RunRecord | null {
@@ -754,6 +818,8 @@ export class RunQueue {
 
   #finalize(run: RunRecord, outcome: RunOutcome): void {
     const now = Date.now()
+    // Parking re-registers whatever it is listening for; every other outcome is done listening.
+    if (outcome.type !== 'parked') this.#clearEventWaits(run.id)
     // Cancellation may have landed while the executor ran; canceled is sticky.
     const current = this.#getRunAnyAccount(run.id)
     if (!current || TERMINAL_RUN_STATUSES.includes(current.status)) {
@@ -767,7 +833,7 @@ export class RunQueue {
           `UPDATE runs SET status = 'waiting', wait_cbor = ?1, lease_owner = NULL, lease_expires_at = NULL,
              not_before = ?2, updated_at = ?3 WHERE id = ?4 RETURNING ${RUN_COLUMNS}`,
         )
-        .get(cbor.encode(outcome.wait), outcome.wait.reason === 'timer' ? outcome.wait.wakeAt : null, now, run.id)
+        .get(cbor.encode(outcome.wait), parkWakeAt(outcome.wait), now, run.id)
     } else if (outcome.type === 'succeeded') {
       row = this.#db
         .query<RunRow, [Uint8Array, number, string]>(

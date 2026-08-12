@@ -20,6 +20,7 @@ const mockState = vi.hoisted(() => ({
   run: null as RunInfo | null,
   journal: [] as {runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}[],
   cancel: vi.fn(),
+  signal: vi.fn(),
 }))
 
 // The card renders the chat's own tool rows, which reach for navigation and the app context —
@@ -47,6 +48,7 @@ vi.mock('@/models/agents', () => ({
   useRun: () => ({data: mockState.run, isLoading: false}),
   useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: mockState.journal}),
   useCancelRun: () => ({mutate: mockState.cancel, isPending: false}),
+  useSignalRun: () => ({mutate: mockState.signal, isPending: false}),
 }))
 
 function makeRun(overrides: Partial<RunInfo> & Pick<RunInfo, 'id' | 'status'>): RunInfo {
@@ -90,6 +92,7 @@ beforeEach(() => {
   mockState.run = null
   mockState.journal = []
   mockState.cancel = vi.fn()
+  mockState.signal = vi.fn()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -154,6 +157,71 @@ describe('SessionRunCard (pinned)', () => {
     mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'running', title: 'Worker'})]
     render(<SessionRunCard {...baseProps} />)
     expect(container.textContent).toContain('Worker')
+  })
+
+  it('a run parked on a question offers the answer, and sends the signal it named', () => {
+    mockState.runs = [
+      makeRun({
+        id: 'root-1',
+        status: 'waiting',
+        title: 'Publish the brief',
+        wait: {reason: 'event', label: 'sign-off from Eric', answerWith: 'approved'},
+      } as never),
+    ]
+    mockState.tree = [mockState.runs[0]!]
+    render(<SessionRunCard {...baseProps} />)
+
+    // The card says what it is waiting for, and offers the one click that ends the wait.
+    expect(container.textContent).toContain('sign-off from Eric')
+    const answer = buttonWithText('Answer')
+    expect(answer).toBeTruthy()
+    click(answer)
+    // The signal name comes from the run, not from the UI guessing: a wait for "approved" would
+    // ignore anything else.
+    expect(mockState.signal).toHaveBeenCalledWith(
+      {runId: 'root-1', signal: 'approved'},
+      expect.objectContaining({onSuccess: expect.any(Function)}),
+    )
+  })
+
+  it('a run paused on its budget offers a resume instead', () => {
+    mockState.runs = [
+      makeRun({
+        id: 'root-1',
+        status: 'waiting',
+        title: 'Long crawl',
+        wait: {reason: 'budget-pause', label: 'Paused after 2 hours: its time budget was 1 hour'},
+      } as never),
+    ]
+    mockState.tree = [mockState.runs[0]!]
+    render(<SessionRunCard {...baseProps} />)
+
+    // The pill stops saying "Waiting": this is the one wait that needs a person.
+    expect(container.textContent).toContain('Paused')
+    // The server's own note is what the card shows; the generic copy is only for a note-less pause.
+    expect(container.textContent).toContain('Paused after 2 hours: its time budget was 1 hour')
+    expect(buttonWithText('Answer')).toBeUndefined()
+    click(buttonWithText('Resume'))
+    expect(mockState.signal).toHaveBeenCalledWith(
+      {runId: 'root-1', signal: 'resume'},
+      expect.objectContaining({onSuccess: expect.any(Function)}),
+    )
+  })
+
+  it('falls back to plain copy for a budget pause that came with no note', () => {
+    mockState.runs = [makeRun({id: 'root-1', status: 'waiting', wait: {reason: 'budget-pause'}} as never)]
+    mockState.tree = [mockState.runs[0]!]
+    render(<SessionRunCard {...baseProps} />)
+    expect(container.textContent).toContain('Paused: out of time budget')
+  })
+
+  it('offers nothing to answer when the run is waiting on something other than a person', () => {
+    // Children and the activity feed resolve themselves; a button there would be a lie.
+    mockState.runs = [makeRun({id: 'root-1', status: 'waiting', title: 'Fan out'})]
+    mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'running', title: 'Worker'})]
+    render(<SessionRunCard {...baseProps} />)
+    expect(buttonWithText('Answer')).toBeUndefined()
+    expect(buttonWithText('Resume')).toBeUndefined()
   })
 
   it('a failed child with a long error keeps its title visible, truncated error, and click target', () => {

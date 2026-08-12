@@ -36,6 +36,10 @@ export type WorkflowJournalEntry = {callSeq: number; key?: string} & (
     }
   | {kind: 'timer'; wakeAt: number}
   | {kind: 'fired'}
+  /** A ctx.waitForEvent registration: what the run parked on, and when it gives up. */
+  | {kind: 'wait'; waitId: string; match: unknown; timeoutAt?: number; label?: string}
+  /** The wait's resolution: a delivered payload, or nothing at all when it timed out. */
+  | {kind: 'event'; waitId: string; delivery?: unknown}
   | {kind: 'now'; value: number}
   | {kind: 'log'; level: 'debug' | 'info' | 'warn' | 'error'; message: string; data?: unknown}
   | {kind: 'step'; stepId: string; label: string; phase: 'start' | 'end'; ok?: boolean}
@@ -66,6 +70,11 @@ export type WorkflowAdapters = {
     awaitChild(childRunId: string): Promise<WorkflowChildResolution>
     updatePlan(plan: RunPlanState): void
     progress(patch: {fraction?: number; label?: string}): void
+    /**
+     * Records what this run is listening for, so a signal or a matching activity event can find it
+     * while the run is parked. Called before the park, and again on every replay that re-parks.
+     */
+    registerEventWait(wait: {waitId: string; match: unknown; timeoutAt?: number}): void
   }
   isCanceled(): boolean
   /** Sleeps at or beyond this park instead of holding the VM resident (default 60s). */
@@ -80,7 +89,14 @@ export type WorkflowVMOutcome =
   | {type: 'succeeded'; output: unknown}
   | {type: 'failed'; error: {code: string; message: string; retryable?: boolean}}
   | {type: 'canceled'}
-  | {type: 'parked'; wait: {reason: 'timer'; wakeAt: number}}
+  | {
+      type: 'parked'
+      wait:
+        | {reason: 'timer'; wakeAt: number}
+        | {reason: 'event'; waitId: string; timeoutAt?: number; label?: string; answerWith?: string}
+    }
+  /** ctx.continueAsNew: this run is done, and a successor should carry `state` onward. */
+  | {type: 'continued'; state: unknown}
 
 export const WORKFLOW_SOURCE_MAX_BYTES = 256 * 1024
 const DEFAULT_FUEL_MS = 2_000
@@ -188,6 +204,12 @@ function __makeCtx(input, runId) {
     delegate: __delegate,
     agent: __delegate,
     sleep: function (ms) { return __call('sleep', {ms: ms}); },
+    // Parks the run until something happens: a matching activity event, or a SignalRun. Resolves
+    // with the delivered payload, or null when the timeout arrives first.
+    waitForEvent: function (match, opts) { return __call('wait', {match: match, opts: opts}); },
+    // Ends this run and starts a successor carrying only the given state. Never resolves: nothing
+    // after it in this run will run.
+    continueAsNew: function (state) { return __call('continueAsNew', {state: state}); },
     minutes: function (n) { return n * 60000; },
     hours: function (n) { return n * 3600000; },
     now: function () { return __call('now', {}); },
@@ -255,7 +277,13 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
   const deliveries: Delivery[] = []
   const inflight = new Map<number, Promise<void>>()
   let finished: {ok: boolean; value: unknown} | null = null
-  const parkState: {timer: {wakeAt: number} | null} = {timer: null}
+  const parkState: {
+    timer: {wakeAt: number} | null
+    event: {waitId: string; timeoutAt?: number; label?: string; answerWith?: string} | null
+  } = {timer: null, event: null}
+  // A holder rather than a plain `let`: it is written from inside handleEffect, and the pump loop
+  // reads it afterwards.
+  const continuation: {requested: {state: unknown} | null} = {requested: null}
 
   // Journal replay state: entry groups (one per ctx call, correlated by callSeq) filed under their
   // deterministic content key and consumed FIFO per key. Order-independent by construction, so
@@ -296,6 +324,10 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         return `agent|${JSON.stringify(args.spec ?? null)}`
       case 'sleep':
         return `sleep|${Math.max(0, Number(args.ms) || 0)}`
+      case 'wait':
+        return `wait|${JSON.stringify(args.match ?? null)}`
+      case 'continueAsNew':
+        return 'continueAsNew'
       case 'now':
         return 'now'
       case 'log':
@@ -504,6 +536,59 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         inflight.set(effect.callId, timerPromise)
         return
       }
+      case 'wait': {
+        const match = args.match ?? {}
+        const opts = args.opts as {timeoutMs?: unknown; label?: unknown} | undefined
+        const timeoutMs = Number(opts?.timeoutMs)
+        const label = typeof opts?.label === 'string' ? opts.label : undefined
+        const journaledWait = journaled?.find((entry) => entry.kind === 'wait') as
+          | Extract<WorkflowJournalEntry, {kind: 'wait'}>
+          | undefined
+        const journaledEvent = journaled?.find((entry) => entry.kind === 'event') as
+          | Extract<WorkflowJournalEntry, {kind: 'event'}>
+          | undefined
+        // The wait id is minted once and journaled, so every replay re-registers the SAME wait —
+        // a signal sent while the run was down still lands on the wait the script is asking for.
+        const waitId = journaledWait?.waitId ?? crypto.randomUUID()
+        const timeoutAt =
+          journaledWait?.timeoutAt ?? (Number.isFinite(timeoutMs) && timeoutMs > 0 ? Date.now() + timeoutMs : undefined)
+        if (!journaledWait) {
+          adapters.journal.append({
+            kind: 'wait',
+            callSeq,
+            key,
+            waitId,
+            match,
+            ...(timeoutAt === undefined ? {} : {timeoutAt}),
+            ...(label ? {label} : {}),
+          })
+        }
+        if (journaledEvent) {
+          // Delivered (payload) or timed out (no delivery) — both are settled facts on replay.
+          scheduleDelivery(effect.callId, true, journaledEvent.delivery ?? null)
+          return
+        }
+        if (timeoutAt !== undefined && Date.now() >= timeoutAt) {
+          adapters.journal.append({kind: 'event', callSeq, key, waitId})
+          scheduleDelivery(effect.callId, true, null)
+          return
+        }
+        adapters.effects.registerEventWait({waitId, match, ...(timeoutAt === undefined ? {} : {timeoutAt})})
+        // Several parallel waits all register; the run parks on the first and any of them can wake it.
+        const answerWith = answerSignalFor(match)
+        parkState.event ??= {
+          waitId,
+          ...(timeoutAt === undefined ? {} : {timeoutAt}),
+          ...(label ? {label} : {}),
+          ...(answerWith === undefined ? {} : {answerWith}),
+        }
+        return
+      }
+      case 'continueAsNew': {
+        // Nothing is delivered: this call never resolves, because this run ends here.
+        continuation.requested = {state: args.state ?? null}
+        return
+      }
       case 'now': {
         const journaledNow = journaled?.find((entry) => entry.kind === 'now') as
           | Extract<WorkflowJournalEntry, {kind: 'now'}>
@@ -670,6 +755,27 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         }
       }
       if (adapters.isCanceled()) return {type: 'canceled'}
+      if (continuation.requested && inflight.size === 0) {
+        return {type: 'continued', state: continuation.requested.state}
+      }
+      if (parkState.event && inflight.size === 0) {
+        // A sleep parked alongside a wait keeps the earlier deadline: whichever comes first wakes
+        // the run, and the replay settles both from the journal.
+        const timeoutAt =
+          parkState.timer &&
+          (parkState.event.timeoutAt === undefined || parkState.timer.wakeAt < parkState.event.timeoutAt)
+            ? parkState.timer.wakeAt
+            : parkState.event.timeoutAt
+        return {
+          type: 'parked',
+          wait: {
+            reason: 'event',
+            waitId: parkState.event.waitId,
+            ...(timeoutAt === undefined ? {} : {timeoutAt}),
+            ...(parkState.event.label ? {label: parkState.event.label} : {}),
+          },
+        }
+      }
       if (parkState.timer && inflight.size === 0) {
         return {type: 'parked', wait: {reason: 'timer', wakeAt: parkState.timer.wakeAt}}
       }
@@ -706,6 +812,26 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
     dispose()
   }
 }
+
+/**
+ * The signal name that would answer a wait, when a signal can answer it at all — which is what a
+ * person needs to know before they are offered a button. A wait naming a signal takes that name; a
+ * wait with no criteria takes any name; a wait watching the activity feed cannot be answered by
+ * hand and gets nothing. Counterpart of `signalMatchesWait` in run-events.ts, which decides the
+ * same question on delivery; a test asserts the two agree.
+ */
+export function answerSignalFor(match: unknown): string | undefined {
+  if (typeof match !== 'object' || match === null) return DEFAULT_ANSWER_SIGNAL
+  const criteria = match as {signal?: unknown; eventType?: unknown; resource?: unknown; author?: unknown}
+  if (typeof criteria.signal === 'string' && criteria.signal) return criteria.signal
+  if (criteria.signal !== undefined) return undefined
+  const watchesActivity =
+    criteria.eventType !== undefined || criteria.resource !== undefined || criteria.author !== undefined
+  return watchesActivity ? undefined : DEFAULT_ANSWER_SIGNAL
+}
+
+/** What an open wait — one that named no criteria at all — is answered with. */
+export const DEFAULT_ANSWER_SIGNAL = 'answer'
 
 /** Bounds and validates a model-supplied plan/todo snapshot (shared with the update_plan tool). */
 export function normalizeRunPlan(raw: unknown): RunPlanState {

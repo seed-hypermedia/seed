@@ -166,6 +166,7 @@ export type UnsignedAgentAction =
   | GetRun
   | ListRuns
   | CancelRun
+  | SignalRun
   | GetRunJournal
   | Subscribe
 
@@ -345,6 +346,8 @@ export type AgentTriggerInput = {
   enabled?: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
+  /** Defaults to starting a new thread. */
+  continuation?: TriggerContinuation
 }
 
 /** Patch used to edit an activity trigger. */
@@ -353,6 +356,7 @@ export type AgentTriggerPatch = {
   enabled?: boolean
   source?: AgentTriggerSource
   prompt?: string | AgentPromptBlock[]
+  continuation?: TriggerContinuation
 }
 
 /** Activity source/filter that decides when an agent trigger fires. */
@@ -361,6 +365,30 @@ export type AgentTriggerSource =
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
   | {type: 'schedule'; schedule: AgentScheduleTrigger}
+  /** Fires when a run of this account finishes — the source that lets automations chain. */
+  | {
+      type: 'run-completed'
+      /** Only runs of this agent; omitted watches every agent on the account. */
+      agentId?: string
+      /** Only runs that ended this way; omitted watches all three terminal statuses. */
+      status?: 'succeeded' | 'failed' | 'canceled'
+      /** Case-insensitive substring the finished run's title must contain. */
+      titleMatch?: string
+    }
+
+/**
+ * What a trigger does when it fires. Omitted means `newThread`, which is what every trigger did
+ * before continuations existed.
+ */
+export type TriggerContinuation =
+  /** Start a fresh thread from the trigger's prompt. */
+  | {kind: 'newThread'}
+  /**
+   * Deliver a signal to a run parked on `ctx.waitForEvent` — the same delivery a SignalRun makes,
+   * so a trigger can answer a waiting run instead of starting a new one. Without `runId`, the
+   * account's parked runs are searched for one this signal satisfies.
+   */
+  | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
 
 /** Schedule configuration that decides when an agent trigger fires. */
 export type AgentScheduleTrigger =
@@ -504,6 +532,22 @@ export type ListRuns = {
 export type CancelRun = {
   _: 'CancelRun'
   runId: string
+}
+
+/**
+ * Delivers a named signal to a run parked on `ctx.waitForEvent`, waking it with the payload.
+ *
+ * This is how a person (or another system) answers a workflow that is waiting for something the
+ * activity feed cannot express — an approval, a webhook, a human decision. Signalling a run that is
+ * not listening for this signal is not an error: the response says it was not delivered.
+ */
+export type SignalRun = {
+  _: 'SignalRun'
+  runId: string
+  /** Signal name; a wait with no criteria accepts any name. */
+  signal: string
+  /** Whatever the run should receive. Must be JSON-serializable. */
+  payload?: unknown
 }
 
 /** Loads a run's durable journal entries, optionally after a sequence. */
@@ -694,6 +738,7 @@ export type AgentTriggerInfo = {
   enabled: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
+  continuation?: TriggerContinuation
   createdAt: number
   updatedAt: number
   lastCheckedAt?: number
@@ -726,10 +771,23 @@ export type RunStatus = 'queued' | 'claimed' | 'running' | 'waiting' | 'succeede
 
 /** Why a run is parked in `waiting`. */
 export type RunWaitInfo = {
-  reason: 'children' | 'timer'
+  /**
+   * What the run is waiting for: its spawned children, the clock, something to happen
+   * (`ctx.waitForEvent` — an activity event or a SignalRun), or a person, when it paused on its
+   * budget rather than spending more.
+   */
+  reason: 'children' | 'timer' | 'event' | 'budget-pause'
+  /** When the clock will wake it: a sleep's end, or an event wait's timeout. */
   wakeAt?: number
   /** Unresolved child tool calls the run is parked on. */
   pendingChildren?: number
+  /** What the run said it is waiting for, e.g. "approval from the reviewer". */
+  label?: string
+  /**
+   * The signal name that would answer this wait by hand, when one can — absent for a run watching
+   * the activity feed, which nobody answers with a button.
+   */
+  answerWith?: string
 }
 
 /** Step list snapshot rendered by the pinned run card and session todo lists. */
@@ -755,6 +813,12 @@ export type RunInfo = {
    * any result has been recorded against the call.
    */
   parentToolCallId?: string
+  /**
+   * The run this one continues. `ctx.continueAsNew` ends a run and starts a successor carrying only
+   * the state it declared, so a long-lived loop never grows an unbounded journal; the two runs are
+   * one piece of work, linked by this field (and by `continuedAsRunId` on the predecessor's output).
+   */
+  continuedFromRunId?: string
   depth: number
   kind: 'agent' | 'workflow'
   agentId?: string
@@ -764,6 +828,13 @@ export type RunInfo = {
   title?: string
   /** Label of the parent's plan step this run works on, when the spawner recorded one. */
   stepLabel?: string
+  /**
+   * Id of that plan step — the durable join for attaching this run to its step. Prefer it over
+   * `stepLabel`: labels are display strings the agent rewrites between turns, so a stamped label
+   * stops matching the plan it came from, while step ids are stable by the plan verb's contract.
+   * Absent on runs spawned before this field existed, which still attach by label.
+   */
+  planStepId?: string
   /** The exact module a workflow run executes — the code the agent wrote, for review. */
   sourceText?: string
   /** How many child runs this run spawned. Populated by GetRun/ListRuns; absent means zero. */
@@ -1246,6 +1317,14 @@ export type CancelRunResponse = {
   canceled: boolean
 }
 
+/** Successful response for `SignalRun`. */
+export type SignalRunResponse = {
+  _: 'SignalRunResponse'
+  runId: string
+  /** False when the run was not parked on a wait this signal satisfies. */
+  delivered: boolean
+}
+
 /** Successful response for `GetRunJournal`. */
 export type GetRunJournalResponse = {
   _: 'GetRunJournalResponse'
@@ -1346,6 +1425,7 @@ export type AgentResponse =
   | GetRunResponse
   | ListRunsResponse
   | CancelRunResponse
+  | SignalRunResponse
   | GetRunJournalResponse
   | UpdateSessionResponse
   | DeleteSessionResponse

@@ -353,17 +353,24 @@ export function RunWorkHierarchy({
   const {childrenByStep, unattachedChildren} = useMemo(() => {
     const byStep = new Map<string, RunInfo[]>()
     if (!plan?.steps.length) return {childrenByStep: byStep, unattachedChildren: childRuns}
-    const stepLabels = new Set(plan.steps.map((step) => step.label.trim().toLowerCase()))
+    // Keyed by step id: the agent rewrites step labels between turns, so a child stamped with a
+    // label stops matching the step it was spawned under. Ids are stable across those rewrites.
+    // Labels and titles remain as fallbacks for runs stamped before planStepId existed.
+    const stepIds = new Set(plan.steps.map((step) => step.id))
+    const stepIdByLabel = new Map(plan.steps.map((step) => [step.label.trim().toLowerCase(), step.id]))
     const loose: RunInfo[] = []
     for (const child of childRuns) {
       const stamped = (child.stepLabel || '').trim().toLowerCase()
       const titled = (child.title || '').trim().toLowerCase()
-      const label = stamped && stepLabels.has(stamped) ? stamped : titled && stepLabels.has(titled) ? titled : undefined
-      if (!label) {
+      const stepId =
+        (child.planStepId && stepIds.has(child.planStepId) ? child.planStepId : undefined) ??
+        (stamped ? stepIdByLabel.get(stamped) : undefined) ??
+        (titled ? stepIdByLabel.get(titled) : undefined)
+      if (!stepId) {
         loose.push(child)
         continue
       }
-      byStep.set(label, [...(byStep.get(label) ?? []), child])
+      byStep.set(stepId, [...(byStep.get(stepId) ?? []), child])
     }
     return {childrenByStep: byStep, unattachedChildren: loose}
   }, [plan, childRuns])
@@ -387,7 +394,7 @@ export function RunWorkHierarchy({
             <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
           ) : null}
           {(plan?.steps ?? []).flatMap((step) => {
-            const attached = childrenByStep.get(step.label.trim().toLowerCase()) ?? []
+            const attached = childrenByStep.get(step.id) ?? []
             const [primary, ...extra] = attached
             return [
               <PlanStepRow

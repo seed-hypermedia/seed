@@ -56,6 +56,7 @@ CREATE TABLE agent_triggers (
     enabled INTEGER NOT NULL,
     source_cbor BLOB NOT NULL,
     prompt TEXT NOT NULL,
+    continuation_cbor BLOB,
     cooldown_ms INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -125,6 +126,7 @@ CREATE TABLE runs (
     root_run_id TEXT NOT NULL,
     parent_run_id TEXT REFERENCES runs (id),
     parent_tool_call_id TEXT,
+    continued_from_run_id TEXT,
     depth INTEGER NOT NULL DEFAULT 0,
     kind TEXT NOT NULL,
     agent_id TEXT REFERENCES agents (id),
@@ -168,6 +170,18 @@ CREATE TABLE run_journal (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (run_id, seq)
 ) WITHOUT ROWID;
+
+CREATE TABLE run_event_waits (
+    run_id TEXT NOT NULL REFERENCES runs (id),
+    wait_id TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    match_cbor BLOB NOT NULL,
+    timeout_at INTEGER,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (run_id, wait_id)
+) WITHOUT ROWID;
+
+CREATE INDEX run_event_waits_by_account ON run_event_waits (account_id, created_at);
 
 CREATE TABLE agent_drafts (
     id TEXT PRIMARY KEY,

@@ -1,5 +1,6 @@
 import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} from '@/agents-client'
 import {ToolCallLine} from '@/components/assistant-message-rendering'
+import {ParkedRunActions} from '@/pages/agents/run-parked-actions'
 import {
   RunWorkHierarchy,
   PlanStepRow,
@@ -14,6 +15,36 @@ import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from '
 import {Button} from '@shm/ui/button'
 import {ChevronDown, ChevronRight, Loader2, Workflow} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
+
+/**
+ * What a parked run is actually waiting for, in words.
+ *
+ * "Waiting" alone is the least useful thing a card can say about a run that may sit for hours: the
+ * question a person has is always WHY, and whether it is on them. Each wait reason answers that —
+ * a budget pause and an approval need a human, a sleep and a child do not.
+ */
+function parkedLabel(run: RunInfo, childRuns: RunInfo[], doneChildren: number): string {
+  const wait = run.wait
+  if (wait?.reason === 'budget-pause') return wait.label || 'Paused: out of time budget'
+  if (wait?.reason === 'event') {
+    const until = wait.wakeAt ? ` (until ${formatWakeTime(wait.wakeAt)})` : ''
+    return `${wait.label || 'Waiting for something to happen'}${until}`
+  }
+  if (wait?.reason === 'timer' && wait.wakeAt) return `Sleeping until ${formatWakeTime(wait.wakeAt)}`
+  if (childRuns.length) {
+    return `Waiting on ${childRuns.length} sub-session${childRuns.length === 1 ? '' : 's'} — ${doneChildren} done`
+  }
+  return runTitle(run)
+}
+
+/** A wake time as a person reads it: a clock time today, a date beyond that. */
+function formatWakeTime(wakeAt: number): string {
+  const date = new Date(wakeAt)
+  const sameDay = new Date().toDateString() === date.toDateString()
+  return sameDay
+    ? date.toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})
+    : date.toLocaleString([], {month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'})
+}
 
 /** How a run's status reads in the header pill. */
 const RUN_STATUS_LABELS: Record<RunStatus, string> = {
@@ -207,13 +238,15 @@ function RunCardBody({
     <>
       <div className="flex min-w-0 items-center gap-2">
         {isTerminal ? null : <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" />}
-        <span className="min-w-0 flex-1 truncate text-xs font-medium">
-          {isParked && childRuns.length
-            ? `Waiting on ${childRuns.length} sub-session${childRuns.length === 1 ? '' : 's'} — ${doneChildren} done`
-            : runTitle(run)}
+        <span
+          className="min-w-0 flex-1 truncate text-xs font-medium"
+          title={isParked ? parkedLabel(run, childRuns, doneChildren) : undefined}
+        >
+          {isParked ? parkedLabel(run, childRuns, doneChildren) : runTitle(run)}
         </span>
         <span className={`flex-none rounded-full border px-1.5 py-0.5 text-[10px] ${runStatusClass(run.status)}`}>
-          {RUN_STATUS_LABELS[run.status]}
+          {/* A budget pause is the one wait a person has to end, so it does not hide behind "Waiting". */}
+          {run.wait?.reason === 'budget-pause' ? 'Paused' : RUN_STATUS_LABELS[run.status]}
         </span>
         <RunElapsed run={run} />
         {isTerminal ? null : confirmingCancel ? (
@@ -241,6 +274,9 @@ function RunCardBody({
       </div>
 
       {run.error ? <div className="text-destructive text-[11px] break-words">{run.error.message}</div> : null}
+
+      {/* The run has stopped and is asking; the answer belongs where the question is. */}
+      <ParkedRunActions run={run} serverUrl={serverUrl} accountUid={accountUid} />
 
       {progress && !isTerminal ? (
         <div className="flex flex-col gap-1">
