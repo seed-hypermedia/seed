@@ -57,9 +57,17 @@ export type RunUsage = {
 }
 
 /** Step list snapshot rendered by the pinned run card. */
+export type RunPlanStepState = {
+  id: string
+  label: string
+  status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'
+  /** Set when the runtime closed the step from completed sub-agents. See `RunPlanStep.resolvedBy`. */
+  resolvedBy?: 'runtime'
+}
+
 export type RunPlanState = {
   title?: string
-  steps: Array<{id: string; label: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'}>
+  steps: RunPlanStepState[]
   /** When every step last became terminal; cleared if an edit reopens one. See `RunPlan.settledAt`. */
   settledAt?: number
 }

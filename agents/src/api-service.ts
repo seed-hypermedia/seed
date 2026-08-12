@@ -393,6 +393,37 @@ function turnOutput(spec: SubSessionSpec | undefined, assistantEvent: api.Sessio
   return spec ? {text: assistantMessageText(assistantEvent)} : {assistantEventId: assistantEvent.id}
 }
 
+/** A plan whose every step has stopped being able to move. An empty plan has settled nothing. */
+function isPlanFullySettled(plan: runs.RunPlanState | undefined): boolean {
+  if (!plan?.steps.length) return false
+  return plan.steps.every((step) => TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
+}
+
+/**
+ * The live checklist as the model should see it this turn, or nothing when there is no plan.
+ *
+ * Rendered fresh from session state and injected into the replay — never stored as an event, so the
+ * transcript keeps exactly one copy of the truth and the log stays a record of what happened rather
+ * than of what the runtime reminded the model about.
+ */
+function planStateBlock(plan: runs.RunPlanState | undefined): string | undefined {
+  if (!plan?.steps.length) return undefined
+  const lines = plan.steps.map((step) => `${step.id} · ${step.label} · ${step.status}`)
+  return [
+    '<plan_state>',
+    ...lines,
+    '',
+    'This is your live checklist; update statuses with the plan verb as you complete work — before you finish your reply.',
+    '</plan_state>',
+  ].join('\n')
+}
+
+/** The plan step a run was spawned to work on, when its spawner recorded one. */
+function planStepIdOf(run: runs.RunRecord): string | undefined {
+  const input = isPlainRecord(run.input) ? run.input : undefined
+  return typeof input?.planStepId === 'string' ? input.planStepId : undefined
+}
+
 /** One line per obligation, in the second person, as the agent will read it. */
 function obligationLine(obligation: api.UnmetObligation): string {
   return obligation.kind === 'typed-result'
@@ -2084,9 +2115,23 @@ export class Service {
 
   /** update_plan tool: stores the session's todo snapshot, rendered by the pinned progress card. */
   #setSessionPlanFromAgent(accountId: string, sessionId: string, raw: unknown): api.SessionInfo {
-    const plan = this.#stampPlanSettledAt(accountId, sessionId, normalizeRunPlan(raw))
+    // `normalizeRunPlan` reads only what the model may say, which is why `resolvedBy` cannot be
+    // forged: the runtime's mark is never taken from model input, only carried by the writer below.
+    return this.#writeSessionPlan(accountId, sessionId, normalizeRunPlan(raw))
+  }
+
+  /**
+   * The one place a session's checklist is written.
+   *
+   * Everything that must be true of a stored plan happens here, so no caller can write a plan that
+   * disagrees with another: the moment it settled is dated, and the runtime's mark on steps it
+   * closed itself is carried across later writes.
+   */
+  #writeSessionPlan(accountId: string, sessionId: string, plan: runs.RunPlanState): api.SessionInfo {
+    const previous = this.#storedSessionPlan(accountId, sessionId)
+    const stamped = this.#stampPlanSettledAt(previous, this.#carryResolvedBy(previous, plan))
     const changes = this.#db.run(`UPDATE sessions SET plan_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
-      cbor.encode(plan),
+      cbor.encode(stamped),
       Date.now(),
       accountId,
       sessionId,
@@ -2100,6 +2145,41 @@ export class Service {
     return session
   }
 
+  /** The plan as currently stored, or undefined for a session that has never published one. */
+  #storedSessionPlan(accountId: string, sessionId: string): runs.RunPlanState | undefined {
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    return row?.plan_cbor ? cbor.decode<runs.RunPlanState>(row.plan_cbor) : undefined
+  }
+
+  /**
+   * Keeps the runtime's mark on a step it closed, through later writes that leave it closed.
+   *
+   * A step the runtime settled stays honestly labelled while it stays done: rewriting the plan (a
+   * renamed label, a step appended) must not quietly reattribute that closure to the agent. But the
+   * mark is a claim about how the step reached `done` — so reopening it, or writing it off as failed
+   * or skipped, drops the mark with the status it described. A step the model itself marks done
+   * again keeps it: the runtime did settle it, and that remains what happened.
+   */
+  #carryResolvedBy(previous: runs.RunPlanState | undefined, plan: runs.RunPlanState): runs.RunPlanState {
+    if (!previous?.steps.length) return plan
+    const runtimeSettled = new Set(
+      previous.steps.filter((step) => step.resolvedBy === 'runtime' && step.status === 'done').map((step) => step.id),
+    )
+    if (runtimeSettled.size === 0) return plan
+    return {
+      ...plan,
+      steps: plan.steps.map((step) =>
+        step.resolvedBy === undefined && step.status === 'done' && runtimeSettled.has(step.id)
+          ? {...step, resolvedBy: 'runtime' as const}
+          : step,
+      ),
+    }
+  }
+
   /**
    * Dates the moment a plan finished settling, carrying the old date forward while it stays settled.
    *
@@ -2109,26 +2189,14 @@ export class Service {
    * showing the plan can never freeze into the log at the right place; it can only float at the
    * bottom. So the one process that witnesses the transition writes it down.
    */
-  #stampPlanSettledAt(accountId: string, sessionId: string, plan: runs.RunPlanState): runs.RunPlanState {
-    const settled =
-      plan.steps.length > 0 && plan.steps.every((step) => TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
-    if (!settled) {
+  #stampPlanSettledAt(previous: runs.RunPlanState | undefined, plan: runs.RunPlanState): runs.RunPlanState {
+    if (!isPlanFullySettled(plan)) {
       // Reopened (or never settled): the story is being told again, so the old moment is not it.
       const {settledAt: _cleared, ...rest} = plan
       return rest
     }
-    const previous = this.#db
-      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
-        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
-    const previousPlan = previous?.plan_cbor ? cbor.decode<runs.RunPlanState>(previous.plan_cbor) : undefined
     const previousSettledAt =
-      previousPlan?.settledAt !== undefined &&
-      previousPlan.steps.length > 0 &&
-      previousPlan.steps.every((step) => TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
-        ? previousPlan.settledAt
-        : undefined
+      previous?.settledAt !== undefined && isPlanFullySettled(previous) ? previous.settledAt : undefined
     return {...plan, settledAt: previousSettledAt ?? Date.now()}
   }
 
@@ -2637,6 +2705,54 @@ export class Service {
   }
 
   /**
+   * Closes a plan step whose sub-agents have all come back with the work done.
+   *
+   * The step is a promise the agent made to the user, and the delegation is how it kept it — but the
+   * agent cannot see its own checklist while its children run, and by the time it is resumed the
+   * plan verb has left no trace in the transcript to remind it. Before this, a step could sit
+   * `running` over finished work until a continuation prompt asked about it, and the honest ending
+   * would report an obligation that had in fact been met.
+   *
+   * So the runtime closes it on evidence, and only on evidence: EVERY run attached to the step came
+   * back `succeeded`. Failure is never derived — what a failed child means for the step is a
+   * judgment the model makes, and the continuation loop is there to make it ask.
+   */
+  #settlePlanStepFromChildren(child: runs.RunRecord, parentRunId: string): void {
+    const stepId = planStepIdOf(child)
+    if (!stepId || child.status !== 'succeeded') return
+    const parent = runs.getRun(this.#db, child.accountId, parentRunId)
+    if (!parent?.sessionId) return
+    const plan = this.#storedSessionPlan(child.accountId, parent.sessionId)
+    const step = plan?.steps.find((candidate) => candidate.id === stepId)
+    if (!plan || !step || TERMINAL_PLAN_STEP_STATUSES.includes(step.status)) return
+
+    // Every run working this step, across the whole tree: a batch step owns several children, and
+    // one of them finishing says nothing about the others.
+    const tree = runs.listRunTree(this.#db, child.accountId, parent.rootRunId)
+    const byId = new Map(tree.map((run) => [run.id, run]))
+    const attached = tree.filter(
+      (run) =>
+        planStepIdOf(run) === stepId &&
+        run.parentRunId !== undefined &&
+        byId.get(run.parentRunId)?.sessionId === parent.sessionId,
+    )
+    if (attached.length === 0 || !attached.every((run) => run.status === 'succeeded')) return
+
+    this.#writeSessionPlan(child.accountId, parent.sessionId, {
+      ...plan,
+      steps: plan.steps.map((candidate) =>
+        candidate.id === stepId ? {...candidate, status: 'done' as const, resolvedBy: 'runtime' as const} : candidate,
+      ),
+    })
+    console.info('[agents/runtime] plan step settled from children', {
+      sessionId: parent.sessionId,
+      stepId,
+      label: step.label,
+      children: attached.length,
+    })
+  }
+
+  /**
    * Everything this run still owes, as one list.
    *
    * A run makes promises: a typed child promises its parent a schema-valid payload; a published plan
@@ -2923,6 +3039,11 @@ export class Service {
       // The parent link is read through the spawn context, so a RETRY of a delegated session can
       // still answer the call that spawned it — a retry run has no parentRunId of its own.
       const spawn = this.#spawnContextForRun(run)
+      if (!continued && spawn.parentRunId) {
+        // Settle the step BEFORE the parent is requeued, so the resumed model reads a checklist that
+        // already agrees with what its children delivered.
+        this.#settlePlanStepFromChildren(run, spawn.parentRunId)
+      }
       if (!continued && spawn.parentRunId && spawn.parentToolCallId) {
         this.#resolveSubSessionResult(run, spawn.parentRunId, spawn.parentToolCallId, spawn.parentToolName)
       }
@@ -4304,6 +4425,15 @@ export class Service {
         timestamp: Date.now(),
       })
     }
+    // The checklist, handed back every turn.
+    //
+    // The plan verb writes no transcript events on purpose — the checklist is the card, not
+    // conversation — with the consequence that a model resuming after its children finished is
+    // blind to the very list it published, and cannot close a step it can no longer see. This block
+    // is rebuilt from session state on every turn and never stored: not an event, not rendered,
+    // just the current truth placed where the model will read it last.
+    const planBlock = planStateBlock(this.#storedSessionPlan(accountId, sessionId))
+    if (planBlock) replayMessages.push({role: 'user', content: planBlock, timestamp: Date.now()})
     piSession.state.messages = replayMessages as never
     let partialId = crypto.randomUUID()
     let partialText = ''

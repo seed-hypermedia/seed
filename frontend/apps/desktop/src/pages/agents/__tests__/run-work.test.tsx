@@ -395,6 +395,36 @@ describe('integrated step rows', () => {
     expect(onCancelRun).toHaveBeenCalledWith('child-coda')
   })
 
+  it('marks a step the runtime settled, and leaves the ones the agent closed unmarked', () => {
+    // A step closed from finished sub-agents is still done — but the agent never said so, and a
+    // checklist that reads identically either way credits its own bookkeeping to the agent.
+    const mixedPlan = {
+      title: 'Research',
+      steps: [
+        {id: 's1', label: 'Research both tools', status: 'done' as const, resolvedBy: 'runtime' as const},
+        {id: 's2', label: 'Write the comparison', status: 'done' as const},
+      ],
+    }
+    render(
+      <RunWorkHierarchy
+        run={parent}
+        childRuns={[]}
+        plan={mixedPlan}
+        journal={[]}
+        liveState={{runs: {}, progress: {}, activity: {}, journal: []}}
+        onOpenSession={vi.fn()}
+        onCancelRun={vi.fn()}
+      />,
+    )
+    const markers = Array.from(container.querySelectorAll('[data-testid="step-resolved-by-runtime"]'))
+    expect(markers).toHaveLength(1)
+    expect(markers[0]!.textContent).toBe('auto')
+    expect(markers[0]!.getAttribute('title')).toBe('Settled by the runtime from completed sub-agent results')
+    // It rides the step it belongs to, not the one the agent closed itself.
+    expect(markers[0]!.parentElement!.textContent).toContain('Research both tools')
+    expect(markers[0]!.parentElement!.textContent).not.toContain('Write the comparison')
+  })
+
   it('a step with exactly one attached child stays the integrated row', () => {
     // The batch treatment must not leak down to the ordinary case: one child still rides the step.
     const onOpenSession = vi.fn()

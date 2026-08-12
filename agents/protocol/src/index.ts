@@ -801,10 +801,27 @@ export type RunWaitInfo = {
   answerWith?: string
 }
 
+/** One item on the checklist: a stable id, a label the model rewrites freely, and where it stands. */
+export type RunPlanStep = {
+  id: string
+  label: string
+  status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'
+  /**
+   * Set when the RUNTIME closed this step rather than the agent or the user — every sub-agent
+   * attached to it came back succeeded, so the work is done as a matter of record and waiting for
+   * the model to say so would only stall the run.
+   *
+   * Absent means what it always meant: the status is the model's own word (or the user's). Only
+   * success is ever derived this way — a failed child's meaning is a judgment call, and the runtime
+   * does not make it.
+   */
+  resolvedBy?: 'runtime'
+}
+
 /** Step list snapshot rendered by the pinned run card and session todo lists. */
 export type RunPlan = {
   title?: string
-  steps: Array<{id: string; label: string; status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'}>
+  steps: RunPlanStep[]
   /**
    * When the last step stopped being able to move — every step done, failed or skipped.
    *

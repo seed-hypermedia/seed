@@ -6299,6 +6299,400 @@ describe('obligations: what a run owes before it may end', () => {
   }, 30_000)
 })
 
+describe('obligations that resolve themselves', () => {
+  const PARENT_PROMPT = 'You are the delegator.'
+
+  /**
+   * A parent agent that keeps a plan and delegates, with each turn scripted and every provider
+   * request captured — the injected checklist never lands on the log, so the request body is the
+   * only place it can be seen.
+   *
+   * The scripts are told whose turn it is rather than working it out: a parent's replay quotes the
+   * briefs it sent its children, so matching on a child's prompt would match the parent too.
+   */
+  async function startDelegationSession(
+    turns: (turn: {
+      isParent: boolean
+      parentTurn: number
+      messagesJSON: string
+    }) => unknown[] | Response | Promise<unknown[] | Response>,
+  ) {
+    const {db, dataDir, cleanup} = createTestState()
+    const account = blobs.generateNobleKeyPair()
+    const bodies: Array<{messages: Array<{role?: string; content?: unknown}>; isParent: boolean}> = []
+    let parentTurn = 0
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const body = JSON.parse(await fetchBodyText(url, init))
+      const messagesJSON = JSON.stringify(body.messages)
+      // Only the parent still carries its own system prompt; a child's was replaced by its brief.
+      const isParent = (body.messages ?? []).some(
+        (message: {role?: string; content?: unknown}) =>
+          message.role === 'system' && String(message.content ?? '').includes(PARENT_PROMPT),
+      )
+      bodies.push({...body, isParent})
+      if (isParent) parentTurn += 1
+      const scripted = await turns({isParent, parentTurn, messagesJSON})
+      return scripted instanceof Response ? scripted : openAIStreamResponse(scripted)
+    }) as unknown as typeof fetch
+    const svc = new apisvc.Service(db, dataDir)
+    const sessionId = await seedAgentSession(svc, account, PARENT_PROMPT)
+    const getSession = async () => {
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      return session
+    }
+    return {
+      svc,
+      sessionId,
+      account,
+      send: async (text: string) => {
+        await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'MessageSession', sessionId, content: [{type: 'text', text}]},
+          }),
+        )
+      },
+      plan: async () => (await getSession()).session.plan,
+      events: async () =>
+        (await getSession()).events.map((event) => event.event as {type?: string; actor?: string; content?: string}),
+      runTree: async () => {
+        const rootRuns = await svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId}}),
+        )
+        if (rootRuns._ !== 'ListRunsResponse') throw new Error('unexpected response')
+        // Polled while work is starting, so "no runs yet" is an answer, not an error.
+        const first = rootRuns.runs[0]
+        if (!first) return {root: undefined, all: [], children: []}
+        const tree = await svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'ListRuns', rootRunId: first.rootRunId},
+          }),
+        )
+        if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+        return {root: first, all: tree.runs, children: tree.runs.filter((run) => run.depth === 1)}
+      },
+      parentBodies: () => bodies.filter((body) => body.isParent),
+      allBodies: () => bodies,
+      close: () => {
+        svc.stopRunQueue()
+        db.close()
+        cleanup()
+      },
+    }
+  }
+
+  const say = (id: string, content: string) => [
+    {id, choices: [{delta: {content}}]},
+    {id, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+  ]
+  const toolTurn = (id: string, calls: unknown[]) => [
+    {id, choices: [{delta: {tool_calls: calls}}]},
+    {id, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+  ]
+  const planTool = (index: number, id: string, steps: Array<[string, string, string]>) => ({
+    index,
+    id,
+    type: 'function',
+    function: {
+      name: 'plan',
+      arguments: JSON.stringify({steps: steps.map(([stepId, label, status]) => ({id: stepId, label, status}))}),
+    },
+  })
+  const delegateTool = (index: number, id: string, title: string, prompt: string) => ({
+    index,
+    id,
+    type: 'function',
+    function: {name: 'delegate', arguments: JSON.stringify({title, brief: `Do ${title}`, prompt})},
+  })
+  const planStateOf = (body: {messages: Array<{role?: string; content?: unknown}>}) =>
+    body.messages
+      .map((message) => (typeof message.content === 'string' ? message.content : ''))
+      .find((content) => content.includes('<plan_state>'))
+
+  test("Eric's case: a delegated step its children finished needs no continuation at all", async () => {
+    // The live failure this fixes: the work WAS done — the child delivered — but the parent came
+    // back blind to its own checklist, left the step running, and was nudged about finished work.
+    // Now the runtime closes the step on the evidence, before the parent is resumed.
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof startDelegationSession>> | undefined
+    try {
+      scenario = await startDelegationSession(({isParent, parentTurn}) => {
+        if (!isParent) return say('child', 'Here is the research.')
+        if (parentTurn === 1) {
+          return toolTurn('p1', [
+            planTool(0, 'plan-1', [
+              ['s1', 'Research the topic', 'running'],
+              ['s2', 'Write it up', 'pending'],
+            ]),
+            delegateTool(1, 'spawn-1', 'Research', 'You are the researcher.'),
+          ])
+        }
+        // Resumed: it does its own remaining step and closes THAT one. It never touches the
+        // delegated step — exactly as the live model didn't.
+        if (parentTurn === 2) {
+          return toolTurn('p2', [
+            planTool(0, 'plan-2', [
+              ['s1', 'Research the topic', 'done'],
+              ['s2', 'Write it up', 'done'],
+            ]),
+          ])
+        }
+        return say(`p${parentTurn}`, 'Written up.')
+      })
+      await scenario.send('Research the topic and write it up')
+      await scenario.svc.awaitQueueIdle()
+
+      const prompts = (await scenario.events()).filter(
+        (event) => event.content?.includes('This turn is ending with work you committed to still open'),
+      )
+      expect(prompts).toHaveLength(0)
+      const plan = await scenario.plan()
+      expect(plan?.steps.map((step) => `${step.label}:${step.status}`)).toEqual([
+        'Research the topic:done',
+        'Write it up:done',
+      ])
+      // The delegated step carries the runtime's mark; the one the model closed itself does not.
+      expect(plan?.steps.map((step) => step.resolvedBy)).toEqual(['runtime', undefined])
+      const {root} = await scenario.runTree()
+      expect(root?.status).toBe('succeeded')
+      expect(root?.unmetObligations).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  }, 30_000)
+
+  test('a batch step waits for the whole batch: one child home is not the step done', async () => {
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof startDelegationSession>> | undefined
+    let releaseSecondChild: (() => void) | undefined
+    const secondChildGate = new Promise<void>((resolve) => {
+      releaseSecondChild = resolve
+    })
+    try {
+      scenario = await startDelegationSession(async ({isParent, parentTurn, messagesJSON}) => {
+        if (!isParent) {
+          if (messagesJSON.includes('You are the second worker.')) {
+            // Held open so the test can read the checklist with exactly one child home.
+            await secondChildGate
+            return say('child-b', 'Second done.')
+          }
+          return say('child-a', 'First done.')
+        }
+        if (parentTurn === 1) {
+          return toolTurn('p1', [
+            planTool(0, 'plan-1', [['s1', 'Research both', 'running']]),
+            delegateTool(1, 'spawn-a', 'First', 'You are the first worker.'),
+            delegateTool(2, 'spawn-b', 'Second', 'You are the second worker.'),
+          ])
+        }
+        return say(`p${parentTurn}`, 'Both are in.')
+      })
+      await scenario.send('Research both')
+
+      for (let i = 0; i < 200; i++) {
+        const {children} = await scenario.runTree()
+        if (children.some((child) => child.status === 'succeeded')) break
+        await new Promise((resolve) => setTimeout(resolve, 20))
+      }
+      const midFlight = await scenario.plan()
+      expect(midFlight?.steps[0]?.status).toBe('running')
+      expect(midFlight?.steps[0]?.resolvedBy).toBeUndefined()
+
+      releaseSecondChild?.()
+      await scenario.svc.awaitQueueIdle()
+      const settled = await scenario.plan()
+      expect(settled?.steps[0]?.status).toBe('done')
+      expect(settled?.steps[0]?.resolvedBy).toBe('runtime')
+    } finally {
+      releaseSecondChild?.()
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  }, 30_000)
+
+  test('a failed child never settles its step, and the nudge still comes', async () => {
+    // Success is a fact; failure is a judgment. What a failed child means for the step — retry,
+    // write it off, do it another way — is the model's call, so the runtime makes none of it and
+    // leaves the continuation loop to ask.
+    //
+    // The child fails the way a typed child really fails: it is given an output schema and never
+    // delivers, so it spends its continuations and ends `output-schema`. The plan is read while the
+    // parent is still parked, because a step left `running` is closed by a much older rule once the
+    // owning turn succeeds — a rule about a turn ending, not about evidence, and one that never
+    // claims the runtime resolved anything. That difference is what this test holds.
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof startDelegationSession>> | undefined
+    let releaseParent: (() => void) | undefined
+    const parentGate = new Promise<void>((resolve) => {
+      releaseParent = resolve
+    })
+    try {
+      scenario = await startDelegationSession(async ({isParent, parentTurn}) => {
+        if (!isParent) return say('child', 'Prose, not the payload you asked for.')
+        if (parentTurn === 1) {
+          return toolTurn('p1', [
+            planTool(0, 'plan-1', [['s1', 'Try the thing', 'running']]),
+            {
+              index: 1,
+              id: 'spawn-1',
+              type: 'function',
+              function: {
+                name: 'delegate',
+                arguments: JSON.stringify({
+                  title: 'Doomed',
+                  brief: 'Deliver a verdict',
+                  prompt: 'You are the doomed worker.',
+                  output: {
+                    type: 'object',
+                    required: ['verdict'],
+                    properties: {verdict: {type: 'string'}},
+                    additionalProperties: false,
+                  },
+                }),
+              },
+            },
+          ])
+        }
+        // Resumed because the child is terminal — held here so the checklist can be read at the one
+        // moment that matters: the child has failed and no turn of the parent's has ended over it.
+        if (parentTurn === 2) await parentGate
+        return say(`p${parentTurn}`, 'Anything else?')
+      })
+      const finished = scenario.send('Try the thing').then(
+        () => scenario!.svc.awaitQueueIdle(),
+        () => undefined,
+      )
+      let childStatus: string | undefined
+      for (let i = 0; i < 600; i++) {
+        const {children} = await scenario.runTree()
+        childStatus = children[0]?.status
+        if (childStatus === 'failed') break
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      expect(childStatus).toBe('failed')
+      const planWhileParked = await scenario.plan()
+      releaseParent?.()
+      await finished
+      await scenario.svc.awaitQueueIdle()
+
+      const {children} = await scenario.runTree()
+      expect(children.map((child) => child.status)).toEqual(['failed'])
+      // Untouched while the failure stood: still the agent's word, still open.
+      expect(planWhileParked?.steps[0]?.status).toBe('running')
+      expect(planWhileParked?.steps[0]?.resolvedBy).toBeUndefined()
+      // And nothing that happens afterwards claims the runtime resolved it.
+      expect((await scenario.plan())?.steps[0]?.resolvedBy).toBeUndefined()
+      // The honesty backstop is still in place for exactly this case.
+      const prompts = (await scenario.events()).filter(
+        (event) => event.content?.includes('Your plan has unfinished steps'),
+      )
+      expect(prompts.length).toBeGreaterThan(0)
+    } finally {
+      releaseParent?.()
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  }, 60_000)
+
+  test("the runtime's mark and the settle date both survive a later rewrite of the plan", async () => {
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof startDelegationSession>> | undefined
+    try {
+      // Turn-indexed, not content-matched: a prompt stays in the transcript forever, so a branch
+      // keyed on one fires on every later turn too — an infinite loop of the same tool call.
+      scenario = await startDelegationSession(({isParent, parentTurn}) => {
+        if (!isParent) return say('child', 'Research done.')
+        if (parentTurn === 1) {
+          return toolTurn('p1', [
+            planTool(0, 'plan-1', [['s1', 'Research the topic', 'running']]),
+            delegateTool(1, 'spawn-1', 'Research', 'You are the researcher.'),
+          ])
+        }
+        // Turn 3 answers the second user message: rewrite the same settled plan with a new label,
+        // which is what models do to a checklist they are still narrating.
+        if (parentTurn === 3) {
+          return toolTurn('p3', [planTool(0, 'plan-3', [['s1', 'Research the topic thoroughly', 'done']])])
+        }
+        return say(`p${parentTurn}`, 'Done.')
+      })
+      await scenario.send('Research the topic')
+      await scenario.svc.awaitQueueIdle()
+      const first = await scenario.plan()
+      expect(first?.steps[0]?.resolvedBy).toBe('runtime')
+      expect(typeof first?.settledAt).toBe('number')
+
+      await scenario.send('Say that again')
+      await scenario.svc.awaitQueueIdle()
+      const rewritten = await scenario.plan()
+      expect(rewritten?.steps[0]?.label).toBe('Research the topic thoroughly')
+      // A rewrite that leaves the step closed changes neither who closed it nor when.
+      expect(rewritten?.steps[0]?.resolvedBy).toBe('runtime')
+      expect(rewritten?.settledAt).toBe(first?.settledAt)
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  }, 30_000)
+
+  test('every turn is handed the live checklist, with the statuses as they stand right then', async () => {
+    // The plan verb writes no transcript events, so a resumed model cannot see the list it
+    // published. This block is rebuilt each turn from session state and never stored.
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof startDelegationSession>> | undefined
+    try {
+      scenario = await startDelegationSession(({isParent, parentTurn}) => {
+        if (!isParent) return say('child', 'Research done.')
+        if (parentTurn === 1) {
+          return toolTurn('p1', [
+            planTool(0, 'plan-1', [
+              ['s1', 'Research the topic', 'running'],
+              ['s2', 'Write it up', 'pending'],
+            ]),
+            delegateTool(1, 'spawn-1', 'Research', 'You are the researcher.'),
+          ])
+        }
+        return say(`p${parentTurn}`, 'All done.')
+      })
+      await scenario.send('Research the topic and write it up')
+      await scenario.svc.awaitQueueIdle()
+
+      const parentBodies = scenario.parentBodies()
+      // The first turn has no plan yet — the block appears only once there is a checklist.
+      expect(planStateOf(parentBodies[0]!)).toBeUndefined()
+      const resumed = planStateOf(parentBodies.at(-1)!)
+      expect(resumed).toBeDefined()
+      // Current statuses, not the ones from when the plan was written: the delegated step comes
+      // back already closed by the runtime, which is what stops the model re-reporting it as open.
+      expect(resumed).toContain('s1 · Research the topic · done')
+      expect(resumed).toContain('s2 · Write it up · pending')
+      expect(resumed).toContain('update statuses with the plan verb')
+      // A briefing, not a record: nothing about it reaches the durable log.
+      const logged = (await scenario.events()).filter((event) => event.content?.includes('<plan_state>'))
+      expect(logged).toHaveLength(0)
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  }, 30_000)
+
+  test('a session with no plan is handed no checklist', async () => {
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof startDelegationSession>> | undefined
+    try {
+      scenario = await startDelegationSession(({parentTurn}) => say(`p${parentTurn}`, 'Answered without a plan.'))
+      await scenario.send('Just answer me')
+      await scenario.svc.awaitQueueIdle()
+      expect(scenario.allBodies().every((body) => planStateOf(body) === undefined)).toBe(true)
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  }, 30_000)
+})
+
 describe('session plan settling', () => {
   test('a step left running settles to done when its turn succeeds', async () => {
     // Live gap: the model marked "Summarize findings" running, did the work, and ended the turn

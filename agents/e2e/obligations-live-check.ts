@@ -54,20 +54,70 @@ await action({
   content: [{type: 'text', text: 'Name three colors, then write one sentence using all three. Track it with a plan.'}],
 })
 
+// A parent that delegates PARKS, so the message call returns while the work is still going. Wait
+// for the whole tree to reach a terminal status before reading anything.
+const settled = async () => {
+  const roots = await action({_: 'ListRuns', sessionId: session.sessionId})
+  if (!roots.runs.length) return false
+  const tree = await action({_: 'ListRuns', rootRunId: roots.runs[0].rootRunId})
+  return tree.runs.every((run: any) => ['succeeded', 'failed', 'canceled'].includes(run.status))
+}
+for (let i = 0; i < 120; i++) {
+  if (await settled()) break
+  await new Promise((resolve) => setTimeout(resolve, 500))
+}
+
 const detail = await action({_: 'GetSession', sessionId: session.sessionId})
 const list = await action({_: 'ListRuns', sessionId: session.sessionId})
 const events = detail.events.map((event: any) => event.event)
 
 const stubborn = process.env.MODE === 'stubborn'
+const delegation = process.env.MODE === 'delegation'
 const prompts = events.filter((event: any) =>
   String(event.content ?? '').includes('This turn is ending with work you committed to still open'),
 )
-check(
-  prompts.length === (stubborn ? 3 : 1),
-  `continuation prompts: expected ${stubborn ? 3 : 1}, got ${prompts.length}`,
-)
-check(prompts[0]?.actor === 'system', `the prompt is stamped actor 'system' (got ${prompts[0]?.actor})`)
-check(String(prompts[0]?.content ?? '').includes('Write the sentence'), 'the prompt names the step that was left open')
+const expectedPrompts = delegation ? 0 : stubborn ? 3 : 1
+check(prompts.length === expectedPrompts, `continuation prompts: expected ${expectedPrompts}, got ${prompts.length}`)
+if (delegation) {
+  // The point of the whole package: the work was done by a sub-agent, the runtime closed the step on
+  // that evidence before the parent was resumed, and so there was nothing left to nudge about.
+  const steps = detail.session.plan?.steps ?? []
+  check(
+    steps.map((step: any) => `${step.label}:${step.status}`).join(' | ') ===
+      'Research the colors:done | Write the sentence:done',
+    `the checklist ended closed (${steps.map((s: any) => `${s.label}:${s.status}`).join(' | ')})`,
+  )
+  check(
+    steps[0]?.resolvedBy === 'runtime',
+    `the delegated step says the runtime closed it (got ${steps[0]?.resolvedBy})`,
+  )
+  check(
+    steps[1]?.resolvedBy === undefined,
+    `the step the agent closed itself carries no runtime mark (got ${steps[1]?.resolvedBy})`,
+  )
+  check(list.runs[0]?.status === 'succeeded', `the run succeeded (${list.runs[0]?.status})`)
+  check(list.runs[0]?.unmetObligations === undefined, 'the run ended owing nothing')
+  const observed = await Bun.file(process.env.OBSERVATIONS || '/tmp/scripted-provider-observations.json')
+    .json()
+    .catch(() => ({parentTurns: []}))
+  const first = observed.parentTurns?.find((entry: any) => entry.turn === 1)
+  const resumed = observed.parentTurns?.find((entry: any) => entry.turn === 2)
+  check(first?.planState === null, 'the first turn, with no checklist yet, was handed none')
+  check(
+    typeof resumed?.planState === 'string' && resumed.planState.includes('s1 · Research the colors · done'),
+    `the resumed turn was handed the checklist with the step already closed (${String(resumed?.planState ?? 'none')
+      .replace(/\n/g, ' ')
+      .slice(0, 120)})`,
+  )
+  const logged = events.filter((event: any) => String(event.content ?? '').includes('<plan_state>'))
+  check(logged.length === 0, `the injected checklist never reaches the log (${logged.length} found)`)
+} else {
+  check(prompts[0]?.actor === 'system', `the prompt is stamped actor 'system' (got ${prompts[0]?.actor})`)
+  check(
+    String(prompts[0]?.content ?? '').includes('Write the sentence'),
+    'the prompt names the step that was left open',
+  )
+}
 if (stubborn) {
   const notices = events.filter((event: any) =>
     String(event.content ?? '').includes('This run ended with work still open'),
@@ -86,7 +136,7 @@ if (stubborn) {
     JSON.stringify(list.runs[0]?.unmetObligations) === JSON.stringify([{kind: 'plan', steps: ['Write the sentence']}]),
     `the run surfaces what it owed (${JSON.stringify(list.runs[0]?.unmetObligations ?? null)})`,
   )
-} else {
+} else if (!delegation) {
   check(
     detail.session.plan?.steps.every((step: any) => step.status === 'done') === true,
     `the checklist ended fully settled (${(detail.session.plan?.steps ?? []).map((s: any) => s.status).join(', ')})`,
