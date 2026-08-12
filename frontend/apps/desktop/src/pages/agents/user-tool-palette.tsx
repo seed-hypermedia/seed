@@ -71,7 +71,9 @@ export function UserToolPalette({
           toast.error(response.error)
         } else if (isContractMiss(response.output)) {
           // The tool answered with its contract, not a result — keep the form open to retry.
-          setNotice('Input didn’t match the tool’s contract — see the contract row in the thread, adjust, and run again.')
+          setNotice(
+            'Input didn’t match the tool’s contract — see the contract row in the thread, adjust, and run again.',
+          )
           return
         }
       }
@@ -106,7 +108,11 @@ export function UserToolPalette({
             <SizableText size="xs" color="muted" className="px-2 pt-1 pb-1.5">
               Run a tool as yourself. The result lands on this thread's log for both of you.
             </SizableText>
-            <PaletteRow label="Read" hint="~/memory, ~/tools, hm://, https://, activity:" onPick={() => setSelected('read')} />
+            <PaletteRow
+              label="Read"
+              hint="~/memory, ~/tools, hm://, https://, activity:"
+              onPick={() => setSelected('read')}
+            />
             <PaletteRow label="Write" hint="~/memory, ~/tools, hm://, ipfs://" onPick={() => setSelected('write')} />
             {callables === null ? (
               <SizableText size="xs" color="muted" className="px-2 py-1.5">
@@ -124,9 +130,17 @@ export function UserToolPalette({
             )}
           </div>
         ) : selected === 'read' ? (
-          <ReadForm busy={invoke.isPending} onBack={() => setSelected(null)} onRun={(input) => void run('read', input)} />
+          <ReadForm
+            busy={invoke.isPending}
+            onBack={() => setSelected(null)}
+            onRun={(input) => void run('read', input)}
+          />
         ) : selected === 'write' ? (
-          <WriteForm busy={invoke.isPending} onBack={() => setSelected(null)} onRun={(input) => void run('write', input)} />
+          <WriteForm
+            busy={invoke.isPending}
+            onBack={() => setSelected(null)}
+            onRun={(input) => void run('write', input)}
+          />
         ) : (
           <CallableForm
             name={selected}
@@ -198,7 +212,13 @@ const fieldClass =
 function ReadForm({busy, onBack, onRun}: {busy: boolean; onBack: () => void; onRun: (input: unknown) => void}) {
   const [address, setAddress] = useState('')
   return (
-    <FormShell title="Read" busy={busy} canRun={!!address.trim()} onBack={onBack} onRun={() => onRun({address: address.trim()})}>
+    <FormShell
+      title="Read"
+      busy={busy}
+      canRun={!!address.trim()}
+      onBack={onBack}
+      onRun={() => onRun({address: address.trim()})}
+    >
       <input
         autoFocus
         className={fieldClass}
@@ -268,7 +288,8 @@ function CallableForm({
   const properties = schema.properties ?? {}
   const required = new Set(schema.required ?? [])
   const simple = Object.entries(properties).every(
-    ([, prop]) => prop.type === 'string' || prop.type === 'number' || prop.type === 'integer' || prop.type === 'boolean',
+    ([, prop]) =>
+      prop.type === 'string' || prop.type === 'number' || prop.type === 'integer' || prop.type === 'boolean',
   )
   const [values, setValues] = useState<Record<string, string | boolean>>({})
   const [rawJson, setRawJson] = useState('{}')

@@ -30,7 +30,8 @@ export function normalizeStoredAgentTools(tools: string[]): string[] {
   const normalized = new Set<string>()
   for (const tool of tools) {
     if (tool === 'execute_code' || tool === AGENT_EXECUTE_TOOL) normalized.add(AGENT_EXECUTE_TOOL)
-    else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool)) normalized.add(AGENT_PUBLISH_GRANT)
+    else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
+      normalized.add(AGENT_PUBLISH_GRANT)
     else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL) normalized.add(tool)
     // Everything else was absorbed into the always-on verbs and is inert.
   }

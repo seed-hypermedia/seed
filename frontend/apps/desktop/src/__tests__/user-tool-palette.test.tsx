@@ -38,9 +38,9 @@ function click(element: Element | null | undefined) {
 }
 
 function findByText(text: string): HTMLElement | undefined {
-  return Array.from(document.body.querySelectorAll('button, span')).find(
-    (element) => element.textContent === text,
-  ) as HTMLElement | undefined
+  return Array.from(document.body.querySelectorAll('button, span')).find((element) => element.textContent === text) as
+    | HTMLElement
+    | undefined
 }
 
 afterEach(() => {
