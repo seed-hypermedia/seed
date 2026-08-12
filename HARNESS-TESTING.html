@@ -466,6 +466,29 @@ cd agents &amp;&amp; pnpm dev</code></pre>
         delete protection).
       </div>
 
+      <h3>M2.2b · Read the tool's code in the GUI <span class="badge">added 2026-08-12</span></h3>
+      <p>
+        You asked where an authored tool lives in the GUI — it didn't, anywhere. Now: the agent's
+        <b>Tools tab</b> has an <b>Authored tools</b> section listing every lambda the agent wrote for itself.
+      </p>
+      <ul class="expect">
+        <li>
+          After M2.2 (or your <code>word_count</code> session), open the agent → Tools tab: a card named
+          <code>word_count</code> with a runtime badge and its one-line summary.
+        </li>
+        <li>
+          Click the card: the full document opens — description, <b>source code</b>, input/output schemas, and the CID
+          (click it to copy). This is byte-for-byte what the agent reads at <code>~/tools/word_count</code>.
+        </li>
+        <li>Rewrite the tool in a session and re-open the card: new CID, new source, updated date.</li>
+        <li>No authored tools yet → an empty state says to ask the agent to write one, not a blank pane.</li>
+      </ul>
+      <div class="verdict">
+        <b>headless-verified</b> — <code>agent-tools-api.test.ts</code> pins the new <code>ListAgentTools</code> action
+        (lambda with source + CID, builtins with grant flags, strangers 404). The GUI itself needs your eyes after the
+        next <code>./dev up</code>.
+      </div>
+
       <h3>M2.3 · Touch-expand promotion</h3>
       <div class="say">Search the web for the latest Bun release.</div>
       <p class="muted" style="margin: -0.3rem 0 0.6rem">…then, in a <em>later message of the same thread</em>:</p>
