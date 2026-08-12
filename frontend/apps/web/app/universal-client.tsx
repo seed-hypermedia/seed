@@ -1,9 +1,19 @@
 import {createSeedClient} from '@seed-hypermedia/client'
+import type {JsonValue} from '@bufbuild/protobuf'
 import type {HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {UniversalClient} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
 import {AuthenticateRequest} from '@shm/shared/client/grpc-types'
-import {QueryDocumentsResponse, type QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
+import {
+  ListAccountsRequest,
+  ListAccountsResponse,
+  ListDocumentAttributeNamesRequest,
+  ListDocumentAttributeNamesResponse,
+  ListDocumentAttributeValuesRequest,
+  ListDocumentAttributeValuesResponse,
+  QueryDocumentsResponse,
+  type QueryDocumentsRequest,
+} from '@shm/shared/client/grpc-types'
 import {createWebUniversalClient} from '@shm/shared/create-web-universal-client'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {peerIdFromString} from '@libp2p/peer-id'
@@ -139,19 +149,54 @@ async function daemonAuthHeaders(): Promise<Record<string, string>> {
 
 const seedClient = createSeedClient('', {headers: daemonAuthHeaders})
 
+async function postDocumentRpc<Request extends {toJson(): unknown}, Response>(
+  key: string,
+  request: Request,
+  decode: (value: JsonValue) => Response,
+  signal?: AbortSignal,
+): Promise<Response> {
+  const response = await fetch(`/api/${key}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/cbor'},
+    body: cborEncode(request.toJson()),
+    signal,
+  })
+  if (!response.ok) throw new Error(`${key} failed: ${response.status} ${await response.text()}`)
+  const value: unknown = await response.json()
+  if (!isJsonValue(value)) throw new Error(`${key} returned an invalid JSON payload`)
+  return decode(value)
+}
+
+function isJsonValue(value: unknown): value is JsonValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number')
+    return true
+  if (Array.isArray(value)) return value.every(isJsonValue)
+  if (typeof value !== 'object') return false
+  return Object.values(value).every(isJsonValue)
+}
+
 export const webUniversalClient = createWebUniversalClient({
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
   queryDocuments: async (request: QueryDocumentsRequest, options) => {
-    const response = await fetch('/api/QueryDocuments', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/cbor'},
-      body: cborEncode(request.toJson()),
-      signal: options?.signal,
-    })
-    if (!response.ok) throw new Error(`QueryDocuments failed: ${response.status} ${await response.text()}`)
-    return QueryDocumentsResponse.fromJson(await response.json())
+    return postDocumentRpc('QueryDocuments', request, QueryDocumentsResponse.fromJson, options?.signal)
   },
+  listAccounts: async (request, options) =>
+    postDocumentRpc('ListAccounts', request, ListAccountsResponse.fromJson, options?.signal),
+  listDocumentAttributeNames: async (request, options) =>
+    postDocumentRpc(
+      'ListDocumentAttributeNames',
+      request,
+      ListDocumentAttributeNamesResponse.fromJson,
+      options?.signal,
+    ),
+  listDocumentAttributeValues: async (request, options) =>
+    postDocumentRpc(
+      'ListDocumentAttributeValues',
+      request,
+      ListDocumentAttributeValuesResponse.fromJson,
+      options?.signal,
+    ),
   CommentEditor: ({docId}: {docId: UnpackedHypermediaId}) => {
     return <WebCommenting key={docId.id} docId={docId} />
   },

@@ -8,7 +8,16 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
-import type {QueryDocumentsRequest, QueryDocumentsResponse} from './client/grpc-types'
+import type {
+  ListAccountsRequest,
+  ListAccountsResponse,
+  ListDocumentAttributeNamesRequest,
+  ListDocumentAttributeNamesResponse,
+  ListDocumentAttributeValuesRequest,
+  ListDocumentAttributeValuesResponse,
+  QueryDocumentsRequest,
+  QueryDocumentsResponse,
+} from './client/grpc-types'
 
 export type PublishDocumentInput = {
   account: string
@@ -46,6 +55,21 @@ export type UniversalClient = {
     request: QueryDocumentsRequest,
     options?: UniversalClientRequestOptions,
   ) => Promise<QueryDocumentsResponse>
+  /** Lists spaces/accounts available to the current user. */
+  listAccounts?: (
+    request: ListAccountsRequest,
+    options?: UniversalClientRequestOptions,
+  ) => Promise<ListAccountsResponse>
+  /** Lists document attribute names for autocomplete. */
+  listDocumentAttributeNames?: (
+    request: ListDocumentAttributeNamesRequest,
+    options?: UniversalClientRequestOptions,
+  ) => Promise<ListDocumentAttributeNamesResponse>
+  /** Lists known values for one document attribute. */
+  listDocumentAttributeValues?: (
+    request: ListDocumentAttributeValuesRequest,
+    options?: UniversalClientRequestOptions,
+  ) => Promise<ListDocumentAttributeValuesResponse>
   // Comment editor component (platform-specific)
   CommentEditor?: React.ComponentType<{docId: UnpackedHypermediaId}>
 

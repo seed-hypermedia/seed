@@ -8,6 +8,7 @@ import {
   removeExploreQueryChip,
   searchResultItemToExploreResult,
   serializeExploreQuery,
+  toggleExplorePredicate,
 } from '../explore'
 import {hmId} from '../utils/entity-id-url'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
@@ -27,6 +28,16 @@ function searchItem(overrides: Partial<SearchResultItem>): SearchResultItem {
 }
 
 describe('Explore query grammar', () => {
+  test('toggles filter predicates on and off without losing presentation directives', () => {
+    const parsed = parseExploreQuery('roadmap view:table sort:status')
+    const withStatus = toggleExplorePredicate(parsed, 'status:active')
+    expect(serializeExploreQuery(withStatus)).toContain('status:active')
+    expect(withStatus.presentation).toEqual(parsed.presentation)
+    const withoutStatus = toggleExplorePredicate(withStatus, 'status:active')
+    expect(serializeExploreQuery(withoutStatus)).not.toContain('status:active')
+    expect(withoutStatus.presentation).toEqual(parsed.presentation)
+  })
+
   test('parses nested boolean structure, typed values, scopes, and free text', () => {
     const parsed = parseExploreQuery('(in:alice OR in:bob) AND type:task status="In Progress" engelbart')
     expect(parsed.ast).toMatchObject({
@@ -176,6 +187,21 @@ describe('Explore document filter compilation', () => {
     expect(nested?.filter.case).toBe('stringMatch')
     expect(compileExploreQuery(parseExploreQuery('NOT engelbart'), {type: 'node'}).filter).toBeUndefined()
   })
+
+  test('does not compile a partially representable conjunction under NOT', () => {
+    expect(
+      compileExploreQuery(parseExploreQuery('NOT (status:x AND engelbart)'), {type: 'node'}).filter,
+    ).toBeUndefined()
+  })
+
+  test('keeps negated scopes and types out of positive search projections', () => {
+    const scope = compileExploreQuery(parseExploreQuery('NOT in:alice engelbart'), {type: 'node'})
+    expect(scope.positiveScopes).toEqual([])
+    expect(scope.documentPredicates).toHaveLength(1)
+    const types = compileExploreQuery(parseExploreQuery('NOT type:comment engelbart'), {type: 'node'})
+    expect(types.requestedTypes).toEqual([])
+    expect(types.excludedTypes).toEqual(['comment'])
+  })
 })
 
 describe('Explore chips', () => {
@@ -229,7 +255,7 @@ describe('search result mapping', () => {
     const parsed = parseExploreQuery('status:active roadmap')
     const document = {
       type: 'document',
-      id: hmId('alice', {path: ['roadmap']}),
+      id: hmId('alice', {path: ['roadmap'], version: 'document-version'}),
       path: ['roadmap'],
       metadata: {status: 'active'},
       updateTime: '2026-01-01T00:00:00.000Z',
@@ -242,7 +268,7 @@ describe('search result mapping', () => {
       textPages: [
         {
           entities: [
-            searchItem({id: document.id}),
+            searchItem({id: hmId('alice', {path: ['roadmap'], version: 'search-version'})}),
             searchItem({id: hmId('alice', {path: ['unrelated']}), title: 'Unrelated'}),
           ],
           nextPageToken: '',
@@ -255,6 +281,55 @@ describe('search result mapping', () => {
       matchText: 'Roadmap match',
       matchedFields: [{label: 'status', value: 'active'}],
     })
+  })
+
+  test('intersects documents across stream versions and groups blocks by versionless parent', () => {
+    const document = {
+      type: 'document',
+      id: hmId('alice', {path: ['roadmap'], version: 'document-version'}),
+      path: ['roadmap'],
+      metadata: {status: 'active'},
+      updateTime: '2026-01-01T00:00:00.000Z',
+      breadcrumbs: [],
+    } as unknown as HMDocumentInfo
+    const result = assembleExploreResults({
+      parsed: parseExploreQuery('status:active roadmap'),
+      context: {type: 'node'},
+      documentPages: [{documents: [document], nextPageToken: ''}],
+      textPages: [
+        {
+          entities: [
+            searchItem({id: hmId('alice', {path: ['roadmap'], version: 'search-version'})}),
+            searchItem({
+              id: hmId('alice', {
+                path: ['roadmap'],
+                version: 'search-block-version',
+                blockRef: 'block-1',
+                blockRange: {start: 0, end: 4},
+              }),
+            }),
+          ],
+          nextPageToken: '',
+        },
+      ],
+    })
+    expect(result.documents).toHaveLength(1)
+    expect(result.blocksByDocument['alice:roadmap']).toHaveLength(1)
+  })
+
+  test('filters negated result types and scopes without narrowing search projections', () => {
+    const result = assembleExploreResults({
+      parsed: parseExploreQuery('NOT type:comment NOT in:alice roadmap'),
+      context: {type: 'node'},
+      textPages: [
+        {
+          entities: [searchItem({type: 'document'}), searchItem({type: 'comment', commentId: 'excluded'})],
+          nextPageToken: '',
+        },
+      ],
+    })
+    expect(result.results).toHaveLength(1)
+    expect(result.results[0]?.type).toBe('document')
   })
 
   test('does not emit predicate-only documents during an intersection', () => {

@@ -1,8 +1,27 @@
-import type {HMExploreResult, HMExploreResultType, ParsedExploreQuery} from '@shm/shared/explore'
-import {exploreQueryChips, removeExploreQueryChip, serializeExploreQuery} from '@shm/shared/explore'
+import type {
+  ExplorePredicate,
+  ExploreQueryNode,
+  HMExploreResult,
+  HMExploreResultType,
+  ParsedExploreQuery,
+} from '@shm/shared/explore'
+import {
+  exploreQueryChips,
+  compileExploreQuery,
+  parseExploreQuery,
+  removeExploreQueryChip,
+  serializeExploreQuery,
+} from '@shm/shared/explore'
+import {QueryDocumentsRequest} from '@shm/shared/client/grpc-types'
+import {
+  exploreDocumentKey,
+  useExploreAccounts,
+  useExploreAttributeNames,
+  useExploreAttributeValues,
+} from '@shm/shared/models/explore'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
 import {FileText, Loader2, MessageSquare, Pilcrow, Search, X} from 'lucide-react'
-import {useEffect, useMemo, useState, type ReactNode} from 'react'
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {cn} from './utils'
@@ -20,7 +39,7 @@ export function highlightExploreText(text: string, terms: string[]): ReactNode {
   )
   return text.split(pattern).map((part, index) =>
     normalized.some((term) => part.localeCompare(term, undefined, {sensitivity: 'accent'}) === 0) ? (
-      <mark key={index} className="bg-yellow-200/80 text-inherit dark:bg-yellow-500/30">
+      <mark key={index} className="bg-brand-10 text-secondary-foreground">
         {part}
       </mark>
     ) : (
@@ -50,6 +69,7 @@ export type ExplorePageProps = {
   onLoadMore?: () => void
   onQueryChange: (query: string) => void
   onOpenResult: (result: HMExploreResult) => void
+  accountUid?: string
 }
 
 type ResultTab = 'all' | HMExploreResultType
@@ -64,24 +84,49 @@ const tabs: Array<{id: ResultTab; label: string}> = [
 export function ExplorePage(props: ExplorePageProps) {
   const [activeTab, setActiveTab] = useState<ResultTab>('all')
   const [menu, setMenu] = useState<'type' | 'in' | 'attributes' | null>(null)
+  const [advancedOpen, setAdvancedOpen] = useState(false)
   const [draft, setDraft] = useState(props.query)
+  const [builderAst, setBuilderAst] = useState<ExploreQueryNode | null>(props.parsed.ast)
+  const [activeValueField, setActiveValueField] = useState('')
+  const [activeValueKind, setActiveValueKind] = useState<'string' | 'int' | 'bool'>('string')
+  const debounceRef = useRef<number | null>(null)
+  const onQueryChangeRef = useRef(props.onQueryChange)
+  onQueryChangeRef.current = props.onQueryChange
   useEffect(() => setDraft(props.query), [props.query])
+  useEffect(() => setBuilderAst(props.parsed.ast), [props.parsed.ast])
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (draft !== props.query) props.onQueryChange(draft)
+      if (draft !== props.query) onQueryChangeRef.current(draft)
     }, 260)
-    return () => window.clearTimeout(timer)
-  }, [draft, props])
+    debounceRef.current = timer
+    return () => {
+      window.clearTimeout(timer)
+      if (debounceRef.current === timer) debounceRef.current = null
+    }
+  }, [draft, props.query])
 
   const chips = useMemo(() => exploreQueryChips(props.parsed), [props.parsed])
+  const accounts = useExploreAccounts(true)
+  const attributeNames = useExploreAttributeNames(props.accountUid || '', true)
+  const attributeValues = useExploreAttributeValues(activeValueField, activeValueKind, '', true)
   const visibleResults = props.results.filter((result) => activeTab === 'all' || result.type === activeTab)
   const documentOnly = activeTab !== 'all' && activeTab !== 'document'
   const updateQuery = (next: string) => {
+    if (debounceRef.current !== null) {
+      window.clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
     setDraft(next)
-    props.onQueryChange(next)
+    onQueryChangeRef.current(next)
+  }
+  const commitBuilderAst = (nextAst: ExploreQueryNode | null) => {
+    setBuilderAst(nextAst)
+    updateQuery(serializeExploreQuery({ast: nextAst, presentation: props.parsed.presentation, diagnostics: []}))
   }
   const addPredicate = (predicate: string) => {
-    updateQuery(draft ? `${draft} ${predicate}` : predicate)
+    const next = parseExploreQuery(predicate).ast
+    if (!next) return
+    commitBuilderAst(appendExploreNode(builderAst, next))
     setMenu(null)
   }
 
@@ -110,12 +155,35 @@ export function ExplorePage(props: ExplorePageProps) {
               <Button size="sm" variant="outline" onClick={() => setMenu(menu === kind ? null : kind)}>
                 {kind[0]!.toUpperCase() + kind.slice(1)}
               </Button>
-              {menu === kind ? <ExploreFilterMenu kind={kind} onAdd={addPredicate} /> : null}
+              {menu === kind ? (
+                <ExploreFilterMenu
+                  options={
+                    kind === 'type'
+                      ? ['type:document', 'type:block', 'type:comment']
+                      : kind === 'in'
+                        ? accounts.data?.map((account) => `in:${account.value}`) ?? []
+                        : attributeNames.data?.map((name) => `has:${name}`) ?? []
+                  }
+                  activeTokens={chips.map((chip) => chip.token)}
+                  onToggle={(predicate) => {
+                    const existing = chips.find((chip) => chip.token === predicate)
+                    if (existing) {
+                      updateQuery(serializeExploreQuery(removeExploreQueryChip(props.parsed, existing.id)))
+                    } else {
+                      addPredicate(predicate)
+                    }
+                  }}
+                />
+              ) : null}
             </div>
           ))}
-          <span className="text-muted-foreground ml-auto hidden text-xs md:inline">
-            Advanced builder arrives in phase 4
-          </span>
+          <Button
+            size="sm"
+            variant={advancedOpen ? 'secondary' : 'outline'}
+            onClick={() => setAdvancedOpen((open) => !open)}
+          >
+            Advanced
+          </Button>
         </div>
         {chips.length ? (
           <div className="flex flex-wrap items-center gap-2">
@@ -145,6 +213,20 @@ export function ExplorePage(props: ExplorePageProps) {
           </p>
         ))}
       </header>
+
+      {advancedOpen ? (
+        <ExploreBuilder
+          ast={builderAst}
+          attributeNames={attributeNames.data ?? []}
+          attributeValues={attributeValues.data ?? []}
+          accounts={accounts.data ?? []}
+          onFocusValue={(field, kind) => {
+            setActiveValueField(field)
+            setActiveValueKind(kind)
+          }}
+          onChange={commitBuilderAst}
+        />
+      ) : null}
 
       <nav className="border-border flex flex-wrap gap-1 border-b" role="tablist" aria-label="Explore result types">
         {tabs.map((tab) => (
@@ -199,11 +281,13 @@ export function ExplorePage(props: ExplorePageProps) {
                 key={
                   result.type === 'comment'
                     ? `${result.type}:${result.commentId}`
-                    : `${result.type}:${packHmId(result.id)}`
+                    : `${result.type}:${exploreDocumentKey(result.id)}`
                 }
                 result={result}
                 terms={props.textTerms}
-                blocks={result.type === 'document' ? props.blocksByDocument?.[packHmId(result.id)] : undefined}
+                blocks={
+                  result.type === 'document' ? props.blocksByDocument?.[exploreDocumentKey(result.id)] : undefined
+                }
                 onOpen={props.onOpenResult}
               />
             ))}
@@ -226,25 +310,406 @@ export function ExplorePage(props: ExplorePageProps) {
   )
 }
 
-function ExploreFilterMenu({kind, onAdd}: {kind: 'type' | 'in' | 'attributes'; onAdd: (predicate: string) => void}) {
-  const options =
-    kind === 'type'
-      ? ['type:document', 'type:block', 'type:comment']
-      : kind === 'in'
-        ? ['in:alice', 'in:bob']
-        : ['status:"In Progress"', 'priority:high', 'has:project.phase']
+function ExploreFilterMenu({
+  options,
+  activeTokens,
+  onToggle,
+}: {
+  options: string[]
+  activeTokens: string[]
+  onToggle: (predicate: string) => void
+}) {
   return (
     <div className="border-border bg-popover absolute top-10 left-0 z-10 flex min-w-44 flex-col rounded-md border p-1 shadow-md">
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          className="hover:bg-muted rounded px-2 py-1.5 text-left font-mono text-xs"
-          onClick={() => onAdd(option)}
+      {options.length ? (
+        options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            className={cn(
+              'hover:bg-muted rounded px-2 py-1.5 text-left font-mono text-xs',
+              activeTokens.includes(option) && 'bg-accent',
+            )}
+            onClick={() => onToggle(option)}
+          >
+            {option}
+          </button>
+        ))
+      ) : (
+        <p className="text-muted-foreground px-2 py-2 text-xs">No suggestions available.</p>
+      )}
+    </div>
+  )
+}
+
+type BuilderNode = ExploreQueryNode
+
+function appendExploreNode(ast: ExploreQueryNode | null, next: ExploreQueryNode): ExploreQueryNode {
+  if (!ast) return next
+  if (ast.kind === 'and') return {kind: 'and', children: [...ast.children, next]}
+  return {kind: 'and', children: [ast, next]}
+}
+
+function predicateToDraft(predicate: ExplorePredicate): {
+  field: string
+  kind: 'comparison' | 'contains' | 'prefix' | 'exists' | 'missing'
+  operator: '=' | '!=' | '<' | '<=' | '>' | '>='
+  valueKind: 'string' | 'int' | 'bool'
+  value: string
+} {
+  if (predicate.kind === 'scope') {
+    return {
+      field: predicate.scope === 'path' ? '$path' : '$space',
+      kind: predicate.scope === 'path' && predicate.prefix ? 'prefix' : 'contains',
+      operator: '=',
+      valueKind: 'string',
+      value: predicate.value,
+    }
+  }
+  if (predicate.kind === 'type') {
+    return {field: 'type', kind: 'contains', operator: '=', valueKind: 'string', value: predicate.value}
+  }
+  if (predicate.operator === 'exists' || predicate.operator === 'missing')
+    return {field: predicate.key, kind: predicate.operator, operator: '=', valueKind: 'string', value: ''}
+  if (predicate.operator === 'contains' || predicate.operator === 'prefix')
+    return {field: predicate.key, kind: predicate.operator, operator: '=', valueKind: 'string', value: predicate.value}
+  if (predicate.operator !== 'comparison')
+    return {field: predicate.key, kind: 'contains', operator: '=', valueKind: 'string', value: ''}
+  return {
+    field: predicate.key,
+    kind: 'comparison',
+    operator: predicate.comparison,
+    valueKind: typeof predicate.value === 'number' ? 'int' : typeof predicate.value === 'boolean' ? 'bool' : 'string',
+    value: String(predicate.value),
+  }
+}
+
+function draftToPredicate(
+  field: string,
+  kind: 'comparison' | 'contains' | 'prefix' | 'exists' | 'missing',
+  operator: '=' | '!=' | '<' | '<=' | '>' | '>=',
+  valueKind: 'string' | 'int' | 'bool',
+  value: string,
+): ExplorePredicate | null {
+  if (!field.trim()) return null
+  if (field === 'type' && ['document', 'block', 'comment'].includes(value))
+    return {kind: 'type', value: value as HMExploreResultType}
+  if (field === '$space') return {kind: 'scope', scope: 'space', value: value.trim()}
+  if (field === '$path') return {kind: 'scope', scope: 'path', value: value.trim() || '/', prefix: kind === 'prefix'}
+  if (kind === 'exists' || kind === 'missing') return {kind: 'attribute', key: field.trim(), operator: kind}
+  if (!value.trim()) return null
+  if (kind === 'contains' || kind === 'prefix') return {kind: 'attribute', key: field.trim(), operator: kind, value}
+  const typedValue = valueKind === 'int' ? Number(value) : valueKind === 'bool' ? value === 'true' : value
+  return {kind: 'attribute', key: field.trim(), operator: 'comparison', comparison: operator, value: typedValue}
+}
+
+function ExploreBuilder({
+  ast,
+  attributeNames,
+  attributeValues,
+  accounts,
+  onFocusValue,
+  onChange,
+}: {
+  ast: ExploreQueryNode | null
+  attributeNames: string[]
+  attributeValues: string[]
+  accounts: Array<{value: string; label: string}>
+  onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void
+  onChange: (ast: ExploreQueryNode | null) => void
+}) {
+  if (!ast) {
+    return (
+      <section className="border-border bg-muted/10 rounded-lg border p-4">
+        <BuilderToolbar onAdd={(node) => onChange(node)} />
+      </section>
+    )
+  }
+  return (
+    <section className="border-border bg-muted/10 flex flex-col gap-4 rounded-lg border p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-muted-foreground text-[11px] font-semibold tracking-[0.18em] uppercase">Query builder</p>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Edit document conditions without losing text or presentation directives.
+          </p>
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => onChange(null)}>
+          Clear conditions
+        </Button>
+      </div>
+      <BuilderNodeEditor
+        node={ast}
+        path={[]}
+        attributeNames={attributeNames}
+        attributeValues={attributeValues}
+        accounts={accounts}
+        onFocusValue={onFocusValue}
+        onChange={onChange}
+      />
+      <BuilderToolbar onAdd={(node) => onChange(appendExploreNode(ast, node))} />
+      <details className="border-border bg-background rounded-md border px-3 py-2">
+        <summary className="cursor-pointer text-xs font-medium">Request preview</summary>
+        <pre className="text-muted-foreground mt-2 overflow-auto text-[11px]">
+          {JSON.stringify(
+            new QueryDocumentsRequest({
+              filter: compileExploreQuery({ast, presentation: {}, diagnostics: []}, {type: 'node'}).filter,
+            }).toJson(),
+            null,
+            2,
+          )}
+        </pre>
+      </details>
+    </section>
+  )
+}
+
+function BuilderToolbar({onAdd}: {onAdd: (node: ExploreQueryNode) => void}) {
+  return (
+    <div className="flex gap-2">
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() =>
+          onAdd({
+            kind: 'predicate',
+            predicate: {kind: 'attribute', key: '', operator: 'contains', value: ''},
+          })
+        }
+      >
+        Add condition
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => onAdd({kind: 'and', children: []})}>
+        Add group
+      </Button>
+    </div>
+  )
+}
+
+function BuilderNodeEditor({
+  node,
+  path,
+  attributeNames,
+  attributeValues,
+  accounts,
+  onFocusValue,
+  onChange,
+}: {
+  node: BuilderNode
+  path: number[]
+  attributeNames: string[]
+  attributeValues: string[]
+  accounts: Array<{value: string; label: string}>
+  onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void
+  onChange: (ast: ExploreQueryNode | null) => void
+}) {
+  const replace = (next: ExploreQueryNode | null) => onChange(next)
+  if (node.kind === 'text') {
+    return <div className="bg-muted/40 rounded-md px-3 py-2 font-mono text-xs">Text: {node.value || '(empty)'}</div>
+  }
+  if (node.kind === 'predicate') {
+    const draft = predicateToDraft(node.predicate)
+    return (
+      <BuilderCondition
+        draft={draft}
+        attributeNames={attributeNames}
+        attributeValues={attributeValues}
+        accounts={accounts}
+        onFocusValue={onFocusValue}
+        onChange={(next) => replace(next ? {kind: 'predicate', predicate: next} : null)}
+        onRemove={() => replace(null)}
+      />
+    )
+  }
+  if (node.kind === 'not') {
+    return (
+      <div className="border-border border-l-2 pl-3">
+        <div className="text-muted-foreground mb-2 text-xs font-medium">Not</div>
+        <BuilderNodeEditor
+          node={node.child}
+          path={[...path, 0]}
+          attributeNames={attributeNames}
+          attributeValues={attributeValues}
+          accounts={accounts}
+          onFocusValue={onFocusValue}
+          onChange={onChange}
+        />
+      </div>
+    )
+  }
+  return (
+    <div className="border-border bg-background flex flex-col gap-3 rounded-md border p-3">
+      <div className="flex items-center justify-between gap-2">
+        <select
+          className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+          value={node.kind}
+          onChange={(event) => {
+            const mode = event.target.value
+            if (mode === 'not') onChange({kind: 'not', child: node})
+            else onChange({...node, kind: mode as 'and' | 'or'})
+          }}
         >
-          {option}
-        </button>
+          <option value="and">All</option>
+          <option value="or">Any</option>
+          <option value="not">Not</option>
+        </select>
+        <div className="flex gap-1">
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() =>
+              onChange({
+                kind: node.kind,
+                children: [
+                  ...node.children,
+                  {kind: 'predicate', predicate: {kind: 'attribute', key: '', operator: 'exists'}},
+                ],
+              })
+            }
+          >
+            Add condition
+          </Button>
+          <Button
+            size="xs"
+            variant="outline"
+            onClick={() => onChange({kind: node.kind, children: [...node.children, {kind: 'and', children: []}]})}
+          >
+            Add group
+          </Button>
+          {path.length ? (
+            <Button size="xs" variant="ghost" onClick={() => replace(null)}>
+              Remove
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      {node.children.map((child, index) => (
+        <BuilderNodeEditor
+          key={`${path.join('.')}.${index}`}
+          node={child}
+          path={[...path, index]}
+          attributeNames={attributeNames}
+          attributeValues={attributeValues}
+          accounts={accounts}
+          onFocusValue={onFocusValue}
+          onChange={(next) => {
+            const children = [...node.children]
+            if (next) children[index] = next
+            else children.splice(index, 1)
+            onChange(children.length === 1 ? children[0] ?? null : {...node, children})
+          }}
+        />
       ))}
+    </div>
+  )
+}
+
+function BuilderCondition({
+  draft,
+  attributeNames,
+  attributeValues,
+  accounts,
+  onFocusValue,
+  onChange,
+  onRemove,
+}: {
+  draft: ReturnType<typeof predicateToDraft>
+  attributeNames: string[]
+  attributeValues: string[]
+  accounts: Array<{value: string; label: string}>
+  onFocusValue: (field: string, kind: 'string' | 'int' | 'bool') => void
+  onChange: (predicate: ExplorePredicate | null) => void
+  onRemove: () => void
+}) {
+  const [field, setField] = useState(draft.field)
+  const [kind, setKind] = useState(draft.kind)
+  const [operator, setOperator] = useState(draft.operator)
+  const [valueKind, setValueKind] = useState(draft.valueKind)
+  const [value, setValue] = useState(draft.value)
+  useEffect(() => {
+    setField(draft.field)
+    setKind(draft.kind)
+    setOperator(draft.operator)
+    setValueKind(draft.valueKind)
+    setValue(draft.value)
+  }, [draft.field, draft.kind, draft.operator, draft.valueKind, draft.value])
+  const commit = (next: Partial<typeof draft>) => {
+    const merged = {field, kind, operator, valueKind, value, ...next}
+    setField(merged.field)
+    setKind(merged.kind)
+    setOperator(merged.operator)
+    setValueKind(merged.valueKind)
+    setValue(merged.value)
+    onChange(draftToPredicate(merged.field, merged.kind, merged.operator, merged.valueKind, merged.value))
+  }
+  return (
+    <div className="border-border flex flex-wrap items-center gap-2 rounded-md border p-2">
+      <Input
+        list="explore-attribute-names"
+        value={field}
+        onChangeText={(next) => commit({field: next})}
+        placeholder="field"
+        className="h-8 w-36 text-xs"
+      />
+      <datalist id="explore-attribute-names">
+        {[...attributeNames, '$space', '$path'].map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+      <select
+        className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+        value={kind}
+        onChange={(event) => commit({kind: event.target.value as typeof kind})}
+      >
+        <option value="comparison">Compare</option>
+        <option value="contains">Contains</option>
+        <option value="prefix">Starts with</option>
+        <option value="exists">Exists</option>
+        <option value="missing">Missing</option>
+      </select>
+      {kind === 'comparison' ? (
+        <select
+          className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+          value={operator}
+          onChange={(event) => commit({operator: event.target.value as typeof operator})}
+        >
+          <option>=</option>
+          <option>!=</option>
+          <option>&lt;</option>
+          <option>&lt;=</option>
+          <option>&gt;</option>
+          <option>&gt;=</option>
+        </select>
+      ) : null}
+      {kind !== 'exists' && kind !== 'missing' ? (
+        <select
+          className="border-input bg-background h-8 rounded-md border px-2 text-xs"
+          value={valueKind}
+          onChange={(event) => commit({valueKind: event.target.value as typeof valueKind})}
+        >
+          <option value="string">Text</option>
+          <option value="int">Integer</option>
+          <option value="bool">Boolean</option>
+        </select>
+      ) : null}
+      {kind !== 'exists' && kind !== 'missing' ? (
+        <Input
+          list="explore-attribute-values"
+          value={value}
+          onFocus={() => onFocusValue(field, valueKind)}
+          onChangeText={(next) => commit({value: next})}
+          placeholder="value"
+          className="h-8 min-w-32 flex-1 text-xs"
+        />
+      ) : null}
+      <datalist id="explore-attribute-values">
+        {[...attributeValues, ...accounts.map((account) => account.value)].map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
+      <Button size="iconSm" variant="ghost" aria-label="Remove condition" onClick={onRemove}>
+        ×
+      </Button>
     </div>
   )
 }
