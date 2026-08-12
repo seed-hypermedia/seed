@@ -973,7 +973,7 @@ function AuthoredToolDialog({
   }
 
   return (
-    <form className="flex max-h-[78vh] w-full max-w-3xl flex-col gap-4 overflow-y-auto" onSubmit={handleSave}>
+    <form className="flex max-h-[78vh] w-full max-w-3xl min-w-0 flex-col gap-4 overflow-y-auto" onSubmit={handleSave}>
       <div className="flex flex-col gap-1">
         <DialogTitle>{tool ? 'Edit authored tool' : 'Add authored tool'}</DialogTitle>
         <DialogDescription>
@@ -1178,7 +1178,7 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
     )
   }
   return (
-    <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
+    <div className="flex max-h-[70vh] min-w-0 flex-col gap-4 overflow-y-auto">
       <div className="flex flex-col gap-1">
         <DialogTitle>{meta.label}</DialogTitle>
         <SizableText size="xs" color="muted" className="font-mono">
@@ -1377,7 +1377,7 @@ function AgentToolsTab({
                 <Button
                   variant="ghost"
                   size="iconSm"
-                  className="opacity-0 group-hover/tool:opacity-100"
+                  className="opacity-0 group-hover/tool:opacity-100 max-sm:size-10 max-sm:opacity-100"
                   aria-label={`About ${group.title}`}
                   onClick={() => toolInfoDialog.open({toolName: group.infoTool ?? group.names[0]})}
                 >
@@ -2212,7 +2212,7 @@ function SessionListItem({
 }) {
   return (
     <div className="hover:bg-muted flex flex-col items-start rounded-lg px-3 py-2 transition-colors">
-      <button type="button" className="flex w-full items-center gap-3 text-left" onClick={onOpen}>
+      <button type="button" className="flex w-full items-center gap-3 text-left max-sm:min-h-10" onClick={onOpen}>
         <SessionStatusDot status={session.status} />
         <SizableText weight="bold" className="min-w-0 flex-1 truncate">
           {session.title || 'Untitled session'}

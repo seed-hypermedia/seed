@@ -121,6 +121,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="max-sm:min-h-10"
                       onClick={(event) => {
                         event.stopPropagation()
                         manageAccountsDialog.open({serverUrl, selectedAccountId})
@@ -132,6 +133,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                     <Button
                       variant="outline"
                       size="sm"
+                      className="max-sm:min-h-10"
                       onClick={(event) => {
                         event.stopPropagation()
                         providersDialog.open({serverUrl, selectedAccountId})
@@ -179,6 +181,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
             <Tooltip content={createAgentDisabledReason || 'Create Agent'}>
               <span>
                 <Button
+                  className="max-sm:min-h-10"
                   onClick={() => createAgentDialog.open({serverUrls, selectedAccountId})}
                   disabled={!!createAgentDisabledReason}
                 >

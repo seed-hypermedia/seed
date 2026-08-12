@@ -127,7 +127,9 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
       ) : null}
       {rawMarkdown ? (
         <Dialog open={showRawMarkdown} onOpenChange={setShowRawMarkdown}>
-          <DialogContent className="max-w-2xl">
+          {/* `w-full` is restated because passing a max-w overrides DialogContent's own; without a
+              width the dialog shrink-to-fits its longest line and spills past a phone viewport. */}
+          <DialogContent className="w-full max-w-2xl">
             <DialogHeader>
               <DialogTitle>Message details</DialogTitle>
               <DialogDescription>This is the exact markdown text represented by this message.</DialogDescription>

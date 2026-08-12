@@ -54,17 +54,28 @@ function AgentServerContent({routeServerUrl, selectedAccountId}: {routeServerUrl
           <div className="flex flex-wrap justify-end gap-2">
             <Tooltip content="Create Agent">
               <span>
-                <Button onClick={() => createAgentDialog.open({serverUrls: [serverUrl], selectedAccountId})}>
+                <Button
+                  className="max-sm:min-h-10"
+                  onClick={() => createAgentDialog.open({serverUrls: [serverUrl], selectedAccountId})}
+                >
                   <Bot className="size-4" />
                   Create Agent
                 </Button>
               </span>
             </Tooltip>
-            <Button variant="outline" onClick={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}>
+            <Button
+              variant="outline"
+              className="max-sm:min-h-10"
+              onClick={() => manageAccountsDialog.open({serverUrl, selectedAccountId})}
+            >
               <CircleUserRound className="size-4" />
               Accounts
             </Button>
-            <Button variant="outline" onClick={() => providersDialog.open({serverUrl, selectedAccountId})}>
+            <Button
+              variant="outline"
+              className="max-sm:min-h-10"
+              onClick={() => providersDialog.open({serverUrl, selectedAccountId})}
+            >
               <Settings className="size-4" />
               Providers
             </Button>

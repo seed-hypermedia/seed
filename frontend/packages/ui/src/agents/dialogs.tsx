@@ -77,7 +77,7 @@ export function ModelProvidersDialog({
   }
 
   return (
-    <div className="flex min-w-[460px] flex-col gap-5">
+    <div className="flex flex-col gap-5 sm:min-w-[460px]">
       <div className="flex flex-col gap-3">
         <DialogTitle>Model providers</DialogTitle>
         <DialogDescription>
@@ -154,7 +154,7 @@ export function AddModelProviderDialog({
   onClose: () => void
 }) {
   return (
-    <div className="flex min-w-[420px] flex-col gap-5">
+    <div className="flex flex-col gap-5 sm:min-w-[420px]">
       <div className="flex flex-col gap-3">
         <DialogTitle>Add model provider</DialogTitle>
         <DialogDescription>
@@ -978,7 +978,7 @@ export function CreateAgentDialog({
 
   if (needsProvider) {
     return (
-      <div className="flex min-w-[520px] flex-col gap-5">
+      <div className="flex flex-col gap-5 sm:min-w-[520px]">
         <DialogTitle>Create Agent</DialogTitle>
         {serverSelector}
         <div className="border-border bg-muted flex flex-col gap-4 rounded-lg border p-4">
@@ -994,7 +994,7 @@ export function CreateAgentDialog({
   }
 
   return (
-    <div className="flex min-w-[520px] flex-col gap-5">
+    <div className="flex flex-col gap-5 sm:min-w-[520px]">
       <div className="flex flex-col gap-3">
         <DialogTitle>Create Agent</DialogTitle>
         <DialogDescription>
@@ -1108,7 +1108,7 @@ export function EditAgentNameDialog({
 
   return (
     <form
-      className="flex min-w-[420px] flex-col gap-5"
+      className="flex flex-col gap-5 sm:min-w-[420px]"
       onSubmit={(event) => {
         event.preventDefault()
         if (saving) return

@@ -52,7 +52,10 @@ export function AgentBreadcrumb({
   const serverIsCurrent = !!serverUrl && !agentName && !items.length
   return (
     <nav className="text-muted-foreground flex items-center gap-1 text-xs" aria-label="Agent breadcrumb">
-      <button className="hover:text-foreground rounded px-1 py-0.5" onClick={() => navigate({key: 'agents'})}>
+      <button
+        className="hover:text-foreground rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
+        onClick={() => navigate({key: 'agents'})}
+      >
         Agents
       </button>
       {serverUrl ? (
@@ -62,7 +65,7 @@ export function AgentBreadcrumb({
             <span className="text-foreground max-w-48 truncate rounded px-1 py-0.5">{serverLabel}</span>
           ) : (
             <button
-              className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5"
+              className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
               onClick={() => navigate({key: 'agent-server', serverUrl})}
             >
               {serverLabel}
@@ -74,7 +77,7 @@ export function AgentBreadcrumb({
         <>
           <span>&gt;</span>
           <button
-            className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5"
+            className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
             onClick={() => agentId && navigate({key: 'agent', agentId, serverUrl})}
             disabled={!agentId}
           >
@@ -87,7 +90,7 @@ export function AgentBreadcrumb({
           <span>&gt;</span>
           {item.route ? (
             <button
-              className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5"
+              className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
               onClick={() => navigate(item.route!)}
             >
               {item.label}
@@ -248,7 +251,7 @@ export function AgentHeader({
         items={breadcrumbItems || [{label: activeTabLabel}]}
       />
       <section className="flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 sm:flex-nowrap">
           <div className="flex min-w-0 flex-col gap-1">
             {onEditName ? (
               <button
@@ -301,12 +304,12 @@ export function AgentHeader({
             ) : null}
             {agent ? <ReasoningBadge level={agent.definition.reasoningLevel} /> : null}
             {activeTab === 'sessions' && onCreateSession ? (
-              <Button onClick={onCreateSession} disabled={creatingSession}>
+              <Button className="max-sm:min-h-10" onClick={onCreateSession} disabled={creatingSession}>
                 <MessageSquarePlus className="mr-2 size-4" /> New session
               </Button>
             ) : null}
             {activeTab === 'triggers' && onCreateTrigger ? (
-              <Button onClick={onCreateTrigger} disabled={!canCreateTrigger}>
+              <Button className="max-sm:min-h-10" onClick={onCreateTrigger} disabled={!canCreateTrigger}>
                 <GitBranch className="mr-2 size-4" /> New trigger
               </Button>
             ) : null}
@@ -357,7 +360,7 @@ export function AgentHeader({
                 icon={tab.icon}
                 count={tab.count}
                 showLabel={showLabels}
-                className="flex-none"
+                className="flex-none max-sm:min-h-10"
               />
             ))}
           </div>

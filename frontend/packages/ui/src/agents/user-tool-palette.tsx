@@ -93,7 +93,13 @@ export function UserToolPalette({
       }}
     >
       <PopoverTrigger asChild>
-        <Button size="sm" variant="ghost" disabled={disabled} title="Run a tool yourself — the agent sees the result">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="max-sm:size-10"
+          disabled={disabled}
+          title="Run a tool yourself — the agent sees the result"
+        >
           <Wrench className="size-3.5" />
         </Button>
       </PopoverTrigger>

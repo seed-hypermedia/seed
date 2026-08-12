@@ -267,8 +267,8 @@ export function AgentMemoryTab({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex flex-col">
+      <div className="flex flex-wrap items-start justify-between gap-2 sm:flex-nowrap sm:items-center">
+        <div className="flex min-w-0 flex-col">
           <SizableText weight="bold">Memory</SizableText>
           <SizableText size="xs" color="muted">
             Private files this agent reads and writes across sessions.{' '}
@@ -294,6 +294,7 @@ export function AgentMemoryTab({
             <Button
               variant="outline"
               size="sm"
+              className="max-sm:min-h-10"
               onClick={() => uploadInputRef.current?.click()}
               disabled={writeFile.isLoading}
             >
@@ -302,6 +303,7 @@ export function AgentMemoryTab({
             <Button
               variant="outline"
               size="sm"
+              className="max-sm:min-h-10"
               onClick={() => setAddPanel((current) => (current === 'from-url' ? 'none' : 'from-url'))}
             >
               <Globe className="mr-2 size-4" /> From URL
@@ -309,6 +311,7 @@ export function AgentMemoryTab({
             <Button
               variant="outline"
               size="sm"
+              className="max-sm:min-h-10"
               onClick={() => setAddPanel((current) => (current === 'new-file' ? 'none' : 'new-file'))}
             >
               <FilePlus className="mr-2 size-4" /> New file
@@ -391,9 +394,9 @@ export function AgentMemoryTab({
         </form>
       ) : null}
 
-      <div className="border-border bg-card flex min-h-0 flex-1 overflow-hidden rounded-xl border">
+      <div className="border-border bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border sm:flex-row">
         <div
-          className={`border-border flex w-64 flex-none flex-col overflow-y-auto border-r p-2 ${
+          className={`border-border flex max-h-56 w-full flex-none flex-col overflow-y-auto border-b p-2 sm:max-h-none sm:w-64 sm:border-r sm:border-b-0 ${
             dropTarget === '' ? 'ring-primary/50 ring-2 ring-inset' : ''
           }`}
           onDragOver={(event) => {
@@ -712,7 +715,7 @@ function MemoryEntryRow({
       {entry.type === 'dir' ? (
         <button
           type="button"
-          className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left"
+          className="text-muted-foreground flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left max-sm:min-h-10"
           onClick={onToggle}
           aria-expanded={expanded}
           aria-label={`${expanded ? 'Collapse' : 'Expand'} ${entry.path}`}
@@ -722,7 +725,11 @@ function MemoryEntryRow({
           <span className="truncate font-mono text-xs">{name}</span>
         </button>
       ) : (
-        <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left" onClick={onSelect}>
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5 text-left max-sm:min-h-10"
+          onClick={onSelect}
+        >
           <FileText className="text-muted-foreground size-3.5 flex-none" />
           <span className="truncate font-mono text-xs">{name}</span>
           <span className="text-muted-foreground/70 ml-auto flex-none pr-1 text-[10px]">{formatBytes(entry.size)}</span>

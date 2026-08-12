@@ -66,7 +66,7 @@ export function SubSessionsDisclosure({
       <button
         type="button"
         aria-expanded={expanded}
-        className={`text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start rounded px-1 py-0.5 ${textClass}`}
+        className={`text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start rounded px-1 py-0.5 max-sm:min-h-10 ${textClass}`}
         onClick={(event) => {
           event.stopPropagation()
           setExpanded((current) => !current)
