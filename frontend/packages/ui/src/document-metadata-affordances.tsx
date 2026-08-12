@@ -1,7 +1,8 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {FileText, ImagePlus, Smile} from 'lucide-react'
+import {FileText, ImagePlus, Plus, Smile} from 'lucide-react'
 import {ChangeEvent, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {cn} from './utils'
 
 type MetadataAffordanceKey = 'icon' | 'cover'
@@ -18,6 +19,7 @@ export type DocumentMetadataAffordanceButtonsProps = {
   keepSummaryButtonVisible?: boolean
   hideSummaryButton?: boolean
   alwaysVisibleOnMobile?: boolean
+  mobileOnly?: boolean
 }
 
 export type EditableDocumentMetadataFieldsProps = {
@@ -33,6 +35,8 @@ export type EditableDocumentMetadataFieldsProps = {
   focusTitleOnMount?: boolean
   onCancelEdit?: () => void
   onSummaryEnter?: () => void
+  summaryRequested: boolean
+  onSummaryRequestedChange: (requested: boolean) => void
 }
 
 export type HomeDocumentMetadataAffordanceBarProps = {
@@ -60,9 +64,11 @@ export function DocumentMetadataAffordanceButtons({
   keepSummaryButtonVisible = false,
   hideSummaryButton = false,
   alwaysVisibleOnMobile = false,
+  mobileOnly = false,
 }: DocumentMetadataAffordanceButtonsProps) {
   const iconInputRef = useRef<HTMLInputElement>(null)
   const coverInputRef = useRef<HTMLInputElement>(null)
+  const summaryMenuRequestedRef = useRef(false)
   const [uploading, setUploading] = useState<MetadataAffordanceKey | null>(null)
   const hasIcon = !!metadata?.icon
   const hasCover = !!metadata?.cover
@@ -97,6 +103,89 @@ export function DocumentMetadataAffordanceButtons({
 
   if (!showIconButton && !showSummaryButton && !showCoverButton) {
     return null
+  }
+
+  if (mobileOnly) {
+    const menuItems: (MenuItemType | null)[] = [
+      showIconButton
+        ? {
+            key: 'icon',
+            label: 'Add icon',
+            icon: <Smile className="size-3.5" />,
+            onClick: () => iconInputRef.current?.click(),
+          }
+        : null,
+      showSummaryButton
+        ? {
+            key: 'summary',
+            label: 'Add Summary',
+            icon: <FileText className="size-3.5" />,
+            onClick: () => {
+              summaryMenuRequestedRef.current = true
+              onBeforeMetadataChange?.()
+            },
+          }
+        : null,
+      showCoverButton
+        ? {
+            key: 'cover',
+            label: 'Add cover image',
+            icon: <ImagePlus className="size-3.5" />,
+            onClick: () => coverInputRef.current?.click(),
+          }
+        : null,
+    ]
+
+    return (
+      <div className="md:hidden">
+        {showIconButton ? (
+          <input
+            ref={iconInputRef}
+            type="file"
+            accept="image/*"
+            aria-label="Choose document icon"
+            className="sr-only"
+            tabIndex={-1}
+            onChange={(event) => void handleFileChange('icon', event)}
+          />
+        ) : null}
+        {showCoverButton ? (
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            aria-label="Choose document cover image"
+            className="sr-only"
+            tabIndex={-1}
+            onChange={(event) => void handleFileChange('cover', event)}
+          />
+        ) : null}
+        <OptionsDropdown
+          menuItems={menuItems}
+          align="end"
+          side="bottom"
+          button={
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              className="text-muted-foreground hover:text-foreground h-7 shrink-0 rounded-full px-2 text-xs font-medium opacity-80 hover:bg-black/5 hover:opacity-100 active:scale-[0.98] dark:hover:bg-white/10"
+              aria-label="Add document metadata"
+            >
+              <Plus className="size-3.5" />
+              <span>Add</span>
+            </Button>
+          }
+          onCloseAutoFocus={(event) => {
+            if (summaryMenuRequestedRef.current) {
+              event.preventDefault()
+              onRequestSummary()
+            }
+            summaryMenuRequestedRef.current = false
+          }}
+        />
+      </div>
+    )
   }
 
   return (
@@ -184,11 +273,12 @@ export function EditableDocumentMetadataFields({
   focusTitleOnMount,
   onCancelEdit,
   onSummaryEnter,
+  summaryRequested,
+  onSummaryRequestedChange,
 }: EditableDocumentMetadataFieldsProps) {
   const titleRef = useRef<HTMLTextAreaElement | null>(null)
   const summaryRef = useRef<HTMLTextAreaElement | null>(null)
   const [hovered, setHovered] = useState(false)
-  const [summaryRequested, setSummaryRequested] = useState(false)
   const [summaryFocused, setSummaryFocused] = useState(false)
   const summaryText = summary ?? ''
   const showSummaryInput = !!summaryText || summaryRequested || summaryFocused
@@ -208,6 +298,17 @@ export function EditableDocumentMetadataFields({
   useEffect(() => {
     if (titleRef.current) resizeTextarea(titleRef.current)
   }, [name])
+
+  useEffect(() => {
+    const resizeTextareas = () => {
+      if (titleRef.current) resizeTextarea(titleRef.current)
+      if (summaryRef.current) resizeTextarea(summaryRef.current)
+    }
+
+    resizeTextareas()
+    window.addEventListener('resize', resizeTextareas)
+    return () => window.removeEventListener('resize', resizeTextareas)
+  }, [])
 
   useEffect(() => {
     if (focusTitleOnMount) titleRef.current?.focus()
@@ -237,7 +338,7 @@ export function EditableDocumentMetadataFields({
   }, [summaryRequested])
 
   function requestSummary() {
-    setSummaryRequested(true)
+    onSummaryRequestedChange(true)
   }
 
   return (
@@ -250,7 +351,7 @@ export function EditableDocumentMetadataFields({
         metadata={metadata}
         visible={showAffordances}
         fileUpload={fileUpload}
-        className="-ml-2"
+        className="-ml-2 max-md:hidden"
         onBeforeMetadataChange={onBeginEdit}
         onMetadata={onMetadata}
         onRequestSummary={requestSummary}
@@ -263,7 +364,7 @@ export function EditableDocumentMetadataFields({
         rows={1}
         aria-label="Document title"
         className={cn(
-          'w-full resize-none border-none border-transparent bg-transparent text-4xl font-bold shadow-none ring-0 ring-transparent outline-none focus:ring-0',
+          'w-full resize-none border-none border-transparent bg-transparent text-2xl font-bold shadow-none ring-0 ring-transparent outline-none focus:ring-0 max-md:leading-tight md:text-4xl',
           titleClassName,
         )}
         value={name}
@@ -304,8 +405,15 @@ export function EditableDocumentMetadataFields({
             resizeTextarea(event.currentTarget)
             onMetadata({summary: nextSummary})
           }}
-          onBlur={() => {
-            setSummaryRequested(false)
+          onBlur={(event) => {
+            const relatedTarget = event.relatedTarget
+            if (
+              relatedTarget instanceof Element &&
+              relatedTarget.closest('[role="menu"], [data-radix-menu-content], [data-radix-popover-content]')
+            ) {
+              return
+            }
+            onSummaryRequestedChange(false)
             setSummaryFocused(false)
           }}
           onKeyDown={(event) => {

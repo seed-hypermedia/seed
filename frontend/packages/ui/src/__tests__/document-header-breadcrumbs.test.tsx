@@ -170,7 +170,12 @@ describe('DocumentHeader Breadcrumbs', () => {
         />,
       )
 
-      expect(Array.from(container.querySelectorAll('a')).filter((link) => link.textContent === 'alice')).toHaveLength(1)
+      const desktopByline = Array.from(container.querySelectorAll('div')).find(
+        (element) => element.className.includes('hidden') && element.className.includes('md:flex'),
+      )
+      expect(
+        Array.from(desktopByline?.querySelectorAll('a') ?? []).filter((link) => link.textContent === 'alice'),
+      ).toHaveLength(1)
       expect(errorSpy).not.toHaveBeenCalled()
     } finally {
       errorSpy.mockRestore()
@@ -198,5 +203,32 @@ describe('DocumentHeader Breadcrumbs', () => {
     })
 
     expect(onRemoveIcon).toHaveBeenCalledOnce()
+  })
+
+  it('renders the optional mobile byline action without adding one to read-only headers', () => {
+    const docId = hmId('site', {path: ['doc']})
+    renderWithProvider(
+      <DocumentHeader
+        docId={docId}
+        docMetadata={{name: 'Doc'} as any}
+        authors={[]}
+        updateTime={null}
+        mobileBylineAction={<button type="button">Add</button>}
+      />,
+    )
+    expect(container.querySelector('button')?.textContent).toBe('Add')
+
+    act(() => {
+      root.render(
+        <UniversalAppProvider
+          openRoute={vi.fn()}
+          openUrl={vi.fn()}
+          universalClient={{request: vi.fn(), publish: vi.fn()} as any}
+        >
+          <DocumentHeader docId={docId} docMetadata={{name: 'Doc'} as any} authors={[]} updateTime={null} />
+        </UniversalAppProvider>,
+      )
+    })
+    expect(container.querySelector('button')).toBeNull()
   })
 })
