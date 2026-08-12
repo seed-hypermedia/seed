@@ -214,10 +214,13 @@ export function assembleExploreResults(input: {
   intersectionTruncated?: boolean
   intersectionPending?: boolean
 }): ExploreAssembly {
+  const selection = exploreStreamSelection(input.parsed, input.context)
+  const documentPages = selection.documents ? input.documentPages : undefined
+  const textPages = selection.text ? input.textPages : undefined
   const compilation = compileExploreQuery(input.parsed, input.context)
   const documentResults = new Map<string, HMExploreResult>()
   const documentIds = new Set<string>()
-  for (const page of input.documentPages || []) {
+  for (const page of documentPages || []) {
     for (const rawDocument of page.documents) {
       const document = rawDocument
       const result = documentInfoToExploreResultDocument(document, matchedFields(document, input.parsed))
@@ -227,19 +230,20 @@ export function assembleExploreResults(input: {
   }
 
   const textResults = new Map<string, HMExploreResult>()
-  for (const page of input.textPages || []) {
+  for (const page of textPages || []) {
     for (const entity of page.entities) {
       const result = searchResultItemToExploreResult(entity)
       if (!result) continue
       if (compilation.requestedTypes.length && !compilation.requestedTypes.includes(result.type)) continue
       if (compilation.excludedTypes.includes(result.type)) continue
-      if (input.intersectionPending || (documentPagesActive(input) && !documentIds.has(parentKey(result)))) continue
+      // Text hits only survive an intersection once the document side has loaded and contains their parent.
+      if (selection.intersection && (input.intersectionPending || !documentIds.has(parentKey(result)))) continue
       textResults.set(resultKey(result), result)
     }
   }
 
   const combined = new Map<string, HMExploreResult>()
-  const intersection = compilation.textTerms.length > 0 && compilation.documentPredicates.length > 0
+  const intersection = selection.intersection
   if (!intersection) {
     for (const result of Array.from(documentResults.values())) combined.set(resultKey(result), result)
   }
@@ -278,15 +282,11 @@ export function assembleExploreResults(input: {
     comments,
     counts: {all: results.length, document: documents.length, block: blocks.length, comment: comments.length},
     textTerms: compilation.textTerms.map((term) => (term.phrase ? `"${term.value}"` : term.value)),
-    diagnostics: input.parsed.diagnostics,
+    diagnostics: input.parsed.diagnostics.concat(compilation.diagnostics),
     intersectionTruncated: input.intersectionTruncated ?? false,
-    intersectionPending: input.intersectionPending ?? false,
+    intersectionPending: input.intersectionPending ?? (selection.intersection && !documentPages),
     blocksByDocument,
   }
-}
-
-function documentPagesActive(input: {documentPages?: ExploreDocumentPage[]}) {
-  return Boolean(input.documentPages)
 }
 
 function textPageFromResponse(response: {entities: SearchResultItem[]; nextPageToken?: string}): ExploreTextPage {
@@ -362,7 +362,7 @@ export function useExploreResults(
   })
 
   const textQuery = useInfiniteQuery({
-    queryKey: [queryKeys.ENTITY, 'explore-text', compilation.textTerms, context, compilation.requestedTypes],
+    queryKey: [queryKeys.ENTITY, 'explore-text', parsed.ast, context, compilation.requestedTypes],
     enabled: shouldFetchText,
     queryFn: async ({pageParam = '', signal}: {pageParam?: string; signal?: AbortSignal}) => {
       const response = await client.request(
@@ -384,37 +384,42 @@ export function useExploreResults(
     getNextPageParam: (page) => page.nextPageToken || undefined,
   })
 
-  const documentPages = documentQuery.data?.pages
-  const textPages = textQuery.data?.pages
+  const selection = exploreStreamSelection(parsed, context)
+  const documentPages = selection.documents ? documentQuery.data?.pages : undefined
+  const textPages = selection.text ? textQuery.data?.pages : undefined
   const assembly = assembleExploreResults({
     parsed,
     context,
     documentPages,
     textPages,
     intersectionTruncated: Boolean(documentPages?.some((page) => page.truncatedByCap)),
-    intersectionPending: hasText && hasDocuments && !documentPages,
+    intersectionPending: selection.intersection && !documentPages,
   })
   const loadMore = async () => {
     await Promise.all([
-      documentQuery.hasNextPage ? documentQuery.fetchNextPage() : undefined,
-      textQuery.hasNextPage ? textQuery.fetchNextPage() : undefined,
+      selection.documents && documentQuery.hasNextPage ? documentQuery.fetchNextPage() : undefined,
+      selection.text && textQuery.hasNextPage ? textQuery.fetchNextPage() : undefined,
     ])
   }
   return {
     ...assembly,
     documentStream: {
-      isLoading: documentQuery.isLoading,
-      error: documentQuery.error,
-      hasMore: Boolean(documentQuery.hasNextPage),
+      isLoading: selection.documents && documentQuery.isLoading,
+      error: selection.documents ? documentQuery.error : null,
+      hasMore: selection.documents && Boolean(documentQuery.hasNextPage),
     },
     textStream: {
-      isLoading: textQuery.isLoading,
-      error: textQuery.error,
-      hasMore: Boolean(textQuery.hasNextPage),
+      isLoading: selection.text && textQuery.isLoading,
+      error: selection.text ? textQuery.error : null,
+      hasMore: selection.text && Boolean(textQuery.hasNextPage),
     },
-    isLoading: documentQuery.isLoading || textQuery.isLoading,
-    error: documentQuery.error || textQuery.error || null,
+    isLoading: (selection.documents && documentQuery.isLoading) || (selection.text && textQuery.isLoading) || false,
+    isRefetching:
+      (selection.documents && documentQuery.isFetching && !documentQuery.isLoading) ||
+      (selection.text && textQuery.isFetching && !textQuery.isLoading) ||
+      false,
+    error: (selection.documents ? documentQuery.error : null) || (selection.text ? textQuery.error : null) || null,
     loadMore,
-    hasMore: Boolean(documentQuery.hasNextPage || textQuery.hasNextPage),
+    hasMore: Boolean((selection.documents && documentQuery.hasNextPage) || (selection.text && textQuery.hasNextPage)),
   }
 }
