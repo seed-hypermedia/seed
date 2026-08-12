@@ -21,12 +21,16 @@ import * as activityTriggers from '@/activity-triggers'
 import * as agentMemory from '@/agent-memory'
 import * as sessionAttachments from '@/session-attachments'
 import {
+  buildLambdaProgram,
   CodeExecError,
   createCodeExecutor,
   defaultCodeExecConfig,
+  parseLambdaResult,
   type CodeExecAvailability,
   type CodeExecConfig,
+  type CodeExecResult,
   type CodeExecutor,
+  type LambdaRuntime,
 } from '@/code-exec'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
@@ -6088,7 +6092,8 @@ function toolsListing(context: AgentServicePiToolContext): Record<string, unknow
     '## Callable with the call verb',
     ...rows.map((row) => `- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`),
     '',
-    'Write a document to ~/tools/<name> ({description, input, output?, source, runtime?}) to author a new tool.',
+    'Write a document to ~/tools/<name> ({description, input, output?, source, runtime?}) to author a new tool, then call it by name.',
+    'Its source runs in the execute sandbox and receives the validated input: TypeScript (default) `export default (input) => result`; python `def main(input): return result`. Whatever it returns is the tool result; anything it prints comes back as logs.',
   ]
   return {
     summary: `${verbs.length} verbs and ${rows.length} callable tools.`,
@@ -6285,7 +6290,7 @@ export async function executeReadVerb(
       name,
       cid: row.cid,
       kind: row.doc.kind,
-      markdown: toolDocs.toolDocumentContractMarkdown(row),
+      markdown: contractMarkdownForThisServer(context, row),
     }
   }
 
@@ -6389,7 +6394,7 @@ export async function executeWriteVerb(
       })
       context.onMemoryChange()
       return {
-        summary: `Saved tool ${name} (${row.cid}). It becomes callable once lambda execution ships; its contract is live in ~/tools now.`,
+        summary: `Saved tool ${name} (${row.cid}). Call it by name with the call verb; its contract is live in ~/tools now.`,
         name,
         cid: row.cid,
         kind: row.doc.kind,
@@ -6620,6 +6625,153 @@ export async function executeWriteVerb(
   )
 }
 
+/**
+ * The execute contract as THIS server can honor it: the runtime enum lists only the runtimes it
+ * can actually run, so the model never reads an option that would fail inside the sandbox (the
+ * `ts` runtime needs an image with bun, which is an operator opt-in).
+ */
+function executeToolForRuntimes(runtimes: readonly string[]): SeedToolMetadata {
+  const base = callableToolRegistry.execute as SeedToolMetadata
+  const runtimeProperty = base.inputSchema.properties?.runtime
+  if (!runtimeProperty?.enum) return base
+  const offered = runtimeProperty.enum.filter((value) => runtimes.includes(value))
+  if (offered.length === 0 || offered.length === runtimeProperty.enum.length) return base
+  return {
+    ...base,
+    inputSchema: {
+      ...base.inputSchema,
+      properties: {...base.inputSchema.properties, runtime: {...runtimeProperty, enum: offered}},
+    },
+  }
+}
+
+/**
+ * A stored contract as THIS server can honor it.
+ *
+ * The document is the shipped contract, identical everywhere, which is what its CID means. The
+ * execute tool is the one place where a server can offer less than the document promises (the `ts`
+ * runtime needs an image with bun), so a read of it shows the narrowed enum and says so — the
+ * contract a model reads is then exactly the one it can call.
+ */
+function contractMarkdownForThisServer(context: AgentServicePiToolContext, row: toolDocs.ToolDocumentRow): string {
+  if (row.doc.name !== callableToolRegistry.execute.name) return toolDocs.toolDocumentContractMarkdown(row)
+  const offered = executeToolForRuntimes(context.codeExec.runtimes)
+  if (offered === (callableToolRegistry.execute as SeedToolMetadata)) {
+    return toolDocs.toolDocumentContractMarkdown(row)
+  }
+  const narrowed = {...row, doc: {...row.doc, input: offered.inputSchema}}
+  return `${toolDocs.toolDocumentContractMarkdown(narrowed)}\n\n> This server runs ${context.codeExec.runtimes.join(
+    ', ',
+  )}; the runtime list above is narrowed to what it can actually run.`
+}
+
+/**
+ * Runs an authored lambda tool: its stored source, executed in the same sandbox the execute tool
+ * uses, with the call's validated input handed in and its return value handed back. See
+ * tool-documents.ts for the ABI, and code-exec.ts for how the program is assembled.
+ *
+ * Failures are thrown rather than returned: a lambda that crashes, returns nothing, or returns
+ * something its own output schema rejects is a broken tool, and the model that authored it is the
+ * one who can fix it — so it gets the error, not a plausible-looking empty result.
+ */
+async function executeLambdaTool(
+  context: AgentServicePiToolContext,
+  row: toolDocs.ToolDocumentRow,
+  rawInput: unknown,
+  toolCallId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const doc = row.doc
+  const toolInput = isRecord(rawInput) ? rawInput : {}
+  const validationErrors = validateJsonSchemaValue(doc.input, toolInput)
+  if (validationErrors.length > 0) {
+    // Same touch-expand contract as builtins: a miss answers with the contract, not an error.
+    return {
+      summary: `Input for ${doc.name} did not match its contract — here it is; call again with valid input.`,
+      contract: toolDocs.toolDocumentContractMarkdown(row),
+      validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
+    }
+  }
+  const source = typeof doc.source === 'string' ? doc.source : ''
+  if (!source.trim()) throw new APIError(400, `Tool ${doc.name} has no source to run`)
+  const runtime: LambdaRuntime = doc.runtime === 'python' ? 'python' : 'ts'
+  // What the HOST can do comes first: when the server cannot run this runtime at all, saying the
+  // owner should grant something would send the user off to fix the wrong thing.
+  if (!context.codeExec.runtimes.includes(runtime)) {
+    throw new APIError(
+      400,
+      `Tool ${doc.name} is written in ${doc.runtime ?? 'typescript'}, which this server cannot run: ${
+        runtime === 'ts'
+          ? 'TypeScript tools need a sandbox image with bun on PATH.'
+          : 'code execution is unavailable here.'
+      }`,
+    )
+  }
+  // An authored tool is code in the sandbox, so it rides on the SAME grant the execute tool needs.
+  // Without this, writing a lambda would be a way around an owner who turned code execution off.
+  if (!context.callableTools.includes(callableToolRegistry.execute.name)) {
+    throw new APIError(
+      403,
+      `Tool ${doc.name} runs code in the sandbox, which is not enabled for this agent. Its owner can grant code execution in the agent's tool settings.`,
+    )
+  }
+
+  let execution: CodeExecResult
+  try {
+    execution = await context.codeExec.execute({
+      stateDir: context.stateDir,
+      runtime,
+      code: buildLambdaProgram(runtime, source, toolInput),
+      onProgress: (progress) =>
+        context.onToolProgress(seedVerbRegistry.call.name, {
+          toolCallId,
+          detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${doc.name}…`,
+          outputTail: progress.outputTail,
+        }),
+    })
+  } catch (error) {
+    if (error instanceof CodeExecError) throw new APIError(error.status, error.message)
+    throw error
+  }
+  if (execution.changedFiles.length) context.onMemoryChange()
+
+  const {result, hasResult, logs} = parseLambdaResult(execution.stdout)
+  if (!execution.success) {
+    const detail = (execution.stderr.trim() || logs || '').split('\n').slice(-8).join('\n')
+    throw new APIError(400, `Tool ${doc.name} failed (exit ${execution.exitCode})${detail ? `:\n${detail}` : ''}`)
+  }
+  if (!hasResult) {
+    throw new APIError(
+      400,
+      `Tool ${doc.name} finished without returning a value. ${
+        runtime === 'python'
+          ? 'Its main(input) function must return the result.'
+          : 'Its default export must return the result.'
+      }`,
+    )
+  }
+  if (doc.output) {
+    const outputErrors = validateJsonSchemaValue(doc.output, result)
+    if (outputErrors.length > 0) {
+      throw new APIError(
+        400,
+        `Tool ${doc.name} returned a value its own output schema rejects: ${outputErrors
+          .map((error) => `${error.path}: ${error.message}`)
+          .join('; ')}`,
+      )
+    }
+  }
+  const changeSummary = execution.changedFiles.length
+    ? `, ${execution.changedFiles.length} memory file${execution.changedFiles.length === 1 ? '' : 's'} changed`
+    : ''
+  return {
+    summary: `Ran ${doc.name} (${execution.durationMs}ms${changeSummary}).`,
+    result,
+    ...(logs ? {logs} : {}),
+    ...(execution.changedFiles.length ? {changedFiles: execution.changedFiles} : {}),
+    durationMs: execution.durationMs,
+  }
+}
+
 /** Executes the call verb: contract-on-miss dispatch into the callable tool set. */
 export async function executeCallVerb(
   context: AgentServicePiToolContext,
@@ -6628,16 +6780,17 @@ export async function executeCallVerb(
 ): Promise<Record<string, unknown>> {
   const input = isRecord(raw) ? raw : {}
   const toolName = typeof input.tool === 'string' ? normalizeSeedToolName(input.tool.trim()) : ''
-  const tool = toolName ? getSeedTool(toolName) : undefined
+  const registryTool = toolName ? getSeedTool(toolName) : undefined
+  const tool =
+    registryTool && toolName === callableToolRegistry.execute.name
+      ? executeToolForRuntimes(context.codeExec.runtimes)
+      : registryTool
   if (!tool || !context.callableTools.includes(toolName)) {
     const lambda = toolName
       ? toolDocs.getToolDocument(context.db, context.accountId, context.agentId, toolName)
       : undefined
-    if (lambda && lambda.doc.kind === 'lambda') {
-      throw new APIError(
-        400,
-        `Tool ${toolName} is an authored lambda; lambda execution is not enabled yet on this server. Its contract is at ~/tools/${toolName}.`,
-      )
+    if (lambda && lambda.doc.kind === 'lambda' && lambda.enabled) {
+      return executeLambdaTool(context, lambda, input.input, toolCallId)
     }
     return {
       ...toolsListing(context),
@@ -6667,7 +6820,7 @@ export async function executeCallVerb(
       try {
         result = await context.codeExec.execute({
           stateDir: context.stateDir,
-          language: toolInput.runtime as never,
+          runtime: toolInput.runtime as never,
           code: typeof toolInput.code === 'string' ? toolInput.code : '',
           timeoutSecs: typeof toolInput.timeout_secs === 'number' ? toolInput.timeout_secs : undefined,
           onProgress: (progress) =>
@@ -6699,8 +6852,11 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
   const promoted = (context.expandedCallables ?? [])
     .filter((name) => context.callableTools.includes(name))
     .flatMap((name) => {
-      const tool = getSeedTool(name)
-      if (!tool) return []
+      const registryTool = getSeedTool(name)
+      if (!registryTool) return []
+      // The promoted schema must say what this server can run, exactly like the call verb's does.
+      const tool =
+        name === callableToolRegistry.execute.name ? executeToolForRuntimes(context.codeExec.runtimes) : registryTool
       return [
         defineSeedPiTool(tool, (params, toolCallId) =>
           executeCallVerb(context, {tool: name, input: params}, toolCallId),

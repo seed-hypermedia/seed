@@ -1,7 +1,8 @@
 /**
  * Tools as documents: every tool an agent holds is a content-addressed document in its Space,
  * stored per agent in `tool_documents`. Builtins are documents whose implementation is a runtime
- * binding; lambdas carry TypeScript/Python source (callable via the execute sandbox from M4).
+ * binding; lambdas carry TypeScript/Python source, run in the execute sandbox when called by name
+ * through the `call` verb (see the ABI on {@link ToolDocument}).
  * A document's CID is computed over its canonical DAG-CBOR encoding — the same encoding the
  * hypermedia network uses for blobs — so "what exactly can this agent run" is always answerable
  * and publishing a tool to the network later is publishing bytes that already exist.
@@ -9,9 +10,40 @@
 import type {Database} from 'bun:sqlite'
 import * as blobs from '@shm/shared/blobs'
 import * as dagCbor from '@shm/shared/cbor'
-import {callableToolRegistry, seedVerbRegistry, type JsonSchema, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
+import {
+  callableToolRegistry,
+  seedVerbRegistry,
+  type JsonSchema,
+  type SeedToolMetadata,
+} from '@seed-hypermedia/agents-protocol'
 import {validateJsonSchemaShape} from '@/json-schema'
 
+/**
+ * The lambda ABI — what an authored tool's source must look like, and how a call reaches it.
+ *
+ * A lambda runs in the same sandbox the `execute` tool uses: a fresh microVM per call, with the
+ * agent's memory mounted at `/workspace` (the working directory), so a tool can read and write the
+ * agent's own files. It receives ONE argument — the call input, already validated against the
+ * document's `input` schema — and its RETURN VALUE is the tool's result, validated against the
+ * `output` schema when the document declares one.
+ *
+ * TypeScript (`runtime: 'typescript'`), run with bun:
+ *
+ *     export default async function (input: {city: string}) {
+ *       const res = await fetch(`https://api.example.com/weather?q=${input.city}`)
+ *       return {tempC: (await res.json()).temp_c}
+ *     }
+ *
+ * Python (`runtime: 'python'`), run with the python interpreter:
+ *
+ *     def main(input):
+ *         return {"tempC": lookup(input["city"])}
+ *
+ * The value comes back on a marked stdout line (see LAMBDA_RESULT_PREFIX in code-exec.ts), which
+ * leaves ordinary `console.log`/`print` free for logging — those lines return to the caller as
+ * `logs`. Anything else is a failure the caller surfaces: a non-zero exit, no returned value, or a
+ * value the tool's own output schema rejects.
+ */
 export type ToolDocument = {
   name: string
   kind: 'builtin' | 'lambda'
@@ -21,7 +53,7 @@ export type ToolDocument = {
   description: string
   input: JsonSchema
   output?: JsonSchema
-  /** Lambda source (TypeScript or Python), run in the execute sandbox. */
+  /** Lambda source, shaped per the ABI above and run in the execute sandbox. */
   source?: string
   /** Lambda source language; defaults to typescript. */
   runtime?: 'typescript' | 'python'
@@ -248,7 +280,17 @@ export function toolDocumentContractMarkdown(row: ToolDocumentRow): string {
     parts.push('', '## Output schema', '```json', JSON.stringify(doc.output, null, 2), '```')
   }
   if (doc.source) {
-    parts.push('', '## Source', '```' + (doc.runtime === 'python' ? 'python' : 'ts'), doc.source, '```')
+    parts.push(
+      '',
+      doc.runtime === 'python'
+        ? '> Runs in the execute sandbox: `main(input)` receives the validated input and returns the result.'
+        : '> Runs in the execute sandbox: the default export receives the validated input and returns the result.',
+      '',
+      '## Source',
+      '```' + (doc.runtime === 'python' ? 'python' : 'ts'),
+      doc.source,
+      '```',
+    )
   }
   return parts.join('\n')
 }

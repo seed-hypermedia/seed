@@ -8,6 +8,8 @@ import {unpackHmId} from '@seed-hypermedia/client'
 import * as apisvc from '@/api-service'
 import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiToolContext} from '@/api-service'
 import {encode as cborEncode} from '@/cbor'
+import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
+import * as toolDocs from '@/tool-documents'
 import * as sqlite from '@/sqlite'
 import type {CodeExecutor} from '@/code-exec'
 
@@ -37,7 +39,8 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     fs.rmSync(dataDir, {recursive: true, force: true})
   })
   const fakeExec: CodeExecutor = {
-    availability: async () => ({available: true}),
+    runtimes: ['ts', 'python', 'shell'],
+    availability: async () => ({available: true, runtimes: ['ts', 'python', 'shell']}),
     execute: async () => ({
       exitCode: 0,
       success: true,
@@ -100,6 +103,15 @@ describe('read verb', () => {
     const contract = await executeReadVerb(context, {address: '~/tools/web_search'})
     expect(String(contract.markdown)).toContain('## Input schema')
     expect(String(contract.markdown)).toContain('web_search')
+
+    // The execute contract is the one a server can honor only partly, so reading it shows the
+    // runtimes THIS server offers rather than everything the shipped document lists.
+    const narrowed = await executeReadVerb(makeContext({codeExec: {runtimes: ['python', 'shell']} as never}), {
+      address: '~/tools/execute',
+    })
+    expect(String(narrowed.markdown)).toContain('"python"')
+    expect(String(narrowed.markdown)).not.toContain('"ts"')
+    expect(String(narrowed.markdown)).toContain('narrowed to what it can actually run')
 
     // Unknown tool answers with the listing, not an error.
     const unknown = await executeReadVerb(context, {address: '~/tools/nope'})
@@ -259,7 +271,11 @@ describe('call verb', () => {
       changedFiles: [{path: 'x', change: 'added'}],
     }))
     const context = makeContext({
-      codeExec: {availability: async () => ({available: true}), execute: executeSpy} as never,
+      codeExec: {
+        runtimes: ['python', 'shell'],
+        availability: async () => ({available: true, runtimes: ['python', 'shell']}),
+        execute: executeSpy,
+      } as never,
     })
     const result = await executeCallVerb(
       context,
@@ -271,6 +287,140 @@ describe('call verb', () => {
     expect(context.onMemoryChange).toHaveBeenCalled()
   })
 
+  test('the execute contract offers only the runtimes this server can actually run', async () => {
+    const context = makeContext({
+      codeExec: {
+        runtimes: ['python', 'shell'],
+        availability: async () => ({available: true, runtimes: ['python', 'shell']}),
+        execute: async () => {
+          throw new Error('unused')
+        },
+      } as never,
+    })
+    // A model asking for TypeScript on a server with no bun image gets the contract back — with ts
+    // absent from the enum — instead of a sandbox failure it cannot diagnose.
+    const result = await executeCallVerb(context, {tool: 'execute', input: {runtime: 'ts', code: 'x'}}, undefined)
+    expect(String(result.summary)).toContain('did not match its contract')
+    expect(String(result.contract)).toContain('"python"')
+    expect(String(result.contract)).not.toContain('"ts"')
+  })
+
+  test('an authored lambda runs its source, and its return value is the result', async () => {
+    const context = makeContext()
+    const programs: string[] = []
+    ;(context.codeExec as {execute: unknown}).execute = mock(async (request: {code: string; runtime: string}) => {
+      programs.push(request.code)
+      return {
+        exitCode: 0,
+        success: true,
+        stdout: `working\n${LAMBDA_RESULT_PREFIX}{"tempC":21}\n`,
+        stderr: '',
+        truncated: false,
+        durationMs: 7,
+        changedFiles: [{path: 'weather.json', change: 'added'}],
+      }
+    })
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 21})',
+    })
+
+    const result = await executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, 'tc-lambda')
+    expect(result.result).toEqual({tempC: 21})
+    // What it printed comes back as logs, kept apart from what it returned.
+    expect(result.logs).toBe('working')
+    expect(String(result.summary)).toContain('Ran weather')
+    // The validated input reached the program, and memory changes were announced.
+    expect(programs[0]).toContain('{\\"city\\":\\"Lisbon\\"}')
+    expect(context.onMemoryChange).toHaveBeenCalled()
+  })
+
+  test('a lambda call validates both edges and surfaces its failures', async () => {
+    const context = makeContext()
+    const behavior = {stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":"warm"}\n`, success: true, exitCode: 0}
+    ;(context.codeExec as {execute: unknown}).execute = mock(async () => ({
+      exitCode: behavior.exitCode,
+      success: behavior.success,
+      stdout: behavior.stdout,
+      stderr: behavior.success ? '' : 'Traceback: boom',
+      truncated: false,
+      durationMs: 3,
+      changedFiles: [],
+    }))
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: "warm"})',
+    })
+
+    // Bad input answers with the tool's own contract, exactly like a builtin does.
+    const miss = await executeCallVerb(context, {tool: 'weather', input: {}}, undefined)
+    expect(String(miss.summary)).toContain('did not match its contract')
+    expect(String(miss.contract)).toContain('# weather')
+
+    // A return value the tool's own output schema rejects is the tool's bug, and it says so.
+    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
+      'output schema rejects',
+    )
+
+    // A crash surfaces with the tail of what the runtime said.
+    behavior.success = false
+    behavior.exitCode = 1
+    behavior.stdout = ''
+    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
+      'Traceback: boom',
+    )
+
+    // A tool that finishes without returning anything is broken, not empty.
+    behavior.success = true
+    behavior.exitCode = 0
+    behavior.stdout = 'printed but never returned\n'
+    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
+      'without returning a value',
+    )
+  })
+
+  test('an authored lambda cannot run code the owner did not grant', async () => {
+    // Authoring a tool must not be a way around an owner who turned code execution off.
+    const context = makeContext({callableTools: ['search', 'web_search']})
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object'},
+      source: 'export default () => ({})',
+    })
+    await expect(executeCallVerb(context, {tool: 'weather', input: {}}, undefined)).rejects.toThrow(
+      'not enabled for this agent',
+    )
+  })
+
+  test('a python lambda cannot run where code execution is unavailable', async () => {
+    const context = makeContext({
+      codeExec: {
+        runtimes: [],
+        availability: async () => ({available: false, runtimes: [], reason: 'no virtualization'}),
+        execute: async () => {
+          throw new Error('unused')
+        },
+      } as never,
+    })
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object'},
+      source: 'def main(input):\n    return {}',
+      runtime: 'python',
+    })
+    await expect(executeCallVerb(context, {tool: 'weather', input: {}}, undefined)).rejects.toThrow(
+      'this server cannot run',
+    )
+  })
+
   test('search dispatches through the Search API', async () => {
     const context = makeContext()
     const originalFetch = globalThis.fetch
@@ -279,7 +429,8 @@ describe('call verb', () => {
     })
     globalThis.fetch = mock(async (url: string | URL) => {
       const href = decodeURIComponent(String(url))
-      if (href.includes('/api/Search')) return Response.json(serialize({entities: [], nextPageToken: '', searchQuery: 'hello'}))
+      if (href.includes('/api/Search'))
+        return Response.json(serialize({entities: [], nextPageToken: '', searchQuery: 'hello'}))
       throw new Error(`Unexpected fetch: ${href}`)
     }) as unknown as typeof fetch
     const result = await executeCallVerb(context, {tool: 'search', input: {query: 'hello'}}, undefined)

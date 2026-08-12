@@ -44,6 +44,8 @@ export type Config = {
     backend: '' | 'microsandbox'
     /** OCI image for sandbox rootfs. */
     image: string
+    /** OCI image for the `ts` runtime; needs bun on PATH. Empty leaves TypeScript unavailable. */
+    tsImage: string
     /** Virtual CPUs per sandbox. */
     cpus: number
     /** Guest memory per sandbox in MiB. */
@@ -74,6 +76,7 @@ export type Flags = {
   'subscription-auth': boolean
   'session-title-generation': boolean
   'exec-image': string
+  'exec-ts-image': string
   'exec-cpus': number
   'exec-memory-mib': number
   'exec-timeout-secs': number
@@ -99,6 +102,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'subscription-auth': isTruthyFlag(env.SEED_AGENTS_SUBSCRIPTION_AUTH ?? ''),
     'session-title-generation': env.SEED_AGENTS_SESSION_TITLE_GENERATION !== 'false',
     'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
+    'exec-ts-image': env.SEED_AGENTS_EXEC_TS_IMAGE || '',
     'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
     'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
     'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
@@ -177,6 +181,7 @@ export function create(pflags: Flags): Config {
     exec: {
       backend: parseExecBackend(pflags['exec-backend']),
       image: pflags['exec-image'].trim() || 'python',
+      tsImage: pflags['exec-ts-image'].trim(),
       cpus: parsePositiveInteger(String(pflags['exec-cpus']), 'exec-cpus'),
       memoryMib: parsePositiveInteger(String(pflags['exec-memory-mib']), 'exec-memory-mib'),
       timeoutSecs: parsePositiveInteger(String(pflags['exec-timeout-secs']), 'exec-timeout-secs'),

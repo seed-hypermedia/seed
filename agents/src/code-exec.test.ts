@@ -4,8 +4,11 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {writeMemoryFile, memoryRootPath} from '@/agent-memory'
 import {
+  buildLambdaProgram,
   CodeExecError,
   EXEC_WORKSPACE_GUEST_PATH,
+  LAMBDA_RESULT_PREFIX,
+  parseLambdaResult,
   MAX_EXEC_OUTPUT_BYTES,
   createCodeExecutor,
   defaultCodeExecConfig,
@@ -156,7 +159,7 @@ describe('code exec', () => {
       const call: FakeCall = {mounts: []}
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(call))
 
-      const result = await executor.execute({stateDir, language: 'python', code: 'print("hi")'})
+      const result = await executor.execute({stateDir, runtime: 'python', code: 'print("hi")'})
       expect(result).toMatchObject({exitCode: 0, success: true, stdout: 'ok\n', truncated: false, changedFiles: []})
 
       expect(call.image).toBe('python')
@@ -175,11 +178,40 @@ describe('code exec', () => {
     })
   })
 
+  test('offers ts only when an image with bun is configured, and runs it there with bun -e', async () => {
+    await withStateDir(async (stateDir) => {
+      // Default rootfs has no JavaScript runtime, so the runtime is simply not offered…
+      const withoutBun = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk({mounts: []}))
+      expect(withoutBun.runtimes).toEqual(['python', 'shell'])
+      expect((await withoutBun.availability()).runtimes).toEqual(['python', 'shell'])
+      await expect(withoutBun.execute({stateDir, runtime: 'ts', code: 'console.log(1)'})).rejects.toThrow(
+        'needs a sandbox image with bun',
+      )
+
+      // …and when the operator configures one, ts runs in THAT image, not the python one.
+      const call: FakeCall = {mounts: []}
+      const withBun = createCodeExecutor({...defaultCodeExecConfig(), tsImage: 'oven/bun'}, async () => fakeSdk(call))
+      expect(withBun.runtimes).toEqual(['ts', 'python', 'shell'])
+      await withBun.execute({stateDir, runtime: 'ts', code: 'console.log(1)'})
+      expect(call.image).toBe('oven/bun')
+      expect(call.exec).toEqual({cmd: 'bun', args: ['-e', 'console.log(1)'], timeoutMs: 60_000})
+    })
+  })
+
+  test('an unavailable host offers no runtimes at all', async () => {
+    const broken = createCodeExecutor({...defaultCodeExecConfig(), tsImage: 'oven/bun'}, async () => {
+      throw new Error('no virtualization')
+    })
+    const availability = await broken.availability()
+    expect(availability.available).toBe(false)
+    expect(availability.runtimes).toEqual([])
+  })
+
   test('disables networking when allowNetwork is false and honors custom DNS servers', async () => {
     await withStateDir(async (stateDir) => {
       const offCall: FakeCall = {mounts: []}
       const off = createCodeExecutor({...defaultCodeExecConfig(), allowNetwork: false}, async () => fakeSdk(offCall))
-      await off.execute({stateDir, language: 'python', code: 'x'})
+      await off.execute({stateDir, runtime: 'python', code: 'x'})
       expect(offCall.networkDisabled).toBe(true)
       expect(offCall.networkEnabled).toBeUndefined()
 
@@ -187,7 +219,7 @@ describe('code exec', () => {
       const custom = createCodeExecutor({...defaultCodeExecConfig(), dnsServers: ['9.9.9.9']}, async () =>
         fakeSdk(dnsCall),
       )
-      await custom.execute({stateDir, language: 'python', code: 'x'})
+      await custom.execute({stateDir, runtime: 'python', code: 'x'})
       expect(dnsCall.dnsServers).toEqual(['9.9.9.9'])
     })
   })
@@ -196,7 +228,7 @@ describe('code exec', () => {
     await withStateDir(async (stateDir) => {
       const call: FakeCall = {mounts: []}
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(call))
-      await executor.execute({stateDir, language: 'shell', code: 'ls -la', timeoutSecs: 10_000})
+      await executor.execute({stateDir, runtime: 'shell', code: 'ls -la', timeoutSecs: 10_000})
       expect(call.exec).toEqual({cmd: '/bin/sh', args: ['-c', 'ls -la'], timeoutMs: 300_000})
     })
   })
@@ -217,7 +249,7 @@ describe('code exec', () => {
           },
         }),
       )
-      const result = await executor.execute({stateDir, language: 'python', code: 'x'})
+      const result = await executor.execute({stateDir, runtime: 'python', code: 'x'})
       expect(result.changedFiles).toEqual([
         {path: 'edit.md', change: 'modified'},
         {path: 'gone.md', change: 'removed'},
@@ -232,7 +264,7 @@ describe('code exec', () => {
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
         fakeSdk(call, {output: {code: 3, success: false, stdoutText: 'x'.repeat(MAX_EXEC_OUTPUT_BYTES + 100)}}),
       )
-      const result = await executor.execute({stateDir, language: 'python', code: 'x'})
+      const result = await executor.execute({stateDir, runtime: 'python', code: 'x'})
       expect(result.exitCode).toBe(3)
       expect(result.success).toBe(false)
       expect(result.truncated).toBe(true)
@@ -258,7 +290,7 @@ describe('code exec', () => {
       const progress: CodeExecProgress[] = []
       const result = await executor.execute({
         stateDir,
-        language: 'python',
+        runtime: 'python',
         code: 'print("hi")',
         onProgress: (update) => progress.push(update),
       })
@@ -284,7 +316,7 @@ describe('code exec', () => {
           ],
         }),
       )
-      const result = await executor.execute({stateDir, language: 'shell', code: 'sleep 999'})
+      const result = await executor.execute({stateDir, runtime: 'shell', code: 'sleep 999'})
       expect(result.exitCode).toBe(-1)
       expect(result.success).toBe(false)
       expect(result.stdout).toBe('partial\n')
@@ -299,31 +331,95 @@ describe('code exec', () => {
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
         fakeSdk(call, {execError: new Error('boom')}),
       )
-      await expect(executor.execute({stateDir, language: 'shell', code: 'x'})).rejects.toThrow('boom')
+      await expect(executor.execute({stateDir, runtime: 'shell', code: 'x'})).rejects.toThrow('boom')
       expect(call.stopped).toBe(true)
     })
   })
 
-  test('rejects when disabled, empty code, bad language, or SDK unavailable', async () => {
+  test('wraps a lambda into a program that hands it the input and marks the value it returns', async () => {
+    const tsProgram = buildLambdaProgram('ts', 'export default (input) => ({hi: input.name})', {name: 'Ada'})
+    // The input is a literal, never interpolated code, and the source is imported as a module so
+    // it keeps its natural `export default` shape.
+    expect(tsProgram).toContain('JSON.parse("{\\"name\\":\\"Ada\\"}")')
+    expect(tsProgram).toContain('data:text/typescript;base64,')
+    expect(tsProgram).toContain(LAMBDA_RESULT_PREFIX)
+
+    const pyProgram = buildLambdaProgram('python', 'def main(input):\n    return {"hi": input["name"]}', {name: 'Ada'})
+    expect(pyProgram.startsWith('def main(input):')).toBe(true)
+    expect(pyProgram).toContain('__seed_json.loads("{\\"name\\":\\"Ada\\"}")')
+    expect(pyProgram).toContain(`print("${LAMBDA_RESULT_PREFIX}"`)
+  })
+
+  test('the TypeScript wrapper really runs a lambda under bun, end to end', async () => {
+    // The sandbox is not available in tests, but the PROGRAM is just bun input — so run it with the
+    // same runtime the sandbox would, and prove the ABI (input in, return value out) holds.
+    const program = buildLambdaProgram(
+      'ts',
+      'export default async function (input: {name: string}) {\n  console.log("working")\n  return {greeting: `hi ${input.name}`}\n}',
+      {name: 'Ada'},
+    )
+    const run = Bun.spawnSync(['bun', '-e', program])
+    const parsed = parseLambdaResult(run.stdout.toString())
+    expect(run.exitCode).toBe(0)
+    expect(parsed.result).toEqual({greeting: 'hi Ada'})
+    // What the tool printed stays separate from what it returned.
+    expect(parsed.logs).toBe('working')
+  })
+
+  test('the python wrapper runs a lambda, sync or async, end to end', () => {
+    // Same idea as the bun case: the program is just python input, so run it with python and prove
+    // the ABI holds. Skipped where the test host has no python — the sandbox image always does.
+    const hasPython = Bun.spawnSync(['python3', '-c', 'print(1)']).exitCode === 0
+    if (!hasPython) return
+
+    for (const source of [
+      'def main(input):\n    print("working")\n    return {"greeting": "hi " + input["name"]}',
+      'async def main(input):\n    print("working")\n    return {"greeting": "hi " + input["name"]}',
+    ]) {
+      const run = Bun.spawnSync(['python3', '-c', buildLambdaProgram('python', source, {name: 'Ada'})])
+      const parsed = parseLambdaResult(run.stdout.toString())
+      expect(run.exitCode).toBe(0)
+      expect(parsed.result).toEqual({greeting: 'hi Ada'})
+      expect(parsed.logs).toBe('working')
+    }
+
+    // A module with no main is a broken tool, and says so instead of failing obscurely.
+    const noMain = Bun.spawnSync(['python3', '-c', buildLambdaProgram('python', 'x = 1', {})])
+    expect(noMain.exitCode).not.toBe(0)
+    expect(noMain.stderr.toString()).toContain('must define a top-level main(input) function')
+  })
+
+  test('reads back the marked result, and reports its absence rather than guessing', () => {
+    expect(parseLambdaResult(`noise\n${LAMBDA_RESULT_PREFIX}{"ok":true}\n`)).toMatchObject({
+      hasResult: true,
+      result: {ok: true},
+      logs: 'noise',
+    })
+    // A tool that printed but never returned is a broken tool, not an empty result.
+    expect(parseLambdaResult('just logs\n')).toMatchObject({hasResult: false, logs: 'just logs'})
+    expect(parseLambdaResult(`${LAMBDA_RESULT_PREFIX}not-json\n`).hasResult).toBe(false)
+  })
+
+  test('rejects when disabled, empty code, an unknown runtime, or SDK unavailable', async () => {
     await withStateDir(async (stateDir) => {
       const disabled = createCodeExecutor({...defaultCodeExecConfig(), backend: ''}, async () => fakeSdk({mounts: []}))
       expect(disabled.enabled).toBe(false)
-      await expect(disabled.execute({stateDir, language: 'python', code: 'x'})).rejects.toThrow('not enabled')
+      await expect(disabled.execute({stateDir, runtime: 'python', code: 'x'})).rejects.toThrow('not enabled')
 
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk({mounts: []}))
       expect(executor.enabled).toBe(true)
-      await expect(executor.execute({stateDir, language: 'python', code: '  '})).rejects.toThrow('Code is required')
-      await expect(executor.execute({stateDir, language: 'ruby' as never, code: 'x'})).rejects.toThrow(
-        'Language must be',
+      await expect(executor.execute({stateDir, runtime: 'python', code: '  '})).rejects.toThrow('Code is required')
+      await expect(executor.execute({stateDir, runtime: 'ruby' as never, code: 'x'})).rejects.toThrow(
+        'Runtime must be one of: python, shell',
       )
 
       const broken = createCodeExecutor(defaultCodeExecConfig(), async () => {
         throw new Error('no virtualization')
       })
-      await expect(broken.execute({stateDir, language: 'python', code: 'x'})).rejects.toThrow(
+      await expect(broken.execute({stateDir, runtime: 'python', code: 'x'})).rejects.toThrow(
         'unavailable on this server',
       )
-      expect(await broken.execute({stateDir, language: 'python', code: 'x'}).catch((error) => error)).toBeInstanceOf(
+      expect(await broken.execute({stateDir, runtime: 'python', code: 'x'}).catch((error) => error)).toBeInstanceOf(
         CodeExecError,
       )
     })

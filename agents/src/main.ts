@@ -154,6 +154,9 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         codeExec: codeExec.available,
         codeExecReason: codeExec.reason,
         codeExecReasonCode: codeExec.code,
+        // Which runtimes this server can actually run: `ts` needs an image with bun, so an
+        // operator can see at a glance whether TypeScript execution is on here.
+        codeExecRuntimes: codeExec.runtimes,
       },
       {headers: corsHeaders()},
     )

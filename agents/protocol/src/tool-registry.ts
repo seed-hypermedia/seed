@@ -549,15 +549,16 @@ const executeTool = {
   name: 'execute',
   label: 'Execute Code',
   description:
-    'Run code in an isolated sandbox (a hardware-isolated microVM) with your persistent memory mounted at /workspace, which is also the working directory. Files your code reads and writes under /workspace are the same files as your ~/memory addresses, so use this to process, transform, analyze, or generate memory files — parse data, resize or convert media, run computations, and save results. Each call runs in a fresh sandbox: no state (variables, installed packages, processes) survives between calls, so persist anything important as files (for example install Python packages with `pip install --target /workspace/pylibs <pkg>` and add that dir to sys.path in later calls). The sandbox has internet access for fetching data and installing packages, but cannot reach private or local network addresses. Output returns stdout, stderr, the exit code, and which memory files changed.',
+    'Run TypeScript, Python, or shell code in an isolated sandbox (a hardware-isolated microVM) with your persistent memory mounted at /workspace, which is also the working directory. Files your code reads and writes under /workspace are the same files as your ~/memory addresses, so use this to process, transform, analyze, or generate memory files — parse data, resize or convert media, run computations, and save results. Each call runs in a fresh sandbox: no state (variables, installed packages, processes) survives between calls, so persist anything important as files (for example install Python packages with `pip install --target /workspace/pylibs <pkg>` and add that dir to sys.path in later calls). The sandbox has internet access for fetching data and installing packages, but cannot reach private or local network addresses. Output returns stdout, stderr, the exit code, and which memory files changed.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
     properties: {
       runtime: {
         type: 'string',
-        enum: ['python', 'shell'],
-        description: 'How to run the code: "python" runs it with the python interpreter, "shell" runs it with sh.',
+        enum: ['ts', 'python', 'shell'],
+        description:
+          'How to run the code: "ts" runs TypeScript with bun, "python" runs it with the python interpreter, "shell" runs it with sh. Read ~/tools/execute for the runtimes this server actually offers — the list there is authoritative.',
       },
       code: {type: 'string', minLength: 1, description: 'The code to execute.'},
       timeout_secs: {

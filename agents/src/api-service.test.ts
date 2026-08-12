@@ -448,7 +448,8 @@ describe('api service', () => {
       const enabled = new apisvc.Service(db, dataDir, {
         codeExecutor: {
           enabled: true,
-          availability: async () => ({available: true}),
+          runtimes: ['python', 'shell'],
+          availability: async () => ({available: true, runtimes: ['python', 'shell']}),
           execute: async () => {
             throw new Error('unused')
           },
@@ -458,7 +459,8 @@ describe('api service', () => {
       const disabled = new apisvc.Service(db, dataDir, {
         codeExecutor: {
           enabled: false,
-          availability: async () => ({available: false, reason: 'disabled'}),
+          runtimes: [],
+          availability: async () => ({available: false, reason: 'disabled', runtimes: []}),
           execute: async () => {
             throw new Error('disabled')
           },

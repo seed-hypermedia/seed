@@ -30,8 +30,17 @@ export const EXEC_PROGRESS_INTERVAL_MS = 250
 export type CodeExecConfig = {
   /** Execution backend. Empty string disables code execution. */
   backend: '' | 'microsandbox'
-  /** OCI image for the sandbox rootfs. */
+  /** OCI image for the sandbox rootfs. Must provide `python` and `/bin/sh`. */
   image: string
+  /**
+   * OCI image used for the `ts` runtime, which needs `bun` on PATH (for example `oven/bun`).
+   *
+   * The default rootfs is a Python image with no JavaScript runtime in it, so TypeScript execution
+   * is an operator opt-in: leave this empty and the `ts` runtime is simply not offered — the tool
+   * contract the model sees lists only the runtimes this server can actually run, instead of
+   * advertising one that would fail inside the sandbox.
+   */
+  tsImage: string
   /** Virtual CPUs per sandbox. */
   cpus: number
   /** Guest memory per sandbox in MiB. */
@@ -44,13 +53,16 @@ export type CodeExecConfig = {
   dnsServers: string[]
 }
 
-/** Languages the execute_code tool accepts. */
-export type CodeExecLanguage = 'python' | 'shell'
+/** Runtimes the execute tool can run code in. */
+export type CodeExecRuntime = 'ts' | 'python' | 'shell'
+
+/** Every runtime this build knows how to run, in the order the contract lists them. */
+export const CODE_EXEC_RUNTIMES: readonly CodeExecRuntime[] = ['ts', 'python', 'shell']
 
 /** One code execution request against an agent's memory workspace. */
 export type CodeExecRequest = {
   stateDir: string
-  language: CodeExecLanguage
+  runtime: CodeExecRuntime
   code: string
   /** Optional timeout override in seconds, clamped to [1, MAX_EXEC_TIMEOUT_SECS]. */
   timeoutSecs?: number
@@ -167,12 +179,23 @@ export type CodeExecUnavailableCode =
   | 'runtime-error'
 
 /** Result of probing whether code execution can actually work on this host. */
-export type CodeExecAvailability = {available: boolean; reason?: string; code?: CodeExecUnavailableCode}
+export type CodeExecAvailability = {
+  available: boolean
+  reason?: string
+  code?: CodeExecUnavailableCode
+  /** Runtimes this server can actually run; empty when execution is unavailable. */
+  runtimes: CodeExecRuntime[]
+}
 
 /** Executes code in sandboxes for agent memory workspaces. */
 export type CodeExecutor = {
   /** Whether this server is configured to offer code execution. */
   enabled: boolean
+  /**
+   * Runtimes this server offers, from configuration alone — no probe, so callers building a tool
+   * contract can narrow its runtime enum synchronously.
+   */
+  runtimes: CodeExecRuntime[]
   /** Whether execution can actually work here: config, platform support, loadable runtime. Memoized. */
   availability(): Promise<CodeExecAvailability>
   execute(request: CodeExecRequest): Promise<CodeExecResult>
@@ -196,6 +219,7 @@ export function defaultCodeExecConfig(): CodeExecConfig {
   return {
     backend: 'microsandbox',
     image: 'python',
+    tsImage: '',
     cpus: 1,
     memoryMib: 512,
     timeoutSecs: 60,
@@ -275,57 +299,55 @@ export function createCodeExecutor(
   // Availability cannot change during the process lifetime (platform, staged runtime, config are
   // all fixed at startup), so the probe result is memoized including failures.
   let availabilityPromise: Promise<CodeExecAvailability> | undefined
+  const configuredRuntimes: CodeExecRuntime[] =
+    config.backend === 'microsandbox'
+      ? CODE_EXEC_RUNTIMES.filter((runtime) => runtime !== 'ts' || !!config.tsImage)
+      : []
+  const unavailable = (code: CodeExecUnavailableCode, reason: string): CodeExecAvailability => ({
+    available: false,
+    code,
+    reason,
+    runtimes: [],
+  })
   const probeAvailability = async (): Promise<CodeExecAvailability> => {
     if (config.backend !== 'microsandbox') {
-      return {available: false, code: 'config-disabled', reason: 'Code execution is disabled by configuration'}
+      return unavailable('config-disabled', 'Code execution is disabled by configuration')
     }
     if (process.platform === 'darwin' && process.arch !== 'arm64') {
-      return {
-        available: false,
-        code: 'unsupported-platform',
-        reason: 'microsandbox has no native build for Intel macOS',
-      }
+      return unavailable('unsupported-platform', 'microsandbox has no native build for Intel macOS')
     }
     if (process.platform === 'win32') {
       // WinHvPlatform.dll is installed with the "Windows Hypervisor Platform" optional feature,
       // which microVMs require. Its absence is the actionable signal the desktop UI explains.
       const winHv = `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\WinHvPlatform.dll`
       if (!fs.existsSync(winHv)) {
-        return {
-          available: false,
-          code: 'whp-disabled',
-          reason: 'The Windows Hypervisor Platform feature is turned off on this PC',
-        }
+        return unavailable('whp-disabled', 'The Windows Hypervisor Platform feature is turned off on this PC')
       }
     }
     if (process.platform === 'linux') {
       if (!fs.existsSync('/dev/kvm')) {
-        return {available: false, code: 'kvm-missing', reason: 'KVM (/dev/kvm) is not available on this host'}
+        return unavailable('kvm-missing', 'KVM (/dev/kvm) is not available on this host')
       }
       try {
         fs.accessSync('/dev/kvm', fs.constants.R_OK | fs.constants.W_OK)
       } catch {
-        return {
-          available: false,
-          code: 'kvm-forbidden',
-          reason: 'No permission to use /dev/kvm — add this user to the kvm group and log in again',
-        }
+        return unavailable(
+          'kvm-forbidden',
+          'No permission to use /dev/kvm — add this user to the kvm group and log in again',
+        )
       }
     }
     try {
       await getSdk()
-      return {available: true}
+      return {available: true, runtimes: configuredRuntimes}
     } catch (error) {
-      return {
-        available: false,
-        code: 'runtime-error',
-        reason: error instanceof Error ? error.message : String(error),
-      }
+      return unavailable('runtime-error', error instanceof Error ? error.message : String(error))
     }
   }
 
   return {
     enabled: config.backend === 'microsandbox',
+    runtimes: configuredRuntimes,
     availability: () => (availabilityPromise ??= probeAvailability()),
     async execute(request) {
       if (config.backend !== 'microsandbox') {
@@ -333,8 +355,13 @@ export function createCodeExecutor(
       }
       const code = typeof request.code === 'string' ? request.code : ''
       if (!code.trim()) throw new CodeExecError(400, 'Code is required')
-      if (request.language !== 'python' && request.language !== 'shell') {
-        throw new CodeExecError(400, 'Language must be "python" or "shell"')
+      if (!configuredRuntimes.includes(request.runtime)) {
+        throw new CodeExecError(
+          400,
+          request.runtime === 'ts'
+            ? 'The ts runtime needs a sandbox image with bun on PATH; this server has none configured'
+            : `Runtime must be one of: ${configuredRuntimes.join(', ')}`,
+        )
       }
       const timeoutSecs = Math.max(1, Math.min(MAX_EXEC_TIMEOUT_SECS, request.timeoutSecs ?? config.timeoutSecs))
 
@@ -348,7 +375,8 @@ export function createCodeExecutor(
       let sandbox: SandboxLike
       try {
         let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
-          .image(config.image)
+          // TypeScript runs in its own image: the default rootfs carries python and a shell, not bun.
+          .image(request.runtime === 'ts' ? config.tsImage : config.image)
           .cpus(config.cpus)
           .memory(config.memoryMib)
           .workdir(EXEC_WORKSPACE_GUEST_PATH)
@@ -379,8 +407,7 @@ export function createCodeExecutor(
       }
 
       try {
-        const command =
-          request.language === 'python' ? {cmd: 'python', args: ['-c', code]} : {cmd: '/bin/sh', args: ['-c', code]}
+        const command = runtimeCommand(request.runtime, code)
         request.onProgress?.({stage: 'running'})
         let output: RawExecResult
         try {
@@ -419,6 +446,101 @@ export function createCodeExecutor(
 type RawExecResult = {code: number; success: boolean; stdout: string; stderr: string}
 
 type ExecCommand = {cmd: string; args: string[]}
+
+/**
+ * How each runtime runs a program. Nothing goes through a shell unless the runtime IS the shell —
+ * the sandbox takes an argv array, so code with quotes, newlines, or `$` needs no escaping.
+ */
+function runtimeCommand(runtime: CodeExecRuntime, code: string): ExecCommand {
+  if (runtime === 'python') return {cmd: 'python', args: ['-c', code]}
+  if (runtime === 'ts') return {cmd: 'bun', args: ['-e', code]}
+  return {cmd: '/bin/sh', args: ['-c', code]}
+}
+
+// ------------------------------------------------------------------------------------------------
+// Lambda tools
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * Marks the line carrying a lambda's return value.
+ *
+ * The result travels on stdout rather than in a file because a file would have to live somewhere:
+ * `/workspace` IS the agent's memory (a tool call would litter it, and show up in `changedFiles`),
+ * and anywhere else vanishes with the ephemeral sandbox before a second exec could read it. A
+ * marked line keeps ordinary `print`/`console.log` debugging working — everything unmarked comes
+ * back as the call's logs.
+ */
+export const LAMBDA_RESULT_PREFIX = '__SEED_TOOL_RESULT__'
+
+/** Runtimes an authored lambda tool can be written in. */
+export type LambdaRuntime = 'ts' | 'python'
+
+/**
+ * Wraps a lambda tool's source into a self-contained program for its runtime, with the call's
+ * input baked in as a literal. See tool-documents.ts for the ABI this implements.
+ *
+ * TypeScript is loaded as a module from a `data:` URL so the source keeps its natural
+ * `export default` shape (and its type annotations) without ever touching the filesystem; Python
+ * is concatenated ahead of an epilogue that calls its `main`.
+ */
+export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input: unknown): string {
+  // JSON.stringify twice: the inner call renders the value, the outer makes it a string literal
+  // that is valid in both languages, so no interpolation can escape into code.
+  const inputLiteral = JSON.stringify(JSON.stringify(input ?? null))
+  if (runtime === 'python') {
+    return [
+      source,
+      '',
+      'import json as __seed_json',
+      `__seed_input = __seed_json.loads(${inputLiteral})`,
+      'if not callable(globals().get("main")):',
+      '    raise SystemExit("This python tool must define a top-level main(input) function")',
+      '__seed_result = main(__seed_input)',
+      // `async def main` is a natural thing to write, and awaiting it here costs one import.
+      'import inspect as __seed_inspect',
+      'if __seed_inspect.iscoroutine(__seed_result):',
+      '    import asyncio as __seed_asyncio',
+      '    __seed_result = __seed_asyncio.run(__seed_result)',
+      `print("${LAMBDA_RESULT_PREFIX}" + __seed_json.dumps(__seed_result))`,
+      '',
+    ].join('\n')
+  }
+  const sourceUrl = `data:text/typescript;base64,${Buffer.from(source, 'utf8').toString('base64')}`
+  return [
+    `const __seedInput = JSON.parse(${inputLiteral})`,
+    `const __seedModule = await import(${JSON.stringify(sourceUrl)})`,
+    'const __seedEntry = __seedModule.default',
+    'if (typeof __seedEntry !== "function") {',
+    '  throw new Error("This TypeScript tool must `export default` a function taking its input")',
+    '}',
+    'const __seedResult = await __seedEntry(__seedInput)',
+    `console.log(${JSON.stringify(LAMBDA_RESULT_PREFIX)} + JSON.stringify(__seedResult ?? null))`,
+    '',
+  ].join('\n')
+}
+
+/**
+ * Splits a lambda run's stdout into its returned value and everything it printed along the way.
+ * `result` is absent when the program never marked a result line — a tool that exited cleanly
+ * without returning, which the caller reports rather than guessing at.
+ */
+export function parseLambdaResult(stdout: string): {result?: unknown; hasResult: boolean; logs: string} {
+  const lines = stdout.split('\n')
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]!
+    if (!line.startsWith(LAMBDA_RESULT_PREFIX)) continue
+    const payload = line.slice(LAMBDA_RESULT_PREFIX.length)
+    const logs = [...lines.slice(0, index), ...lines.slice(index + 1)].join('\n').trim()
+    try {
+      return {result: JSON.parse(payload) as unknown, hasResult: true, logs}
+    } catch {
+      // A result line that is not JSON means the tool printed something past the marker; treat the
+      // run as resultless rather than silently handing the model a mangled value.
+      return {hasResult: false, logs: stdout.trim()}
+    }
+  }
+  return {hasResult: false, logs: stdout.trim()}
+}
 
 async function runBufferedExec(
   sandbox: SandboxLike,
