@@ -14,6 +14,7 @@ import {
   cycleExploreSort,
   clearExploreConditions,
   removeExploreQueryChip,
+  parseExploreQuery,
   serializeExploreQuery,
   toggleExplorePredicate,
   toggleExploreColumn,
@@ -38,7 +39,7 @@ import {
   Search,
   X,
 } from 'lucide-react'
-import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useMemo, useReducer, useRef, useState, type ReactNode} from 'react'
 import * as Ariakit from '@ariakit/react'
 import {Button} from './button'
 import {Input} from './components/input'
@@ -267,75 +268,169 @@ const tabs: Array<{id: ResultTab; label: string}> = [
   {id: 'comment', label: 'Conversations'},
 ]
 
+export type ExploreEditorState = {
+  activeTab: ResultTab
+  menu: 'type' | 'in' | 'attributes' | null
+  advancedOpen: boolean
+  draft: string
+  draftQuery: string
+  builderAst: ExploreQueryNode | null
+  builderQuery: string
+  activeValueField: string
+  activeValueKind: 'string' | 'int' | 'bool'
+  columnsOpen: boolean
+  sortOpen: boolean
+}
+
+export type ExploreEditorAction =
+  | {type: 'set-active-tab'; tab: ResultTab}
+  | {type: 'toggle-menu'; menu: 'type' | 'in' | 'attributes'}
+  | {type: 'toggle-advanced'}
+  | {type: 'set-draft'; draft: string}
+  | {type: 'commit-query'; query: string; builderAst?: ExploreQueryNode | null}
+  | {type: 'set-builder'; ast: ExploreQueryNode | null; query: string}
+  | {type: 'set-value-focus'; field: string; kind: 'string' | 'int' | 'bool'}
+  | {type: 'toggle-columns'}
+  | {type: 'toggle-sort'}
+  | {type: 'close-menu'}
+
+/** Creates the transient Explore editor state for a route query. */
+export function createExploreEditorState(query: string, ast: ExploreQueryNode | null): ExploreEditorState {
+  return {
+    activeTab: 'all',
+    menu: null,
+    advancedOpen: false,
+    draft: query,
+    draftQuery: query,
+    builderAst: ast,
+    builderQuery: query,
+    activeValueField: '',
+    activeValueKind: 'string',
+    columnsOpen: false,
+    sortOpen: false,
+  }
+}
+
+/** Reduces transient Explore editing state without owning result-affecting URL state. */
+export function exploreEditorReducer(state: ExploreEditorState, action: ExploreEditorAction): ExploreEditorState {
+  switch (action.type) {
+    case 'set-active-tab':
+      return {...state, activeTab: action.tab}
+    case 'toggle-menu':
+      return {...state, menu: state.menu === action.menu ? null : action.menu}
+    case 'toggle-advanced':
+      return {...state, advancedOpen: !state.advancedOpen}
+    case 'set-draft':
+      return {...state, draft: action.draft}
+    case 'commit-query':
+      return {
+        ...state,
+        draft: action.query,
+        draftQuery: action.query,
+        builderAst: action.builderAst === undefined ? state.builderAst : action.builderAst,
+        builderQuery: action.builderAst === undefined ? state.builderQuery : action.query,
+      }
+    case 'set-builder':
+      return {
+        ...state,
+        builderAst: action.ast,
+        builderQuery: action.query,
+        draft: action.query,
+        draftQuery: action.query,
+      }
+    case 'set-value-focus':
+      return {...state, activeValueField: action.field, activeValueKind: action.kind}
+    case 'toggle-columns':
+      return {...state, columnsOpen: !state.columnsOpen, sortOpen: false}
+    case 'toggle-sort':
+      return {...state, sortOpen: !state.sortOpen, columnsOpen: false}
+    case 'close-menu':
+      return {...state, menu: null}
+  }
+}
+
 /** Shared Explore search/results surface used by desktop and web wrappers. */
 export function ExplorePage(props: ExplorePageProps) {
-  const [activeTab, setActiveTab] = useState<ResultTab>('all')
-  const [menu, setMenu] = useState<'type' | 'in' | 'attributes' | null>(null)
-  const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [draft, setDraft] = useState(props.query)
-  const [builderAst, setBuilderAst] = useState<ExploreQueryNode | null>(props.parsed.ast)
-  const [activeValueField, setActiveValueField] = useState('')
-  const [activeValueKind, setActiveValueKind] = useState<'string' | 'int' | 'bool'>('string')
-  const [columnsOpen, setColumnsOpen] = useState(false)
-  const [sortOpen, setSortOpen] = useState(false)
+  const [editor, dispatch] = useReducer(
+    exploreEditorReducer,
+    {query: props.query, ast: props.parsed.ast},
+    ({query, ast}) => createExploreEditorState(query, ast),
+  )
   const debounceRef = useRef<number | null>(null)
-  const onQueryChangeRef = useRef(props.onQueryChange)
-  onQueryChangeRef.current = props.onQueryChange
-  useEffect(() => setDraft(props.query), [props.query])
-  useEffect(() => setBuilderAst(props.parsed.ast), [props.parsed.ast])
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (draft !== props.query) onQueryChangeRef.current(draft)
-    }, 260)
-    debounceRef.current = timer
-    return () => {
-      window.clearTimeout(timer)
-      if (debounceRef.current === timer) debounceRef.current = null
-    }
-  }, [draft, props.query])
+  const debounceVersionRef = useRef(0)
+  const latestQueryRef = useRef(props.query)
+  latestQueryRef.current = props.query
+  const draft = editor.draftQuery === props.query ? editor.draft : props.query
+  const builderAst = editor.builderQuery === props.query ? editor.builderAst : props.parsed.ast
+  const activeTab = editor.activeTab
+  const menu = editor.menu
+  const advancedOpen = editor.advancedOpen
+  const activeValueField = editor.activeValueField
+  const activeValueKind = editor.activeValueKind
+  const columnsOpen = editor.columnsOpen
+  const sortOpen = editor.sortOpen
 
   const chips = useMemo(() => exploreQueryChips(props.parsed), [props.parsed])
+  const editingParsed = draft === props.query ? props.parsed : parseExploreQuery(draft)
   const accounts = useExploreAccounts(true)
   const attributeNames = useExploreAttributeNames(props.accountUid || '', true)
   const attributeValues = useExploreAttributeValues(activeValueField, activeValueKind, '', true)
   const visibleResults = props.results.filter((result) => activeTab === 'all' || result.type === activeTab)
   const documentOnly = activeTab !== 'all' && activeTab !== 'document'
-  const updateQuery = (next: string) => {
+  const cancelPendingDraft = () => {
     if (debounceRef.current !== null) {
       window.clearTimeout(debounceRef.current)
       debounceRef.current = null
     }
-    setDraft(next)
-    onQueryChangeRef.current(next)
+    debounceVersionRef.current += 1
+  }
+  const commitQuery = (next: string, nextBuilderAst?: ExploreQueryNode | null) => {
+    cancelPendingDraft()
+    dispatch({type: 'commit-query', query: next, builderAst: nextBuilderAst})
+    props.onQueryChange(next)
+  }
+  const updateDraft = (next: string) => {
+    dispatch({type: 'set-draft', draft: next})
+    cancelPendingDraft()
+    const version = debounceVersionRef.current
+    const timer = window.setTimeout(() => {
+      if (version !== debounceVersionRef.current) return
+      debounceRef.current = null
+      if (next !== latestQueryRef.current) commitQuery(next)
+    }, 260)
+    debounceRef.current = timer
+  }
+  const updateQuery = (next: string, nextBuilderAst?: ExploreQueryNode | null) => {
+    commitQuery(next, nextBuilderAst)
   }
   const commitBuilderAst = (nextAst: ExploreQueryNode | null) => {
-    setBuilderAst(nextAst)
-    const nextQuery = serializeExploreBuilderQuery(nextAst, props.parsed.presentation)
-    if (nextQuery !== props.query) updateQuery(nextQuery)
+    const nextQuery = serializeExploreBuilderQuery(nextAst, editingParsed.presentation)
+    dispatch({type: 'set-builder', ast: nextAst, query: nextQuery})
+    if (nextQuery !== props.query) commitQuery(nextQuery, nextAst)
   }
   const updatePresentation = (presentation: ExplorePresentation) =>
-    updateQuery(withPresentation(props.parsed.ast, presentation))
+    updateQuery(withPresentation(editingParsed.ast, presentation))
   const builtInColumns = ['title', 'space', 'path', 'updated', 'version']
   const availableColumns = [...builtInColumns, ...(attributeNames.data ?? [])]
-  const selectedColumns = props.parsed.presentation.columns?.length
-    ? props.parsed.presentation.columns
+  const selectedColumns = editingParsed.presentation.columns?.length
+    ? editingParsed.presentation.columns
     : ['title', 'space', 'path', 'updated']
-  const sortRules = props.parsed.presentation.sort ?? []
+  const sortRules = editingParsed.presentation.sort ?? []
   const cycleSort = (key: string) => {
     const nextRules = cycleExploreSort(sortRules, key)
-    updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
+    updatePresentation({...editingParsed.presentation, sort: nextRules.length ? nextRules : undefined})
   }
   const cycleSortDirection = (key: string) => {
     const nextRules = sortRules.map((rule) =>
       rule.key === key ? {...rule, direction: rule.direction === 'asc' ? ('desc' as const) : ('asc' as const)} : rule,
     )
-    updatePresentation({...props.parsed.presentation, sort: nextRules})
+    updatePresentation({...editingParsed.presentation, sort: nextRules})
   }
   const removeSort = (key: string) => {
     const nextRules = sortRules.filter((rule) => rule.key !== key)
-    updatePresentation({...props.parsed.presentation, sort: nextRules.length ? nextRules : undefined})
+    updatePresentation({...editingParsed.presentation, sort: nextRules.length ? nextRules : undefined})
   }
-  const tableMode = props.parsed.presentation.view === 'table' && activeTab !== 'block' && activeTab !== 'comment'
+  const tableMode = editingParsed.presentation.view === 'table' && activeTab !== 'block' && activeTab !== 'comment'
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-5 py-6 lg:px-8">
@@ -354,7 +449,7 @@ export function ExplorePage(props: ExplorePageProps) {
         </div>
         <Input
           value={draft}
-          onChangeText={setDraft}
+          onChangeText={updateDraft}
           placeholder="Search documents, blocks, conversations, and attributes"
           aria-label="Explore query"
           className="bg-background h-11 font-mono text-sm"
@@ -363,21 +458,21 @@ export function ExplorePage(props: ExplorePageProps) {
           <div className="flex items-center gap-1">
             <Button
               size="sm"
-              variant={props.parsed.presentation.view === 'table' ? 'secondary' : 'outline'}
+              variant={editingParsed.presentation.view === 'table' ? 'secondary' : 'outline'}
               onClick={() =>
                 updatePresentation({
-                  ...props.parsed.presentation,
-                  view: props.parsed.presentation.view === 'table' ? 'list' : 'table',
+                  ...editingParsed.presentation,
+                  view: editingParsed.presentation.view === 'table' ? 'list' : 'table',
                 })
               }
             >
-              {props.parsed.presentation.view === 'table' ? 'Table' : 'List'}
+              {editingParsed.presentation.view === 'table' ? 'Table' : 'List'}
             </Button>
             <Button
               size="sm"
               variant="outline"
               disabled={!tableMode}
-              onClick={() => setColumnsOpen((open) => !open)}
+              onClick={() => dispatch({type: 'toggle-columns'})}
               title={!tableMode ? 'Columns are available for document results.' : undefined}
             >
               Columns
@@ -386,7 +481,7 @@ export function ExplorePage(props: ExplorePageProps) {
               size="sm"
               variant="outline"
               disabled={!tableMode}
-              onClick={() => setSortOpen((open) => !open)}
+              onClick={() => dispatch({type: 'toggle-sort'})}
               title={!tableMode ? 'Sorting is available for document results.' : undefined}
             >
               Sort{sortRules.length ? ` (${sortRules.length})` : ''}
@@ -398,7 +493,7 @@ export function ExplorePage(props: ExplorePageProps) {
               selected={selectedColumns}
               onToggle={(column) => {
                 const next = toggleExploreColumn(selectedColumns, column)
-                updatePresentation({...props.parsed.presentation, columns: next.length ? next : ['title']})
+                updatePresentation({...editingParsed.presentation, columns: next.length ? next : ['title']})
               }}
             />
           ) : null}
@@ -413,7 +508,7 @@ export function ExplorePage(props: ExplorePageProps) {
           ) : null}
           {(['type', 'in', 'attributes'] as const).map((kind) => (
             <div key={kind} className="relative">
-              <Button size="sm" variant="outline" onClick={() => setMenu(menu === kind ? null : kind)}>
+              <Button size="sm" variant="outline" onClick={() => dispatch({type: 'toggle-menu', menu: kind})}>
                 {kind[0]!.toUpperCase() + kind.slice(1)}
               </Button>
               {menu === kind ? (
@@ -427,9 +522,9 @@ export function ExplorePage(props: ExplorePageProps) {
                   }
                   activeTokens={chips.map((chip) => chip.token)}
                   onToggle={(predicate) => {
-                    const next = toggleExplorePredicate(props.parsed, predicate)
+                    const next = toggleExplorePredicate(editingParsed, predicate)
                     updateQuery(serializeExploreQuery(next))
-                    setMenu(null)
+                    dispatch({type: 'close-menu'})
                   }}
                 />
               ) : null}
@@ -438,7 +533,7 @@ export function ExplorePage(props: ExplorePageProps) {
           <Button
             size="sm"
             variant={advancedOpen ? 'secondary' : 'outline'}
-            onClick={() => setAdvancedOpen((open) => !open)}
+            onClick={() => dispatch({type: 'toggle-advanced'})}
           >
             Advanced
           </Button>
@@ -479,11 +574,8 @@ export function ExplorePage(props: ExplorePageProps) {
           attributeValues={attributeValues.data ?? []}
           accounts={accounts.data ?? []}
           context={props.context}
-          presentation={props.parsed.presentation}
-          onFocusValue={(field, kind) => {
-            setActiveValueField(field)
-            setActiveValueKind(kind)
-          }}
+          presentation={editingParsed.presentation}
+          onFocusValue={(field, kind) => dispatch({type: 'set-value-focus', field, kind})}
           onChange={commitBuilderAst}
         />
       ) : null}
@@ -495,7 +587,7 @@ export function ExplorePage(props: ExplorePageProps) {
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => dispatch({type: 'set-active-tab', tab: tab.id})}
             className={cn(
               'border-b-2 px-3 py-2 text-sm transition-colors',
               activeTab === tab.id
@@ -702,7 +794,11 @@ function draftToPredicate(
   valueKind: 'string' | 'int' | 'bool',
   value: string,
 ): ExplorePredicate | null {
-  if (!field.trim()) return null
+  if (!field.trim()) {
+    if (kind === 'exists' || kind === 'missing') return {kind: 'attribute', key: '', operator: kind}
+    if (kind === 'comparison') return {kind: 'attribute', key: '', operator: 'comparison', comparison: operator, value}
+    return {kind: 'attribute', key: '', operator: kind, value}
+  }
   if (field === 'type' && ['document', 'block', 'comment'].includes(value))
     return {kind: 'type', value: value as HMExploreResultType}
   if (field === '$space') return {kind: 'scope', scope: 'space', value: value.trim()}
@@ -946,37 +1042,20 @@ function BuilderCondition({
   onChange: (predicate: ExplorePredicate | null) => void
   onRemove: () => void
 }) {
-  const [field, setField] = useState(draft.field)
-  const [kind, setKind] = useState(draft.kind)
-  const [operator, setOperator] = useState(draft.operator)
-  const [valueKind, setValueKind] = useState(draft.valueKind)
-  const [value, setValue] = useState(draft.value)
-  useEffect(() => {
-    setField(draft.field)
-    setKind(draft.kind)
-    setOperator(draft.operator)
-    setValueKind(draft.valueKind)
-    setValue(draft.value)
-  }, [draft.field, draft.kind, draft.operator, draft.valueKind, draft.value])
   const commit = (next: Partial<typeof draft>) => {
-    const merged = {field, kind, operator, valueKind, value, ...next}
-    setField(merged.field)
-    setKind(merged.kind)
-    setOperator(merged.operator)
-    setValueKind(merged.valueKind)
-    setValue(merged.value)
+    const merged = {...draft, ...next}
     onChange(draftToPredicate(merged.field, merged.kind, merged.operator, merged.valueKind, merged.value))
   }
   return (
     <div className="border-border flex flex-wrap items-center gap-2 rounded-md border p-2">
       <ExploreAutocomplete
-        value={field}
+        value={draft.field}
         options={[...attributeNames, '$space', '$path']}
         onChange={(next) => commit({field: next})}
         placeholder="field"
         className="h-8 w-36 text-xs"
       />
-      <Select value={kind} onValueChange={(next) => commit({kind: next as typeof kind})}>
+      <Select value={draft.kind} onValueChange={(next) => commit({kind: next as typeof draft.kind})}>
         <SelectTrigger size="sm" className="w-28">
           <SelectValue />
         </SelectTrigger>
@@ -988,8 +1067,8 @@ function BuilderCondition({
           <SelectItem value="missing">Missing</SelectItem>
         </SelectContent>
       </Select>
-      {kind === 'comparison' ? (
-        <Select value={operator} onValueChange={(next) => commit({operator: next as typeof operator})}>
+      {draft.kind === 'comparison' ? (
+        <Select value={draft.operator} onValueChange={(next) => commit({operator: next as typeof draft.operator})}>
           <SelectTrigger size="sm" className="w-16">
             <SelectValue />
           </SelectTrigger>
@@ -1002,8 +1081,8 @@ function BuilderCondition({
           </SelectContent>
         </Select>
       ) : null}
-      {kind !== 'exists' && kind !== 'missing' ? (
-        <Select value={valueKind} onValueChange={(next) => commit({valueKind: next as typeof valueKind})}>
+      {draft.kind !== 'exists' && draft.kind !== 'missing' ? (
+        <Select value={draft.valueKind} onValueChange={(next) => commit({valueKind: next as typeof draft.valueKind})}>
           <SelectTrigger size="sm" className="w-24">
             <SelectValue />
           </SelectTrigger>
@@ -1014,11 +1093,11 @@ function BuilderCondition({
           </SelectContent>
         </Select>
       ) : null}
-      {kind !== 'exists' && kind !== 'missing' ? (
+      {draft.kind !== 'exists' && draft.kind !== 'missing' ? (
         <ExploreAutocomplete
-          value={value}
+          value={draft.value}
           options={attributeValues.length ? attributeValues : accounts.map((account) => account.value)}
-          onFocus={() => onFocusValue(field, valueKind)}
+          onFocus={() => onFocusValue(draft.field, draft.valueKind)}
           onChange={(next) => commit({value: next})}
           placeholder="value"
           className="h-8 min-w-32 flex-1 text-xs"
