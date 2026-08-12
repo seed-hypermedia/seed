@@ -264,6 +264,14 @@ function blockToPublishable(blockNode: HMBlockNode): HMPublishableBlock | null {
       children: blocksToPublishable(blockNode.children || []),
     }
   }
+  if (block.type === 'Slot') {
+    return {
+      id: block.id,
+      type: 'Slot',
+      ...block.attributes,
+      children: blocksToPublishable(blockNode.children || []),
+    }
+  }
   throw new Error(`Unsupported block type: ${block.type}`)
 }
 

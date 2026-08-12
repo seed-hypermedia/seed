@@ -41,6 +41,7 @@ export type BlockInfo = {
  * @returns The position just before the nearest blockNode node.
  */
 export function getNearestBlockPos(doc: Node, pos: number) {
+  pos = Math.max(0, Math.min(pos, doc.content.size))
   const $pos = doc.resolve(pos)
 
   // Check if the position provided is already just before a block node, in

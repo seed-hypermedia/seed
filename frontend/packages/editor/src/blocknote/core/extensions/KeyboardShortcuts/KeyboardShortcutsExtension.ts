@@ -6,7 +6,11 @@ import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBloc
 import {nestBlock, unnestBlock} from '../../api/blockManipulation/commands/nestBlock'
 import {getCarryableStoredMarks, splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
-import {updateGroupChildrenCommand, updateGroupCommand} from '../../api/blockManipulation/commands/updateGroup'
+import {
+  nestFirstRootSlotItemCommand,
+  updateGroupChildrenCommand,
+  updateGroupCommand,
+} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
@@ -557,8 +561,10 @@ export const KeyboardShortcutsExtension = Extension.create<{
       ])
 
     const handleTab = () => {
-      console.log('[CTF] handleTab started')
       return this.editor.commands.first(({commands}) => [
+        // Tab on the first item of a root-level Slot's list nests the whole list
+        // under the previous root block and removes the slot.
+        () => commands.command(nestFirstRootSlotItemCommand()),
         // If the current block's previous sibling is a table, create an empty paragraph
         // blockNode, and indent a group under it.
         () =>

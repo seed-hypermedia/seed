@@ -25,6 +25,7 @@ function toHMBlockType(editorBlockType: EditorBlock['type']): HMBlockType | unde
   if (editorBlockType === 'table') return 'Table'
   if (editorBlockType === 'tableRow') return 'TableRow'
   if (editorBlockType === 'tableColumn') return 'TableColumn'
+  if (editorBlockType === 'slot') return 'Slot'
   return undefined
 }
 

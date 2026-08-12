@@ -3,7 +3,7 @@ import {Editor} from '@tiptap/core'
 import {ResolvedPos} from '@tiptap/pm/model'
 import {Node as PMNode} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
-import {getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
 import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 
 // Returns true if the current block's previous sibling is a table block.
@@ -53,6 +53,122 @@ function wrapInEmptyParagraphUnderTable(
   return true
 }
 
+/**
+ * Wrap a single block in an invisible Slot node
+ * so it can carry a childrenType attr root level.
+ */
+function wrapBlockInSlot(
+  state: EditorState,
+  dispatch: ((args?: any) => any) | undefined,
+  listType: HMBlockChildrenType,
+  listLevel: string,
+  posInBlock: number,
+): boolean {
+  let blockInfo
+  try {
+    blockInfo = getBlockInfoFromPos(state, posInBlock)
+  } catch {
+    return false
+  }
+  if (!dispatch) return true
+
+  const slotType = state.schema.nodes['slot']
+  const blockNodeType = state.schema.nodes['blockNode']
+  const blockChildrenType = state.schema.nodes['blockChildren']
+  if (!slotType || !blockNodeType || !blockChildrenType) return false
+
+  const slotContent = slotType.create({childrenType: listType, listLevel})
+  const innerChildren = blockChildrenType.create({listType, listLevel}, blockInfo.block.node)
+  const wrappingBlock = blockNodeType.create(null, [slotContent, innerChildren])
+
+  // Capture the cursor position before mutating the transaction.
+  const originalFrom = posInBlock
+
+  const tr = state.tr.replaceWith(blockInfo.block.beforePos, blockInfo.block.afterPos, wrappingBlock)
+  const newFrom = originalFrom + 3
+  tr.setSelection(TextSelection.near(tr.doc.resolve(newFrom))).scrollIntoView()
+  dispatch(tr)
+  return true
+}
+
+/**
+ * Unwrap a root-level Slot: replace the slot wrapper blockNode with the list
+ * items it holds, lifting them back to the root as plain blocks and discarding
+ * the slot.
+ * @param $pos    Resolved position inside the slot's item.
+ * @param groupDepth Depth of the slot's inner blockChildren
+ */
+function unwrapSlot(
+  state: EditorState,
+  dispatch: ((args?: any) => any) | undefined,
+  $pos: ResolvedPos,
+  groupDepth: number,
+): boolean {
+  const slotWrapperDepth = groupDepth - 1
+  if (slotWrapperDepth < 1) return false
+  const slotWrapper = $pos.node(slotWrapperDepth)
+  if (slotWrapper.type.name !== 'blockNode' || slotWrapper.firstChild?.type.name !== 'slot') return false
+  if (!dispatch) return true
+
+  const innerGroup = $pos.node(groupDepth)
+  const items: PMNode[] = []
+  innerGroup.forEach((child) => items.push(child))
+  if (!items.length) return false
+
+  const slotBefore = $pos.before(slotWrapperDepth)
+  const slotAfter = slotBefore + slotWrapper.nodeSize
+
+  const tr = state.tr.replaceWith(slotBefore, slotAfter, items)
+  // Place the cursor at the start of the first lifted block's content.
+  tr.setSelection(TextSelection.near(tr.doc.resolve(slotBefore + 2))).scrollIntoView()
+  dispatch(tr)
+  return true
+}
+
+/**
+ * Nest the root level slot under the previous sibling. Used in tab handler.
+ */
+export const nestFirstRootSlotItemCommand = () => {
+  return ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
+    const {group, container, depth, $pos} = getGroupInfoFromPos(state.selection.from, state)
+    if (!container) return false
+
+    const slotWrapper = depth - 1 >= 0 ? $pos.node(depth - 1) : null
+    const isRootSlot =
+      slotWrapper?.type.name === 'blockNode' &&
+      slotWrapper.firstChild?.type.name === 'slot' &&
+      depth - 3 >= 0 &&
+      $pos.node(depth - 2).type.name === 'blockChildren' &&
+      $pos.node(depth - 3).type.name === 'doc'
+    if (!isRootSlot) return false
+
+    if (group.firstChild?.attrs.id !== container.attrs.id) return false
+
+    const slotWrapperPos = $pos.before(depth - 1)
+    const prevSibling = state.doc.resolve(slotWrapperPos).nodeBefore
+    if (!prevSibling || prevSibling.type.name !== 'blockNode') return false
+    // Only nest under a previous block that has no children of its own.
+    if (prevSibling.childCount !== 1) return false
+
+    if (!dispatch) return true
+
+    const innerGroup = slotWrapper!.lastChild!
+    const prevContent = prevSibling.firstChild!
+    const blockNodeType = state.schema.nodes['blockNode']
+    if (!blockNodeType) return false
+
+    const newPrev = blockNodeType.create(prevSibling.attrs, [prevContent, innerGroup])
+    const prevStart = slotWrapperPos - prevSibling.nodeSize
+    const slotWrapperEnd = slotWrapperPos + slotWrapper!.nodeSize
+
+    const tr = state.tr.replaceWith(prevStart, slotWrapperEnd, newPrev)
+    // Keep the cursor in the first item's content.
+    tr.setSelection(TextSelection.near(tr.doc.resolve(prevStart + prevContent.nodeSize + 4))).scrollIntoView()
+    dispatch(tr)
+    return true
+  }
+}
+
 export const updateGroupCommand = (
   posInBlock: number,
   listType: HMBlockChildrenType,
@@ -81,6 +197,14 @@ export const updateGroupCommand = (
 
     if (isSank && group.attrs.listType === listType) return true
 
+    // Unwrap slot when it's turned back into a plain group.
+    const parentBlockOfGroup = depth - 1 >= 0 ? $pos.node(depth - 1) : null
+    const isInsideSlot =
+      parentBlockOfGroup?.type.name === 'blockNode' && parentBlockOfGroup.firstChild?.type.name === 'slot'
+    if (isInsideSlot && listType === 'Group' && container) {
+      return unwrapSlot(state, dispatch, $pos, depth)
+    }
+
     // Change group type to div
     if (group.attrs.listType !== 'Group' && listType === 'Group' && container) {
       if (dispatch) {
@@ -101,21 +225,23 @@ export const updateGroupCommand = (
       return true
     }
 
-    // The root blockChildren is persisted on document metadata, not on a parent block.
-    if ($pos.node(depth - 1).type.name === 'doc' && container && group.firstChild?.attrs.id === container.attrs.id) {
-      if ((listType === 'Unordered' || listType === 'Ordered') && dispatch) {
-        const tr = state.tr
-        tr.setNodeMarkup($pos.before(depth), null, {
-          ...group.attrs,
-          listType,
-          listLevel: '1',
+    if ($pos.node(depth - 1).type.name === 'doc' && container && !isSank) {
+      if (listType === 'Group') return false
+
+      if (!dispatch) return true
+
+      if (isPreviousSiblingTable(state)) {
+        // Wrap in an empty paragraph blockNode before wrapping in a slot,
+        // if the previous sibling is a table block.
+        setTimeout(() => {
+          editor.commands.command(({state: s, dispatch: d}) => wrapInEmptyParagraphUnderTable(s, d, listType, '1'))
         })
-        dispatch(tr)
-        ;(
-          editor as unknown as {_onRootChildrenTypeChange?: (listType: HMBlockChildrenType) => void}
-        )._onRootChildrenTypeChange?.(listType)
-        return true
+        return false
       }
+
+      setTimeout(() => {
+        editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, '1', s.selection.from))
+      })
       return false
     }
 

@@ -23,13 +23,22 @@ export function createMinimalSchema(): Schema {
         },
       },
       blockNode: {
-        content: 'paragraph blockChildren?',
+        content: 'block blockChildren?',
         group: 'blockNodeChild',
         attrs: {id: {default: null}},
       },
       paragraph: {
         content: 'text*',
         group: 'block',
+      },
+      slot: {
+        content: '',
+        group: 'block',
+        attrs: {
+          childrenType: {default: 'Group'},
+          listLevel: {default: '1'},
+          columnCount: {default: ''},
+        },
       },
       text: {
         group: 'inline',

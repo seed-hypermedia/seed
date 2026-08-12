@@ -508,6 +508,14 @@ export type HMPublishableBlockWebEmbed = {
   children?: HMPublishableBlock[]
 }
 
+export type HMPublishableBlockSlot = {
+  id: string
+  type: 'Slot'
+  childrenType?: HMBlockChildrenType
+  columnCount?: number
+  children?: HMPublishableBlock[]
+}
+
 export type HMPublishableBlock =
   | HMPublishableBlockParagraph
   | HMPublishableBlockHeading
@@ -519,6 +527,7 @@ export type HMPublishableBlock =
   | HMPublishableBlockButton
   | HMPublishableBlockEmbed
   | HMPublishableBlockWebEmbed
+  | HMPublishableBlockSlot
 
 export type HMBlockNode = {
   children?: HMBlockNode[]
@@ -894,6 +903,14 @@ export const HMBlockGroupSchema = z.object({
   id: z.string(),
 })
 
+export const HMBlockSlotSchema = z
+  .object({
+    type: z.literal('Slot'),
+    ...blockBaseProperties,
+    attributes: z.object(parentBlockAttributes).optional().default({}),
+  })
+  .strict()
+
 export const HMBlockLinkSchema = z.object({
   type: z.literal('Link'),
   id: z.string(),
@@ -918,6 +935,7 @@ export const HMBlockKnownSchema = z.discriminatedUnion('type', [
   HMBlockTableColumnSchema,
   HMBlockQuerySchema,
   HMBlockGroupSchema,
+  HMBlockSlotSchema,
   HMBlockLinkSchema,
 ])
 
@@ -952,6 +970,7 @@ export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
+export type HMBlockSlot = z.infer<typeof HMBlockSlotSchema>
 export type HMBlock = z.infer<typeof HMBlockKnownSchema>
 export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
 export type HMBlockTable = z.infer<typeof HMBlockTableSchema>

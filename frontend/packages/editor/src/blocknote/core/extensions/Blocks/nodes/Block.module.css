@@ -39,6 +39,14 @@ BASIC STYLES
   /*margin: 0px;*/
 }
 
+.blockContent[data-content-type='slot'] {
+  display: none;
+}
+
+.blockNode:has(> .blockContent[data-content-type='slot']) > .blockChildren {
+  margin-left: 0;
+}
+
 /*
 NESTED BLOCKS
 */
