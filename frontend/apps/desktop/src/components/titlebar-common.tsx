@@ -55,8 +55,6 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useQuery} from '@tanstack/react-query'
 import {
-  ArrowLeftFromLine,
-  ArrowRightFromLine,
   Bell,
   Bot,
   ChevronDown,
@@ -74,7 +72,6 @@ import {
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
-import {BookmarksPopover} from './bookmarks-popover'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
@@ -454,7 +451,6 @@ export function PageActionButtons(props: TitleBarProps) {
   return (
     <TitlebarSection>
       {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
-      <BookmarksPopover />
       <NotificationButton />
       <AccountProfileButton />
     </TitlebarSection>
@@ -514,22 +510,15 @@ export function NavigationButtons() {
 export function NavMenuButton({left}: {left?: ReactNode}) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
-  const isHoverVisible = useStream(ctx?.isHoverVisible)
-  let icon = <PanelLeft className="size-4" />
+  const icon = <PanelLeft className="size-4" />
   let tooltip = 'Lock Sidebar Open'
   let onPress = ctx?.onLockSidebarOpen
   let key = 'lock'
-  let color: undefined | string = undefined
 
   if (isLocked) {
     tooltip = 'Close Sidebar'
     onPress = ctx?.onCloseSidebar
     key = 'close'
-    color = 'text-muted'
-  }
-
-  if (isHoverVisible) {
-    icon = !isLocked ? <ArrowRightFromLine className="size-4" /> : <ArrowLeftFromLine className="size-4" />
   }
 
   // Add a state to track the last click time to debounce clicks
@@ -555,15 +544,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
             content={tooltip}
             key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear
           >
-            <Button
-              size="icon"
-              key={key}
-              aria-label={tooltip}
-              className="shrink-0"
-              // onMouseEnter={ctx.onMenuHover}
-              // onMouseLeave={ctx.onMenuHoverLeave}
-              onClick={handleClick}
-            >
+            <Button size="icon" key={key} aria-label={tooltip} className="shrink-0" onClick={handleClick}>
               {icon}
             </Button>
           </Tooltip>
@@ -601,8 +582,12 @@ function getRouteLabel(route: NavRoute): string | null {
   switch (route.key) {
     case 'onboarding':
       return 'Welcome to Seed Hypermedia'
+    case 'library':
+      return 'Library'
     case 'agents':
       return 'Agents'
+    case 'drafts':
+      return 'Drafts'
     case 'contacts':
       return 'Contacts'
     case 'bookmarks':
@@ -611,8 +596,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Settings'
     case 'api-inspector':
       return 'API Inspector'
-    case 'query-documents':
-      return 'Query Documents'
     case 'notifications':
       return 'Notifications'
     case 'draft':
