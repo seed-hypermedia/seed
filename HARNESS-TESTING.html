@@ -644,9 +644,8 @@ cd agents &amp;&amp; pnpm dev</code></pre>
         the way out.
       </p>
       <p class="muted">
-        Neither M4 nor M5 is the build on <code>:3051</code> — that is still <code>harness/01-verbs</code>, which has
-        neither. Every case below is therefore <b>not live-verified</b>: it has been driven headless against the branch
-        code, and it needs your eyes on a build from <code>~/Code/Seed-worktrees/harness-03</code>.
+        <b>Updated 2026-08-12:</b> <code>:3051</code> now serves <code>harness/full</code>, so every case below runs
+        live against your dev server.
       </p>
 
       <h3>M4.1 · Author a tool, then call it</h3>
@@ -675,6 +674,37 @@ cd agents &amp;&amp; pnpm dev</code></pre>
         announced) and in <code>agents/src/code-exec.test.ts</code>, which runs the generated TypeScript wrapper under
         <em>real bun</em> and the Python wrapper under <em>real python</em> — sync and async — rather than trusting its
         shape.
+      </div>
+
+      <h3>M4.1b · Retry your word_count session <span class="badge">fixed 2026-08-12</span></h3>
+      <p>
+        Your live run of M4.1 (session <code>1620fd65</code>) hit two real bugs, both now fixed on
+        <code>harness/full</code> (<code>5f4484036</code>):
+      </p>
+      <ul class="expect">
+        <li>
+          <b>TypeScript refused</b> (“needs a sandbox image with bun on PATH”): TS was an operator opt-in with no image
+          configured. It now defaults to <code>oven/bun</code> — a TS lambda runs out of the box.
+        </li>
+        <li>
+          <b>Python died at sandbox start</b> (“database schema is newer than this msb binary”): every msb copy on the
+          machine shares <code>~/.microsandbox/db</code>, and a newer 0.6.8 install had migrated it out from under the
+          dev server's 0.6.6. The dep is now pinned to 0.6.8.
+        </li>
+      </ul>
+      <div class="say">In your existing session: Now use word_count on “the quick brown fox jumps”.</div>
+      <ul class="expect">
+        <li>The saved python tool just runs: <code>{word_count: 5}</code>, no re-authoring needed.</li>
+        <li>
+          Then ask it to rewrite word_count in TypeScript and call it again — the write gets a new CID and the call
+          succeeds in the bun image. First TS call may take ~a minute while <code>oven/bun</code> is pulled; after that
+          it's warm.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>live-verified</b> — the exact lambda from your session (both the TS original and the python rewrite) executed
+        in real microVMs via <code>createCodeExecutor</code>: <code>{word_count: 9}</code> from each, logs separate, and
+        the running <code>:3051</code> server now advertises <code>ts, python, shell</code> in <code>/api/health</code>.
       </div>
 
       <h3>M4.2 · A tool that lies about its own output</h3>
