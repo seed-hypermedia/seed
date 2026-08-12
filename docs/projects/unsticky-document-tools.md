@@ -104,7 +104,9 @@ persistence is a layout fact rather than a paint trick. Mobile web scrolls the d
 `sticky top-0` and pins under the site header as it scrolls away.
 
 - Left: the file-explorer reveal button, then the breadcrumbs. Right: Publish/save and the `...` menu — the exact
-  `documentContentAction` composition the overlay used, unchanged.
+  `documentContentAction` composition the overlay used, unchanged. Both sit at the pane's edges (`px-4`) rather than
+  aligned to the centered content column: the bar reads as chrome, and the breadcrumbs truncate instead of colliding
+  with the actions when the trail is long.
 - Breadcrumbs move out of `DocumentHeader`/`EditableDocumentHeader` (the `breadcrumbs` prop is gone) and out of the
   home-document-only trail that rendered view labels in the page body. `Breadcrumbs` now renders a single crumb instead
   of bailing out at `length <= 1`, so a home document reads as just the Home icon, `aria-current`, not a link.

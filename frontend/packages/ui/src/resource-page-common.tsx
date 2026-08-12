@@ -2366,12 +2366,7 @@ function DocumentBody({
   // The bar always states where you are, so a home document is its own single crumb.
   const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
   const documentTopBar = (
-    <DocumentTopBar
-      breadcrumbs={topBarBreadcrumbs}
-      actions={documentContentAction}
-      isMobile={isMobile}
-      layoutProps={isMobile ? undefined : {wrapperProps, sidebarProps, mainContentProps, showSidebars}}
-    />
+    <DocumentTopBar breadcrumbs={topBarBreadcrumbs} actions={documentContentAction} isMobile={isMobile} />
   )
 
   // Main page content (used in both mobile and desktop layouts)

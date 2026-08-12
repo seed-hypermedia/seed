@@ -208,10 +208,10 @@ export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
   const lastIndex = breadcrumbs.length - 1
 
   return (
-    <nav aria-label="Breadcrumb" className="text-muted-foreground flex flex-1 items-center">
+    <nav aria-label="Breadcrumb" className="text-muted-foreground flex min-w-0 flex-1 items-center">
       <ol className="flex min-w-0 flex-1 items-center gap-2">
         {first && 'id' in first ? (
-          <li className="flex min-w-0 items-center">
+          <li className="flex shrink-0 items-center">
             <HomeBreadcrumb crumb={first} isCurrent={lastIndex === 0} />
           </li>
         ) : null}
@@ -221,7 +221,7 @@ export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
           const isCurrent = index === lastIndex
           return (
             <li key={key} className="flex min-w-0 items-center gap-2">
-              <SizableText aria-hidden="true" color="muted" size="xs">
+              <SizableText aria-hidden="true" color="muted" size="xs" className="shrink-0">
                 {'>'}
               </SizableText>
               {'id' in crumb ? (
@@ -285,7 +285,7 @@ function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
         <Spinner size="small" />
       </>
     )
-    const className = 'text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap'
+    const className = 'text-muted-foreground flex min-w-0 items-center gap-1 truncate text-xs whitespace-nowrap'
     if (isCurrent) {
       return (
         <span aria-current="page" className={className}>
