@@ -48,7 +48,6 @@ export function DocumentHeader({
   docMetadata,
   authors = [],
   updateTime = null,
-  breadcrumbs,
   siteUrl,
   documentTools,
   visibility,
@@ -61,7 +60,6 @@ export function DocumentHeader({
   docMetadata: HMMetadata | null
   authors: AuthorPayload[]
   updateTime: HMDocument['updateTime'] | null
-  breadcrumbs?: BreadcrumbEntry[]
   siteUrl?: string
   documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
@@ -121,7 +119,6 @@ export function DocumentHeader({
             ) : null}
           </div>
         ) : null}
-        {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
         {(isPrivate || headCount > 1) && (
           <div className="flex flex-wrap items-center gap-2">
             {isPrivate && <PrivateBadge />}
@@ -201,19 +198,20 @@ function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string})
 }
 
 /**
- * Renders document breadcrumbs when there is at least one navigable item beyond the home/root crumb.
+ * Renders the document's location trail, ending with the current document as
+ * non-navigable text. A lone crumb still renders: it is the home document.
  */
 export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
-  if (breadcrumbs.length <= 1) return null
+  if (breadcrumbs.length === 0) return null
 
   const [first, ...rest] = breadcrumbs
   const lastIndex = breadcrumbs.length - 1
 
   return (
-    <nav aria-label="Breadcrumb" className="text-muted-foreground flex flex-1 items-center">
+    <nav aria-label="Breadcrumb" className="text-muted-foreground flex min-w-0 flex-1 items-center">
       <ol className="flex min-w-0 flex-1 items-center gap-2">
         {first && 'id' in first ? (
-          <li className="flex min-w-0 items-center">
+          <li className="flex shrink-0 items-center">
             <HomeBreadcrumb crumb={first} isCurrent={lastIndex === 0} />
           </li>
         ) : null}
@@ -223,7 +221,7 @@ export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
           const isCurrent = index === lastIndex
           return (
             <li key={key} className="flex min-w-0 items-center gap-2">
-              <SizableText aria-hidden="true" color="muted" size="xs">
+              <SizableText aria-hidden="true" color="muted" size="xs" className="shrink-0">
                 {'>'}
               </SizableText>
               {'id' in crumb ? (
@@ -287,7 +285,7 @@ function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
         <Spinner size="small" />
       </>
     )
-    const className = 'text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap'
+    const className = 'text-muted-foreground flex min-w-0 items-center gap-1 truncate text-xs whitespace-nowrap'
     if (isCurrent) {
       return (
         <span aria-current="page" className={className}>

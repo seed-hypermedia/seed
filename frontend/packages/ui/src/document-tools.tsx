@@ -41,7 +41,6 @@ export function DocumentTools({
   inspectRoute,
   inspectTabs,
   layoutProps,
-  rightAction,
 }: {
   id: UnpackedHypermediaId
   activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations' | 'metadata'
@@ -52,8 +51,6 @@ export function DocumentTools({
   metadataCount?: number
   /** Rendered immediately to the right of the active tab pill. When no tab is active, rendered as last sibling. */
   activeTabAction?: React.ReactNode
-  /** Optional controls rendered on the right side of the tools row. */
-  rightAction?: React.ReactNode
   existingDraft?: HMExistingDraft | false
   /** Current panel route — tabs preserve this when navigating */
   currentPanel?: DocumentPanelRoute | null
@@ -369,7 +366,6 @@ export function DocumentTools({
       <div ref={containerRef} className="flex min-w-0 flex-1 items-center gap-2 p-1 md:gap-4 md:p-2">
         {tabButtons}
       </div>
-      {rightAction ? <div className="flex shrink-0 items-center gap-1 p-1">{rightAction}</div> : null}
     </div>
   )
 }

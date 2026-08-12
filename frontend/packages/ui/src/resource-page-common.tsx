@@ -107,9 +107,10 @@ import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
+import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {EditableDocumentMetadataFields, HomeDocumentMetadataAffordanceBar} from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
+import {DocumentTopBar} from './document-top-bar'
 import {DocumentTools} from './document-tools'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
 import {Feed, type DraftVersionEntry} from './feed'
@@ -834,6 +835,7 @@ export function ResourcePage({
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
   const isSiteProfile = route.key === 'site-profile'
+  const media = useMedia()
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
@@ -929,6 +931,10 @@ export function ResourcePage({
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
       >
+        <DocumentTopBar
+          breadcrumbs={[{id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
+          isMobile={media.xs && !IS_DESKTOP}
+        />
         <SiteProfileContent
           siteUid={docId.uid}
           accountUid={accountUid}
@@ -2012,30 +2018,8 @@ function DocumentBody({
     route,
   ])
 
-  // Track when DocumentTools becomes sticky
-  const [isToolsSticky, setIsToolsSticky] = useState(false)
-  const toolsSentinelRef = useRef<HTMLDivElement>(null)
-
   // Mobile panel open state derived from URL panel route
   const mobilePanelOpen = !!panelKey
-
-  useEffect(() => {
-    const sentinel = toolsSentinelRef.current
-    if (!sentinel) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0]
-        if (!entry) return
-        // When sentinel is not intersecting (scrolled out of view), tools are sticky
-        setIsToolsSticky(!entry.isIntersecting)
-      },
-      {threshold: 0.1, rootMargin: '0px'},
-    )
-
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [])
 
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
@@ -2377,14 +2361,13 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
-  const documentContentActionOverlay =
-    documentContentAction && !isMobile ? (
-      <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4">
-        {documentContentAction}
-      </div>
-    ) : null
-  const documentToolsRightAction = isMobile ? documentContentAction : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
+
+  // The bar always states where you are, so a home document is its own single crumb.
+  const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
+  const documentTopBar = (
+    <DocumentTopBar breadcrumbs={topBarBreadcrumbs} actions={documentContentAction} isMobile={isMobile} />
+  )
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
@@ -2417,33 +2400,6 @@ function DocumentBody({
                   <MembersFacepile members={siteMembers.members} siteId={siteId} />
                 </div>
               )}
-            {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
-              <div className="mt-4 px-6">
-                <Breadcrumbs
-                  breadcrumbs={[
-                    {id: hmId(docId.uid, {latest: true}), metadata: metadata},
-                    ...(activeView !== 'content'
-                      ? [
-                          {
-                            label:
-                              (
-                                {
-                                  comments: 'Comments',
-                                  collaborators: 'People',
-                                  activity: 'Activity',
-                                  directory: 'Sub documents',
-                                  'all-documents': 'All Documents',
-                                  'site-profile': 'Profile',
-                                  metadata: 'Attributes',
-                                } as Record<string, string>
-                              )[activeView] || '',
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-              </div>
-            )}
             {!isHomeDoc &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
@@ -2451,7 +2407,6 @@ function DocumentBody({
                   docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
-                  breadcrumbs={breadcrumbs}
                   visibility={headerVisibility}
                   version={document.version}
                   fileUpload={fileUpload}
@@ -2462,7 +2417,6 @@ function DocumentBody({
                   docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
-                  breadcrumbs={breadcrumbs}
                   visibility={headerVisibility}
                   version={document.version}
                 />
@@ -2480,33 +2434,6 @@ function DocumentBody({
                 <MembersFacepile members={siteMembers.members} siteId={siteId} />
               </div>
             )}
-          {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
-            <div className="mt-4 px-6">
-              <Breadcrumbs
-                breadcrumbs={[
-                  {id: hmId(docId.uid, {latest: true}), metadata: metadata},
-                  ...(activeView !== 'content'
-                    ? [
-                        {
-                          label:
-                            (
-                              {
-                                comments: 'Comments',
-                                collaborators: 'People',
-                                activity: 'Activity',
-                                directory: 'Sub documents',
-                                'all-documents': 'All Documents',
-                                'site-profile': 'Profile',
-                                metadata: 'Attributes',
-                              } as Record<string, string>
-                            )[activeView] || '',
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            </div>
-          )}
           {!isHomeDoc &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
@@ -2514,7 +2441,6 @@ function DocumentBody({
                 docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
                 visibility={headerVisibility}
                 version={document.version}
                 fileUpload={fileUpload}
@@ -2525,7 +2451,6 @@ function DocumentBody({
                 docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
                 visibility={headerVisibility}
                 version={document.version}
               />
@@ -2533,19 +2458,10 @@ function DocumentBody({
         </div>
       )}
 
-      {/* Sentinel element - important for doc tools sticky checking */}
-      <div ref={toolsSentinelRef} />
-
-      {/* DocumentTools - sticky with compact padding. Hidden when showActivity is false. */}
+      {/* DocumentTools - scrolls with the page; the border separates document
+          identity above from document body below. Hidden when showActivity is false. */}
       {showActivity && (
-        <div
-          className={cn(
-            'sticky top-0 z-10 px-5 py-1',
-            'dark:bg-background bg-white',
-            isToolsSticky ? 'shadow-md' : 'shadow-none',
-            'transition-shadow',
-          )}
-        >
+        <div className="border-border border-b px-5 py-1">
           <DocumentTools
             id={docId}
             activeTab={
@@ -2565,7 +2481,6 @@ function DocumentBody({
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
             metadataCount={countCustomMetadataFields(metadata)}
-            rightAction={documentToolsRightAction}
             layoutProps={
               isMobile
                 ? undefined
@@ -2670,6 +2585,7 @@ function DocumentBody({
     return (
       <>
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+          {documentTopBar}
           {mainPageContent}
           {floatingButtonsAction}
         </div>
@@ -2751,18 +2667,17 @@ function DocumentBody({
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
-        {/* Floating action buttons — when editing, show editing toolbar;
-            when a draft exists but not editing, show draft toolbar (publish + menu);
-            otherwise show the options menu */}
-        {documentContentActionOverlay}
-        <ScrollArea
-          id="scroll-page-wrapper"
-          className="h-full"
-          viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
-          fillViewportContent
-        >
-          {mainPageContent}
-        </ScrollArea>
+        <div className="flex h-full min-h-0 flex-col">
+          {documentTopBar}
+          <ScrollArea
+            id="scroll-page-wrapper"
+            className="min-h-0 flex-1"
+            viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+            fillViewportContent
+          >
+            {mainPageContent}
+          </ScrollArea>
+        </div>
       </PanelLayout>
     </div>
   )
@@ -2770,7 +2685,7 @@ function DocumentBody({
 
 /**
  * Editable document header shown when in editing mode.
- * Renders the same breadcrumbs/authors/date via DocumentHeader but replaces
+ * Renders the same authors/date via DocumentHeader but replaces
  * the static title and summary with editable textareas that send `change`
  * events to the document machine.
  */
@@ -2779,7 +2694,6 @@ function EditableDocumentHeader({
   docMetadata,
   authors,
   updateTime,
-  breadcrumbs,
   visibility,
   version,
   fileUpload,
@@ -2788,7 +2702,6 @@ function EditableDocumentHeader({
   docMetadata: HMDocument['metadata']
   authors: AuthorPayload[]
   updateTime: HMDocument['updateTime']
-  breadcrumbs?: BreadcrumbEntry[]
   visibility?: string
   version?: HMDocument['version'] | null
   fileUpload?: (file: File) => Promise<string>
@@ -2809,7 +2722,6 @@ function EditableDocumentHeader({
       docMetadata={docMetadata}
       authors={authors}
       updateTime={updateTime}
-      breadcrumbs={breadcrumbs}
       visibility={visibility as any}
       version={version}
       showTitle={false}
@@ -3423,7 +3335,7 @@ function ContentViewWithOutline({
       {showSidebars && (
         <div {...sidebarProps}>
           {outline.length > 0 && (
-            <div className="sticky top-24 mt-4">
+            <div className="sticky top-4 mt-4">
               <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
                 <DocumentOutline
                   onActivateBlock={(blockId) => {
