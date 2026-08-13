@@ -120,14 +120,16 @@ describe('read verb', () => {
     expect(unknown.tools).toEqual(['execute', 'search', 'web_search'])
   })
 
-  test('hm:// addresses resolve through the hypermedia reader', async () => {
+  test('hm:// addresses resolve through the hypermedia reader on the configured HM server', async () => {
     const context = makeContext()
     const originalFetch = globalThis.fetch
     cleanups.push(() => {
       globalThis.fetch = originalFetch
     })
+    const requests: string[] = []
     globalThis.fetch = mock(async (url: string | URL) => {
       const href = decodeURIComponent(String(url))
+      requests.push(href)
       if (href.includes('/api/Resource')) {
         return Response.json(
           serialize({
@@ -153,6 +155,10 @@ describe('read verb', () => {
 
     const result = await executeReadVerb(context, {address: 'hm://z6MkDoc/notes'})
     expect(String(result.markdown)).toContain('Doc body')
+    // hm:// reads must hit the server this agent service is configured with — the local node in
+    // desktop environments — never a hardcoded public gateway.
+    expect(requests.length).toBeGreaterThan(0)
+    for (const href of requests) expect(href.startsWith('https://hm.example/')).toBe(true)
   })
 
   test('activity: hits ListEvents with mapped filters', async () => {

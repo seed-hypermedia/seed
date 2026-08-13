@@ -7314,7 +7314,9 @@ export async function executeReadVerb(
   if (address.startsWith('thread:')) return readThreadAddress(context, address.slice('thread:'.length))
   if (address.startsWith('run:')) return readRunAddress(context, address.slice('run:'.length))
 
-  if (address.startsWith('hm://')) return readHypermedia({id: address, format})
+  // hm:// reads go through this server's configured HM endpoint — the local node in every desktop
+  // environment — never a hardcoded public gateway (environments.md).
+  if (address.startsWith('hm://')) return readHypermedia({id: address, format, server: context.hmServerUrl})
   if (/^https?:\/\//.test(address)) {
     // Seed sites and gateway URLs resolve as hypermedia first; anything else is a web page.
     // Fall through to the web reader ONLY when the URL is established as not-hypermedia (the
@@ -7323,7 +7325,7 @@ export async function executeReadVerb(
     // surfaces instead of being silently replaced by scraped page HTML the model would mistake
     // for the document's real content.
     try {
-      return await readHypermedia({id: address, format})
+      return await readHypermedia({id: address, format, server: context.hmServerUrl})
     } catch (error) {
       const notHypermedia =
         error instanceof Error && error.message.includes('does not appear to be a Seed Hypermedia resource')
@@ -9344,6 +9346,12 @@ function emptyPiUsage(): {
   }
 }
 
+/** Deadline for each read-path HM request; without one, a wedged server hangs the agent run. */
+const HM_READ_TIMEOUT_MS = 30_000
+
+const fetchWithReadDeadline = ((input: RequestInfo | URL, init?: RequestInit) =>
+  fetch(input, {...init, signal: init?.signal ?? AbortSignal.timeout(HM_READ_TIMEOUT_MS)})) as typeof globalThis.fetch
+
 /**
  * Detects a trailing `:attributes` view term (or its legacy `:metadata` spelling) on a resolved id
  * and strips it, so the underlying document can be fetched. The caller then returns only the
@@ -9381,35 +9389,27 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
   if (requestedId.startsWith('-')) throw new APIError(400, 'Tool id is invalid')
 
   const defaultServerUrl = optionsToServerUrl({server, dev})
-  let {id, client, serverUrl} = await resolveIdWithClient(requestedId, {
+  const resolved = await resolveIdWithClient(requestedId, {
     serverUrl: defaultServerUrl,
     domainResolver: async (hostname) => {
-      const domain = await createSeedClient(defaultServerUrl).request('GetDomain', {domain: hostname})
+      const domain = await createSeedClient(defaultServerUrl, {fetch: fetchWithReadDeadline}).request('GetDomain', {
+        domain: hostname,
+      })
       return domain.registeredAccountUid
     },
   })
+  // Every read-path request carries a deadline: a wedged HM server must fail this tool call, not
+  // hang the session's run forever with a tool_call that never gets its tool_result.
+  const serverUrl = resolved.serverUrl
+  const client = createSeedClient(serverUrl, {fetch: fetchWithReadDeadline})
+  let id = resolved.id
   if (id.path?.[0] === ':profile') {
-    return readProfileHypermedia({requestedId, id, client, serverUrl, server, dev})
+    return readProfileHypermedia({requestedId, id, client, serverUrl})
   }
   const stripped = stripAttributesViewTerm(id)
   id = stripped.id
   const attributesOnly = stripped.attributesOnly
-  let resource = await client.request('Resource', id)
-  if (
-    (resource.type === 'not-found' || resource.type === 'error') &&
-    !server &&
-    !dev &&
-    requestedId.startsWith('hm:')
-  ) {
-    const devResolved = await resolveIdWithClient(requestedId, {serverUrl: 'https://dev.hyper.media'})
-    const devId = stripAttributesViewTerm(devResolved.id).id
-    const devResource = await devResolved.client.request('Resource', devId)
-    if (devResource.type !== 'not-found' && devResource.type !== 'error') {
-      id = devId
-      serverUrl = devResolved.serverUrl
-      resource = devResource
-    }
-  }
+  const resource = await client.request('Resource', id)
   const outputFormat = format || 'markdown'
   const result: Record<string, unknown> = {
     type: 'hypermedia_document',
@@ -9464,28 +9464,11 @@ async function readProfileHypermedia(input: {
   id: ReturnType<typeof unpackHmId> & {}
   client: ReturnType<typeof createSeedClient>
   serverUrl: string
-  server: unknown
-  dev: unknown
 }): Promise<Record<string, unknown>> {
   const accountUid = input.id.path?.[1] || input.id.uid
-  let client = input.client
-  let serverUrl = input.serverUrl
-  let account = await client.request('Account', accountUid)
-  if (
-    account.type === 'account-not-found' &&
-    !input.server &&
-    !input.dev &&
-    (input.requestedId.startsWith('hm:') || input.requestedId.includes('hyper.media'))
-  ) {
-    const devResolved = await resolveIdWithClient(input.requestedId, {serverUrl: 'https://dev.hyper.media'})
-    const devAccountUid = devResolved.id.path?.[1] || devResolved.id.uid
-    const devAccount = await devResolved.client.request('Account', devAccountUid)
-    if (devAccount.type !== 'account-not-found') {
-      client = devResolved.client
-      serverUrl = devResolved.serverUrl
-      account = devAccount
-    }
-  }
+  const client = input.client
+  const serverUrl = input.serverUrl
+  const account = await client.request('Account', accountUid)
   const profileId = `hm://${accountUid}/:profile`
   const targetId = unpackHmId(`hm://${accountUid}`) || input.id
   const [activity, contacts, capabilities] = await Promise.all([
@@ -9509,7 +9492,6 @@ async function readProfileHypermedia(input: {
     accountUid,
     server: serverUrl,
     format: 'markdown',
-    ...(input.dev ? {dev: true} : {}),
     title: name,
     account,
     activity,

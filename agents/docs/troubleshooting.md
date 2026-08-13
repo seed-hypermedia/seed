@@ -74,6 +74,11 @@ Common causes:
 - a memory path that does not exist. A directory address without its trailing slash is not one of these: `read` answers
   with the listing rather than an error.
 
+An `hm://` read that returns `not-found` for a document the agent just published means the service's
+`SEED_AGENTS_HM_SERVER_URL` points at a different node than the one the write went through — check `/api/health` for the
+URL actually in effect. Reads never fall back to a public gateway, and every read-path HM request times out after 30s
+(`The operation timed out` in the tool result) rather than hanging the run on an unresponsive server.
+
 ## `call` came back with a tool contract instead of a result
 
 That is touch-expand working, not a failure. A `call` with a missing or invalid input — or for a tool the thread has not
