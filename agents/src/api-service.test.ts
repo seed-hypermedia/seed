@@ -7049,3 +7049,32 @@ describe('symmetric log: user tool calls', () => {
     }
   })
 })
+
+describe('model-facing tool result bound', () => {
+  test('small results pass through untouched', () => {
+    const text = JSON.stringify({summary: 'ok', markdown: 'hello'})
+    expect(apisvc.boundModelToolResultText(text)).toBe(text)
+  })
+
+  test('oversized results are cut to the cap with recovery guidance appended', () => {
+    const text = 'x'.repeat(apisvc.MAX_MODEL_TOOL_RESULT_BYTES * 4)
+    const bounded = apisvc.boundModelToolResultText(text)
+    expect(bounded.length).toBeLessThan(text.length)
+    const [head = '', notice = ''] = bounded.split('\n\n[RESULT TRUNCATED: ')
+    expect(Buffer.byteLength(head, 'utf8')).toBeLessThanOrEqual(apisvc.MAX_MODEL_TOOL_RESULT_BYTES)
+    // The notice must steer the model to bounded strategies, not a retry of the same call.
+    expect(notice).toContain('execute')
+    expect(notice).toContain('~/memory/')
+    expect(notice).toContain(`${Buffer.byteLength(text, 'utf8')} bytes total`)
+  })
+
+  test('the cut lands on a character boundary even for multibyte text', () => {
+    const text = '🦀'.repeat(apisvc.MAX_MODEL_TOOL_RESULT_BYTES)
+    const bounded = apisvc.boundModelToolResultText(text)
+    const head = bounded.split('\n\n[RESULT TRUNCATED: ')[0] ?? ''
+    expect(Buffer.byteLength(head, 'utf8')).toBeLessThanOrEqual(apisvc.MAX_MODEL_TOOL_RESULT_BYTES)
+    // A lone surrogate at the cut would serialize as invalid UTF-8 on the provider wire.
+    expect(head).not.toMatch(/[\uD800-\uDBFF]$/)
+    expect(JSON.parse(JSON.stringify(head))).toBe(head)
+  })
+})

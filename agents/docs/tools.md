@@ -483,10 +483,21 @@ Parked `delegate` calls keep their durable `tool_call` deliberately unanswered u
 real result; a post-park reconcile pass closes the race where a fast child finalizes before the parent's `waiting`
 status commits.
 
-## Size limit
+## Size limits
 
-`MAX_TOOL_RESULT_BYTES` is 256 KiB (`api-service.ts:148`). Oversized rendered markdown fails with a tool error; replayed
-user-action payloads are truncated rather than dropped.
+Two ceilings, two purposes:
+
+- `MAX_TOOL_RESULT_BYTES` (256 KiB, `api-service.ts:150`) bounds what a tool may produce durably: rendered document and
+  comment markdown is truncated on a byte boundary at this cap before it enters the session event log.
+- `MAX_MODEL_TOOL_RESULT_BYTES` (8 KiB, `api-service.ts:157`) bounds what any single tool result contributes to the
+  provider context. `boundModelToolResultText()` cuts the serialized result on a UTF-8 character boundary and appends a
+  notice telling the model the result was truncated and that it must work in bounded pieces — narrower reads, or saving
+  the source into a memory file and processing it with `execute` — instead of retrying the same call. It is applied at
+  the single tool-definition choke point (`defineSeedPiTool`) for live calls (including `piContent` text parts; image
+  parts have their own inline cap) and again on transcript replay (assistant tool results, orphan results, and
+  user-action payloads), so a resumed session sees the same bounded transcript the live session saw.
+
+Durable session events and the desktop UI keep the tool's full output; only the model-facing text is cut.
 
 ## Adding or changing a tool
 

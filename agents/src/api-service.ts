@@ -148,6 +148,13 @@ const WORKFLOW_JOURNAL_MAX_BYTES = 8 * 1024 * 1024
 const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
+/**
+ * Ceiling on the model-facing text of a single tool result (~2k tokens). Durable session events
+ * and the UI keep the tool's full output; only what rides to the provider is cut, so one oversized
+ * read can't blow the context window. Applied on the live path (defineSeedPiTool) and again on
+ * replay, so resumed sessions see the same bounded transcript.
+ */
+export const MAX_MODEL_TOOL_RESULT_BYTES = 8 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
 const DEFAULT_SESSION_PAGE_SIZE = 50
 const MAX_SESSION_PAGE_SIZE = 200
@@ -4836,7 +4843,9 @@ export class Service {
             role: 'toolResult',
             toolCallId: callId,
             toolName: result.name || String(call.name) || seedToolRegistry.read.name,
-            content: [{type: 'text', text: result.error ?? JSON.stringify(result.output ?? {})}],
+            content: [
+              {type: 'text', text: boundModelToolResultText(result.error ?? JSON.stringify(result.output ?? {}))},
+            ],
             details: result.output,
             isError: typeof result.error === 'string',
             timestamp: result.createdAt,
@@ -4897,7 +4906,7 @@ export class Service {
           messages.push({
             role: 'user',
             content: `<user_action verb="${value.name ?? ''}">\n${escapeActionFraming(
-              ensureToolResultSize(safeJSONStringify(value.input ?? {})),
+              boundModelToolResultText(safeJSONStringify(value.input ?? {})),
             )}\n</user_action>`,
             timestamp: event.createdAt,
           })
@@ -4905,7 +4914,7 @@ export class Service {
           messages.push({
             role: 'user',
             content: `<user_action_result verb="${value.name ?? ''}">\n${escapeActionFraming(
-              ensureToolResultSize(
+              boundModelToolResultText(
                 value.error !== undefined ? String(value.error) : safeJSONStringify(value.output ?? {}),
               ),
             )}\n</user_action_result>`,
@@ -4955,7 +4964,7 @@ export class Service {
           role: 'toolResult',
           toolCallId: value.toolCallId,
           toolName: value.name || seedToolRegistry.read.name,
-          content: [{type: 'text', text: value.error ?? JSON.stringify(value.output ?? {})}],
+          content: [{type: 'text', text: boundModelToolResultText(value.error ?? JSON.stringify(value.output ?? {}))}],
           details: value.output,
           isError: typeof value.error === 'string',
           timestamp: event.createdAt,
@@ -6938,10 +6947,14 @@ function defineSeedPiTool(
       if (hasPiContent(raw)) {
         const {piContent, ...rest} = raw
         const output = jsonSafeToolOutput(rest)
-        return {content: piContent, details: output}
+        // Text parts are bounded like any other result; image parts have their own inline cap.
+        const content = piContent.map((part) =>
+          part.type === 'text' ? {...part, text: boundModelToolResultText(part.text)} : part,
+        )
+        return {content, details: output}
       }
       const output = jsonSafeToolOutput(raw)
-      return {content: [{type: 'text', text: safeJSONStringify(output)}], details: output}
+      return {content: [{type: 'text', text: boundModelToolResultText(safeJSONStringify(output))}], details: output}
     },
   })
 }
@@ -9263,6 +9276,30 @@ function ensureToolResultSize(text: string): string {
   return text
 }
 
+/**
+ * Bounds one tool result's model-facing text to MAX_MODEL_TOOL_RESULT_BYTES. The appended notice
+ * steers the model toward bounded strategies (narrower reads, memory + execute) instead of
+ * retrying the same call, which would truncate identically.
+ */
+export function boundModelToolResultText(text: string): string {
+  const totalBytes = Buffer.byteLength(text, 'utf8')
+  if (totalBytes <= MAX_MODEL_TOOL_RESULT_BYTES) return text
+  let lo = 0
+  let hi = text.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (Buffer.byteLength(text.slice(0, mid), 'utf8') <= MAX_MODEL_TOOL_RESULT_BYTES) lo = mid
+    else hi = mid - 1
+  }
+  let head = text.slice(0, lo)
+  const lastCode = head.charCodeAt(head.length - 1)
+  if (lastCode >= 0xd800 && lastCode <= 0xdbff) head = head.slice(0, -1)
+  return `${head}\n\n[RESULT TRUNCATED: ${totalBytes} bytes total, only the first ${Buffer.byteLength(
+    head,
+    'utf8',
+  )} bytes are shown. Retrying this exact call will truncate the same way. You must work with the data in bounded pieces instead: request a narrower slice if the tool supports it (a specific block, view, page, or query), or get the full data into a memory file (e.g. write ~/memory/<path> with {fromUrl} or {fromAttachment}) and process it with the execute tool, printing only the small portion you need.]`
+}
+
 function nullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
@@ -9443,10 +9480,7 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
       result.resource = resource
     } else {
       const markdown = await documentToResolvedMarkdown(resource.document, {client})
-      if (new TextEncoder().encode(markdown).byteLength > MAX_TOOL_RESULT_BYTES) {
-        throw new APIError(502, 'Hypermedia document is too large for this agent tool')
-      }
-      result.markdown = markdown
+      result.markdown = ensureToolResultSize(markdown)
     }
     return result
   }
@@ -9457,10 +9491,7 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
       result.resource = resource
     } else {
       const markdown = await commentToResolvedMarkdown(resource.comment, {client})
-      if (new TextEncoder().encode(markdown).byteLength > MAX_TOOL_RESULT_BYTES) {
-        throw new APIError(502, 'Hypermedia document is too large for this agent tool')
-      }
-      result.markdown = markdown
+      result.markdown = ensureToolResultSize(markdown)
     }
     return result
   }
