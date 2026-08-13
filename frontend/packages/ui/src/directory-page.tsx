@@ -255,12 +255,12 @@ const SORT_OPTIONS: SelectOptions[] = [
   {value: 'hierarchy-desc', label: 'Hierarchy (reversed)'},
 ]
 
-function parseSortValue(value: SortValue): {type: SortType; direction: SortDirection} {
+export function parseSortValue(value: SortValue): {type: SortType; direction: SortDirection} {
   const [type, direction] = value.split('-') as [SortType, SortDirection]
   return {type, direction}
 }
 
-function getSortKey(item: DirectoryItemWithActivity, type: SortType): string | number {
+export function getSortKey(item: DirectoryItemWithActivity, type: SortType): string | number {
   switch (type) {
     case 'alphabetical':
       return getMetadataName(item.metadata).toLowerCase()
@@ -276,7 +276,7 @@ function getSortKey(item: DirectoryItemWithActivity, type: SortType): string | n
   }
 }
 
-function sortDirectoryItems(
+export function sortDirectoryItems(
   items: DirectoryItemWithActivity[],
   type: SortType,
   direction: SortDirection,
