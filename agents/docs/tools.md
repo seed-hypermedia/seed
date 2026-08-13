@@ -216,9 +216,18 @@ Hypermedia writes map `options.action` onto the CLI-parity command envelope (`ap
 command fields ride **only** in `options.input`, never as loose option keys, because the command handlers accept aliases
 (`reply`, `commentId`, `name`, …) and a stray key silently changing the operation is a real hazard.
 
+An unrecognized loose option key is **refused with a 400 naming the key and the supported set**, never silently dropped.
+This is enforced per address form (`assertKnownWriteOptions`), and it exists because of a real failure: a model passed
+`{metadata}` before the envelope knew that key, the write "succeeded", and the document published with the metadata
+missing — the model's only recourse was to fake it in the body text. A loud refusal is a contract the model can read and
+self-correct from; a silent drop is not.
+
 Other write behavior worth knowing:
 
 - `options.title` sets the visible document title; a markdown `#` heading is body content, not the title.
+- `options.metadata` (document/update and dotted document-shaped commands) is an object of document metadata attributes
+  merged into the document's metadata — `{summary, icon, cover, …}` or custom keys. It merges over markdown frontmatter
+  metadata, and `options.title` wins for `name`.
 - `options.signer` picks the identity by `profileName` or `publicKey` from the agent's selected signing keys.
 - `options.fromPath` on an `hm://` address publishes a memory markdown file (frontmatter + resolved images) through the
   dedicated pipeline; path `/` derives the document path from the file's frontmatter title.

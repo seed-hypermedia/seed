@@ -3001,7 +3001,12 @@ describe('api service', () => {
                           arguments: JSON.stringify({
                             address: `hm://${signerPublicKey}/`,
                             content: '# Home\n\nRoot document.',
-                            options: {title: 'Home', signer: {publicKey: signerPublicKey}, dryRun: true},
+                            options: {
+                              title: 'Home',
+                              metadata: {summary: 'The home page', tags: ['root', 'demo']},
+                              signer: {publicKey: signerPublicKey},
+                              dryRun: true,
+                            },
                           }),
                         },
                       },
@@ -3106,9 +3111,22 @@ describe('api service', () => {
       )
       if (loadedSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
       const rootDryRunResult = loadedSession.events
-        .map((event) => event.event as {type?: string; name?: string; output?: {id?: string; dryRun?: boolean}})
+        .map(
+          (event) =>
+            event.event as {
+              type?: string
+              name?: string
+              output?: {id?: string; dryRun?: boolean; metadata?: Record<string, unknown>}
+            },
+        )
         .find((event) => event.type === 'tool_result' && event.name === 'write' && event.output?.dryRun)
       expect(rootDryRunResult?.output?.id).toBe(`hm://${signerPublicKey}`)
+      // options.metadata must land in the document metadata (alongside the title), not vanish.
+      expect(rootDryRunResult?.output?.metadata).toMatchObject({
+        name: 'Home',
+        summary: 'The home page',
+        tags: ['root', 'demo'],
+      })
       expect(
         commentRequestUrls.some((url) =>
           url.includes(`__value=${encodeURIComponent(`${signerPublicKey}/parent-tsid`)}`),

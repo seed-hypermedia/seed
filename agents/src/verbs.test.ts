@@ -240,6 +240,39 @@ describe('write verb', () => {
     const context = makeContext()
     await expect(executeWriteVerb(context, {address: 'ipfs://'})).rejects.toThrow('requires options.fromPath')
   })
+
+  // The real incident behind these: a model passed {metadata} on an hm:// document write, the
+  // envelope only knew {title}, and the key was silently dropped — the doc published "successfully"
+  // with no metadata. Unknown option keys must refuse loudly so the model can self-correct.
+  test('unknown write option keys are refused with the supported set, never silently dropped', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {metdata: {a: 1}}}),
+    ).rejects.toThrow(/does not understand option "metdata".*title, metadata/)
+    await expect(
+      executeWriteVerb(context, {
+        address: 'hm://z6MkDoc/notes',
+        content: 'x',
+        options: {action: 'comment', title: 'X'},
+      }),
+    ).rejects.toThrow(/does not understand option "title".*target, replyTo/)
+    await expect(
+      executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', options: {metadata: {a: 1}}}),
+    ).rejects.toThrow(/does not understand option "metadata"/)
+    await expect(
+      executeWriteVerb(context, {address: 'ipfs://', options: {fromPths: '~/memory/a.txt'}}),
+    ).rejects.toThrow(/does not understand option "fromPths"/)
+    await expect(
+      executeWriteVerb(context, {address: '~/tools/thing', content: '{}', options: {overwrite: true}}),
+    ).rejects.toThrow(/does not understand option "overwrite"/)
+  })
+
+  test('write hm:// options.metadata must be an object', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {metadata: 'draft'}}),
+    ).rejects.toThrow('options.metadata must be an object')
+  })
 })
 
 describe('call verb', () => {

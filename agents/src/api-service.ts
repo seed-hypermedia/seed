@@ -7340,6 +7340,39 @@ export async function executeReadVerb(
 }
 
 /** Executes the write verb: memory, ipfs publishing, and hypermedia documents. */
+/**
+ * An unknown loose option key is refused, never silently dropped: a write that "succeeds" while
+ * ignoring part of its input (options.metadata was the real case) is worse than an error the model
+ * can read and self-correct from — the error names the key and the full supported set.
+ */
+function assertKnownWriteOptions(
+  form: string,
+  options: Record<string, unknown>,
+  allowed: readonly string[],
+  hint?: string,
+): void {
+  const unknown = Object.keys(options).filter((key) => !allowed.includes(key))
+  if (unknown.length === 0) return
+  throw new APIError(
+    400,
+    `write ${form} does not understand option${unknown.length > 1 ? 's' : ''} ${unknown
+      .map((key) => `"${key}"`)
+      .join(', ')}. Supported options: ${allowed.length ? allowed.join(', ') : '(none)'}.${hint ? ` ${hint}` : ''}`,
+  )
+}
+
+const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'dryRun', 'input'] as const
+const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
+  document: ['title', 'metadata'],
+  update: ['title', 'metadata'],
+  comment: ['target', 'replyTo'],
+  move: ['toPath'],
+  redirect: ['toUrl'],
+  delete: [],
+  fork: ['fromUrl'],
+}
+const HM_WRITE_OPTIONS_HINT = 'Extra command fields belong in options.input, never as loose option keys.'
+
 export async function executeWriteVerb(
   context: AgentServicePiToolContext,
   raw: unknown,
@@ -7351,6 +7384,7 @@ export async function executeWriteVerb(
   const content = typeof input.content === 'string' ? input.content : undefined
 
   if (address.startsWith('~/tools/')) {
+    assertKnownWriteOptions('~/tools/<name>', options, ['delete', 'tool'])
     const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
     try {
       if (options.delete === true) {
@@ -7384,6 +7418,7 @@ export async function executeWriteVerb(
 
   const memoryPath = memoryPathFromAddress(address)
   if (memoryPath !== null) {
+    assertKnownWriteOptions('~/memory/<path>', options, ['delete', 'fromUrl', 'fromAttachment'])
     if (options.delete === true) {
       const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, memoryPath))
       if (result.deleted) context.onMemoryChange()
@@ -7437,6 +7472,7 @@ export async function executeWriteVerb(
   }
 
   if (address.startsWith('ipfs:')) {
+    assertKnownWriteOptions('ipfs://', options, ['fromPath', 'fromAttachment'])
     if (!context.publishEnabled) {
       throw new APIError(
         403,
@@ -7490,6 +7526,7 @@ export async function executeWriteVerb(
     // Publishing a memory markdown file (frontmatter + resolved images) keeps its dedicated pipeline.
     const fromPath = typeof options.fromPath === 'string' && options.fromPath ? options.fromPath : undefined
     if (fromPath) {
+      assertKnownWriteOptions('hm:// (fromPath)', options, ['fromPath', 'signer', 'dryRun'])
       return publishMemoryDocument(context as AgentServicePiToolContext, {
         path: memoryPathFromAddress(fromPath) ?? fromPath,
         // '/' means "derive the path from the file's frontmatter title", matching the old tool.
@@ -7503,6 +7540,15 @@ export async function executeWriteVerb(
     // Extra command fields ride ONLY in options.input, never as loose option keys: the command
     // handlers accept aliases (reply, commentId, name, …), so a stray key silently changing the
     // operation is a real hazard. Dotted raw commands get the same explicit envelope.
+    assertKnownWriteOptions(
+      `hm:// (action "${action}")`,
+      options,
+      [...HM_WRITE_BASE_OPTION_KEYS, ...(HM_WRITE_ACTION_OPTION_KEYS[action] ?? ['title', 'metadata'])],
+      HM_WRITE_OPTIONS_HINT,
+    )
+    if (options.metadata !== undefined && !isRecord(options.metadata)) {
+      throw new APIError(400, 'write options.metadata must be an object of document metadata attributes')
+    }
     const passthrough = isRecord(options.input) ? options.input : {}
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
       command,
@@ -7518,6 +7564,7 @@ export async function executeWriteVerb(
             account: hm.account,
             path: hm.path,
             ...(typeof options.title === 'string' ? {name: options.title} : {}),
+            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
             ...(content !== undefined ? {content, format: 'markdown'} : {}),
           }),
         )
@@ -7528,6 +7575,7 @@ export async function executeWriteVerb(
             account: hm.account,
             path: hm.path,
             ...(typeof options.title === 'string' ? {name: options.title} : {}),
+            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
             ...(content !== undefined ? {content, format: 'markdown'} : {}),
           }),
         )
@@ -7578,6 +7626,7 @@ export async function executeWriteVerb(
               account: hm.account,
               ...(hm.path !== '/' ? {path: hm.path} : {}),
               ...(typeof options.title === 'string' ? {name: options.title} : {}),
+              ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
               ...(content !== undefined ? {content, format: 'markdown'} : {}),
             }),
           )
