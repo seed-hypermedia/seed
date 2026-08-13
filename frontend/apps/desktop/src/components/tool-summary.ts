@@ -357,7 +357,8 @@ function writeSummary(item: ChatToolPart, parsed: ParsedToolAddress): ToolRowSum
     }
     case 'hm': {
       const title =
-        getFirstToolString(output, ['metadata.name', 'title']) ||
+        getFirstToolString(output, ['metadata.name', 'name', 'title']) ||
+        (isRecord(options) && typeof options.name === 'string' ? options.name : undefined) ||
         (isRecord(options) && typeof options.title === 'string' ? options.title : undefined) ||
         parsed.display
       const resourceUrl = getFirstToolString(output, ['id', 'url', 'resourceUrl']) ?? parsed.address

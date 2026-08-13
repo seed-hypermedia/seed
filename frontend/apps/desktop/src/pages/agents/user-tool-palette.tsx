@@ -263,7 +263,7 @@ function WriteForm({busy, onBack, onRun}: {busy: boolean; onBack: () => void; on
       />
       <textarea
         className={`${fieldClass} min-h-10`}
-        placeholder='Options JSON (optional), e.g. {"title": "My Doc"}'
+        placeholder='Options JSON (optional), e.g. {"name": "My Doc"}'
         value={optionsJson}
         onChange={(event) => setOptionsJson(event.target.value)}
       />

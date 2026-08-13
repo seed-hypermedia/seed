@@ -812,9 +812,11 @@ function getWriteCommand(item: ChatToolPart): string | undefined {
 
 function getWriteDocumentName(item: ChatToolPart, fallback = 'Untitled'): string {
   return (
-    getFirstToolString(item.rawOutput, ['metadata.name', 'title']) ||
-    // The write verb carries the title in options; the pre-verb commands carried it in input.
+    getFirstToolString(item.rawOutput, ['metadata.name', 'name', 'title']) ||
+    // The write verb carries the name in options; older transcripts used title, and the
+    // pre-verb commands carried it in input.
     getFirstToolString(item.args, [
+      'options.name',
       'options.title',
       'input.name',
       'input.title',
@@ -1140,7 +1142,7 @@ function WriteCommandSummary({item}: {item: ChatToolPart}) {
   const sourceName = labelFromUrl(sourceUrl, 'source')
   const destinationName = labelFromUrl(destinationUrl, 'destination')
   const draftTitle =
-    getFirstToolString(output, ['title']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Untitled'
+    getFirstToolString(output, ['name', 'title']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Untitled'
   const draftId =
     getFirstToolString(output, ['draftId']) ||
     getFirstToolString(item.args, ['input.draftId', 'draftId', 'input.draft', 'draft'])
@@ -1366,7 +1368,7 @@ function WriteCommandDetails({item}: {item: ChatToolPart}) {
     getFirstToolString(output, ['draftId']) ||
     getFirstToolString(item.args, ['input.draftId', 'draftId', 'input.draft', 'draft'])
   const draftTitle =
-    getFirstToolString(output, ['title']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Untitled'
+    getFirstToolString(output, ['name', 'title']) || getFirstToolString(item.args, ['input.name', 'name']) || 'Untitled'
   const profileName =
     getFirstToolString(output, ['profile.name', 'signer.profileName']) ||
     getFirstToolString(item.args, ['input.name', 'name']) ||
@@ -1493,10 +1495,14 @@ function WriteCommandDetails({item}: {item: ChatToolPart}) {
         <ToolDetailSection label="Drafts">
           <div className="space-y-2">
             {drafts.map((draft) => (
-              <ToolDetailCard key={String(draft.id || draft.title || Math.random())}>
+              <ToolDetailCard key={String(draft.id || draft.name || draft.title || Math.random())}>
                 <ToolDetailList>
-                  <ToolDetailItem label="Title">
-                    {typeof draft.title === 'string' && draft.title ? draft.title : 'Untitled draft'}
+                  <ToolDetailItem label="Name">
+                    {typeof draft.name === 'string' && draft.name
+                      ? draft.name
+                      : typeof draft.title === 'string' && draft.title
+                        ? draft.title
+                        : 'Unnamed draft'}
                   </ToolDetailItem>
                   <ToolDetailItem label="Status">
                     {typeof draft.status === 'string' ? draft.status : 'idle'}

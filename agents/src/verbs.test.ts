@@ -242,20 +242,20 @@ describe('write verb', () => {
   })
 
   // The real incident behind these: a model passed {metadata} on an hm:// document write, the
-  // envelope only knew {title}, and the key was silently dropped — the doc published "successfully"
+  // envelope did not know the key, and it was silently dropped — the doc published "successfully"
   // with no metadata. Unknown option keys must refuse loudly so the model can self-correct.
   test('unknown write option keys are refused with the supported set, never silently dropped', async () => {
     const context = makeContext()
     await expect(
       executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {metdata: {a: 1}}}),
-    ).rejects.toThrow(/does not understand option "metdata".*title, metadata/)
+    ).rejects.toThrow(/does not understand option "metdata".*name, metadata/)
     await expect(
       executeWriteVerb(context, {
         address: 'hm://z6MkDoc/notes',
         content: 'x',
-        options: {action: 'comment', title: 'X'},
+        options: {action: 'comment', name: 'X'},
       }),
-    ).rejects.toThrow(/does not understand option "title".*target, replyTo/)
+    ).rejects.toThrow(/does not understand option "name".*target, replyTo/)
     await expect(
       executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', options: {metadata: {a: 1}}}),
     ).rejects.toThrow(/does not understand option "metadata"/)
@@ -265,6 +265,28 @@ describe('write verb', () => {
     await expect(
       executeWriteVerb(context, {address: '~/tools/thing', content: '{}', options: {overwrite: true}}),
     ).rejects.toThrow(/does not understand option "overwrite"/)
+  })
+
+  // title and dryRun used to be loose option keys; the refusal points at where each concept
+  // lives now so a model trained on the old contract self-corrects in one round trip.
+  test('retired option spellings are refused with a pointer to the new home', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {title: 'X'}}),
+    ).rejects.toThrow(/name lives in metadata\.name/)
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {dryRun: true}}),
+    ).rejects.toThrow(/dryRun is a top-level field/)
+  })
+
+  test('write dryRun is strict: boolean only, hm:// only', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', dryRun: 'true'}),
+    ).rejects.toThrow('write dryRun must be a boolean')
+    await expect(executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', dryRun: true})).rejects.toThrow(
+      'dryRun applies only to hm:// writes',
+    )
   })
 
   test('write hm:// options.metadata must be an object', async () => {
@@ -563,7 +585,7 @@ describe('publish grant', () => {
     const memoryWrite = await executeWriteVerb(context, {address: '~/memory/ok.txt', content: 'fine'})
     expect(String(memoryWrite.summary)).toContain('Wrote')
     await expect(
-      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {title: 'X'}}),
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {name: 'X'}}),
     ).rejects.toThrow('Publishing is not enabled')
     await expect(
       executeWriteVerb(context, {address: 'ipfs://', options: {fromPath: '~/memory/ok.txt'}}),

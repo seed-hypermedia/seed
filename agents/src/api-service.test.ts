@@ -2880,7 +2880,7 @@ describe('api service', () => {
           ])
           expect(JSON.stringify(body.tools)).toContain('hm://<account>/<path>')
           expect(JSON.stringify(body.messages)).toContain('Writer Bot')
-          expect(JSON.stringify(body.messages)).toContain('sets the visible document title')
+          expect(JSON.stringify(body.messages)).toContain('sets the document name')
           return openAIStreamResponse([
             {
               id: 'chat-1',
@@ -2959,7 +2959,7 @@ describe('api service', () => {
                           arguments: JSON.stringify({
                             address: `hm://${signerPublicKey}/manual-doc`,
                             content: '# Manual Doc\n\nCreated from the write verb.',
-                            options: {title: 'Manual Doc', signer: {publicKey: signerPublicKey}},
+                            options: {name: 'Manual Doc', signer: {publicKey: signerPublicKey}},
                           }),
                         },
                       },
@@ -3002,11 +3002,24 @@ describe('api service', () => {
                             address: `hm://${signerPublicKey}/`,
                             content: '# Home\n\nRoot document.',
                             options: {
-                              title: 'Home',
+                              name: 'Home',
                               metadata: {summary: 'The home page', tags: ['root', 'demo']},
                               signer: {publicKey: signerPublicKey},
-                              dryRun: true,
                             },
+                            dryRun: true,
+                          }),
+                        },
+                      },
+                      {
+                        index: 8,
+                        id: 'call-9',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}/nameless-doc`,
+                            content: 'A body without any name.',
+                            options: {signer: {publicKey: signerPublicKey}},
                           }),
                         },
                       },
@@ -3026,7 +3039,7 @@ describe('api service', () => {
         if (openAICallCount === 3) {
           const toolAssistant = body.messages?.find(
             (message: {role?: string; tool_calls?: unknown[]}) =>
-              message.role === 'assistant' && Array.isArray(message.tool_calls) && message.tool_calls.length === 8,
+              message.role === 'assistant' && Array.isArray(message.tool_calls) && message.tool_calls.length === 9,
           )
           expect(toolAssistant).toBeTruthy()
         }
@@ -3121,12 +3134,21 @@ describe('api service', () => {
         )
         .find((event) => event.type === 'tool_result' && event.name === 'write' && event.output?.dryRun)
       expect(rootDryRunResult?.output?.id).toBe(`hm://${signerPublicKey}`)
-      // options.metadata must land in the document metadata (alongside the title), not vanish.
+      // options.metadata must land in the document metadata (alongside the name), not vanish.
       expect(rootDryRunResult?.output?.metadata).toMatchObject({
         name: 'Home',
         summary: 'The home page',
         tags: ['root', 'demo'],
       })
+      // A document cannot be created without a name: the nameless write refuses instead of
+      // publishing an "Untitled" placeholder.
+      const namelessResult = loadedSession.events
+        .map((event) => event.event as {type?: string; name?: string; error?: string; output?: {error?: string}})
+        .find(
+          (event) =>
+            event.type === 'tool_result' && event.name === 'write' && JSON.stringify(event).includes('requires a name'),
+        )
+      expect(namelessResult).toBeTruthy()
       expect(
         commentRequestUrls.some((url) =>
           url.includes(`__value=${encodeURIComponent(`${signerPublicKey}/parent-tsid`)}`),
@@ -3198,7 +3220,7 @@ describe('api service', () => {
                           arguments: JSON.stringify({
                             address: `hm://${signerPublicKey}/parent/child`,
                             content: '# Child',
-                            options: {title: 'Child', signer: {publicKey: signerPublicKey}},
+                            options: {name: 'Child', signer: {publicKey: signerPublicKey}},
                           }),
                         },
                       },

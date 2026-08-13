@@ -192,8 +192,14 @@ type WriteInput = {
   address: string
   content?: string
   options?: Record<string, unknown>
+  dryRun?: boolean
 }
 ```
+
+`dryRun` is a flag on the call itself, not destination data, so it lives at the top level rather than in `options`. It
+is strict: a non-boolean value is a 400 (never a silent real publish), and it applies only to `hm://` writes — every
+command handler early-returns an echo of what would be published before `client.publish` is reached. Passing it on a
+memory/tools/ipfs write is refused rather than ignored.
 
 - **`~/memory/<path>`** — writes `content`, creating parent directories; writing an existing file replaces it whole
   (there is no append). `options.delete` removes a file or directory, `options.fromUrl` downloads a URL to the path,
@@ -220,17 +226,22 @@ An unrecognized loose option key is **refused with a 400 naming the key and the 
 This is enforced per address form (`assertKnownWriteOptions`), and it exists because of a real failure: a model passed
 `{metadata}` before the envelope knew that key, the write "succeeded", and the document published with the metadata
 missing — the model's only recourse was to fake it in the body text. A loud refusal is a contract the model can read and
-self-correct from; a silent drop is not.
+self-correct from; a silent drop is not. Retired spellings get a migration hint in the refusal
+(`RETIRED_WRITE_OPTION_HINTS`): `title` points at `name`/`metadata.name`, `dryRun` points at the top-level field.
 
 Other write behavior worth knowing:
 
-- `options.title` sets the visible document title; a markdown `#` heading is body content, not the title.
+- There is no separate "title" anywhere in the document model: the document's name **is** `metadata.name`, and
+  `options.name` is shorthand for it. A markdown `#` heading is body content, not the name.
+- `document.create` (and `draft.create`) **require a name** — from `options.name`, `metadata: {name}`, or content
+  frontmatter (`name:`, with `title:` accepted by the shared markdown parser as a backward-compat alias). A nameless
+  create is refused; nothing publishes as "Untitled" anymore.
 - `options.metadata` (document/update and dotted document-shaped commands) is an object of document metadata attributes
   merged into the document's metadata — `{summary, icon, cover, …}` or custom keys. It merges over markdown frontmatter
-  metadata, and `options.title` wins for `name`.
+  metadata, and `options.name` wins for `name`.
 - `options.signer` picks the identity by `profileName` or `publicKey` from the agent's selected signing keys.
 - `options.fromPath` on an `hm://` address publishes a memory markdown file (frontmatter + resolved images) through the
-  dedicated pipeline; path `/` derives the document path from the file's frontmatter title.
+  dedicated pipeline; path `/` derives the document path from the file's frontmatter name.
 - `document.create` refuses a nested path whose parent is not already published; top-level paths are always allowed.
   This is enforced server-side, including in `dryRun`.
 - Root-level `server`/`dev` are accepted only when they resolve to the configured agent HM server. Publishing always

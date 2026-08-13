@@ -4221,7 +4221,7 @@ export class Service {
     return `${basePrompt}\n\n<available_signing_identities>\n${safeJSONStringify(
       identities,
       2,
-    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nTo publish a hypermedia document: write {address: "hm://<account>/<path>", content: "<markdown body>", options: {title: "Visible Title", signer: {publicKey: "..."}}}. The title option sets the visible document title — a markdown # heading is body content only. Do not create a document at a nested path unless its parent path already exists as a published document (create "/team" before "/team/notes"; top-level paths are always allowed). To move a document, write the existing hm:// address with options {action: "move", toPath: "/new-path"} ("/" moves it to the account home).`
+    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nTo publish a hypermedia document: write {address: "hm://<account>/<path>", content: "<markdown body>", options: {name: "Document Name", signer: {publicKey: "..."}}}. The name option sets the document name (stored as metadata.name) — a markdown # heading is body content only. Pass dryRun: true at the top level of the write call to validate a publish without publishing. Do not create a document at a nested path unless its parent path already exists as a published document (create "/team" before "/team/notes"; top-level paths are always allowed). To move a document, write the existing hm:// address with options {action: "move", toPath: "/new-path"} ("/" moves it to the account home).`
   }
 
   /**
@@ -7353,18 +7353,29 @@ function assertKnownWriteOptions(
 ): void {
   const unknown = Object.keys(options).filter((key) => !allowed.includes(key))
   if (unknown.length === 0) return
+  const migrations = unknown
+    .map((key) => RETIRED_WRITE_OPTION_HINTS[key])
+    .filter((entry): entry is string => entry !== undefined)
   throw new APIError(
     400,
     `write ${form} does not understand option${unknown.length > 1 ? 's' : ''} ${unknown
       .map((key) => `"${key}"`)
-      .join(', ')}. Supported options: ${allowed.length ? allowed.join(', ') : '(none)'}.${hint ? ` ${hint}` : ''}`,
+      .join(', ')}. Supported options: ${allowed.length ? allowed.join(', ') : '(none)'}.${
+      migrations.length ? ` ${migrations.join(' ')}` : ''
+    }${hint ? ` ${hint}` : ''}`,
   )
 }
 
-const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'dryRun', 'input'] as const
+/** Retired option spellings answer with where the concept lives now, so old habits self-correct. */
+const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
+  title: 'A document has no separate title — its name lives in metadata.name; pass {name} (or metadata: {name}).',
+  dryRun: 'dryRun is a top-level field on the write call itself, next to address and content.',
+}
+
+const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['title', 'metadata'],
-  update: ['title', 'metadata'],
+  document: ['name', 'metadata'],
+  update: ['name', 'metadata'],
   comment: ['target', 'replyTo'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -7382,6 +7393,15 @@ export async function executeWriteVerb(
   if (!address) throw new APIError(400, 'write requires an address')
   const options = isRecord(input.options) ? input.options : {}
   const content = typeof input.content === 'string' ? input.content : undefined
+  // Strict, top-level, and rehearsal-only: a mistyped dryRun must never silently publish. It is a
+  // flag on the call itself, not destination data, so it does not ride in options.
+  if (input.dryRun !== undefined && typeof input.dryRun !== 'boolean') {
+    throw new APIError(400, 'write dryRun must be a boolean')
+  }
+  const dryRun = input.dryRun === true
+  if (dryRun && !address.startsWith('hm://')) {
+    throw new APIError(400, 'dryRun applies only to hm:// writes — it validates a publish without publishing')
+  }
 
   if (address.startsWith('~/tools/')) {
     assertKnownWriteOptions('~/tools/<name>', options, ['delete', 'tool'])
@@ -7526,14 +7546,14 @@ export async function executeWriteVerb(
     // Publishing a memory markdown file (frontmatter + resolved images) keeps its dedicated pipeline.
     const fromPath = typeof options.fromPath === 'string' && options.fromPath ? options.fromPath : undefined
     if (fromPath) {
-      assertKnownWriteOptions('hm:// (fromPath)', options, ['fromPath', 'signer', 'dryRun'])
+      assertKnownWriteOptions('hm:// (fromPath)', options, ['fromPath', 'signer'])
       return publishMemoryDocument(context as AgentServicePiToolContext, {
         path: memoryPathFromAddress(fromPath) ?? fromPath,
-        // '/' means "derive the path from the file's frontmatter title", matching the old tool.
+        // '/' means "derive the path from the file's frontmatter name", matching the old tool.
         ...(hm.path !== '/' ? {documentPath: hm.path} : {}),
         account: hm.account,
         signer: options.signer,
-        dryRun: options.dryRun === true,
+        dryRun,
       })
     }
     const action = typeof options.action === 'string' ? options.action : 'document'
@@ -7543,7 +7563,7 @@ export async function executeWriteVerb(
     assertKnownWriteOptions(
       `hm:// (action "${action}")`,
       options,
-      [...HM_WRITE_BASE_OPTION_KEYS, ...(HM_WRITE_ACTION_OPTION_KEYS[action] ?? ['title', 'metadata'])],
+      [...HM_WRITE_BASE_OPTION_KEYS, ...(HM_WRITE_ACTION_OPTION_KEYS[action] ?? ['name', 'metadata'])],
       HM_WRITE_OPTIONS_HINT,
     )
     if (options.metadata !== undefined && !isRecord(options.metadata)) {
@@ -7553,7 +7573,7 @@ export async function executeWriteVerb(
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
       command,
       signer: options.signer,
-      dryRun: options.dryRun === true,
+      dryRun,
       input: {...passthrough, ...commandInput},
     })
     switch (action) {
@@ -7563,7 +7583,7 @@ export async function executeWriteVerb(
           envelope('document.create', {
             account: hm.account,
             path: hm.path,
-            ...(typeof options.title === 'string' ? {name: options.title} : {}),
+            ...(typeof options.name === 'string' ? {name: options.name} : {}),
             ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
             ...(content !== undefined ? {content, format: 'markdown'} : {}),
           }),
@@ -7574,7 +7594,7 @@ export async function executeWriteVerb(
           envelope('document.update', {
             account: hm.account,
             path: hm.path,
-            ...(typeof options.title === 'string' ? {name: options.title} : {}),
+            ...(typeof options.name === 'string' ? {name: options.name} : {}),
             ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
             ...(content !== undefined ? {content, format: 'markdown'} : {}),
           }),
@@ -7625,7 +7645,7 @@ export async function executeWriteVerb(
             envelope(action, {
               account: hm.account,
               ...(hm.path !== '/' ? {path: hm.path} : {}),
-              ...(typeof options.title === 'string' ? {name: options.title} : {}),
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
               ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
               ...(content !== undefined ? {content, format: 'markdown'} : {}),
             }),
@@ -8391,10 +8411,20 @@ async function writeDocumentCreate(
   extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
-  const metadata = mergeWriteMetadata(parsed.metadata, request.input, {name: 'Untitled'})
+  const metadata = mergeWriteMetadata(parsed.metadata, request.input)
+  // A document cannot be born nameless: the name is its identity in every listing, and an
+  // "Untitled" default just hides the omission until it is published and visible to everyone.
+  const documentName = typeof metadata.name === 'string' ? metadata.name.trim() : ''
+  if (!documentName) {
+    throw new APIError(
+      400,
+      'document.create requires a name — pass options.name (or metadata: {name}, or frontmatter name in the content)',
+    )
+  }
+  metadata.name = documentName
   const account =
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
-  const path = normalizeDocumentPath(request.input.path, metadata.name || 'Untitled')
+  const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   if (request.dryRun)
@@ -8698,10 +8728,12 @@ function writeDraftCreate(
 ): Record<string, unknown> {
   const parsed = parseWriteDocumentContent(request.input)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
-  const title =
-    normalizeOptionalBoundedString(request.input.name, 'Draft name', MAX_NAME_BYTES) || metadata.name || 'Untitled'
+  const name = normalizeOptionalBoundedString(request.input.name, 'Draft name', MAX_NAME_BYTES) || metadata.name
+  if (!name || !String(name).trim()) {
+    throw new APIError(400, 'draft.create requires a name — pass name (or metadata: {name}, or frontmatter name)')
+  }
   const draftId = crypto.randomUUID()
-  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, title, metadata, dryRun: true})
+  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, name, metadata, dryRun: true})
   const now = Date.now()
   context.db.run(
     `INSERT INTO agent_drafts (id, account_id, agent_id, signer_secret_name, title, content_format, content_cbor, metadata_cbor, edit_target, location_target, path_name, visibility, status, created_at, updated_at)
@@ -8711,7 +8743,7 @@ function writeDraftCreate(
       context.accountId,
       context.agentId,
       null,
-      title,
+      name,
       'json',
       cbor.encode(parsed.blocks),
       cbor.encode(metadata),
@@ -8724,7 +8756,7 @@ function writeDraftCreate(
       now,
     ],
   )
-  return writeToolResult(request.command, undefined, {draftId, title, metadata})
+  return writeToolResult(request.command, undefined, {draftId, name, metadata})
 }
 
 function writeDraftUpdate(
@@ -8741,16 +8773,16 @@ function writeDraftUpdate(
   const metadata = hasContent
     ? mergeWriteMetadata(parseWriteDocumentContent(request.input).metadata, request.input)
     : mergeWriteMetadata(existingMetadata, request.input)
-  const title =
+  const name =
     normalizeOptionalBoundedString(request.input.name, 'Draft name', MAX_NAME_BYTES) ||
     metadata.name ||
     existing.title ||
     'Untitled'
-  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, title, metadata, dryRun: true})
+  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, name, metadata, dryRun: true})
   context.db.run(
     `UPDATE agent_drafts SET title = ?, content_cbor = ?, metadata_cbor = ?, edit_target = COALESCE(?, edit_target), location_target = COALESCE(?, location_target), path_name = COALESCE(?, path_name), visibility = COALESCE(?, visibility), updated_at = ? WHERE account_id = ? AND agent_id = ? AND id = ?`,
     [
-      title,
+      name,
       cbor.encode(blocks),
       cbor.encode(metadata),
       undefinedToNull(request.input.edit) ?? null,
@@ -8763,7 +8795,7 @@ function writeDraftUpdate(
       draftId,
     ],
   )
-  return writeToolResult(request.command, undefined, {draftId, title, metadata})
+  return writeToolResult(request.command, undefined, {draftId, name, metadata})
 }
 
 function writeDraftGet(
@@ -8778,7 +8810,7 @@ function writeDraftGet(
   const markdown = blocksToMarkdown(doc)
   return writeToolResult(request.command, undefined, {
     draftId,
-    title: row.title,
+    name: row.title,
     metadata,
     markdown: ensureToolResultSize(markdown),
     status: row.status,
@@ -8809,7 +8841,9 @@ function writeDraftList(
       `SELECT id, title, status, edit_target, location_target, updated_at FROM agent_drafts WHERE account_id = ? AND agent_id = ? AND status <> 'deleted' ORDER BY updated_at DESC LIMIT ?`,
     )
     .all(context.accountId, context.agentId, limit)
-  return writeToolResult(request.command, undefined, {drafts: rows})
+  return writeToolResult(request.command, undefined, {
+    drafts: rows.map(({title, ...row}) => ({...row, name: title})),
+  })
 }
 
 function writeDraftDelete(
@@ -8849,9 +8883,9 @@ async function writeDraftPublish(
           metadata,
           expectedVersion: request.input.expectedVersion,
         }
-      : {content: blocks, format: 'json', metadata, path: row.path_name || undefined},
+      : {content: blocks, format: 'json', metadata, name: row.title, path: row.path_name || undefined},
   }
-  if (request.dryRun) return writeToolResult(request.command, signer, {draftId, title: row.title, dryRun: true})
+  if (request.dryRun) return writeToolResult(request.command, signer, {draftId, name: row.title, dryRun: true})
   const result = row.edit_target
     ? await writeDocumentUpdate(client, signer, publishRequest)
     : await writeDocumentCreate(client, signer, publishRequest)
@@ -9124,9 +9158,6 @@ function mergeWriteMetadata(
   defaults: HMMetadata = {},
 ): HMMetadata {
   const metadata: HMMetadata = {...defaults, ...inputMetadata, ...normalizeMetadataInput(input.metadata)}
-  if (metadata.name === undefined && input.name === undefined && input.title !== undefined) {
-    metadata.name = input.title as HMMetadata['name']
-  }
   for (const key of [
     'name',
     'summary',
