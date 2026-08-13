@@ -1,12 +1,13 @@
 import {Code, ConnectError} from '@connectrpc/connect'
 
-const ENABLE_VERBOSE_LOGGING = process.env.VERBOSE === 'true'
 const REDACTED_MESSAGE = '[REDACTED]'
 const SENSITIVE_RPC_METHODS = new Set([
+  'Daemon.Authenticate',
   'Daemon.ExportKey',
   'Daemon.ImportKey',
   'Daemon.RegisterKey',
   'Daemon.GenMnemonic',
+  'Daemon.SetVaultMasterPassword',
   'Daemon.StartVaultConnection',
 ])
 
@@ -27,30 +28,31 @@ export function shouldSuppressRPCErrorLog(methodName: string, error: unknown): b
   return methodName === 'GetAccount' && connectError.code === Code.NotFound
 }
 
+function isVerboseLoggingEnabled(): boolean {
+  return process.env.VERBOSE !== undefined
+}
+
 // @ts-expect-error - interceptor types from connect-web not imported for simplicity
 export const loggingInterceptor = (next) => async (req) => {
   const isSensitive = isSensitiveRPCMethod(req.service.typeName, req.method.name)
-  const timeout = setTimeout(() => {
-    console.error(`🚨 TIMEOUT on ${req.method.name}`, isSensitive ? REDACTED_MESSAGE : req.message)
+  const requestMessage = isSensitive ? REDACTED_MESSAGE : req.message
+  const slowRPC = setTimeout(() => {
+    console.error(`🚨 SLOW RPC on ${req.method.name}`, requestMessage)
   }, 5000)
   try {
-    if (ENABLE_VERBOSE_LOGGING) console.log(`↗️ to ${req.method.name}`, isSensitive ? REDACTED_MESSAGE : req.message)
+    if (isVerboseLoggingEnabled()) console.log(`↗️ to ${req.method.name}`, requestMessage)
     const result = await next(req)
-    clearTimeout(timeout)
-    if (ENABLE_VERBOSE_LOGGING) {
-      console.log(`🔃 to ${req.method.name}`, isSensitive ? REDACTED_MESSAGE : req.message, result?.message)
+    if (isVerboseLoggingEnabled()) {
+      console.log(`🔃 to ${req.method.name}`, requestMessage, isSensitive ? REDACTED_MESSAGE : result?.message)
     }
     return result
   } catch (e) {
-    clearTimeout(timeout)
     if (!shouldSuppressRPCErrorLog(req.method.name, e)) {
-      console.error(
-        `🚨 to ${req.method.name}`,
-        isSensitive ? REDACTED_MESSAGE : req.message,
-        isSensitive ? (e instanceof Error ? e.message : String(e)) : e,
-      )
+      console.error(`🚨 to ${req.method.name}`, requestMessage, isSensitive ? REDACTED_MESSAGE : e)
     }
     throw e
+  } finally {
+    clearTimeout(slowRPC)
   }
 }
 
