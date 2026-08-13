@@ -32,7 +32,13 @@ import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
-import {createBlocksMap, computeReplaceOps, hmBlockNodeToBlockNode, type APIBlockNode} from '../utils/block-diff'
+import {
+  createBlocksMap,
+  computeReplaceOps,
+  hmBlockNodeToBlockNode,
+  rebindTableIdentities,
+  type APIBlockNode,
+} from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
 import {markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
@@ -530,7 +536,11 @@ export function registerDocumentCommands(program: Command) {
             // whose IDs are absent from the new tree are deleted.
             const oldNodes = (existingDoc.content || []).map(toAPIBlockNode)
             const oldMap = createBlocksMap(oldNodes)
-            const diffOps = computeReplaceOps(oldMap, input.tree)
+            // Tables: markdown only carries table/column/row ids, so cell
+            // block ids and unexpressible attributes (column width, header
+            // column) are rebound from the old document before diffing.
+            const rebound = rebindTableIdentities(oldNodes, input.tree)
+            const diffOps = computeReplaceOps(oldMap, rebound)
             ops.push(...diffOps)
           } else {
             // No tree available (e.g. PDF input) — use flat ops as-is

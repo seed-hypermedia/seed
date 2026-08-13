@@ -26,6 +26,7 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'Append /:attributes to a document URL (e.g. `hm://z6Mk.../notes/:attributes`) to read only its metadata/attributes without the content. Use it when the user is viewing the attributes view or asks about document metadata.',
     'Use `read` with the `activity:` address for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
     'To explore a section of a site, read the directory first, then read each child document.',
+    'Tables read and write as GFM markdown tables carrying identity comments: a `<!-- id:… -->` line before the table, `<!-- col:… -->` inside each header cell, and `<!-- id:… -->` after the final pipe of each row. When editing a table, keep every comment for content you are keeping — they preserve table/column/row identity, history, and anchored comments; only omit them for rows or columns you are adding. Cells never carry ids. Use `\\|` for a literal pipe and `<br>` for a line break inside a cell. New tables may be plain GFM without any comments.',
   ]
   if (options.currentTime) parts.push(`The current time is: ${options.currentTime}`)
   if (options.contextLines?.length) parts.push('', ...options.contextLines)

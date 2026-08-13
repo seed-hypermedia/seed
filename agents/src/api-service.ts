@@ -67,6 +67,8 @@ import {
   flattenToOperations,
   computeReplaceOps,
   hmBlockNodeToBlockNode,
+  rebindTableIdentities,
+  toAPIBlockNode,
   markdownBlockNodesToHMBlockNodes,
   packHmId,
   parseMarkdown,
@@ -8484,8 +8486,16 @@ async function writeDocumentUpdate(
   }
   const parsed = parseWriteDocumentContent(request.input)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
-  const oldMap = createBlocksMap((resource.document.content || []).map((node) => hmBlockNodeToBlockNode(node)) as never)
-  const contentOps = computeReplaceOps(oldMap, parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)) as never)
+  const oldNodes = (resource.document.content || []).map((node) => toAPIBlockNode(node))
+  const oldMap = createBlocksMap(oldNodes)
+  // Tables: markdown only carries table/column/row ids, so cell block ids and
+  // unexpressible attributes (column width, header column) are rebound from
+  // the old document before diffing.
+  const newTree = rebindTableIdentities(
+    oldNodes,
+    parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)),
+  )
+  const contentOps = computeReplaceOps(oldMap, newTree)
   const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
   if (ops.length === 0) throw new APIError(400, 'No document updates specified')
   if (request.dryRun)

@@ -249,6 +249,15 @@ Other write behavior worth knowing:
 - Root-level `server`/`dev` are accepted only when they resolve to the configured agent HM server. Publishing always
   uses that server, never an arbitrary model-selected one (`api-service.ts:7953`).
 - `path: "/"` means the account home document and is published as the canonical empty HM path.
+- Tables round-trip through markdown as GFM tables carrying identity comments (shared dialect in
+  `frontend/packages/client/src/markdown-to-blocks.ts` / `blocks-to-markdown.ts`): a standalone `<!-- id:… -->` line
+  before the table (the Table block), `<!-- col:… -->` inside each header cell (TableColumn identity — column order and
+  reorders follow these), and `<!-- id:… -->` after each row's final pipe (TableRow identity). Cell block ids never
+  appear: on update, `rebindTableIdentities` re-derives each cell as (row id, column id) against the old document, so
+  cell history and anchored comments survive edits. Columns whose comments were dropped still match by header text, then
+  position. Attributes markdown cannot express (column width, header column) carry over from the old blocks. Plain GFM
+  tables with no comments create fresh tables. `\|` escapes a pipe, `<br>` is a newline inside a cell; a headerless HM
+  table emits an all-empty header row and parses back headerless.
 - Hypermedia content is bounded at 256 KiB (`MAX_WRITE_CONTENT_BYTES`): `normalizeWriteContent()`
   (`api-service.ts:9072`) rejects oversized document and comment bodies, and publishing a memory file refuses the same
   ceiling (`api-service.ts:8861`). Memory writes themselves are unbounded — see the note in `security.md`.

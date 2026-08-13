@@ -35,6 +35,13 @@ export type SeedBlock = {
   childrenType?: string
   language?: string
   link?: string
+  /**
+   * Additional block attributes beyond the legacy top-level ones above
+   * (e.g. `columnId` on table cell Paragraphs, `isHeader` on TableRow /
+   * TableColumn, `width` on TableColumn). Inlined at the top level of the
+   * wire block, nested under `attributes` in HMBlockNode.
+   */
+  attributes?: Record<string, unknown>
 }
 
 export type BlockNode = {
@@ -304,7 +311,7 @@ type RawBlock =
   | {kind: 'math'; text: string; id?: string}
   | {kind: 'ul'; items: {text: string; id?: string}[]; containerId?: string}
   | {kind: 'ol'; items: {text: string; id?: string}[]; containerId?: string}
-  | {kind: 'table'; text: string; id?: string}
+  | {kind: 'table'; lines: string[]; containerId?: string}
 
 /**
  * Parses raw markdown into a flat list of block tokens.
@@ -396,14 +403,16 @@ function tokenize(markdown: string): RawBlock[] {
       continue
     }
 
-    // Table (starts with | and has at least a separator line)
+    // Table (consecutive lines starting with |). A standalone
+    // <!-- id:... --> comment line right before the table carries the
+    // Table block id (same mechanism as list containers).
     if (line.trim().startsWith('|')) {
       const tableLines: string[] = []
       while (i < lines.length && lines[i]!.trim().startsWith('|')) {
         tableLines.push(lines[i]!)
         i++
       }
-      blocks.push({kind: 'table', text: tableLines.join('\n')})
+      blocks.push({kind: 'table', lines: tableLines, containerId: pendingContainerId})
       pendingContainerId = undefined
       continue
     }
@@ -549,6 +558,164 @@ function createListNode(
     children,
   )
   return [container]
+}
+
+// ─── Table parser ────────────────────────────────────────────────────────────
+//
+// HM tables are three block types: a Table container whose children are
+// TableColumn blocks (childless; their sibling order defines column display
+// order) followed by TableRow blocks whose children are Paragraph cells. Each
+// cell carries `attributes.columnId` referencing a TableColumn id — cell
+// identity is (row, columnId), never grid position, which is what makes
+// concurrent CRDT edits merge cleanly.
+//
+// The markdown dialect keeps that identity through the round trip:
+//
+//   <!-- id:TABLEID -->                      (standalone line before the table)
+//   | Name <!-- col:c1 --> | Age <!-- col:c2 --> |
+//   | --- | --- |
+//   | Alice | 30 | <!-- id:r1 -->            (row id after the final pipe)
+//
+// Cell block ids never appear in markdown: they are re-derived from
+// (row id, column id) against the previous document during update diffing.
+// Plain GFM tables with no comments parse fine — all ids are generated.
+
+/** Regex matching a `<!-- col:ID -->` column id comment inside a header cell. */
+const COL_ID_RE = /<!--\s*col:([A-Za-z0-9_-]+)\s*-->/
+
+type ParsedTableRow = {cells: string[]; id?: string}
+
+/**
+ * Split a GFM table line into trimmed cell strings, honoring `\|` escapes.
+ * A trailing `<!-- id:XXXXXXXX -->` after the final pipe is captured as the
+ * row's block id.
+ */
+function splitTableRow(line: string): ParsedTableRow {
+  const {text, id} = stripBlockId(line.trim())
+  let s = text.trim()
+  if (s.startsWith('|')) s = s.slice(1)
+  const cells: string[] = []
+  let cur = ''
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '\\' && s[i + 1] === '|') {
+      cur += '|'
+      i++
+    } else if (s[i] === '|') {
+      cells.push(cur.trim())
+      cur = ''
+    } else {
+      cur += s[i]
+    }
+  }
+  const last = cur.trim()
+  // A trailing pipe leaves an empty final segment — not a cell.
+  if (last !== '' || cells.length === 0) cells.push(last)
+  return {cells, id}
+}
+
+/** GFM header separator row: every cell is dashes with optional colons. */
+function isSeparatorRow(cells: string[]): boolean {
+  return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c))
+}
+
+/** Strip a `<!-- col:ID -->` comment from a header cell. */
+function extractColId(cell: string): {text: string; colId?: string} {
+  const m = cell.match(COL_ID_RE)
+  if (!m) return {text: cell.trim()}
+  return {text: cell.replace(m[0], '').trim(), colId: m[1]}
+}
+
+/** Convert `<br>` variants back to newlines, then parse inline formatting. */
+function createTableCellNode(rawText: string, columnId: string): BlockNode {
+  const {text, annotations} = parseInlineFormatting(rawText.replace(/<br\s*\/?>/gi, '\n'))
+  return makeBlockNode({
+    type: 'Paragraph',
+    id: generateBlockId(),
+    text,
+    annotations,
+    attributes: {columnId},
+  })
+}
+
+/**
+ * Build a Table BlockNode from tokenized table lines.
+ *
+ * - Column count is the max cell count across all rows; columns without a
+ *   `col:` comment get generated ids.
+ * - An all-empty header row means a headerless table (HM tables may omit the
+ *   header row; GFM cannot, so emptiness is the convention).
+ * - Cells are created densely: every row gets one cell per column, so the
+ *   written grid matches what the editor produces.
+ */
+function createTableNode(lines: string[], containerId?: string): BlockNode {
+  const rawRows = lines.map(splitTableRow)
+
+  let headerRow: ParsedTableRow | undefined
+  let bodyRows: ParsedTableRow[]
+  if (rawRows.length >= 2 && isSeparatorRow(rawRows[1]!.cells)) {
+    headerRow = rawRows[0]
+    bodyRows = rawRows.slice(2).filter((r) => !isSeparatorRow(r.cells))
+  } else {
+    // No standard header separator — treat every non-separator line as a body row.
+    bodyRows = rawRows.filter((r) => !isSeparatorRow(r.cells))
+  }
+
+  const headerCells = (headerRow?.cells ?? []).map(extractColId)
+  const colCount = Math.max(headerCells.length, ...bodyRows.map((r) => r.cells.length), 0)
+
+  const columnIds: string[] = []
+  for (let idx = 0; idx < colCount; idx++) {
+    columnIds.push(headerCells[idx]?.colId || generateBlockId())
+  }
+
+  const columnNodes: BlockNode[] = columnIds.map((id) =>
+    makeBlockNode({type: 'TableColumn', id, text: '', annotations: []}),
+  )
+
+  const rowNodes: BlockNode[] = []
+
+  // An all-empty header row (ignoring col: comments) encodes a headerless table.
+  const hasHeaderRow = headerCells.some((c) => c.text !== '')
+  if (headerRow && hasHeaderRow) {
+    const cells = columnIds.map((columnId, idx) => createTableCellNode(headerCells[idx]?.text ?? '', columnId))
+    rowNodes.push(
+      makeBlockNode(
+        {
+          type: 'TableRow',
+          id: headerRow.id || generateBlockId(),
+          text: '',
+          annotations: [],
+          attributes: {isHeader: true},
+        },
+        cells,
+      ),
+    )
+  }
+
+  for (const row of bodyRows) {
+    const cells = columnIds.map((columnId, idx) => createTableCellNode(row.cells[idx] ?? '', columnId))
+    rowNodes.push(
+      makeBlockNode(
+        {
+          type: 'TableRow',
+          id: row.id || generateBlockId(),
+          text: '',
+          annotations: [],
+        },
+        cells,
+      ),
+    )
+  }
+
+  return makeBlockNode(
+    {
+      type: 'Table',
+      id: containerId || generateBlockId(),
+      text: '',
+      annotations: [],
+    },
+    [...columnNodes, ...rowNodes],
+  )
 }
 
 // ─── Frontmatter parser ──────────────────────────────────────────────────────
@@ -735,8 +902,7 @@ export function parseMarkdown(markdown: string): {
         break
 
       case 'table':
-        // Render tables as code blocks (Seed has no native table type)
-        addToCurrentParent(createCodeNode(token.text, '', token.id))
+        addToCurrentParent(createTableNode(token.lines, token.containerId))
         break
 
       case 'ul':
@@ -763,7 +929,7 @@ export function parseMarkdown(markdown: string): {
 export function markdownBlockNodesToHMBlockNodes(nodes: BlockNode[]): HMBlockNode[] {
   return nodes.map((node) => {
     const {block} = node
-    const attributes: Record<string, unknown> = {}
+    const attributes: Record<string, unknown> = {...block.attributes}
 
     if (block.childrenType !== undefined) {
       attributes.childrenType = block.childrenType
@@ -816,6 +982,7 @@ export function flattenToOperations(tree: BlockNode[], parentId: string = ''): D
     // Build the block object for ReplaceBlock.
     // Attributes are inlined at the top level of the block (not nested).
     const block: Record<string, unknown> = {
+      ...node.block.attributes,
       type: node.block.type,
       id: node.block.id,
       text: node.block.text,
