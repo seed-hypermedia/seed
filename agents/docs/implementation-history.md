@@ -5,6 +5,55 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### The Harness — three nouns, five verbs (2026-08-11 → 2026-08-13)
+
+The tool surface was rebuilt from the ground up on a stack of `harness/*` milestone branches, each gated (full suite,
+adversarial self-review, simulated-model gate) and written up in `docs/harness/reviews/`. Architecture and vocabulary:
+`docs/harness/plan.md` and the root `GLOSSARY.md`. Breaking changes were preferred over aliases throughout — old tool
+names simply stopped existing, and stored transcripts keep their historical events without re-dispatching.
+
+- **M1 — the five verbs.** `protocol/src/tool-registry.ts` was rewritten: `seedVerbRegistry` is `read`, `write`, `call`,
+  `delegate`, `plan` plus the hidden `return_result`; `callableToolRegistry` is `search`, `web_search`, `navigate`,
+  `execute`, reachable only through `call`. `api-service.ts` gained the three address dispatchers (`executeReadVerb` /
+  `executeWriteVerb` / `executeCallVerb`). `delegate` absorbed `sub_session`, `run_workflow`, and `start_session`;
+  `plan` absorbed `update_plan`; `set_session_title` was deleted. Provider-facing tool bytes fell 71% (28,886 → 8,483).
+  Calling a tool with wrong input returns its **contract** instead of an error, and the retry runs.
+- **M2 — tools as documents.** `src/tool-documents.ts` and the `tool_documents` table: every tool is a content-addressed
+  document (canonical DAG-CBOR, CIDv1) under `~/tools/`, builtins upserted at boot, lambdas authored through `write`.
+  `buildSpaceIndex()` injects one byte-budgeted `<space>` block into every system prompt, cached per agent and
+  invalidated at each mutation site. Touch-expand **promotion** is derived from durable events, so it survives resume
+  and restart. Signed public writing moved behind the **publish grant**.
+- **M3 — the symmetric log.** `SessionActor` (`user | agent | system | trigger`) stamps every event, and the
+  `InvokeSessionTool` action lets the user run `read`/`write`/`call` through the exact dispatchers the agent uses, on
+  the same log. The agent reads them back as `<user_action>` frames on its next turn. Desktop: the wrench palette and
+  the "You" chip.
+- **M4 — execution.** `execute {runtime: 'ts' | 'python' | 'shell', code}` (`CODE_EXEC_RUNTIMES`) is the whole compute
+  surface, each runtime one argv command in a microVM. TypeScript is an operator opt-in (`SEED_AGENTS_EXEC_TS_IMAGE`)
+  and is not offered when unconfigured. Authored `~/tools/**` lambdas became callable by name: input validated outside
+  the VM, source executed, output validated against the tool's own schema.
+- **M5 — time.** `RunWait` grew `event` and `budget-pause` beside `children`/`timer`, backed by the `run_event_waits`
+  table; `ctx.waitForEvent`, `ctx.continueAsNew` (successors linked by `continued_from_run_id`, not parent), and the new
+  `SignalRun` action. Delivery is exactly-once by construction — journal write and requeue in one transaction. The card
+  gained `ParkedRunActions`: Answer, Answer with data, Resume.
+- **M6 first slice — the event bus.** `run-completed` joined the trigger sources, firing inline from `#onRunFinalized`;
+  triggers gained a **continuation** (`agent_triggers.continuation_cbor`, NULL = `newThread`) with `wake` delivering
+  into a parked run through the same path `SignalRun` uses; `#triggerAlreadyInChain` walks the firing chain
+  (`TRIGGER_CHAIN_MAX_HOPS`, 8) to stop trigger ping-pong; `matchesActivityCriteria` is now one matcher shared by
+  trigger matching and run event waits. Trigger **documents** and draft→active consent are designed in
+  `docs/harness/m6-event-bus-design.md` and deliberately not built.
+- **Obligations and settlement** (after M6, `918084d75` and `9f56ccdda`). One model of what a run owes —
+  `#openObligations`, one continuation loop, `MAX_RUN_CONTINUATIONS` of 3 — replaced the per-feature nudges. Spending
+  the budget ends the run honestly: `unmetObligations` on the output and `RunInfo` plus a visible notice, never an
+  auto-checked step (typed debt fails the run; plan debt succeeds owing it). Every runtime-authored message is durably
+  `actor: 'system'`. Each turn's replay ends with an ephemeral `<plan_state>` block so a resumed model can see its own
+  checklist, and a step whose attached children all succeeded is settled by the runtime
+  (`RunPlanStep.resolvedBy: 'runtime'`, shown as a muted "auto" affix); `RunPlan.settledAt` freezes a finished checklist
+  into the log. Model- authored step ids and labels are escaped before being framed back to the model.
+- **Verification.** `agents/e2e/live-gate.ts` runs scripted scenarios against a real server and model;
+  `e2e/scripted-provider.ts` plus `e2e/obligations-live-check.ts` and `e2e/narration-check.ts` drive deterministic live
+  checks without provider credits. `HARNESS-TESTING.html` at the repo root is the manual test guide. Suite at the end of
+  this work: **282 pass / 0 fail** across 25 files.
+
 ### Durable runs, sub-sessions, and the workflow engine (2026-08-03)
 
 Landed as ten commits on `feat/agent-workflows` implementing `agents/docs/workflows-v1-plan.md`. The first four:

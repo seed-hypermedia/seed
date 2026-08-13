@@ -1,5 +1,18 @@
 # `write` implementation notes
 
+> **STATUS (2026-08-13): accurate as a record of the first slice; the envelope and the permission model have both
+> changed.**
+>
+> The command implementations, draft storage, markdown/frontmatter conversion, and signer resolution described here are
+> still what runs. What moved: this tool is now the **write verb**, `write {address, content?, options?}` — an `hm://`
+> address with `options.action` where these notes say `command`, and the same verb also covers `~/memory/**`,
+> `~/tools/**` and `ipfs://`. The two-layer permission model in "High-level summary" is now one layer plus one: the
+> **publish grant** (`'publish'` in `definition.tools`, legacy write-group names mapped onto it) replaces `"write"` in
+> the tools array, and `AgentDefinition.signingKeys` still selects the identity. Verbs themselves are always on and are
+> never grants.
+>
+> The "Known limitations and follow-ups" at the end are all still open.
+
 These notes describe the first implementation slice of the Agents `write` tool. They are intended to help the next
 engineer understand what was built, how it maps to CLI behavior, where the code lives, and which gaps remain.
 

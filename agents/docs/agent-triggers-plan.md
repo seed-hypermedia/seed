@@ -1,5 +1,26 @@
 # Agent triggers plan
 
+> **STATUS (2026-08-13): phases 1–3 shipped; the surface this plan designed is now scheduled for replacement.**
+>
+> **Shipped and current:** the four sources (`schedule`, `document-comment`, `user-mention`, `site-update`), the
+> `ActivityMonitor` with durable watermarks, exactly-once firing dedup through `trigger_firings.activity_key`,
+> per-trigger cooldowns, trigger-created sessions, and the desktop Triggers tab.
+>
+> **Added since, by the M6 first slice (the event bus underneath):** a fifth source, `run-completed`, firing inline from
+> run finalization; a **continuation** on every trigger (`agent_triggers.continuation_cbor`; NULL means `newThread`,
+> which is what every trigger in this plan did), with a `wake` continuation that delivers into a **parked run** through
+> the same transactional exactly-once path `SignalRun` uses; a firing-chain **loop guard** (`TRIGGER_CHAIN_MAX_HOPS`, 8
+> hops) so two run-completed triggers cannot feed each other forever; and one shared `matchesActivityCriteria` matcher
+> used by both trigger matching and run event waits. The desktop can render a `run-completed` trigger but cannot create
+> one — that is API-only today.
+>
+> **Superseded but not yet built:** trigger **documents** in `~/triggers/` read and written through the `read`/`write`
+> verbs, replacing the `CreateAgentTrigger`/`UpdateAgentTrigger`/`DeleteAgentTrigger` actions, with **draft→active
+> consent** (an agent's own write lands as `draft`; only a user action activates it) as the security story. That, the
+> `document-change` source, the `appendTo`/`runPlan` continuations, the data-preserving migration off `agent_triggers`,
+> and the desktop editor are designed in `harness/m6-event-bus-design.md` and **not implemented**. Until they are, the
+> CRUD actions in "Signed API changes" below are still the real interface.
+
 Status: Phase 1 CRUD and UI shell has started. Backend CRUD/persistence and the desktop Triggers tab/detail shell are in
 place. Phase 2 matching/idempotency utilities and background ActivityFeed polling have started. Schedule triggers are
 now implemented with interval, weekly, and one-time modes plus a background schedule monitor. Recent fix: first

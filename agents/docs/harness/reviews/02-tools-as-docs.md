@@ -63,6 +63,20 @@ byte-budgeted index of that Space.
 - The expansion scan counts any `call` of a tool as expansion (used = expanded). A tool the model calls blind and gets a
   contract-miss for is also promoted next turn — intended: the contract is now in context either way.
 
+### Since this review (2026-08-13)
+
+- **Lambdas are callable.** M4 wired `~/tools/<name>` documents to the execute sandbox — input validated against the
+  document's own schema on the way in, the return value against its output schema on the way out, and the same `execute`
+  grant enforced — so the "not callable until M4" gap above is closed and that error path is gone.
+- **Authored tools are visible in the GUI.** A `ListAgentTools` action was added and the desktop Tools tab lists what
+  the agent wrote for itself, which the review's "no other UI changes required" note predates.
+- **The expansion scan gained an actor filter.** M3 made a user's palette call replay as text rather than a tool
+  exchange, and `expandedCallablesFromEvents` now skips `actor: 'user'` events so a person's call cannot reshape the
+  agent's provider toolset.
+- Still true: tool documents remain per-agent rows, not signed hypermedia documents; publishing them waits on the grants
+  story. The promotion filter, the space-index cache key, the verb-name shadowing guard, the `publish` grant and the FK
+  cleanup on agent delete are all still in place.
+
 ## Eric's three-minute test
 
 1. Ask an agent: "what tools do you have?" — expect a `read ~/tools/` row listing verbs + callables, matching the

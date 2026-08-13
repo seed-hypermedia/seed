@@ -3,342 +3,376 @@
 The desktop app is the primary user-facing UI for Agents. The built-in `/agents` server UI is only for
 inspection/debugging.
 
+Two surfaces read the same sessions: the **Agents pages** (full-window) and the **Assistant sidebar** (a compact session
+view over the same service). Both render from the shared message renderer and the shared tool registry, so a tool row
+looks the same wherever it is read.
+
 ## Main files
 
-- `frontend/apps/desktop/src/agents-client.ts`
-- `frontend/apps/desktop/src/models/agents.ts`
-- `frontend/apps/desktop/src/pages/agents.tsx`
-- `frontend/apps/desktop/src/pages/agents/list.tsx`
-- `frontend/apps/desktop/src/pages/agents/server.tsx`
-- `frontend/apps/desktop/src/pages/agents/detail.tsx`
-- `frontend/apps/desktop/src/pages/agents/session.tsx`
-- `frontend/apps/desktop/src/pages/agents/dialogs.tsx`
-- `frontend/apps/desktop/src/components/assistant-panel.tsx`
-- `frontend/apps/desktop/src/pages/main.tsx`
-- `frontend/apps/desktop/src/components/sidebar.tsx`
-- `frontend/apps/desktop/src/app-menu.ts`
-- `frontend/apps/desktop/src/app-windows.ts`
-- `frontend/packages/shared/src/routes.ts`
+- `frontend/apps/desktop/src/agents-client.ts` — signed action client and the protocol re-exports.
+- `frontend/apps/desktop/src/models/agents.ts` — every React Query hook and the signed WebSocket subscriptions.
+- `frontend/apps/desktop/src/models/agent-session-rows.ts` — turns durable events into chat rows (actors, tool pairing,
+  run interleaving).
+- `frontend/apps/desktop/src/models/event-meta.ts` — the per-event provenance rows shown in info dialogs.
+- `frontend/apps/desktop/src/models/local-assistant.ts` — auto-provisioning for the built-in Assistant agent.
+- `frontend/apps/desktop/src/pages/agents.tsx` and `pages/agents/` — the page modules (see below).
+- `frontend/apps/desktop/src/components/assistant-panel.tsx` — the sidebar.
+- `frontend/apps/desktop/src/components/assistant-message-rendering.tsx` — the shared bubbles.
+- `frontend/apps/desktop/src/components/assistant-window-context.ts` — the `## Current window` context lines.
+- `frontend/packages/shared/src/routes.ts` — route schemas.
+
+Page modules under `frontend/apps/desktop/src/pages/agents/`:
+
+| file                                                                                                                                                    | what it is                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `list.tsx`                                                                                                                                              | the Agents index: configured servers, aggregated agent list               |
+| `server.tsx`                                                                                                                                            | one configured server: its agents plus server-scoped dialogs              |
+| `detail.tsx`                                                                                                                                            | agent detail page and all six tabs                                        |
+| `session.tsx`                                                                                                                                           | the session (thread) page                                                 |
+| `header.tsx`                                                                                                                                            | the shared agent header and tab bar                                       |
+| `agent-row.tsx`, `agent-name.ts`                                                                                                                        | agent list row and name helpers                                           |
+| `dialogs.tsx`                                                                                                                                           | create-agent, model providers, agent accounts, delete confirmations       |
+| `memory.tsx`                                                                                                                                            | the Memory tab file browser/editor                                        |
+| `agent-tools.ts`                                                                                                                                        | the grant names, defaults, and server-capability gating                   |
+| `user-tool-palette.tsx`                                                                                                                                 | the wrench palette — the user's own verbs                                 |
+| `run-card.tsx`                                                                                                                                          | the pinned run card and its frozen transcript twin                        |
+| `run-work.tsx`                                                                                                                                          | the plan/children/tool-call body shared by both cards                     |
+| `run-parked-actions.tsx`                                                                                                                                | Answer / Resume for a parked run                                          |
+| `trigger-types.tsx`                                                                                                                                     | per-trigger-type forms, summaries, and the triggered-session context card |
+| `model-select.tsx`, `model-utils.ts`, `provider-select.tsx`, `provider-registry.ts`, `provider-icons.tsx`, `provider-oauth.tsx`, `reasoning-select.tsx` | model/provider pickers, logos, OAuth sign-in, reasoning level             |
+| `prompt-editor.tsx`                                                                                                                                     | the Seed block editor wrapper for prompts                                 |
+| `no-account.tsx`                                                                                                                                        | the empty state when no account is selected                               |
+
+The shared-UI move to `@shm/ui/agents` is **not** on this branch: the desktop still owns these components directly.
 
 ## Routes
 
-Route keys:
+- `agents` — index page.
+- `agent-server` — one configured server (`serverUrl`).
+- `agent` — agent detail, with `tab` (`sessions` | `triggers` | `memory` | `tools` | `prompt` | `settings`),
+  `triggerId`, and `memoryPath` so a `~/memory/…` link in a tool row lands on that exact file.
+- `agent-session` — the session chat page.
 
-- `agents` — list/config page.
-- `agent-server` — one configured server page, listing only agents hosted on that server plus server-scoped actions.
-- `agent` — agent detail page.
-- `agent-session` — session chat page.
+Agent routes are also addressable through the omnibar as server HTTP URLs: `<agent_server>/agents/<agent_id>` and
+`<agent_server>/agents/<agent_id>/sessions/<session_id>`.
 
-`pages/main.tsx` dispatches these to separate lazy page modules under `frontend/apps/desktop/src/pages/agents/` instead
-of routing all Agents views through one monolithic page component.
+Entry points: desktop sidebar, app menu, `Cmd/Ctrl + Shift + A`.
 
-Agent routes are also exposed through the desktop omnibar as server HTTP URLs. An agent page uses
-`<agent_server>/agents/<agent_id>`, and a session page uses `<agent_server>/agents/<agent_id>/sessions/<session_id>`.
-Entering one of those URLs in the omnibar navigates back to the corresponding desktop Agents route.
+## The built-in Assistant
 
-## Entry points
+The sidebar assistant is not a separate runtime — it is an ordinary agent named **Assistant**, auto-provisioned on the
+local server once a model provider exists (`models/local-assistant.ts`). It is created with a deterministic idempotency
+key (`local-assistant-bootstrap-v1`) so two windows racing on first launch dedupe server-side, and so deleting it is
+respected rather than undone on next launch. Its callable grant is search only; the verbs cover reading and memory, and
+with no signing key `hm://` publishing stays blocked.
 
-Users can open Agents from:
+The panel runs the same components as the full session page in `compact` mode — `ChatMessageBubble` /
+`AssistantMessageParts` / `AgentErrorRow` from the shared renderer, `buildAgentSessionChatRows` + `frozenRunIds` from
+the same row model, and `SessionRunCard` / `RunRecordCard` from `pages/agents/run-card`. It does **not** mount the
+wrench palette: user verbs are a full-session affordance.
 
-- desktop sidebar;
-- app menu;
-- `Cmd/Ctrl + Shift + A`.
+The panel contributes **window context**: `formatWindowContextLines()` builds a `## Current window` block (URL, title,
+view, side panel, open comment, focused block and range, draft state) that rides along as a `context` content part on
+the **first** message only. It never appears in the visible transcript; it surfaces as a "Context" chip on the user
+bubble that opens the exact lines the model was given.
 
-## Server settings
+## Server settings and dialogs
 
-The Agents page is now a lightweight index. It shows configured agent servers with per-server health/model-provider
-status and links to the shared **Secrets** and **Providers** dialogs. Clicking a server opens the `agent-server` page.
-The index still includes an aggregated agent list for quick access across servers.
+The Agents index has two sections: **Agent Servers** (agents grouped by server, each with per-server **Accounts** and
+**Providers** buttons opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and **All Agents**, the aggregated
+list across servers with Create Agent. Health reads "Checking… / Offline / Online", and the status dot is suppressed for
+the local server unless it is actually erroring (`list.tsx:83`) — the local server is part of the app, so an "online"
+light on it is noise, while a failure is a real problem.
 
-The server page lists agents hosted on that server and exposes the same shared server-scoped dialogs: Secrets for
-server-side HM account keys and Providers for model-provider API keys. Agents data refreshes automatically through React
-Query polling and WebSocket invalidations; there are no manual reload controls.
+Clicking a server opens the `agent-server` page, a thin route that lists that server's agents and exposes the same two
+dialogs. Both it and the index render `AgentsNoAccountPage` when no account is selected, because agent servers reject
+unauthenticated requests — including the local one.
 
-Advanced Settings includes an **AGENT SERVERS** section for managing multiple URLs and default selection.
+Data refreshes through React Query polling and WebSocket invalidations; there are no manual reload controls.
 
-Default local server (dev; release builds use port 3050):
+Advanced Settings has an **AGENT SERVERS** section for managing multiple URLs and the default selection. Default local
+server in dev is `http://localhost:3051`; release builds use port 3050.
 
-```text
-http://localhost:3051
-```
+### Provider dialog
 
-## Provider dialog
+`ModelProvidersDialog` (`dialogs.tsx`) lists redacted providers with their logos and saves records for every type in
+`provider-registry.ts`. Two auth modes:
 
-Component:
+- **API key** — saved through signed `SetSecret`, then `SetModelProvider` referencing the secret name. The dialog
+  refuses to send a key to a remote plain-HTTP server, but only when a key is actually being sent.
+- **Subscription sign-in** ("Sign in with ChatGPT") — offered only when the provider metadata declares it **and** the
+  server's health reports `subscriptionAuth: true`, because the flow needs this desktop app to catch the provider's
+  localhost redirect. A provider whose sign-in expired shows `authStatus: 'needs-login'` with a re-sign-in button, and
+  an explicit message when the server has since stopped offering the flow.
 
-```ts
-ModelProvidersDialog
-```
+An editable **Base URL** field appears for `ollama`/`custom` (prefilled from `PROVIDER_METADATA.defaultBaseUrl`), and
+the API key is optional for those keyless local providers.
 
-Features:
+### Create-agent dialog
 
-- list redacted providers, each with its provider logo (`ProviderIcon`);
-- save records for any type in the provider registry — OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI,
-  Ollama, and a generic Custom (OpenAI-compatible) endpoint;
-- show an editable **Base URL** field for `ollama`/`custom` (prefilled from `PROVIDER_METADATA.defaultBaseUrl`);
-- treat the API key as optional for keyless local providers (`ollama`/`custom`);
-- save API key through signed `SetSecret` (skipped when no key is given);
-- save provider (with optional `baseUrl`) through signed `SetModelProvider`;
-- reject remote plain-HTTP secret submission, but only when a key is actually being sent.
+`CreateAgentDialog` (`dialogs.tsx`): choose server and provider, name the agent, pick a model from the provider's remote
+model list, pick a reasoning level where the model supports one, and write the system prompt in the same Seed block
+editor used everywhere else. Prompt blocks are converted to markdown before the signed `CreateAgent` request, which
+carries a `clientRequestId`.
 
-Provider metadata (labels, default base URLs, field behavior, model-list priorities) lives in
-`frontend/apps/desktop/src/pages/agents/provider-registry.ts`; logos are in `provider-icons.tsx`.
+New agents are created with `DEFAULT_AGENT_TOOLS` — `search`, `web_search`, `execute`, and the `publish` grant
+(`agent-tools.ts:19`). The five verbs are not in that list because they are not configuration.
 
-## Create-agent dialog
-
-Component:
-
-```ts
-CreateAgentDialog
-```
-
-Features:
-
-- choose the target agent server;
-- choose configured provider for that server;
-- set name;
-- choose a model from the selected provider's remote model list;
-- set system prompt with the same rich Seed block editor used by prompt/trigger editing;
-- convert the rich prompt blocks to markdown before creating the signed `CreateAgent` request;
-- create signed `CreateAgent` with `clientRequestId`.
-
-New agents include `read` in `tools`, but the server also offers that tool regardless of saved definition. The current
-plan is to augment this existing read tool for domain-aware SHM reads before deciding whether to expose a new `query`
-alias.
-
-The dialog creates a dedicated signing identity (HM account) for the agent before `CreateAgent`. The server then
-auto-creates a default enabled `user-mention` trigger that follows that signing identity's account uid, so mentioning
-the agent's account immediately starts a session in which it responds. See `signed-api.md` for the server-side behavior.
+The dialog creates a dedicated signing identity (HM account) for the agent first; the server then auto-creates a default
+enabled `user-mention` trigger following that identity, so mentioning the agent's account starts a session immediately.
 
 ## Agent detail page
 
-Features:
+Tabs: **Sessions** (default), **Triggers**, **Memory**, **Tools**, **Prompt**, **Settings** (`header.tsx:201`).
 
-- metadata/status display;
-- document-style tabs: Sessions (default), Triggers, Memory, Tools, Prompt, and Settings;
-- Sessions tab lists sessions and creates new sessions;
-- Triggers tab lists agent-scoped triggers and creates new triggers;
-- clicking a trigger keeps the user inside the agent page, shows Triggers breadcrumbs, and opens an editable trigger
-  detail view;
-- trigger detail shows operational metadata plus the sessions created by that trigger;
-- Memory tab (`pages/agents/memory.tsx`) browses and edits the agent's private memory filesystem: an entry list with
-  per-row delete (two-step inline confirm) and file sizes, a monospace text editor with dirty-state Save/Revert for text
-  files, inline image/audio/video previews for binary files, an on-demand per-file download button, an **Add file**
-  local-upload button, a **From URL** form that server-side downloads a web file into memory, a **New file** form
-  accepting nested relative paths, and a **Publish to IPFS** button that uploads the file via the HM server and surfaces
-  its copyable `ipfs://<cid>` URL. Files can also be dragged and dropped onto the list (multiple at once): dropping on
-  the list uploads to the memory root, dropping on a folder row uploads into that folder, with drop-target highlighting.
-  It uses the signed agent-memory actions via the memory hooks in `models/agents.ts`, and refreshes live from
-  `agent-memory-changed` change events when session tools write memory;
-- Tools tab autosaves Seed-approved tool toggles and the uploaded HM account keys the agent may use for signing and
-  publishing tools; the tool groups are the Seed read group (read/search/activity), the **web group**
-  (`web_search`/`web_read`, which require server-side web backends), the **memory group**
-  (`memory_list`/`memory_read`/`memory_write`/`memory_delete`/`memory_download`), the **execute code** tool
-  (`execute_code`, greyed out when the server reports `codeExec: false`), and the write group. Tool groups come from
-  `frontend/apps/desktop/src/pages/agents/agent-tools.ts`;
-- the Tools tab reflects the connected server's abilities: each group lists its individual member tools, and tools the
-  server cannot run are greyed out with an explanation. Availability is read from the server health response (`webTools`
-  capability flags) via `getToolAvailability`; for example `web_search` is greyed when no SearXNG backend is configured,
-  and `web_read` notes when browser rendering is unavailable. A group's toggle is disabled only when none of its tools
-  can run;
-- each tool row has an info (ⓘ) button opening a dialog with the exact model-facing description and the input/output
-  JSON schemas (`ToolInfoDialog`, sourced from the shared tool registry), so an agent owner can see precisely what
-  prompting and context each tool passes to the model;
-- Tools tab offers a **New account** workflow that generates a server-side HM account key, publishes its profile, and
-  creates an account home document stating that it is an agentic account;
-- Prompt tab views/edits the main system prompt with the rich Seed block editor; prompt edits autosave when connected to
-  the agent server, are converted to markdown before the signed `UpdateAgent` request, normalized by the server, and
-  converted to model-facing markdown before execution;
-- Settings tab edits agent name and chooses the model from the agent provider's remote model list, while showing
-  provider/status/id;
-- save via signed `UpdateAgent`;
-- trigger CRUD via signed `ListAgentTriggers`, `GetAgentTrigger`, `CreateAgentTrigger`, `UpdateAgentTrigger`, and
-  `DeleteAgentTrigger`;
-- trigger creation/editing supports activity triggers and schedule triggers, including interval schedules, weekly
-  day/time schedules, and one-time schedules;
-- trigger creation/editing uses the rich Seed block editor for trigger prompts; trigger edits autosave, are converted to
-  markdown before signed `CreateAgentTrigger` / `UpdateAgentTrigger` requests, and the server converts the normalized
-  prompt to resolved markdown when creating a triggered session;
-- trigger creation/editing includes an optional cooldown in minutes to reduce session storms;
-- trigger enabled state defaults on for new triggers and autosaves immediately when toggled;
-- document-comment trigger forms include document autocomplete/search while still allowing raw HM URLs;
-- user-mention and site-update trigger forms include account/site autocomplete search while still allowing raw IDs/URLs;
-- per-trigger-type frontend logic (option labels, defaults, source summaries, configuration forms, activity-route
-  derivation, and the triggered-session `TriggerContextView`) is co-located in `pages/agents/trigger-types.tsx` so each
-  trigger type stays in sync across the trigger forms and the session UI;
-- subscribe to `agents/<agentId>` for live updates.
+- **Sessions** lists sessions and creates new ones, nesting child sessions under their parents.
+- **Triggers** lists agent-scoped triggers and creates them; clicking one stays inside the agent page with Triggers
+  breadcrumbs and an editable detail view showing operational metadata plus the sessions that trigger created. Forms
+  cover activity and schedule triggers (interval, weekly day/time, one-time), an optional cooldown in minutes, document
+  autocomplete for comment triggers, account/site autocomplete for mention and site-update triggers, rich block editing
+  for trigger prompts, and autosave on every edit including the enabled toggle. Per-type logic lives in
+  `trigger-types.tsx` so the forms and the session UI cannot drift.
+- **Memory** (`memory.tsx`) browses and edits `~/memory`: entry list with sizes and per-row delete (two-step inline
+  confirm), a monospace editor with dirty-state Save/Revert for text files, inline image/audio/video previews, per-file
+  download, **Add file** upload, a **From URL** server-side download form, a **New file** form accepting nested paths,
+  and **Publish to IPFS** with a copyable `ipfs://<cid>`. Files can be dragged onto the list (root) or onto a folder row
+  (into that folder), with drop-target highlighting. Files over `MAX_MEMORY_PREVIEW_BYTES` (32 MB, `memory.tsx:36`) skip
+  the inline preview and offer download only. It refreshes live from `agent-memory-changed` events, so a sandbox run
+  writing files updates the tab as it happens. The `agent` route carries `memoryPath`, so a `~/memory/…` link in a tool
+  row deep-links to the file.
+- **Prompt** edits the system prompt with the Seed block editor; edits autosave, convert to markdown before the signed
+  `UpdateAgent`, and are normalized server-side.
+- **Settings** edits the name, model, and reasoning level, and shows provider/status/id.
+
+### Tools tab
+
+Four toggles, and nothing else is configurable — because nothing else is a grant (`detail.tsx:826`):
+
+| toggle               | grant                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| Search Seed content  | `search`                                                                             |
+| Search the web       | `web_search`                                                                         |
+| Execute code         | `execute`                                                                            |
+| Publish Seed content | `publish` — signed public documents, comments, and IPFS; private memory is always on |
+
+Toggles autosave. Stored definitions are read through `normalizeStoredAgentTools()` (`agent-tools.ts:32`), which maps
+`execute_code` → `execute` and the old write group → `publish` and drops names absorbed into verbs, so the UI shows the
+truth the server acts on rather than a stale array.
+
+Availability comes from the server health response via `getToolAvailability()`: `web_search` greys out with an
+explanation when no SearXNG backend is configured, and `execute` greys out when the server reports `codeExec: false` —
+with targeted help when the cause is fixable locally (a Windows Hypervisor Platform prompt for `whp-disabled`, the
+server's own reason otherwise) and a plain "this server does not support code execution" for remote servers. Each row
+has an info (ⓘ) button opening `ToolInfoDialog` with the exact model-facing description and input/output schemas from
+the shared registry.
+
+Below the toggles, **Authored tools** lists the lambda documents this agent wrote for itself, read from
+`ListAgentTools`. Each card shows the tool name, a TypeScript/Python badge, a Disabled badge when applicable, its
+summary, and when it was last updated; clicking opens `AuthoredToolDialog` with the description sent to the model, the
+full source, the input and output schemas, and the document's content address (click to copy) with the note that it
+changes every time the agent rewrites the tool. With none yet, the empty state says so: "Ask the agent to write itself a
+tool — it lands here, versioned by content address, the moment it's saved."
+
+The tab also manages the HM account keys the agent may sign with, including a **New account** workflow that generates a
+server-side key, publishes its profile, and creates an account home document stating that it is an agentic account.
+
+Known copy drift: the Execute code toggle still describes "Python or shell code" (`detail.tsx:840`) though the tool now
+offers `ts`, `python`, and `shell`.
 
 ## Session page
 
-Features:
+The header carries back-navigation to the agent, the shared agent header with Sessions active, an inline editable title
+with debounced (600 ms) signed `UpdateSession` saves and an idle/saving/saved/error dot — manual edits win over
+agent-generated titles — a system-prompt button opening the exact `systemPromptMarkdown` that would be sent if the
+session continued now, and an options menu with **Copy session URL** and **Delete session**. A triggered session also
+gets a ⓘ trigger-context popover and a link out to the originating activity.
 
-- back navigation to the owning agent detail page;
-- agent header remains visible with the Sessions tab active while viewing a session, using the same shared header
-  component as the agent detail page;
-- inline editable session title with debounced signed `UpdateSession` saves; manual edits take precedence over hidden
-  agent-generated title updates;
-- system-prompt button in the session header opens a dialog with the current server-generated markdown system prompt
-  that would be used if the session continued now;
-- options menu in the session header with **Delete session**, confirmed through an alert dialog and backed by signed
-  `DeleteSession`, returning to the agent's Sessions list after deletion;
-- subtle title-save status dot: grey while saving, green after success, red after failure;
-- durable event list;
-- optimistic user message;
-- full rich Seed block editor as the session chat composer, including slash-menu/editor features inherited from
-  `CommentEditor`;
-- session messages are converted from rich blocks to markdown before signed `MessageSession` submission while also
-  sending the original rich block tree for durable session-history display; users submit from the rich editor with the
-  send button or `Cmd/Ctrl+Enter`;
-- queued messages while the agent is busy/streaming, using the shared chat queue UI from the assistant panel;
-- signed `MessageSession` submission;
-- signed `sessions/<sessionId>` WebSocket subscription;
-- live assistant partial rendering;
-- durable final assistant message rendering;
-- automatic scroll-follow while the user is at the bottom, with a scroll-to-latest pill when the user scrolls up;
-- visible tool call/result events rendered with the shared assistant chat bubbles;
-- the first message of a trigger-created session hides the raw `<trigger_context>` / `<trigger_instructions>` text and
-  renders a per-trigger-type `TriggerContextView` card (icon, headline, source summary, fired time, and a collapsible
-  activity payload) plus the human prompt; the exact model-facing markdown remains available through the message's
-  raw-markdown dialog;
-- small thinking indicator while a message request is in flight or the durable session is streaming before partial text
-  arrives;
-- signed `StopSession` support from the stop button while streaming, including recovery for stale sessions stuck in
-  `streaming` with no active runner.
+### The log
 
-## Run progress surfaces (workflows, sub-sessions, todo lists)
+`buildAgentSessionChatRows()` turns durable events into rows, then `interleaveRunRecords()` places finished run cards
+into the same chronological scroll. Rows are keyed by event id, so a `#event=<id>` hash scrolls to and centers that
+message.
 
-The session page pins a run/progress card between the message list and the composer, shared with the assistant sidebar
-in a compact variant (`frontend/apps/desktop/src/pages/agents/run-card.tsx` · `SessionRunCard`):
+Every row knows its **actor**, and the actor is checked before the role — because the runtime writes to the log as
+`role: 'user'` (the only turn a model takes instruction from) while nobody typed those words:
 
-- **Data flow is durable-first**: the latest root run comes from `ListRuns {sessionId}` (`useSessionRuns`), the tree
-  from `ListRuns {rootRunId}` (`useRunTree`), and the signed `runs/<rootRunId>` subscription
-  (`useAgentRunTreeSubscription`) animates it — its subscribe replay re-sends every run snapshot plus all journal
-  entries, so a reload reconstructs the card with no other source.
-- **Active state**: run title, status pill, elapsed time, cancel button (confirm-then-`CancelRun` on the root, cascading
-  to the subtree), optional progress bar from ephemeral `ctx.progress` partials, the step list from the run's
-  `plan_cbor` (pending ○ / running ◐ / done ✓ / failed ✕ / skipped –), a **children strip** (one row per run in the
-  tree: status dot, title, kind; agent children navigate to their session transcript), and rolled-up token usage.
-- **Parked state**: banner form — "Waiting on N sub-sessions — M done" — while the session's own run sits `waiting`; the
-  composer above stays locked (the mirror reports `streaming`).
-- **Terminal state**: a dismissible chip ("✓ … / ✕ Failed: message") that expands to the full card; replaced when a
-  newer root run starts.
-- **Todo mode**: with no runs but `SessionInfo.plan` present (the `update_plan` tool), the card renders just the step
-  list.
-- **Activity drawer** (`RunActivityDrawer`): a collapsed-by-default terminal-style tail of the whole tree's journal —
-  `ctx.log` lines (error/warn toned), step transitions, `tool:`/`agent:` call lines, and failed results with their error
-  message — ordered by `(createdAt, seq)` across runs, last 100 lines visible over a 500-entry buffer. Replay
-  bookkeeping kinds (successful results, timers, now, plan) are filtered out. Shown on active, parked, and expanded
-  terminal cards.
+- **user** messages render as the familiar blue bubble;
+- **system** messages render as `SystemMessageRow` — no bubble, no name, quiet grey, set in behind a left rule
+  (`assistant-message-rendering.tsx:187`). This is what continuation prompts and unmet-obligation notices look like:
+  visibly the machinery talking about the conversation rather than a voice in it;
+- **agent** messages render as assistant parts;
+- a tool row whose actor is `user` carries a small **"You"** chip in its header (`assistant-message-rendering.tsx:1966`)
+  — the wrench palette's results, sitting in the shared log where the agent will read them.
 
-Session lists nest sub-sessions (`frontend/apps/desktop/src/components/session-children.tsx`):
+Every row can explain itself. A **message** ⓘ opens the exact markdown the model sees, a share URL of the form
+`<server>/agents/<agentId>/sessions/<sessionId>#event=<eventId>`, session/message/seq ids, and any window context that
+rode along hidden. A **tool** row's ⓘ opens `ToolCallDebugDialog` with the raw input and output payloads (and the source
+of a script child, when there is one). Both end in the same **Details** grid, built by `eventMetaRows()`
+(`models/event-meta.ts`): model, provider, duration, and the turn's token breakdown — total, input, output, cache read,
+cache write. The grid is strictly additive: an event recorded before the runtime stamped provenance shows no Details
+section at all rather than labelled blanks.
 
-- Parent rows with `childSessionCount` show a lazy "▸ N sub-sessions" disclosure (`SubSessionsDisclosure`) with a
-  rolled-up status dot; expanding fetches `ListSessions {parentSessionId}` (`useChildSessions`) and renders children
-  indented with tree lines. Both surfaces — the assistant sidebar picker and the agent-detail Sessions tab — filter
-  their flat lists to top-level rows client-side (and the sidebar's query passes `includeChildren: false`), so children
-  can never appear twice.
-- Child session pages show a "⤴ parent" breadcrumb, a "driven by its parent" banner while the child's own run is live
-  (looked up via `SessionInfo.runId` → `GetRun` with the `useRun` hook — `ListRuns {sessionId}` deliberately returns
-  only root runs), and a locked composer with explanatory copy until the run is terminal.
+Tool rows dispatch a purpose-built detail view per tool (`assistant-message-rendering.tsx:2034`): `delegate` shows the
+brief and the child's own work, `execute` shows the code with a live output tail, an address-bearing `read` or `write`
+shows the resolved target, and a hypermedia write command gets its own phrasing. A `call` row borrows the **called**
+tool's icon, label, and links, with input paths rebased under `input.` (`getRowToolMetadata`,
+`assistant-message-rendering.tsx:687`) — so it never reads "Call · execute".
 
-New hooks in `frontend/apps/desktop/src/models/agents.ts`: `useChildSessions`, `useRun`, `useSessionRuns`, `useRunTree`,
-`useCancelRun`, `useAgentRunTreeSubscription` — the last two subscriptions share one signed-socket lifecycle
-(`useSignedAgentSocket`) with the session subscription.
+Other session-page behavior: optimistic user messages, queued messages while the agent is busy, live assistant partials
+with a streaming cursor, a run status bar (hidden while a pending tool row is already showing its own live status, so
+there are never two spinners), auto-scroll with a scroll-to-latest pill, in-app `hm://` link handling, and signed
+`StopSession` from the stop button including recovery for sessions stuck in `streaming` with no live runner. Retry is
+offered only on the **trailing** error row and only when the agent is not busy (`agent-session-rows.ts:229`), so a
+recovered-from error mid-transcript never sprouts a stale button.
+
+A trigger-created session's first message hides the raw `<trigger_context>` / `<trigger_instructions>` text — stripped
+from the bubble in `buildAgentSessionChatRows()` (`agent-session-rows.ts:353`) — and renders a per-type
+`TriggerContextView` card: icon, headline, source summary, fired time, collapsible activity payload. The exact
+model-facing markdown stays available through the raw dialog.
+
+### The composer and the wrench palette
+
+The composer is the full Seed block editor (`CommentEditor`, submit on Enter). Dropped files upload as session-private
+attachments through the chunked upload actions with a progress bar, and are referenced by id — they are never written to
+memory or IPFS unless the agent does that itself. When the session is driven by its parent the composer is **replaced**
+by that explanatory line rather than merely disabled (`session.tsx:773`). Beside the send button sits the **wrench**
+(`user-tool-palette.tsx`): the user's side of the symmetric log.
+
+Opening it lists **Read**, **Write**, and every callable the agent is granted and the server can run — filtered through
+`normalizeStoredAgentTools` and `getToolAvailability`, with `publish` excluded because it is a grant, not a tool. While
+the agent definition is still loading the list says so rather than granting everything. Read takes an address; Write
+takes an address, content, and optional options JSON; a callable gets a form generated from its registry input schema
+(text, number, boolean, and enum fields), falling back to a raw JSON textarea for deep shapes.
+
+Running one sends `InvokeSessionTool`, and the call and result land on the shared log as actor-`user` events. Two
+outcomes are handled specially: an error toasts, and a **contract miss** (the server answered with the tool's contract
+instead of a result) keeps the form open with a note pointing at the contract row now in the thread. The wrench is
+disabled while the agent is busy — the server rejects user verbs during a live run.
+
+### The pinned run card
+
+`SessionRunCard` (`run-card.tsx`) sits between the message list and the composer, full composer width, never scrolling
+away. It is deliberately **transient**: once a run's story stops changing, `RunRecordCard` freezes the same card into
+the transcript at that moment, and the pinned slot clears so the next turn is not shadowed by a finished summary. The
+session page passes `frozenRunIds` so the two surfaces never tell the same story twice.
+
+`runStoryFrozenAt()` (`models/agent-session-rows.ts:119`) decides when, and only for **orchestrations** — a plain turn's
+story is its messages, and always was. Three durable moments qualify: the run reaching a terminal status, a typed
+`return_result` delivered within the run's lifetime, or a fully settled plan's server-stamped `settledAt`. Two
+deliberate non-freezes: a `waiting` run never freezes, because a parked run may be waiting on _you_ and the place to
+answer it is the pinned slot above the composer; and a settled plan the server never stamped stays pinned, since there
+is no honest moment to freeze it at. Nothing is anchored to `updatedAt`, which advances with every heartbeat and would
+drag a frozen card down the scroll for as long as its run lived.
+
+Both cards share one body, `RunWork` (`run-work.tsx`):
+
+- **Plan steps** with status icons (pending ○ / running ◐ / done ✓ / failed ✕ / skipped –). A step the runtime settled
+  from completed sub-agents carries a small uppercase **`auto`** marker with the tooltip "Settled by the runtime from
+  completed sub-agent results" (`run-work.tsx:256`) — a checklist that read identically either way would quietly
+  attribute the runtime's bookkeeping to the agent's judgment.
+- **Children, integrated with their step.** One child attached to a step means the step _is_ that child's row: clicking
+  it opens the sub-session, its status dot and live activity ride along, and its cancel button sits at the row's edge
+  (revealed on hover, on keyboard focus, and always on touch). A **batch** — two or more children on one step — makes
+  the step a plain grouping header, with every child rendered beneath it as a **uniform peer** (`run-work.tsx:436`), so
+  no sibling is dressed as the step while the rest hang off it. Children with no home step render the same way.
+  Attachment resolves by **step id first**, then a stamped `stepLabel`, then the child's title (`run-work.tsx:384`), so
+  a child survives the agent renaming its step between turns.
+- **Tool calls**, collapsible, auto-opened only at six or fewer (`OPEN_TOOL_CALLS_LIMIT`, `run-work.tsx:334`). They
+  render through the chat's own tool-row component, injected as `renderToolPart` to avoid an import cycle; a script's
+  `ctx.call(…, {description})` narration becomes the row's summary.
+
+`displayStepStatus()` (`run-work.tsx:157`) rewrites statuses after the fact rather than leaving a stale checklist: once
+the owning run has finished, a still-`running` step reads done and a `pending` one reads skipped; in `idle` mode a
+`running` step falls back to pending.
+
+The card header carries the run title, a status pill, a live elapsed timer that freezes when the run does, rolled-up
+token usage, and cancel (confirm, then `CancelRun` on the root, cascading to the subtree). Two more collapsed-by-default
+drawers sit below the body: **Code** (`RunSourceDrawer`, `run-card.tsx:486`) showing a script run's verbatim
+`sourceText`, and **Activity** (`RunActivityDrawer`, `run-card.tsx:406`), a terminal-style tail of the whole tree's
+journal — `ctx.log` lines toned by level, step transitions, tool and child call lines, and failed results with their
+error — ordered across runs and capped at the last 100 lines, each unfolding its full journal entry on click.
+
+**Parked runs** get a specific banner rather than a bare "Waiting": "Waiting on N sub-sessions — M done" for children, a
+label and wake time for a timer, and for an event wait `ParkedRunActions` (`run-parked-actions.tsx`) renders the run's
+`answerWith` signal as an **Answer** button (with an optional "Answer with data" payload editor) or, for a budget pause,
+**Resume** — the one wait a person has to end, so it does not hide behind "Waiting".
+
+With no live run but a `SessionInfo.plan` present, the card falls back to the plan verb's todo list alone
+(`run-card.tsx:147`), in `idle` settle mode once a run exists and `live` before one does — and hides itself entirely
+when every step is done or skipped, because a finished checklist with its run over is just noise.
+
+Data flow is durable-first: the latest root run from `ListRuns {sessionId}` (`useSessionRuns`), the tree from
+`ListRuns {rootRunId}` (`useRunTree`), and the signed `runs/<rootRunId>` subscription (`useAgentRunTreeSubscription`)
+animating it. The subscribe replay re-sends every run snapshot plus all journal entries, so a reload reconstructs the
+card from nothing else.
+
+### Sub-sessions
+
+Session lists nest children (`components/session-children.tsx`): a parent row with `childSessionCount` shows a lazy "▸ N
+sub-sessions" disclosure with a rolled-up status dot; expanding fetches `ListSessions {parentSessionId}`. Both the
+sidebar picker and the Sessions tab filter their flat lists to top-level rows, so children never appear twice.
+
+A child session page shows a "⤴ parent" breadcrumb and, while its own run is live (looked up by `SessionInfo.runId` →
+`GetRun`, since `ListRuns {sessionId}` deliberately returns only root runs), replaces the composer with "This
+sub-session is being driven by its parent — watch, or open the parent to intervene."
 
 ## Shared chat rendering
 
-Agents chat and the desktop assistant panel reuse the same message renderer:
-
-```ts
-ChatMessageBubble
-AssistantMessageParts
-```
-
-Exported from:
-
-```text
-frontend/apps/desktop/src/components/assistant-message-rendering.tsx
-```
-
-Used in:
-
-```text
-frontend/apps/desktop/src/components/assistant-panel.tsx
-frontend/apps/desktop/src/pages/agents.tsx
-```
-
-Benefits:
-
-- same user and assistant bubble styling as the assistant panel;
-- same markdown styling and GFM support for user and assistant message bubbles;
-- an info button beside message bubbles that opens the exact markdown text visible to the LLM for that message plus a
-  share URL of the form `<server>/agents/<agentId>/sessions/<sessionId>#event=<eventId>`;
-- in-app `hm://` link handling;
-- same streaming cursor treatment;
-- same tool-call bubbles, including raw-debug details, richer `read` summaries that prefer document titles over raw
-  `hm://` URLs, and richer write summaries/detail cards such as linked `Create document: <title>` rows for
-  `document.create`;
-- tool bubble selection is driven by the unified registry at `agents/protocol/src/tool-registry.ts`, shared with the
-  model-facing tool descriptions and schemas.
+`ChatMessageBubble` and `AssistantMessageParts`, exported from
+`frontend/apps/desktop/src/components/assistant-message-rendering.tsx`, are used by both the Agents session page and the
+assistant panel. Tool bubble selection is driven by the shared registry (`agents/protocol/src/tool-registry.ts`), the
+same source as the model-facing descriptions and schemas — so `read` rows prefer document titles over raw `hm://` URLs,
+hypermedia writes keep purpose-built phrasing (a comment, a move, a grant read nothing like "wrote"), and every other
+address gets a resolved one-liner. Rows expand to raw input/output for debugging, and a live tool shows its streamed
+detail and output tail while it runs.
 
 ## Automatic refresh
 
-The desktop hooks in `frontend/apps/desktop/src/models/agents.ts` periodically refetch health, provider, agent-list,
-agent-detail, and session queries for the active configured servers. Mutations invalidate the relevant `['agents', ...]`
-query keys, and the WebSocket subscription hook updates or invalidates React Query caches when any configured server
-emits live changes. The UI should not need manual refresh or reload buttons for normal Agents workflows.
+The hooks in `models/agents.ts` periodically refetch health, provider, agent-list, agent-detail, and session queries for
+the active servers. Mutations invalidate the relevant `['agents', ...]` query keys, and the WebSocket subscription hook
+updates or invalidates caches when any configured server emits live changes. Normal Agents workflows should never need a
+manual refresh.
 
 ## WebSocket hook
-
-Hook:
 
 ```ts
 useAgentWebSocketSubscription(serverUrl, accountUid, key, afterSeq)
 ```
 
-Responsibilities:
-
-- build WebSocket URL;
-- sign `Subscribe` action;
-- send CBOR envelope;
-- parse JSON server events from string/Blob/ArrayBuffer;
-- update React Query cache for durable appends;
-- accumulate live partial text by session ID;
-- keep partial visible until durable append arrives;
-- reconnect with backoff.
+Builds the URL, signs a `Subscribe` action, sends the CBOR envelope, parses JSON server events from
+string/Blob/ArrayBuffer, updates the React Query cache for durable appends, accumulates live partial text per session,
+keeps the partial visible until the durable append arrives, and reconnects with backoff. The run-tree and session
+subscriptions share one signed-socket lifecycle (`useSignedAgentSocket`).
 
 Diagnostic logs are documented in [Operations](./operations.md) and
 [WebSocket subscriptions](./websocket-subscriptions.md).
 
 ## Optimistic user messages
 
-`addOptimisticSessionMessage()` inserts a temporary user event while the signed message request is in flight. When the
-durable user event arrives, the hook removes matching optimistic events.
+`addOptimisticSessionMessage()` inserts a temporary user event while the signed request is in flight; the hook removes
+matching optimistic events when the durable one arrives.
 
 ## Known UI gaps
 
-- Provider deletion is missing.
-- Secret rotation UX is minimal.
-- `write` can use selected HM account keys to create drafts, profiles, documents, comments, capabilities, and contacts.
-- Newly added provider types (OpenRouter/DeepSeek/Groq/xAI/Ollama/custom) still need real-provider manual smoke
-  coverage; the UI does not surface which providers are verified end-to-end.
-- No provider test button exists.
-- No model presets/capability validation beyond suggested defaults.
+- Provider deletion is missing; secret rotation UX is minimal; there is no provider test button.
+- Authored tools are read-only in the UI — an owner can inspect and see the disabled flag, but only the agent creates,
+  edits, or deletes them (there is no `SetAgentTool` action).
+- Newly added provider types still need real-provider manual smoke coverage, and the UI does not surface which providers
+  are verified end-to-end.
+- No model presets or capability validation beyond suggested defaults.
 
 ## Manual desktop smoke test
 
-1. Start server.
-2. Start desktop.
-3. Open Agents.
-4. Confirm health is online.
-5. Save an OpenAI provider key.
-6. Create an agent using that provider.
-7. Open the agent detail page.
-8. Create/open a session.
-9. Send a message.
-10. Confirm user message appears immediately.
-11. Confirm assistant response streams as markdown.
-12. Confirm final durable assistant message remains after refresh.
-13. Ask the agent to read a Seed URL, including a clean HM web-domain URL when available.
-14. Confirm tool call/result rows appear and show both the requested URL and resolved HM identity once rich rendering is
-    implemented.
+1. Start server; start desktop; open Agents and confirm health is online.
+2. Save a provider (API key or ChatGPT sign-in) and create an agent using it.
+3. Open the agent, check the Tools tab shows four grants and an empty Authored tools state.
+4. Create a session and send a message; confirm the user message appears immediately and the reply streams as markdown.
+5. Ask it to read a Seed URL, including a clean HM web-domain URL; confirm the tool row shows the requested URL and the
+   resolved identity.
+6. Ask it for a task with three or more steps; confirm the pinned card shows the checklist and clears into the
+   transcript when the run ends.
+7. Ask it to delegate two independent pieces of research in one turn; confirm both children render as uniform peers
+   under one step.
+8. Ask it to write itself a tool, then call it; confirm the card appears in Authored tools with its source and CID.
+9. Run a read from the wrench palette; confirm the row carries the "You" chip and the agent refers to it next turn.
+10. Reload the window and confirm the transcript, run records, and card state all reconstruct.

@@ -1,7 +1,13 @@
 # M6 — The event bus: implementation design
 
-Status: **design only, nothing built.** Written while holding for F4, from the M6 section of `plan.md` and from the M5
-machinery that M6 should reuse rather than reinvent.
+Status: **the night slice landed; the day package is still design.** Written while holding for F4, from the M6 section
+of `plan.md` and from the M5 machinery that M6 should reuse rather than reinvent.
+
+As of 2026-08-13 on `harness/full`, the "tonight" subset from [Sizing](#sizing) is built (commit `b7596f83c`, reviewed
+in [`reviews/05-exec-time.md`](./reviews/05-exec-time.md)): the `run-completed` source, the `wake` continuation, the
+shared activity matcher, and the firing-chain loop guard, all riding the existing `agent_triggers` rows. **Everything
+about documents is still unbuilt** — no `~/triggers/**`, no draft→active consent, no migration, no protocol deletion.
+Each section below is marked with what it actually got. The design text itself is unchanged.
 
 **Sizing up front: this is a day package, not a night one.** See [Sizing](#sizing) for the split — there is a coherent
 ~4 hour subset (the bus underneath) that can land tonight and leaves the system strictly better even if the document
@@ -21,6 +27,10 @@ source (something happened)  →  trigger document (a rule, in ~/triggers/)  →
 ```
 
 ## 1. The trigger document
+
+> **Not built.** No `~/triggers/**`, no `TriggerDocument` type, no draft/active/paused lifecycle, no `ActivateTrigger`.
+> Triggers are still `agent_triggers` rows with an `enabled` flag. The consent argument below is untouched and still
+> governs the day package.
 
 `~/triggers/<name>.trigger`, stored the way tool documents are stored (per-agent row, canonical DAG-CBOR, CID over the
 bytes), read and written through the `read`/`write` verbs like everything else in the Space.
@@ -54,6 +64,12 @@ may set `active` directly.
 
 ## 2. Sources
 
+> **Half built.** `run-completed` shipped exactly as typed here, on `AgentTriggerSource`, firing inline from
+> `#onRunFinalized` with the firing-chain loop guard (`#triggerAlreadyInChain`, `TRIGGER_CHAIN_MAX_HOPS = 8`).
+> `document-change` is **not** built — but its prerequisite is: `matchesActivityCriteria` now lives in
+> `activity-triggers.ts` and `activityMatchesWait` delegates to it, so the second consumer only has to call it. Until
+> that consumer exists the extraction is held honest by semantics tests rather than by two live callers.
+
 The shipped four keep their shapes exactly (`document-comment`, `user-mention`, `site-update`, `schedule`) so migration
 is a re-encode, not a rewrite. Two are added:
 
@@ -75,6 +91,13 @@ is a re-encode, not a rewrite. Two are added:
 
 ## 3. Continuations
 
+> **Two of four built**, on a nullable `agent_triggers.continuation_cbor` (NULL = `newThread`), so nothing migrated.
+> `newThread` is `{kind: 'newThread'}` with no `brief` — the trigger's existing `prompt` column still carries it. `wake`
+> shipped as `{kind: 'wake'; signal: string; runId?: string; payload?: unknown}`: `signal` is the required half and
+> `runId` the optional one, which is the inverse of the sketch below and is what makes "unblock whoever is waiting on
+> this" expressible. It rides `#deliverRunEvent` unchanged, as designed. `appendTo` and `runPlan` were dropped from the
+> slice rather than half-built — and `~/plans/` still does not exist, exactly as this section warned.
+
 ```ts
 export type TriggerContinuation =
   | {kind: 'newThread'; brief: string | AgentPromptBlock[]} // today's only behavior
@@ -95,6 +118,10 @@ be **dropped from the first cut** rather than half-built against a directory tha
 
 ## 4. Firing history as runs
 
+> **Not built.** `trigger_firings` is still the bookkeeping table and still carries the dedup key; a `wake` firing that
+> finds nobody listening is recorded there as `status: 'no-listener'` rather than deleted, which keeps the intent of
+> this section — history a user can debug with — without the table move.
+
 Every firing becomes a run row, which deletes a concept:
 
 - `newThread` already produces a run; today the `trigger_firings` row is a parallel bookkeeping table with its own
@@ -110,6 +137,9 @@ history" list becomes a run list filtered by trigger, beside the document — wh
 to render.
 
 ## 5. Protocol deletions
+
+> **Not built.** Every action in the table below still exists. What the slice added instead is one optional field:
+> `continuation` on `AgentTriggerInput` and `AgentTriggerPatch`.
 
 Delete, with no aliases (breaking changes are preferred over dual paths):
 
@@ -130,6 +160,11 @@ stable shape.
 
 ## 6. Migration and back-compat
 
+> **Not built, and deliberately so** — the slice was designed to need no migration. The only schema change is
+> `ALTER TABLE agent_triggers ADD COLUMN continuation_cbor BLOB`, asserted for parity both ways in `sqlite.test.ts`.
+> Everything below is still the plan for the day package, and point 5 (carrying the dedup identity forward) is still the
+> step most likely to be skipped.
+
 Existing `agent_triggers` rows are real user configuration on running installs; they must not be lost, and a
 half-migrated state must not fire twice.
 
@@ -149,6 +184,11 @@ half-migrated state must not fire twice.
 
 ## 7. Monitor changes
 
+> **Built where it applies.** `#onRunFinalized` gained the `run-completed` scan with no new monitor and no new poll
+> loop, and the activity path still delivers to parked runs before scanning triggers. The document-sourced scan and the
+> `ScheduleMonitor` change wait on the document work. Budget accounting is not built (there are no per-trigger budgets
+> yet).
+
 - `ActivityMonitor` — unchanged in shape. `#processActivityEvent` gains a document-sourced trigger scan beside the
   run-wait delivery M5 added (which already runs first, and should keep running first: work already underway beats work
   about to start).
@@ -158,6 +198,12 @@ half-migrated state must not fire twice.
   survives restarts for free.
 
 ## 8. Test plan
+
+> **Built for the slice.** `activity-triggers.test.ts` covers the shared matcher's semantics (every field a conjunct,
+> `{}` matches nothing, canonical resource comparison) and `trigger-events.test.ts` (new) drives a real service: a
+> finished run wakes a parked one end to end, a no-listener firing is recorded honestly, the loop guard is proven with a
+> forged chain, and a four-way source-filter matrix. `trigger-documents.test.ts`, the migration test, the
+> document-change invariant test, and the desktop cases belong to the day package.
 
 Mirrors how M5 was gated: unit tests for the pure parts, and a service-level file that drives the real thing.
 
@@ -193,3 +239,8 @@ The honest split:
 - **Day package:** documents, draft→active consent, the migration, the protocol deletion, and the desktop surface.
 
 I would not start the migration at 4am. I would start the bus.
+
+**What happened:** the bus was started, and it landed — `run-completed`, `wake`, the shared matcher, the loop guard, on
+the existing rows, with nothing thrown away. The day package below is untouched and still the next move: documents,
+draft→active consent, the migration, the protocol deletion, and the desktop surface (including a create form for a
+`run-completed` trigger, which the API can make today but the UI can only render).

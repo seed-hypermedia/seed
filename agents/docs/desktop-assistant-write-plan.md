@@ -1,5 +1,25 @@
 # Desktop Assistant Write Access Plan
 
+> **STATUS (2026-08-13): not built as designed, and the premise it rests on is gone.**
+>
+> This plan assumed a separate desktop assistant runtime with its own tool executor, distinct from the Agents service.
+> That separation no longer exists: the assistant panel is an ordinary agent session on the local agents server (see
+> `desktop-agent-unification.md`), so an assistant write is the same **write verb**, executed server-side and signed
+> with the agent's selected `signingKeys`.
+>
+> Consequently the **per-write inline confirmation card** and the **Auto-approve writes** toggle were never built, and
+> nothing in the code today gates an individual write on a user decision. What stands in their place is coarser and
+> up-front: the **publish grant** — a per-agent permission (the "Publish Seed content" toggle) that decides whether that
+> agent may write signed public content at all. Memory and tool writes are never gated by it. An agent without the grant
+> cannot publish; an agent with it does not ask each time.
+>
+> The user is not locked out of the loop, but the mechanism is different from this plan's: through the **symmetric log**
+> the user runs `read`/`write`/`call` themselves from the composer's wrench palette, and those actions land on the same
+> log with a "You" chip. A confirmation step for agent-initiated writes remains a genuinely open design question — the
+> nearest shipped precedent is the M6 design's **draft→active consent** for triggers, which is also not built yet.
+>
+> Read this document for the confirmation-card UX thinking, not for how writes work.
+
 ## Goal
 
 Allow the in-app desktop assistant to create and update Seed content while keeping write actions explicit, inspectable,

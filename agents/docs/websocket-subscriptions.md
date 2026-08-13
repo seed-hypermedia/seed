@@ -48,7 +48,12 @@ type AgentWSEvent =
   | {_: 'connected'; connectedAt: number}
   | {_: 'subscribed'; key: string; accountId: string}
   | {_: 'append'; key: `sessions/${string}`; event: SessionEvent}
-  | {_: 'appendPartial'; key: `sessions/${string}`; partialId: string; patch: {textDelta?: string; done?: boolean}}
+  | {
+      _: 'appendPartial'
+      key: `sessions/${string}`
+      partialId: string
+      patch: {textDelta?: string; done?: boolean; usage?: AgentRunUsage; activity?: AgentRunActivity}
+    }
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
   | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}
@@ -79,9 +84,11 @@ Agent detail updates and related session changes. The agent detail page uses thi
 Session event stream. The session page uses this key and receives:
 
 - replay of durable events after `afterSeq`;
-- future durable `append` events;
+- future durable `append` events — every actor's, not just the agent's: a verb the user ran through `InvokeSessionTool`
+  arrives on this stream as `tool_call`/`tool_result` events stamped `actor: 'user'`;
 - session status `change` events;
-- live assistant text `appendPartial` events.
+- live `appendPartial` events carrying assistant text deltas, cumulative run usage, and the current `AgentRunActivity`
+  (`phase`, `toolName`, `toolCallId`, `detail`, and the `outputTail` of a long-running tool call).
 
 ### `runs/<rootRunId>`
 

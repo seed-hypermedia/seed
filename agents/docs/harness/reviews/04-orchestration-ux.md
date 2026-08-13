@@ -24,6 +24,20 @@ Status: **draft — adversarial review in flight.** Eric's feedback package, imp
   Typechecks clean (forge.config excepted).
 - [pending] adversarial review disposition.
 
+### Since this review (2026-08-13)
+
+- **The pending disposition was never recorded.** No adversarial-review findings for this milestone were written into
+  this doc or any other; the next commit after the UI work added narration test coverage and the live-gate harness
+  (`e2e/live-gate.ts`, `e2e/narration-check.ts`), and the work moved on to M4-exec. Treat the disposition line above as
+  unresolved, not as a pass.
+- **The checklist gained two behaviors.** A step whose attached sub-agents all came back succeeded is now closed by the
+  runtime and stamped `resolvedBy: 'runtime'` (only success is ever derived that way), and a plan that has gone fully
+  terminal records `RunPlan.settledAt` — the moment the card leaves the pinned slot and freezes into the log.
+- **Multi-child steps render as uniform peers** under an inert header; a step with exactly one child keeps the
+  integrated row this review describes. Step labels also stopped truncating until the space actually runs out.
+- Still true: `run-work.tsx` is the one renderer of "the work", `ctx.call`'s `{description}` stays outside the replay
+  key, and `RunWorkHierarchy` is shared by the pinned card, the finished record, and the expanded delegate bubble.
+
 ## Eric's two-minute test
 
 1. Ask for a parallel research task — the pinned card's checklist rows ARE the children: click the running step, land in

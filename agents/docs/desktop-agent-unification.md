@@ -1,5 +1,19 @@
 # Desktop agent unification
 
+> **STATUS (2026-08-13): the unification finished. Most of the "Not done" list below has since landed.**
+>
+> Verified against the tree today: the old stack is **deleted** (`app-chat.ts` and `app-ai-config.ts` no longer exist,
+> and nothing reads `chat-sessions/*.json`); CI sets up Bun and builds the agents binary per runner, and
+> `forge.config.ts` signs it through `osxSign.binaries`; the window-context message part shipped
+> (`MessageSessionContentPart` `{type: 'context', lines}`, sent by the desktop). ChatGPT/Codex OAuth reaches the service
+> as a provider type.
+>
+> **Still open from that list:** auto-provisioning a built-in `Assistant` agent for fresh installs, and running the
+> Linux/Windows binaries — `desktop-smoke-test.yml` builds and runs on macOS only, and there is no
+> `scripts/smoke-build.ts`.
+>
+> Everything else in this document is a current description of how the desktop and the service fit together.
+
 Replacing the desktop's separate assistant runtime with the Agents service, running locally as a subprocess of the
 desktop app. One agent runtime, one protocol, one UI — local and hosted alike.
 

@@ -1,5 +1,30 @@
 # Workflows: agent-authored scripts, sub-sessions, and visible progress
 
+> **STATUS (2026-08-13): built, and then its tool surface was replaced by The Harness. Read this as history.**
+>
+> **The spine survived verbatim.** The runs table as execution tree and dispatch queue (leases, boot sweep, park/resume,
+> persisted usage with child rollup), the QuickJS script engine with content-keyed journal replay, typed results through
+> `return_result`, verbatim-markdown briefings, and the one-card UX law are all still exactly how the system works.
+> Everything in §4–§9 about runs, journals, parking, and determinism is current.
+>
+> **The tool surface is gone.** The three delegation tools this plan designed — `sub_session`, `run_workflow`,
+> `start_session` — no longer exist; they are one **delegate** verb (`script` present ⇒ script child, `await: false` ⇒
+> detached child, otherwise an awaited model child). `update_plan` is the **plan** verb. `set_session_title` was deleted
+> (titling was already automatic). The whole 25-tool registry became **five verbs** — read, write, call, delegate, plan
+> — with search / web_search / navigate / execute reached through **call**. Wherever this plan names a tool, read the
+> verb. Inside scripts, `ctx.delegate` is the documented name and `ctx.agent` remains a synonym on the same journal op,
+> so old journals replay unchanged.
+>
+> **The v2 seeds in §14 shipped.** `ctx.waitForEvent` and `SignalRun`, `ctx.continueAsNew`, and triggers that target a
+> waiting run (the `wake` continuation) all landed in M5 and the M6 first slice. Per-model dollar budgets and
+> named/published workflows did not.
+>
+> **Genuinely still open from this plan:** idempotency keys for `ctx.call` — a call journaled without a result
+> re-executes on resume (`workflow-host.ts`, the comment above `startInflight`), which a `write` mid-crash could
+> double-apply; the identical-key journal-value question; and the Tier-3 live-model battery, still blocked on OpenAI
+> credits. Delegation prompt cost is no longer worth measuring the way §14 asked: the five-verb surface is 71% smaller
+> than the registry it replaced.
+
 Implementation planning document (2026-08-02). Self-contained: everything needed to build the feature is specified here,
 grounded in the code as it was before the work. **Status: implemented 2026-08-03** (phases 1–4 landed on
 `feat/agent-workflows`; the progress-card UI and live-model gates are in flight) — see "Implementation divergences (as
@@ -260,6 +285,8 @@ on every enqueue so latency is not interval-bound (interval becomes the fallback
 
 ### 7.1 Tool definition (`sub_session`; per-agent toggle `sub_session`)
 
+_[superseded: this is the `delegate` verb, always on — there is no toggle, and no tool named `sub_session`.]_
+
 ````ts
 type SubSessionInput = {
   title?: string // shown in sessions list + pinned card; defaults from prompt
@@ -331,6 +358,8 @@ one-live-run-per-session invariant); the composer shows the parked state via the
 ## 8. Workflows
 
 ### 8.1 Tool definition (`run_workflow`; per-agent toggle `workflow`)
+
+_[superseded: this is `delegate` with a `script` — a script child. No separate tool, no toggle.]_
 
 ```ts
 type RunWorkflowInput = {
@@ -561,6 +590,9 @@ Applies to the agent-detail Sessions tab and the assistant sidebar session list 
   or open the parent to intervene"); once terminal it becomes a normal session the user can continue.
 
 ### 11.4 Todo lists: `update_plan` (always-available, hidden like `set_session_title`)
+
+_[superseded: this is the `plan` verb. `set_session_title` no longer exists. Steps also carry stable ids now, and the
+runtime can settle a step itself (`resolvedBy: 'runtime'`) when every child attached to it succeeded.]_
 
 ```ts
 type UpdatePlanInput = {

@@ -45,6 +45,19 @@ the same log, with every entry saying who acted.
   constructions into one builder (cleanup, tracked for M4 where the context grows again). New regression test: a
   dangling user tool_call (crash-shaped history) neither gains a synthetic result nor replays as an orphan tool message.
 
+### Since this review (2026-08-13)
+
+- **The deferred cleanup did not happen in M4.** The three near-duplicate `AgentServicePiToolContext` constructions in
+  `api-service.ts` are still three; the context did grow, and no builder was extracted. Still open.
+- **`actor: 'system'` became load-bearing.** Runtime-authored messages — the obligations continuation prompt and the
+  unmet-obligations notice — are appended durably as `actor: 'system'` and render as quiet grey asides instead of
+  wearing the user's voice, and the desktop's optimistic-echo reconciliation now requires `actor: 'user'` so a system
+  message can never eat the user's pending words.
+- **`escapeActionFraming` picked up a second caller.** Plan step ids and labels are model-authored text rendered back to
+  the model inside `<plan_state>`, so they get the same neutralization the user-action payloads got here.
+- Still true: user verbs run through the agent's own dispatchers behind a bidirectional live-run guard, the palette is a
+  wrench button rather than a `/` keybinding, and there is still no web parity.
+
 ## Eric's three-minute test
 
 1. Open a thread, click the wrench, run Read on `~/memory/` — expect a "You"-chipped Read row with the listing; the

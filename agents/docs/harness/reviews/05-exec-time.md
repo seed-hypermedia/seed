@@ -19,6 +19,12 @@ package.
   operator opt-in (`SEED_AGENTS_EXEC_TS_IMAGE`, e.g. `oven/bun`). Unset, the runtime is _not offered_: the enum the
   model reads lists only what this server can run, a call asking for `ts` gets the contract back rather than a sandbox
   failure, and `/api/health` reports `codeExecRuntimes`.
+
+  > **Since this review (2026-08-13, commit `5f4484036`):** `ts` is no longer an opt-in — `SEED_AGENTS_EXEC_TS_IMAGE`
+  > defaults to `oven/bun`, so TypeScript lambdas run out of the box. An agent told to make itself a tool should not
+  > discover its server cannot run half the ABI it was taught. Setting the variable to an explicitly empty value still
+  > withholds the runtime, and everything else here — the enum, the contract-back, the health field — is unchanged.
+
 - **Authored tools run.** A `~/tools/<name>` lambda document is callable by name through `call`: input validated against
   its own schema on the way in, return value against its own output schema on the way out. The M2 "not callable yet"
   error path is gone.
@@ -211,5 +217,25 @@ one: only the API can, until the document editor arrives.
   package; for now the extraction is held honest by the semantics tests rather than by two live callers.
 - **`ts` is off by default** because the shipped image has no bun. Turning it on in prod is an infra change (image with
   `bun` on PATH), not a code change.
+
+  > **Since this review (2026-08-13):** no longer a gap — the `ts` image defaults to `oven/bun` (see the note in the M4
+  > section). A prod host still has to be able to pull that image, but nothing needs configuring for the runtime to be
+  > offered.
+
 - **Nested-session delegate resolution** (from F3) still keeps its transcript-link fallback: a delegate inside a child
   session has no root run in its own session. Optional follow-up, deferred by the lead.
+
+## Since this review (2026-08-13)
+
+- **The "not live-verified" status is partly retired.** The M4 lambda path was live-verified against real microVMs — the
+  `word_count` tool from a failing session now returns its result in both `python` and `ts` — and that session's two
+  sandbox bugs are written up in `HARNESS-TESTING.html` under M4.1b. Getting there took pinning microsandbox to 0.6.8 (a
+  0.6.8 install elsewhere had migrated the shared `~/.microsandbox` database and locked out every 0.6.6 copy) and
+  speaking its `NetworkPolicy.fromProfiles(['public'])` dialect, with the old `nonLocal()` kept as a fallback for
+  version-skewed staged runtimes. The M5 and event-bus packages remain gate-verified rather than live-verified.
+- **The obligations contract landed on top of this work**, with its own live check: `e2e/scripted-provider.ts` plus
+  `e2e/obligations-live-check.ts` drive a real server through both the cooperative and the stubborn shape. A run that
+  ends owing an undelivered typed result or unfinished plan steps is asked once with the whole debt, up to three times,
+  and then ends honestly carrying `unmetObligations` — nothing is ticked off on the agent's behalf.
+- Still true: the desktop cannot create a `run-completed` trigger, the shared matcher still has one live caller, and the
+  nested-session delegate fallback is still the transcript link.

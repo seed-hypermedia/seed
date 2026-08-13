@@ -1,5 +1,24 @@
 # Agent write tool CLI-parity plan
 
+> **STATUS (2026-08-13): the command set was built and still runs; the tool that wrapped it is gone.**
+>
+> This plan predates the five verbs. There is no tool named `write` taking a `{command, ...}` envelope. There is a
+> **write verb**, `write {address, content?, options?}`, and the whole surface below lives under it: an `hm://` address
+> plus `options.action` selects the operation. The short actions (`document`, `update`, `comment`, `move`, `redirect`,
+> `delete`, `fork`) are named directly; every dotted command this plan specified (`draft.create`, `profile.update`,
+> `capability.create`, `contact.*`, …) passes through to the same signed command handlers unchanged. So the semantics,
+> the draft storage model, the markdown/JSON conversion, and the dry-run rules below are still accurate — the input
+> envelope is not.
+>
+> **What else changed:** the same verb also writes `~/memory/**` files, authors `~/tools/**` lambda documents, and
+> writes `ipfs://` — hypermedia is one address family among several. Permission moved from `"write"` in
+> `AgentDefinition.tools` to the **publish grant** (`'publish'`, with the legacy write-group names mapped onto it),
+> because verbs are always on and cannot be toggled; memory and tool writes are never gated by it. Signer selection
+> through `AgentDefinition.signingKeys` is unchanged.
+>
+> **Still open:** the follow-ups recorded in `write-tool-implementation-notes.md` (file:// link resolution, PDF input,
+> `document.create` force/existing-path behaviour, `--delete-blocks` parity) were never picked up.
+
 This document plans a unified model-facing Seed write tool for Agents. The tool should expose the complete Seed write
 surface in a way that is easy for a model to call while staying as close as possible to the Seed CLI command model.
 

@@ -1,6 +1,7 @@
 # Checkmark review — M1: the five verbs (`harness/01-verbs`)
 
-Status: **draft — verification in flight** (self-review and gate results land here before Eric is prompted).
+Status: **verified — reviewed by Eric.** (The "draft — verification in flight" line this doc opened with was never
+updated once the gates and the adversarial pass below landed; corrected 2026-08-13.)
 
 ## What changed
 
@@ -83,6 +84,19 @@ The 25-tool registry is replaced by five always-on verbs plus a callable-tool di
 - Stored agent definitions with old `tools` arrays: `execute_code` maps to `execute`; names absorbed into verbs are
   inert (the capabilities they gated are now always-on verbs). Flagged for Eric: acceptable, or also migrate rows?
 - The memory-listing prompt walk runs per turn (pre-existing); M2's index work caches it behind onMemoryChange.
+
+### Since this review (2026-08-13)
+
+- **The `<tools>` block is gone.** M2 replaced it and the memory listing with one cached `<space>` index, which is what
+  the "seed of M2's Space index" line above anticipated. `memoryListingPrompt` was deleted with it, closing the
+  per-turn-walk gap.
+- **The legacy-`tools`-array question was answered without a data migration.** Stored arrays normalize on load and on
+  save (`execute_code` → `execute`, and the old write-group names → the `publish` grant M2 introduced), so a pre-verbs
+  agent keeps the posture its owner configured. No rows were rewritten.
+- **The cassettes are still stale.** `e2e/recordings/STALE.md` is present and replay still skips with exit 0; the
+  re-record has not happened.
+- The verbs themselves are unchanged: `seedVerbRegistry`, `callableToolRegistry`, `enabledCallableTools()`, and the
+  three exported dispatchers are all still the shape described above.
 
 ## Eric's five-minute test
 
