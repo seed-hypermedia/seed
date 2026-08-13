@@ -220,11 +220,21 @@ const writeVerb = {
   },
   getReferencedUrls: (io: ToolCallIO) => {
     const input = io.input as {address?: unknown} | undefined
-    const output = io.output as {url?: unknown} | undefined
-    const urls: string[] = []
-    if (typeof input?.address === 'string' && input.address.startsWith('hm://')) urls.push(input.address)
-    if (typeof output?.url === 'string' && output.url.startsWith('hm://')) urls.push(output.url)
-    return urls
+    const output = io.output as Record<string, unknown> | undefined
+    const id = typeof output?.id === 'string' ? output.id : undefined
+    const version = typeof output?.version === 'string' ? output.version : undefined
+    const versionedId = id && version ? `${id}${id.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}` : id
+    return [
+      input?.address,
+      versionedId,
+      output?.url,
+      output?.resourceUrl,
+      output?.commentUrl,
+      output?.target,
+      output?.targetUrl,
+      output?.authorUrl,
+      output?.destination,
+    ].filter((value): value is string => typeof value === 'string' && value.startsWith('hm://'))
   },
   runtimes: ['assistant', 'agent-service'],
   userConfigurable: true,

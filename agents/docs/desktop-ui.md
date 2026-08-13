@@ -325,12 +325,22 @@ hypermedia writes keep purpose-built phrasing (a comment, a move, a grant read n
 address gets a resolved one-liner. Rows expand to raw input/output for debugging, and a live tool shows its streamed
 detail and output tail while it runs.
 
-## Automatic refresh
+## Automatic refresh and agent-created content sync
 
 The hooks in `models/agents.ts` periodically refetch health, provider, agent-list, agent-detail, and session queries for
 the active servers. Mutations invalidate the relevant `['agents', ...]` query keys, and the WebSocket subscription hook
 updates or invalidates caches when any configured server emits live changes. Normal Agents workflows should never need a
 manual refresh.
+
+While a remote session is open, its WebSocket append handler also keeps every `hm://` document or comment created or
+linked by the agent subscribed through the desktop's normal sync service. Structured write results come from the tool
+registry's `getReferencedUrls`; assistant prose is scanned for `hm://` links. Comment links subscribe recursively to the
+target document so the comment blobs arrive too. These are live subscriptions, not one-shot discovery requests: they
+survive the initial peer-connection race and cached pre-publish discovery results, and are released when the session
+closes. “Open” is intentionally UI-scoped: a mounted full session page or the session currently selected in the
+Assistant sidebar. Account/agent list subscriptions and other background sessions do not start content sync. The hook
+also keeps the local node peered with the agent server's advertised `hmServerUrl`. The result is that a link the agent
+just produced opens from the desktop without waiting for a later background sync.
 
 ## WebSocket hook
 
@@ -339,9 +349,10 @@ useAgentWebSocketSubscription(serverUrl, accountUid, key, afterSeq)
 ```
 
 Builds the URL, signs a `Subscribe` action, sends the CBOR envelope, parses JSON server events from
-string/Blob/ArrayBuffer, updates the React Query cache for durable appends, accumulates live partial text per session,
-keeps the partial visible until the durable append arrives, and reconnects with backoff. The run-tree and session
-subscriptions share one signed-socket lifecycle (`useSignedAgentSocket`).
+string/Blob/ArrayBuffer, updates the React Query cache for durable appends, starts local sync subscriptions for HM
+references in open sessions, accumulates live partial text per session, keeps the partial visible until the durable
+append arrives, and reconnects with backoff. The run-tree and session subscriptions share one signed-socket lifecycle
+(`useSignedAgentSocket`).
 
 Diagnostic logs are documented in [Operations](./operations.md) and
 [WebSocket subscriptions](./websocket-subscriptions.md).

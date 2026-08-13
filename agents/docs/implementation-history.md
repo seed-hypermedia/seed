@@ -5,6 +5,17 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Remote agent content sync hardening
+
+The desktop already discovered `hm://` references from open agent sessions, but the implementation issued one request
+and permanently deduplicated it. That request could race the desktop's connection to the remote HM peer or return a
+cached discovery result from before the agent published, leaving a newly created document/comment unavailable when its
+link was clicked. Open session WebSockets now turn structured tool-result and assistant-message references into normal
+live desktop sync subscriptions, recursive for comments, and release them when the session closes. This lifecycle is
+strictly mounted-session scoped: account/agent sockets and non-selected background sessions do nothing. The write verb's
+registry extractor again covers its actual document/comment result fields after the five-verb migration and includes
+exact document versions.
+
 ### The Harness — three nouns, five verbs (2026-08-11 → 2026-08-13)
 
 The tool surface was rebuilt from the ground up on a stack of `harness/*` milestone branches, each gated (full suite,

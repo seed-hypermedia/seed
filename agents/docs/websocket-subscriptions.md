@@ -137,11 +137,16 @@ For `sessions/<id>` with `afterSeq`, server sends:
 
 `append` is durable. It maps to a row in `session_events`.
 
-Desktop cache behavior:
+Desktop behavior:
 
 - inserts the event into the `GetSession` cache;
 - removes matching optimistic user events;
-- clears visible partial for that session because final durable data arrived.
+- clears visible partial for that session because final durable data arrived;
+- while that session is open, extracts `hm://` references from structured tool results and assistant messages and keeps
+  them subscribed through the desktop sync service until the session closes. This runs only for the exact mounted
+  `sessions/<id>` socket (a full session page or the selected Assistant-sidebar session), never account/agent sockets or
+  background sessions. Comment references recursively subscribe to their target document, ensuring newly published
+  comments and documents from a remote agent server are locally available before their links are opened.
 
 ### `appendPartial`
 

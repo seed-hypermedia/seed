@@ -35,6 +35,7 @@ import * as cbor from '@shm/shared/cbor'
 import {DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
 
@@ -51,23 +52,31 @@ export function getDefaultAgentServerUrl() {
 export const DEFAULT_AGENT_SERVER_URL = getDefaultAgentServerUrl()
 const AGENT_BACKGROUND_REFETCH_INTERVAL_MS = 5_000
 
-// ─── Agent-referenced content discovery ─────────────────────────────────────
-// When an agent session event arrives over the WebSocket it may reference hm:// content the local node
-// hasn't synced. We detect those references centrally at the ingestion point — reading tool-result URLs from
-// the tool registry's structured `references` metadata (getToolReferencedUrls), and assistant-message URLs
-// from the markdown prose — then ask the local daemon to discover/sync each, so the document is available by
-// the time the user clicks. The agent publishes to a different node (its HM server), so this only works once
-// the local node is peered with it (see useConnectLocalNodeToAgentHmServer).
-
+// When an open agent session references hm:// content, keep that resource subscribed through the desktop's
+// normal sync service. A one-shot discover is insufficient: it can race the peer connection or return a cached
+// result from before the agent published. The live subscription keeps touching discovery until the new content
+// arrives and stays active until the session closes.
 const HM_REF_REGEX = /hm:\/\/[^\s)"'`\]<>]+/g
-/** Canonical discovery URLs already requested this process, to avoid re-discovering the same resource. */
-const discoveredAgentRefs = new Set<string>()
 
-/** Normalize an hm:// URL to a bare resource URL (drop version/query, block ref, and any `:view` marker). */
-function canonicalAgentRef(raw: string): string | null {
+type AgentReferenceSubscription = {
+  url: string
+  recursive: boolean
+  unsubscribe: () => void
+}
+
+type CanonicalAgentRef = {
+  key: string
+  url: string
+}
+
+/** Normalize an hm:// URL to its document while preserving a requested version. */
+function canonicalAgentRef(raw: string): CanonicalAgentRef | null {
   if (!raw.startsWith('hm://')) return null
-  const withoutScheme = (raw.slice('hm://'.length).split('#')[0] ?? '').split('?')[0] ?? ''
-  const segments = withoutScheme.split('/').filter((segment) => segment.length > 0)
+  const withoutFragment = raw.split('#')[0] ?? ''
+  const queryIndex = withoutFragment.indexOf('?')
+  const pathPart = queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex)
+  const query = queryIndex === -1 ? '' : withoutFragment.slice(queryIndex)
+  const segments = pathPart.slice('hm://'.length).split('/').filter(Boolean)
   const uid = segments[0]
   if (!uid) return null
   const pathSegments: string[] = []
@@ -75,7 +84,8 @@ function canonicalAgentRef(raw: string): string | null {
     if (segment.startsWith(':')) break
     pathSegments.push(segment)
   }
-  return `hm://${uid}${pathSegments.length ? `/${pathSegments.join('/')}` : ''}`
+  const key = `hm://${uid}${pathSegments.length ? `/${pathSegments.join('/')}` : ''}`
+  return {key, url: `${key}${query}`}
 }
 
 /** Pull hm:// references out of free-form text (assistant prose / markdown links). */
@@ -83,43 +93,46 @@ function extractHmUrlsFromText(text: string): string[] {
   return (text.match(HM_REF_REGEX) ?? []).map((match) => match.replace(/[.,;]+$/, ''))
 }
 
-/**
- * Triggers local-daemon discovery for any referenced resource not already seen this process. Best-effort and
- * fire-and-forget; logs under `[agents-discovery]` so the agent-content discovery path is visible without the
- * noise of generic per-resource discovery.
- *
- * A comment URL (`hm://target/path/:comments/<author>/<tsid>`) canonicalizes to its target document, but a
- * comment is only synced as part of that document's subtree — so comment references are discovered
- * recursively (`/**`), the same way the document page subscribes (`recursive: true`). Plain document
- * references stay non-recursive.
- */
-function discoverReferences(urls: string[]): void {
-  // Group by canonical resource id, marking a target recursive if any reference to it is a comment.
-  const recursiveById = new Map<string, boolean>()
+/** Keeps agent-referenced resources synced for as long as their session is open. */
+function subscribeToAgentReferences(
+  urls: string[],
+  activeSubscriptions: Map<string, AgentReferenceSubscription>,
+): void {
+  const references = new Map<string, {url: string; recursive: boolean}>()
   for (const rawUrl of urls) {
-    const id = canonicalAgentRef(rawUrl)
-    if (!id) continue
-    const recursive = rawUrl.includes('/:comments/') || (recursiveById.get(id) ?? false)
-    recursiveById.set(id, recursive)
+    const canonical = canonicalAgentRef(rawUrl)
+    if (!canonical) continue
+    const recursive = rawUrl.includes('/:comments/') || (references.get(canonical.key)?.recursive ?? false)
+    references.set(canonical.key, {url: canonical.url, recursive})
   }
-  for (const [id, recursive] of Array.from(recursiveById.entries())) {
-    const discoveryId = recursive ? `${id}/**` : id
-    if (discoveredAgentRefs.has(discoveryId)) continue
-    discoveredAgentRefs.add(discoveryId)
-    console.info('[agents-discovery] agent referenced content — discovering on local node', {id: discoveryId})
-    void grpcClient.entities.discoverEntity({id: discoveryId}).then(
-      (resp) =>
-        console.info('[agents-discovery] discovery scheduled', {
-          id: discoveryId,
-          state: resp.state,
-          version: resp.version || '(pending)',
-        }),
-      (error) =>
-        console.warn('[agents-discovery] discovery request failed', {
-          id: discoveryId,
-          error: error instanceof Error ? error.message : String(error),
-        }),
+
+  for (const [key, reference] of Array.from(references.entries())) {
+    const existing = activeSubscriptions.get(key)
+    if (existing?.recursive && !reference.recursive) continue
+    if (existing?.recursive === reference.recursive && existing.url === reference.url) continue
+    existing?.unsubscribe()
+
+    const id = unpackHmId(reference.url)
+    if (!id) continue
+    const discoveryId = `${key}${reference.recursive ? '/**' : ''}`
+    console.info('[agents-discovery] keeping agent-referenced content synced on local node', {id: discoveryId})
+    const subscription = client.sync.subscribe.subscribe(
+      {id, recursive: reference.recursive},
+      {
+        onData: () => {},
+        onError: (error) => {
+          console.warn('[agents-discovery] agent reference sync failed', {
+            id: discoveryId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        },
+      },
     )
+    activeSubscriptions.set(key, {
+      url: reference.url,
+      recursive: reference.recursive,
+      unsubscribe: () => subscription.unsubscribe(),
+    })
   }
 }
 
@@ -354,7 +367,6 @@ export async function syncAgentAccountToLocalNode(serverUrl: string | undefined,
   try {
     const health = await getAgentServerHealth(serverUrl || DEFAULT_AGENT_SERVER_URL)
     if (health.hmServerUrl) await connectLocalNodeToAgentHmServer(health.hmServerUrl)
-    discoveredAgentRefs.add(discoveryId)
     console.info('[agents-discovery] syncing new agent account to local node', {id: discoveryId})
     const resp = await grpcClient.entities.discoverEntity({id: discoveryId})
     console.info('[agents-discovery] agent account discovery scheduled', {
@@ -1736,9 +1748,18 @@ export function useAgentWebSocketSubscription(
   afterSeq?: number,
 ): AgentSessionLiveState {
   const [partials, setPartials] = useState<Record<string, AgentSessionLiveState>>({})
+  const referenceSubscriptionsRef = useRef(new Map<string, AgentReferenceSubscription>())
 
   // Keep the local node peered with this server's HM node so agent-created content can be discovered locally.
   useConnectLocalNodeToAgentHmServer(serverUrl)
+
+  useEffect(() => {
+    const subscriptions = referenceSubscriptionsRef.current
+    return () => {
+      for (const subscription of Array.from(subscriptions.values())) subscription.unsubscribe()
+      subscriptions.clear()
+    }
+  }, [serverUrl, accountUid, key])
 
   useSignedAgentSocket(serverUrl, accountUid, key, afterSeq, (event, log) => {
     if (event._ === 'connected') {
@@ -1759,10 +1780,15 @@ export function useAgentWebSocketSubscription(
       // Central detection point: sync any hm:// content this agent event references onto the local
       // node — tool-result URLs come from the registry's structured reference metadata, message URLs
       // from the markdown prose.
-      if (eventPayload.type === 'tool_result' && typeof eventPayload.name === 'string') {
-        discoverReferences(getToolReferencedUrls(eventPayload.name, {output: eventPayload.output}))
-      } else if (eventPayload.type === 'message' && typeof eventPayload.content === 'string') {
-        discoverReferences(extractHmUrlsFromText(eventPayload.content))
+      if (key?.startsWith('sessions/') && event.key === key) {
+        if (eventPayload.type === 'tool_result' && typeof eventPayload.name === 'string') {
+          subscribeToAgentReferences(
+            getToolReferencedUrls(eventPayload.name, {output: eventPayload.output}),
+            referenceSubscriptionsRef.current,
+          )
+        } else if (eventPayload.type === 'message' && typeof eventPayload.content === 'string') {
+          subscribeToAgentReferences(extractHmUrlsFromText(eventPayload.content), referenceSubscriptionsRef.current)
+        }
       }
       if (eventPayload.type === 'message' && eventPayload.role === 'assistant') {
         // The streamed text is now a durable message, but the run may continue

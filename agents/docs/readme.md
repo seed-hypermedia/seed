@@ -82,6 +82,9 @@ Completed and usable locally:
   and model (`agents/e2e/live-gate.ts`), plus a blind simulated-model gate methodology (see `operations.md`);
 - desktop progress surfaces: the pinned run card with Activity drawer, session nesting with lazy sub-session
   disclosures, and child-session breadcrumb/banner/composer lock;
+- live local sync subscriptions for `hm://` documents and comments produced by a remote agent while that exact session
+  is mounted in the desktop (full page or selected sidebar session), so result links resolve immediately without syncing
+  background sessions;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
 - server-side `/agents` live session inspector;
 - diagnostic logging for OpenAI streaming and WebSocket subscription/fanout.

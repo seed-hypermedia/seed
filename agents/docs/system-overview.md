@@ -142,6 +142,9 @@ Shared Seed libraries
 - Agent detail page with editable name/model/system prompt.
 - Session page with debounced inline title editing, optimistic user messages, durable events, live assistant partials,
   and shared chat rendering.
+- A mounted remote session page or currently selected Assistant-sidebar session keeps agent-created/referenced `hm://`
+  documents and comments subscribed on the desktop's local node, including recursive target discovery for comments and
+  exact versions for document write results; background sessions do not sync.
 - User/assistant bubbles, markdown, streaming cursor, and tool-call bubbles shared with the desktop assistant panel.
 - Tools tab over `ListAgentTools`: the callable grants an owner can toggle, and for an authored lambda a dialog with its
   full document — contract, source, and content address.
