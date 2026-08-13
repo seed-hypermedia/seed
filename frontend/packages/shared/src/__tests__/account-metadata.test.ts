@@ -80,4 +80,56 @@ describe('accountMetadataFromAccount', () => {
     expect(result.icon).toBe('home-icon')
     expect(result.summary).toBe('Home Summary')
   })
+
+  test('prefers home document fields over profile fields when preferHomeDocument is true', () => {
+    const metadata = Struct.fromJson({
+      name: 'Home Name',
+      icon: 'home-icon',
+      summary: 'Home Summary',
+      layout: 'Seed/Experimental/Newspaper',
+    })
+
+    const result = accountMetadataFromAccount(
+      {
+        metadata,
+        profile: {
+          name: 'Profile Name',
+          icon: 'profile-icon',
+          description: 'Profile Description',
+        },
+      },
+      {preferHomeDocument: true},
+    )
+
+    expect(result.name).toBe('Home Name')
+    expect(result.icon).toBe('home-icon')
+    expect(result.summary).toBe('Home Summary')
+    expect(result.layout).toBe('Seed/Experimental/Newspaper')
+  })
+
+  test('falls back to profile fields when home document fields are missing and preferHomeDocument is true', () => {
+    const homeMetadata = Struct.fromJson({
+      name: '',
+      icon: '',
+      summary: '   ',
+      layout: 'Seed/Experimental/Newspaper',
+    })
+
+    const result = accountMetadataFromAccount(
+      {
+        homeDocumentInfo: {metadata: homeMetadata},
+        profile: {
+          name: 'Profile Name',
+          icon: 'profile-icon',
+          description: 'Profile Description',
+        },
+      },
+      {preferHomeDocument: true},
+    )
+
+    expect(result.name).toBe('Profile Name')
+    expect(result.icon).toBe('profile-icon')
+    expect(result.summary).toBe('Profile Description')
+    expect(result.layout).toBe('Seed/Experimental/Newspaper')
+  })
 })

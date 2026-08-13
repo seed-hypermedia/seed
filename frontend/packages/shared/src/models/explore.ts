@@ -66,10 +66,7 @@ export function useExploreAccounts(enabled = true) {
       if (!client.listAccounts) return []
       const response = await client.listAccounts(new ListAccountsRequest({pageSize: 1000}))
       return response.accounts.map((account) => {
-        const metadata = accountMetadataFromAccount({
-          homeDocumentInfo: account.homeDocumentInfo,
-          metadata: account.metadata,
-        })
+        const metadata = accountMetadataFromAccount(account, {preferHomeDocument: true})
         return {
           value: account.id,
           label: metadata.name || account.id,

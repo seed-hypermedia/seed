@@ -28,7 +28,7 @@ function parseDocumentMetadata(metadata: Struct | undefined): HMMetadata {
   return parsedMetadata.data
 }
 
-function nonEmptyProfileField(value: string | undefined): string | undefined {
+function nonEmptyField(value: string | undefined): string | undefined {
   if (!value) {
     return undefined
   }
@@ -38,13 +38,39 @@ function nonEmptyProfileField(value: string | undefined): string | undefined {
   return value
 }
 
-export function accountMetadataFromAccount(account: AccountMetadataInput): HMMetadata {
+type AccountMetadataOptions = {
+  /**
+   * When true, prefer values from the home document metadata over the profile.
+   * The profile is still used as a fallback when a home document field is empty.
+   */
+  preferHomeDocument?: boolean
+}
+
+/**
+ * Resolve the display metadata for an account from its home document and profile.
+ */
+export function accountMetadataFromAccount(
+  account: AccountMetadataInput,
+  options?: AccountMetadataOptions,
+): HMMetadata {
   const metadata = parseDocumentMetadata(account.homeDocumentInfo?.metadata || account.metadata)
+  const profileName = nonEmptyField(account.profile?.name)
+  const profileIcon = nonEmptyField(account.profile?.icon)
+  const profileSummary = nonEmptyField(account.profile?.description)
+
+  if (options?.preferHomeDocument) {
+    return {
+      ...metadata,
+      name: nonEmptyField(metadata.name) ?? profileName ?? metadata.name,
+      icon: nonEmptyField(metadata.icon) ?? profileIcon ?? metadata.icon,
+      summary: nonEmptyField(metadata.summary) ?? profileSummary ?? metadata.summary,
+    }
+  }
 
   return {
     ...metadata,
-    name: nonEmptyProfileField(account.profile?.name) ?? metadata.name,
-    icon: nonEmptyProfileField(account.profile?.icon) ?? metadata.icon,
-    summary: nonEmptyProfileField(account.profile?.description) ?? metadata.summary,
+    name: profileName ?? metadata.name,
+    icon: profileIcon ?? metadata.icon,
+    summary: profileSummary ?? metadata.summary,
   }
 }
