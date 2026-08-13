@@ -33,13 +33,15 @@ The Agents service is a superset. So the sidebar should be a _view over an agent
 
 ## Why a local server is possible
 
-The unlock is that the desktop app **already serves the exact HTTP API this service consumes**.
+The unlock is that the desktop app **already serves the typed HTTP API this service consumes**.
 `frontend/apps/desktop/src/app-http-server.ts` runs `@shm/shared/api-server` on `localhost:56004`, backed by the user's
-own daemon over gRPC. That is the same `/api/<Key>` protocol `createSeedClient(baseUrl)` speaks — the client this
-service already uses for every read and write.
+own daemon over gRPC. That is the same `/api/<Key>` protocol `createSeedClient(baseUrl)` speaks. Direct IPFS gateway
+reads are not part of that bridge: `/ipfs/<cid>` remains on the daemon at `localhost:56001`. File publication is
+portable: the agents service chunks UnixFS blocks itself and sends them through the bridge's `PublishBlobs` action.
 
-So a locally spawned agent server pointed at `--hm-server-url=http://localhost:56004` reads and writes through the
-user's own node, with no new plumbing on either side.
+So a locally spawned agent server uses both `--hm-server-url=http://localhost:56004` and
+`--ipfs-server-url=http://localhost:56001`. Typed reads/writes and file traffic take their correct transports to the
+same user-owned node, with no public gateway involved.
 
 This was verified against a live desktop before any code was written, via `agents/scripts/smoke-local-hm.ts`:
 
@@ -59,9 +61,11 @@ but a running desktop app.
 ```text
 Electron main process
   ├─ Go daemon subprocess              (unchanged)
-  ├─ Local HM API server :56004        (unchanged — becomes the agent's HM backend)
-  └─ seed-agents subprocess :3050+     (the same artifact the Docker image runs)
+  ├─ Local HM API server :56004        (typed /api/* bridge)
+  ├─ Go daemon HTTP :56001              (direct /ipfs/* gateway reads)
+  └─ seed-agents subprocess :3050+      (the same artifact the Docker image runs)
         --hm-server-url=http://localhost:56004
+        --ipfs-server-url=http://localhost:56001
         --db-path=<userData>/agents/agents.sqlite
 
 Renderer

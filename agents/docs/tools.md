@@ -130,17 +130,17 @@ type ReadInput = {
 }
 ```
 
-| address           | behavior                                                                                                |
-| ----------------- | ------------------------------------------------------------------------------------------------------- |
-| `~/memory/<path>` | file content, or a directory listing (`{entries: [{path, type, size}]}`) for a directory address        |
-| `~/tools/<name>`  | one tool's full contract as markdown; `~/tools/` alone lists everything callable                        |
-| `hm://…`          | a hypermedia document or comment, markdown by default                                                   |
-| `ipfs://<cid>`    | fetches through the HM server's `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it |
-| `https://…`       | resolved as hypermedia first, then read as a web page                                                   |
-| `activity:`       | the activity feed via `ListEvents`, filtered by `options`                                               |
-| `attachment:<id>` | a session-private attachment (images are returned as image content to vision models)                    |
-| `thread:<id>`     | a conversation transcript (its last 200 events) rendered as markdown                                    |
-| `run:<id>`        | a run's public record, plus `sourceText` for script runs                                                |
+| address           | behavior                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `~/memory/<path>` | file content, or a directory listing (`{entries: [{path, type, size}]}`) for a directory address       |
+| `~/tools/<name>`  | one tool's full contract as markdown; `~/tools/` alone lists everything callable                       |
+| `hm://…`          | a hypermedia document or comment, markdown by default                                                  |
+| `ipfs://<cid>`    | fetches through the configured `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it |
+| `https://…`       | resolved as hypermedia first, then read as a web page                                                  |
+| `activity:`       | the activity feed via `ListEvents`, filtered by `options`                                              |
+| `attachment:<id>` | a session-private attachment (images are returned as image content to vision models)                   |
+| `thread:<id>`     | a conversation transcript (its last 200 events) rendered as markdown                                   |
+| `run:<id>`        | a run's public record, plus `sourceText` for script runs                                               |
 
 Unrecognized addresses fail with the supported list (`api-service.ts:7350`).
 
@@ -200,9 +200,11 @@ type WriteInput = {
   `options.tool` as an object); the name comes from the address. Non-JSON content fails with that exact shape as the
   message. `options.delete` deletes an authored tool. Both paths emit the memory-change event, so the desktop Tools tab
   updates live.
-- **`ipfs://`** — publishes `options.fromPath` (a memory file) or `options.fromAttachment` to the HM server's
-  `/ipfs/file-upload` endpoint and returns the `ipfs://<cid>` URL. Requires the publish grant. Publishing makes the file
-  publicly retrievable.
+- **`ipfs://`** — publishes `options.fromPath` (a memory file) or `options.fromAttachment` by chunking it into UnixFS
+  blocks with the shared client helper and sending those blocks through `PublishBlobs` on the typed HM API; it returns
+  the root `ipfs://<cid>` URL. This deliberately does not depend on a server-specific `/ipfs/file-upload` route.
+  `SEED_AGENTS_IPFS_SERVER_URL` selects only the gateway used by `read ipfs://…`, defaulting to the HM API origin.
+  Requires the publish grant. Publishing makes the file publicly retrievable.
 - **`hm://<account>/<path>`** — publishes signed hypermedia. Requires the publish grant.
 
 Hypermedia writes map `options.action` onto the CLI-parity command envelope (`api-service.ts:7528`): the default

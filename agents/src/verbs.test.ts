@@ -57,6 +57,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     agentId: 'test-agent',
     definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm'} as never,
     hmServerUrl: 'https://hm.example',
+    ipfsServerUrl: 'https://hm.example',
     web: {},
     stateDir: dataDir,
     sessionId: 'session-1',

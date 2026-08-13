@@ -233,8 +233,9 @@ handling is strict:
 - binary memory files are never sent to the model — a memory read returns metadata only for binary content — but their
   raw bytes are returned to the owning user over the signed API for preview/download;
 - memory content is model-visible and user-visible by design; do not store secrets in agent memory;
-- `write ipfs://` and `UploadAgentMemoryFileToIpfs` publish through the HM server, making the file publicly retrievable
-  by CID; treat publishing as irreversible disclosure;
+- `write ipfs://` and `UploadAgentMemoryFileToIpfs` chunk files as UnixFS and publish the blocks through the typed HM
+  API, making the file publicly retrievable by CID; `SEED_AGENTS_IPFS_SERVER_URL` only selects the gateway for later
+  reads, and publishing must still be treated as irreversible disclosure;
 - session attachments (files dropped into the chat composer) are session-private: stored under
   `<stateDir>/session-attachments/<sessionId>/`, keyed by content SHA-256, capped at 100 MiB each, never auto-copied
   into cross-session memory or published, deleted with the session, and exposed to the model as metadata until it reads

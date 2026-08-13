@@ -27,6 +27,8 @@ export type Config = {
   titleGeneration: boolean
   activity: {
     hmServerUrl: string
+    /** HTTP endpoint serving `/ipfs/*`; defaults to hmServerUrl when both surfaces share a host. */
+    ipfsServerUrl: string
     pollIntervalMs: number
     pageSize: number
     maxPagesPerPoll: number
@@ -66,6 +68,7 @@ export type Flags = {
   'db-path': string
   'data-dir': string
   'hm-server-url': string
+  'ipfs-server-url': string
   'activity-poll-interval-ms': number
   'activity-page-size': number
   'activity-max-pages': number
@@ -92,6 +95,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'db-path': env.SEED_AGENTS_DB_PATH || './data/agents.sqlite',
     'data-dir': env.SEED_AGENTS_DATA_DIR || './data',
     'hm-server-url': env.SEED_AGENTS_HM_SERVER_URL || 'https://hyper.media',
+    'ipfs-server-url': env.SEED_AGENTS_IPFS_SERVER_URL || '',
     'activity-poll-interval-ms': Number(env.SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS) || 5_000,
     'activity-page-size': Number(env.SEED_AGENTS_ACTIVITY_PAGE_SIZE) || 50,
     'activity-max-pages': Number(env.SEED_AGENTS_ACTIVITY_MAX_PAGES) || 5,
@@ -169,6 +173,7 @@ export function create(pflags: Flags): Config {
     dataDir: pflags['data-dir'],
     activity: {
       hmServerUrl: normalizeHttpUrl(pflags['hm-server-url'], 'HM server URL'),
+      ipfsServerUrl: normalizeHttpUrl(pflags['ipfs-server-url'] || pflags['hm-server-url'], 'IPFS server URL'),
       pollIntervalMs: parsePositiveInteger(String(pflags['activity-poll-interval-ms']), 'activity-poll-interval-ms'),
       pageSize: parsePositiveInteger(String(pflags['activity-page-size']), 'activity-page-size'),
       maxPagesPerPoll: parsePositiveInteger(String(pflags['activity-max-pages']), 'activity-max-pages'),

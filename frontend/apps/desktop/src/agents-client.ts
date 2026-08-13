@@ -95,8 +95,10 @@ type AgentsResponse = AgentsProtocol.AgentResponse
 export type AgentServerHealth = {
   status: string
   uptime: number
-  /** The Seed HM server the agent publishes to; desktop connects its local node to this for discovery. */
+  /** The Seed HM API server the agent publishes to; desktop connects its local node to this for discovery. */
   hmServerUrl?: string
+  /** Direct IPFS gateway for reads. Usually the same origin; local desktop topology splits it. */
+  ipfsServerUrl?: string
   /** Optional capability flags for tools that need server-side backends. Absent on older servers. */
   webTools?: {search: boolean; readBrowser: boolean}
   /** Whether the server offers subscription (OAuth) provider sign-in. Absent on older servers. */

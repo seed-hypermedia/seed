@@ -149,6 +149,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         uptime: process.uptime(),
         version: buildInfo.version,
         hmServerUrl: svc.hmServerUrl,
+        ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
         codeExec: codeExec.available,
@@ -532,6 +533,7 @@ async function main(): Promise<void> {
   const svc = new apisvc.Service(db, cfg.dataDir, {
     onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
+    ipfsServerUrl: cfg.activity.ipfsServerUrl,
     web: cfg.web,
     exec: cfg.exec,
     subscriptionAuth: cfg.subscriptionAuth,
@@ -675,7 +677,8 @@ async function main(): Promise<void> {
   console.log(`  Database: ${cfg.dbPath}`)
   console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}/agents/ws`)
   console.log(`  API: http://${hostname}:${server.port}/api/message`)
-  console.log(`  Activity feed: ${cfg.activity.hmServerUrl}`)
+  console.log(`  HM API: ${cfg.activity.hmServerUrl}`)
+  console.log(`  IPFS: ${cfg.activity.ipfsServerUrl}`)
   console.log(
     `  Web tools: search=${cfg.web.searxngUrl ? 'on' : 'off'} reader=${
       cfg.web.crawlerUrl ? 'static+crawl4ai' : 'static-only'

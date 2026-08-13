@@ -119,7 +119,8 @@ Config source: `agents/src/config.ts`.
 | `SEED_AGENTS_HTTP_PORT`                 | `3050`                 | HTTP port.                                                                                         |
 | `SEED_AGENTS_DB_PATH`                   | `./data/agents.sqlite` | SQLite DB path.                                                                                    |
 | `SEED_AGENTS_DATA_DIR`                  | `./data`               | Data directory.                                                                                    |
-| `SEED_AGENTS_HM_SERVER_URL`             | `https://hyper.media`  | Upstream SHM HTTP API used for ActivityFeed polls and HM tool reads/writes.                        |
+| `SEED_AGENTS_HM_SERVER_URL`             | `https://hyper.media`  | Seed DAG-CBOR `/api/*` endpoint used for activity and HM reads/writes.                             |
+| `SEED_AGENTS_IPFS_SERVER_URL`           | HM server URL          | Direct `/ipfs/*` gateway origin for reads when it differs from the typed API endpoint.             |
 | `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000`                 | Activity and schedule trigger monitor poll interval.                                               |
 | `SEED_AGENTS_ACTIVITY_PAGE_SIZE`        | `50`                   | ActivityFeed page size.                                                                            |
 | `SEED_AGENTS_ACTIVITY_MAX_PAGES`        | `5`                    | Max pages fetched per poll.                                                                        |
@@ -145,7 +146,8 @@ bun src/main.ts \
   --server-port 3050 \
   --db-path ./data/agents.sqlite \
   --data-dir ./data \
-  --hm-server-url https://hyper.media
+  --hm-server-url https://hyper.media \
+  --ipfs-server-url https://hyper.media
 ```
 
 Every environment variable in the table has a matching flag (`--searxng-url`, `--exec-backend`, `--exec-ts-image`,
@@ -228,6 +230,7 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
   "uptime": 1234.5,
   "version": "2026.6.10",
   "hmServerUrl": "https://hyper.media",
+  "ipfsServerUrl": "https://hyper.media",
   "webTools": {"search": true, "readBrowser": true},
   "subscriptionAuth": false,
   "codeExec": true,
@@ -237,10 +240,13 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
 }
 ```
 
-`webTools` derives from `SEED_AGENTS_SEARXNG_URL` / `SEED_AGENTS_CRAWLER_URL`; `codeExec` from the exec backend probe,
-with `codeExecReason`/`codeExecReasonCode` explaining an unavailable sandbox. `codeExecRuntimes` says which runtimes
-this host offers — `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on
-here. Clients read these to grey out what the server cannot run.
+`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments
+set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS
+publication itself chunks UnixFS blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from
+`SEED_AGENTS_SEARXNG_URL` / `SEED_AGENTS_CRAWLER_URL`; `codeExec` from the exec backend probe, with
+`codeExecReason`/`codeExecReasonCode` explaining an unavailable sandbox. `codeExecRuntimes` says which runtimes this
+host offers — `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here.
+Clients read these to grey out what the server cannot run.
 
 ## Code execution backend
 

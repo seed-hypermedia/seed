@@ -515,8 +515,9 @@ Actions:
   60-second idle timeout) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`.
   Omitting `path` stores the file under `downloads/` named from the URL; extension-less paths gain an extension from the
   response content type.
-- `UploadAgentMemoryFileToIpfs {agentId, path}` uploads the file to the HM server's `/ipfs/file-upload` endpoint and
-  returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the
+- `UploadAgentMemoryFileToIpfs {agentId, path}` chunks the file as UnixFS and publishes its blocks through the typed HM
+  API's `PublishBlobs` action, then returns
+  `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the
   `ipfs://<cid>` URL usable from Hypermedia content. Publishing makes the file publicly retrievable.
 
 Path limits (`agents/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself

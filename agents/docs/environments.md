@@ -7,14 +7,14 @@ updated. This document describes each one and the configuration that makes it wo
 
 A quick orientation table:
 
-|                    | 1 · dev (`./dev up`)        | 2 · CI-built desktop apps    | 3 · `./dev build-desktop`    | 4 · production remote          | 5 · self-hosted remote    |
-| ------------------ | --------------------------- | ---------------------------- | ---------------------------- | ------------------------------ | ------------------------- |
-| Process            | `bun --hot` under a watcher | compiled binary, app-spawned | compiled binary, app-spawned | Docker container               | Docker container          |
-| Port               | `3051` (from `.env.vars`)   | `3050` (app default)         | `3050` (app default)         | `3050` behind Caddy `443`      | operator's choice         |
-| HM server          | local daemon (`:58001`)     | the app's local daemon       | the app's local daemon       | `https://hyper.media`          | operator's site/daemon    |
-| Code exec          | host microVMs (msb)         | embedded msb runtime         | embedded msb runtime         | `/dev/kvm` plumbed, see gap    | needs KVM + runtime       |
-| web_search/crawler | Docker compose backends     | none (unless configured)     | none (unless configured)     | compose-internal SearXNG/Crawl | optional compose backends |
-| Updates            | file-watch restart          | app release cycle            | rebuild                      | Watchtower auto-pull           | operator pulls            |
+|                    | 1 · dev (`./dev up`)              | 2 · CI-built desktop apps    | 3 · `./dev build-desktop`    | 4 · production remote          | 5 · self-hosted remote    |
+| ------------------ | --------------------------------- | ---------------------------- | ---------------------------- | ------------------------------ | ------------------------- |
+| Process            | `bun --hot` under a watcher       | compiled binary, app-spawned | compiled binary, app-spawned | Docker container               | Docker container          |
+| Port               | `3051` (from `.env.vars`)         | `3050` (app default)         | `3050` (app default)         | `3050` behind Caddy `443`      | operator's choice         |
+| HM API / IPFS      | bridge `:58004` / daemon `:58001` | app bridge / app daemon      | app bridge / app daemon      | `https://hyper.media` (both)   | operator's endpoint(s)    |
+| Code exec          | host microVMs (msb)               | embedded msb runtime         | embedded msb runtime         | `/dev/kvm` plumbed, see gap    | needs KVM + runtime       |
+| web_search/crawler | Docker compose backends           | none (unless configured)     | none (unless configured)     | compose-internal SearXNG/Crawl | optional compose backends |
+| Updates            | file-watch restart                | app release cycle            | rebuild                      | Watchtower auto-pull           | operator pulls            |
 
 ## 1. Dev mode — `./dev up`
 
@@ -28,9 +28,14 @@ Configuration comes from direnv (`.env.vars`), which is the layer that makes dev
   desktop app spawns on its own default) cannot shadow the dev server. If `localhost:3051` ever answers with
   `Unsupported action: ListRuns`-class errors, something else claimed the port — check
   `lsof -nP -iTCP:3051 -sTCP:LISTEN`.
-- `SEED_AGENTS_HM_SERVER_URL="$DAEMON_HTTP_URL"` (`http://localhost:58001`) — the dev agents server reads and writes
-  hypermedia through the **local desktop daemon**, not the public gateway. Content you publish in your dev app is what
-  your dev agents see.
+- `SEED_AGENTS_HM_SERVER_URL="$DESKTOP_API_HTTP_URL"` (`http://localhost:58004`) — typed Seed requests such as
+  `ListEvents`, `Resource`, and `PublishBlobs` go through the desktop's DAG-CBOR `/api/*` bridge. The raw daemon port is
+  a gRPC-web endpoint and rejects this transport (`405` for query GETs, `415` for CBOR actions).
+- `SEED_AGENTS_IPFS_SERVER_URL="$DAEMON_HTTP_URL"` (`http://localhost:58001`) — direct `/ipfs/<cid>` gateway reads go to
+  the daemon, because the desktop API bridge intentionally serves only `/api/*`. File publication does **not** use
+  `/ipfs/file-upload`: the service chunks bytes into UnixFS blocks and sends them through `PublishBlobs` on the typed
+  API. Together these endpoints reach the same **local desktop node**, not the public gateway. Content published in the
+  dev app is what dev agents see.
 - `VITE_DESKTOP_DEFAULT_AGENTS_URL=http://localhost:3051` — how the dev desktop app finds this server (it attaches
   instead of spawning its own binary; see the resolution order in environment 2).
 - `SEED_AGENTS_SUBSCRIPTION_AUTH=true` and the web-tool URLs are set by the `dev` script itself:
@@ -77,9 +82,10 @@ At runtime the app resolves its agents server in this order (`agents-server-proc
 1. `SEED_NO_AGENTS_SPAWN` set → never spawn; the app only talks to configured remote servers.
 2. `SEED_AGENTS_SERVER_URL` set → attach to that URL (with retry), spawn nothing.
 3. A healthy server already answering on the default port → attach to it (this is how the dev app uses env 1).
-4. Otherwise spawn the bundled binary with explicit flags, most importantly `--hm-server-url=${API_HTTP_URL}` — **the
-   app's own local daemon**, so an embedded agents server reads and writes through the same node the user sees in the
-   app, not through a public gateway.
+4. Otherwise spawn the bundled binary with explicit `--hm-server-url=${API_HTTP_URL}` and
+   `--ipfs-server-url=${DAEMON_HTTP_URL}` flags. The first is the app's typed `/api/*` bridge; the second serves direct
+   `/ipfs/*` gateway reads. Both front the **app's own local daemon**, so the embedded server reads and writes through
+   the same node the user sees rather than a public gateway.
 
 Differences from dev to keep in mind: **no Docker exists here**, so there is no SearXNG/Crawl4AI — `web_search` is
 unavailable unless the user configures a remote backend; there is no watcher (updates ride the app release cycle); and
@@ -109,8 +115,9 @@ Terraform provisions a bare Docker host; the actual service definition is the co
   `agentic.seed.hyper.media` → `agents-stable` (image `seedhypermedia/agents:latest`), and
   `dev.agentic.seed.hyper.media` → `agents-dev` (image `seedhypermedia/agents:dev`), each on internal port `3050`.
 - **agents-stable / agents-dev** run with:
-  - `SEED_AGENTS_HM_SERVER_URL` → `https://hyper.media` (stable) / `https://dev.hyper.media` (dev). Unlike every local
-    environment, production reads and writes through the public gateway — there is no co-located daemon.
+  - `SEED_AGENTS_HM_SERVER_URL` → `https://hyper.media` (stable) / `https://dev.hyper.media` (dev). Those origins serve
+    both typed `/api/*` and direct `/ipfs/*`, so `SEED_AGENTS_IPFS_SERVER_URL` defaults to the same value. Unlike every
+    local environment, production reads and writes through the public gateway — there is no co-located daemon.
   - `devices: /dev/kvm:/dev/kvm` — hardware virtualization for the execute microVMs. Without the device the service runs
     but every execution fails 502. (This requires an OVH flavor that exposes KVM.)
   - Named volumes: `agents-*-data:/data` (the sqlite DB + agent state; `SEED_AGENTS_DB_PATH=/data/agents.sqlite` and
@@ -152,8 +159,13 @@ docker run -d --restart unless-stopped \
 
 What an operator must decide, in rough order of importance:
 
-- **HM server URL.** Point it at the hypermedia server whose content the agents should read and publish through — your
-  site, your daemon, or the public gateway. Everything the read/write verbs touch flows through this.
+- **HM API URL.** `SEED_AGENTS_HM_SERVER_URL` must point at an HTTP Seed API that accepts the typed DAG-CBOR `/api/*`
+  protocol used by `createSeedClient` — your site, a desktop-style API bridge, or the public gateway. A raw daemon
+  gRPC-web port is not interchangeable with this endpoint.
+- **IPFS URL.** By default direct `/ipfs/*` gateway reads use the HM API origin. If the gateway lives elsewhere — as it
+  does locally, where the daemon owns it — set `SEED_AGENTS_IPFS_SERVER_URL` to that origin. File publication still
+  chunks UnixFS blocks and sends them through `PublishBlobs` on the HM API. A self-hosted raw daemon can therefore be
+  the gateway, but needs a compatible Seed HTTP API/bridge for `SEED_AGENTS_HM_SERVER_URL`.
 - **TLS + hostname.** Put a reverse proxy (Caddy, nginx) in front; the desktop and web apps connect over HTTPS and the
   signed-envelope API assumes an authentic transport. CORS is already permissive server-side.
 - **Code execution.** Requires KVM (`--device /dev/kvm`) on a host whose virtualization is exposed, AND the microsandbox

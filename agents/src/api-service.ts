@@ -549,6 +549,7 @@ export class Service {
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
+  readonly #ipfsServerUrl: string
   readonly #web: WebToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
@@ -586,6 +587,8 @@ export class Service {
     options: {
       onEvent?: (event: ServiceEvent) => void
       hmServerUrl?: string
+      /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
+      ipfsServerUrl?: string
       web?: WebToolsConfig
       exec?: CodeExecConfig
       codeExecutor?: CodeExecutor
@@ -601,6 +604,7 @@ export class Service {
     this.#onEvent = options.onEvent
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
+    this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
@@ -665,6 +669,11 @@ export class Service {
    * connect their local node to it for discovery. */
   get hmServerUrl(): string {
     return this.#hmServerUrl
+  }
+
+  /** The HTTP server used for direct IPFS gateway reads. */
+  get ipfsServerUrl(): string {
+    return this.#ipfsServerUrl
   }
 
   /** Whether subscription provider sign-in is offered, for client capability display. */
@@ -1119,9 +1128,9 @@ export class Service {
     let iconUrl = typeof metadata.icon === 'string' ? metadata.icon : undefined
     if (icon) {
       try {
-        iconUrl = await uploadIconToHmNode(this.#hmServerUrl, icon)
+        iconUrl = await publishIconToIpfs(this.#hmServerUrl, icon)
       } catch (error) {
-        throw new APIError(502, `Failed to upload agent account icon to ${this.#hmServerUrl}: ${errorMessage(error)}`)
+        throw new APIError(502, `Failed to publish agent account icon to ${this.#hmServerUrl}: ${errorMessage(error)}`)
       }
     }
     try {
@@ -1726,8 +1735,7 @@ export class Service {
     const file = withMemoryErrors(() => agentMemory.readMemoryFile(stateDir, filePath))
     const bytes =
       file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
-    const fileName = file.path.split('/').at(-1) || 'file'
-    const {cid, url} = await uploadBytesToHmIpfs(this.#hmServerUrl, bytes, file.mimeType, fileName)
+    const {cid, url} = await publishBytesToIpfs(this.#hmServerUrl, bytes)
     return {
       _: 'UploadAgentMemoryFileToIpfsResponse',
       agentId,
@@ -2371,6 +2379,7 @@ export class Service {
       agentId: session.agentId,
       definition,
       hmServerUrl: this.#hmServerUrl,
+      ipfsServerUrl: this.#ipfsServerUrl,
       web: this.#web,
       stateDir: this.#agentMemoryStateDir(accountId, session.agentId),
       sessionId,
@@ -3824,6 +3833,7 @@ export class Service {
       agentId: run.agentId,
       definition,
       hmServerUrl: this.#hmServerUrl,
+      ipfsServerUrl: this.#ipfsServerUrl,
       web: this.#web,
       stateDir,
       sessionId: '',
@@ -4340,6 +4350,7 @@ export class Service {
         agentId: session.agentId,
         definition,
         hmServerUrl: this.#hmServerUrl,
+        ipfsServerUrl: this.#ipfsServerUrl,
         web: this.#web,
         stateDir: agentStateDir,
         sessionId,
@@ -5795,42 +5806,16 @@ function parseIpfsCid(raw: unknown): string {
   return cid
 }
 
-/**
- * Uploads raw bytes to the HM node's public IPFS file-upload endpoint and returns the resulting
- * CID plus its `ipfs://<cid>` URI for use in Hypermedia content.
- */
-async function uploadBytesToHmIpfs(
-  hmServerUrl: string,
-  data: Uint8Array,
-  mimeType?: string,
-  fileName?: string,
-): Promise<{cid: string; url: string}> {
-  const formData = new FormData()
-  const blob = new Blob([new Uint8Array(data)], mimeType ? {type: mimeType} : undefined)
-  formData.append('file', blob, fileName || 'file')
-  const response = await fetch(`${hmServerUrl.replace(/\/$/, '')}/ipfs/file-upload`, {
-    method: 'POST',
-    body: formData,
-  })
-  if (!response.ok) {
-    throw new APIError(502, `IPFS upload failed with status ${response.status}`)
-  }
-  const cid = (await response.text()).trim()
-  if (!cid) throw new APIError(502, 'IPFS upload returned an empty CID')
-  return {cid, url: `ipfs://${cid}`}
+/** Chunks bytes as UnixFS and publishes every block through the typed Seed API. */
+async function publishBytesToIpfs(hmServerUrl: string, data: Uint8Array): Promise<{cid: string; url: string}> {
+  const chunked = await fileToIpfsBlobs(data)
+  await createSeedClient(hmServerUrl).publish({blobs: chunked.blobs})
+  return {cid: chunked.cid, url: `ipfs://${chunked.cid}`}
 }
 
-/**
- * Uploads raw avatar bytes to the HM node's public IPFS file-upload endpoint and
- * returns the resulting `ipfs://<cid>` URI for use as a profile avatar.
- */
-async function uploadIconToHmNode(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
-  const {url} = await uploadBytesToHmIpfs(
-    hmServerUrl,
-    new Uint8Array(icon.data),
-    icon.mimeType,
-    icon.fileName || 'icon',
-  )
+/** Publishes avatar bytes as UnixFS and returns their `ipfs://` URI. */
+async function publishIconToIpfs(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
+  const {url} = await publishBytesToIpfs(hmServerUrl, new Uint8Array(icon.data))
   return url
 }
 
@@ -6869,6 +6854,7 @@ type WriteToolContext = {
   agentId: string
   definition: api.AgentDefinition
   hmServerUrl: string
+  ipfsServerUrl: string
 }
 
 export type AgentServicePiToolContext = WriteToolContext & {
@@ -7281,7 +7267,7 @@ export async function executeReadVerb(
 
   if (address.startsWith('ipfs://')) {
     const cid = parseIpfsCid(address)
-    const gatewayUrl = `${context.hmServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
+    const gatewayUrl = `${context.ipfsServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
     const targetPath = typeof options.path === 'string' && options.path.trim() ? options.path : `ipfs/${cid}`
     const result = await withMemoryErrorsAsync(() =>
       agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
@@ -7462,7 +7448,7 @@ export async function executeWriteVerb(
       const {info, data} = withAttachmentErrors(() =>
         sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, fromAttachment),
       )
-      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, data, info.mimeType, info.name)
+      const {cid, url} = await publishBytesToIpfs(context.hmServerUrl, data)
       return {
         summary: `Published attachment ${info.name} to IPFS as ${url}.`,
         id: info.id,
@@ -7482,8 +7468,7 @@ export async function executeWriteVerb(
     const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, fromPath))
     const bytes =
       file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
-    const fileName = file.path.split('/').at(-1) || 'file'
-    const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, bytes, file.mimeType, fileName)
+    const {cid, url} = await publishBytesToIpfs(context.hmServerUrl, bytes)
     return {
       summary: `Uploaded ${file.path} to IPFS as ${url}.`,
       path: file.path,

@@ -30,7 +30,7 @@ The vocabulary above is defined once in [`GLOSSARY.md`](../../GLOSSARY.md) at th
 ```text
 Desktop app
   ├─ Local agents server subprocess (same artifact as the Docker image)
-  │    configured with the desktop's own HM API server as its hmServerUrl
+  │    configured with the desktop's typed HM API bridge plus its daemon's direct IPFS endpoint
   ├─ Agents routes: list, detail, session
   ├─ Assistant sidebar: sessions of any agent on any configured server
   ├─ Provider and create-agent dialogs

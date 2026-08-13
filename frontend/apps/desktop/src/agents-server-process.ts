@@ -1,4 +1,4 @@
-import {API_HTTP_URL} from '@shm/shared/constants'
+import {API_HTTP_URL, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
 import * as fs from 'node:fs'
@@ -189,9 +189,11 @@ async function spawnAgentsServer(): Promise<string> {
     `--server-port=${port}`,
     `--db-path=${path.join(dataDir, 'agents.sqlite')}`,
     `--data-dir=${dataDir}`,
-    // The desktop's own HM API server, so a local agent reads and writes through the user's node
-    // instead of a public gateway.
+    // The desktop bridge serves the typed `/api/*` transport; direct `/ipfs/*` gateway reads live
+    // on the daemon. Hosted servers normally expose both surfaces on one origin, but local desktop
+    // topology deliberately splits them.
     `--hm-server-url=${API_HTTP_URL}`,
+    `--ipfs-server-url=${DAEMON_HTTP_URL}`,
     // Subscription sign-in is a server opt-in; the desktop enables it for the server
     // it owns because it can catch the OAuth redirect on localhost:1455 itself.
     `--subscription-auth=true`,

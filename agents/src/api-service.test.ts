@@ -205,7 +205,10 @@ describe('api service', () => {
     const realFetch = globalThis.fetch
     try {
       const account = blobs.generateNobleKeyPair()
-      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.example'})
+      const svc = new apisvc.Service(db, dataDir, {
+        hmServerUrl: 'https://api.hm.example',
+        ipfsServerUrl: 'https://files.hm.example',
+      })
       await setDefaultProvider(svc, account)
       const create = await svc.message(
         await apisvc.createSignedEnvelope(account, {
@@ -261,11 +264,14 @@ describe('api service', () => {
         entry: {path: 'downloads/photo.jpg', size: 3, mimeType: 'image/jpeg'},
       })
 
-      // IPFS upload via the HM server endpoint.
+      // IPFS publication uses the typed HM API even when gateway reads use another origin.
       globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
-        expect(String(url)).toBe('https://hm.example/ipfs/file-upload')
+        expect(String(url)).toBe('https://api.hm.example/api/PublishBlobs')
         expect(init?.method).toBe('POST')
-        return new Response('bafkTestCid123\n')
+        expect(init?.headers).toMatchObject({'Content-Type': 'application/cbor'})
+        const input = cbor.decode<{blobs: Array<{cid: string; data: Uint8Array}>}>(init?.body as Uint8Array)
+        expect(input.blobs.length).toBeGreaterThan(0)
+        return Response.json(serialize({cids: input.blobs.map((blob) => blob.cid)}))
       }) as unknown as typeof fetch
       const upload = await svc.message(
         await apisvc.createSignedEnvelope(account, {
@@ -275,10 +281,11 @@ describe('api service', () => {
       expect(upload).toMatchObject({
         _: 'UploadAgentMemoryFileToIpfsResponse',
         path: 'media/pic.png',
-        cid: 'bafkTestCid123',
-        url: 'ipfs://bafkTestCid123',
         mimeType: 'image/png',
       })
+      if (upload._ !== 'UploadAgentMemoryFileToIpfsResponse') throw new Error('unexpected response')
+      expect(upload.cid).toStartWith('baf')
+      expect(upload.url).toBe(`ipfs://${upload.cid}`)
 
       // The session system prompt carries the Space index: memory top level without expanding
       // folders, plus the callable tool lines.
