@@ -5,6 +5,9 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 
+/**
+ * Returns the user's pinned documents, optionally filtered to a single site.
+ */
 export function usePins(siteUid?: string) {
   const pinsQuery = useQuery({
     queryKey: [queryKeys.PINS],
@@ -18,6 +21,9 @@ export function usePins(siteUid?: string) {
   }, [pinsQuery.data, siteUid])
 }
 
+/**
+ * Returns all pinned documents across every site.
+ */
 export function useAllPins() {
   return usePins()
 }
@@ -32,6 +38,9 @@ function pinInputFromId(id: UnpackedHypermediaId, title: string, seenVersion: st
   }
 }
 
+/**
+ * Pin or update an existing pin for the given document.
+ */
 export function usePinDocument() {
   return useMutation({
     mutationFn: (input: {id: UnpackedHypermediaId; title: string; seenVersion: string | null}) =>
@@ -42,6 +51,9 @@ export function usePinDocument() {
   })
 }
 
+/**
+ * Remove a pin for the given document.
+ */
 export function useUnpinDocument() {
   return useMutation({
     mutationFn: (id: UnpackedHypermediaId) => client.pins.unpin.mutate({siteUid: id.uid, path: id.path || []}),
@@ -51,6 +63,9 @@ export function useUnpinDocument() {
   })
 }
 
+/**
+ * Reorder pins within a site by moving a pin from one index to another.
+ */
 export function useReorderPins() {
   return useMutation({
     mutationFn: (input: {siteUid: string; fromIndex: number; toIndex: number}) => client.pins.reorder.mutate(input),
@@ -60,6 +75,9 @@ export function useReorderPins() {
   })
 }
 
+/**
+ * Update a pin to reflect the current document version and title.
+ */
 export function useAcknowledgePin() {
   return useMutation({
     mutationFn: (input: {id: UnpackedHypermediaId; seenVersion: string | null; title?: string}) =>

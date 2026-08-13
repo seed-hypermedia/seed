@@ -30,13 +30,6 @@ import {buildRestoreVersionChanges, getRestoreVersionGeneration} from '@shm/shar
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {toast} from 'sonner'
 
-function pathsEqual(a: string[] | null | undefined, b: string[] | null | undefined) {
-  const aArr = a || []
-  const bArr = b || []
-  if (aArr.length !== bArr.length) return false
-  return aArr.every((segment, index) => segment === bArr[index])
-}
-
 export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   const selectedAccountId = useSelectedAccountId()
   const myAccountIds = useMyAccountIds()
@@ -102,7 +95,7 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
 
   const isPinned = useCallback(
     (id: UnpackedHypermediaId) => {
-      return pins.some((pin) => pin.siteUid === id.uid && pathsEqual(pin.path, id.path))
+      return pins.some((pin) => pin.siteUid === id.uid && pathMatches(pin.path, id.path))
     },
     [pins],
   )

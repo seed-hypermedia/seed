@@ -17,8 +17,10 @@ export interface PinnedDocument {
   createdAt: string
 }
 
+/** Status of a pinned document relative to the current directory listing. */
 export type PinStatus = 'ok' | 'outdated' | 'deleted'
 
+/** A pin matched against a directory entry, if found, with its derived status. */
 export type ResolvedPin = {
   pin: PinnedDocument
   item: HMDocumentInfo | undefined

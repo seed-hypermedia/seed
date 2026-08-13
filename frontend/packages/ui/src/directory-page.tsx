@@ -7,6 +7,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   getMetadataName,
+  hmId,
   pinnedDocumentId,
   pinnedDocumentToUnpackedId,
   resolvePins,
@@ -211,6 +212,12 @@ export function DirectoryEmpty({canCreate}: {canCreate?: boolean}) {
   )
 }
 
+/**
+ * Renders a collapsible "Pinned" section at the top of a directory panel/page.
+ * Pinned documents are resolved against the whole site so pins from any
+ * sub-folder are recognised, and the section stays in a neutral state while
+ * the site directory is still loading to avoid a flash of deleted items.
+ */
 export function DirectoryPinnedDocuments({
   docId,
   searchQuery = '',
@@ -222,11 +229,17 @@ export function DirectoryPinnedDocuments({
   const [expanded, setExpanded] = useState(true)
   const pins = actions.getPinsForSite?.(docId.uid) ?? []
   const client = useUniversalClient()
+  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   const allDescendants = useQuery({
-    ...queryDirectory(client, docId, 'AllDescendants'),
+    ...queryDirectory(client, siteId, 'AllDescendants'),
     enabled: pins.length > 0,
   })
-  const resolvedPins = useMemo(() => resolvePins(pins, allDescendants.data), [pins, allDescendants.data])
+  const resolvedPins = useMemo(() => {
+    if (!allDescendants.isSuccess) {
+      return pins.map((pin) => ({pin, item: undefined, status: 'ok' as const}))
+    }
+    return resolvePins(pins, allDescendants.data)
+  }, [pins, allDescendants.isSuccess, allDescendants.data])
 
   if (searchQuery) return null
   if (!resolvedPins.length) return null

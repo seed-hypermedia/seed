@@ -1,3 +1,4 @@
+import {pathMatches} from '@shm/shared/utils/entity-id-url'
 import z from 'zod'
 // @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
@@ -24,13 +25,8 @@ const pinsStateSchema = z
 type PinnedDocument = z.infer<typeof pinnedDocumentSchema>
 type PinsState = z.infer<typeof pinsStateSchema>
 
-function pathsEqual(a: string[], b: string[]) {
-  if (a.length !== b.length) return false
-  return a.every((segment, index) => segment === b[index])
-}
-
 function findPinIndex(pins: PinnedDocument[], siteUid: string, path: string[]) {
-  return pins.findIndex((pin) => pin.siteUid === siteUid && pathsEqual(pin.path, path))
+  return pins.findIndex((pin) => pin.siteUid === siteUid && pathMatches(pin.path, path))
 }
 
 function loadPins(): PinsState {
@@ -52,6 +48,9 @@ async function writePins(newState: PinsState) {
   return undefined
 }
 
+/**
+ * Desktop tRPC router for pinned documents persisted in the Electron app store.
+ */
 export const pinsApi = t.router({
   get: t.procedure.query(async () => state),
   pin: t.procedure.input(pinnedDocumentSchema).mutation(async ({input}) => {
@@ -79,7 +78,7 @@ export const pinsApi = t.router({
         .strict(),
     )
     .mutation(async ({input}) => {
-      const newPins = state.pins.filter((pin) => !(pin.siteUid === input.siteUid && pathsEqual(pin.path, input.path)))
+      const newPins = state.pins.filter((pin) => !(pin.siteUid === input.siteUid && pathMatches(pin.path, input.path)))
       await writePins({...state, pins: newPins})
     }),
   reorder: t.procedure
@@ -120,7 +119,7 @@ export const pinsApi = t.router({
     )
     .mutation(async ({input}) => {
       const newPins = state.pins.map((pin) => {
-        if (pin.siteUid === input.siteUid && pathsEqual(pin.path, input.path)) {
+        if (pin.siteUid === input.siteUid && pathMatches(pin.path, input.path)) {
           return {
             ...pin,
             seenVersion: input.seenVersion ?? pin.seenVersion,
