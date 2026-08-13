@@ -1,8 +1,21 @@
 import {describe, expect, it, vi} from 'vitest'
+import {readFileSync} from 'node:fs'
+import React from 'react'
+import {createRoot} from 'react-dom/client'
+import {act} from 'react-dom/test-utils'
+import {TooltipProvider} from '@shm/ui/tooltip'
 
 vi.mock('@/trpc', () => ({client: {}}))
+vi.mock('@/models/bookmarks', () => ({
+  useBookmarks: () => [],
+  useRemoveBookmark: () => ({isLoading: false, mutate: vi.fn()}),
+}))
+vi.mock('@shm/shared/models/contacts', () => ({useSelectedAccountContacts: () => ({data: []})}))
+vi.mock('@shm/shared/models/entity', () => ({useResources: () => []}))
+vi.mock('@shm/shared', () => ({useRouteLink: () => ({onClick: vi.fn()})}))
 
-import {bookmarkKindLabel, newestBookmarksFirst} from '../bookmarks-popover'
+import {bookmarkKindLabel, BookmarksPopover, newestBookmarksFirst} from '../bookmarks-popover'
+;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 describe('newestBookmarksFirst', () => {
   it('returns bookmarks newest first without mutating stored order', () => {
@@ -18,5 +31,37 @@ describe('bookmarkKindLabel', () => {
     expect(bookmarkKindLabel({key: 'profile', viewTerm: ':following'})).toBe('Profile · Following')
     expect(bookmarkKindLabel({key: 'document', viewTerm: ':comments'})).toBe('Document · Comments')
     expect(bookmarkKindLabel({key: 'document', viewTerm: null})).toBe('Document')
+  })
+})
+
+describe('titlebar integration', () => {
+  it('renders bookmarks immediately before notifications', () => {
+    const titlebar = readFileSync('src/components/titlebar-common.tsx', 'utf8')
+    const bookmarksIndex = titlebar.indexOf('<BookmarksPopover />')
+    const notificationsIndex = titlebar.indexOf('<NotificationButton />')
+
+    expect(bookmarksIndex).toBeGreaterThan(-1)
+    expect(bookmarksIndex).toBeLessThan(notificationsIndex)
+  })
+
+  it('lets users open the bookmarks popover from its button', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+
+    try {
+      act(() => root.render(React.createElement(TooltipProvider, null, React.createElement(BookmarksPopover))))
+      const button = container.querySelector('button[aria-label="Bookmarks"]')
+
+      expect(button).toBeTruthy()
+      expect(document.body.textContent).not.toContain('No bookmarks yet')
+
+      act(() => button?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+      expect(document.body.textContent).toContain('No bookmarks yet')
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+    }
   })
 })

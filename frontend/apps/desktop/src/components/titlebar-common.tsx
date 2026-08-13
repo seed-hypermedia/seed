@@ -72,6 +72,7 @@ import {
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
+import {BookmarksPopover} from './bookmarks-popover'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
@@ -451,6 +452,7 @@ export function PageActionButtons(props: TitleBarProps) {
   return (
     <TitlebarSection>
       {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
+      <BookmarksPopover />
       <NotificationButton />
       <AccountProfileButton />
     </TitlebarSection>

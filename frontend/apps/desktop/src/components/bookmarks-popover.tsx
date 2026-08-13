@@ -11,7 +11,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {AlertCircle, Bookmark, Folder, History, Lock, MessageSquare, Quote, Users, X} from 'lucide-react'
-import {useState, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode} from 'react'
+import React, {useState, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode} from 'react'
 
 /** Return a copy of the stored bookmark list ordered from newest to oldest. */
 export function newestBookmarksFirst<T>(bookmarks: readonly T[]): T[] {
