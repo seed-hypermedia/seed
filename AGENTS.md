@@ -34,6 +34,7 @@
 - Never modify the `.git` directory directly.
 - Do not run git commands that write state, including commit, amend, rebase, reset, checkout, merge, cherry-pick, stash,
   tag, branch deletion, or push, unless explicitly asked.
+- If you need to write a commit message, explain why the change was made, not what the commit is doing mechanically.
 
 ## Workflow
 
