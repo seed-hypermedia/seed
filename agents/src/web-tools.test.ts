@@ -90,7 +90,7 @@ describe('executeWebSearch', () => {
   test('throws on empty query', async () => {
     await expect(executeWebSearch({searxngUrl: SEARXNG}, {query: '  '})).rejects.toThrow(/required/)
   })
-  test('parses results, limits count, sets degraded from unresponsive engines', async () => {
+  test('parses results, limits count, marks partial coverage from unresponsive engines', async () => {
     mockFetch((url) => {
       expect(url).toContain('/search')
       expect(url).toContain('format=json')
@@ -105,10 +105,23 @@ describe('executeWebSearch', () => {
     })
     const out = await executeWebSearch({searxngUrl: SEARXNG}, {query: 'test', count: 2})
     expect((out.results as unknown[]).length).toBe(2)
-    expect(out.degraded).toBe(true)
-    expect(out.unavailableEngines).toEqual(['brave'])
+    // `partial` is the registry-contract name the model reads.
+    expect(out.partial).toBe(true)
+    expect(String(out.markdown)).toContain('brave')
     expect(String(out.markdown)).toContain('[A](https://a.com)')
   })
+  test('timeRange from the tool contract reaches SearXNG as time_range', async () => {
+    // The registry declares `timeRange` (and additionalProperties: false); reading any other key
+    // makes the recency filter silently unreachable — which is exactly the drift this pins.
+    let searchUrl = ''
+    mockFetch((url) => {
+      searchUrl = url
+      return json({results: [], unresponsive_engines: []})
+    })
+    await executeWebSearch({searxngUrl: SEARXNG}, {query: 'news today', timeRange: 'week'})
+    expect(searchUrl).toContain('time_range=week')
+  })
+
   test('retries with fallback engines when first query is empty but engines were unresponsive', async () => {
     let calls = 0
     mockFetch((url) => {

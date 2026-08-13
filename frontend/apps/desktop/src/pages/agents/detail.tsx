@@ -837,7 +837,8 @@ const AGENT_TOOL_OPTIONS = [
   {
     names: [AGENT_EXECUTE_TOOL],
     title: 'Execute code',
-    description: 'Run Python or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
+    description:
+      'Run TypeScript, Python, or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
   },
   {
     names: [AGENT_PUBLISH_GRANT],

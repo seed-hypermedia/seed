@@ -187,8 +187,9 @@ export async function executeWebSearch(config: WebToolsConfig, raw: unknown): Pr
   const category =
     typeof input.category === 'string' && SEARCH_CATEGORIES.has(input.category) ? input.category : 'general'
   const params = new URLSearchParams({q: query, format: 'json', categories: category, safesearch: '1'})
-  if (typeof input.time_range === 'string' && SEARCH_TIME_RANGES.has(input.time_range))
-    params.set('time_range', input.time_range)
+  // The registry contract says `timeRange`; SearXNG's own query param is snake_case.
+  if (typeof input.timeRange === 'string' && SEARCH_TIME_RANGES.has(input.timeRange))
+    params.set('time_range', input.timeRange)
   params.set('language', boundedString(input.language, 16) || 'en')
 
   let {results, unresponsiveEngines} = await querySearxng(config.searxngUrl, params)
@@ -224,8 +225,8 @@ export async function executeWebSearch(config: WebToolsConfig, raw: unknown): Pr
       : `No web results for "${query}".`,
     query,
     results: limited,
-    degraded,
-    unavailableEngines: unresponsiveEngines,
+    // `partial` is the registry-contract name; the summary/markdown carry which engines were out.
+    partial: degraded,
     markdown,
   }
 }
