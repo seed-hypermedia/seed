@@ -1,11 +1,19 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {ReactNode} from 'react'
 import {PanelContent} from './accessories'
-import {DirectoryEmpty, DirectoryListViewWithActivity, useDirectoryDataWithActivity} from './directory-page'
+import {
+  DirectoryEmpty,
+  DirectoryListViewWithActivity,
+  DirectoryPinnedDocuments,
+  useDirectoryDataWithActivity,
+} from './directory-page'
 import {Spinner} from './spinner'
 
 export function DirectoryPanel({docId, header}: {docId: UnpackedHypermediaId; header?: ReactNode}) {
   const {items, accountsMetadata, isInitialLoading} = useDirectoryDataWithActivity(docId)
+  const actions = useDocumentActions()
+  const hasPins = (actions.getPinsForSite?.(docId.uid).length ?? 0) > 0
 
   if (isInitialLoading) {
     return (
@@ -15,7 +23,7 @@ export function DirectoryPanel({docId, header}: {docId: UnpackedHypermediaId; he
     )
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && !hasPins) {
     return (
       <div className="p-4">
         <DirectoryEmpty />
@@ -26,7 +34,12 @@ export function DirectoryPanel({docId, header}: {docId: UnpackedHypermediaId; he
 
   return (
     <PanelContent header={header}>
-      <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} />
+      <DirectoryPinnedDocuments docId={docId} />
+      {items.length === 0 ? (
+        <DirectoryEmpty />
+      ) : (
+        <DirectoryListViewWithActivity items={items} accountsMetadata={accountsMetadata} />
+      )}
     </PanelContent>
   )
 }
