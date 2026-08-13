@@ -5977,7 +5977,7 @@ function formatAttachmentMetadata(attachments: unknown): string | null {
       (item) => `- "${item.name}" (${item.mimeType || 'unknown type'}, ${item.size} bytes) — attachment id ${item.id}`,
     )
   if (lines.length === 0) return null
-  return `<attachments>\nThe user attached these session-private files. Use view_attachment with an id to see an image or read a text file; use attachment_to_memory to keep one across sessions or attachment_to_ipfs to publish one for Hypermedia content. Only view what you need.\n${lines.join(
+  return `<attachments>\nThe user attached these session-private files. Use \`read attachment:<id>\` to see an image or read a text file; use \`write ~/memory/<path>\` with {fromAttachment} to keep one across sessions, or \`write ipfs://\` with {fromAttachment} to publish one for Hypermedia content. Only read what you need.\n${lines.join(
     '\n',
   )}\n</attachments>`
 }
