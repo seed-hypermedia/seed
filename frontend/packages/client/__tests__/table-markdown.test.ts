@@ -100,15 +100,25 @@ function opsOfType(ops: ReturnType<typeof computeReplaceOps>, type: string) {
 // ─── Emission ────────────────────────────────────────────────────────────────
 
 describe('table emission', () => {
-  it('emits the identity-carrying GFM dialect', () => {
+  it('emits the identity-carrying GFM dialect with row ids inside the last cell', () => {
     const md = blocksToMarkdown(doc([sampleTable()]))
     expect(md).toContain('<!-- id:TBL00001 -->')
-    expect(md).toContain('| Name <!-- col:COL00001 --> | Age <!-- col:COL00002 --> | <!-- id:ROW00001 -->')
+    expect(md).toContain('| Name <!-- col:COL00001 --> | Age <!-- col:COL00002 --> <!-- id:ROW00001 --> |')
     expect(md).toContain('| --- | --- |')
-    expect(md).toContain('| Alice | 30 | <!-- id:ROW00002 -->')
-    expect(md).toContain('| Bob | 25 | <!-- id:ROW00003 -->')
+    expect(md).toContain('| Alice | 30 <!-- id:ROW00002 --> |')
+    expect(md).toContain('| Bob | 25 <!-- id:ROW00003 --> |')
     // Cell block ids never appear in markdown
     expect(md).not.toContain('CELL')
+  })
+
+  it('every emitted table line has the same strict-GFM cell count as the delimiter row', () => {
+    // Strict GFM refuses the whole table when the header row's cell count
+    // differs from the delimiter row's — ids must never add cells.
+    const md = blocksToMarkdown(doc([sampleTable()]))
+    const tableLines = md.split('\n').filter((line) => line.trim().startsWith('|'))
+    const cellCount = (line: string) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').length
+    const counts = tableLines.map(cellCount)
+    expect(counts).toEqual([2, 2, 2, 2])
   })
 
   it('emits an all-empty header row for headerless tables', () => {
@@ -119,7 +129,7 @@ describe('table emission', () => {
     const md = blocksToMarkdown(doc([table]))
     expect(md).toContain('| <!-- col:COL00001 --> | <!-- col:COL00002 --> |')
     // The previously-header row now emits as a body row with its id
-    expect(md).toContain('| Name | Age | <!-- id:ROW00001 -->')
+    expect(md).toContain('| Name | Age <!-- id:ROW00001 --> |')
   })
 
   it('orders cells by column order regardless of child order, drops orphans, renders missing cells empty', () => {
@@ -128,7 +138,7 @@ describe('table emission', () => {
     // Reverse cell order and add an orphan cell; remove the Age cell
     rowTwo.children = [cell('CELL0099', 'orphan', 'COLNOPE'), cell('CELL0004', '30', 'COL00002')]
     const md = blocksToMarkdown(doc([table]))
-    expect(md).toContain('|  | 30 | <!-- id:ROW00002 -->')
+    expect(md).toContain('|  | 30 <!-- id:ROW00002 --> |')
     expect(md).not.toContain('orphan')
   })
 
@@ -137,7 +147,7 @@ describe('table emission', () => {
     const rowTwo = table.children![3]!
     rowTwo.children = [cell('CELL0003', 'a|b', 'COL00001'), cell('CELL0004', 'line1\nline2', 'COL00002')]
     const md = blocksToMarkdown(doc([table]))
-    expect(md).toContain('| a\\|b | line1<br>line2 | <!-- id:ROW00002 -->')
+    expect(md).toContain('| a\\|b | line1<br>line2 <!-- id:ROW00002 --> |')
   })
 
   it('drops a table with no columns instead of emitting a dangling id comment', () => {
@@ -203,6 +213,23 @@ describe('table parsing', () => {
     expect(table.block.id).toBe('TBL00001')
     expect(findByType([table], 'TableColumn').map((c) => c.block.id)).toEqual(['COL00001', 'COL00002'])
     expect(findByType([table], 'TableRow').map((r) => r.block.id)).toEqual(['ROW00001', 'ROW00002'])
+  })
+
+  it('reads row ids from inside the last cell (v2) and after the final pipe (v1)', () => {
+    const md = [
+      '<!-- id:TBL00001 -->',
+      '| Name <!-- col:COL00001 --> | Age <!-- col:COL00002 --> <!-- id:ROW00001 --> |',
+      '| --- | --- |',
+      '| Alice | 30 <!-- id:ROW00002 --> |',
+      '| Bob | 25 | <!-- id:ROW00003 -->',
+    ].join('\n')
+    const {tree} = parseMarkdown(md)
+    const nodes = markdownBlockNodesToHMBlockNodes(tree)
+    const rows = findByType(nodes, 'TableRow')
+    expect(rows.map((r) => r.block.id)).toEqual(['ROW00001', 'ROW00002', 'ROW00003'])
+    // Comments never leak into cell text
+    expect(rows[1]!.children!.map((c) => c.block.text)).toEqual(['Alice', '30'])
+    expect(rows[0]!.children!.map((c) => c.block.text)).toEqual(['Name', 'Age'])
   })
 
   it('treats an all-empty header row as headerless', () => {
@@ -288,7 +315,7 @@ function diffAgainst(oldContent: HMBlockNode[], newMarkdown: string) {
 describe('table update diffing', () => {
   it('a single cell edit produces exactly one ReplaceBlock reusing the old cell id', () => {
     const oldDoc = [sampleTable()]
-    const md = blocksToMarkdown(doc(oldDoc)).replace('| Alice | 30 |', '| Alice | 31 |')
+    const md = blocksToMarkdown(doc(oldDoc)).replace('| Alice | 30 <', '| Alice | 31 <')
     const {ops} = diffAgainst(oldDoc, md)
 
     const replaces = opsOfType(ops, 'ReplaceBlock') as {block: {id: string; text: string}}[]
@@ -311,7 +338,7 @@ describe('table update diffing', () => {
 
   it('preserves column width and header-column attributes markdown cannot express', () => {
     const oldDoc = [sampleTable()]
-    const md = blocksToMarkdown(doc(oldDoc)).replace('| Alice | 30 |', '| Alice | 31 |')
+    const md = blocksToMarkdown(doc(oldDoc)).replace('| Alice | 30 <', '| Alice | 31 <')
     const {rebound} = diffAgainst(oldDoc, md)
     const tables = rebound.filter((n) => n.block.type === 'Table')
     const col = tables[0]!.children.find((c) => c.block.id === 'COL00001')!
@@ -359,8 +386,8 @@ describe('table update diffing', () => {
   it('inserting a row keeps surrounding row ids and only creates the new blocks', () => {
     const oldDoc = [sampleTable()]
     const md = blocksToMarkdown(doc(oldDoc)).replace(
-      '| Bob | 25 | <!-- id:ROW00003 -->',
-      '| Carol | 41 |\n| Bob | 25 | <!-- id:ROW00003 -->',
+      '| Bob | 25 <!-- id:ROW00003 --> |',
+      '| Carol | 41 |\n| Bob | 25 <!-- id:ROW00003 --> |',
     )
     const {ops} = diffAgainst(oldDoc, md)
 
@@ -430,7 +457,7 @@ describe('table update diffing', () => {
     const oldNodes = oldDoc.map((node) => toAPIBlockNode(node))
     const oldMap = createBlocksMap(oldNodes)
 
-    const md = blocksToMarkdown(doc(oldDoc)).replace('| Bob | 25 |', '| Bob | 26 |')
+    const md = blocksToMarkdown(doc(oldDoc)).replace('| Bob | 25 <', '| Bob | 26 <')
     const {tree} = parseMarkdown(md)
     const hmNodes = markdownBlockNodesToHMBlockNodes(tree)
     const newTree = rebindTableIdentities(

@@ -94,10 +94,10 @@ Only three kinds of identity are carried:
 ```markdown
 <!-- id:TABLEID -->
 
-| Name <!-- col:c1 --> | Age <!-- col:c2 --> |
-| -------------------- | ------------------- | -------------- |
-| Alice                | 30                  | <!-- id:r1 --> |
-| Bob                  | 25                  | <!-- id:r2 --> |
+| Name <!-- col:c1 --> | Age <!-- col:c2 --> <!-- id:hr --> |
+| -------------------- | ---------------------------------- |
+| Alice                | 30 <!-- id:r1 -->                  |
+| Bob                  | 25 <!-- id:r2 -->                  |
 ```
 
 - **Table id**: standalone `<!-- id:... -->` line immediately before the table (reuses the existing "container id"
@@ -105,8 +105,11 @@ Only three kinds of identity are carried:
 - **Column ids**: trailing `<!-- col:ID -->` comment _inside each header cell_. Placing the id in the cell (rather than
   a separate metadata row) means it travels with the header text if an agent reorders or renames columns — the id
   follows the content being manipulated. Headerless columns render as `| <!-- col:ID --> |`.
-- **Row ids**: trailing `<!-- id:ID -->` _after the final pipe_ of each body row. The line still starts with `|`, so the
-  tokenizer's table detection is unchanged.
+- **Row ids**: trailing `<!-- id:ID -->` _inside the last cell_ of each row (header row included). Strict GFM counts
+  content after the final pipe as an extra cell, and a header row whose cell count disagrees with the delimiter row
+  makes the whole table unparseable to standard renderers (GitHub, remark-gfm) — in-cell comments keep every line at the
+  delimiter's cell count and are invisible when rendered. The parser also accepts the legacy after-the-final-pipe
+  placement.
 - **Cell ids: none.** Rebound via (rowId, columnId) at diff time.
 
 Dialect rules:

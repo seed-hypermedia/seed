@@ -583,25 +583,33 @@ function createListNode(
 /** Regex matching a `<!-- col:ID -->` column id comment inside a header cell. */
 const COL_ID_RE = /<!--\s*col:([A-Za-z0-9_-]+)\s*-->/
 
-type ParsedTableRow = {cells: string[]; id?: string}
+/** Regex matching an `<!-- id:ID -->` comment anywhere inside a cell. */
+const CELL_ID_RE = /<!--\s*id:([A-Za-z0-9_-]+)\s*-->/
+
+type ParsedTableCell = {text: string; colId?: string}
+type ParsedTableRow = {cells: ParsedTableCell[]; id?: string}
 
 /**
- * Split a GFM table line into trimmed cell strings, honoring `\|` escapes.
- * A trailing `<!-- id:XXXXXXXX -->` after the final pipe is captured as the
- * row's block id.
+ * Split a GFM table line into trimmed cells, honoring `\|` escapes.
+ *
+ * Row block ids are read from an `<!-- id:… -->` comment inside any cell
+ * (the emitter puts it in the last cell so strict-GFM cell counts stay
+ * intact) or, for backward compatibility, trailing after the final pipe.
+ * `<!-- col:… -->` comments are stripped from every cell and captured
+ * per-cell (only header cells' col ids are used by the builder).
  */
 function splitTableRow(line: string): ParsedTableRow {
-  const {text, id} = stripBlockId(line.trim())
+  const {text, id: afterPipeId} = stripBlockId(line.trim())
   let s = text.trim()
   if (s.startsWith('|')) s = s.slice(1)
-  const cells: string[] = []
+  const rawCells: string[] = []
   let cur = ''
   for (let i = 0; i < s.length; i++) {
     if (s[i] === '\\' && s[i + 1] === '|') {
       cur += '|'
       i++
     } else if (s[i] === '|') {
-      cells.push(cur.trim())
+      rawCells.push(cur.trim())
       cur = ''
     } else {
       cur += s[i]
@@ -609,20 +617,30 @@ function splitTableRow(line: string): ParsedTableRow {
   }
   const last = cur.trim()
   // A trailing pipe leaves an empty final segment — not a cell.
-  if (last !== '' || cells.length === 0) cells.push(last)
-  return {cells, id}
+  if (last !== '' || rawCells.length === 0) rawCells.push(last)
+
+  let rowId = afterPipeId
+  const cells = rawCells.map((raw): ParsedTableCell => {
+    let cellText = raw
+    const idMatch = cellText.match(CELL_ID_RE)
+    if (idMatch) {
+      rowId = idMatch[1]
+      cellText = cellText.replace(idMatch[0], '')
+    }
+    let colId: string | undefined
+    const colMatch = cellText.match(COL_ID_RE)
+    if (colMatch) {
+      colId = colMatch[1]
+      cellText = cellText.replace(colMatch[0], '')
+    }
+    return {text: cellText.trim(), colId}
+  })
+  return {cells, id: rowId}
 }
 
 /** GFM header separator row: every cell is dashes with optional colons. */
-function isSeparatorRow(cells: string[]): boolean {
-  return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c))
-}
-
-/** Strip a `<!-- col:ID -->` comment from a header cell. */
-function extractColId(cell: string): {text: string; colId?: string} {
-  const m = cell.match(COL_ID_RE)
-  if (!m) return {text: cell.trim()}
-  return {text: cell.replace(m[0], '').trim(), colId: m[1]}
+function isSeparatorRow(cells: ParsedTableCell[]): boolean {
+  return cells.length > 0 && cells.every((c) => /^:?-+:?$/.test(c.text))
 }
 
 /** Convert `<br>` variants back to newlines, then parse inline formatting. */
@@ -660,7 +678,7 @@ function createTableNode(lines: string[], containerId?: string): BlockNode {
     bodyRows = rawRows.filter((r) => !isSeparatorRow(r.cells))
   }
 
-  const headerCells = (headerRow?.cells ?? []).map(extractColId)
+  const headerCells = headerRow?.cells ?? []
   const colCount = Math.max(headerCells.length, ...bodyRows.map((r) => r.cells.length), 0)
 
   const columnIds: string[] = []
@@ -693,7 +711,7 @@ function createTableNode(lines: string[], containerId?: string): BlockNode {
   }
 
   for (const row of bodyRows) {
-    const cells = columnIds.map((columnId, idx) => createTableCellNode(row.cells[idx] ?? '', columnId))
+    const cells = columnIds.map((columnId, idx) => createTableCellNode(row.cells[idx]?.text ?? '', columnId))
     rowNodes.push(
       makeBlockNode(
         {

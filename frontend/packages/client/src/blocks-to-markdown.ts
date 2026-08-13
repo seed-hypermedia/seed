@@ -307,9 +307,15 @@ function blockToMarkdown(block: HMBlock, depth: number, opts: Required<BlocksToM
 // The emitted dialect keeps CRDT identity through a markdown round trip:
 //
 //   <!-- id:TABLEID -->
-//   | Name <!-- col:c1 --> | Age <!-- col:c2 --> | <!-- id:headerRowId -->
+//   | Name <!-- col:c1 --> | Age <!-- col:c2 --> <!-- id:headerRowId --> |
 //   | --- | --- |
-//   | Alice | 30 | <!-- id:r1 -->
+//   | Alice | 30 <!-- id:r1 --> |
+//
+// Row id comments live INSIDE the row's last cell, never after the final
+// pipe: strict GFM counts trailing content as an extra cell, and a header
+// row whose cell count disagrees with the delimiter row makes the whole
+// table unparseable to standard renderers (GitHub, remark-gfm). In-cell
+// comments are invisible to HTML renderers and GFM-safe everywhere.
 //
 // Cell block ids are intentionally absent: a row has at most one cell per
 // column, so cells are re-identified as (row id, column id) during diffing.
@@ -370,7 +376,11 @@ function escapeCellText(s: string): string {
   return s.replace(/\|/g, '\\|').replace(/\n/g, '<br>')
 }
 
-/** Assemble the table markdown lines from pre-rendered cell texts. */
+/** Assemble the table markdown lines from pre-rendered cell texts.
+ *
+ * Row id comments go inside the last cell so every line's cell count matches
+ * the delimiter row — required for strict-GFM renderers to recognize the
+ * table at all. */
 function assembleTableMarkdown(
   tableId: string,
   columns: {id: string}[],
@@ -385,12 +395,17 @@ function assembleTableMarkdown(
     const text = header.cellTexts[idx] || ''
     return (text ? text + ' ' : '') + `<!-- col:${col.id} -->`
   })
-  const headerIdSuffix = header.rowId ? ' ' + idComment(header.rowId) : ''
-  lines.push(ind + '| ' + headerCells.join(' | ') + ' |' + headerIdSuffix)
+  if (header.rowId) {
+    headerCells[headerCells.length - 1] += ' ' + idComment(header.rowId)
+  }
+  lines.push(ind + '| ' + headerCells.join(' | ') + ' |')
   lines.push(ind + '|' + columns.map(() => ' --- ').join('|') + '|')
 
   for (const row of bodyRows) {
-    lines.push(ind + '| ' + row.cellTexts.join(' | ') + ' | ' + idComment(row.rowId))
+    const cells = [...row.cellTexts]
+    const last = cells.length - 1
+    cells[last] = (cells[last] ? cells[last] + ' ' : '') + idComment(row.rowId)
+    lines.push(ind + '| ' + cells.join(' | ') + ' |')
   }
 
   return lines.join('\n')
