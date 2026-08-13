@@ -878,6 +878,7 @@ export function ExplorePage(props: ExplorePageProps) {
             )}
             columns={selectedColumns}
             sortRules={sortRules}
+            accounts={accounts.data ?? []}
             onSort={cycleSort}
             onOpen={props.onOpenResult}
           />
@@ -895,6 +896,7 @@ export function ExplorePage(props: ExplorePageProps) {
                 blocks={
                   result.type === 'document' ? props.blocksByDocument?.[exploreDocumentKey(result.id)] : undefined
                 }
+                accounts={accounts.data ?? []}
                 onOpen={props.onOpenResult}
               />
             ))}
@@ -1363,10 +1365,17 @@ function ExploreAutocomplete({
   )
 }
 
-function tableCellValue(result: Extract<HMExploreResult, {type: 'document'}>, column: string) {
+function tableCellValue(
+  result: Extract<HMExploreResult, {type: 'document'}>,
+  column: string,
+  accounts: Array<{value: string; label: string; metadata?: {name?: string; icon?: string}}>,
+) {
   const document = result.document
   if (column === 'title') return document?.metadata?.name || result.matchText || 'Untitled'
-  if (column === 'space') return result.id.uid
+  if (column === 'space') {
+    const account = accounts.find((account) => account.value === result.id.uid)
+    return account?.label || result.id.uid
+  }
   if (column === 'path') return `/${result.id.path?.join('/') || ''}`
   if (column === 'updated') return result.versionTime || '—'
   if (column === 'version') return result.id.version || '—'
@@ -1382,12 +1391,14 @@ function ExploreTable({
   results,
   columns,
   sortRules,
+  accounts,
   onSort,
   onOpen,
 }: {
   results: Extract<HMExploreResult, {type: 'document'}>[]
   columns: string[]
   sortRules: ExploreSortRule[]
+  accounts: Array<{value: string; label: string; metadata?: {name?: string; icon?: string}}>
   onSort: (key: string) => void
   onOpen: (result: HMExploreResult) => void
 }) {
@@ -1432,10 +1443,10 @@ function ExploreTable({
                       className="text-foreground focus-visible:ring-ring rounded text-left outline-none hover:underline focus-visible:ring-2"
                       onClick={() => onOpen(result)}
                     >
-                      {tableCellValue(result, column)}
+                      {tableCellValue(result, column, accounts)}
                     </button>
                   ) : (
-                    tableCellValue(result, column)
+                    tableCellValue(result, column, accounts)
                   )}
                 </td>
               ))}
@@ -1451,13 +1462,17 @@ function ExploreResultRow({
   result,
   terms,
   blocks,
+  accounts,
   onOpen,
 }: {
   result: HMExploreResult
   terms: string[]
   blocks?: Extract<HMExploreResult, {type: 'block'}>[]
+  accounts: Array<{value: string; label: string; metadata?: {name?: string; icon?: string}}>
   onOpen: (result: HMExploreResult) => void
 }) {
+  const accountUid = result.type === 'comment' ? result.documentId.uid : result.id.uid
+  const spaceAccount = accounts.find((account) => account.value === accountUid)
   const title =
     result.type === 'document'
       ? result.document?.metadata?.name || result.matchText || packHmId(result.id)
@@ -1476,7 +1491,17 @@ function ExploreResultRow({
               {result.type}
             </span>
           </span>
-          <span className="text-muted-foreground mt-1 block text-xs">
+          <span className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1 text-xs">
+            {spaceAccount ? (
+              <HMIcon
+                id={hmId(accountUid)}
+                name={spaceAccount.metadata?.name}
+                icon={spaceAccount.metadata?.icon}
+                size={14}
+              />
+            ) : null}
+            <span className="truncate">{spaceAccount?.label || accountUid}</span>
+            {' · '}
             {result.breadcrumb?.join(' · ') || 'Explore result'}
             {result.versionTime ? ` · ${new Date(result.versionTime).toLocaleDateString()}` : ''}
           </span>
