@@ -260,13 +260,9 @@ of its own; it federates public engines. Because engines rate-limit datacenter I
 unavailable, retries once against a fallback engine set. Throws (becomes `tool_result.error`) when no `searxngUrl` is
 configured.
 
-Two contract drifts are live here and are worth fixing at the source rather than papering over:
-
-- the registry declares `timeRange`, the implementation reads `time_range` (`web-tools.ts:190`), so the recency filter
-  is currently unreachable — and because the input schema sets `additionalProperties: false`, passing `time_range`
-  bounces as a validation miss;
-- the registry's `outputSchema` declares `partial`, the implementation returns `degraded` plus `unavailableEngines`
-  (`web-tools.ts:227`).
+The implementation speaks the registry contract exactly: `timeRange` in (forwarded to SearXNG as its own `time_range`
+query param) and a `partial` boolean out when engines were unavailable, with the affected engines named in the markdown.
+(Both sides drifted once — the audit caught it, fixed in `0d877e3a1` with a test pinning the round-trip.)
 
 ### `execute`
 

@@ -216,7 +216,8 @@ Mitigations present:
 - the Crawl4AI shared token (`SEED_AGENTS_CRAWLER_TOKEN`) gates the crawler so only the agents service can use it;
 - `web_search` is a granted callable, not an always-on verb, and throws a clean error when no SearXNG backend is
   configured;
-- failures degrade to `tool_result.error` (or a `degraded` flag for partial search), never silent fabrication.
+- failures degrade to `tool_result.error` (or a `partial` flag for incomplete search coverage), never silent
+  fabrication.
 
 ## Agent memory safety
 

@@ -176,8 +176,7 @@ tool — it lands here, versioned by content address, the moment it's saved."
 The tab also manages the HM account keys the agent may sign with, including a **New account** workflow that generates a
 server-side key, publishes its profile, and creates an account home document stating that it is an agentic account.
 
-Known copy drift: the Execute code toggle still describes "Python or shell code" (`detail.tsx:840`) though the tool now
-offers `ts`, `python`, and `shell`.
+The Execute code toggle names all three runtimes — TypeScript, Python, and shell (copy drift fixed in `0d877e3a1`).
 
 ## Session page
 
