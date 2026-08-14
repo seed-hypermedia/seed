@@ -65,6 +65,13 @@ vi.mock('@shm/shared/models/entity', () => ({
 // models/agents creates the tRPC client at import time, which needs the electronTRPC preload global.
 vi.mock('@/models/agents', () => ({
   useSessionAttachmentDataUrls: () => ({}),
+  // The delegate row resolves its live child through these; inert here — no child ever resolves.
+  useSessionRuns: () => ({data: undefined}),
+  useRunTree: () => ({data: undefined}),
+  useRun: () => ({data: undefined, isLoading: false}),
+  useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: []}),
+  useCancelRun: () => ({mutate: () => {}, isPending: false}),
+  useSignalRun: () => ({mutate: () => {}, isPending: false}),
 }))
 
 import {AgentErrorRow, ChatMessageBubble} from '../components/assistant-message-rendering'

@@ -1721,7 +1721,6 @@ function DelegateWorkDetails({
   const {sessionId: transcriptSessionId} = React.useContext(ToolRowContext)
   const signingAccount = accountUid || selectedAccountId
   const reportedRunId = getToolString(item.rawOutput, 'runId')
-  const sessionId = getToolSessionId(item)
   const brief = getToolString(item.args, 'brief')
   const isPending = item.result === undefined && item.rawOutput === undefined
   const typedOutput = getFirstToolValue(item.rawOutput, ['output'])
@@ -1731,6 +1730,8 @@ function DelegateWorkDetails({
   // pinned card already holds, so resolving costs no extra traffic.)
   const spawnedChild = useSpawnedChildRun(serverUrl, signingAccount, transcriptSessionId, item.id, isPending)
   const runId = reportedRunId ?? spawnedChild?.id
+  // Same for the transcript link: the child's session exists from the moment it spawns.
+  const sessionId = getToolSessionId(item) ?? spawnedChild?.sessionId
 
   return (
     <div className="flex min-w-0 flex-col gap-2">
@@ -1920,11 +1921,21 @@ export function ToolCallLine({
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const clickNavigate = useClickNavigate()
-  const childSessionId = getToolSessionId(item)
+  const reportedSessionId = getToolSessionId(item)
   const metadata = getRowToolMetadata(item)
   const render = metadata?.render
   const Icon = toolIcons[render?.kind || 'generic']
   const isPending = item.result === undefined && item.rawOutput === undefined
+  // An awaited delegation reports its child only when it finishes — but the child run records the
+  // call that started it the moment it spawns, so the row is a way in DURING the work, not after.
+  const spawnedChild = useSpawnedChildRun(
+    serverUrl,
+    accountUid,
+    sessionId,
+    item.id,
+    isDelegateToolName(item.name) && isPending && !reportedSessionId,
+  )
+  const childSessionId = reportedSessionId ?? spawnedChild?.sessionId
   const details = getToolDetails(item)
   const summary = getToolSummary(item)
   const links = getToolLinks(item)

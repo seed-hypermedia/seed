@@ -608,6 +608,43 @@ describe('delegate expanded view', () => {
     expect(container.textContent).not.toContain('Starting the child')
   })
 
+  it('links the delegation text into the child session while it is still working', () => {
+    // Before the child reports back there is no sessionId in the transcript — the collapsed row
+    // used to be inert until completion. The way in is the same parentToolCallId join.
+    mockState.runs = [makeRun({id: 'turn-2', status: 'waiting', sessionId: 'session-1'} as never)]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeRun({
+        id: 'child-live-2',
+        status: 'running',
+        rootRunId: 'turn-2',
+        parentRunId: 'turn-2',
+        sessionId: 'child-session-live-2',
+        parentToolCallId: 'call-live-2',
+        title: 'Researcher',
+      } as never),
+    ]
+    render(
+      <ChatMessageBubble
+        message={{
+          role: 'assistant',
+          sessionId: 'session-1',
+          parts: [{type: 'tool', id: 'call-live-2', name: 'delegate', args: {title: 'Researcher', brief: 'Go.'}}],
+        }}
+        serverUrl="http://localhost:3050"
+        accountUid="account-1"
+      />,
+    )
+    // The collapsed row's delegation text is a live link, not inert text.
+    const link = container.querySelector('button[title="Open Researcher"]')
+    expect(link).not.toBeNull()
+    click(link)
+    expect(mockState.navigate).toHaveBeenCalledWith(
+      {key: 'agent-session', sessionId: 'child-session-live-2', serverUrl: 'http://localhost:3050'},
+      expect.anything(),
+    )
+  })
+
   it("shows only this run's own calls, never a sibling script's", () => {
     mockState.run = makeRun({id: 'wf-run-3', status: 'running', kind: 'workflow'} as never)
     // The subscription is keyed by ROOT run, so it carries every branch of the tree.
