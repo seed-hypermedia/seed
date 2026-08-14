@@ -402,7 +402,8 @@ export function registerDocumentCommands(program: Command) {
         const {metadata: resolvedMeta, blobs: metaBlobs} = await resolveMetadataFileLinks(metadata)
 
         const rawPath = options.path || slugify(resolvedMeta.name || 'Untitled')
-        const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+        // "/" publishes the account's home document, whose ref carries no path at all.
+        const path = rawPath === '/' ? '' : rawPath.startsWith('/') ? rawPath : `/${rawPath}`
 
         // When publishing under a different account, resolve the capability.
         // Pass the document path so ListCapabilities can find path-scoped capabilities.
