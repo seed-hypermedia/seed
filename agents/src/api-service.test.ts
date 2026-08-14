@@ -3593,6 +3593,226 @@ describe('api service', () => {
     }
   })
 
+  test('write action "update" edits the document at the write address, including metadata-only', async () => {
+    // Live incident (session 5298a18a): every {action: "update"} write failed with "Document edit
+    // target is required" because the address-form envelope never forwarded the address as the
+    // edit target. The address IS the target; metadata-only updates must leave the body untouched.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const existingVersion = 'bafyreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      let openAICallCount = 0
+      let signerPublicKey = ''
+      let docLive = false
+      const publishedBodies: Uint8Array[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
+          return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
+        }
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/Resource')) {
+          const resolvedId = unpackHmId(`hm://${signerPublicKey}/test-doc`)
+          if (!resolvedId) throw new Error('bad target id')
+          if (!docLive) return Response.json(serialize({type: 'not-found', id: resolvedId}))
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: resolvedId,
+              document: {
+                content: [{block: {id: 'b1', type: 'Paragraph', text: 'Old body'}, children: []}],
+                version: existingVersion,
+                account: signerPublicKey,
+                authors: [signerPublicKey],
+                path: '/test-doc',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Test Doc'},
+                genesis: existingVersion,
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        if (!href.includes('/chat/completions') && !href.includes('/responses')) {
+          throw new Error(`Unexpected fetch: ${href}`)
+        }
+        openAICallCount += 1
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}/test-doc`,
+                            options: {
+                              action: 'update',
+                              name: 'Renamed Doc',
+                              metadata: {summary: 'Now with a summary'},
+                              signer: {publicKey: signerPublicKey},
+                            },
+                          }),
+                        },
+                      },
+                      {
+                        index: 1,
+                        id: 'call-2',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}/test-doc`,
+                            content: '# Renamed Doc\n\nNew body text.',
+                            options: {action: 'update', signer: {publicKey: signerPublicKey}},
+                          }),
+                        },
+                      },
+                      {
+                        index: 2,
+                        id: 'call-3',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}/test-doc`,
+                            content: '# Renamed Doc\n\nDry-run body.',
+                            dryRun: true,
+                            options: {action: 'update', signer: {publicKey: signerPublicKey}},
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: `chat-${openAICallCount}`, choices: [{delta: {content: 'Updated.'}}]},
+          {id: `chat-${openAICallCount}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSigningIdentity', label: 'Updater', clientRequestId: 'updater'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Updater',
+              systemPrompt: 'Update docs.',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['publish'],
+              signingKeys: [identity.identity.name],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      docLive = true
+      const publishesBeforeMessage = publishedBodies.length
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Rename the test doc'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+
+      const loadedSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetSession', sessionId: createdSession.sessionId},
+        }),
+      )
+      if (loadedSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const writeResults = loadedSession.events
+        .map(
+          (event) =>
+            event.event as {
+              type?: string
+              name?: string
+              error?: string
+              output?: {command?: string; id?: string; version?: string; dryRun?: boolean; metadataOnly?: boolean}
+            },
+        )
+        .filter((event) => event.type === 'tool_result' && event.name === 'write')
+      expect(writeResults).toHaveLength(3)
+      for (const result of writeResults) {
+        expect(result.error).toBeUndefined()
+        expect(result.output?.command).toBe('document.update')
+        expect(result.output?.id).toBe(`hm://${signerPublicKey}/test-doc`)
+      }
+
+      // The metadata-only and content updates publish; the dry run does not. Tool calls can
+      // complete out of order, so results and publish bodies are matched by content markers.
+      expect(publishedBodies.length).toBe(publishesBeforeMessage + 2)
+      const dryRunResult = writeResults.find((result) => result.output?.dryRun === true)
+      expect(dryRunResult).toBeDefined()
+      const publishedTexts = publishedBodies
+        .slice(publishesBeforeMessage)
+        .map((body) => new TextDecoder('utf-8', {fatal: false}).decode(body))
+      // Metadata-only: sets the new name and summary, and never emits a delete sweep of the body.
+      const metadataOnlyBody = publishedTexts.find((text) => text.includes('Now with a summary'))
+      expect(metadataOnlyBody).toBeDefined()
+      expect(metadataOnlyBody).toContain('Renamed Doc')
+      expect(metadataOnlyBody).not.toContain('DeleteBlocks')
+      // Content update: the new body rides in the change blob.
+      expect(publishedTexts.some((text) => text.includes('New body text.'))).toBe(true)
+      // The dry run never published: no blob carries its body.
+      expect(publishedTexts.some((text) => text.includes('Dry-run body.'))).toBe(false)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('a provider outage on a delegated child retries itself and succeeds without human action', async () => {
     // Live incident: a child's turn died on a Codex 503 and the parent was left parked. Retryable
     // failures on background runs must ride out the outage on the queue's backoff.

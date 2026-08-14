@@ -221,10 +221,14 @@ memory/tools/ipfs write is refused rather than ignored.
 
 Hypermedia writes map `options.action` onto the CLI-parity command envelope (`api-service.ts:7528`): the default
 `document` → `document.create`, plus `update`, `comment` (with `target`/`replyTo`), `move` (`toPath`), `redirect`
-(`toUrl`), `delete`, and `fork` (`fromUrl`). Any dotted action passes through as a raw command — `draft.create`,
-`profile.update`, `contact.create`, `capability.grant`, and the rest — with the address filling account/path. Extra
-command fields ride **only** in `options.input`, never as loose option keys, because the command handlers accept aliases
-(`reply`, `commentId`, `name`, …) and a stray key silently changing the operation is a real hazard.
+(`toUrl`), `delete`, and `fork` (`fromUrl`). For `update` the write address **is** the edit target — the envelope fills
+`input.edit` from it ("same address, new version"), so the target is never spellable as a separate option. An update
+with `content` replaces the whole document body; an update with no `content` at all is metadata-only and leaves the body
+untouched (it never diffs against an empty tree, which would delete every block). Any dotted action passes through as a
+raw command — `draft.create`, `profile.update`, `contact.create`, `capability.grant`, and the rest — with the address
+filling account/path. Extra command fields ride **only** in `options.input`, never as loose option keys, because the
+command handlers accept aliases (`reply`, `commentId`, `name`, …) and a stray key silently changing the operation is a
+real hazard.
 
 An unrecognized loose option key is **refused with a 400 naming the key and the supported set**, never silently dropped.
 This is enforced per address form (`assertKnownWriteOptions`), and it exists because of a real failure: a model passed

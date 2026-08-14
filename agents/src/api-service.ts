@@ -7624,11 +7624,12 @@ export async function executeWriteVerb(
           }),
         )
       case 'update':
+        // The address IS the document being revised ("same address, new version" is the
+        // documented contract), so the edit target is filled from it — never a separate option.
         return writeHypermedia(
           context,
           envelope('document.update', {
-            account: hm.account,
-            path: hm.path,
+            edit: address,
             ...(typeof options.name === 'string' ? {name: options.name} : {}),
             ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
             ...(content !== undefined ? {content, format: 'markdown'} : {}),
@@ -8509,7 +8510,14 @@ async function writeDocumentUpdate(
   request: ReturnType<typeof normalizeWriteToolRequest>,
   extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
-  const edit = normalizeBoundedString(request.input.edit ?? request.input.id, 'Document edit target', 2048)
+  const editSource = request.input.edit ?? request.input.id
+  if (editSource === undefined) {
+    throw new APIError(
+      400,
+      'Document edit target is required: pass the hm:// URL of the document to revise as input.edit. (The write verb with action "update" fills it from the address automatically.)',
+    )
+  }
+  const edit = normalizeBoundedString(editSource, 'Document edit target', 2048)
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
   const resource = await client.request('Resource', id)
   if (resource.type !== 'document') throw new APIError(400, `Resource is ${resource.type}, not a document`)
@@ -8519,23 +8527,35 @@ async function writeDocumentUpdate(
   ) {
     return writeToolError(request.command, 'Document version conflict', {currentVersion: resource.document.version})
   }
-  const parsed = parseWriteDocumentContent(request.input)
-  await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
-  const metadata = mergeWriteMetadata(parsed.metadata, request.input)
-  const oldNodes = (resource.document.content || []).map((node) => toAPIBlockNode(node))
-  const oldMap = createBlocksMap(oldNodes)
-  // Tables: markdown only carries table/column/row ids, so cell block ids and
-  // unexpressible attributes (column width, header column) are rebound from
-  // the old document before diffing.
-  const newTree = rebindTableIdentities(
-    oldNodes,
-    parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)),
-  )
-  const contentOps = computeReplaceOps(oldMap, newTree)
+  // No content at all means a metadata-only update: the body is left untouched. This must stay
+  // distinct from empty content — diffing an absent body against the old tree would emit a
+  // delete sweep of every block.
+  const hasContent =
+    request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
+  const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
+  if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
+  let contentOps: DocumentOperation[] = []
+  if (parsed) {
+    const oldNodes = (resource.document.content || []).map((node) => toAPIBlockNode(node))
+    const oldMap = createBlocksMap(oldNodes)
+    // Tables: markdown only carries table/column/row ids, so cell block ids and
+    // unexpressible attributes (column width, header column) are rebound from
+    // the old document before diffing.
+    const newTree = rebindTableIdentities(
+      oldNodes,
+      parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)),
+    )
+    contentOps = computeReplaceOps(oldMap, newTree)
+  }
   const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
-  if (ops.length === 0) throw new APIError(400, 'No document updates specified')
+  if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
   if (request.dryRun)
-    return writeToolResult(request.command, signer, {id: packHmId(id), blockCount: parsed.blocks.length, dryRun: true})
+    return writeToolResult(request.command, signer, {
+      id: packHmId(id),
+      ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
+      dryRun: true,
+    })
   const state = await resolveDocumentState(client, edit)
   const capability = await resolveCapability(client, resource.document.account, signer.publicKey)
   const {unsignedBytes, ts} = createChangeOps({
