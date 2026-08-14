@@ -8,6 +8,7 @@ import {
   useCreateSigningIdentity,
   useDeleteModelProvider,
   useDeleteSigningIdentity,
+  useImportSigningIdentity,
   useModelProviders,
   useProviderModels,
   useSaveModelProvider,
@@ -16,10 +17,13 @@ import {
   useUpdateSigningIdentity,
 } from '@/models/agents'
 import {useNavigate} from '@/utils/useNavigate'
-import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
+import {keyfile, markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
+import {queryAccount} from '@shm/shared/models/queries'
+import {queryClient} from '@shm/shared/models/query-client'
+import {useUniversalClient} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {
   AlertDialogAction,
@@ -28,15 +32,17 @@ import {
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
+import {ImportKeyDialog} from '@shm/ui/components/import-key-dialog'
 import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Select, SelectContent, SelectDropdown, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Camera, Copy, ExternalLink, Plus, Trash2} from 'lucide-react'
-import {useEffect, useState} from 'react'
+import {Camera, Copy, ExternalLink, FileKey, Plus, Trash2} from 'lucide-react'
+import React, {useEffect, useRef, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
@@ -335,6 +341,15 @@ function AddModelProviderForm({
   )
 }
 
+/** Hostname shown in the remote-import warning; falls back to the raw URL when unparseable. */
+function describeServerHost(serverUrl: string): string {
+  try {
+    return new URL(serverUrl).host
+  } catch {
+    return serverUrl
+  }
+}
+
 export function ManageAgentAccountsDialog({
   input,
   onClose,
@@ -344,10 +359,17 @@ export function ManageAgentAccountsDialog({
 }) {
   const identities = useSigningIdentities(input.serverUrl, input.selectedAccountId)
   const updateIdentity = useUpdateSigningIdentity(input.serverUrl, input.selectedAccountId)
+  const importIdentity = useImportSigningIdentity(input.serverUrl, input.selectedAccountId)
+  const universalClient = useUniversalClient()
+  const localServerUrl = useLocalAgentServerUrl()
+  const isLocalServer = isLocalAgentServer(input.serverUrl, localServerUrl.data)
   const newAccountDialog = useAppDialog(NewAgentAccountDialog)
   const deleteAccountDialog = useAppDialog(DeleteAgentAccountDialog, {isAlert: true})
   const [names, setNames] = useState<Record<string, string>>({})
   const [saveStates, setSaveStates] = useState<Record<string, 'idle' | 'saving' | 'saved' | 'error'>>({})
+  const [importOpen, setImportOpen] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const importFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const next: Record<string, string> = {}
@@ -409,6 +431,29 @@ export function ManageAgentAccountsDialog({
     }
   }
 
+  /** Imports the chosen `.hmkey.json`: decrypts client-side, ships only the raw seed. */
+  async function handleImportKey(password: string | undefined) {
+    if (!importFile) throw new Error('Key file is required')
+    if (!importFile.name.endsWith('.hmkey.json')) throw new Error('Key file must end with .hmkey.json')
+    const loaded = await keyfile.load(await importFile.text(), password)
+    // The stored label is a snapshot of the account's REAL profile name, never an invention: the
+    // import publishes nothing, so a made-up label would contradict what the profile actually
+    // says. The key file may carry the name; otherwise the local node usually knows the account
+    // (it is typically the user's own identity being handed to the server). If neither does, the
+    // label stays unset and the row shows the account id until the profile resolves.
+    let label = loaded.payload.profile?.name
+    if (!label) {
+      try {
+        const profile = await queryClient.fetchQuery(queryAccount(universalClient, loaded.publicKey))
+        label = profile?.metadata?.name || undefined
+      } catch {
+        // Unresolvable profile — import without a label rather than storing a fake name.
+      }
+    }
+    const identity = await importIdentity.mutateAsync({seed: loaded.seed, label})
+    toast.success(`Imported ${identity.label || identity.accountId}`)
+  }
+
   return (
     <div className="flex w-full min-w-0 flex-col gap-5">
       <div className="flex flex-col gap-3">
@@ -443,7 +488,11 @@ export function ManageAgentAccountsDialog({
           <SizableText color="muted">No agent accounts exist on this server yet.</SizableText>
         ) : null}
       </div>
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => setImportOpen(true)}>
+          <FileKey className="size-4" />
+          Import key
+        </Button>
         <Button
           onClick={() =>
             newAccountDialog.open({serverUrl: input.serverUrl, selectedAccountId: input.selectedAccountId})
@@ -455,6 +504,49 @@ export function ManageAgentAccountsDialog({
       </div>
       {newAccountDialog.content}
       {deleteAccountDialog.content}
+      <ImportKeyDialog
+        open={importOpen}
+        onOpenChange={(open) => {
+          setImportOpen(open)
+          if (!open) setImportFile(null)
+        }}
+        title="Import Account Key"
+        description="Choose an exported `.hmkey.json` file for this server to sign with. Enter a password only if the key file was exported with encryption."
+        hasFile={!!importFile}
+        renderFileField={({clearError}) => (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="agent-import-key-file">Key file</Label>
+            <input
+              ref={importFileInputRef}
+              id="agent-import-key-file"
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0] ?? null
+                setImportFile(file)
+                if (file) clearError()
+              }}
+            />
+            <Button type="button" variant="outline" onClick={() => importFileInputRef.current?.click()}>
+              <FileKey className="size-4" />
+              <span className="min-w-0 truncate">{importFile ? importFile.name : 'Choose key file…'}</span>
+            </Button>
+          </div>
+        )}
+        warning={
+          // The key is decrypted locally either way; what differs is where the seed then goes. On
+          // the local server it stays on this machine — a remote server is a trust decision.
+          isLocalServer ? undefined : (
+            <>
+              This will send the account's secret key to <b>{describeServerHost(input.serverUrl)}</b>. That server
+              stores the key and can sign as this account — anyone who controls the server gains full control of the
+              account. Only import a key you are willing to entrust to it.
+            </>
+          )
+        }
+        onImport={handleImportKey}
+      />
     </div>
   )
 }

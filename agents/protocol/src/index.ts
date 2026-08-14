@@ -127,6 +127,7 @@ export type UnsignedAgentAction =
   | ListProviderModels
   | ListSigningIdentities
   | CreateSigningIdentity
+  | ImportSigningIdentity
   | UpdateSigningIdentity
   | DeleteSigningIdentity
   | SetModelProvider
@@ -204,6 +205,21 @@ export type ListSigningIdentities = {
 /** Generates a new server-side Seed account key for future signing tools. */
 export type CreateSigningIdentity = {
   _: 'CreateSigningIdentity'
+  label?: string
+  clientRequestId?: string
+}
+
+/**
+ * Imports an existing Seed account key (an exported `.hmkey.json` seed, decrypted client-side)
+ * for the server to sign with. Unlike `CreateSigningIdentity`, nothing is published on import:
+ * the account may already exist on the network with a profile and content, and generating a
+ * fresh profile/home for it would overwrite what the account's owner already published.
+ */
+export type ImportSigningIdentity = {
+  _: 'ImportSigningIdentity'
+  /** Raw 32-byte ed25519 seed of the account key. */
+  seed: Uint8Array
+  /** Display label; clients default it to the key file's embedded profile name. */
   label?: string
   clientRequestId?: string
 }
@@ -1216,6 +1232,12 @@ export type CreateSigningIdentityResponse = {
   identity: SigningIdentity
 }
 
+/** Successful response for `ImportSigningIdentity`. */
+export type ImportSigningIdentityResponse = {
+  _: 'ImportSigningIdentityResponse'
+  identity: SigningIdentity
+}
+
 /** Successful response for `UpdateSigningIdentity`. */
 export type UpdateSigningIdentityResponse = {
   _: 'UpdateSigningIdentityResponse'
@@ -1527,6 +1549,7 @@ export type AgentResponse =
   | ListProviderModelsResponse
   | ListSigningIdentitiesResponse
   | CreateSigningIdentityResponse
+  | ImportSigningIdentityResponse
   | UpdateSigningIdentityResponse
   | DeleteSigningIdentityResponse
   | CreateAgentResponse

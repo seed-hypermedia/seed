@@ -1224,6 +1224,88 @@ describe('api service', () => {
     }
   })
 
+  test('imports an existing account key without publishing anything', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      // Import must never touch the HM node: the account may already have a published profile,
+      // and regenerating one (what CreateSigningIdentity does) would overwrite it.
+      let fetchCalls = 0
+      globalThis.fetch = mock(async () => {
+        fetchCalls += 1
+        return Response.json(serialize({cids: []}))
+      }) as never
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+
+      const imported = blobs.generateNobleKeyPair()
+      const importedId = blobs.principalToString(imported.principal)
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ImportSigningIdentity', seed: imported.seed, label: 'Eric', clientRequestId: 'import-key-1'},
+        }),
+      )
+      expect(created._).toBe('ImportSigningIdentityResponse')
+      if (created._ !== 'ImportSigningIdentityResponse') throw new Error('unexpected response')
+      expect(created.identity).toMatchObject({
+        accountId: importedId,
+        label: 'Eric',
+        name: `hm-account-${importedId.slice(0, 16)}`,
+        serverUrl: 'https://hm.test',
+      })
+      expect(fetchCalls).toBe(0)
+
+      // Idempotent replay returns the same identity; a genuine duplicate is refused.
+      const replayed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ImportSigningIdentity', seed: imported.seed, label: 'Eric', clientRequestId: 'import-key-1'},
+        }),
+      )
+      expect(replayed).toEqual(created)
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'ImportSigningIdentity', seed: imported.seed, clientRequestId: 'import-key-2'},
+          }),
+        ),
+      ).rejects.toThrow(/already on the server/)
+
+      // The stored secret is encrypted, and the listing never exposes key material.
+      const row = db
+        .query<{ciphertext: Uint8Array}, [string]>(`SELECT ciphertext FROM secrets WHERE name = ?`)
+        .get(created.identity.name)
+      expect(row?.ciphertext.byteLength).toBeGreaterThan(32)
+      const list = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListSigningIdentities'}}))
+      if (list._ !== 'ListSigningIdentitiesResponse') throw new Error('unexpected response')
+      expect(list.identities).toEqual([created.identity])
+
+      // A malformed seed is rejected before anything derives from it.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'ImportSigningIdentity', seed: new Uint8Array(31), clientRequestId: 'import-key-3'},
+          }),
+        ),
+      ).rejects.toThrow(/32 bytes/)
+
+      // No label given → none invented: the profile was not touched, so a made-up display name
+      // would contradict what the account's real profile says.
+      const unlabeled = blobs.generateNobleKeyPair()
+      const unlabeledResult = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ImportSigningIdentity', seed: unlabeled.seed, clientRequestId: 'import-key-4'},
+        }),
+      )
+      if (unlabeledResult._ !== 'ImportSigningIdentityResponse') throw new Error('unexpected response')
+      expect(unlabeledResult.identity.label).toBeUndefined()
+      expect(unlabeledResult.identity.accountId).toBe(blobs.principalToString(unlabeled.principal))
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('lists only uploaded signing identities for the signed account', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

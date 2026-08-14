@@ -734,6 +734,13 @@ export class Service {
         return this.#listSigningIdentities(verified.accountId)
       case 'CreateSigningIdentity':
         return this.#createSigningIdentity(verified.accountId, envelope.action.label, envelope.action.clientRequestId)
+      case 'ImportSigningIdentity':
+        return this.#importSigningIdentity(
+          verified.accountId,
+          envelope.action.seed,
+          envelope.action.label,
+          envelope.action.clientRequestId,
+        )
       case 'UpdateSigningIdentity':
         return this.#updateSigningIdentity(
           verified.accountId,
@@ -1116,6 +1123,71 @@ export class Service {
           name,
           accountId: identityAccountId,
           label: String(metadata.label),
+          serverUrl: this.#hmServerUrl,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }
+    })
+  }
+
+  /**
+   * Imports an existing account key (a `.hmkey.json` seed the client already decrypted).
+   *
+   * Deliberately publishes NOTHING: an imported identity usually already exists on the network
+   * with a profile and content its owner published — regenerating a profile/home here (what
+   * `CreateSigningIdentity` does for its fresh throwaway keys) would overwrite the real one.
+   * The label therefore lives only in the secret's metadata until the user renames it, which
+   * goes through the explicit `UpdateSigningIdentity` publish.
+   */
+  async #importSigningIdentity(
+    accountId: string,
+    seed: unknown,
+    rawLabel?: string,
+    clientRequestId?: string,
+  ): Promise<api.ImportSigningIdentityResponse> {
+    return this.#withIdempotency(accountId, 'ImportSigningIdentity', clientRequestId, {label: rawLabel}, async () => {
+      if (!(seed instanceof Uint8Array) || seed.byteLength !== 32) {
+        throw new APIError(400, 'Key seed must be exactly 32 bytes')
+      }
+      const label =
+        rawLabel === undefined ? undefined : normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
+      const keyPair = blobs.nobleKeyPairFromSeed(seed)
+      const identityAccountId = blobs.principalToString(keyPair.principal)
+      const name = `hm-account-${identityAccountId.slice(0, 16)}`
+      const existing = this.#db
+        .query<{id: string}, [string, string]>(`SELECT id FROM secrets WHERE account_id = ? AND name = ?`)
+        .get(accountId, name)
+      if (existing) throw new APIError(409, `This account key is already on the server (${identityAccountId})`)
+      // No fabricated display name: import publishes nothing, so any label stored here must be a
+      // truthful snapshot of the account's real profile name — the client resolves and sends it.
+      // Without one, the identity shows by its account id until the user renames it (which goes
+      // through UpdateSigningIdentity's explicit profile publish).
+      const metadata: Record<string, unknown> = {
+        kind: 'hm-account-key',
+        accountId: identityAccountId,
+        ...(label ? {label} : {}),
+        serverUrl: this.#hmServerUrl,
+        importedBy: 'user',
+      }
+      const now = Date.now()
+      const ciphertext = await encryptSecret(this.#db, seed)
+      const id = crypto.randomUUID()
+
+      this.#ensureAccount(accountId, now)
+      this.#db.run(
+        `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
+      )
+
+      return {
+        _: 'ImportSigningIdentityResponse',
+        identity: {
+          id,
+          name,
+          accountId: identityAccountId,
+          ...(label ? {label} : {}),
           serverUrl: this.#hmServerUrl,
           createdAt: now,
           updatedAt: now,

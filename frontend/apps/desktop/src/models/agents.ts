@@ -537,6 +537,34 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
   })
 }
 
+/**
+ * Imports an existing HM account key (a decrypted `.hmkey.json` seed) for the server to sign with.
+ *
+ * The seed travels inside the signed action envelope to the agent server, which stores it in its
+ * own encrypted secrets store — callers are responsible for warning the user when that server is
+ * not their local machine. Unlike creation, the server publishes nothing for imported keys.
+ */
+export function useImportSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({seed, label}: {seed: Uint8Array; label?: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'ImportSigningIdentity', seed, ...(label ? {label} : {}), clientRequestId: crypto.randomUUID()},
+      })
+      if (res._ !== 'ImportSigningIdentityResponse') throw new Error('Unexpected ImportSigningIdentity response')
+      return res.identity
+    },
+    onSuccess(identity) {
+      invalidateQueries(['agents'])
+      // The imported account usually already exists on the network; make sure the local node can
+      // resolve it (search, @mentions) the same way created agent accounts are synced.
+      if (identity.accountId) void syncAgentAccountToLocalNode(serverUrl, identity.accountId)
+    },
+  })
+}
+
 /** Renames a server-side HM account key and republishes its profile, optionally setting a new avatar. */
 export function useUpdateSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({

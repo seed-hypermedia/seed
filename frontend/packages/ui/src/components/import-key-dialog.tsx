@@ -16,6 +16,8 @@ import {Label} from './label'
  * - `renderFileField` renders the platform-specific file picker UI.
  * - `hasFile` gates the submit button until a file has been selected.
  * - `onImport` performs the actual import; throw an Error to surface a message.
+ * - `warning` renders destination-specific stakes (e.g. "this key will be sent
+ *   to a remote server") between the file field and the submit controls.
  */
 export function ImportKeyDialog({
   open,
@@ -25,6 +27,7 @@ export function ImportKeyDialog({
   onImport,
   title = 'Import Key File',
   description = 'Choose an exported `.hmkey.json` file. Enter a password only if the key file was exported with encryption.',
+  warning,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -33,6 +36,7 @@ export function ImportKeyDialog({
   onImport: (password: string | undefined) => Promise<void>
   title?: string
   description?: string
+  warning?: ReactNode
 }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -84,6 +88,11 @@ export function ImportKeyDialog({
               placeholder="Only needed for encrypted files"
             />
           </div>
+          {warning ? (
+            <div className="border-destructive/40 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-sm">
+              {warning}
+            </div>
+          ) : null}
           {error ? <p className="text-destructive text-sm">{error}</p> : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
