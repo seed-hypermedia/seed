@@ -5,7 +5,13 @@ import {useResource} from '@shm/shared/models/entity'
 import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import React from 'react'
 import ReactMarkdown, {defaultUrlTransform, type Components, type ExtraProps} from 'react-markdown'
-import remarkGfm from 'remark-gfm'
+// The bare `remark-gfm` specifier is ambiguous in the renderer bundle: the
+// vite alias pulls @shm/editor in by source, so the dep optimizer resolves
+// `remark-gfm` against the editor's node_modules (v3, mdast-util v1 era) and
+// serves that single prebundle to every importer. react-markdown@10 needs the
+// v4 mdast context — feeding it v3 throws `this.getData is not a function`
+// on inline code inside tables. The npm-aliased name pins v4 unambiguously.
+import remarkGfm from 'remark-gfm-v4'
 
 type MdastNode = {type?: string; value?: string; children?: MdastNode[]}
 
