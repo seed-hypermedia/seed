@@ -141,6 +141,10 @@ export default function Main({className}: {className?: string}) {
       sendAssistantState(next, assistantSessionId)
       return next
     })
+    // A remounted panel counts new-chat requests from zero, so a counter left over from an earlier
+    // footer click would otherwise open the panel straight into a draft instead of restoring the
+    // last session.
+    setAssistantNewChatRequest(0)
   }, [assistantSessionId, sendAssistantState])
 
   const handleNewAssistantChat = useCallback(() => {

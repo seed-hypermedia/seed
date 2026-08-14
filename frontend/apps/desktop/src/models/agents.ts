@@ -1957,6 +1957,29 @@ export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: 
   })
 }
 
+/**
+ * Optimistically seeds the caches with a session that was just created.
+ *
+ * The mirror of {@link removeOptimisticSessionFromLists}, for the same reason on the other side:
+ * `CreateSession` only returns an id, and until the list refetch lands the sidebar's selection
+ * resolver cannot attribute the new session to its agent — so it would fall back to the agent's
+ * newest *old* session and the sync-back effect would make that wrong selection sticky. Seeding the
+ * list entry and an empty `GetSession` response makes the new session attributable immediately (and
+ * lets the optimistic first message render, which needs a cached session to attach to). Real
+ * fetches replace both seeds as they land.
+ */
+export function addOptimisticSessionToCaches(serverUrl: string, accountUid: string, session: SessionInfo) {
+  queryClient.setQueryData(['agents', 'sessions', serverUrl, accountUid], (old: any) => {
+    const list = Array.isArray(old) ? old : []
+    if (list.some((entry: AgentSessionListEntry) => entry.session.id === session.id)) return old
+    return [{serverUrl, session} satisfies AgentSessionListEntry, ...list]
+  })
+  queryClient.setQueryData(['agents', 'session', serverUrl, accountUid, session.id], (old: any) => {
+    if (old) return old
+    return {_: 'GetSessionResponse', session, events: [], systemPromptMarkdown: ''}
+  })
+}
+
 export function addOptimisticSessionMessage(
   serverUrl: string,
   accountUid: string,

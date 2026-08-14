@@ -1,7 +1,9 @@
 import {
   addOptimisticSessionMessage,
+  addOptimisticSessionToCaches,
   describeAgentServer,
   removeOptimisticSessionFromLists,
+  useAgentDetail,
   useAgentLists,
   useAgentServerUrls,
   useAgentSession,
@@ -13,7 +15,9 @@ import {
   useLocalAgentServerUrl,
   useMessageAgentSession,
   useRetrySession,
+  useRun,
   useStopAgentSession,
+  type AgentSessionDraftMessage,
   type AgentSessionListEntry,
 } from '@/models/agents'
 import {
@@ -55,8 +59,6 @@ import {
   MessageCirclePlus,
   MoreHorizontal,
   Plus,
-  Send,
-  Square,
   Trash2,
 } from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -65,7 +67,12 @@ import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './assista
 import {useChatAutoScroll} from './chat-autoscroll'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
 import {useAssistantWindowContextLines} from './assistant-window-context'
-import {ChatMessageComposer} from './chat-message-composer'
+import {
+  AgentRichMessageComposer,
+  SUB_SESSION_DRIVEN_MESSAGE,
+  TERMINAL_RUN_STATUSES,
+} from '@/pages/agents/rich-message-composer'
+import type {CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {RunRecordCard, SessionRunCard} from '@/pages/agents/run-card'
 import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
 import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
@@ -107,7 +114,8 @@ export function AssistantPanel({
   const [chosenAgent, setChosenAgent] = useState<AssistantAgentKey | null>(null)
   const [isDraft, setIsDraft] = useState(false)
   const lastNewChatRequestRef = useRef(0)
-  const inputRef = useRef<HTMLTextAreaElement>(null)
+  // Handle onto whichever rich composer is mounted (session chat or draft), for imperative focus.
+  const composerRef = useRef<CommentEditorSubmitHandle | null>(null)
 
   // Shares its cache with the transcript below; used to attribute a restored session to its agent
   // before the session lists have loaded, and for the full-view navigation target.
@@ -131,16 +139,20 @@ export function AssistantPanel({
   )
 
   // Keep window state in step with what is actually shown (e.g. the resolver replaced a stored
-  // session from another agent with the active agent's newest).
+  // session from another agent with the active agent's newest). A draft is exempt: it shows no
+  // session by design, and the stored ref doubles as the record of which agent the user was last
+  // in — clearing it would make every new chat forget its context and fall back to the first
+  // agent.
   useEffect(() => {
+    if (isDraft) return
     const resolved = selection.session
     const same = resolved?.serverUrl === stored?.serverUrl && resolved?.sessionId === stored?.sessionId
     if (!same && !(resolved === null && stored === null)) setStored(resolved)
-  }, [selection.session, stored, setStored])
+  }, [selection.session, stored, setStored, isDraft])
 
   const focusInput = useCallback(() => {
-    inputRef.current?.focus()
-    requestAnimationFrame(() => inputRef.current?.focus())
+    composerRef.current?.focus({moveCursorToEnd: true})
+    requestAnimationFrame(() => composerRef.current?.focus({moveCursorToEnd: true}))
   }, [])
 
   const selectSession = useCallback(
@@ -292,7 +304,7 @@ export function AssistantPanel({
           key={`${activeSession.serverUrl}${activeSession.sessionId}`}
           sessionRef={activeSession}
           accountUid={accountUid}
-          inputRef={inputRef}
+          composerRef={composerRef}
         />
       ) : activeAgent ? (
         <AssistantDraftChat
@@ -301,7 +313,7 @@ export function AssistantPanel({
           agentId={activeAgent.agent.id}
           agentName={activeAgent.agent.definition.name}
           accountUid={accountUid}
-          inputRef={inputRef}
+          composerRef={composerRef}
           onSessionCreated={selectSession}
         />
       ) : (
@@ -530,14 +542,14 @@ function AssistantDraftChat({
   agentId,
   agentName,
   accountUid,
-  inputRef,
+  composerRef,
   onSessionCreated,
 }: {
   serverUrl: string
   agentId: string
   agentName: string
   accountUid: string | null | undefined
-  inputRef: React.RefObject<HTMLTextAreaElement>
+  composerRef: React.MutableRefObject<CommentEditorSubmitHandle | null>
   onSessionCreated: (ref: AssistantSessionRef) => void
 }) {
   const createSession = useCreateAgentSessionOnServer(accountUid)
@@ -546,27 +558,38 @@ function AssistantDraftChat({
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
 
-  const [input, setInput] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [isSending, setIsSending] = useState(false)
+  const isSendingRef = useRef(false)
 
-  async function handleSend() {
-    const content = input.trim()
-    if (!content || !accountUid || isSending) return
+  async function handleSend(message: AgentSessionDraftMessage) {
+    // The composer already cleared itself; a second send racing the create must not open a second
+    // session.
+    if (!accountUid || isSendingRef.current) return
     setError(null)
-    setIsSending(true)
+    isSendingRef.current = true
     try {
       const result = await createSession.mutateAsync({serverUrl, agentId, title: 'New chat'})
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected CreateSession response')
-      setInput('')
-      const messages = [{text: content, contextLines: windowContextLinesRef.current}]
+      // Seed the caches before selecting: the selection resolver can only keep the new session if
+      // it can attribute it to this agent, and the list refetch has not landed yet.
+      const now = Date.now()
+      addOptimisticSessionToCaches(serverUrl, accountUid, {
+        id: result.sessionId,
+        account: accountUid,
+        agentId,
+        title: 'New chat',
+        status: 'idle',
+        createdAt: now,
+        updatedAt: now,
+      })
+      const messages = [{...message, contextLines: windowContextLinesRef.current}]
       addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, messages)
       messageSession.mutate({sessionId: result.sessionId, message: messages})
       onSessionCreated({serverUrl, sessionId: result.sessionId})
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not start the chat')
     } finally {
-      setIsSending(false)
+      isSendingRef.current = false
     }
   }
 
@@ -576,15 +599,17 @@ function AssistantDraftChat({
         {`Send a message to start chatting with ${agentName}`}
       </div>
       {error ? <div className="text-destructive px-3 py-1 text-xs">{error}</div> : null}
-      <ChatMessageComposer
-        textareaRef={inputRef}
-        placeholder="Type a message…"
-        value={input}
-        onChange={setInput}
-        onSend={() => void handleSend()}
-        disabled={isSending}
-        sendDisabled={!input.trim() || isSending}
-        className="border-border border-t px-3 py-2"
+      {/* No sessionId yet: attachments and the tool palette unlock once the first send creates
+          the session. A draft is always user-initiated, so the composer takes focus on mount. */}
+      <AgentRichMessageComposer
+        isBusy={false}
+        isStreaming={false}
+        stopPending={false}
+        serverUrl={serverUrl}
+        accountId={accountUid ?? null}
+        composerHandleRef={composerRef}
+        onSend={(message) => void handleSend(message)}
+        onStop={() => {}}
       />
     </div>
   )
@@ -594,11 +619,11 @@ function AssistantDraftChat({
 function AssistantSessionChat({
   sessionRef,
   accountUid,
-  inputRef,
+  composerRef,
 }: {
   sessionRef: AssistantSessionRef
   accountUid: string | null | undefined
-  inputRef: React.RefObject<HTMLTextAreaElement>
+  composerRef: React.MutableRefObject<CommentEditorSubmitHandle | null>
 }) {
   const {serverUrl, sessionId} = sessionRef
   const navigate = useNavigate()
@@ -607,16 +632,24 @@ function AssistantSessionChat({
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
   const retrySession = useRetrySession(serverUrl, accountUid)
+  // The agent definition, for the composer's user tool palette — same source as the full page.
+  const agentDetail = useAgentDetail(serverUrl, accountUid, session.data?.session.agentId)
   const windowContextLines = useAssistantWindowContextLines()
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
 
-  const [input, setInput] = useState('')
   const autoScroll = useChatAutoScroll()
 
   const status = session.data?.session.status
   const isStreaming = status === 'streaming'
+  const isBusy = messageSession.isPending || isStreaming
   const runStartedAt = useRunStartedAt(isStreaming)
+  // A sub-session still being driven by its parent is not the user's to message — same rule and
+  // wording as the full session page.
+  const parentSessionId = session.data?.session.parentSessionId
+  const ownRun = useRun(serverUrl, accountUid, parentSessionId ? session.data?.session.runId : undefined)
+  const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
+  const isDrivenByParent = !!parentSessionId && (isStreaming || hasLiveRun)
   const events = session.data?.events
   const sessionRuns = useSessionRuns(serverUrl, accountUid, sessionId)
   const rows = useMemo(
@@ -647,11 +680,11 @@ function AssistantSessionChat({
   const frozenRuns = useMemo(() => frozenRunIds(rows), [rows])
 
   const doSendMessage = useCallback(
-    (content: string | string[]) => {
+    (message: AgentSessionDraftMessage | AgentSessionDraftMessage[]) => {
       if (!accountUid) return
       const contextLines = windowContextLinesRef.current
-      const messages = (Array.isArray(content) ? content : [content]).map((text, index) =>
-        index === 0 && contextLines ? {text, contextLines} : {text},
+      const messages = (Array.isArray(message) ? message : [message]).map((message, index) =>
+        index === 0 && contextLines ? {...message, contextLines} : message,
       )
       addOptimisticSessionMessage(serverUrl, accountUid, sessionId, messages)
       messageSession.mutate({sessionId, message: messages})
@@ -659,23 +692,32 @@ function AssistantSessionChat({
     [accountUid, messageSession, serverUrl, sessionId],
   )
 
-  const {queuedMessages, queueMessage} = useQueuedChatMessages({isBusy: isStreaming, onFlush: doSendMessage})
+  const {queuedMessages, queueMessage} = useQueuedChatMessages<AgentSessionDraftMessage>({
+    isBusy,
+    onFlush: doSendMessage,
+  })
 
   // Retry is offered on a trailing error only, and survives its own in-flight state: the row goes
   // away when the retried run starts streaming, not when the request is sent.
-  const retryableRowKey = retryableErrorRowKey(rows, !!isStreaming)
+  const retryableRowKey = retryableErrorRowKey(rows, !!isBusy)
   const handleRetry = useCallback(() => {
     retrySession.mutate(sessionId, {
       onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not retry this turn'),
     })
   }, [retrySession, sessionId])
 
-  function handleSend() {
-    const content = input.trim()
-    if (!content) return
-    setInput('')
-    if (isStreaming) queueMessage(content)
-    else doSendMessage(content)
+  function handleSend(message: AgentSessionDraftMessage) {
+    if (isBusy) queueMessage(message)
+    else doSendMessage(message)
+  }
+
+  async function handleStop() {
+    try {
+      const result = await stopSession.mutateAsync(sessionId)
+      if (!result.stopped) toast.message('No active agent response to stop')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not stop agent response')
+    }
   }
 
   return (
@@ -763,33 +805,25 @@ function AssistantSessionChat({
         }
       />
 
-      <QueuedChatMessages messages={queuedMessages} />
+      <QueuedChatMessages messages={queuedMessages} getText={(message) => message.text} />
 
-      <ChatMessageComposer
-        textareaRef={inputRef}
-        placeholder={isStreaming ? 'Type to queue a message…' : 'Type a message…'}
-        value={input}
-        onChange={setInput}
-        onSend={() => {
-          handleSend()
-          requestAnimationFrame(() => inputRef.current?.focus())
-        }}
-        sendDisabled={!input.trim()}
-        className="border-border border-t px-3 py-2"
-        actions={
-          isStreaming ? (
-            <div className="flex gap-1">
-              {input.trim() ? (
-                <Button size="sm" onClick={handleSend} title="Queue message">
-                  <Send className="size-3.5" />
-                </Button>
-              ) : null}
-              <Button size="sm" variant="destructive" onClick={() => stopSession.mutate(sessionId)}>
-                <Square className="size-3" />
-              </Button>
-            </div>
-          ) : undefined
-        }
+      {/* No focus-on-mount here: session chats mount with the panel itself (e.g. on app launch),
+          where stealing focus from the document would be wrong. Focus is imperative, via the
+          panel's new-chat flows. */}
+      <AgentRichMessageComposer
+        isBusy={isBusy}
+        isStreaming={isStreaming}
+        disabledMessage={isDrivenByParent ? SUB_SESSION_DRIVEN_MESSAGE : undefined}
+        stopPending={stopSession.isPending}
+        serverUrl={serverUrl}
+        accountId={accountUid ?? null}
+        sessionId={sessionId}
+        agentTools={agentDetail.data?.agent.definition.tools}
+        agentToolsLoading={agentDetail.isLoading}
+        focusOnMount={false}
+        composerHandleRef={composerRef}
+        onSend={handleSend}
+        onStop={() => void handleStop()}
       />
     </div>
   )
