@@ -211,11 +211,35 @@ export function frozenRunIds(rows: AgentSessionChatRow[]): Set<string> {
  * them, so it is checked first.
  */
 export function isOptimisticUserEcho(incoming: SessionEventPayload, optimistic: SessionEventPayload): boolean {
-  const arrived = incoming as {type?: unknown; role?: unknown; content?: unknown}
+  const arrived = incoming as {
+    type?: unknown
+    role?: unknown
+    content?: unknown
+    rawMarkdown?: unknown
+    clientMessageId?: unknown
+  }
   if (arrived.type !== 'message' || arrived.role !== 'user') return false
   if (sessionEventActor(incoming) !== 'user') return false
-  const pending = optimistic as {type?: unknown; role?: unknown; content?: unknown}
-  return pending.type === 'message' && pending.role === 'user' && pending.content === arrived.content
+  const pending = optimistic as {
+    type?: unknown
+    role?: unknown
+    content?: unknown
+    rawMarkdown?: unknown
+    clientMessageId?: unknown
+  }
+  if (pending.type !== 'message' || pending.role !== 'user') return false
+  // By identity when the server echoes the id the send stamped — exact regardless of content.
+  if (typeof arrived.clientMessageId === 'string' && typeof pending.clientMessageId === 'string') {
+    return arrived.clientMessageId === pending.clientMessageId
+  }
+  // Older servers echo no id; match on `rawMarkdown`, which round-trips verbatim. `content` does
+  // not: the server re-serializes the message blocks through its own markdown writer, which
+  // disagrees with the client's on multi-paragraph spacing — comparing it would leave the pending
+  // row next to its own echo, flashing the message twice.
+  if (typeof arrived.rawMarkdown === 'string' && typeof pending.rawMarkdown === 'string') {
+    return arrived.rawMarkdown === pending.rawMarkdown
+  }
+  return pending.content === arrived.content
 }
 
 /**

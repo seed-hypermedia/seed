@@ -359,11 +359,13 @@ function AgentSessionPage({
   const doSendAgentMessage = useCallback(
     async (message: AgentSessionDraftMessage | AgentSessionDraftMessage[]) => {
       try {
-        const messages = Array.isArray(message) ? message : [message]
+        let messages = Array.isArray(message) ? message : [message]
         const textLength = messages.map((message) => message.text).join('\n').length
         console.info('[agents/ui] sending session message', {serverUrl, sessionId, textLength})
-        if (selectedAccountId) addOptimisticSessionMessage(serverUrl, selectedAccountId, sessionId, message)
-        const result = await messageSession.mutateAsync({sessionId, message})
+        // The stamped drafts carry the clientMessageIds the optimistic rows were keyed with, so the
+        // server's echo replaces those rows instead of rendering beside them.
+        if (selectedAccountId) messages = addOptimisticSessionMessage(serverUrl, selectedAccountId, sessionId, messages)
+        const result = await messageSession.mutateAsync({sessionId, message: messages})
         if (result._ !== 'MessageSessionResponse') throw new Error('Unexpected message response')
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Could not send message')

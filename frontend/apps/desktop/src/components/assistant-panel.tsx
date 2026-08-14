@@ -582,8 +582,10 @@ function AssistantDraftChat({
         createdAt: now,
         updatedAt: now,
       })
-      const messages = [{...message, contextLines: windowContextLinesRef.current}]
-      addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, messages)
+      // Send the stamped drafts, so the durable echo replaces the optimistic row by identity.
+      const messages = addOptimisticSessionMessage(serverUrl, accountUid, result.sessionId, [
+        {...message, contextLines: windowContextLinesRef.current},
+      ])
       messageSession.mutate({sessionId: result.sessionId, message: messages})
       onSessionCreated({serverUrl, sessionId: result.sessionId})
     } catch (caught) {
@@ -683,10 +685,15 @@ function AssistantSessionChat({
     (message: AgentSessionDraftMessage | AgentSessionDraftMessage[]) => {
       if (!accountUid) return
       const contextLines = windowContextLinesRef.current
-      const messages = (Array.isArray(message) ? message : [message]).map((message, index) =>
-        index === 0 && contextLines ? {...message, contextLines} : message,
+      // Send the stamped drafts, so the durable echo replaces the optimistic row by identity.
+      const messages = addOptimisticSessionMessage(
+        serverUrl,
+        accountUid,
+        sessionId,
+        (Array.isArray(message) ? message : [message]).map((message, index) =>
+          index === 0 && contextLines ? {...message, contextLines} : message,
+        ),
       )
-      addOptimisticSessionMessage(serverUrl, accountUid, sessionId, messages)
       messageSession.mutate({sessionId, message: messages})
     },
     [accountUid, messageSession, serverUrl, sessionId],

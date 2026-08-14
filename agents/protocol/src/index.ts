@@ -80,6 +80,11 @@ export type MessageSessionContentPart =
       type: 'text'
       text: string
       blocks?: AgentMessageBlock[]
+      /**
+       * Client-chosen id for this message, echoed back on the durable event so the sender can
+       * replace its optimistic pending row with the server's copy by identity instead of by text.
+       */
+      clientMessageId?: string
     }
   | {
       type: 'context'
@@ -1022,6 +1027,11 @@ export type SessionEventPayload =
       contextLines?: string[]
       /** Session-private attachments that accompanied this user message. */
       attachments?: SessionAttachmentInfo[]
+      /**
+       * Echo of the sender's `clientMessageId` on a user message, so the sending client can match
+       * this event to its optimistic pending row by identity. Absent on events from other writers.
+       */
+      clientMessageId?: string
       actor?: SessionActor
       /** Model/provider/usage/timing behind an assistant message. Absent on user and legacy events. */
       meta?: SessionEventMeta

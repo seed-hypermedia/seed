@@ -439,6 +439,66 @@ describe('isOptimisticUserEcho', () => {
     ).toBe(false)
   })
 
+  it('matches the echo by clientMessageId regardless of content', () => {
+    const stamped = {
+      type: 'message',
+      role: 'user',
+      content: 'first para\nsecond para',
+      rawMarkdown: 'first para\nsecond para',
+      clientMessageId: 'cm-1',
+    } as never
+    // The server re-serialized everything, but the identity round-tripped.
+    expect(
+      isOptimisticUserEcho(
+        {type: 'message', role: 'user', content: 'first para\n\nsecond para', clientMessageId: 'cm-1'} as never,
+        stamped,
+      ),
+    ).toBe(true)
+    // Identical text under a different id is a different message (e.g. sent twice on purpose).
+    expect(
+      isOptimisticUserEcho(
+        {
+          type: 'message',
+          role: 'user',
+          content: 'first para\nsecond para',
+          rawMarkdown: 'first para\nsecond para',
+          clientMessageId: 'cm-2',
+        } as never,
+        stamped,
+      ),
+    ).toBe(false)
+  })
+
+  it('matches the echo by verbatim rawMarkdown when the server re-serialized content', () => {
+    // A multi-paragraph message: the server stores `content` from its own markdown writer
+    // ("a\n\nb") while the client's optimistic row carries the composer's markdown ("a\nb").
+    // The verbatim rawMarkdown is what round-trips.
+    const multiPending = {
+      type: 'message',
+      role: 'user',
+      content: 'first para\nsecond para',
+      rawMarkdown: 'first para\nsecond para',
+    } as never
+    expect(
+      isOptimisticUserEcho(
+        {
+          type: 'message',
+          role: 'user',
+          content: 'first para\n\nsecond para',
+          rawMarkdown: 'first para\nsecond para',
+        } as never,
+        multiPending,
+      ),
+    ).toBe(true)
+    // A different message is still not an echo, even with rawMarkdown on both sides.
+    expect(
+      isOptimisticUserEcho(
+        {type: 'message', role: 'user', content: 'other', rawMarkdown: 'other'} as never,
+        multiPending,
+      ),
+    ).toBe(false)
+  })
+
   it('leaves rows that are not the user`s message alone', () => {
     expect(
       isOptimisticUserEcho({type: 'message', role: 'assistant', content: 'Finish the plan.'} as never, pending),

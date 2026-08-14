@@ -1403,6 +1403,12 @@ export type AgentSessionDraftMessage = {
   contextLines?: string[]
   /** Session attachments (already uploaded) referenced by this message. */
   attachments?: SessionAttachmentInfo[]
+  /**
+   * Identity shared between the optimistic transcript row and the sent message, echoed back on the
+   * durable event so the pending row is replaced by its echo instead of rendering next to it.
+   * Stamped by {@link addOptimisticSessionMessage}; callers pass its returned drafts to the send.
+   */
+  clientMessageId?: string
 }
 
 export type FileUploadProgress = {sent: number; total: number}
@@ -1597,6 +1603,7 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
             type: 'text',
             text: message.text,
             ...(message.blocks ? {blocks: message.blocks} : {}),
+            ...(message.clientMessageId ? {clientMessageId: message.clientMessageId} : {}),
           }),
         ),
       ]
@@ -1607,7 +1614,9 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
           _: 'MessageSession',
           sessionId,
           content,
-          clientMessageId: crypto.randomUUID(),
+          // Doubles as the action's idempotency key; unique per send since drafts are stamped
+          // fresh by addOptimisticSessionMessage.
+          clientMessageId: messages[0]?.clientMessageId ?? crypto.randomUUID(),
         },
       })
     },
@@ -2013,17 +2022,23 @@ export function addOptimisticSessionMessage(
   accountUid: string,
   sessionId: string,
   message: AgentSessionDraftMessage | AgentSessionDraftMessage[],
-) {
+): AgentSessionDraftMessage[] {
+  // Every pending row gets an identity the server echoes back on the durable event. Callers send
+  // the returned drafts, so the row and the message on the wire share one id and the echo replaces
+  // exactly this row — text comparison can't do that, since the server re-serializes `content`.
+  const messages = (Array.isArray(message) ? message : [message]).map((message) => ({
+    ...message,
+    clientMessageId: message.clientMessageId ?? crypto.randomUUID(),
+  }))
   queryClient.setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
     if (!old || old._ !== 'GetSessionResponse') return old
-    const messages = Array.isArray(message) ? message : [message]
     const now = Date.now()
     return {
       ...old,
       events: [
         ...old.events,
         ...messages.map((message) => ({
-          id: `optimistic-${crypto.randomUUID()}`,
+          id: `optimistic-${message.clientMessageId}`,
           sessionId,
           seq: Number.MAX_SAFE_INTEGER,
           event: {
@@ -2034,6 +2049,7 @@ export function addOptimisticSessionMessage(
             actor: 'user',
             content: message.text,
             rawMarkdown: message.text,
+            clientMessageId: message.clientMessageId,
             ...(message.blocks ? {blocks: message.blocks} : {}),
             // Mirrors the durable event shape so the context info chip shows without waiting for
             // the server round trip.
@@ -2045,6 +2061,7 @@ export function addOptimisticSessionMessage(
       ],
     }
   })
+  return messages
 }
 
 /** Creates a session for an existing server-hosted agent from the desktop GUI. */

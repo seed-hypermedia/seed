@@ -2636,6 +2636,9 @@ export class Service {
         ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
         ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
         ...(attachments.length > 0 ? {attachments} : {}),
+        // Echoed so the sending client can replace its optimistic pending row by identity — the
+        // stored `content` is re-serialized and cannot be matched by text.
+        ...(firstMessage.clientMessageId ? {clientMessageId: firstMessage.clientMessageId} : {}),
       },
       now,
     )
@@ -2650,6 +2653,7 @@ export class Service {
           content: modelTexts[index + 1]!,
           rawMarkdown: message.text,
           ...(message.blocks ? {blocks: message.blocks} : {}),
+          ...(message.clientMessageId ? {clientMessageId: message.clientMessageId} : {}),
         },
         Date.now(),
       )
@@ -9852,39 +9856,48 @@ function normalizeMessageContent(content: api.MessageSession['content']): Array<
   blocks?: api.AgentMessageBlock[]
   contextLines?: string[]
   attachmentIds?: string[]
+  clientMessageId?: string
 }> {
   if (!Array.isArray(content) || content.length === 0) throw new APIError(400, 'Message content is required')
   const contextLines: string[] = []
   const attachmentIds: string[] = []
-  const messages = content.flatMap<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}>(
-    (part) => {
-      if (!part || typeof part !== 'object') throw new APIError(400, 'Only text message content is supported')
-      if (part.type === 'context') {
-        contextLines.push(...normalizeContextLines(part.lines))
-        return []
+  const messages = content.flatMap<{
+    text: string
+    blocks?: api.AgentMessageBlock[]
+    contextLines?: string[]
+    clientMessageId?: string
+  }>((part) => {
+    if (!part || typeof part !== 'object') throw new APIError(400, 'Only text message content is supported')
+    if (part.type === 'context') {
+      contextLines.push(...normalizeContextLines(part.lines))
+      return []
+    }
+    if (part.type === 'attachment') {
+      if (typeof part.id !== 'string' || !/^[0-9a-f]{64}$/.test(part.id)) {
+        throw new APIError(400, 'Invalid attachment id')
       }
-      if (part.type === 'attachment') {
-        if (typeof part.id !== 'string' || !/^[0-9a-f]{64}$/.test(part.id)) {
-          throw new APIError(400, 'Invalid attachment id')
-        }
-        if (!attachmentIds.includes(part.id)) attachmentIds.push(part.id)
-        if (attachmentIds.length > MAX_MESSAGE_ATTACHMENTS) {
-          throw new APIError(400, `A message can reference at most ${MAX_MESSAGE_ATTACHMENTS} attachments`)
-        }
-        return []
+      if (!attachmentIds.includes(part.id)) attachmentIds.push(part.id)
+      if (attachmentIds.length > MAX_MESSAGE_ATTACHMENTS) {
+        throw new APIError(400, `A message can reference at most ${MAX_MESSAGE_ATTACHMENTS} attachments`)
       }
-      if (part.type !== 'text' || typeof part.text !== 'string') {
-        throw new APIError(400, 'Only text message content is supported')
-      }
-      const text = part.text.trim()
-      return [
-        {
-          text,
-          ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
-        },
-      ]
-    },
-  )
+      return []
+    }
+    if (part.type !== 'text' || typeof part.text !== 'string') {
+      throw new APIError(400, 'Only text message content is supported')
+    }
+    const text = part.text.trim()
+    const clientMessageId =
+      part.clientMessageId === undefined
+        ? undefined
+        : normalizeBoundedString(part.clientMessageId, 'Client message ID', MAX_NAME_BYTES)
+    return [
+      {
+        text,
+        ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
+        ...(clientMessageId ? {clientMessageId} : {}),
+      },
+    ]
+  })
   if (messages.length === 0) throw new APIError(400, 'Message content is required')
   if (messages.some((message) => !message.text)) throw new APIError(400, 'Message content is required')
   if (

@@ -2512,6 +2512,77 @@ describe('api service', () => {
     }
   })
 
+  test('echoes a text part clientMessageId on the durable user event', async () => {
+    // The sending client keys its optimistic pending row by this id; the durable event must carry
+    // it back so the row is replaced by identity instead of by comparing re-serialized content.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {onEvent: () => {}})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'prompt', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      globalThis.fetch = mock(async () =>
+        openAIStreamResponse([
+          {id: 'chat-1', choices: [{delta: {content: 'Done.'}}]},
+          {id: 'chat-1', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ]),
+      ) as unknown as typeof fetch
+
+      const message = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Hello there', clientMessageId: 'cm-echo-1'}],
+          },
+        }),
+      )
+      expect(message._).toBe('MessageSessionResponse')
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const payloads = session.events.map((event) => event.event as {role?: string; clientMessageId?: string})
+      const userEvent = payloads.find((payload) => payload.role === 'user')
+      expect(userEvent?.clientMessageId).toBe('cm-echo-1')
+      // The id belongs to the user's message alone — nothing else inherits it.
+      const assistantEvent = payloads.find((payload) => payload.role === 'assistant')
+      expect(assistantEvent?.clientMessageId).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('manual session titles stick across turns and turns persist only message events', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
