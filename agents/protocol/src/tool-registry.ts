@@ -156,6 +156,7 @@ const writeVerb = {
     '- `ipfs://` — publish to IPFS and get a CID URL back. Provide {fromPath: "~/memory/<path>"} or {fromAttachment: "<id>"} in options.',
     '- `hm://<account>/<path>` — publish a hypermedia document with markdown `content`. The default creates a NEW document; pass {action: "update"} to revise an existing document in place (same address, new version). Options: {name} sets the document name, REQUIRED when creating (it is stored as metadata.name; a # heading is body content, not the name); {metadata} sets further document metadata attributes as an object (e.g. {summary, icon, cover, or custom keys}) — metadata belongs here, never in the body text; {signer} picks the signing identity by profileName or publicKey; {action} also covers "comment" (with {target, replyTo}), "move" (with {toPath}), "redirect" (with {toUrl}), "delete", "fork" (with {fromUrl}). Unrecognized option keys are refused, not ignored. Parent documents must exist before nested paths.',
     'Writing to hm:// publishes signed content other people can see — be sure the content is ready. Pass top-level dryRun: true to validate an hm:// write without publishing anything.',
+    'Every hm:// link inside document or comment content is checked before publishing: malformed links always fail the write, and links whose targets do not exist on the server fail it too — fix them (read each link to verify), or pass {skipLinkCheck: true} in options only when a linked target is about to be created.',
   ].join('\n'),
   inputSchema: {
     type: 'object',

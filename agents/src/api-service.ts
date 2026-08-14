@@ -7389,7 +7389,7 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
   dryRun: 'dryRun is a top-level field on the write call itself, next to address and content.',
 }
 
-const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input'] as const
+const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
   document: ['name', 'metadata'],
   update: ['name', 'metadata'],
@@ -7591,7 +7591,11 @@ export async function executeWriteVerb(
       command,
       signer: options.signer,
       dryRun,
-      input: {...passthrough, ...commandInput},
+      input: {
+        ...passthrough,
+        ...(options.skipLinkCheck === true ? {skipLinkCheck: true} : {}),
+        ...commandInput,
+      },
     })
     switch (action) {
       case 'document':
@@ -8302,6 +8306,7 @@ async function writeCommentCreate(
   const resource = await client.request('Resource', resourceId)
   if (resource.type !== 'document') throw new APIError(400, `Comment target is ${resource.type}, not a document`)
   const blocks = commentMarkdownToBlocks(body)
+  await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
   const replyCommentVersion = parentComment?.version || undefined
   const rootReplyCommentVersion = parentComment
     ? parentComment.threadRootVersion || parentComment.version || undefined
@@ -8356,6 +8361,8 @@ async function writeCommentUpdate(
   const commentId = normalizeCommentId(request.input.comment ?? request.input.commentId, 'Comment ID')
   const body = normalizeWriteContent(request.input.body ?? request.input.content ?? request.input.text, 'Comment body')
   const existing = await client.request('Comment', commentId)
+  const blocks = commentMarkdownToBlocks(body)
+  await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
   if (request.dryRun) return writeToolResult(request.command, signer, {commentId, dryRun: true})
   const published = await client.publish(
     await updateComment(
@@ -8364,7 +8371,7 @@ async function writeCommentUpdate(
         targetAccount: existing.targetAccount,
         targetPath: existing.targetPath || '',
         targetVersion: existing.targetVersion,
-        content: commentMarkdownToBlocks(body),
+        content: blocks,
         replyParentVersion: existing.replyParentVersion || null,
         rootReplyCommentVersion: existing.threadRootVersion || null,
         visibility: existing.visibility === 'PRIVATE' ? 'Private' : '',
@@ -8443,6 +8450,7 @@ async function writeDocumentCreate(
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
   const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
+  await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -8498,6 +8506,7 @@ async function writeDocumentUpdate(
     return writeToolError(request.command, 'Document version conflict', {currentVersion: resource.document.version})
   }
   const parsed = parseWriteDocumentContent(request.input)
+  await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
   const oldNodes = (resource.document.content || []).map((node) => toAPIBlockNode(node))
   const oldMap = createBlocksMap(oldNodes)
@@ -9259,6 +9268,96 @@ function writeToolResult(
 
 function writeToolError(command: string, message: string, details?: Record<string, unknown>): Record<string, unknown> {
   return {type: 'hypermedia_write_error', command, message, ...(details ? {details} : {})}
+}
+
+/** Every hm: link in a block tree: Link/Embed annotations plus link-bearing blocks (Embed, Button, …). */
+export function collectHmContentLinks(nodes: HMBlockNode[]): string[] {
+  const links: string[] = []
+  const visit = (list: HMBlockNode[]) => {
+    for (const node of list) {
+      const block = node.block as {link?: unknown; annotations?: unknown}
+      if (typeof block.link === 'string' && block.link.startsWith('hm:')) links.push(block.link)
+      if (Array.isArray(block.annotations)) {
+        for (const annotation of block.annotations) {
+          const link = isRecord(annotation) ? annotation.link : undefined
+          if (typeof link === 'string' && link.startsWith('hm:')) links.push(link)
+        }
+      }
+      if (node.children?.length) visit(node.children)
+    }
+  }
+  visit(nodes)
+  return links
+}
+
+/** Resolution checks per write are bounded; a document with more distinct links passes the rest unchecked. */
+const MAX_LINK_RESOLUTION_CHECKS = 50
+
+/**
+ * A published document with a dead hm:// link is broken exactly where nobody can fix it: at the
+ * reader. So content-bearing writes refuse to publish them. Malformed hm: links always fail;
+ * well-formed ones must resolve on the configured HM server — `{type: 'not-found'}` is a broken
+ * link, while a server that cannot answer (thrown request) never blocks publishing, because an
+ * infra flake must not be able to hold content hostage. `skipLinkCheck` skips only the resolution
+ * half, for links whose targets are about to exist; nothing skips malformed-ness.
+ */
+export async function assertHmContentLinks(
+  // Structural: only Resource lookups are needed, and the SeedClient generic makes a full
+  // Pick<> unsatisfiable for test fakes.
+  client: {
+    request: (key: 'Resource', id: NonNullable<ReturnType<typeof unpackHmId>>) => Promise<unknown>
+  },
+  nodes: HMBlockNode[],
+  options: {skipResolve?: boolean} = {},
+): Promise<void> {
+  const links = [...new Set(collectHmContentLinks(nodes))]
+  if (links.length === 0) return
+  const malformed: string[] = []
+  const targets: Array<{link: string; id: NonNullable<ReturnType<typeof unpackHmId>>}> = []
+  for (const link of links) {
+    // unpackHmId parses shape only; a link is well-formed when its uid is also a real Ed25519
+    // principal — "hm://my-doc/notes" parses but can never resolve anywhere.
+    const id = unpackHmId(link)
+    if (!id) {
+      malformed.push(link)
+      continue
+    }
+    try {
+      blobs.principalFromString(id.uid)
+      targets.push({link, id})
+    } catch {
+      malformed.push(link)
+    }
+  }
+  if (malformed.length > 0) {
+    throw new APIError(
+      400,
+      `Content contains malformed hm:// links — fix or remove them before publishing: ${malformed.join(' · ')}`,
+    )
+  }
+  if (options.skipResolve) return
+  const broken: string[] = []
+  const queue = targets.slice(0, MAX_LINK_RESOLUTION_CHECKS)
+  const CONCURRENCY = 4
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    await Promise.all(
+      queue.slice(i, i + CONCURRENCY).map(async ({link, id}) => {
+        try {
+          const resource = await client.request('Resource', {...id, blockRef: null})
+          if (isRecord(resource) && resource.type === 'not-found') broken.push(link)
+        } catch {
+          // Unreachable/erroring HM server: unverifiable, not broken. The write proceeds.
+        }
+      }),
+    )
+  }
+  if (broken.length > 0) {
+    throw new APIError(
+      400,
+      `Content links to hm:// resources that do not exist on the server: ${broken.join(' · ')}. ` +
+        'Fix the links (read them to verify), or pass options.skipLinkCheck: true only if the targets are about to be created.',
+    )
+  }
 }
 
 /**
