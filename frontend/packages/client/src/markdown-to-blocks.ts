@@ -459,14 +459,16 @@ function tokenize(markdown: string): RawBlock[] {
       !/^[-*+]\s+/.test(lines[i]!.trim()) &&
       !/^\d+\.\s+/.test(lines[i]!.trim())
     ) {
-      paraLines.push(lines[i]!)
+      // Leading indentation is emitter nesting depth, not content — keeping it
+      // would grow paragraph text by one indent level per markdown round trip.
+      paraLines.push(lines[i]!.trimStart())
       i++
     }
     if (paraLines.length === 0) {
       // The line looked special to the paragraph collector but matched no block
       // branch above (e.g. "#nospace" or 7+ hashes). Consume it as paragraph text
       // so the outer loop always makes progress.
-      paraLines.push(line)
+      paraLines.push(line.trimStart())
       i++
     }
     // Block ID is on the first line of the paragraph
@@ -539,15 +541,14 @@ function createImageNode(alt: string, url: string, id?: string): BlockNode {
   })
 }
 
-function createListNode(
-  items: {text: string; id?: string}[],
+function createListContainerNode(
+  items: BlockNode[],
   listType: 'Unordered' | 'Ordered',
   containerId?: string,
-): BlockNode[] {
-  // Each list item is a child paragraph under a parent with childrenType.
-  // The container is an invisible Paragraph with childrenType set.
-  const children = items.map((item) => createParagraphNode(item.text, item.id))
-  const container = makeBlockNode(
+): BlockNode {
+  // Invisible Paragraph container with childrenType set — the fallback shape
+  // when a list has no preceding text block to nest under (see parseMarkdown).
+  return makeBlockNode(
     {
       type: 'Paragraph',
       id: containerId || generateBlockId(),
@@ -555,9 +556,8 @@ function createListNode(
       annotations: [],
       childrenType: listType,
     },
-    children,
+    items,
   )
-  return [container]
 }
 
 // ─── Table parser ────────────────────────────────────────────────────────────
@@ -875,14 +875,76 @@ export function parseMarkdown(markdown: string): {
   // heading stack: [{level, node}] — tracks current hierarchy
   const headingStack: {level: number; node: BlockNode}[] = []
 
+  function currentParent(): BlockNode | undefined {
+    return headingStack.length > 0 ? headingStack[headingStack.length - 1]!.node : undefined
+  }
+
+  function currentSiblings(): BlockNode[] {
+    return currentParent()?.children ?? rootNodes
+  }
+
+  /**
+   * A list merged directly into a heading (heading childrenType set to
+   * Unordered/Ordered) is only valid while the list is the heading's sole
+   * content — anything appended after it would render as another list item.
+   * When more content arrives, wrap the merged items back into an invisible
+   * container and restore the heading to a Group parent.
+   */
+  function unmergeHeadingList() {
+    const parent = currentParent()
+    if (!parent || parent.block.type !== 'Heading') return
+    const ct = parent.block.childrenType
+    if (ct !== 'Unordered' && ct !== 'Ordered') return
+    parent.children = [createListContainerNode(parent.children, ct)]
+    parent.block.childrenType = 'Group'
+  }
+
   function addToCurrentParent(node: BlockNode | BlockNode[]) {
+    unmergeHeadingList()
     const nodes = Array.isArray(node) ? node : [node]
-    if (headingStack.length === 0) {
-      rootNodes.push(...nodes)
-    } else {
-      const parent = headingStack[headingStack.length - 1]!.node
-      parent.children.push(...nodes)
+    currentSiblings().push(...nodes)
+  }
+
+  /**
+   * The closest preceding text block a list can nest under:
+   *   - the previous sibling, when it is a childless text Paragraph, or
+   *   - the enclosing heading, when the list is its first content.
+   * Returns undefined when neither applies (start of document, after a
+   * non-text block, or under a parent already holding merged list items).
+   */
+  function findListTarget(): BlockNode | undefined {
+    const parent = currentParent()
+    const parentType = parent?.block.childrenType
+    if (parentType === 'Unordered' || parentType === 'Ordered') return undefined
+    const siblings = currentSiblings()
+    const prev = siblings[siblings.length - 1]
+    if (prev) {
+      const canNest =
+        prev.block.type === 'Paragraph' &&
+        prev.block.text !== '' &&
+        prev.children.length === 0 &&
+        !prev.block.childrenType
+      return canNest ? prev : undefined
     }
+    return parent
+  }
+
+  function addList(items: {text: string; id?: string}[], listType: 'Unordered' | 'Ordered', containerId?: string) {
+    const itemNodes = items.map((item) => createParagraphNode(item.text, item.id))
+
+    // An explicit container id means the source markdown round-tripped a
+    // document that really has an invisible list container — keep that block
+    // so its identity survives updates. Otherwise nest the items under the
+    // closest text block instead of fabricating an empty paragraph.
+    if (!containerId) {
+      const target = findListTarget()
+      if (target) {
+        target.block.childrenType = listType
+        target.children.push(...itemNodes)
+        return
+      }
+    }
+    addToCurrentParent(createListContainerNode(itemNodes, listType, containerId))
   }
 
   for (const token of tokens) {
@@ -924,11 +986,11 @@ export function parseMarkdown(markdown: string): {
         break
 
       case 'ul':
-        addToCurrentParent(createListNode(token.items, 'Unordered', token.containerId))
+        addList(token.items, 'Unordered', token.containerId)
         break
 
       case 'ol':
-        addToCurrentParent(createListNode(token.items, 'Ordered', token.containerId))
+        addList(token.items, 'Ordered', token.containerId)
         break
     }
   }
