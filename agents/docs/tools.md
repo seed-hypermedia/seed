@@ -177,13 +177,15 @@ prompt states this, and re-reading after a write is required because block IDs m
 **Address resolution.** Hypermedia reads go through the shared client resolver, not bespoke parsing:
 `resolveIdWithClient()` from `frontend/packages/client/src/resource-read.ts`, given a `domainResolver` backed by the
 read-only Seed `GetDomain` request. That covers pasted clean web-domain URLs, `hm:`/`hm://` IDs, block fragments, and
-comment view URLs alike; `:profile` paths branch to the profile reader, and `/:attributes` is stripped into an
-attributes-only read. Bare `hm://` addresses read from the service's configured HM server (`SEED_AGENTS_HM_SERVER_URL` —
-the local node in every desktop environment), exactly as `write` publishes; explicit gateway/site URLs read from the
-URL's own origin. There is no cross-server fallback: a document the configured server does not have is a `not-found`,
-never a silent read from a public gateway. Every read-path request carries a 30s deadline so a wedged server fails the
-tool call instead of hanging the session's run. The result keeps both `requestedId` (what was asked for) and `id` (the
-canonical hm:// URL). The agent never shells out to `seed-cli`.
+comment view URLs alike; `:profile` paths branch to the profile reader, `/:attributes` is stripped into an
+attributes-only read, and `/:directory` branches to a Children `Query` listing of the id's child documents (trimmed to
+plain JSON-safe entries: id, path, name, summary, updateTime, childrenCount). Bare `hm://` addresses read from the
+service's configured HM server (`SEED_AGENTS_HM_SERVER_URL` — the local node in every desktop environment), exactly as
+`write` publishes; explicit gateway/site URLs read from the URL's own origin. There is no cross-server fallback: a
+document the configured server does not have is a `not-found`, never a silent read from a public gateway. Every
+read-path request carries a 30s deadline so a wedged server fails the tool call instead of hanging the session's run.
+The result keeps both `requestedId` (what was asked for) and `id` (the canonical hm:// URL). The agent never shells out
+to `seed-cli`.
 
 ## `write`
 

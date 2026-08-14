@@ -9566,6 +9566,9 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
   if (id.path?.[0] === ':profile') {
     return readProfileHypermedia({requestedId, id, client, serverUrl})
   }
+  if (id.path?.[id.path.length - 1] === ':directory') {
+    return readDirectoryHypermedia({requestedId, id: {...id, path: id.path.slice(0, -1)}, client, serverUrl})
+  }
   const stripped = stripAttributesViewTerm(id)
   id = stripped.id
   const attributesOnly = stripped.attributesOnly
@@ -9664,6 +9667,60 @@ async function readProfileHypermedia(input: {
     ]
       .filter((line): line is string => typeof line === 'string')
       .join('\n'),
+  }
+}
+
+/**
+ * Implements the `:directory` view term: lists the alive child documents under the id, the same
+ * listing the desktop's directory tab shows. The Query listing carries bigints and Dates that
+ * don't survive the transcript's JSON encoding, so each entry is trimmed to plain data.
+ */
+async function readDirectoryHypermedia(input: {
+  requestedId: string
+  id: UnpackedHypermediaId
+  client: ReturnType<typeof createSeedClient>
+  serverUrl: string
+}): Promise<Record<string, unknown>> {
+  const {requestedId, id, client, serverUrl} = input
+  // No sort: the daemon's `Path` sort term currently returns an empty result set, so the
+  // listing relies on the server's default ordering.
+  const result = await client.request('Query', {
+    includes: [{space: id.uid, path: hmIdPathToEntityQueryPath(id.path), mode: 'Children'}],
+  })
+  const parentId = packHmId(id)
+  const entries = (result?.results ?? []).map((info) => ({
+    id: info.id.id,
+    path: hmIdPathToEntityQueryPath(info.path),
+    name: info.metadata?.name || undefined,
+    summary: info.metadata?.summary || undefined,
+    updateTime:
+      typeof info.updateTime === 'string'
+        ? info.updateTime
+        : info.updateTime && typeof info.updateTime === 'object'
+          ? new Date(Number(info.updateTime.seconds) * 1000).toISOString()
+          : undefined,
+    childrenCount: info.activitySummary?.childrenCount,
+  }))
+  const markdown = [
+    `# Directory of ${parentId}`,
+    '',
+    ...(entries.length
+      ? entries.map((entry) => {
+          const label = entry.name || entry.path || entry.id
+          const children = typeof entry.childrenCount === 'number' ? ` (${entry.childrenCount} children)` : ''
+          return `- [${label}](${entry.id})${children}${entry.summary ? ` — ${entry.summary}` : ''}`
+        })
+      : ['(no child documents)']),
+  ].join('\n')
+  return {
+    type: 'hypermedia_directory',
+    requestedId,
+    id: `${parentId}/:directory`,
+    server: serverUrl,
+    format: 'markdown',
+    view: 'directory',
+    documents: entries,
+    markdown: ensureToolResultSize(markdown),
   }
 }
 

@@ -81,6 +81,76 @@ describe('api service', () => {
     }
   })
 
+  test('read tool lists child documents for :directory URLs', async () => {
+    // `<doc>/:directory` is a view term like `:attributes`: it must trigger a Query listing of
+    // the children (the desktop's directory tab), never a Resource fetch of a document at the
+    // literal path ':directory' (which is a guaranteed not-found).
+    const originalFetch = globalThis.fetch
+    const requests: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      requests.push(href)
+      if (href.includes('/api/Query')) {
+        return Response.json(
+          serialize({
+            in: unpackHmId('hm://z6MkDoc/notes'),
+            mode: 'Children',
+            results: [
+              {
+                type: 'document',
+                id: unpackHmId('hm://z6MkDoc/notes/alpha'),
+                path: ['notes', 'alpha'],
+                authors: [],
+                createTime: '2026-01-01T00:00:00Z',
+                updateTime: '2026-02-02T00:00:00Z',
+                sortTime: new Date('2026-02-02T00:00:00Z'),
+                genesis: 'gen',
+                version: 'v1',
+                breadcrumbs: [],
+                activitySummary: {
+                  latestCommentId: '',
+                  commentCount: 0,
+                  latestChangeTime: '2026-02-02T00:00:00Z',
+                  isUnread: false,
+                  childrenCount: 3,
+                },
+                generationInfo: {genesis: 'gen', generation: 1n},
+                metadata: {name: 'Alpha', summary: 'First child'},
+                visibility: 'PUBLIC',
+              },
+            ],
+          }),
+        )
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    try {
+      const result = await apisvc.readHypermedia({id: 'hm://z6MkDoc/notes/:directory'})
+
+      // One Query request, no Resource request, and the view term never reaches the server.
+      expect(requests).toHaveLength(1)
+      expect(requests[0]).toContain('/api/Query')
+      expect(requests[0]).not.toContain(':directory')
+
+      expect(result.type).toBe('hypermedia_directory')
+      expect(result.id).toBe('hm://z6MkDoc/notes/:directory')
+      const documents = result.documents as Array<Record<string, unknown>>
+      expect(documents).toHaveLength(1)
+      expect(documents[0]).toMatchObject({
+        id: 'hm://z6MkDoc/notes/alpha',
+        name: 'Alpha',
+        summary: 'First child',
+        childrenCount: 3,
+      })
+      expect(result.markdown).toContain('[Alpha](hm://z6MkDoc/notes/alpha)')
+      // The listing must survive the transcript's JSON encoding (no bigints or Dates).
+      expect(() => JSON.stringify(result)).not.toThrow()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('creates and lists agents for the signed account', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

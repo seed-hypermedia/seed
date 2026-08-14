@@ -241,6 +241,36 @@ export function registerDocumentCommands(program: Command) {
       try {
         const {id: resolvedId, client} = await resolveIdWithClient(id, globalOpts)
 
+        // `:directory` is a view term, not a path segment: list the child documents the way the
+        // desktop's directory tab does, instead of asking the server for a document at that path.
+        if (resolvedId.path?.[resolvedId.path.length - 1] === ':directory') {
+          const parent = {...resolvedId, path: resolvedId.path.slice(0, -1)}
+          // No sort: the daemon's `Path` sort term currently returns an empty result set, so the
+          // listing relies on the server's default ordering.
+          const result = await client.request('Query', {
+            includes: [{space: parent.uid, path: hmIdPathToEntityQueryPath(parent.path), mode: 'Children'}],
+          })
+          const results = result?.results ?? []
+          if (globalOpts.quiet || options.quiet) {
+            emit(results.map((r) => `${r.id.id}\t${r.metadata?.name || ''}`).join('\n'))
+          } else if (useStructuredOutput) {
+            emit(formatOutput(result, format, pretty))
+          } else {
+            let md = results.length
+              ? results
+                  .map((r) => {
+                    const label = r.metadata?.name || hmIdPathToEntityQueryPath(r.path) || r.id.id
+                    const summary = r.metadata?.summary ? ` — ${r.metadata.summary}` : ''
+                    return `- [${label}](${r.id.id})${summary}`
+                  })
+                  .join('\n')
+              : '(no child documents)'
+            if (pretty) md = renderMarkdown(md)
+            emit(md)
+          }
+          return
+        }
+
         if (options.metadata) {
           const result = await client.request('ResourceMetadata', resolvedId)
           if (globalOpts.quiet || options.quiet) {

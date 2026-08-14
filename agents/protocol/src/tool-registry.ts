@@ -96,7 +96,7 @@ const readVerb = {
     'Read anything you can address. One verb for your whole world; the address shape picks the source:',
     '- `~/memory/<path>` — a file in your persistent memory. A directory path (or `~/memory/`) lists entries with sizes.',
     '- `~/tools/<name>` — a tool contract: full description plus input/output schemas. `~/tools/` lists every tool you can call.',
-    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default.',
+    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile.',
     '- `ipfs://<cid>` — fetch content by CID into memory and return it (binary files return metadata only).',
     '- `https://…` — read a public web page as markdown.',
     '- `activity:` — the recent activity feed; filter with options {authors, eventTypes, resource, pageSize, pageToken}.',
