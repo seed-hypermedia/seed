@@ -875,7 +875,8 @@ export type RunInfo = {
   /** Transcript session for agent runs; workflow runs have none. */
   sessionId?: string
   origin: 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
-  title?: string
+  /** Always present: every run is created with a real title (message excerpt, brief, or name). */
+  title: string
   /** Label of the parent's plan step this run works on, when the spawner recorded one. */
   stepLabel?: string
   /**
@@ -892,7 +893,18 @@ export type RunInfo = {
   status: RunStatus
   wait?: RunWaitInfo
   plan?: RunPlan
-  error?: {code: string; message: string}
+  error?: {
+    code: string
+    message: string
+    /** Script stack for workflow errors; `workflow.js:LINE` frames index into `sourceText`. */
+    stack?: string
+    /** Tool name of the failed call this error propagated from, when it was one. */
+    tool?: string
+    /** Journal callSeq of that failed call — joins the error to its journaled args and result. */
+    callSeq?: number
+    /** Structured detail the failing tool attached. */
+    detail?: unknown
+  }
   /**
    * Obligations this run ended without meeting. Absent on every run that kept its word — which is
    * nearly all of them — so its presence is the signal.

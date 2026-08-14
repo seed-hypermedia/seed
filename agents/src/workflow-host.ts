@@ -85,9 +85,28 @@ export type WorkflowAdapters = {
   memoryBytes?: number
 }
 
+/**
+ * A workflow failure with everything the moment of failure knew: the QuickJS stack (its line
+ * numbers point into `workflow.js`, i.e. the stored source), and — when the terminal error was a
+ * tool call's rejection propagating out uncaught — the failing call's identity, so a reader can be
+ * taken to the exact journaled call (and its arguments) instead of guessing.
+ */
+export type WorkflowErrorInfo = {
+  code: string
+  message: string
+  retryable?: boolean
+  stack?: string
+  /** Tool name of the failed ctx.call this error propagated from, when it did. */
+  tool?: string
+  /** Journal callSeq of that failed call — the durable pointer to its args and result. */
+  callSeq?: number
+  /** Structured detail the failing tool attached, forwarded verbatim. */
+  detail?: unknown
+}
+
 export type WorkflowVMOutcome =
   | {type: 'succeeded'; output: unknown}
-  | {type: 'failed'; error: {code: string; message: string; retryable?: boolean}}
+  | {type: 'failed'; error: WorkflowErrorInfo}
   | {type: 'canceled'}
   | {
       type: 'parked'
@@ -158,6 +177,13 @@ class ActionError extends Error {
     this.code = info && info.code ? info.code : 'tool-error';
     this.retryable = Boolean(info && info.retryable);
     this.detail = info ? info.detail : undefined;
+    // Identity of the failed call, stamped by the host: if this error escapes uncaught it becomes
+    // the run's terminal error, and these are what let the UI point at the exact failing call.
+    this.tool = info && info.tool ? String(info.tool) : undefined;
+    this.callSeq = info && typeof info.callSeq === 'number' ? info.callSeq : undefined;
+    // The construction stack is prelude plumbing (__deliver), never the await site — noise that
+    // would masquerade as a script location. The call identity above is the real pointer.
+    this.stack = undefined;
   }
 }
 function __call(op, args) {
@@ -239,6 +265,70 @@ function __makeCtx(input, runId) {
     },
   });
 }
+// UTF-8 text coding. QuickJS ships pure ECMAScript, so the WHATWG encoders scripts reach for by
+// habit (byte-size checks before publishing, hashing prep) do not exist natively — and a missing
+// global fails at runtime, deep into a run the lint approved. Encoding is a pure function of its
+// input, so providing it keeps the realm deterministic and replay-safe. utf-8 only.
+function __utf8Encode(input) {
+  var str = String(input === undefined ? '' : input);
+  var out = [];
+  for (var i = 0; i < str.length; i++) {
+    var code = str.codePointAt(i);
+    if (code >= 0xd800 && code <= 0xdfff) code = 0xfffd; // lone surrogate -> replacement, per spec
+    else if (code > 0xffff) i++;
+    if (code < 0x80) out.push(code);
+    else if (code < 0x800) out.push(0xc0 | (code >> 6), 0x80 | (code & 63));
+    else if (code < 0x10000) out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+    else out.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63));
+  }
+  return new Uint8Array(out);
+}
+function __utf8Decode(input) {
+  var bytes =
+    input instanceof Uint8Array ? input
+    : input instanceof ArrayBuffer ? new Uint8Array(input)
+    : ArrayBuffer.isView(input) ? new Uint8Array(input.buffer, input.byteOffset, input.byteLength)
+    : null;
+  if (!bytes) throw new TypeError('TextDecoder.decode expects an ArrayBuffer or ArrayBuffer view');
+  var out = '';
+  for (var i = 0; i < bytes.length; ) {
+    var b = bytes[i];
+    var code, extra;
+    if (b < 0x80) { code = b; extra = 0; }
+    else if ((b & 0xe0) === 0xc0) { code = b & 31; extra = 1; }
+    else if ((b & 0xf0) === 0xe0) { code = b & 15; extra = 2; }
+    else if ((b & 0xf8) === 0xf0) { code = b & 7; extra = 3; }
+    else { out += '\\ufffd'; i++; continue; }
+    var ok = true;
+    for (var j = 1; j <= extra; j++) {
+      var cont = bytes[i + j];
+      if (cont === undefined || (cont & 0xc0) !== 0x80) { ok = false; break; }
+      code = (code << 6) | (cont & 63);
+    }
+    if (!ok) { out += '\\ufffd'; i++; continue; }
+    i += extra + 1;
+    if (
+      code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff) ||
+      (extra === 1 && code < 0x80) || (extra === 2 && code < 0x800) || (extra === 3 && code < 0x10000)
+    ) { out += '\\ufffd'; continue; }
+    out += String.fromCodePoint(code);
+  }
+  return out;
+}
+class TextEncoder {
+  get encoding() { return 'utf-8'; }
+  encode(input) { return __utf8Encode(input); }
+}
+class TextDecoder {
+  constructor(label) {
+    var name = label === undefined ? 'utf-8' : String(label).toLowerCase();
+    if (name !== 'utf-8' && name !== 'utf8' && name !== 'unicode-1-1-utf-8') {
+      throw new RangeError('Only utf-8 is supported in workflows');
+    }
+  }
+  get encoding() { return 'utf-8'; }
+  decode(input) { return input === undefined ? '' : __utf8Decode(input); }
+}
 Math.random = function () { throw new Error('Math.random is not available in workflows; take randomness as input'); };
 Date = function () { throw new Error('Date is not available in workflows; use await ctx.now()'); };
 `
@@ -248,9 +338,11 @@ type Delivery = {callId: number; ok: boolean; json: string}
 
 class WorkflowFailure extends Error {
   readonly code: string
-  constructor(code: string, message: string) {
+  readonly vmStack?: string
+  constructor(code: string, message: string, vmStack?: string) {
     super(message)
     this.code = code
+    this.vmStack = vmStack
   }
 }
 
@@ -353,19 +445,24 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
   const evalGuarded = (code: string, label: string): void => {
     sliceDeadline = Date.now() + fuelMs
     interrupted = false
-    const result = vm.evalCode(code)
+    // The label doubles as the eval unit's filename, so stack frames say where they are: an error
+    // in the script itself reads `workflow.js:LINE`, with LINE valid in the stored source (the
+    // export-default transform preserves line numbers).
+    const result = vm.evalCode(code, `${label}.js`)
     if ('error' in result && result.error) {
       const detail = vm.dump(result.error)
       result.error.dispose()
       const message =
         typeof detail === 'object' && detail && 'message' in detail ? String(detail.message) : String(detail)
+      const stack =
+        typeof detail === 'object' && detail && 'stack' in detail && detail.stack ? String(detail.stack) : undefined
       if (interrupted) {
         throw new WorkflowFailure(
           adapters.isCanceled() ? 'canceled' : 'fuel-exhausted',
           adapters.isCanceled() ? 'Workflow canceled' : `Workflow compute slice exceeded ${fuelMs}ms (${label})`,
         )
       }
-      throw new WorkflowFailure('workflow-error', message)
+      throw new WorkflowFailure('workflow-error', message, stack)
     }
     if ('value' in result) result.value.dispose()
   }
@@ -386,6 +483,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
       throw new WorkflowFailure(
         'workflow-error',
         typeof detail === 'object' && detail && 'message' in detail ? String(detail.message) : String(detail),
+        typeof detail === 'object' && detail && 'stack' in detail && detail.stack ? String(detail.stack) : undefined,
       )
     }
   }
@@ -396,11 +494,13 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
 
   const journaledResultValue = (entry: Extract<WorkflowJournalEntry, {kind: 'result'}>): [boolean, unknown] => {
     if (entry.status === 'succeeded') return [true, entry.output]
-    return [false, entry.error ?? {code: 'tool-error', message: 'Action failed'}]
+    // Re-attach the call's identity on replay, so a failure delivered from the journal carries the
+    // same pointer a live failure does — the terminal error must not depend on which pass failed.
+    return [false, {...(entry.error ?? {code: 'tool-error', message: 'Action failed'}), callSeq: entry.callSeq}]
   }
 
   /** Runs a live (non-replayed) async effect and journals + delivers its result. */
-  const startInflight = (callId: number, callSeq: number, effect: () => Promise<unknown>): void => {
+  const startInflight = (callId: number, callSeq: number, effect: () => Promise<unknown>, tool?: string): void => {
     const promise = effect()
       .then((output) => {
         adapters.journal.append({kind: 'result', callSeq, status: 'succeeded', output})
@@ -412,14 +512,28 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
             typeof error === 'object' && error && 'code' in error
               ? String((error as {code: unknown}).code)
               : 'tool-error',
-          message: error instanceof Error ? error.message : String(error),
+          message:
+            error instanceof Error
+              ? error.message
+              : typeof error === 'object' && error && 'message' in error
+                ? String((error as {message: unknown}).message)
+                : String(error),
           retryable:
             typeof error === 'object' && error && 'retryable' in error
               ? Boolean((error as {retryable: unknown}).retryable)
               : false,
         }
+        const detail =
+          typeof error === 'object' && error && 'detail' in error ? (error as {detail: unknown}).detail : undefined
         adapters.journal.append({kind: 'result', callSeq, status: 'failed', error: info})
-        scheduleDelivery(callId, false, info)
+        // The delivered value additionally names the call, so an uncaught rejection becomes a
+        // terminal error that still knows exactly which call it was.
+        scheduleDelivery(callId, false, {
+          ...info,
+          callSeq,
+          ...(tool ? {tool} : {}),
+          ...(detail !== undefined ? {detail} : {}),
+        })
       })
       .finally(() => {
         inflight.delete(callId)
@@ -458,7 +572,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         const description = typeof opts?.description === 'string' ? opts.description : undefined
         if (journaledResult) {
           const [ok, value] = journaledResultValue(journaledResult)
-          scheduleDelivery(effect.callId, ok, value)
+          scheduleDelivery(effect.callId, ok, ok ? value : {...(value as Record<string, unknown>), tool})
           return
         }
         if (!journaledCall) {
@@ -474,7 +588,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         }
         // A call journaled without a result was interrupted mid-execution; whether it took effect is
         // unknowable, so it re-executes (workflow tools should be idempotent or cheap).
-        startInflight(effect.callId, callSeq, () => adapters.effects.callTool(tool, args.input, description))
+        startInflight(effect.callId, callSeq, () => adapters.effects.callTool(tool, args.input, description), tool)
         return
       }
       case 'agent': {
@@ -697,7 +811,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
     finishFn.dispose()
 
     evalGuarded(WORKFLOW_PRELUDE, 'prelude')
-    evalGuarded(transformWorkflowSource(adapters.source), 'module')
+    evalGuarded(transformWorkflowSource(adapters.source), 'workflow')
     const kickoff = `
       (function () {
         if (typeof __workflow_main !== 'function') throw new Error('export default must be a function');
@@ -708,6 +822,10 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           __host_finish(false, JSON.stringify({
             code: error && error.code ? String(error.code) : 'workflow-error',
             message: error && error.message ? String(error.message) : String(error),
+            stack: error && error.stack ? String(error.stack) : undefined,
+            tool: error && error.tool ? String(error.tool) : undefined,
+            callSeq: error && typeof error.callSeq === 'number' ? error.callSeq : undefined,
+            detail: error ? error.detail : undefined,
           }));
         });
       })();
@@ -748,10 +866,17 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
             error: {code: 'fuel-exhausted', message: `Workflow compute slice exceeded ${fuelMs}ms`},
           }
         }
-        const error = (done.value ?? {}) as {code?: string; message?: string}
+        const error = (done.value ?? {}) as Partial<WorkflowErrorInfo>
         return {
           type: 'failed',
-          error: {code: error.code || 'workflow-error', message: error.message || 'Workflow failed'},
+          error: {
+            code: error.code || 'workflow-error',
+            message: error.message || 'Workflow failed',
+            ...(error.stack ? {stack: error.stack} : {}),
+            ...(error.tool ? {tool: error.tool} : {}),
+            ...(typeof error.callSeq === 'number' ? {callSeq: error.callSeq} : {}),
+            ...(error.detail !== undefined ? {detail: error.detail} : {}),
+          },
         }
       }
       if (adapters.isCanceled()) return {type: 'canceled'}
@@ -794,7 +919,10 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
   } catch (error) {
     if (error instanceof WorkflowFailure) {
       if (error.code === 'canceled') return {type: 'canceled'}
-      return {type: 'failed', error: {code: error.code, message: error.message}}
+      return {
+        type: 'failed',
+        error: {code: error.code, message: error.message, ...(error.vmStack ? {stack: error.vmStack} : {})},
+      }
     }
     if (typeof error === 'object' && error && (error as {code?: string}).code === 'journal-cap') {
       return {

@@ -263,13 +263,21 @@ describe('SessionRunCard (pinned)', () => {
     const opened: string[] = []
     render(<SessionRunCard {...baseProps} onOpenSession={(sessionId) => opened.push(sessionId)} />)
     expect(container.textContent).toContain('Analyze BIB File')
-    // The error is present but yields space (truncate + hover title), never flex-none.
+    // The error is present but yields space (truncated), never flex-none — and it is its own
+    // click target for interrogation, so it must not pretend to be plain text.
     const errorSpan = Array.from(container.querySelectorAll('span')).find(
       (span) => span.textContent?.startsWith('Invalid request'),
     )
-    expect(errorSpan?.getAttribute('title')).toBe(longError)
+    expect(errorSpan?.getAttribute('role')).toBe('button')
     expect(errorSpan?.className).toContain('truncate')
     expect(errorSpan?.className).not.toContain('flex-none')
+    // Clicking the error opens the full message (code + complete text), NOT the child session:
+    // the chip swallows the click so interrogating a failure never navigates away from the card.
+    click(errorSpan)
+    expect(opened).toEqual([])
+    const popover = Array.from(document.querySelectorAll('pre')).find((pre) => pre.textContent === longError)
+    expect(popover).toBeTruthy()
+    expect(document.body.textContent).toContain('provider-error')
     // The row is still clickable and opens the child session.
     const row = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Analyze BIB File'),
@@ -277,6 +285,76 @@ describe('SessionRunCard (pinned)', () => {
     expect(row).toBeTruthy()
     click(row)
     expect(opened).toContain('session-child-1')
+  })
+
+  it('the error inspector shows the failing tool call with its arguments', () => {
+    mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Publish paper'})]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeChild({
+        id: 'child-1',
+        status: 'failed',
+        kind: 'workflow',
+        title: 'Dry-run and publish',
+        error: {code: 'quota-exceeded', message: 'Site quota exceeded', tool: 'publish', callSeq: 2},
+      }),
+    ]
+    mockState.journal = [
+      {
+        runId: 'child-1',
+        seq: 1,
+        entry: {kind: 'call', callSeq: 2, op: 'tool', tool: 'publish', input: {path: '/paper', bytes: 12345}},
+        createdAt: 1500,
+      },
+      {
+        runId: 'child-1',
+        seq: 2,
+        entry: {kind: 'result', callSeq: 2, status: 'failed', error: {code: 'quota-exceeded'}},
+        createdAt: 1600,
+      },
+    ]
+    render(<SessionRunCard {...baseProps} />)
+    const errorSpan = Array.from(container.querySelectorAll('span')).find(
+      (span) => span.getAttribute('role') === 'button' && span.textContent === 'Site quota exceeded',
+    )
+    click(errorSpan)
+    // The popover names the exact call the run died on — not just the message.
+    expect(document.body.textContent).toContain('Failing tool call')
+    expect(document.body.textContent).toContain('publish')
+    expect(document.body.textContent).toContain('quota-exceeded')
+  })
+
+  it('the error inspector shows the offending source line for a script error', () => {
+    const source = [
+      'export default async function (input, ctx) {',
+      '  const a = 1',
+      '  return new MissingGlobal()',
+      '}',
+    ].join('\n')
+    mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Publish paper'})]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeChild({
+        id: 'child-1',
+        status: 'failed',
+        kind: 'workflow',
+        title: 'Dry-run and publish',
+        sourceText: source,
+        error: {
+          code: 'workflow-error',
+          message: "'MissingGlobal' is not defined",
+          stack: '    at <anonymous> (workflow.js:3:14)\n    at <eval> (kickoff.js:5:1)',
+        },
+      }),
+    ]
+    render(<SessionRunCard {...baseProps} />)
+    const errorSpan = Array.from(container.querySelectorAll('span')).find(
+      (span) => span.getAttribute('role') === 'button' && span.textContent?.includes('MissingGlobal'),
+    )
+    click(errorSpan)
+    expect(document.body.textContent).toContain('workflow source, line 3')
+    expect(document.body.textContent).toContain('return new MissingGlobal()')
+    expect(document.body.textContent).toContain('workflow.js:3:14')
   })
 
   it('asks for confirmation before canceling the whole run', () => {

@@ -9,6 +9,7 @@
 import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} from '@/agents-client'
 import {useAgentRunTreeSubscription, useRunTree, type AgentRunTreeLiveState} from '@/models/agents'
 import {SessionStatusDot} from '@/components/session-children'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import type {ChatToolPart} from '@/models/chat-parts'
 import {Bot, Check, ChevronDown, ChevronRight, CircleDashed, Loader2, Minus, Workflow, X} from 'lucide-react'
 import React, {useMemo, useState} from 'react'
@@ -17,11 +18,9 @@ export const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 
 
 export const isTerminalRun = (status: RunStatus) => TERMINAL_RUN_STATUSES.has(status)
 
-/** A run's own title, or what it is when it never got one. */
+/** A run's title. Mandatory at creation, so the display layer never invents a label. */
 export function runTitle(run: RunInfo): string {
-  if (run.title) return run.title
-  if (run.kind === 'workflow') return 'Workflow'
-  return run.parentRunId ? 'Sub-session' : 'Agent turn'
+  return run.title
 }
 
 /** Session status a run maps onto, so child affordances reuse the one status dot the lists use. */
@@ -169,7 +168,23 @@ export function displayStepStatus(status: StepStatus, settle: PlanSettle): StepS
  * One fragment for the step row and the loose child row, so the two can never drift into saying
  * the same thing two different ways.
  */
-function ChildRunPresence({run, live, activityDetail}: {run: RunInfo; live: boolean; activityDetail?: string}) {
+function ChildRunPresence({
+  run,
+  live,
+  activityDetail,
+  errorToolPart,
+  renderToolPart,
+  onOpen,
+}: {
+  run: RunInfo
+  live: boolean
+  activityDetail?: string
+  /** The journaled call the run's terminal error points at, when it points at one. */
+  errorToolPart?: ChatToolPart
+  renderToolPart?: (part: ChatToolPart) => React.ReactNode
+  /** Opens the child's sub-session; surfaced inside the error inspector as the way deeper. */
+  onOpen?: () => void
+}) {
   const KindIcon = run.kind === 'workflow' ? Workflow : Bot
   const status = runStatusAsSessionStatus(run.status)
   return (
@@ -181,11 +196,133 @@ function ChildRunPresence({run, live, activityDetail}: {run: RunInfo; live: bool
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">{activityDetail}</span>
       ) : null}
       {run.error ? (
-        <span className="text-destructive min-w-0 flex-1 truncate text-[10px]" title={run.error.message}>
-          {run.error.message}
-        </span>
+        <RunErrorChip
+          run={run}
+          error={run.error}
+          errorToolPart={errorToolPart}
+          renderToolPart={renderToolPart}
+          onOpen={onOpen}
+        />
       ) : null}
     </>
+  )
+}
+
+/** The `workflow.js:LINE` frame a script stack points at, resolved to a line number. */
+function scriptErrorLine(stack: string): number | undefined {
+  const match = /workflow\.js:(\d+)/.exec(stack)
+  return match ? Number(match[1]) : undefined
+}
+
+/**
+ * A child run's failure, openable in place: truncated in the row, complete on click.
+ *
+ * The row it sits in is often itself a button (clicking a child row opens its sub-session), so the
+ * chip is a non-button trigger and every interaction inside it stops propagating — including from
+ * the portaled popover content, whose React events still bubble through the component tree to the
+ * row.
+ */
+export function RunErrorChip({
+  run,
+  error,
+  errorToolPart,
+  renderToolPart,
+  onOpen,
+}: {
+  run: RunInfo
+  error: NonNullable<RunInfo['error']>
+  /** The journaled call `error.callSeq` points at — rendered as the chat's own tool row. */
+  errorToolPart?: ChatToolPart
+  renderToolPart?: (part: ChatToolPart) => React.ReactNode
+  /** Opens the run's sub-session, when it has one — the deepest context for agent children. */
+  onOpen?: () => void
+}) {
+  // A script stack's workflow.js frames index into the stored source, so the offending line can
+  // be shown verbatim instead of asking the reader to open the Code drawer and count lines.
+  const errorLine = error.stack ? scriptErrorLine(error.stack) : undefined
+  const sourceLines = errorLine !== undefined && run.sourceText ? run.sourceText.split('\n') : undefined
+  const excerpt =
+    errorLine !== undefined && sourceLines && sourceLines[errorLine - 1] !== undefined
+      ? sourceLines.slice(Math.max(0, errorLine - 2), errorLine + 1).map((text, index) => ({
+          number: Math.max(0, errorLine - 2) + index + 1,
+          text,
+        }))
+      : undefined
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <span
+          role="button"
+          tabIndex={0}
+          title="Show full error"
+          className="text-destructive hover:bg-destructive/10 min-w-0 flex-1 cursor-pointer truncate rounded px-0.5 text-left text-[10px] underline decoration-dotted underline-offset-2"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
+          }}
+        >
+          {error.message}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="flex w-[28rem] max-w-[92vw] flex-col gap-2"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-xs font-medium">{runTitle(run)}</span>
+          <span className="text-destructive bg-destructive/10 flex-none rounded-full px-1.5 py-0.5 font-mono text-[10px]">
+            {error.code}
+          </span>
+        </div>
+        <pre className="text-destructive max-h-40 overflow-auto text-[11px] break-words whitespace-pre-wrap select-text">
+          {error.message}
+        </pre>
+        {errorToolPart && renderToolPart ? (
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">Failing tool call</span>
+            <div className="min-w-0 [&_.mr-6]:mr-0">{renderToolPart(errorToolPart)}</div>
+          </div>
+        ) : null}
+        {excerpt ? (
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">
+              workflow source, line {errorLine}
+            </span>
+            <pre className="bg-muted/60 max-h-32 overflow-auto rounded-md p-2 text-[11px] select-text">
+              {excerpt.map((line) => (
+                <div key={line.number} className={line.number === errorLine ? 'text-destructive font-medium' : ''}>
+                  {String(line.number).padStart(4)} {line.text}
+                </div>
+              ))}
+            </pre>
+          </div>
+        ) : null}
+        {error.detail !== undefined ? (
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">Detail</span>
+            <pre className="bg-muted/60 max-h-32 overflow-auto rounded-md p-2 text-[11px] whitespace-pre-wrap select-text">
+              {JSON.stringify(error.detail, null, 2)}
+            </pre>
+          </div>
+        ) : null}
+        {error.stack ? (
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">Stack</span>
+            <pre className="text-muted-foreground max-h-24 overflow-auto text-[10px] select-text">{error.stack}</pre>
+          </div>
+        ) : null}
+        {onOpen ? (
+          <button
+            type="button"
+            className="border-border hover:bg-muted self-start rounded-md border px-2 py-1 text-[11px]"
+            onClick={onOpen}
+          >
+            Open sub-session
+          </button>
+        ) : null}
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -226,6 +363,8 @@ export function PlanStepRow({
   settle = 'live',
   ownerTerminal,
   activityDetail,
+  errorToolPart,
+  renderToolPart,
   onOpen,
   onCancel,
   cancelPending,
@@ -236,6 +375,9 @@ export function PlanStepRow({
   settle?: PlanSettle
   ownerTerminal?: boolean
   activityDetail?: string
+  /** The journaled call the child's terminal error points at, for the error inspector. */
+  errorToolPart?: ChatToolPart
+  renderToolPart?: (part: ChatToolPart) => React.ReactNode
   onOpen?: () => void
   onCancel?: () => void
   cancelPending?: boolean
@@ -262,7 +404,16 @@ export function PlanStepRow({
           auto
         </span>
       ) : null}
-      {child ? <ChildRunPresence run={child} live={childLive} activityDetail={activityDetail} /> : null}
+      {child ? (
+        <ChildRunPresence
+          run={child}
+          live={childLive}
+          activityDetail={activityDetail}
+          errorToolPart={errorToolPart}
+          renderToolPart={renderToolPart}
+          onOpen={onOpen}
+        />
+      ) : null}
     </>
   )
   return (
@@ -292,6 +443,8 @@ export function RunChildRow({
   run,
   ownerTerminal,
   activityDetail,
+  errorToolPart,
+  renderToolPart,
   onOpen,
   onCancel,
   cancelPending,
@@ -299,6 +452,9 @@ export function RunChildRow({
   run: RunInfo
   ownerTerminal?: boolean
   activityDetail?: string
+  /** The journaled call the run's terminal error points at, for the error inspector. */
+  errorToolPart?: ChatToolPart
+  renderToolPart?: (part: ChatToolPart) => React.ReactNode
   onOpen?: () => void
   onCancel?: () => void
   cancelPending?: boolean
@@ -309,7 +465,14 @@ export function RunChildRow({
       {/* The title owns the row's space (2:1 over presence detail) and truncates only when the
           row genuinely runs out; percentage caps collapsed in shrink-wrapped ancestors. */}
       <span className="min-w-0 flex-[2] truncate">{runTitle(run)}</span>
-      <ChildRunPresence run={run} live={isLive} activityDetail={activityDetail} />
+      <ChildRunPresence
+        run={run}
+        live={isLive}
+        activityDetail={activityDetail}
+        errorToolPart={errorToolPart}
+        renderToolPart={renderToolPart}
+        onOpen={onOpen}
+      />
     </>
   )
   return (
@@ -398,6 +561,14 @@ export function RunWorkHierarchy({
     const own = new Set([run.id, ...childRuns.map((child) => child.id)])
     return journalToolParts(journal.filter((entry) => own.has(entry.runId)))
   }, [journal, run.id, childRuns])
+
+  // The journaled call a failed run's terminal error points at (`error.callSeq`), so its error
+  // inspector can show the call — name, arguments, result — instead of only the message.
+  const failingToolPart = (child: RunInfo): ChatToolPart | undefined => {
+    const callSeq = child.error?.callSeq
+    if (typeof callSeq !== 'number') return undefined
+    return toolParts.find((part) => part.id === `wf-${child.id}:${callSeq}`)
+  }
   /**
    * One child, rendered the one way children are rendered — batch peers under a step and children
    * with no home step alike, so a peer can never be told apart from its siblings by its styling.
@@ -407,6 +578,8 @@ export function RunWorkHierarchy({
       run={child}
       ownerTerminal={isTerminal}
       activityDetail={liveState.activity[child.id]?.detail}
+      errorToolPart={failingToolPart(child)}
+      renderToolPart={renderToolPart}
       onOpen={child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined}
       onCancel={onCancelRun ? () => onCancelRun(child.id) : undefined}
       cancelPending={cancelPending}
@@ -445,6 +618,8 @@ export function RunWorkHierarchy({
                 settle={settle}
                 ownerTerminal={isTerminal}
                 activityDetail={primary ? liveState.activity[primary.id]?.detail : undefined}
+                errorToolPart={primary ? failingToolPart(primary) : undefined}
+                renderToolPart={renderToolPart}
                 onOpen={
                   primary?.sessionId && onOpenSession
                     ? () => onOpenSession(primary.sessionId!, primary.agentId)

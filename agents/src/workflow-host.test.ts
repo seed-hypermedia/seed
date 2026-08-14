@@ -72,6 +72,122 @@ describe('workflow host', () => {
     expect(outcome).toEqual({type: 'succeeded', output: {sum: 5}})
   })
 
+  // Regression: a real agent-authored workflow measured its content with `new TextEncoder()` and
+  // died at runtime — QuickJS has no WHATWG APIs unless the prelude provides them. Encoding is
+  // deterministic, so the realm now does.
+  test('TextEncoder/TextDecoder are available and round-trip UTF-8', async () => {
+    const {adapters} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        const bytes = new TextEncoder().encode(input.text)
+        const roundTrip = new TextDecoder('utf-8').decode(bytes)
+        return {byteLength: bytes.length, isUint8: bytes instanceof Uint8Array, roundTrip}
+      }`,
+      // Mixed ASCII, accents, CJK, and an emoji (astral plane): 1-, 2-, 3-, and 4-byte sequences.
+      input: {text: 'héllo 世界 🎉'},
+    })
+    const outcome = await runWorkflowVM(adapters)
+    expect(outcome).toEqual({
+      type: 'succeeded',
+      output: {
+        byteLength: new TextEncoder().encode('héllo 世界 🎉').byteLength,
+        isUint8: true,
+        roundTrip: 'héllo 世界 🎉',
+      },
+    })
+  })
+
+  // A script error between tool calls must say WHERE it died: the stack's workflow.js line numbers
+  // index into the stored source, which is what lets the UI excerpt the offending line.
+  test('a script error carries a stack pointing into workflow.js', async () => {
+    const {adapters} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        const ok = await ctx.call('echo', {x: 1})
+        return {bytes: new MissingGlobal().encode('x')}
+      }`,
+    })
+    const outcome = await runWorkflowVM(adapters)
+    if (outcome.type !== 'failed') throw new Error(`expected failure, got ${outcome.type}`)
+    expect(outcome.error.code).toBe('workflow-error')
+    expect(outcome.error.message).toContain('MissingGlobal')
+    expect(outcome.error.stack).toContain('workflow.js:3')
+  })
+
+  // An uncaught tool failure must name the call it came from, so the terminal error can be joined
+  // to the journaled call (tool, args, result) instead of leaving the reader to guess.
+  test('an uncaught tool failure identifies the failing call and forwards detail', async () => {
+    const {adapters, journal} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        await ctx.call('echo', {x: 1})
+        return await ctx.call('publish', {path: '/paper', bytes: 12345})
+      }`,
+      callTool: async (tool) => {
+        if (tool === 'publish') {
+          throw {code: 'quota-exceeded', message: 'Site quota exceeded', detail: {limitBytes: 10_000}}
+        }
+        return {ok: true}
+      },
+    })
+    const outcome = await runWorkflowVM(adapters)
+    if (outcome.type !== 'failed') throw new Error(`expected failure, got ${outcome.type}`)
+    expect(outcome.error).toMatchObject({
+      code: 'quota-exceeded',
+      message: 'Site quota exceeded',
+      tool: 'publish',
+      detail: {limitBytes: 10_000},
+    })
+    // A tool failure's pointer is its call identity; an ActionError's construction stack is
+    // prelude plumbing and must not masquerade as a script location.
+    expect(outcome.error.stack).toBeUndefined()
+    // The callSeq on the error is the journal's: the failing call entry holds the args.
+    const failingCall = journal.find(
+      (entry) => entry.kind === 'call' && 'callSeq' in entry && entry.callSeq === outcome.error.callSeq,
+    )
+    expect(failingCall).toMatchObject({op: 'tool', tool: 'publish', input: {path: '/paper', bytes: 12345}})
+  })
+
+  test('a replayed tool failure carries the same call identity as a live one', async () => {
+    const source = `export default async function (input, ctx) {
+      return await ctx.call('publish', {path: '/paper'})
+    }`
+    // First pass fails live and journals the failure.
+    const first = fakeAdapters({
+      source,
+      callTool: async () => {
+        throw {code: 'quota-exceeded', message: 'Site quota exceeded'}
+      },
+    })
+    const liveOutcome = await runWorkflowVM(first.adapters)
+    // Second pass replays from the journal; the tool must not be called again.
+    const second = fakeAdapters({
+      source,
+      journal: [...first.journal],
+      callTool: async () => {
+        throw new Error('replay must not re-execute a journaled call')
+      },
+    })
+    const replayOutcome = await runWorkflowVM(second.adapters)
+    expect(replayOutcome).toEqual(liveOutcome)
+    if (replayOutcome.type !== 'failed') throw new Error('expected failure')
+    expect(replayOutcome.error.tool).toBe('publish')
+    expect(typeof replayOutcome.error.callSeq).toBe('number')
+  })
+
+  test('TextDecoder rejects non-utf8 labels and replaces invalid bytes', async () => {
+    const {adapters} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        let labelError = null
+        try { new TextDecoder('utf-16le') } catch (error) { labelError = String(error && error.message) }
+        const replaced = new TextDecoder().decode(new Uint8Array([0x41, 0xff, 0x42]))
+        return {labelError, replaced}
+      }`,
+    })
+    const outcome = await runWorkflowVM(adapters)
+    expect(outcome).toEqual({
+      type: 'succeeded',
+      output: {labelError: 'Only utf-8 is supported in workflows', replaced: 'A�B'},
+    })
+  })
+
   test('ctx.call executes a tool and journals call + result', async () => {
     const calls: Array<{tool: string; input: unknown}> = []
     const {adapters, journal} = fakeAdapters({

@@ -23,6 +23,14 @@ export type RunErrorInfo = {
   retryable?: boolean
   /** HTTP status to surface when an interactive caller is waiting on this run. */
   httpStatus?: number
+  /** Script stack for workflow errors; its `workflow.js:LINE` frames index into the stored source. */
+  stack?: string
+  /** Tool name of the failed call this error propagated from, when it was one. */
+  tool?: string
+  /** Journal callSeq of that failed call — joins the error to the call's args and result. */
+  callSeq?: number
+  /** Structured detail the failing tool attached, forwarded verbatim. */
+  detail?: unknown
   /**
    * Obligations the run still owed when it failed (an undelivered typed result, an unfinished plan).
    * A succeeded run carries the same list on its output instead; either way the debt is visible.
@@ -87,7 +95,8 @@ export type RunRecord = {
   sessionId?: string
   triggerFiringId?: string
   origin: RunOrigin
-  title?: string
+  /** Every run is created with a real human-readable title; the display layer never invents one. */
+  title: string
   model?: string
   sourceCid?: string
   sourceText?: string
@@ -136,7 +145,8 @@ export type EnqueueRunSpec = {
   agentId?: string
   sessionId?: string
   triggerFiringId?: string
-  title?: string
+  /** Required: callers derive a real title (message excerpt, brief, workflow name) at creation. */
+  title: string
   model?: string
   sourceCid?: string
   sourceText?: string
@@ -231,7 +241,8 @@ export function rowToRun(row: RunRow): RunRecord {
     sessionId: row.session_id ?? undefined,
     triggerFiringId: row.trigger_firing_id ?? undefined,
     origin: row.origin as RunOrigin,
-    title: row.title ?? undefined,
+    // NOT NULL in practice: enqueue validates it and a migration backfilled pre-requirement rows.
+    title: row.title ?? 'Untitled run',
     model: row.model ?? undefined,
     sourceCid: row.source_cid ?? undefined,
     sourceText: row.source_text ?? undefined,
@@ -416,6 +427,8 @@ export class RunQueue {
   }
 
   enqueue(spec: EnqueueRunSpec): RunRecord {
+    const title = spec.title.trim()
+    if (!title) throw new Error('Run title is required')
     const now = Date.now()
     const id = spec.id ?? crypto.randomUUID()
     let rootRunId = id
@@ -447,7 +460,7 @@ export class RunQueue {
         spec.sessionId ?? null,
         spec.triggerFiringId ?? null,
         spec.origin,
-        spec.title ?? null,
+        title,
         spec.model ?? null,
         spec.sourceCid ?? null,
         spec.sourceText ?? null,

@@ -13,6 +13,15 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Run titles became mandatory: every enqueue site now derives a real one, so the display layer
+  // never invents a label. Rows from before the requirement get the exact text the UI used to
+  // fall back to, so their cards read the same as they always did.
+  `UPDATE runs SET title = CASE
+      WHEN kind = 'workflow' THEN 'Workflow'
+      WHEN parent_run_id IS NOT NULL THEN 'Sub-session'
+      ELSE 'Agent turn'
+    END
+    WHERE title IS NULL OR trim(title) = '';`,
   // What a trigger does when it fires. NULL means the only thing triggers used to do: start a new
   // thread. The event bus milestone moves this (and the rest of a trigger) into a Space document;
   // the column is where it lives until then.

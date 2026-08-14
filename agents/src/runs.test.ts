@@ -37,6 +37,7 @@ function agentSpec(overrides: Partial<runs.EnqueueRunSpec> = {}): runs.EnqueueRu
     kind: 'agent',
     origin: 'user',
     agentId: 'agent-1',
+    title: 'Test run',
     input: {},
     queue: 'background',
     ...overrides,

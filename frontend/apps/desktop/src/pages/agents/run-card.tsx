@@ -4,8 +4,10 @@ import {ParkedRunActions} from '@/pages/agents/run-parked-actions'
 import {
   RunWorkHierarchy,
   PlanStepRow,
+  RunErrorChip,
   descendantsOf,
   isTerminalRun,
+  journalToolParts,
   runTitle,
   useRunTreeView,
   type PlanSettle,
@@ -246,6 +248,14 @@ function RunCardBody({
   const progress = liveState.progress[run.id]
   const doneChildren = childRuns.filter((child) => isTerminalRun(child.status)).length
   const usageTotal = (run.usage?.total ?? 0) + (run.usage?.children?.total ?? 0)
+  // The journaled call this run's own terminal error points at, for its error inspector.
+  const rootErrorToolPart = useMemo(() => {
+    const callSeq = run.error?.callSeq
+    if (typeof callSeq !== 'number') return undefined
+    return journalToolParts(liveState.journal.filter((entry) => entry.runId === run.id)).find(
+      (part) => part.id === `wf-${run.id}:${callSeq}`,
+    )
+  }, [liveState.journal, run.id, run.error?.callSeq])
 
   useEffect(() => {
     if (isTerminal) setConfirmingCancel(false)
@@ -261,11 +271,6 @@ function RunCardBody({
         >
           {isParked ? parkedLabel(run, childRuns, doneChildren) : runTitle(run)}
         </span>
-        <span className={`flex-none rounded-full border px-1.5 py-0.5 text-[10px] ${runStatusClass(run.status)}`}>
-          {/* A budget pause is the one wait a person has to end, so it does not hide behind "Waiting". */}
-          {run.wait?.reason === 'budget-pause' ? 'Paused' : RUN_STATUS_LABELS[run.status]}
-        </span>
-        <RunElapsed run={run} />
         {isTerminal ? null : confirmingCancel ? (
           <span className="flex flex-none items-center gap-1">
             <Button
@@ -290,7 +295,18 @@ function RunCardBody({
         )}
       </div>
 
-      {run.error ? <div className="text-destructive text-[11px] break-words">{run.error.message}</div> : null}
+      {run.error ? (
+        <div className="flex min-w-0 items-center">
+          <RunErrorChip
+            run={run}
+            error={run.error}
+            errorToolPart={rootErrorToolPart}
+            renderToolPart={(part) => (
+              <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
+            )}
+          />
+        </div>
+      ) : null}
 
       {/* The run has stopped and is asking; the answer belongs where the question is. */}
       <ParkedRunActions run={run} serverUrl={serverUrl} accountUid={accountUid} />
@@ -328,11 +344,17 @@ function RunCardBody({
 
       <RunActivityDrawer journal={liveState.journal} />
 
-      {!compact && usageTotal > 0 ? (
-        <div className="text-muted-foreground border-border flex justify-end border-t pt-1 text-[10px]">
-          {formatTokenCount(usageTotal)} tokens
-        </div>
-      ) : null}
+      {/* Status and elapsed time anchor the card's bottom-left; cost keeps the opposite corner. */}
+      <div className="border-border flex items-center gap-2 border-t pt-1">
+        <span className={`flex-none rounded-full border px-1.5 py-0.5 text-[10px] ${runStatusClass(run.status)}`}>
+          {/* A budget pause is the one wait a person has to end, so it does not hide behind "Waiting". */}
+          {run.wait?.reason === 'budget-pause' ? 'Paused' : RUN_STATUS_LABELS[run.status]}
+        </span>
+        <RunElapsed run={run} />
+        {!compact && usageTotal > 0 ? (
+          <span className="text-muted-foreground ml-auto text-[10px]">{formatTokenCount(usageTotal)} tokens</span>
+        ) : null}
+      </div>
     </>
   )
 }

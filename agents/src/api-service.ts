@@ -517,7 +517,7 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
     ...(run.agentId ? {agentId: run.agentId} : {}),
     ...(run.sessionId ? {sessionId: run.sessionId} : {}),
     origin: run.origin,
-    ...(run.title ? {title: run.title} : {}),
+    title: run.title,
     ...(stepLabel ? {stepLabel} : {}),
     ...(planStepId ? {planStepId} : {}),
     ...(run.kind === 'workflow' && run.sourceText ? {sourceText: run.sourceText} : {}),
@@ -540,7 +540,18 @@ function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
         }
       : {}),
     ...(run.plan ? {plan: run.plan} : {}),
-    ...(run.error ? {error: {code: run.error.code, message: run.error.message}} : {}),
+    ...(run.error
+      ? {
+          error: {
+            code: run.error.code,
+            message: run.error.message,
+            ...(run.error.stack ? {stack: run.error.stack} : {}),
+            ...(run.error.tool ? {tool: run.error.tool} : {}),
+            ...(typeof run.error.callSeq === 'number' ? {callSeq: run.error.callSeq} : {}),
+            ...(run.error.detail !== undefined ? {detail: run.error.detail} : {}),
+          },
+        }
+      : {}),
     // A succeeded run carries its debts on its output, a failed one on its error; the surface says
     // "this run ended owing something" either way, so clients need only look in one place.
     ...(unmetObligations.length > 0 ? {unmetObligations} : {}),
@@ -2581,7 +2592,8 @@ export class Service {
       sessionId,
       triggerFiringId: opts.triggerFiringId,
       parentRunId: opts.parentRunId,
-      title: opts.title,
+      // Titles are mandatory: a plain chat turn is named by what the user asked.
+      title: opts.title ?? sessionTitleFromPrompt(firstMessage.text),
       input: {kind: 'session-message'},
       queue: opts.background ? 'background' : 'interactive',
       // Background turns ride out a flaky provider; a turn the user is watching fails fast instead,
@@ -4046,7 +4058,7 @@ export class Service {
       continuedFromRunId: run.id,
       ...(run.agentId ? {agentId: run.agentId} : {}),
       ...(run.sessionId ? {sessionId: run.sessionId} : {}),
-      ...(run.title ? {title: run.title} : {}),
+      title: run.title,
       ...(run.sourceCid ? {sourceCid: run.sourceCid} : {}),
       ...(run.sourceText ? {sourceText: run.sourceText} : {}),
       input: {
@@ -4140,6 +4152,8 @@ export class Service {
       origin: 'user',
       agentId: session.agentId,
       sessionId,
+      // The retry replays the failed turn, so it carries that turn's name.
+      title: latest.title,
       input: {kind: 'session-retry', retryOfRunId: latest.id},
       queue: 'interactive',
       maxAttempts: 1,
