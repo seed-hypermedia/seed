@@ -1,4 +1,4 @@
-import {getSeedToolMetadata} from '@seed-hypermedia/agents-protocol'
+import {getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {useEffect, useMemo, useState} from 'react'
 
 type AgentDefinition = {
@@ -437,7 +437,7 @@ function EventCard(props: {event: SessionEvent}) {
 function ToolEventCard(props: {payload: SessionEventPayload; createdAt: number}) {
   const [expanded, setExpanded] = useState(false)
   const name = 'name' in props.payload ? String(props.payload.name) : 'tool'
-  const tool = getSeedToolMetadata(name)
+  const tool = getSeedTool(name)
   const isResult = props.payload.type === 'tool_result'
   const input = props.payload.type === 'tool_call' && 'input' in props.payload ? props.payload.input : undefined
   const output = props.payload.type === 'tool_result' && 'output' in props.payload ? props.payload.output : undefined

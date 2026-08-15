@@ -157,6 +157,13 @@ export function blocksToMarkdown(doc: HMDocument, options?: BlocksToMarkdownOpti
 function blockNodeToMarkdown(node: HMBlockNode, depth: number, opts: Required<BlocksToMarkdownOptions>): string {
   const block = node.block
   const children = node.children || []
+
+  // Tables render their whole subtree (TableColumn/TableRow/cell blocks) as
+  // one GFM table — never recurse generically into their children.
+  if (block.type === 'Table') {
+    return tableToMarkdown(node, depth, (text, annotations) => applyAnnotations(text, annotations))
+  }
+
   const childrenType = (block as {attributes?: {childrenType?: string}}).attributes?.childrenType
 
   // Check if this is an invisible list container (empty paragraph with childrenType)
@@ -287,6 +294,190 @@ function blockToMarkdown(block: HMBlock, depth: number, opts: Required<BlocksToM
       return ''
     }
   }
+}
+
+// ─── Table emission ──────────────────────────────────────────────────────────
+//
+// HM tables are a Table block whose children are TableColumn blocks (sibling
+// order = column display order) followed by TableRow blocks whose children are
+// Paragraph cells carrying `attributes.columnId`. Emission normalizes exactly
+// like the renderers: cells resolve to columns by columnId (orphans dropped,
+// missing cells empty), and only row 0 may be the header row.
+//
+// The emitted dialect keeps CRDT identity through a markdown round trip:
+//
+//   <!-- id:TABLEID -->
+//   | Name <!-- col:c1 --> | Age <!-- col:c2 --> <!-- id:headerRowId --> |
+//   | --- | --- |
+//   | Alice | 30 <!-- id:r1 --> |
+//
+// Row id comments live INSIDE the row's last cell, never after the final
+// pipe: strict GFM counts trailing content as an extra cell, and a header
+// row whose cell count disagrees with the delimiter row makes the whole
+// table unparseable to standard renderers (GitHub, remark-gfm). In-cell
+// comments are invisible to HTML renderers and GFM-safe everywhere.
+//
+// Cell block ids are intentionally absent: a row has at most one cell per
+// column, so cells are re-identified as (row id, column id) during diffing.
+// Headerless HM tables emit an all-empty header row (GFM requires one); the
+// parser reads all-empty headers back as "no header row".
+
+type NormalizedTableRow = {
+  id: string
+  isHeader: boolean
+  cells: Map<string, {text: string; annotations?: HMAnnotation[]}>
+}
+
+type NormalizedTable = {
+  columns: {id: string}[]
+  rows: NormalizedTableRow[]
+}
+
+/** Normalize a Table block node the way the renderers do. */
+function normalizeTableNode(node: HMBlockNode): NormalizedTable {
+  const columns: {id: string}[] = []
+  const rows: NormalizedTableRow[] = []
+
+  for (const child of node.children || []) {
+    const block = child.block as {
+      type?: string
+      id: string
+      attributes?: Record<string, unknown>
+    }
+    if (block?.type === 'TableColumn') {
+      columns.push({id: block.id})
+    } else if (block?.type === 'TableRow') {
+      const cells = new Map<string, {text: string; annotations?: HMAnnotation[]}>()
+      for (const cellNode of child.children || []) {
+        const cell = cellNode.block as {
+          text?: string
+          annotations?: HMAnnotation[]
+          attributes?: Record<string, unknown>
+        }
+        const columnId = cell?.attributes?.columnId
+        if (typeof columnId === 'string' && columnId && !cells.has(columnId)) {
+          cells.set(columnId, {text: cell.text || '', annotations: cell.annotations})
+        }
+      }
+      rows.push({
+        id: block.id,
+        // Position-0 invariant: only the first row may be the header row.
+        isHeader: rows.length === 0 && block.attributes?.isHeader === true,
+        cells,
+      })
+    }
+  }
+
+  return {columns, rows}
+}
+
+/** Escape cell text for GFM: pipes and newlines cannot appear raw in a cell. */
+function escapeCellText(s: string): string {
+  return s.replace(/\|/g, '\\|').replace(/\n/g, '<br>')
+}
+
+/** Assemble the table markdown lines from pre-rendered cell texts.
+ *
+ * Row id comments go inside the last cell so every line's cell count matches
+ * the delimiter row — required for strict-GFM renderers to recognize the
+ * table at all. */
+function assembleTableMarkdown(
+  tableId: string,
+  columns: {id: string}[],
+  header: {rowId?: string; cellTexts: string[]},
+  bodyRows: {rowId: string; cellTexts: string[]}[],
+  ind: string,
+): string {
+  const lines: string[] = []
+  lines.push(ind + idComment(tableId))
+
+  const headerCells = columns.map((col, idx) => {
+    const text = header.cellTexts[idx] || ''
+    return (text ? text + ' ' : '') + `<!-- col:${col.id} -->`
+  })
+  if (header.rowId) {
+    headerCells[headerCells.length - 1] += ' ' + idComment(header.rowId)
+  }
+  lines.push(ind + '| ' + headerCells.join(' | ') + ' |')
+  lines.push(ind + '|' + columns.map(() => ' --- ').join('|') + '|')
+
+  for (const row of bodyRows) {
+    const cells = [...row.cellTexts]
+    const last = cells.length - 1
+    cells[last] = (cells[last] ? cells[last] + ' ' : '') + idComment(row.rowId)
+    lines.push(ind + '| ' + cells.join(' | ') + ' |')
+  }
+
+  return lines.join('\n')
+}
+
+/**
+ * Emit a Table block node as GFM markdown with identity comments.
+ * `renderCell` renders a cell's text + annotations to inline markdown.
+ */
+function tableToMarkdown(
+  node: HMBlockNode,
+  depth: number,
+  renderCell: (text: string, annotations: HMAnnotation[] | undefined) => string,
+): string {
+  const {columns, rows} = normalizeTableNode(node)
+  // A table without columns renders as nothing everywhere — drop it rather
+  // than emit a dangling id comment that would attach to the next block.
+  if (columns.length === 0) return ''
+
+  const renderRowCells = (row: NormalizedTableRow | undefined): string[] =>
+    columns.map((col) => {
+      const cell = row?.cells.get(col.id)
+      return cell ? escapeCellText(renderCell(cell.text, cell.annotations)) : ''
+    })
+
+  const headerRow = rows[0]?.isHeader ? rows[0] : undefined
+  const bodyRows = (headerRow ? rows.slice(1) : rows).map((row) => ({
+    rowId: row.id,
+    cellTexts: renderRowCells(row),
+  }))
+
+  return assembleTableMarkdown(
+    node.block.id,
+    columns,
+    {rowId: headerRow?.id, cellTexts: renderRowCells(headerRow)},
+    bodyRows,
+    indent(depth),
+  )
+}
+
+/** Async twin of tableToMarkdown for the resolved emitter. */
+async function tableToResolvedMarkdown(
+  node: HMBlockNode,
+  depth: number,
+  renderCell: (text: string, annotations: HMAnnotation[] | undefined) => Promise<string>,
+): Promise<string> {
+  const {columns, rows} = normalizeTableNode(node)
+  if (columns.length === 0) return ''
+
+  const renderRowCells = (row: NormalizedTableRow | undefined): Promise<string[]> =>
+    Promise.all(
+      columns.map(async (col) => {
+        const cell = row?.cells.get(col.id)
+        return cell ? escapeCellText(await renderCell(cell.text, cell.annotations)) : ''
+      }),
+    )
+
+  const headerRow = rows[0]?.isHeader ? rows[0] : undefined
+  const bodyRows = await Promise.all(
+    (headerRow ? rows.slice(1) : rows).map(async (row) => ({
+      rowId: row.id,
+      cellTexts: await renderRowCells(row),
+    })),
+  )
+
+  return assembleTableMarkdown(
+    node.block.id,
+    columns,
+    {rowId: headerRow?.id, cellTexts: await renderRowCells(headerRow)},
+    bodyRows,
+    indent(depth),
+  )
 }
 
 // ─── Annotation rendering ────────────────────────────────────────────────────
@@ -507,6 +698,12 @@ async function blockNodesToResolvedMarkdown(nodes: HMBlockNode[], ctx: ResolveCo
 async function resolvedBlockNodeToMarkdown(node: HMBlockNode, depth: number, ctx: ResolveContext): Promise<string> {
   const block = node.block
   const children = node.children || []
+
+  // Tables render their whole subtree as one GFM table (see tableToMarkdown).
+  if (block.type === 'Table') {
+    return tableToResolvedMarkdown(node, depth, (text, annotations) => applyResolvedAnnotations(text, annotations, ctx))
+  }
+
   const childrenType = (block as {attributes?: {childrenType?: string}}).attributes?.childrenType
   const isListContainer =
     block.type === 'Paragraph' &&

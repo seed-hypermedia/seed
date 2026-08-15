@@ -85,6 +85,31 @@ export function canonicalizeResourceId(value: string): string {
   return withoutQuery?.replace(/\/+$/u, '') || trimmed
 }
 
+/**
+ * Does this activity event match these criteria? Every present field must match; an empty criteria
+ * object matches nothing (a rule that matches everything is never what someone meant).
+ *
+ * The one place that answers this question. A run parked on `ctx.waitForEvent({eventType, resource,
+ * author})` and a trigger watching a document are asking the same thing, and they must not answer
+ * it two slightly different ways — resource comparison in particular is subtle (versions, queries,
+ * and trailing slashes all have to fall away).
+ */
+export function matchesActivityCriteria(
+  criteria: {eventType?: string; resource?: string; author?: string},
+  event: ActivityFeedEvent,
+): boolean {
+  const {eventType, resource, author} = criteria
+  if (eventType === undefined && resource === undefined && author === undefined) return false
+  if (eventType !== undefined && stringField(event, 'type') !== eventType) return false
+  if (author !== undefined && stringField(event, 'author') !== author) return false
+  if (resource !== undefined) {
+    const eventResource = stringField(event, 'resource') ?? stringField(event, 'id')
+    if (!eventResource) return false
+    if (canonicalizeResourceId(eventResource) !== canonicalizeResourceId(resource)) return false
+  }
+  return true
+}
+
 /** Returns true when an HM activity event matches a saved agent trigger source. */
 export function activityMatchesTriggerSource(source: api.AgentTriggerSource, event: ActivityFeedEvent): boolean {
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
@@ -139,6 +164,11 @@ export function activitySummary(event: ActivityFeedEvent): string {
     return source ? `Mention of ${target} from ${source}` : `Mention of ${target}`
   }
   const type = stringField(event, 'type')
+  if (type === 'run-completed') {
+    const title = stringField(event, 'runTitle') || 'A run'
+    const status = stringField(event, 'runStatus') || 'finished'
+    return `${title} ${status}`
+  }
   if (type === 'schedule') {
     const scheduledAt = numberField(event, 'scheduledAt')
     const kind = stringField(event, 'scheduleKind') || 'schedule'

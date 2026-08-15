@@ -1,3 +1,16 @@
+/**
+ * The Seed agent tool surface: five always-on verbs plus a directory of callable tools.
+ *
+ * The model-facing surface is the five verbs — read, write, call, delegate, plan — plus the
+ * hidden return_result mechanism for typed child sessions. Everything that used to be its own
+ * tool (memory, ipfs, attachments, web reading, the activity feed, hypermedia writes, spawning,
+ * todos) is an address form of a verb or a callable tool dispatched through `call`.
+ *
+ * Callable tools keep the same metadata shape but are NOT exposed as provider tools: `call`
+ * validates input against the target's schema, and calling an unexpanded or mis-called tool
+ * returns the tool's contract as the result (touch-expand) instead of erroring.
+ */
+
 export type JsonSchemaTypeName = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null'
 
 export type JsonSchema = {
@@ -8,8 +21,12 @@ export type JsonSchema = {
   additionalProperties?: boolean | JsonSchema
   enum?: string[]
   minLength?: number
+  maxLength?: number
   minimum?: number
+  maximum?: number
   items?: JsonSchema
+  minItems?: number
+  maxItems?: number
 }
 
 export type ToolRuntime = 'assistant' | 'agent-service'
@@ -68,1131 +85,613 @@ export type SeedToolMetadata = {
   userConfigurable?: boolean
 }
 
-const readHypermediaInputSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: {
-    id: {
-      type: 'string',
-      description: 'hm:// URL, gateway URL, or Seed site web URL for the document/comment to read',
-    },
-    server: {type: 'string', description: 'Optional Seed server URL, equivalent to seed-cli --server'},
-    dev: {type: 'boolean', description: 'Use the Seed devnet, equivalent to seed-cli --dev'},
-    format: {type: 'string', enum: ['markdown', 'json'], description: 'Output format. Defaults to markdown.'},
-  },
-  required: ['id'],
-} satisfies JsonSchema
+// ---------------------------------------------------------------------------------------------
+// The five verbs
+// ---------------------------------------------------------------------------------------------
 
-const writeHypermediaInputSchema = {
-  type: 'object',
-  additionalProperties: true,
-  properties: {
-    command: {
-      type: 'string',
-      enum: [
-        'draft.create',
-        'draft.update',
-        'draft.get',
-        'draft.list',
-        'draft.delete',
-        'draft.publish',
-        'document.create',
-        'document.update',
-        'document.delete',
-        'document.fork',
-        'document.move',
-        'document.redirect',
-        'document.ref',
-        'comment.create',
-        'comment.update',
-        'comment.delete',
-        'capability.create',
-        'capability.grant',
-        'contact.create',
-        'contact.delete',
-        'profile.update',
-        'profile.alias',
-      ],
-    },
-    signer: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {profileName: {type: 'string'}, publicKey: {type: 'string'}},
-    },
-    server: {type: 'string'},
-    dev: {type: 'boolean'},
-    dryRun: {type: 'boolean'},
-    target: {type: 'string', description: 'Root-level alias for input.target, used by comment.create.'},
-    targetId: {type: 'string', description: 'Root-level alias for input.targetId.'},
-    id: {type: 'string', description: 'Root-level alias for input.id.'},
-    path: {type: 'string', description: 'Root-level alias for input.path, used by document/draft commands.'},
-    name: {type: 'string', description: 'Root-level alias for input.name, the Seed document title metadata.'},
-    title: {type: 'string', description: 'Root-level alias for input.title, accepted as document title metadata.'},
-    body: {type: 'string', description: 'Root-level alias for input.body.'},
-    content: {type: 'string', description: 'Root-level alias for input.content.'},
-    text: {type: 'string', description: 'Root-level alias for input.text.'},
-    replyCommentId: {
-      type: 'string',
-      description:
-        'Root-level alias for input.replyCommentId. Required for comment.create when replying to an existing comment.',
-    },
-    reply: {type: 'string', description: 'Root-level alias for input.reply.'},
-    replyTo: {type: 'string', description: 'Root-level alias for input.replyTo.'},
-    input: {
-      type: 'object',
-      description:
-        'Command-specific input. For document.create/document.update/draft.create/draft.update use content for markdown or JSON blocks, format markdown/json, name (or title), path, metadata, edit, and location. For document.move, pass source/sourceId/id as the existing document and destination/destinationId as the full target hm:// URL; alternatively pass path (for example "/" for the account home document) and the source account will be reused. body/text are accepted as content aliases for documents and comments. For comment.create use target/targetId/id for the document, body/content/text for markdown body, and replyCommentId/reply/replyTo for the parent comment id when replying. If responding to a mention inside an activity comment, set replyCommentId to trigger_context.activity.comment.id or trigger_context.activity.commentId.id.',
-      additionalProperties: true,
-      properties: {
-        target: {type: 'string'},
-        targetId: {type: 'string'},
-        id: {type: 'string'},
-        path: {type: 'string'},
-        name: {type: 'string'},
-        title: {type: 'string'},
-        body: {type: 'string'},
-        content: {type: 'string'},
-        text: {type: 'string'},
-        format: {type: 'string', enum: ['markdown', 'json']},
-        metadata: {type: 'object', additionalProperties: true},
-        edit: {type: 'string'},
-        location: {type: 'string'},
-        replyCommentId: {type: 'string'},
-        reply: {type: 'string'},
-        replyTo: {type: 'string'},
+const readVerb = {
+  name: 'read',
+  label: 'Read',
+  description: [
+    'Read anything you can address. One verb for your whole world; the address shape picks the source:',
+    '- `~/memory/<path>` — a file in your persistent memory. A directory path (or `~/memory/`) lists entries with sizes.',
+    '- `~/tools/<name>` — a tool contract: full description plus input/output schemas. `~/tools/` lists every tool you can call.',
+    '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile.',
+    '- `ipfs://<cid>` — fetch content by CID into memory and return it (binary files return metadata only).',
+    '- `https://…` — read a public web page as markdown.',
+    '- `activity:` — the recent activity feed; filter with options {authors, eventTypes, resource, pageSize, pageToken}.',
+    '- `attachment:<id>` — a file attached to this conversation (images are shown to you when the model supports it).',
+    '- `thread:<id>` — another conversation transcript of yours. `run:<id>` — a run journal.',
+    'Directory listings return {entries: [{path, type, size}]}; memory file reads return {content}. Prefer reading exactly what you need; directory listings are cheap, whole trees are not.',
+  ].join('\n'),
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      address: {
+        type: 'string',
+        minLength: 1,
+        description:
+          'What to read: ~/memory/…, ~/tools/…, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread:<id>, run:<id>.',
+      },
+      format: {
+        type: 'string',
+        enum: ['markdown', 'json'],
+        description: 'Output format where supported. Defaults to markdown.',
+      },
+      options: {
+        type: 'object',
+        description:
+          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; ipfs {path} to choose the memory destination.',
       },
     },
+    required: ['address'],
   },
-  required: ['command'],
-} satisfies JsonSchema
-
-export type SeedToolRegistry = {
-  search: SeedToolMetadata
-  navigate: SeedToolMetadata
-  list_activity_feed: SeedToolMetadata
-  read: SeedToolMetadata
-  web_search: SeedToolMetadata
-  web_read: SeedToolMetadata
-  write: SeedToolMetadata
-  memory_list: SeedToolMetadata
-  memory_read: SeedToolMetadata
-  memory_write: SeedToolMetadata
-  memory_delete: SeedToolMetadata
-  memory_download: SeedToolMetadata
-  ipfs_read: SeedToolMetadata
-  ipfs_write: SeedToolMetadata
-  view_attachment: SeedToolMetadata
-  attachment_to_memory: SeedToolMetadata
-  attachment_to_ipfs: SeedToolMetadata
-  memory_publish_document: SeedToolMetadata
-  execute_code: SeedToolMetadata
-  start_session: SeedToolMetadata
-  set_session_title: SeedToolMetadata
-}
-
-export const seedToolRegistry: SeedToolRegistry = {
-  search: {
-    name: 'search',
-    label: 'Search',
-    description:
-      'Search Hypermedia documents and contacts when you do not know the exact hm:// URL yet. Supports query, optional accountUid scoping, body/comment inclusion, match context size, search type, and page size. Use this before read or navigate when the user asks about a title, topic, or person rather than a specific URL.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: {type: 'string', minLength: 1, description: 'The search query. Supports phrases and wildcards.'},
-        accountUid: {type: 'string', description: 'Optional account UID to scope search to a single account.'},
-        includeBody: {
-          type: 'boolean',
-          description: 'Set true to search document bodies and comments in addition to titles and contacts.',
-        },
-        contextSize: {
-          type: 'integer',
-          minimum: 0,
-          description: 'Optional match context size in runes. Defaults to 48.',
-        },
-        searchType: {
-          type: 'string',
-          enum: ['keyword', 'semantic', 'hybrid'],
-          description:
-            'Search strategy. Use hybrid for general discovery, keyword for exact text, semantic for concept matches.',
-        },
-        pageSize: {type: 'integer', minimum: 1, description: 'Maximum number of results to return.'},
-      },
-      required: ['query'],
-      additionalProperties: false,
-    },
-    render: {
-      kind: 'search',
-      label: 'Search',
-      color: 'sky',
-      primaryArg: 'query',
-      summaryArg: 'query',
-      summaryOutputPath: 'summary',
-      links: [{source: 'output', path: 'results[].url', labelPath: 'results[].title'}],
-      details: [
-        {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    getReferencedUrls: ({output}) => {
-      const results = record(output).results
-      return Array.isArray(results) ? urlList(...results.map((result) => record(result).url)) : []
-    },
-    runtimes: ['assistant', 'agent-service'],
-    userConfigurable: true,
-  },
-  navigate: {
-    name: 'navigate',
-    label: 'Navigate',
-    description:
-      'Use when the user asks for navigation, opening, showing, or if the intent is strongly implied. Opens a Hypermedia resource in the app. Accepts parseable hm:// URLs, including view suffixes like /:comments, /:collaborators, /:activity/citations, and block fragments like #block or #block[5:15].',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        url: {type: 'string', description: 'The hm:// URL to open'},
-        newWindow: {type: 'boolean', description: 'True to open in a new window instead of the current window.'},
-      },
-      required: ['url'],
-      additionalProperties: false,
-    },
-    render: {
-      kind: 'navigate',
-      label: 'Navigate',
-      color: 'amber',
-      resourceArg: 'url',
-      summaryArg: 'url',
-      summaryOutputPath: 'summary',
-      links: [
-        {source: 'output', path: 'resourceUrl', label: 'Open target'},
-        {source: 'input', path: 'url', label: 'Requested URL'},
-      ],
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['assistant'],
-  },
-  list_activity_feed: {
-    name: 'list_activity_feed',
-    label: 'List Activity Feed',
-    description:
-      'Read recent Seed Hypermedia activity from the gRPC ActivityFeed/ListEvents API. Use this to observe new or recent SHM content, document updates, comments, mentions/citations, capability changes, contact changes, and other activity. Supports pagination and filters by author, resource, and event type.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        pageSize: {
-          type: 'integer',
-          minimum: 1,
-          description:
-            'Maximum number of feed events to return. Use a small number such as 5-20 for recent activity. Defaults to the server/client default when omitted.',
-        },
-        pageToken: {
-          type: 'string',
-          description:
-            'Pagination token returned as nextPageToken from a previous list_activity_feed call. Omit for the newest page.',
-        },
-        trustedOnly: {
-          type: 'boolean',
-          description:
-            'When true, only include activity from trusted/known sources according to the underlying daemon/server policy. Defaults to false.',
-        },
-        filterAuthors: {
-          type: 'array',
-          items: {type: 'string'},
-          description:
-            'Optional author account UIDs to include. Use this to see activity authored by one or more specific accounts.',
-        },
-        filterEventType: {
-          type: 'array',
-          items: {type: 'string'},
-          description:
-            'Optional event type filters. Useful values include Ref (document update), Comment, Capability, Contact, Profile, DagPB, comment/Embed, comment/Link, comment/Target, doc/Embed, doc/Link, doc/Button, and citation/mention source types returned by the feed.',
-        },
-        filterResource: {
-          type: 'string',
-          description:
-            'Optional resource filter. Use an hm:// document/account/comment resource ID to see activity related to that resource. Some callers may use a trailing * prefix form such as hm://account/path* to include child/path-related events when supported by the daemon/server.',
-        },
-      },
-    },
-    render: {
-      kind: 'generic',
-      label: 'Activity Feed',
-      color: 'muted',
-      primaryArg: 'filterResource',
-      summaryArg: 'filterResource',
-      summaryOutputPath: 'summary',
-      links: [{source: 'input', path: 'filterResource', label: 'Filter'}],
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['assistant', 'agent-service'],
-    userConfigurable: true,
-  },
-  read: {
-    name: 'read',
+  render: {
+    kind: 'read',
     label: 'Read',
-    description:
-      'Read Seed Hypermedia content by URL. Accepts hm:// URLs, gateway URLs, http(s) Seed site web URLs, exact block fragments such as #BLOCK_ID, and document view suffixes for comments, directories, version history, citations, and collaborators. Automatically resolves http(s) URLs before reading. Use this before returning block-level links so you can copy exact <!-- id:BLOCK_ID --> values; never invent heading-slug fragments.',
-    inputSchema: readHypermediaInputSchema,
-    render: {
-      kind: 'read',
-      label: 'Read',
-      color: 'emerald',
-      resourceArg: 'id',
-      summaryArg: 'id',
-      summaryOutputPath: 'summary',
-      links: [
-        {source: 'output', path: 'resourceUrl', labelPath: 'displayLabel'},
-        {source: 'output', path: 'id', labelPath: 'title'},
-        {source: 'input', path: 'id', label: 'Requested URL'},
-      ],
-      details: [
-        {label: 'Content', source: 'output', path: 'markdown', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    getReferencedUrls: ({input, output}) => urlList(record(output).id, record(output).resourceUrl, record(input).id),
-    runtimes: ['assistant', 'agent-service'],
-    userConfigurable: true,
+    pendingLabel: 'Reading',
+    color: 'sky',
+    primaryArg: 'address',
+    summaryArg: 'address',
+    resourceArg: 'address',
+    summaryOutputPath: 'summary',
+    details: [{label: 'Content', source: 'output'}],
   },
-  web_search: {
-    name: 'web_search',
-    label: 'Web Search',
-    description:
-      'Search the public web via a self-hosted SearXNG metasearch engine. Returns ranked results with titles, URLs, and snippets. Use this for general internet/web research when you do not already have a URL. This is NOT for Seed Hypermedia content: use search for Hypermedia documents and contacts. To read a specific web page found here, call web_read with its URL.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        query: {type: 'string', minLength: 1, description: 'The web search query.'},
-        count: {type: 'integer', minimum: 1, description: 'Maximum number of results to return. Default 10, max 25.'},
-        category: {
-          type: 'string',
-          enum: ['general', 'news', 'science', 'it'],
-          description: 'Result category. Use news for recent events, general otherwise. Defaults to general.',
-        },
-        time_range: {
-          type: 'string',
-          enum: ['day', 'week', 'month', 'year'],
-          description: 'Optional recency filter for time-sensitive queries.',
-        },
-        language: {type: 'string', description: 'Optional language code such as en. Defaults to en.'},
-      },
-      required: ['query'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string', description: 'One-line summary of the search outcome.'},
-        query: {type: 'string'},
-        results: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              title: {type: 'string'},
-              url: {type: 'string'},
-              snippet: {type: 'string'},
-              engine: {type: 'string', description: 'Upstream engine that produced the result.'},
-            },
-          },
-        },
-        degraded: {
-          type: 'boolean',
-          description: 'True when some engines were unavailable and coverage may be partial.',
-        },
-        unavailableEngines: {type: 'array', items: {type: 'string'}},
-        markdown: {type: 'string', description: 'Human-readable rendering of the results.'},
-      },
-    },
-    render: {
-      kind: 'search',
-      label: 'Web Search',
-      color: 'sky',
-      primaryArg: 'query',
-      summaryArg: 'query',
-      summaryOutputPath: 'summary',
-      links: [{source: 'output', path: 'results[].url', labelPath: 'results[].title'}],
-      details: [
-        {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+  getReferencedUrls: (io: ToolCallIO) => {
+    const input = io.input as {address?: unknown} | undefined
+    const address = typeof input?.address === 'string' ? input.address : ''
+    return address.startsWith('hm://') ? [address] : []
   },
-  web_read: {
-    name: 'web_read',
-    label: 'Web Read',
-    description:
-      'Fetch a single public web page (any http(s) URL) and return its main content as clean markdown. Use this to read articles, documentation, wikis, and other internet pages — including results from web_search or links the user pastes. MediaWiki/Wikipedia pages are read through the wiki API automatically. Set raw=true to return the verbatim response body instead of extracted markdown — use this for source code (e.g. raw.githubusercontent.com URLs), JSON APIs, or config files where extraction would lose information. This is NOT for Seed Hypermedia resources: use read for hm:// URLs and Seed site web URLs.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        url: {type: 'string', description: 'The public http(s) URL of the page to read.'},
-        query: {
-          type: 'string',
-          description:
-            'Optional focus query. When the page requires browser rendering, the content is filtered for relevance to this query.',
-        },
-        raw: {
-          type: 'boolean',
-          description:
-            'Set true to return the raw response body (HTML, JSON, source code, plain text) verbatim with no main-content extraction or markdown conversion. Best for code files, JSON APIs, and config files.',
-        },
+  runtimes: ['assistant', 'agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+const writeVerb = {
+  name: 'write',
+  label: 'Write',
+  description: [
+    'Write anything you can address. The address shape picks the destination:',
+    '- `~/memory/<path>` — write `content` to a memory file (parent folders are created automatically; writing an existing file replaces its whole content — there is no append). Options: {delete: true} removes a file or directory; {fromUrl} downloads a URL to the path instead of writing content; {fromAttachment: "<id>"} saves a conversation attachment to the path.',
+    '- `ipfs://` — publish to IPFS and get a CID URL back. Provide {fromPath: "~/memory/<path>"} or {fromAttachment: "<id>"} in options.',
+    '- `hm://<account>/<path>` — publish a hypermedia document with markdown `content`. The default creates a NEW document; pass {action: "update"} to revise an existing document in place (same address, new version); an update with `content` replaces the whole body, while omitting `content` changes only name/metadata and leaves the body untouched. Options: {name} sets the document name, REQUIRED when creating (it is stored as metadata.name; a # heading is body content, not the name); {metadata} sets further document metadata attributes as an object (e.g. {summary, icon, cover, or custom keys}) — metadata belongs here, never in the body text; {signer} picks the signing identity by profileName or publicKey; {action} also covers "comment" (with {target, replyTo}), "move" (with {toPath}), "redirect" (with {toUrl}), "delete", "fork" (with {fromUrl}). Unrecognized option keys are refused, not ignored. Parent documents must exist before nested paths.',
+    'Writing to hm:// publishes signed content other people can see — be sure the content is ready. Pass top-level dryRun: true to validate an hm:// write without publishing anything.',
+    'Every hm:// link inside document or comment content is checked before publishing: malformed links always fail the write, and links whose targets do not exist on the server fail it too — fix them (read each link to verify), or pass {skipLinkCheck: true} in options only when a linked target is about to be created.',
+  ].join('\n'),
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      address: {
+        type: 'string',
+        minLength: 1,
+        description: 'Where to write: ~/memory/<path>, ipfs://, or hm://<account>/<path>.',
       },
-      required: ['url'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string', description: 'One-line summary describing how the page was read.'},
-        url: {type: 'string', description: 'The requested URL.'},
-        finalUrl: {type: 'string', description: 'The URL actually read, after redirects.'},
-        title: {type: 'string'},
-        source: {
-          type: 'string',
-          enum: ['mediawiki', 'static', 'crawl4ai', 'raw'],
-          description: 'Which reader tier produced the result.',
-        },
-        contentType: {type: 'string', description: 'Response content type. Present for raw reads.'},
-        truncated: {type: 'boolean', description: 'True when the content was cut to the size limit.'},
-        success: {type: 'boolean'},
-        markdown: {type: 'string', description: 'The extracted markdown, or the verbatim body for raw reads.'},
+      content: {
+        type: 'string',
+        description: 'The content to write. Markdown for hm:// documents; raw text for memory files.',
+      },
+      options: {
+        type: 'object',
+        description: 'Destination-specific options; read ~/tools/write for the full contract per address form.',
+      },
+      dryRun: {
+        type: 'boolean',
+        description: 'For hm:// writes: validate and echo what would be published without publishing anything.',
       },
     },
-    render: {
-      kind: 'read',
-      label: 'Web Read',
-      color: 'emerald',
-      resourceArg: 'url',
-      summaryArg: 'url',
-      summaryOutputPath: 'summary',
-      links: [
-        {source: 'output', path: 'finalUrl', labelPath: 'title'},
-        {source: 'input', path: 'url', label: 'Requested URL'},
-      ],
-      details: [
-        {label: 'Content', source: 'output', path: 'markdown', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+    required: ['address'],
   },
-  write: {
-    name: 'write',
+  render: {
+    kind: 'write',
     label: 'Write',
-    description:
-      'Create, update, and publish Seed Hypermedia documents, drafts, comments, capabilities, contacts, and profiles. Structured equivalent of seed-cli write commands. Use selected signer profileName or publicKey. For document.create and draft.create, always set the visible Seed document title as input.name (or title) / frontmatter name; the first markdown heading is body content and is not enough by itself. Do not create a document at a nested path unless its parent path already exists as a published document: to create `/team/notes`, the document at `/team` must already exist, so create parent documents first (top-level documents are always allowed). After creating, forking, copying, or editing a document, use read on the resulting document before returning block-level links because block IDs may have changed. For comment.create replies, always pass input.replyCommentId with the exact parent comment id (for trigger-created sessions, use activity.comment.id or activity.commentId.id) so the comment is threaded instead of orphaned.',
-    inputSchema: writeHypermediaInputSchema,
-    render: {
-      kind: 'write',
-      label: 'Write',
-      color: 'indigo',
-      primaryArg: 'command',
-      summaryArg: 'command',
-      summaryOutputPath: 'summary',
-      links: [
-        {source: 'output', path: 'url', label: 'Open result'},
-        {source: 'output', path: 'resourceUrl', label: 'Open resource'},
-        {source: 'input', path: 'target', label: 'Target'},
-        {source: 'input', path: 'targetId', label: 'Target'},
-        {source: 'input', path: 'id', label: 'ID'},
-      ],
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-      customViews: [
-        {command: 'draft.create', kind: 'write-command'},
-        {command: 'draft.update', kind: 'write-command'},
-        {command: 'draft.get', kind: 'write-command'},
-        {command: 'draft.list', kind: 'write-command'},
-        {command: 'draft.delete', kind: 'write-command'},
-        {command: 'draft.publish', kind: 'write-command'},
-        {command: 'document.create', kind: 'write-command'},
-        {command: 'document.update', kind: 'write-command'},
-        {command: 'document.delete', kind: 'write-command'},
-        {command: 'document.fork', kind: 'write-command'},
-        {command: 'document.move', kind: 'write-command'},
-        {command: 'document.redirect', kind: 'write-command'},
-        {command: 'document.ref', kind: 'write-command'},
-        {command: 'comment.create', kind: 'write-command'},
-        {command: 'comment.update', kind: 'write-command'},
-        {command: 'comment.delete', kind: 'write-command'},
-        {command: 'capability.create', kind: 'write-command'},
-        {command: 'capability.grant', kind: 'write-command'},
-        {command: 'contact.create', kind: 'write-command'},
-        {command: 'contact.delete', kind: 'write-command'},
-        {command: 'profile.update', kind: 'write-command'},
-        {command: 'profile.alias', kind: 'write-command'},
-      ],
-    },
-    getReferencedUrls: ({output}) =>
-      urlList(
-        record(output).id,
-        record(output).commentUrl,
-        record(output).target,
-        record(output).targetUrl,
-        record(output).authorUrl,
-      ),
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+    pendingLabel: 'Writing',
+    color: 'emerald',
+    primaryArg: 'address',
+    summaryArg: 'address',
+    resourceArg: 'address',
+    summaryOutputPath: 'summary',
+    details: [
+      {label: 'Content', source: 'input', path: 'content', format: 'markdown'},
+      {label: 'Options', source: 'input', path: 'options'},
+      {label: 'Result', source: 'output'},
+    ],
+    // Command-keyed rich views: old transcripts carry `command` in the tool input; new write-verb
+    // results carry it in the output (writeToolResult), so both render the purpose-built UI.
+    customViews: [
+      {command: 'draft.create', kind: 'write-command'},
+      {command: 'draft.update', kind: 'write-command'},
+      {command: 'draft.get', kind: 'write-command'},
+      {command: 'draft.list', kind: 'write-command'},
+      {command: 'draft.delete', kind: 'write-command'},
+      {command: 'draft.publish', kind: 'write-command'},
+      {command: 'document.create', kind: 'write-command'},
+      {command: 'document.update', kind: 'write-command'},
+      {command: 'document.delete', kind: 'write-command'},
+      {command: 'document.fork', kind: 'write-command'},
+      {command: 'document.move', kind: 'write-command'},
+      {command: 'document.redirect', kind: 'write-command'},
+      {command: 'document.ref', kind: 'write-command'},
+      {command: 'comment.create', kind: 'write-command'},
+      {command: 'comment.update', kind: 'write-command'},
+      {command: 'comment.delete', kind: 'write-command'},
+      {command: 'capability.create', kind: 'write-command'},
+      {command: 'capability.grant', kind: 'write-command'},
+      {command: 'contact.create', kind: 'write-command'},
+      {command: 'contact.delete', kind: 'write-command'},
+      {command: 'profile.update', kind: 'write-command'},
+      {command: 'profile.alias', kind: 'write-command'},
+    ],
   },
-  memory_list: {
-    name: 'memory_list',
-    label: 'List Memory',
-    description:
-      'List one directory level of your private persistent memory: the files and directories directly inside the given path, without descending. Omit path to list the memory root; pass a directory path (for example `notes`) to look inside it. Directory entries include entryCount — call memory_list again with that path to see their contents. Memory is a filesystem owned by this agent, shared across all of your sessions and visible to your user. Call this before reading or writing when you are unsure what already exists.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        path: {
-          type: 'string',
-          description: 'Directory to list, relative to the memory root. Omit for the root level.',
-        },
-      },
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string', description: 'One-line summary of the listed level.'},
-        path: {type: 'string', description: 'The listed directory; empty string for the memory root.'},
-        entries: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              path: {type: 'string', description: 'Relative path from the memory root.'},
-              type: {type: 'string', enum: ['file', 'dir']},
-              size: {type: 'integer', description: 'File size in bytes; 0 for directories.'},
-              updatedAt: {type: 'integer', description: 'Last modification time in Unix epoch milliseconds.'},
-              entryCount: {type: 'integer', description: 'For directories: how many entries are directly inside.'},
-            },
-          },
-        },
-        totalBytes: {type: 'integer', description: 'Total bytes of the files at this level only.'},
-      },
-    },
-    render: {
-      kind: 'generic',
-      label: 'List Memory',
-      color: 'muted',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Output', source: 'output'},
-        {label: 'Input', source: 'input'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+  getReferencedUrls: (io: ToolCallIO) => {
+    const input = io.input as {address?: unknown} | undefined
+    const output = io.output as Record<string, unknown> | undefined
+    const id = typeof output?.id === 'string' ? output.id : undefined
+    const version = typeof output?.version === 'string' ? output.version : undefined
+    const versionedId = id && version ? `${id}${id.includes('?') ? '&' : '?'}v=${encodeURIComponent(version)}` : id
+    return [
+      input?.address,
+      versionedId,
+      output?.url,
+      output?.resourceUrl,
+      output?.commentUrl,
+      output?.target,
+      output?.targetUrl,
+      output?.authorUrl,
+      output?.destination,
+    ].filter((value): value is string => typeof value === 'string' && value.startsWith('hm://'))
   },
-  memory_read: {
-    name: 'memory_read',
-    label: 'Read Memory',
-    description:
-      'Read one file from your private persistent memory by its relative path (for example `notes/project.md`). Text files return their full content; binary files (media, downloads) return size and MIME metadata only — use ipfs_write to publish binary files for use in Hypermedia content. Use memory_list first when you do not know the exact path.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        path: {type: 'string', minLength: 1, description: 'Relative path of the memory file to read.'},
-      },
-      required: ['path'],
+  runtimes: ['assistant', 'agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+const callVerb = {
+  name: 'call',
+  label: 'Call',
+  description: [
+    'Invoke a tool by name with a JSON input. Your available tools are listed in your context with one-line summaries; read `~/tools/<name>` for a full contract.',
+    'Calling a tool with missing or invalid input does not fail: the result is the tool contract itself — read it and call again correctly. Do not guess elaborate inputs for a tool you have not expanded.',
+  ].join('\n'),
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      tool: {type: 'string', minLength: 1, description: 'The tool name, as listed under ~/tools/.'},
+      input: {type: 'object', description: "The tool's input, matching its contract."},
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        path: {type: 'string'},
-        encoding: {type: 'string', enum: ['utf8', 'binary']},
-        content: {type: 'string', description: 'The full UTF-8 text content; absent for binary files.'},
-        size: {type: 'integer'},
-        mimeType: {type: 'string'},
-        updatedAt: {type: 'integer'},
-      },
-    },
-    render: {
-      kind: 'read',
-      label: 'Read Memory',
-      color: 'emerald',
-      primaryArg: 'path',
-      summaryArg: 'path',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Content', source: 'output', path: 'content', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+    required: ['tool'],
   },
-  memory_write: {
-    name: 'memory_write',
-    label: 'Write Memory',
-    description:
-      'Write one UTF-8 text file into your private persistent memory, creating parent directories automatically and replacing any existing file at that path. Use this to remember durable notes, learnings, preferences, and state across sessions. Keep files small and organized under descriptive relative paths such as `notes/topic.md`. To append or edit, read the file first and write back the full updated content.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        path: {type: 'string', minLength: 1, description: 'Relative path of the memory file to write.'},
-        content: {type: 'string', description: 'The full UTF-8 text content to store at the path.'},
-      },
-      required: ['path', 'content'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        path: {type: 'string'},
-        size: {type: 'integer'},
-        updatedAt: {type: 'integer'},
-      },
-    },
-    render: {
-      kind: 'write',
-      label: 'Write Memory',
-      color: 'violet',
-      primaryArg: 'path',
-      summaryArg: 'path',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Content', source: 'input', path: 'content', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+  render: {
+    kind: 'generic',
+    label: 'Call',
+    pendingLabel: 'Calling',
+    color: 'amber',
+    primaryArg: 'tool',
+    summaryArg: 'tool',
+    summaryOutputPath: 'summary',
+    details: [
+      {label: 'Input', source: 'input', path: 'input'},
+      {label: 'Result', source: 'output'},
+    ],
   },
-  memory_delete: {
-    name: 'memory_delete',
-    label: 'Delete Memory',
-    description:
-      'Delete one file, or one directory recursively, from your private persistent memory. Only delete content that is clearly obsolete or that the user asked you to remove.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        path: {type: 'string', minLength: 1, description: 'Relative path of the memory file or directory to delete.'},
+  runtimes: ['assistant', 'agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+const delegateVerb = {
+  name: 'delegate',
+  label: 'Delegate',
+  description: [
+    'Spawn a child run to do work for you. Two kinds of child, one verb:',
+    '- A **model child** (default): pass `brief` — human-readable markdown that becomes the child conversation\'s first message VERBATIM. The user reviews it as the child\'s full context, so write a real briefing: goal, all needed background, expectations, data in fenced blocks. The child is a fresh context and never sees this conversation; it does share your persistent memory when it runs as you. Pass `prompt` for an anonymous worker persona or `agentId` to run one of your other agents; pass `tools` only to narrow its toolset. Declare `output` (a JSON schema, root type "object") to get a validated structured result; otherwise you get its final text.',
+    '- A **script child**: pass `script` — a JavaScript module `export default async function (input, ctx) {…}` that orchestrates tools with real control flow (loops, parallel fan-out, durable sleeps). No imports, Date, Math.random, setTimeout, or fetch (standard built-ins plus UTF-8 TextEncoder/TextDecoder are available); everything external goes through ctx: `ctx.call(tool, input, {description})` — where tool is the read or write verb or any callable tool, and description is a short human-readable label for what this call is doing (shown live to the user; always provide one) — `ctx.delegate({...})` for nested model children (resolves DIRECTLY to the validated output object, or {text} when no output schema was declared; throws a coded error on failure), `ctx.parallel([...thunks])` (array of zero-arg functions, resolves to results in the same order), `ctx.sleep(ms)`, `ctx.waitForEvent(match, {timeoutMs, label})` — parks until something happens and resolves with the payload, or null on timeout; match `{signal: "approved"}` for a person or system answering this run, or `{eventType, resource, author}` for the activity feed — `ctx.continueAsNew(state)` — ends this run and starts a successor carrying only `state`, for loops that would otherwise run forever; nothing after it executes — `ctx.step(label, fn)`, `ctx.plan({steps})`, `ctx.now()`, `ctx.log(...)`, `ctx.progress(...)`, `ctx.input`, `ctx.runId`. Scripts run durably: they survive restarts and completed steps never re-execute; a parked wait costs nothing while it waits. Pass `input` for the JSON value handed to the module.',
+    "Independent children must be spawned TOGETHER: emit every delegate call for a batch in ONE reply, before you have any of their results. Two delegate calls in one reply run at the same time; the same two calls spawned in consecutive replies run one after the other and take twice as long. Asked to research two topics, reply with two delegate calls at once — do NOT delegate one, wait for its result, then delegate the other. Sequence children only when a later child genuinely needs an earlier one's output. Your turn then pauses (cheaply — parked, restart-proof) until every child spawned this turn resolves, and each delegate call receives its own result, so parallel children never mix up. Beyond about two parallel items, prefer a script child with `ctx.parallel`: it fans out deterministically and keeps the whole fan-out in one reviewable place. Pass `await: false` only for fire-and-forget work whose outcome you do not need.",
+    'Keep a plan. Before a parallel batch, mark ONE step running that names the whole batch (e.g. "Research both competitors"); every child spawned in that reply attaches to it. Never re-delegate work a completed child already did — check the children you already have before spawning. Do NOT delegate work you can simply do yourself, and never delegate just to make one tool call.',
+  ].join('\n'),
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      title: {type: 'string', description: 'Short label for the child, shown in the thread list and progress card.'},
+      brief: {
+        type: 'string',
+        description:
+          "Model child: the task brief as human-readable markdown; becomes the child's first message verbatim. Provide exactly one of brief or script.",
       },
-      required: ['path'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        path: {type: 'string'},
-        deleted: {type: 'boolean'},
+      script: {
+        type: 'string',
+        description:
+          'Script child: a self-contained module `export default async function (input, ctx) {…}`. Provide exactly one of brief or script.',
+      },
+      input: {description: 'Script child only: JSON value passed to the module as its first argument.'},
+      prompt: {
+        type: 'string',
+        description:
+          'Model child: optional system prompt for an anonymous worker using your model. Omit to run the child as yourself; provide at most one of prompt or agentId.',
+      },
+      agentId: {type: 'string', description: 'Model child: run under another of your agents by id.'},
+      tools: {
+        type: 'array',
+        items: {type: 'string'},
+        description: 'Model child: restrict the child to these tools (intersected with what its agent has).',
+      },
+      output: {
+        type: 'object',
+        description:
+          'Model child: JSON schema for the required result (root type "object"). The child delivers it via return_result; validation errors bounce back for self-correction.',
+      },
+      await: {
+        type: 'boolean',
+        description:
+          'Default true: your turn parks until the child resolves and you receive its result. false: detached — the child runs in the background and you never receive its outcome.',
       },
     },
-    render: {
-      kind: 'write',
-      label: 'Delete Memory',
-      color: 'amber',
-      primaryArg: 'path',
-      summaryArg: 'path',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+    required: [],
   },
-  memory_download: {
-    name: 'memory_download',
-    label: 'Download to Memory',
-    description:
-      'Download a file from a public http(s) URL into your private persistent memory. Works for any file type including binary media (images, audio, video, PDFs); the file is stored verbatim and can then be previewed by your user on the Memory tab or published with ipfs_write. For ipfs:// URLs use ipfs_read instead. Omit path to store the file under downloads/ named from the URL; when the path has no extension, one is added from the response content type. Use this instead of web_read when you need the actual file rather than extracted text.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        url: {type: 'string', minLength: 1, description: 'The public http(s) URL of the file to download.'},
-        path: {
-          type: 'string',
-          description: 'Optional target memory path such as media/photo.jpg. Defaults to downloads/<url filename>.',
-        },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      status: {type: 'string', enum: ['succeeded', 'failed', 'canceled', 'detached']},
+      sessionId: {type: 'string'},
+      runId: {type: 'string'},
+      output: {
+        description:
+          "The validated result payload, {text} when no output schema was declared, or the script's return value.",
       },
-      required: ['url'],
+      error: {type: 'object', properties: {code: {type: 'string'}, message: {type: 'string'}}},
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        path: {type: 'string', description: 'The memory path where the file was stored.'},
-        size: {type: 'integer'},
-        mimeType: {type: 'string'},
-        finalUrl: {type: 'string', description: 'The URL actually fetched, after redirects.'},
-        contentType: {type: 'string'},
-      },
-    },
-    render: {
-      kind: 'write',
-      label: 'Download to Memory',
-      color: 'violet',
-      primaryArg: 'url',
-      summaryArg: 'url',
-      summaryOutputPath: 'summary',
-      links: [{source: 'input', path: 'url', label: 'Source URL'}],
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
   },
-  ipfs_read: {
-    name: 'ipfs_read',
-    label: 'Read from IPFS',
-    description:
-      'Fetch one file from IPFS via the Hypermedia server, by CID or ipfs://<cid> URL, and save it into your private persistent memory. Use this to open ipfs:// links referenced from Hypermedia content, such as images and file attachments in documents. Omit path to store the file under ipfs/<cid>; when the path has no extension, one is added from the response content type. Text files also return their full content; process binary files with memory or code tools after fetching.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        url: {type: 'string', minLength: 1, description: 'The IPFS CID or ipfs://<cid> URL of the file to fetch.'},
-        path: {
-          type: 'string',
-          description: 'Optional target memory path such as media/photo.jpg. Defaults to ipfs/<cid>.',
-        },
-      },
-      required: ['url'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        path: {type: 'string', description: 'The memory path where the file was stored.'},
-        cid: {type: 'string', description: 'The IPFS content identifier that was fetched.'},
-        content: {type: 'string', description: 'The full UTF-8 text content; absent for binary files.'},
-        size: {type: 'integer'},
-        mimeType: {type: 'string'},
-      },
-    },
-    render: {
-      kind: 'read',
-      label: 'Read from IPFS',
-      color: 'emerald',
-      primaryArg: 'url',
-      summaryArg: 'url',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Content', source: 'output', path: 'content', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+  render: {
+    kind: 'write',
+    label: 'Delegate',
+    pendingLabel: 'Delegating',
+    color: 'violet',
+    primaryArg: 'title',
+    summaryArg: 'title',
+    // The full account of a delegation, for any surface without a purpose-built view: what the
+    // child was asked to do, the code if it was a script child, and what came back. (The desktop
+    // bubble renders the brief and the child's own run hierarchy instead, and keeps the raw
+    // payloads behind its info dialog.) Absent fields render nothing.
+    details: [
+      {label: 'Brief', source: 'input', path: 'brief', format: 'markdown'},
+      {label: 'Script', source: 'input', path: 'script'},
+      {label: 'Input', source: 'input', path: 'input'},
+      {label: 'Result', source: 'output'},
+    ],
   },
-  ipfs_write: {
-    name: 'ipfs_write',
-    label: 'Publish to IPFS',
-    description:
-      'Upload one file from your private persistent memory to IPFS via the Hypermedia server, returning an ipfs://<cid> URL. Use that URL to reference the file from Hypermedia content — for example as an image in a document created with the write tool, or as a profile avatar. Works for binary media downloaded with memory_download as well as text files.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        path: {type: 'string', minLength: 1, description: 'Relative memory path of the file to upload.'},
-      },
-      required: ['path'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        path: {type: 'string'},
-        cid: {type: 'string', description: 'The IPFS content identifier.'},
-        url: {type: 'string', description: 'ipfs://<cid> URL usable from Hypermedia content.'},
-        size: {type: 'integer'},
-        mimeType: {type: 'string'},
-      },
-    },
-    render: {
-      kind: 'write',
-      label: 'Publish to IPFS',
-      color: 'indigo',
-      primaryArg: 'path',
-      summaryArg: 'path',
-      summaryOutputPath: 'summary',
-      links: [{source: 'output', path: 'url', label: 'IPFS file'}],
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
-  },
-  view_attachment: {
-    name: 'view_attachment',
-    label: 'View Attachment',
-    description:
-      'Look at one file your user attached to this chat session, by the attachment id listed in the message metadata. Images are returned as actual image content you can see (when your model supports image input); other file types and oversized images return metadata plus guidance. Attachments are private to this session: use attachment_to_memory to keep one across sessions, or attachment_to_ipfs to publish one for use in Hypermedia content. Call this only when you actually need to inspect the content — the message metadata already tells you the name, type, and size.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        id: {type: 'string', minLength: 1, description: 'The attachment id from the message metadata.'},
-      },
-      required: ['id'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        id: {type: 'string'},
-        name: {type: 'string'},
-        mimeType: {type: 'string'},
-        size: {type: 'integer'},
-        shownAsImage: {type: 'boolean', description: 'True when the image content was returned for viewing.'},
-        content: {type: 'string', description: 'Full text content for UTF-8 text attachments.'},
-      },
-    },
-    render: {
-      kind: 'read',
-      label: 'View Attachment',
-      color: 'emerald',
-      primaryArg: 'id',
-      summaryArg: 'id',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-  },
-  attachment_to_memory: {
-    name: 'attachment_to_memory',
-    label: 'Save Attachment to Memory',
-    description:
-      'Copy one session attachment into your private persistent memory so it survives beyond this session, using the attachment id from the message metadata. Defaults to attachments/<file name>; pass path to store it elsewhere. Do this only when the file is worth keeping across sessions — attachments are session-private by default.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        id: {type: 'string', minLength: 1, description: 'The attachment id from the message metadata.'},
-        path: {
-          type: 'string',
-          description: 'Optional target memory path such as media/photo.jpg. Defaults to attachments/<file name>.',
-        },
-      },
-      required: ['id'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        id: {type: 'string'},
-        path: {type: 'string', description: 'The memory path where the attachment was stored.'},
-        size: {type: 'integer'},
-        mimeType: {type: 'string'},
-      },
-    },
-    render: {
-      kind: 'write',
-      label: 'Save Attachment to Memory',
-      color: 'violet',
-      primaryArg: 'id',
-      summaryArg: 'id',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
-  },
-  attachment_to_ipfs: {
-    name: 'attachment_to_ipfs',
-    label: 'Publish Attachment to IPFS',
-    description:
-      'Publish one session attachment to IPFS via the Hypermedia server, returning an ipfs://<cid> URL usable from Hypermedia content — for example as an image in a document created with the write tool. Publishing makes the file publicly retrievable, so only do this when the user wants the file used in published content.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        id: {type: 'string', minLength: 1, description: 'The attachment id from the message metadata.'},
-      },
-      required: ['id'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        id: {type: 'string'},
-        name: {type: 'string'},
-        cid: {type: 'string', description: 'The IPFS content identifier.'},
-        url: {type: 'string', description: 'ipfs://<cid> URL usable from Hypermedia content.'},
-        size: {type: 'integer'},
-        mimeType: {type: 'string'},
-      },
-    },
-    render: {
-      kind: 'write',
-      label: 'Publish Attachment to IPFS',
-      color: 'indigo',
-      primaryArg: 'id',
-      summaryArg: 'id',
-      summaryOutputPath: 'summary',
-      links: [{source: 'output', path: 'url', label: 'IPFS file'}],
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
-  },
-  memory_publish_document: {
-    name: 'memory_publish_document',
-    label: 'Publish Memory Document',
-    description:
-      'Publish one markdown file from your private persistent memory as a Seed Hypermedia document. YAML frontmatter becomes document metadata (name, summary, icon, cover); headings, lists, tables, and code blocks become document blocks; relative image links are resolved against your memory files and uploaded to IPFS automatically. If a document already exists at the target path it is updated in place, preserving its history; otherwise a new document is created. Do not publish to a nested path unless the parent path already exists as a published document. Prefer this over the write tool when the content already lives in a memory file.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        path: {
-          type: 'string',
-          minLength: 1,
-          description: 'Relative memory path of the markdown file to publish, for example reports/weekly.md.',
-        },
-        documentPath: {
-          type: 'string',
-          description:
-            'Target document path on the account, for example "reports/weekly", or "/" for the account home document. Defaults to a slug of the document title.',
-        },
-        account: {
-          type: 'string',
-          description:
-            'Target space/account public key to publish under (requires a capability). Defaults to the signing identity account.',
-        },
-        name: {
-          type: 'string',
-          description:
-            'Document title override. Defaults to the frontmatter name, or to a title derived from the file name when creating a new document.',
-        },
-        signer: {
+  runtimes: ['agent-service'],
+  userConfigurable: false,
+} satisfies SeedToolMetadata
+
+const planVerb = {
+  name: 'plan',
+  label: 'Plan',
+  description:
+    "Maintain the visible plan for the current task. Call this when starting any task with 3 or more distinct steps (declare them all as pending, then mark the first running), and again whenever a step's status changes: running when you begin it, done when finished, failed if it cannot complete, skipped if no longer needed. Keep step labels short and outcome-oriented. Send the full current list each time; it replaces the previous plan. The user sees this as a live checklist and can act on it, so keeping it current is part of doing the task well. Plan BEFORE delegating: children spawned while a step is running attach under it — one step can own a whole parallel batch.",
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      title: {type: 'string', description: 'Optional one-line name for the overall task.'},
+      steps: {
+        type: 'array',
+        items: {
           type: 'object',
           additionalProperties: false,
-          properties: {profileName: {type: 'string'}, publicKey: {type: 'string'}},
-          description: 'Signing identity selector; optional when exactly one signing identity is enabled.',
+          properties: {
+            id: {type: 'string', description: 'Stable id for the step (e.g. "s1"), kept across updates.'},
+            label: {type: 'string', minLength: 1, description: 'Short description of the step.'},
+            status: {type: 'string', enum: ['pending', 'running', 'done', 'failed', 'skipped']},
+          },
+          required: ['id', 'label', 'status'],
         },
-        dryRun: {type: 'boolean', description: 'Parse and validate the file without publishing.'},
-      },
-      required: ['path'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        command: {type: 'string', enum: ['document.create', 'document.update']},
-        id: {type: 'string', description: 'The hm:// ID of the published document.'},
-        url: {type: 'string', description: 'Web URL of the published document.'},
-        version: {type: 'string'},
-        memoryPath: {type: 'string', description: 'The memory path that was published.'},
-        imagesUploaded: {type: 'integer', description: 'Number of memory image files uploaded to IPFS.'},
       },
     },
-    render: {
-      kind: 'write',
-      label: 'Publish Memory Document',
-      color: 'indigo',
-      primaryArg: 'path',
-      summaryArg: 'path',
-      summaryOutputPath: 'summary',
-      links: [{source: 'output', path: 'url', label: 'Open document'}],
-      details: [
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    getReferencedUrls: ({output}) => urlList(record(output).id),
-    runtimes: ['agent-service'],
-    userConfigurable: true,
+    required: ['steps'],
   },
-  execute_code: {
-    name: 'execute_code',
-    label: 'Execute Code',
-    description:
-      'Run Python or shell code in an isolated sandbox (a hardware-isolated microVM) with your persistent memory mounted at /workspace, which is also the working directory. Files your code reads and writes under /workspace are the same files as your memory_* tools and your user’s Memory tab, so use this to process, transform, analyze, or generate memory files — parse data, resize or convert media, run computations, and save results. Each call runs in a fresh sandbox: no state (variables, installed packages, processes) survives between calls, so persist anything important as files (for example install Python packages with `pip install --target /workspace/pylibs <pkg>` and add that dir to sys.path in later calls). The sandbox has internet access for fetching data and installing packages, but cannot reach private or local network addresses. Output returns stdout, stderr, the exit code, and which memory files changed.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        language: {
-          type: 'string',
-          enum: ['python', 'shell'],
-          description: 'How to run the code: "python" runs it with the python interpreter, "shell" runs it with sh.',
-        },
-        code: {type: 'string', minLength: 1, description: 'The code to execute.'},
-        timeout_secs: {
-          type: 'integer',
-          minimum: 1,
-          description: 'Optional timeout override in seconds. Defaults to the server limit (typically 60).',
+  render: {kind: 'hidden', label: 'Plan', color: 'hidden', summaryArg: 'title'},
+  runtimes: ['agent-service'],
+} satisfies SeedToolMetadata
+
+const returnResultTool = {
+  name: 'return_result',
+  label: 'Return Result',
+  description:
+    'Deliver the final structured result of this delegated task. Call this exactly once when the task is complete; the payload must match the required schema. This ends your task.',
+  // The real parameters are the spawner-declared output schema, swapped in at session start.
+  inputSchema: {type: 'object'},
+  render: {
+    kind: 'generic',
+    label: 'Return Result',
+    color: 'emerald',
+    details: [{label: 'Result', source: 'input'}],
+  },
+  runtimes: ['agent-service'],
+} satisfies SeedToolMetadata
+
+/** The always-on model-facing surface: the five verbs plus the hidden child-result mechanism. */
+export const seedVerbRegistry = {
+  read: readVerb,
+  write: writeVerb,
+  call: callVerb,
+  delegate: delegateVerb,
+  plan: planVerb,
+  return_result: returnResultTool,
+} as const
+
+export type SeedVerbName = keyof typeof seedVerbRegistry
+
+// ---------------------------------------------------------------------------------------------
+// Callable tools — dispatched through `call`, never exposed as provider tools directly
+// ---------------------------------------------------------------------------------------------
+
+const searchTool = {
+  name: 'search',
+  label: 'Search',
+  description:
+    'Search Seed hypermedia content: document titles, contacts, and optionally document bodies and comments. Returns ranked results with hm:// URLs you can read.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      query: {type: 'string', minLength: 1, description: 'The search query. Supports phrases and wildcards.'},
+      accountUid: {type: 'string', description: 'Optional account UID to scope search to a single account.'},
+      includeBody: {
+        type: 'boolean',
+        description: 'Set true to search document bodies and comments in addition to titles and contacts.',
+      },
+      contextSize: {
+        type: 'integer',
+        minimum: 0,
+        maximum: 512,
+        description: 'Optional match context size in runes. Defaults to 48.',
+      },
+      searchType: {
+        type: 'string',
+        enum: ['keyword', 'semantic', 'hybrid'],
+        description: 'Search ranking mode. Defaults to hybrid.',
+      },
+      pageSize: {type: 'integer', minimum: 1, description: 'Maximum number of results to return.'},
+    },
+    required: ['query'],
+  },
+  render: {
+    kind: 'search',
+    label: 'Search',
+    color: 'sky',
+    primaryArg: 'query',
+    summaryOutputPath: 'summary',
+    links: [{source: 'output', path: 'results[].url', labelPath: 'results[].title'}],
+    details: [
+      {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
+      {label: 'Input', source: 'input'},
+    ],
+  },
+  runtimes: ['assistant', 'agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+const webSearchTool = {
+  name: 'web_search',
+  label: 'Web Search',
+  description:
+    'Search the public web. Returns ranked results with titles, URLs, and snippets; read a result with `read` on its URL. Use the news category for recent events.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      query: {type: 'string', minLength: 1, description: 'The web search query.'},
+      count: {type: 'integer', minimum: 1, description: 'Maximum number of results to return. Default 10, max 25.'},
+      category: {
+        type: 'string',
+        enum: ['general', 'news'],
+        description: 'Result category. Use news for recent events, general otherwise. Defaults to general.',
+      },
+      timeRange: {
+        type: 'string',
+        enum: ['day', 'week', 'month', 'year'],
+        description: 'Optional recency filter for time-sensitive queries.',
+      },
+      language: {type: 'string', description: 'Optional language code such as en. Defaults to en.'},
+    },
+    required: ['query'],
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      summary: {type: 'string', description: 'One-line summary of the search outcome.'},
+      results: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: {type: 'string'},
+            url: {type: 'string'},
+            snippet: {type: 'string'},
+            engine: {type: 'string', description: 'Upstream engine that produced the result.'},
+          },
         },
       },
-      required: ['language', 'code'],
+      partial: {type: 'boolean', description: 'True when some engines were unavailable and coverage may be partial.'},
+      markdown: {type: 'string', description: 'Human-readable rendering of the results.'},
     },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        exitCode: {type: 'integer'},
-        success: {type: 'boolean'},
-        stdout: {type: 'string'},
-        stderr: {type: 'string'},
-        truncated: {type: 'boolean', description: 'True when stdout/stderr was cut to the size limit.'},
-        durationMs: {type: 'integer'},
-        changedFiles: {
-          type: 'array',
-          description: 'Memory files added, modified, or removed by the execution.',
-          items: {
-            type: 'object',
-            properties: {
-              path: {type: 'string'},
-              change: {type: 'string', enum: ['added', 'modified', 'removed']},
-            },
+  },
+  render: {
+    kind: 'search',
+    label: 'Web Search',
+    color: 'sky',
+    primaryArg: 'query',
+    summaryOutputPath: 'summary',
+    links: [{source: 'output', path: 'results[].url', labelPath: 'results[].title'}],
+    details: [
+      {label: 'Results', source: 'output', path: 'markdown', format: 'markdown'},
+      {label: 'Input', source: 'input'},
+    ],
+  },
+  runtimes: ['assistant', 'agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+const navigateTool = {
+  name: 'navigate',
+  label: 'Navigate',
+  description: 'Open an hm:// URL in the app so the user is looking at it.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      url: {type: 'string', description: 'The hm:// URL to open'},
+      newWindow: {type: 'boolean', description: 'True to open in a new window instead of the current window.'},
+    },
+    required: ['url'],
+  },
+  render: {
+    kind: 'navigate',
+    label: 'Navigate',
+    color: 'muted',
+    primaryArg: 'url',
+    resourceArg: 'url',
+  },
+  getReferencedUrls: (io: ToolCallIO) => {
+    const input = io.input as {url?: unknown} | undefined
+    return typeof input?.url === 'string' && input.url.startsWith('hm://') ? [input.url] : []
+  },
+  runtimes: ['assistant'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+const executeTool = {
+  name: 'execute',
+  label: 'Execute Code',
+  description:
+    'Run TypeScript, Python, or shell code in an isolated sandbox (a hardware-isolated microVM) with your persistent memory mounted at /workspace, which is also the working directory. Files your code reads and writes under /workspace are the same files as your ~/memory addresses, so use this to process, transform, analyze, or generate memory files — parse data, resize or convert media, run computations, and save results. Each call runs in a fresh sandbox: no state (variables, installed packages, processes) survives between calls, so persist anything important as files (for example install Python packages with `pip install --target /workspace/pylibs <pkg>` and add that dir to sys.path in later calls). The sandbox has internet access for fetching data and installing packages, but cannot reach private or local network addresses. Output returns stdout, stderr, the exit code, and which memory files changed.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      runtime: {
+        type: 'string',
+        enum: ['ts', 'python', 'shell'],
+        description:
+          'How to run the code: "ts" runs TypeScript with bun, "python" runs it with the python interpreter, "shell" runs it with sh. Read ~/tools/execute for the runtimes this server actually offers — the list there is authoritative.',
+      },
+      code: {type: 'string', minLength: 1, description: 'The code to execute.'},
+      timeout_secs: {
+        type: 'integer',
+        minimum: 1,
+        description: 'Optional timeout override in seconds. Defaults to the server limit (typically 60).',
+      },
+    },
+    required: ['runtime', 'code'],
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      summary: {type: 'string'},
+      exitCode: {type: 'integer'},
+      success: {type: 'boolean'},
+      stdout: {type: 'string'},
+      stderr: {type: 'string'},
+      truncated: {type: 'boolean', description: 'True when stdout/stderr was cut to the size limit.'},
+      durationMs: {type: 'integer'},
+      changedFiles: {
+        type: 'array',
+        description: 'Memory files added, modified, or removed by the execution.',
+        items: {
+          type: 'object',
+          properties: {
+            path: {type: 'string'},
+            change: {type: 'string', enum: ['added', 'modified', 'removed']},
           },
         },
       },
     },
-    render: {
-      kind: 'write',
-      label: 'Execute Code',
-      color: 'amber',
-      primaryArg: 'language',
-      summaryArg: 'language',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Code', source: 'input', path: 'code'},
-        {label: 'Output', source: 'output', path: 'stdout'},
-        {label: 'Errors', source: 'output', path: 'stderr'},
-      ],
-    },
-    runtimes: ['agent-service'],
-    userConfigurable: true,
   },
-  start_session: {
-    name: 'start_session',
-    label: 'Start Session',
-    description:
-      'Start a new independent session of yourself, providing its first message; the new session begins running immediately in the background. Use it to delegate work that should proceed on its own — a long research task, a follow-up job, or parallel work. The new session does NOT share this conversation and you will NOT receive its results, so put everything it needs into the prompt; it does share your persistent memory, so memory files are a good way to hand over material. Your user can watch the new session on the Sessions tab. Do not use this for work you can simply do yourself in this session.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        prompt: {
-          type: 'string',
-          minLength: 1,
-          description:
-            'The first message the new session starts working on immediately. Include all needed context and instructions; the new session cannot see this conversation.',
-        },
-        title: {
-          type: 'string',
-          description: 'Session title shown to your user. Defaults to the first line of the prompt.',
-        },
-      },
-      required: ['prompt'],
-    },
-    outputSchema: {
-      type: 'object',
-      properties: {
-        summary: {type: 'string'},
-        sessionId: {type: 'string', description: 'ID of the newly started session.'},
-        title: {type: 'string'},
-      },
-    },
-    render: {
-      kind: 'write',
-      label: 'Start Session',
-      color: 'sky',
-      primaryArg: 'title',
-      summaryArg: 'title',
-      summaryOutputPath: 'summary',
-      details: [
-        {label: 'Prompt', source: 'input', path: 'prompt', format: 'markdown'},
-        {label: 'Input', source: 'input'},
-        {label: 'Output', source: 'output'},
-      ],
-    },
-    runtimes: ['agent-service'],
+  render: {
+    kind: 'write',
+    label: 'Execute Code',
+    color: 'amber',
+    primaryArg: 'runtime',
+    summaryArg: 'runtime',
+    summaryOutputPath: 'summary',
+    details: [
+      {label: 'Code', source: 'input', path: 'code'},
+      {label: 'Output', source: 'output', path: 'stdout'},
+      {label: 'Errors', source: 'output', path: 'stderr'},
+    ],
   },
-  set_session_title: {
-    name: 'set_session_title',
-    label: 'Set Session Title',
-    description:
-      'Set a concise one-line title describing the current purpose of this conversation. Update it if the purpose changes.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      properties: {
-        title: {
-          type: 'string',
-          description: 'A concise one-line session title, without trailing punctuation unless it is part of a name.',
-        },
-      },
-      required: ['title'],
-    },
-    render: {kind: 'hidden', label: 'Set Session Title', color: 'hidden', primaryArg: 'title', summaryArg: 'title'},
-    runtimes: ['agent-service'],
-    hidden: true,
-  },
-}
+  runtimes: ['agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
+/** Tools reachable through the `call` verb (and scripts' ctx.call), keyed by name. */
+export const callableToolRegistry = {
+  search: searchTool,
+  web_search: webSearchTool,
+  navigate: navigateTool,
+  execute: executeTool,
+} as const
+
+export type CallableToolName = keyof typeof callableToolRegistry
+
+// ---------------------------------------------------------------------------------------------
+// Combined lookup
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Every known tool, verbs and callables together, keyed by name. This is the lookup surface for
+ * renderers and validation; the provider-facing toolset is `seedVerbRegistry` alone.
+ */
+export const seedToolRegistry = {
+  ...seedVerbRegistry,
+  ...callableToolRegistry,
+} as const
 
 export type SeedToolName = keyof typeof seedToolRegistry
 
-/** Renamed tool names still present in stored agent definitions and past session events. */
-export const legacySeedToolAliases: Record<string, SeedToolName> = {
-  memory_upload_ipfs: 'ipfs_write',
+/**
+ * Renamed callable tools still present in stored agent definitions. Names absorbed into verbs
+ * (memory_*, web_read, ipfs_*, attachment_*, spawn tools, …) intentionally have no mapping:
+ * the verbs are always on, so those entries in old tool arrays are simply inert.
+ */
+const legacyCallableAliases: Record<string, string> = {
+  execute_code: 'execute',
 }
 
 /** Resolves a possibly-legacy tool name to its current registry name. */
 export function normalizeSeedToolName(name: string): string {
-  return legacySeedToolAliases[name] ?? name
+  return legacyCallableAliases[name] ?? name
 }
 
-export function getSeedToolMetadata(name: string): SeedToolMetadata | undefined {
-  return seedToolRegistry[normalizeSeedToolName(name) as SeedToolName]
+export function getSeedTool(name: string): SeedToolMetadata | undefined {
+  return (seedToolRegistry as Record<string, SeedToolMetadata>)[normalizeSeedToolName(name)]
 }
 
-export function getSeedToolInputSchema(name: SeedToolName): JsonSchema {
-  return seedToolRegistry[name].inputSchema
-}
-
-/** Coerces an unknown to a record so a tool extractor can read fields off it without casts. */
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
-}
-
-/** Keeps only the non-empty strings from a list of candidate URL values. */
-function urlList(...values: unknown[]): string[] {
-  return values.filter((value): value is string => typeof value === 'string' && value.length > 0)
-}
-
-/** Returns the resource URLs a tool call references, via the tool's own `getReferencedUrls` extractor. */
+/** hm:// URLs a tool call references, from the registry's structured reference extractors. */
 export function getToolReferencedUrls(toolName: string, io: ToolCallIO): string[] {
-  return getSeedToolMetadata(toolName)?.getReferencedUrls?.(io) ?? []
+  return getSeedTool(toolName)?.getReferencedUrls?.(io) ?? []
+}
+
+/** One-line summary for a tool, used by the ~/tools listing and the call description. */
+export function toolSummaryLine(tool: SeedToolMetadata): string {
+  const firstSentence = tool.description.split(/(?<=\.)\s/, 1)[0] ?? tool.description
+  return `${tool.name} — ${firstSentence.length > 140 ? `${firstSentence.slice(0, 137)}…` : firstSentence}`
+}
+
+/** Renders a tool's full contract as markdown, returned by touch-expand and ~/tools reads. */
+export function toolContractMarkdown(tool: SeedToolMetadata): string {
+  const parts = [
+    `# ${tool.name}`,
+    '',
+    tool.description,
+    '',
+    '## Input schema',
+    '```json',
+    JSON.stringify(tool.inputSchema, null, 2),
+    '```',
+  ]
+  if (tool.outputSchema) {
+    parts.push('', '## Output schema', '```json', JSON.stringify(tool.outputSchema, null, 2), '```')
+  }
+  return parts.join('\n')
 }

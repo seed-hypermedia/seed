@@ -37,6 +37,12 @@ vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
 // The real create dialog drags in the prompt-editor stack, which does not load under jsdom.
 vi.mock('@/pages/agents/dialogs', () => ({CreateAgentDialog: () => null}))
+// Same for the shared rich composer (ProseMirror editor stack); never rendered by these dialogs.
+vi.mock('@/pages/agents/rich-message-composer', () => ({
+  AgentRichMessageComposer: () => null,
+  SUB_SESSION_DRIVEN_MESSAGE: '',
+  TERMINAL_RUN_STATUSES: new Set(),
+}))
 
 // The panel module transitively reaches the Electron tRPC/gRPC clients, which cannot initialize
 // outside the app shell. These dialogs never call them.

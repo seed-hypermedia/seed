@@ -7,6 +7,7 @@ import {
 import {AgentRunStatusBar, useRunStartedAt} from '@/components/agent-run-status'
 import {useChatAutoScroll} from '@/components/chat-autoscroll'
 import {
+  AgentErrorRow,
   AssistantMessageParts,
   ChatMessageBubble,
   type ChatBubbleMessage,
@@ -22,26 +23,27 @@ import {
   useAgentTriggers,
   useAgentWebSocketSubscription,
   useDeleteAgentSession,
-  uploadFileToAgentServer,
   useMessageAgentSession,
+  useRetrySession,
+  useRun,
+  useSessionRuns,
   useStopAgentSession,
   useUpdateAgentSession,
 } from '@/models/agents'
-import type {SessionAttachmentInfo} from '@/agents-client'
 import {
   buildAgentSessionChatRows,
   buildAgentSessionEventUrl,
+  interleaveRunRecords,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
+  frozenRunIds,
   getSharedEventIdFromHash,
+  retryableErrorRowKey,
   type AgentSessionChatRow as AgentSessionChatRowData,
 } from '@/models/agent-session-rows'
-import {type ChatMessagePart, type ChatToolPart} from '@/models/chat-parts'
+import {type ChatMessagePart} from '@/models/chat-parts'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
-import {trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {
@@ -58,11 +60,46 @@ import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowDown, ExternalLink, Info, Link2, ScrollText, Send, Square, Trash2} from 'lucide-react'
+import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader} from './header'
-import {promptBlocksToMarkdown} from './prompt-editor'
+import {RunRecordCard, SessionRunCard} from './run-card'
+import {AgentRichMessageComposer, SUB_SESSION_DRIVEN_MESSAGE, TERMINAL_RUN_STATUSES} from './rich-message-composer'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
+
+/**
+ * Header affordances for a sub-session: where it came from, and whether it is still someone else's
+ * to drive. A parked parent leaves this page silent for minutes, so the banner is what makes that
+ * legible rather than looking like a stalled chat.
+ */
+function SubSessionHeader({
+  parentTitle,
+  isDriven,
+  onOpenParent,
+}: {
+  parentTitle?: string
+  isDriven: boolean
+  onOpenParent: () => void
+}) {
+  return (
+    <div className="flex flex-none flex-col gap-2 pt-3">
+      <button
+        type="button"
+        className="bg-muted hover:bg-muted/70 text-muted-foreground hover:text-foreground flex max-w-full items-center gap-1.5 self-start rounded-full px-2.5 py-1 text-xs"
+        onClick={onOpenParent}
+        title="Open the parent session"
+      >
+        <CornerLeftUp className="size-3 flex-none" />
+        <span className="min-w-0 truncate">{parentTitle || 'Parent session'}</span>
+      </button>
+      {isDriven ? (
+        <div className="border-border bg-muted/40 text-muted-foreground rounded-md border px-3 py-1.5 text-xs">
+          {SUB_SESSION_DRIVEN_MESSAGE}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 function SessionListItem({
   session,
@@ -204,19 +241,48 @@ function AgentSessionPage({
   const titleSaveIdRef = useRef(0)
   const loadedSessionId = session.data?.session.id
   const persistedTitle = session.data?.session.title || 'Untitled session'
+  const sessionRuns = useSessionRuns(serverUrl, selectedAccountId, sessionId)
   const chatRows = useMemo(
     () =>
-      buildAgentSessionChatRows(session.data?.events || [], {
-        serverUrl,
-        agentId,
-        sessionId,
-        triggerContext: session.data?.triggerContext ?? null,
-      }),
-    [agentId, serverUrl, session.data?.events, session.data?.triggerContext, sessionId],
+      interleaveRunRecords(
+        buildAgentSessionChatRows(session.data?.events || [], {
+          serverUrl,
+          agentId,
+          sessionId,
+          triggerContext: session.data?.triggerContext ?? null,
+        }),
+        sessionRuns.data || [],
+        // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
+        // decision needs it here for the same reason the pinned card does.
+        session.data?.session.plan,
+      ),
+    [
+      agentId,
+      serverUrl,
+      session.data?.events,
+      session.data?.session.plan,
+      session.data?.triggerContext,
+      sessionId,
+      sessionRuns.data,
+    ],
   )
+  // Which runs the scroll already owns, so the pinned slot does not tell the same story twice.
+  const frozenRuns = useMemo(() => frozenRunIds(chatRows), [chatRows])
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
+  const retrySession = useRetrySession(serverUrl, selectedAccountId)
+  // Deliberately not gated on the mutation being in flight: the button stays put and shows its
+  // pending state until the retried run actually starts streaming, which is what removes the row.
+  const retryableRowKey = retryableErrorRowKey(chatRows, !!isAgentBusy)
   const runStartedAt = useRunStartedAt(isAgentBusy)
+  // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
+  // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
+  // child in the parent's tree, so it is reachable by id (SessionInfo.runId), not by ListRuns.
+  const parentSessionId = session.data?.session.parentSessionId
+  const parentSession = useAgentSession(serverUrl, selectedAccountId, parentSessionId, {poll: false})
+  const ownRun = useRun(serverUrl, selectedAccountId, parentSessionId ? session.data?.session.runId : undefined)
+  const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
+  const isDrivenByParent = !!parentSessionId && (isAgentStreaming || hasLiveRun)
   const triggerActivityRoute = useMemo(
     () => (session.data?.triggerContext ? getTriggerActivityRoute(session.data.triggerContext) : null),
     [session.data?.triggerContext],
@@ -293,11 +359,13 @@ function AgentSessionPage({
   const doSendAgentMessage = useCallback(
     async (message: AgentSessionDraftMessage | AgentSessionDraftMessage[]) => {
       try {
-        const messages = Array.isArray(message) ? message : [message]
+        let messages = Array.isArray(message) ? message : [message]
         const textLength = messages.map((message) => message.text).join('\n').length
         console.info('[agents/ui] sending session message', {serverUrl, sessionId, textLength})
-        if (selectedAccountId) addOptimisticSessionMessage(serverUrl, selectedAccountId, sessionId, message)
-        const result = await messageSession.mutateAsync({sessionId, message})
+        // The stamped drafts carry the clientMessageIds the optimistic rows were keyed with, so the
+        // server's echo replaces those rows instead of rendering beside them.
+        if (selectedAccountId) messages = addOptimisticSessionMessage(serverUrl, selectedAccountId, sessionId, messages)
+        const result = await messageSession.mutateAsync({sessionId, message: messages})
         if (result._ !== 'MessageSessionResponse') throw new Error('Unexpected message response')
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Could not send message')
@@ -315,6 +383,12 @@ function AgentSessionPage({
     if (isAgentBusy) queueMessage(message)
     else await doSendAgentMessage(message)
   }
+
+  const handleRetrySession = useCallback(() => {
+    retrySession.mutate(sessionId, {
+      onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not retry this turn'),
+    })
+  }, [retrySession, sessionId])
 
   async function handleStopSession() {
     try {
@@ -438,6 +512,20 @@ function AgentSessionPage({
         ) : null}
         {session.data ? (
           <div className="flex min-h-0 flex-1 flex-col">
+            {parentSessionId ? (
+              <SubSessionHeader
+                parentTitle={parentSession.data?.session.title}
+                isDriven={isDrivenByParent}
+                onOpenParent={() =>
+                  navigate({
+                    key: 'agent-session',
+                    agentId: parentSession.data?.session.agentId,
+                    sessionId: parentSessionId,
+                    serverUrl,
+                  })
+                }
+              />
+            ) : null}
             <div
               ref={autoScroll.containerRef}
               onScroll={autoScroll.handleScroll}
@@ -455,7 +543,13 @@ function AgentSessionPage({
                       row={row}
                       serverUrl={serverUrl}
                       agentId={agentId}
+                      accountUid={selectedAccountId}
                       liveActivity={chatRowHasPendingToolCall(row) ? liveState.activity : undefined}
+                      onRetry={row.key === retryableRowKey ? handleRetrySession : undefined}
+                      retryPending={retrySession.isPending}
+                      onOpenSession={(childSessionId, childAgentId) =>
+                        navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+                      }
                     />
                   </div>
                 ))}
@@ -477,14 +571,27 @@ function AgentSessionPage({
                 ) : null}
               </div>
             </div>
+            <SessionRunCard
+              serverUrl={serverUrl}
+              accountUid={selectedAccountId}
+              sessionId={sessionId}
+              sessionPlan={session.data.session.plan}
+              frozenRunIds={frozenRuns}
+              onOpenSession={(childSessionId, childAgentId) =>
+                navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+              }
+            />
             <QueuedChatMessages messages={queuedMessages} getText={(message) => message.text} />
             <AgentRichMessageComposer
               isBusy={isAgentBusy}
               isStreaming={isAgentStreaming}
+              disabledMessage={isDrivenByParent ? SUB_SESSION_DRIVEN_MESSAGE : undefined}
               stopPending={stopSession.isPending}
               serverUrl={serverUrl}
               accountId={selectedAccountId ?? null}
               sessionId={sessionId}
+              agentTools={agent.data?.agent.definition.tools}
+              agentToolsLoading={agent.isLoading}
               onSend={(message) => void handleSendMessage(message)}
               onStop={() => void handleStopSession()}
             />
@@ -568,159 +675,6 @@ function DeleteAgentSessionDialog({
   )
 }
 
-type CommentEditorSubmitOptions = Parameters<React.ComponentProps<typeof CommentEditor>['submitButton']>[0]
-
-type CommentEditorGetContent = CommentEditorSubmitOptions['getContent']
-
-function AgentRichMessageComposer({
-  isBusy,
-  isStreaming,
-  stopPending,
-  serverUrl,
-  accountId,
-  sessionId,
-  onSend,
-  onStop,
-}: {
-  isBusy: boolean
-  isStreaming: boolean
-  stopPending: boolean
-  serverUrl: string
-  accountId: string | null
-  sessionId: string
-  onSend: (message: AgentSessionDraftMessage) => void
-  onStop: () => void
-}) {
-  const [draftMarkdown, setDraftMarkdown] = useState('')
-  const submitHandleRef = useRef<CommentEditorSubmitHandle | null>(null)
-  /** In-flight attachment upload shown as a slim progress bar; null when idle. */
-  const [attachmentUpload, setAttachmentUpload] = useState<{name: string; sent: number; total: number} | null>(null)
-  /** Metadata for every attachment uploaded from this composer, keyed by id, so a sent message
-   * can carry the infos of the attachments its blocks still reference. */
-  const uploadedAttachmentsRef = useRef(new Map<string, SessionAttachmentInfo>())
-
-  // The editor captures handleFileAttachment on creation, so route changing values through a ref.
-  const uploadContextRef = useRef({accountId})
-  uploadContextRef.current = {accountId}
-
-  // Dropped/pasted files upload as session-private attachments on the agent server — never to
-  // IPFS or agent memory. The agent sees metadata and pulls content on demand (view_attachment);
-  // it can persist or publish one only via its explicit attachment tools. Large files go in
-  // chunks so signing never freezes the renderer, with progress shown above the composer.
-  async function handleFileAttachment(file: File) {
-    const {accountId: currentAccountId} = uploadContextRef.current
-    if (!currentAccountId) throw new Error('Select an account first')
-    const content = new Uint8Array(await file.arrayBuffer())
-    setAttachmentUpload({name: file.name, sent: 0, total: content.byteLength})
-    try {
-      const {attachment} = await uploadFileToAgentServer({
-        serverUrl,
-        accountUid: currentAccountId,
-        target: {kind: 'session-attachment', sessionId, name: file.name, mimeType: file.type || undefined},
-        data: content,
-        onProgress: (progress) => setAttachmentUpload({name: file.name, ...progress}),
-      })
-      if (!attachment) throw new Error('Upload did not return an attachment')
-      uploadedAttachmentsRef.current.set(attachment.id, attachment)
-      return {displaySrc: URL.createObjectURL(file), url: `attachment://${attachment.id}`}
-    } finally {
-      setAttachmentUpload(null)
-    }
-  }
-
-  async function submitRichMessage(getContent: CommentEditorGetContent, reset: () => void) {
-    const {blockNodes} = await getContent(async () => ({blobs: [], resultCIDs: []}))
-    const trimmedBlocks = trimTrailingEmptyBlocks(blockNodes)
-    const markdown = promptBlocksToMarkdown(trimmedBlocks)
-    if (!markdown.trim()) return
-    // Only attachments still referenced by a block at submit time ride along with the message.
-    const attachments = collectAttachmentIds(trimmedBlocks)
-      .map((id) => uploadedAttachmentsRef.current.get(id))
-      .filter((info): info is SessionAttachmentInfo => !!info)
-    reset()
-    setDraftMarkdown('')
-    requestAnimationFrame(() => submitHandleRef.current?.focus({moveCursorToEnd: true}))
-    onSend({text: markdown, blocks: trimmedBlocks, ...(attachments.length ? {attachments} : {})})
-  }
-
-  return (
-    <div className="border-border border-t">
-      {attachmentUpload ? (
-        <div className="px-3 pt-2">
-          <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[11px]">
-            <span className="min-w-0 truncate">Uploading {attachmentUpload.name}…</span>
-            <span className="flex-none">
-              {Math.floor((attachmentUpload.sent / Math.max(1, attachmentUpload.total)) * 100)}%
-            </span>
-          </div>
-          <div className="bg-muted h-1 w-full overflow-hidden rounded-full">
-            <div
-              className="bg-primary h-full rounded-full transition-[width] duration-200"
-              style={{width: `${(attachmentUpload.sent / Math.max(1, attachmentUpload.total)) * 100}%`}}
-            />
-          </div>
-        </div>
-      ) : null}
-      <div className="flex items-end gap-2 px-3 py-2">
-        <div className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans [&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans [&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 [&_.hm-prose]:!text-sm">
-          <CommentEditor
-            focusOnMount
-            hideAvatar
-            hideSubmitToolbar
-            disableTrailingNode
-            submitOnEnter
-            submitHandleRef={submitHandleRef}
-            handleFileAttachment={handleFileAttachment}
-            initialBlocks={[]}
-            onContentChange={(blocks) => setDraftMarkdown(promptBlocksToMarkdown(trimTrailingEmptyBlocks(blocks)))}
-            handleSubmit={(getContent, reset) => void submitRichMessage(getContent, reset)}
-            submitButton={() => <></>}
-          />
-        </div>
-        <div className="flex shrink-0 gap-1 pb-1">
-          {draftMarkdown.trim() ? (
-            <Button
-              size="sm"
-              onClick={() => submitHandleRef.current?.submit()}
-              title={isBusy ? 'Queue message' : 'Send'}
-            >
-              <Send className="size-3.5" />
-            </Button>
-          ) : !isBusy ? (
-            <Button size="sm" disabled>
-              <Send className="size-3.5" />
-            </Button>
-          ) : null}
-          {isStreaming ? (
-            <Button size="sm" variant="destructive" onClick={onStop} disabled={stopPending}>
-              <Square className="size-3" />
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/** Collects attachment ids referenced by attachment:// links anywhere in a message block tree. */
-function collectAttachmentIds(blocks: unknown[]): string[] {
-  const ids: string[] = []
-  const visit = (nodes: unknown[]) => {
-    for (const node of nodes) {
-      if (!node || typeof node !== 'object') continue
-      const {block, children} = node as {block?: {link?: unknown}; children?: unknown}
-      const link = block?.link
-      if (typeof link === 'string' && link.startsWith('attachment://')) {
-        const id = link.slice('attachment://'.length)
-        if (id && !ids.includes(id)) ids.push(id)
-      }
-      if (Array.isArray(children) && children.length) visit(children)
-    }
-  }
-  visit(blocks)
-  return ids
-}
-
 const PartialAssistantRow = React.memo(function PartialAssistantRow({text}: {text: string}) {
   const parts = useMemo<ChatMessagePart[]>(() => [{type: 'text', text}], [text])
 
@@ -731,12 +685,21 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
   row,
   serverUrl,
   agentId,
+  accountUid,
   liveActivity,
+  onRetry,
+  retryPending,
+  onOpenSession,
 }: {
   row: AgentSessionChatRowData
   serverUrl: string
   agentId?: string
+  accountUid?: string | null
   liveActivity?: AgentRunActivity
+  /** Set only on a trailing error row, which is the only place a retry is offered. */
+  onRetry?: () => void
+  retryPending?: boolean
+  onOpenSession?: (sessionId: string, agentId?: string) => void
 }) {
   if (row.kind === 'message') {
     if (row.triggerContext) {
@@ -745,7 +708,13 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
       return (
         <div className="flex flex-col gap-1.5">
           {row.message.content?.trim() || row.message.blocks?.length ? (
-            <ChatMessageBubble message={row.message} liveActivity={liveActivity} serverUrl={serverUrl} />
+            <ChatMessageBubble
+              message={row.message}
+              liveActivity={liveActivity}
+              serverUrl={serverUrl}
+              accountUid={accountUid}
+              agentId={agentId}
+            />
           ) : null}
           <TriggerContextView
             context={row.triggerContext}
@@ -756,15 +725,31 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
         </div>
       )
     }
-    return <ChatMessageBubble message={row.message} liveActivity={liveActivity} serverUrl={serverUrl} />
+    return (
+      <ChatMessageBubble
+        message={row.message}
+        liveActivity={liveActivity}
+        serverUrl={serverUrl}
+        accountUid={accountUid}
+        agentId={agentId}
+      />
+    )
   }
 
   if (row.kind === 'error') {
+    return <AgentErrorRow message={row.message} onRetry={onRetry} retryPending={retryPending} />
+  }
+
+  if (row.kind === 'run-record') {
+    // The pinned card's afterlife: the same card, frozen at the moment the run completed.
     return (
-      <div className="border-destructive/30 bg-destructive/10 text-destructive mr-6 rounded-lg border px-3 py-2 text-xs">
-        <div className="mb-1 font-medium">Error</div>
-        <p className="whitespace-pre-wrap">{row.message}</p>
-      </div>
+      <RunRecordCard
+        serverUrl={serverUrl}
+        accountUid={accountUid}
+        runId={row.run.id}
+        plan={row.plan}
+        onOpenSession={onOpenSession}
+      />
     )
   }
 

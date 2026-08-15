@@ -1,57 +1,48 @@
-import {seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
-
-/** Tools that let an agent find and read Seed content, including IPFS files it references. */
-export const AGENT_READ_TOOL_GROUP = [
-  seedToolRegistry.read.name,
-  seedToolRegistry.search.name,
-  seedToolRegistry.list_activity_feed.name,
-  seedToolRegistry.ipfs_read.name,
-]
-
-/** Tools that let an agent search and read the public web. Requires server-side web backends. */
-export const AGENT_WEB_TOOL_GROUP = [seedToolRegistry.web_search.name, seedToolRegistry.web_read.name]
-
-/** Tool that lets an agent create, sign, and publish Seed content. */
-export const AGENT_WRITE_TOOL = seedToolRegistry.write.name
+import {callableToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
 
 /**
- * Tools that let an agent publish Seed content and files: sign/publish documents (including
- * markdown files straight from memory) plus IPFS file uploads. Grouped together because they
- * all publish publicly under a signing identity.
+ * The five verbs (read, write, call, delegate, plan) are always on and are not configuration.
+ * What an agent's `tools` array narrows is the CALLABLE tool set — the tools dispatched through
+ * the call verb. These are the service-runtime callables a user can toggle per agent.
  */
-export const AGENT_WRITE_TOOL_GROUP = [
-  seedToolRegistry.write.name,
-  seedToolRegistry.memory_publish_document.name,
-  seedToolRegistry.ipfs_write.name,
-  seedToolRegistry.attachment_to_ipfs.name,
-]
-
-/** Tools that let an agent read and write its private persistent memory filesystem. */
-export const AGENT_MEMORY_TOOL_GROUP = [
-  seedToolRegistry.memory_list.name,
-  seedToolRegistry.memory_read.name,
-  seedToolRegistry.memory_write.name,
-  seedToolRegistry.memory_delete.name,
-  seedToolRegistry.memory_download.name,
-  seedToolRegistry.attachment_to_memory.name,
-]
+export const AGENT_SEARCH_TOOL = callableToolRegistry.search.name
+export const AGENT_WEB_SEARCH_TOOL = callableToolRegistry.web_search.name
+export const AGENT_EXECUTE_TOOL = callableToolRegistry.execute.name
+/** Pseudo-grant: signed public publishing (hm:// documents/comments, IPFS uploads). */
+export const AGENT_PUBLISH_GRANT = 'publish'
 
 /**
- * Tools granted to a newly created agent: full read access, web search/read, persistent
- * memory, write, and sandboxed code execution, so the agent can research, remember, compute,
- * and publish as its own auto-created account without extra setup. The server silently drops
- * execute_code from sessions when the host cannot run sandboxes.
+ * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution, and
+ * publishing. Reading, memory, delegation, and planning are verbs — always available. The server
+ * silently drops execute from sessions when the host cannot run sandboxes.
  */
-export const DEFAULT_AGENT_TOOLS = [
-  ...AGENT_READ_TOOL_GROUP,
-  ...AGENT_WEB_TOOL_GROUP,
-  ...AGENT_MEMORY_TOOL_GROUP,
-  ...AGENT_WRITE_TOOL_GROUP,
-  seedToolRegistry.execute_code.name,
-]
+export const DEFAULT_AGENT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_WEB_SEARCH_TOOL, AGENT_EXECUTE_TOOL, AGENT_PUBLISH_GRANT]
 
-/** Tool that lets an agent run sandboxed code inside its memory workspace. */
-export const AGENT_EXECUTE_CODE_TOOL = seedToolRegistry.execute_code.name
+/** Legacy stored tool names that meant "this agent may publish signed public content". */
+const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_write', 'attachment_to_ipfs']
+
+/**
+ * Maps a stored (possibly pre-verbs) tools array onto today's grants so the UI reads and writes
+ * the truth the server acts on: execute_code → execute, the old write group → publish, names
+ * absorbed into verbs dropped.
+ */
+export function normalizeStoredAgentTools(tools: string[]): string[] {
+  const normalized = new Set<string>()
+  for (const tool of tools) {
+    if (tool === 'execute_code' || tool === AGENT_EXECUTE_TOOL) normalized.add(AGENT_EXECUTE_TOOL)
+    else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
+      normalized.add(AGENT_PUBLISH_GRANT)
+    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL) normalized.add(tool)
+    // Everything else was absorbed into the always-on verbs and is inert.
+  }
+  return Array.from(normalized)
+}
+
+/**
+ * Callables for the auto-provisioned sidebar Assistant: Seed search only. The read verb already
+ * covers documents/web/activity; hm:// publishing stays gated by the (absent) signing identities.
+ */
+export const ASSISTANT_DEFAULT_TOOLS = [AGENT_SEARCH_TOOL]
 
 /** Tool-backend capabilities a server advertises in its health response. */
 export type AgentServerWebCapabilities = {
@@ -71,27 +62,22 @@ export type AgentServerWebCapabilities = {
 }
 
 /**
- * Whether a tool can run on a server with the given web capabilities, plus an optional caveat.
- * `caps` undefined means capabilities are unknown (older server or not yet loaded) — assume available
- * so we never grey out tools we cannot confirm are unavailable. `action` marks unavailability the
- * user can fix themselves, so the UI can offer targeted setup help instead of a dead checkbox.
+ * Whether a callable tool can run on a server with the given web capabilities, plus an optional
+ * caveat. `caps` undefined means capabilities are unknown (older server or not yet loaded) —
+ * assume available so we never grey out tools we cannot confirm are unavailable. `action` marks
+ * unavailability the user can fix themselves, so the UI can offer targeted setup help instead of
+ * a dead checkbox.
  */
 export function getToolAvailability(
   toolName: string,
   caps: AgentServerWebCapabilities | undefined,
 ): {available: boolean; note?: string; action?: 'enable-whp'} {
-  if (toolName === seedToolRegistry.web_search.name) {
+  if (toolName === AGENT_WEB_SEARCH_TOOL) {
     if (caps && !caps.search)
       return {available: false, note: 'The web search backend (SearXNG) is not configured on this server.'}
     return {available: true}
   }
-  if (toolName === seedToolRegistry.web_read.name && caps && !caps.readBrowser) {
-    return {
-      available: true,
-      note: 'Browser rendering is unavailable on this server; reads use direct fetch and the wiki API.',
-    }
-  }
-  if (toolName === seedToolRegistry.execute_code.name && caps && caps.codeExec === false) {
+  if (toolName === AGENT_EXECUTE_TOOL && caps && caps.codeExec === false) {
     if (!caps.local) {
       return {available: false, note: 'This agent server does not support code execution.'}
     }

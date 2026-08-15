@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review Guide — M1: The Five Verbs</title>
+<style>
+  :root {
+    --bg: #f2f5f1; --surface: #fcfdfb; --ink: #1b211e; --muted: #5c6862;
+    --line: #d8dfd9; --accent: #1e7a62; --accent-soft: #1e7a6218; --amber: #a05a1c;
+    --code-bg: #eaefe9;
+    --display: 'Futura', 'Futura PT', 'Century Gothic', 'Avenir Next', sans-serif;
+    --body: 'Charter', 'Bitstream Charter', 'Iowan Old Style', Georgia, serif;
+    --mono: ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1412; --surface: #161c19; --ink: #e4eae6; --muted: #93a29a;
+      --line: #28322d; --accent: #4fc0a0; --accent-soft: #4fc0a01f; --amber: #dfa260;
+      --code-bg: #1b2420;
+    }
+  }
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.6; margin: 0; }
+  main { max-width: 46rem; margin: 0 auto; padding: 2.5rem 1.25rem 5rem; }
+  h1, h2, h3 { font-family: var(--display); line-height: 1.15; text-wrap: balance; }
+  h1 { font-size: 2rem; margin: 0.2rem 0 0.8rem; }
+  h2 { font-size: 1.3rem; margin: 2.4rem 0 0.7rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  h3 { font-size: 1.02rem; margin: 1.3rem 0 0.3rem; }
+  p { margin: 0 0 0.9rem; max-width: 65ch; }
+  .eyebrow { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.15em; text-transform: uppercase; color: var(--accent); }
+  .muted { color: var(--muted); }
+  code { font-family: var(--mono); font-size: 0.85em; background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; }
+  pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px; padding: 0.8rem 1rem; overflow-x: auto; font-size: 0.8rem; line-height: 1.55; }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.9rem; margin: 1rem 0; }
+  th { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-align: left; }
+  th, td { padding: 0.5rem 0.8rem 0.5rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .say { background: var(--accent-soft); border-left: 3px solid var(--accent); border-radius: 4px; padding: 0.55rem 0.8rem; font-style: italic; margin: 0.5rem 0; }
+  .expect { margin: 0.4rem 0 1.2rem 0; padding-left: 1.1rem; }
+  .expect li { margin-bottom: 0.3rem; max-width: 62ch; }
+  .expect li::marker { color: var(--accent); }
+  .warn li::marker { color: var(--amber); }
+  .tree { font-family: var(--mono); font-size: 0.8rem; }
+  .badge { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; border: 1px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 0.12rem 0.55rem; white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">the harness · checkmark 1 · review guide</div>
+  <h1>Test M1 in isolation: the five verbs</h1>
+  <p class="muted">
+    Your main checkout at <code>~/Code/Seed</code> is now on <code>harness/01-verbs</code> — exactly
+    the M1 surface, nothing from later milestones. Later phases live in worktrees and never touch
+    what you're testing here. Nothing is pushed.
+  </p>
+
+  <h2>What you're testing</h2>
+  <p>
+    The 25-tool registry is gone. The model now holds five always-on verbs —
+    <code>read</code>, <code>write</code>, <code>call</code>, <code>delegate</code>,
+    <code>plan</code> — and everything else (search, web_search, execute) is dispatched through
+    <code>call</code>. The provider-facing tool surface dropped 71% (28.9&nbsp;KB → 8.5&nbsp;KB).
+    One delegation verb replaces sub_session / run_workflow / start_session; memory, IPFS,
+    attachments, the activity feed, and hypermedia publishing are all address forms of
+    read/write.
+  </p>
+
+  <h2>Where everything is</h2>
+  <pre class="tree">~/Code/Seed                      ← harness/01-verbs   YOU TEST HERE
+~/Code/Seed-worktrees/harness-02 ← harness/02-tools-as-docs  (done, reviewable next)
+~/Code/Seed-worktrees/harness-03 ← harness/03-symmetric-log  (Claude working here now)</pre>
+  <p class="muted">
+    Your uncommitted <code>forge.config.ts</code> entitlements change is untouched in the main
+    checkout. Review docs live at <code>agents/docs/harness/reviews/</code>.
+  </p>
+
+  <h2>Launch</h2>
+  <pre><code># from ~/Code/Seed — desktop spawns/connects its local agents server
+pnpm install && pnpm desktop
+
+# optional: run the agents server standalone with hot reload instead
+cd agents && pnpm dev</code></pre>
+  <p class="muted">
+    Heads-up: the first message to an EXISTING agent replays its old transcript against the new
+    verbs — old tool names in history are fine (they render generically and never re-execute), but
+    a fresh test agent gives the cleanest read.
+  </p>
+
+  <h2>The five scenarios <span class="badge">~5 min</span></h2>
+
+  <h3>1 · Memory through the verbs</h3>
+  <div class="say">Save a note to memory that my favorite database is SQLite, then read it back to me.</div>
+  <ul class="expect">
+    <li>A <code>Write</code> tool row addressed <code>~/memory/…</code>, then a <code>Read</code> row for the same path.</li>
+    <li>The file appears on the agent's Memory tab.</li>
+  </ul>
+
+  <h3>2 · Callable dispatch</h3>
+  <div class="say">Search the web for the latest Bun release and tell me the version.</div>
+  <ul class="expect">
+    <li>A <code>Call</code> row whose subject is <code>web_search</code>, results rendered with links.</li>
+    <li>If the model guesses a wrong input shape, the row shows the tool's contract as the result and the retry succeeds — that's touch-expand, not a failure.</li>
+  </ul>
+
+  <h3>3 · Parallel delegation + the checklist</h3>
+  <div class="say">Research the histories of SQLite and Postgres in parallel — one child each — then write me a two-paragraph comparison.</div>
+  <ul class="expect">
+    <li>One pinned checklist; two <code>Delegate</code> children attached under the running step.</li>
+    <li>The parent parks (thread stays responsive), children tick to done, parent resumes with the comparison.</li>
+    <li>Child titles in tool rows navigate to the child transcripts; the finished card lands in the transcript at its finish position.</li>
+  </ul>
+
+  <h3>4 · Script delegation</h3>
+  <div class="say">Use a script child to write three memory files — one per planet closer to the sun than Earth — each with one fact, then return the list of paths.</div>
+  <ul class="expect">
+    <li>One <code>Delegate</code> row with a Code drawer (the script source is reviewable).</li>
+    <li>The script's <code>ctx.call('write', …)</code> effects appear in the run's Activity journal; three files land in memory.</li>
+  </ul>
+
+  <h3>5 · Restraint + naming</h3>
+  <div class="say">What is 12 × 9?</div>
+  <ul class="expect">
+    <li>Direct answer. No delegation, no plan, no tool calls.</li>
+    <li>The session still gets a model-authored title (automatic — the title tool is gone).</li>
+  </ul>
+
+  <h2>Regression spot-checks</h2>
+  <table>
+    <tr><th>Check</th><th>Expect</th></tr>
+    <tr><td>Old sessions from before M1</td><td>Historical tool rows render (generic is fine); nothing re-executes; app doesn't error.</td></tr>
+    <tr><td>Agent settings → Tools tab</td><td>Only callable toggles (Seed search, web search, execute code) — verbs are not configuration.</td></tr>
+    <tr><td>Publishing</td><td>Ask it to publish a small doc to your site: a <code>Write</code> row addressed <code>hm://…</code> with the signed-identity flow intact. <span class="muted">(On M1 write is always-on — the publish grant toggle arrives in M2.)</span></td></tr>
+    <tr><td>Triggers</td><td>An existing mention/schedule trigger still fires and replies as a threaded comment.</td></tr>
+  </table>
+
+  <h2>Known gaps on this branch</h2>
+  <ul class="expect warn">
+    <li>gpt-5-mini replay cassettes are stale by design (<code>agents/e2e/recordings/STALE.md</code>); the tier-3 gate skips loudly until a live re-record.</li>
+    <li>Old agent definitions' tool arrays: <code>execute_code</code> maps to execute; verb-absorbed names are inert (their capabilities are always-on now).</li>
+    <li>M2 (one branch up) fixes eleven review findings that also touch M1 behavior — most notably the publish grant and stricter expansion promotion. If something here smells like those, check whether harness-02 already has it before filing.</li>
+  </ul>
+
+  <h2>Feedback</h2>
+  <p>
+    Tell Claude in the session, or drop notes anywhere in
+    <code>agents/docs/harness/reviews/01-verbs.md</code>. Fixes land as commits on
+    <code>harness/01-verbs</code> and rebase up through the worktree branches. When you're
+    satisfied, say the word and the stack gets pushed.
+  </p>
+</main>
+</body>
+</html>

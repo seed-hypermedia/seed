@@ -1,5 +1,19 @@
 # Desktop agent unification
 
+> **STATUS (2026-08-13): the unification finished. Most of the "Not done" list below has since landed.**
+>
+> Verified against the tree today: the old stack is **deleted** (`app-chat.ts` and `app-ai-config.ts` no longer exist,
+> and nothing reads `chat-sessions/*.json`); CI sets up Bun and builds the agents binary per runner, and
+> `forge.config.ts` signs it through `osxSign.binaries`; the window-context message part shipped
+> (`MessageSessionContentPart` `{type: 'context', lines}`, sent by the desktop). ChatGPT/Codex OAuth reaches the service
+> as a provider type.
+>
+> **Still open from that list:** auto-provisioning a built-in `Assistant` agent for fresh installs, and running the
+> Linux/Windows binaries — `desktop-smoke-test.yml` builds and runs on macOS only, and there is no
+> `scripts/smoke-build.ts`.
+>
+> Everything else in this document is a current description of how the desktop and the service fit together.
+
 Replacing the desktop's separate assistant runtime with the Agents service, running locally as a subprocess of the
 desktop app. One agent runtime, one protocol, one UI — local and hosted alike.
 
@@ -19,13 +33,15 @@ The Agents service is a superset. So the sidebar should be a _view over an agent
 
 ## Why a local server is possible
 
-The unlock is that the desktop app **already serves the exact HTTP API this service consumes**.
+The unlock is that the desktop app **already serves the typed HTTP API this service consumes**.
 `frontend/apps/desktop/src/app-http-server.ts` runs `@shm/shared/api-server` on `localhost:56004`, backed by the user's
-own daemon over gRPC. That is the same `/api/<Key>` protocol `createSeedClient(baseUrl)` speaks — the client this
-service already uses for every read and write.
+own daemon over gRPC. That is the same `/api/<Key>` protocol `createSeedClient(baseUrl)` speaks. Direct IPFS gateway
+reads are not part of that bridge: `/ipfs/<cid>` remains on the daemon at `localhost:56001`. File publication is
+portable: the agents service chunks UnixFS blocks itself and sends them through the bridge's `PublishBlobs` action.
 
-So a locally spawned agent server pointed at `--hm-server-url=http://localhost:56004` reads and writes through the
-user's own node, with no new plumbing on either side.
+So a locally spawned agent server uses both `--hm-server-url=http://localhost:56004` and
+`--ipfs-server-url=http://localhost:56001`. Typed reads/writes and file traffic take their correct transports to the
+same user-owned node, with no public gateway involved.
 
 This was verified against a live desktop before any code was written, via `agents/scripts/smoke-local-hm.ts`:
 
@@ -45,9 +61,11 @@ but a running desktop app.
 ```text
 Electron main process
   ├─ Go daemon subprocess              (unchanged)
-  ├─ Local HM API server :56004        (unchanged — becomes the agent's HM backend)
-  └─ seed-agents subprocess :3050+     (the same artifact the Docker image runs)
+  ├─ Local HM API server :56004        (typed /api/* bridge)
+  ├─ Go daemon HTTP :56001              (direct /ipfs/* gateway reads)
+  └─ seed-agents subprocess :3050+      (the same artifact the Docker image runs)
         --hm-server-url=http://localhost:56004
+        --ipfs-server-url=http://localhost:56001
         --db-path=<userData>/agents/agents.sqlite
 
 Renderer

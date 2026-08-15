@@ -86,7 +86,14 @@ export {
 export type {ResolvedMarkdownOptions} from './blocks-to-markdown'
 export type {BlocksToMarkdownOptions} from './blocks-to-markdown'
 
-export {createBlocksMap, matchBlockIds, computeReplaceOps, hmBlockNodeToBlockNode} from './block-diff'
+export {
+  createBlocksMap,
+  matchBlockIds,
+  computeReplaceOps,
+  hmBlockNodeToBlockNode,
+  rebindTableIdentities,
+  toAPIBlockNode,
+} from './block-diff'
 export type {APIBlockNode, APIBlock} from './block-diff'
 
 export {

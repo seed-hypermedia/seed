@@ -1,7 +1,8 @@
 # Future projects
 
 This document collects larger projects that are referenced throughout the Agents docs. Use [Roadmap](./roadmap.md) for
-current priority order; use this file for project scope and implementation notes.
+current priority order; use this file for project scope and implementation notes. Statuses last reconciled against the
+code on **2026-08-13**.
 
 ## Completed: Shared Agents protocol package
 
@@ -19,13 +20,14 @@ Implemented:
   `file:./protocol`;
 - the desktop/server action and response unions are now compile-time aliases of the same shared exported types.
 
-## Project: Pi SDK agentic-loop migration
+## Completed: Pi SDK agentic-loop migration
 
-Status: first implementation in place; hardening remains. See [Pi SDK migration project](./pi-sdk-migration.md).
+Status: complete. Every turn runs through `#runPiAgent()`; the manual `fetch()`/SSE/tool loop is gone from the code.
+Remaining work is provider hardening, tracked in the roadmap, not migration work. See
+[Pi SDK migration project](./pi-sdk-migration.md).
 
 Problem: Seed Agents initially implemented the LLM loop manually with direct OpenAI-compatible `fetch()` calls,
-hand-written SSE parsing, and an OpenAI-specific tool loop. The first Pi SDK path is now in place, but production
-hardening and real-provider coverage remain.
+hand-written SSE parsing, and an OpenAI-specific tool loop.
 
 Scope:
 
@@ -47,11 +49,12 @@ Done when:
 - Seed secrets are not persisted into Pi auth files;
 - `cd agents && bun check && bun test` passes.
 
-## Project: Anthropic execution backend
+## Completed: Anthropic execution backend
 
-Status: likely folded into the Pi SDK agentic-loop migration.
+Status: folded into the Pi SDK migration and delivered through it — Anthropic is a mapped provider type executing
+through Pi. What remains is a real-provider smoke test, not a backend.
 
-If the Pi migration is deferred, scope remains:
+The original standalone scope, kept for reference:
 
 - implement Anthropic Messages API runner;
 - map internal session history to Anthropic format;
@@ -66,11 +69,12 @@ Done when:
 - streaming markdown behaves the same as OpenAI;
 - `read` works through Anthropic tools.
 
-## Project: Google/Gemini execution backend
+## Completed: Google/Gemini execution backend
 
-Status: likely folded into the Pi SDK agentic-loop migration.
+Status: folded into the Pi SDK migration and delivered through it. As with Anthropic, only real-provider smoke coverage
+is outstanding.
 
-If the Pi migration is deferred, scope remains:
+The original standalone scope, kept for reference:
 
 - implement Gemini runner;
 - map internal session history to Gemini content format;
@@ -86,21 +90,29 @@ Done when:
 
 ## Project: Agent triggers
 
-Status: planned; backend CRUD/persistence, desktop shell, matching utilities, initial ActivityFeed monitor, inspector
-visibility, and per-trigger cooldowns started. See [Agent triggers plan](./agent-triggers-plan.md).
+Status: the scope below is shipped. What is open is the next shape — trigger **documents** with draft→active consent,
+designed in `docs/harness/m6-event-bus-design.md` and not built. See [Agent triggers plan](./agent-triggers-plan.md) for
+the shipped surface and its banner for what replaced what.
 
-Scope:
+Delivered scope:
 
-- save agent-scoped triggers made of a prompt plus an activity source/filter;
-- add a Triggers tab, New trigger dialog, editable trigger detail page, breadcrumbs, and trigger-created session list;
-- monitor the HM server activity feed with durable watermarks;
-- match comment, mention, and site-update events;
-- create normal agent sessions when triggers fire;
-- track firings idempotently so feed retries do not duplicate sessions.
+- agent-scoped triggers made of a prompt plus a source/filter, over five sources (schedule, document-comment,
+  user-mention, site-update, run-completed);
+- Triggers tab, New trigger dialog, editable detail page, breadcrumbs, trigger-created session list — except that a
+  `run-completed` trigger can only be created through the API;
+- HM activity feed monitoring with durable watermarks, per-trigger cooldowns, and exactly-once firing dedup;
+- continuations beyond "start a thread": `wake` delivers a firing into a parked run, with an 8-hop chain loop guard.
 
-## Project: Stop/cancel running sessions
+Open scope: documents in `~/triggers/**`, activation consent, the `document-change` source, `appendTo`/`runPlan`
+continuations, the migration off `agent_triggers`, and the desktop editor.
 
-Scope:
+## Completed: Stop/cancel running sessions
+
+Status: completed. `StopSession` aborts the live Pi turn and cancels every run rooted at the session including
+descendants; `CancelRun` cancels any run's subtree (queued runs never start, waiting runs never wake, executing runs
+abort via Pi abort / VM interrupt). The desktop has a stop button and a cancel control on the pinned run card.
+
+Original scope:
 
 - add `StopSession` or `CancelRun` action;
 - track active run abort controllers;
@@ -115,11 +127,13 @@ Risks:
 - concurrent run state must be explicit;
 - cancellation races with final provider events must be handled without sleeps.
 
-## Project: Run records and richer runtime state
+## Completed: Run records and richer runtime state
 
-Problem: session status is coarse and partials are ephemeral.
+Status: completed as the runs foundation of `workflows-v1-plan.md` — the `runs` table doubles as the dispatch queue,
+usage persists per turn with child rollup, session events carry no run linkage but sessions carry `run_id`, and
+`ListRuns`/`GetRun`/`GetRunJournal` plus `runs/<rootRunId>` subscriptions expose it live and after reconnect.
 
-Scope:
+Original scope:
 
 - add `runs` table;
 - persist run status, provider, model, start/end times, token/usage metadata;
@@ -140,12 +154,16 @@ Scope:
 - optional short-lived subscription capability tokens;
 - metrics.
 
-## Project: Domain-aware SHM read/query tool
+## Completed: Domain-aware SHM read/query tool
 
-Problem: agents need one reliable read path for Seed Hypermedia content, including clean web URLs on custom HM domains.
-The current `read` tool already reads resources, but it should be augmented instead of replaced blindly.
+Status: delivered. `resolveIdWithClient()` takes a `domainResolver`, and the agents service passes a `GetDomain`-backed
+one, so a pasted custom-domain URL resolves to its canonical `hm://` id before the read. The naming question resolved
+itself: there is no `query` alias — reading is the `read` verb over any address, and searching is the `search` callable.
 
-Scope:
+Remaining from the original scope: exposing read-only Seed client request keys (`ListComments`, `ListCitations`, …) as a
+structured query surface was neither built nor rejected.
+
+Original scope:
 
 - keep `read` as the compatibility base and decide later whether to expose a model-facing `query` alias;
 - reuse the existing resolver stack in `@seed-hypermedia/client` (`resolveHypermediaUrl`, `resolveId`, and
@@ -171,12 +189,13 @@ Done when:
 - existing `read` calls still work;
 - docs clearly state whether `query` is an alias/new default or future naming cleanup.
 
-## Project: Shared rich tool-call rendering coverage
+## Mostly completed: Shared rich tool-call rendering coverage
 
-Problem: the Agents session page and assistant sidebar now share rich chat/tool rendering, but focused coverage is still
-needed for the Agents event-to-bubble adapter.
+Status: the adapter is covered — `agent-session-rows.test.ts` exercises durable `tool_call`/`tool_result` pairing, actor
+attribution, and obligation notices, alongside `run-card` and `assistant-message-rendering` tests. What is not
+specifically covered is the fallback rendering path for unknown tools.
 
-Scope:
+Original scope:
 
 - add desktop tests or focused smoke coverage for pairing durable `tool_call` and `tool_result` events by call ID;
 - cover pending calls with the shared running/spinner state;
@@ -189,18 +208,15 @@ Done when:
 - tests protect the shared renderer and Agents adapter behavior;
 - assistant sidebar rendering remains unchanged.
 
-## Project: Tool registry and permissions
+## Mostly completed: Tool registry and permissions
 
-Problem: `read` is always available.
+Status: the registry and the permission model shipped, in a different shape than this scope imagined. Tools are
+content-addressed documents in each agent's `~/tools/`; the five verbs are always on and are never grants; what a grant
+covers is the **callable set** (search / web search / execute) and **publish** (signed public writing), both exposed as
+desktop toggles.
 
-Scope:
-
-- central tool registry;
-- per-agent allowed tools;
-- account/global tool policy;
-- user-visible permission controls;
-- audit log for tool reads;
-- outbound URL policy.
+Still open: an account- or deployment-level tool policy above the per-agent one, an audit log for tool use, and an
+outbound URL policy (see the roadmap's security list).
 
 ## Project: Production secret management
 
@@ -238,13 +254,34 @@ Scope:
 
 ## Project: Rich tool result rendering
 
-Scope:
+Status: partly delivered by registry-driven rendering — each tool declares its label, primary argument, resource
+argument, summary path, and detail rows, so a `read` row already links its `hm://` address and expands to its content,
+with raw payloads behind the info dialog. Not delivered: document previews rendered as documents rather than as text,
+and showing the requested URL beside the resolved one.
+
+Remaining scope:
 
 - render `read` results as collapsible document previews;
 - show requested URL and resolved HM ID clearly;
 - open/copy resolved URL;
-- show markdown excerpts;
-- preserve raw JSON/debug detail.
+- show markdown excerpts.
+
+## Project: Delegated signer registration
+
+Problem: `verifyEnvelope` authorizes a signer that is either the account itself or holds an `AGENT`/`OWNER` row in
+`account_authorizations` — but no protocol action writes that table; only tests call `setLocalAuthorization`. So every
+real client must sign with the account key, which is exactly what a web device cannot do.
+
+Scope:
+
+- an action that registers a delegated signer for an account, and one that revokes it;
+- decide what evidence authorizes the registration (an HM capability blob is the obvious candidate) and where the
+  capability string on the row comes from;
+- surface the authorized signers so a user can see and revoke devices acting for their account;
+- tests covering authorized, unauthorized, and revoked signers across the action paths.
+
+Done when: a web device holding its own key can run an agent session for an account it was granted, and revoking the
+grant stops it.
 
 ## Project: Agent templates and tool-aware creation
 
@@ -269,6 +306,9 @@ Scope:
 - remote desktop connection instructions.
 
 ## Project: Testing expansion
+
+Status: cancellation is covered (`runs.test.ts`, `run-time.test.ts` drive real runs through the real queue), and the
+service suite runs a real Bun server. The WebSocket, desktop-hook, dialog, and SSE-parser items below are still open.
 
 Scope:
 

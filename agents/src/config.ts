@@ -23,8 +23,12 @@ export type Config = {
    * localhost redirect (the desktop app) or a user willing to paste it.
    */
   subscriptionAuth: boolean
+  /** Generate titles for untitled sessions with a dedicated model call. */
+  titleGeneration: boolean
   activity: {
     hmServerUrl: string
+    /** HTTP endpoint serving `/ipfs/*`; defaults to hmServerUrl when both surfaces share a host. */
+    ipfsServerUrl: string
     pollIntervalMs: number
     pageSize: number
     maxPagesPerPoll: number
@@ -42,6 +46,8 @@ export type Config = {
     backend: '' | 'microsandbox'
     /** OCI image for sandbox rootfs. */
     image: string
+    /** OCI image for the `ts` runtime; needs bun on PATH. Defaults to `oven/bun`; explicitly empty leaves TypeScript unavailable. */
+    tsImage: string
     /** Virtual CPUs per sandbox. */
     cpus: number
     /** Guest memory per sandbox in MiB. */
@@ -62,6 +68,7 @@ export type Flags = {
   'db-path': string
   'data-dir': string
   'hm-server-url': string
+  'ipfs-server-url': string
   'activity-poll-interval-ms': number
   'activity-page-size': number
   'activity-max-pages': number
@@ -70,7 +77,9 @@ export type Flags = {
   'crawler-token': string
   'exec-backend': string
   'subscription-auth': boolean
+  'session-title-generation': boolean
   'exec-image': string
+  'exec-ts-image': string
   'exec-cpus': number
   'exec-memory-mib': number
   'exec-timeout-secs': number
@@ -86,6 +95,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'db-path': env.SEED_AGENTS_DB_PATH || './data/agents.sqlite',
     'data-dir': env.SEED_AGENTS_DATA_DIR || './data',
     'hm-server-url': env.SEED_AGENTS_HM_SERVER_URL || 'https://hyper.media',
+    'ipfs-server-url': env.SEED_AGENTS_IPFS_SERVER_URL || '',
     'activity-poll-interval-ms': Number(env.SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS) || 5_000,
     'activity-page-size': Number(env.SEED_AGENTS_ACTIVITY_PAGE_SIZE) || 50,
     'activity-max-pages': Number(env.SEED_AGENTS_ACTIVITY_MAX_PAGES) || 5,
@@ -94,7 +104,9 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
     'exec-backend': env.SEED_AGENTS_EXEC_BACKEND ?? 'microsandbox',
     'subscription-auth': isTruthyFlag(env.SEED_AGENTS_SUBSCRIPTION_AUTH ?? ''),
+    'session-title-generation': env.SEED_AGENTS_SESSION_TITLE_GENERATION !== 'false',
     'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
+    'exec-ts-image': env.SEED_AGENTS_EXEC_TS_IMAGE ?? 'oven/bun',
     'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
     'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
     'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
@@ -161,6 +173,7 @@ export function create(pflags: Flags): Config {
     dataDir: pflags['data-dir'],
     activity: {
       hmServerUrl: normalizeHttpUrl(pflags['hm-server-url'], 'HM server URL'),
+      ipfsServerUrl: normalizeHttpUrl(pflags['ipfs-server-url'] || pflags['hm-server-url'], 'IPFS server URL'),
       pollIntervalMs: parsePositiveInteger(String(pflags['activity-poll-interval-ms']), 'activity-poll-interval-ms'),
       pageSize: parsePositiveInteger(String(pflags['activity-page-size']), 'activity-page-size'),
       maxPagesPerPoll: parsePositiveInteger(String(pflags['activity-max-pages']), 'activity-max-pages'),
@@ -173,6 +186,7 @@ export function create(pflags: Flags): Config {
     exec: {
       backend: parseExecBackend(pflags['exec-backend']),
       image: pflags['exec-image'].trim() || 'python',
+      tsImage: pflags['exec-ts-image'].trim(),
       cpus: parsePositiveInteger(String(pflags['exec-cpus']), 'exec-cpus'),
       memoryMib: parsePositiveInteger(String(pflags['exec-memory-mib']), 'exec-memory-mib'),
       timeoutSecs: parsePositiveInteger(String(pflags['exec-timeout-secs']), 'exec-timeout-secs'),
@@ -180,6 +194,7 @@ export function create(pflags: Flags): Config {
       dnsServers: parseDnsServers(pflags['exec-dns']),
     },
     subscriptionAuth: pflags['subscription-auth'],
+    titleGeneration: pflags['session-title-generation'],
   }
 }
 

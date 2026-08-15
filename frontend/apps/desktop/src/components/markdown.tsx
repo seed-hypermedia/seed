@@ -5,8 +5,33 @@ import {useResource} from '@shm/shared/models/entity'
 import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import React from 'react'
 import ReactMarkdown, {defaultUrlTransform, type Components, type ExtraProps} from 'react-markdown'
-// remark-gfm is intentionally not used here: the current desktop dependency graph bundles an
-// incompatible mdast-util-from-markdown context, which crashes on inline code (`this.getData is not a function`).
+// The bare `remark-gfm` specifier is ambiguous in the renderer bundle: the
+// vite alias pulls @shm/editor in by source, so the dep optimizer resolves
+// `remark-gfm` against the editor's node_modules (v3, mdast-util v1 era) and
+// serves that single prebundle to every importer. react-markdown@10 needs the
+// v4 mdast context — feeding it v3 throws `this.getData is not a function`
+// on inline code inside tables. The npm-aliased name pins v4 unambiguously.
+import remarkGfm from 'remark-gfm-v4'
+
+type MdastNode = {type?: string; value?: string; children?: MdastNode[]}
+
+/**
+ * Removes HTML comment nodes so HM identity markers (`<!-- id:… -->`,
+ * `<!-- col:… -->`) and any other comments never render as literal text in
+ * chat. Operates on the mdast tree, so comments inside code blocks and code
+ * spans are untouched — their content lives in code nodes, not html nodes.
+ */
+function remarkStripHtmlComments() {
+  const strip = (node: MdastNode) => {
+    if (!node.children) return
+    node.children = node.children.filter(
+      (child) =>
+        !(child.type === 'html' && typeof child.value === 'string' && child.value.trimStart().startsWith('<!--')),
+    )
+    node.children.forEach(strip)
+  }
+  return (tree: MdastNode) => strip(tree)
+}
 
 function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) {
   const openUrl = useOpenUrl()
@@ -45,8 +70,12 @@ function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) 
   )
 }
 
-/** Renders assistant markdown with in-app handling for Hypermedia links. */
-export function Markdown({children}: {children: string; enableGfm?: boolean}) {
+/** Renders assistant markdown with in-app handling for Hypermedia links.
+ *
+ * GFM (tables, strikethrough, autolinks) is on by default; callers pass
+ * `enableGfm={false}` while streaming so half-written tables don't flicker
+ * between table and paragraph rendering mid-stream. */
+export function Markdown({children, enableGfm = true}: {children: string; enableGfm?: boolean}) {
   const components: Components = {
     h1: ({children}) => <h1 className="mt-3 mb-2 text-base font-bold first:mt-0">{children}</h1>,
     h2: ({children}) => <h2 className="mt-3 mb-2 text-sm font-bold first:mt-0">{children}</h2>,
@@ -82,7 +111,7 @@ export function Markdown({children}: {children: string; enableGfm?: boolean}) {
 
   return (
     <ReactMarkdown
-      remarkPlugins={[]}
+      remarkPlugins={enableGfm ? [remarkGfm, remarkStripHtmlComments] : [remarkStripHtmlComments]}
       components={components}
       urlTransform={(value) => (value.startsWith('hm://') ? value : defaultUrlTransform(value))}
     >

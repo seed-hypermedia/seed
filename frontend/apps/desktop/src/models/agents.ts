@@ -19,11 +19,15 @@ import {
   type AgentMemoryEntry,
   type FileUploadTarget,
   type ModelProviderType,
+  type RunInfo,
+  type RunJournalEntryInfo,
+  type RunStatus,
   type SessionAttachmentInfo,
   type SessionInfo,
   type SigningIdentity,
   type SigningIdentityIcon,
 } from '@/agents-client'
+import {isOptimisticUserEcho} from '@/models/agent-session-rows'
 import {client} from '@/trpc'
 import {grpcClient} from '@/grpc-client'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
@@ -31,8 +35,9 @@ import * as cbor from '@shm/shared/cbor'
 import {DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useMemo, useRef, useState} from 'react'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
@@ -47,23 +52,31 @@ export function getDefaultAgentServerUrl() {
 export const DEFAULT_AGENT_SERVER_URL = getDefaultAgentServerUrl()
 const AGENT_BACKGROUND_REFETCH_INTERVAL_MS = 5_000
 
-// ─── Agent-referenced content discovery ─────────────────────────────────────
-// When an agent session event arrives over the WebSocket it may reference hm:// content the local node
-// hasn't synced. We detect those references centrally at the ingestion point — reading tool-result URLs from
-// the tool registry's structured `references` metadata (getToolReferencedUrls), and assistant-message URLs
-// from the markdown prose — then ask the local daemon to discover/sync each, so the document is available by
-// the time the user clicks. The agent publishes to a different node (its HM server), so this only works once
-// the local node is peered with it (see useConnectLocalNodeToAgentHmServer).
-
+// When an open agent session references hm:// content, keep that resource subscribed through the desktop's
+// normal sync service. A one-shot discover is insufficient: it can race the peer connection or return a cached
+// result from before the agent published. The live subscription keeps touching discovery until the new content
+// arrives and stays active until the session closes.
 const HM_REF_REGEX = /hm:\/\/[^\s)"'`\]<>]+/g
-/** Canonical discovery URLs already requested this process, to avoid re-discovering the same resource. */
-const discoveredAgentRefs = new Set<string>()
 
-/** Normalize an hm:// URL to a bare resource URL (drop version/query, block ref, and any `:view` marker). */
-function canonicalAgentRef(raw: string): string | null {
+type AgentReferenceSubscription = {
+  url: string
+  recursive: boolean
+  unsubscribe: () => void
+}
+
+type CanonicalAgentRef = {
+  key: string
+  url: string
+}
+
+/** Normalize an hm:// URL to its document while preserving a requested version. */
+function canonicalAgentRef(raw: string): CanonicalAgentRef | null {
   if (!raw.startsWith('hm://')) return null
-  const withoutScheme = (raw.slice('hm://'.length).split('#')[0] ?? '').split('?')[0] ?? ''
-  const segments = withoutScheme.split('/').filter((segment) => segment.length > 0)
+  const withoutFragment = raw.split('#')[0] ?? ''
+  const queryIndex = withoutFragment.indexOf('?')
+  const pathPart = queryIndex === -1 ? withoutFragment : withoutFragment.slice(0, queryIndex)
+  const query = queryIndex === -1 ? '' : withoutFragment.slice(queryIndex)
+  const segments = pathPart.slice('hm://'.length).split('/').filter(Boolean)
   const uid = segments[0]
   if (!uid) return null
   const pathSegments: string[] = []
@@ -71,7 +84,8 @@ function canonicalAgentRef(raw: string): string | null {
     if (segment.startsWith(':')) break
     pathSegments.push(segment)
   }
-  return `hm://${uid}${pathSegments.length ? `/${pathSegments.join('/')}` : ''}`
+  const key = `hm://${uid}${pathSegments.length ? `/${pathSegments.join('/')}` : ''}`
+  return {key, url: `${key}${query}`}
 }
 
 /** Pull hm:// references out of free-form text (assistant prose / markdown links). */
@@ -79,43 +93,46 @@ function extractHmUrlsFromText(text: string): string[] {
   return (text.match(HM_REF_REGEX) ?? []).map((match) => match.replace(/[.,;]+$/, ''))
 }
 
-/**
- * Triggers local-daemon discovery for any referenced resource not already seen this process. Best-effort and
- * fire-and-forget; logs under `[agents-discovery]` so the agent-content discovery path is visible without the
- * noise of generic per-resource discovery.
- *
- * A comment URL (`hm://target/path/:comments/<author>/<tsid>`) canonicalizes to its target document, but a
- * comment is only synced as part of that document's subtree — so comment references are discovered
- * recursively (`/**`), the same way the document page subscribes (`recursive: true`). Plain document
- * references stay non-recursive.
- */
-function discoverReferences(urls: string[]): void {
-  // Group by canonical resource id, marking a target recursive if any reference to it is a comment.
-  const recursiveById = new Map<string, boolean>()
+/** Keeps agent-referenced resources synced for as long as their session is open. */
+function subscribeToAgentReferences(
+  urls: string[],
+  activeSubscriptions: Map<string, AgentReferenceSubscription>,
+): void {
+  const references = new Map<string, {url: string; recursive: boolean}>()
   for (const rawUrl of urls) {
-    const id = canonicalAgentRef(rawUrl)
-    if (!id) continue
-    const recursive = rawUrl.includes('/:comments/') || (recursiveById.get(id) ?? false)
-    recursiveById.set(id, recursive)
+    const canonical = canonicalAgentRef(rawUrl)
+    if (!canonical) continue
+    const recursive = rawUrl.includes('/:comments/') || (references.get(canonical.key)?.recursive ?? false)
+    references.set(canonical.key, {url: canonical.url, recursive})
   }
-  for (const [id, recursive] of Array.from(recursiveById.entries())) {
-    const discoveryId = recursive ? `${id}/**` : id
-    if (discoveredAgentRefs.has(discoveryId)) continue
-    discoveredAgentRefs.add(discoveryId)
-    console.info('[agents-discovery] agent referenced content — discovering on local node', {id: discoveryId})
-    void grpcClient.entities.discoverEntity({id: discoveryId}).then(
-      (resp) =>
-        console.info('[agents-discovery] discovery scheduled', {
-          id: discoveryId,
-          state: resp.state,
-          version: resp.version || '(pending)',
-        }),
-      (error) =>
-        console.warn('[agents-discovery] discovery request failed', {
-          id: discoveryId,
-          error: error instanceof Error ? error.message : String(error),
-        }),
+
+  for (const [key, reference] of Array.from(references.entries())) {
+    const existing = activeSubscriptions.get(key)
+    if (existing?.recursive && !reference.recursive) continue
+    if (existing?.recursive === reference.recursive && existing.url === reference.url) continue
+    existing?.unsubscribe()
+
+    const id = unpackHmId(reference.url)
+    if (!id) continue
+    const discoveryId = `${key}${reference.recursive ? '/**' : ''}`
+    console.info('[agents-discovery] keeping agent-referenced content synced on local node', {id: discoveryId})
+    const subscription = client.sync.subscribe.subscribe(
+      {id, recursive: reference.recursive},
+      {
+        onData: () => {},
+        onError: (error) => {
+          console.warn('[agents-discovery] agent reference sync failed', {
+            id: discoveryId,
+            error: error instanceof Error ? error.message : String(error),
+          })
+        },
+      },
     )
+    activeSubscriptions.set(key, {
+      url: reference.url,
+      recursive: reference.recursive,
+      unsubscribe: () => subscription.unsubscribe(),
+    })
   }
 }
 
@@ -350,7 +367,6 @@ export async function syncAgentAccountToLocalNode(serverUrl: string | undefined,
   try {
     const health = await getAgentServerHealth(serverUrl || DEFAULT_AGENT_SERVER_URL)
     if (health.hmServerUrl) await connectLocalNodeToAgentHmServer(health.hmServerUrl)
-    discoveredAgentRefs.add(discoveryId)
     console.info('[agents-discovery] syncing new agent account to local node', {id: discoveryId})
     const resp = await grpcClient.entities.discoverEntity({id: discoveryId})
     console.info('[agents-discovery] agent account discovery scheduled', {
@@ -517,6 +533,34 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
       if (result._ === 'CreateSigningIdentityResponse' && result.identity.accountId) {
         void syncAgentAccountToLocalNode(serverUrl, result.identity.accountId)
       }
+    },
+  })
+}
+
+/**
+ * Imports an existing HM account key (a decrypted `.hmkey.json` seed) for the server to sign with.
+ *
+ * The seed travels inside the signed action envelope to the agent server, which stores it in its
+ * own encrypted secrets store — callers are responsible for warning the user when that server is
+ * not their local machine. Unlike creation, the server publishes nothing for imported keys.
+ */
+export function useImportSigningIdentity(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({seed, label}: {seed: Uint8Array; label?: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'ImportSigningIdentity', seed, ...(label ? {label} : {}), clientRequestId: crypto.randomUUID()},
+      })
+      if (res._ !== 'ImportSigningIdentityResponse') throw new Error('Unexpected ImportSigningIdentity response')
+      return res.identity
+    },
+    onSuccess(identity) {
+      invalidateQueries(['agents'])
+      // The imported account usually already exists on the network; make sure the local node can
+      // resolve it (search, @mentions) the same way created agent accounts are synced.
+      if (identity.accountId) void syncAgentAccountToLocalNode(serverUrl, identity.accountId)
     },
   })
 }
@@ -916,6 +960,28 @@ export function useAgentMemory(
   })
 }
 
+/** Lists the tool documents in an agent's ~/tools — authored lambdas with their source, and builtins. */
+export function useAgentTools(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'tools', serverUrl, accountUid, agentId],
+    queryFn: async () => {
+      if (!serverUrl || !accountUid || !agentId) return null
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentTools', agentId}})
+      if (res._ !== 'ListAgentToolsResponse') throw new Error('Unexpected ListAgentTools response')
+      return res
+    },
+    enabled: !!serverUrl && !!accountUid && !!agentId,
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
 /** Reads one file from an agent's private memory. */
 export function useAgentMemoryFile(
   serverUrl: string | undefined,
@@ -1022,6 +1088,31 @@ export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid:
   })
 }
 
+/**
+ * Runs one verb (read/write/call) AS THE USER on a session's shared log. No optimistic rows: the
+ * durable actor-'user' events arrive over the session WS subscription — the log is the truth.
+ */
+export function useInvokeSessionTool(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({
+      sessionId,
+      verb,
+      input,
+    }: {
+      sessionId: string
+      verb: 'read' | 'write' | 'call'
+      input: unknown
+    }) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'InvokeSessionTool', sessionId, verb, input}})
+    },
+    onSuccess() {
+      // The WS append is primary, but a stale socket must never hide a durable action.
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
 /** Updates an existing activity trigger. */
 export function useUpdateAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
@@ -1053,7 +1144,11 @@ export function useAgentSession(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
   sessionId: string | undefined,
+  /** `poll: false` for sessions shown only by reference (e.g. a child page naming its parent) — the
+   * response carries the whole transcript, which is not worth re-fetching every few seconds. */
+  options?: {poll?: boolean},
 ) {
+  const poll = options?.poll !== false
   return useQuery({
     queryKey: ['agents', 'session', serverUrl, accountUid, sessionId],
     queryFn: async () => {
@@ -1063,8 +1158,8 @@ export function useAgentSession(
       return res
     },
     enabled: !!serverUrl && !!accountUid && !!sessionId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+    refetchInterval: poll ? AGENT_BACKGROUND_REFETCH_INTERVAL_MS : false,
+    refetchIntervalInBackground: poll,
     retry: false,
     useErrorBoundary: false,
   })
@@ -1094,14 +1189,21 @@ export function useAllAgentSessions(serverUrls: string[] | undefined, accountUid
       queryKey: ['agents', 'sessions', serverUrl, accountUid],
       queryFn: async (): Promise<AgentSessionListEntry[]> => {
         if (!accountUid) return []
-        const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSessions'}})
+        // This client nests children under parents itself, so exclude them from the top level.
+        const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSessions', includeChildren: false}})
         if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
         const agentsById = new Map(res.agents.map((agent) => [agent.id, agent]))
-        return res.sessions.map((session) => ({
-          serverUrl,
-          session,
-          agent: agentsById.get(session.agentId),
-        }))
+        return (
+          res.sessions
+            // Children render nested under their parent's disclosure; filter defensively so a
+            // server that ignores includeChildren (older build) can never duplicate them here.
+            .filter((session) => !session.parentSessionId)
+            .map((session) => ({
+              serverUrl,
+              session,
+              agent: agentsById.get(session.agentId),
+            }))
+        )
       },
       enabled: !!accountUid,
       refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
@@ -1120,6 +1222,157 @@ export function useAllAgentSessions(serverUrls: string[] | undefined, accountUid
     isLoading: queries.length > 0 && queries.every((query) => query.isLoading),
     isError: queries.length > 0 && queries.every((query) => query.isError),
   }
+}
+
+/**
+ * Lists the sub-sessions spawned under one parent session.
+ *
+ * Top-level session lists exclude children, so a parent row shows only a count until the user opens
+ * its disclosure — `enabled` keeps the request lazy. Cached results stay fresh through the same
+ * `['agents']` invalidation the WebSocket already fires, so child statuses update live once loaded.
+ */
+export function useChildSessions(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  parentSessionId: string | undefined,
+  options?: {enabled?: boolean},
+) {
+  const enabled = options?.enabled !== false && !!serverUrl && !!accountUid && !!parentSessionId
+  return useQuery({
+    queryKey: ['agents', 'child-sessions', serverUrl, accountUid, parentSessionId],
+    queryFn: async (): Promise<SessionInfo[]> => {
+      if (!serverUrl || !accountUid || !parentSessionId) return []
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSessions', parentSessionId}})
+      if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
+      return res.sessions
+    },
+    enabled,
+    // Only while a disclosure is open, matching how the top-level session lists stay current.
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/**
+ * Loads one run by id.
+ *
+ * A sub-session's own run is a child in its parent's tree, not a root, so `ListRuns {sessionId}`
+ * (roots only) never returns it — `SessionInfo.runId` plus this is how a child page reads its status.
+ */
+export function useRun(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  runId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'runs', 'run', serverUrl, accountUid, runId],
+    queryFn: async (): Promise<RunInfo | null> => {
+      if (!serverUrl || !accountUid || !runId) return null
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'GetRun', runId}})
+      if (res._ !== 'GetRunResponse') throw new Error('Unexpected GetRun response')
+      return res.run
+    },
+    enabled: !!serverUrl && !!accountUid && !!runId,
+    // A finished run never changes again, and a long transcript can hold many of these — stop
+    // polling as soon as the run reaches a terminal status.
+    refetchInterval: (data) =>
+      data && TERMINAL_RUN_STATUSES.includes(data.status) ? false : AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Run statuses that never change again. */
+const TERMINAL_RUN_STATUSES: RunStatus[] = ['succeeded', 'failed', 'canceled']
+
+/** Lists the root runs of one session, newest first. Root runs only — a sub-session's run is not one. */
+export function useSessionRuns(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  sessionId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'runs', 'session', serverUrl, accountUid, sessionId],
+    queryFn: async (): Promise<RunInfo[]> => {
+      if (!serverUrl || !accountUid || !sessionId) return []
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListRuns', sessionId}})
+      if (res._ !== 'ListRunsResponse') throw new Error('Unexpected ListRuns response')
+      return res.runs
+    },
+    enabled: !!serverUrl && !!accountUid && !!sessionId,
+    // A run's own changes publish on `runs/<rootRunId>`, which a session page does not subscribe to,
+    // so poll: this is what tells a sub-session page its parent has let go of it.
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Lists every run in one root's tree, oldest first (the order the run card renders them in). */
+export function useRunTree(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  rootRunId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'runs', 'tree', serverUrl, accountUid, rootRunId],
+    queryFn: async (): Promise<RunInfo[]> => {
+      if (!serverUrl || !accountUid || !rootRunId) return []
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListRuns', rootRunId}})
+      if (res._ !== 'ListRunsResponse') throw new Error('Unexpected ListRuns response')
+      return res.runs
+    },
+    enabled: !!serverUrl && !!accountUid && !!rootRunId,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Cancels a run and every non-terminal descendant. */
+export function useCancelRun(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (runId: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'CancelRun', runId}})
+      if (res._ !== 'CancelRunResponse') throw new Error('Unexpected CancelRun response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'runs'])
+      invalidateQueries(['agents', 'session'])
+    },
+  })
+}
+
+/**
+ * Answers a run that is parked on `ctx.waitForEvent`, or releases one paused on its budget.
+ *
+ * Both are the same action: a budget pause is not listening for a payload, it is waiting for
+ * permission, and any signal is that permission. `delivered: false` is a normal outcome — the run
+ * finished, timed out, or was listening for something else — so callers report it rather than
+ * treating it as a failure.
+ */
+export function useSignalRun(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({runId, signal, payload}: {runId: string; signal: string; payload?: unknown}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'SignalRun', runId, signal, ...(payload === undefined ? {} : {payload})},
+      })
+      if (res._ !== 'SignalRunResponse') throw new Error('Unexpected SignalRun response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'runs'])
+      invalidateQueries(['agents', 'session'])
+    },
+  })
 }
 
 /** Updates an existing server-hosted agent. */
@@ -1150,6 +1403,12 @@ export type AgentSessionDraftMessage = {
   contextLines?: string[]
   /** Session attachments (already uploaded) referenced by this message. */
   attachments?: SessionAttachmentInfo[]
+  /**
+   * Identity shared between the optimistic transcript row and the sent message, echoed back on the
+   * durable event so the pending row is replaced by its echo instead of rendering next to it.
+   * Stamped by {@link addOptimisticSessionMessage}; callers pass its returned drafts to the send.
+   */
+  clientMessageId?: string
 }
 
 export type FileUploadProgress = {sent: number; total: number}
@@ -1344,6 +1603,7 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
             type: 'text',
             text: message.text,
             ...(message.blocks ? {blocks: message.blocks} : {}),
+            ...(message.clientMessageId ? {clientMessageId: message.clientMessageId} : {}),
           }),
         ),
       ]
@@ -1354,7 +1614,9 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
           _: 'MessageSession',
           sessionId,
           content,
-          clientMessageId: crypto.randomUUID(),
+          // Doubles as the action's idempotency key; unique per send since drafts are stamped
+          // fresh by addOptimisticSessionMessage.
+          clientMessageId: messages[0]?.clientMessageId ?? crypto.randomUUID(),
         },
       })
     },
@@ -1379,6 +1641,27 @@ export function useStopAgentSession(serverUrl: string | undefined, accountUid: s
   })
 }
 
+/**
+ * Re-runs a session whose last turn failed, with no new user message.
+ *
+ * The server re-enters the turn from the durable transcript, so the retried run streams into the
+ * session exactly like the original — nothing here has to reconcile the transcript, the usual
+ * WebSocket append and invalidation carry it.
+ */
+export function useRetrySession(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (sessionId: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'RetrySession', sessionId}})
+      if (res._ !== 'RetrySessionResponse') throw new Error('Unexpected RetrySession response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
 /** Live, in-flight state for one agent session streamed over the WebSocket. */
 export type AgentSessionLiveState = {
   /** Assistant text streamed so far for the current (uncommitted) partial. */
@@ -1391,17 +1674,32 @@ export type AgentSessionLiveState = {
 
 const EMPTY_SESSION_LIVE_STATE: AgentSessionLiveState = {text: ''}
 
-/** Subscribes to signed agent-server WebSocket updates and refreshes cached data. */
-export function useAgentWebSocketSubscription(
+/** Logger passed to socket event handlers, pre-tagged with the connection's server/account/key. */
+type AgentSocketLog = (message: string, fields?: Record<string, unknown>) => void
+
+/** Everything a signed subscription can watch. */
+export type AgentSubscriptionKey = `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
+
+/**
+ * Opens one signed agent-server WebSocket for `key` and hands every event to `onEvent`.
+ *
+ * Shared by the session and run subscriptions: the lifecycle (sign the Subscribe action, reconnect
+ * with backoff, tear down on unmount) is identical, only the event handling differs. `onEvent` is
+ * held in a ref so a handler closing over render-scoped state never forces a reconnect.
+ */
+function useSignedAgentSocket(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | undefined,
-  afterSeq?: number,
-): AgentSessionLiveState {
-  const [partials, setPartials] = useState<Record<string, AgentSessionLiveState>>({})
-
-  // Keep the local node peered with this server's HM node so agent-created content can be discovered locally.
-  useConnectLocalNodeToAgentHmServer(serverUrl)
+  key: AgentSubscriptionKey | undefined,
+  afterSeq: number | undefined,
+  onEvent: (event: AgentWSEvent, log: AgentSocketLog) => void,
+) {
+  const handlerRef = useRef(onEvent)
+  handlerRef.current = onEvent
+  // Read at subscribe time rather than captured per effect, so a reconnect resumes from the newest
+  // durable sequence instead of replaying everything since the page opened.
+  const afterSeqRef = useRef(afterSeq)
+  afterSeqRef.current = afterSeq
 
   useEffect(() => {
     if (!serverUrl || !accountUid || !key) return
@@ -1410,7 +1708,7 @@ export function useAgentWebSocketSubscription(
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let retry = 0
 
-    const log = (message: string, fields: Record<string, unknown> = {}) => {
+    const log: AgentSocketLog = (message, fields = {}) => {
       console.info(`[agents/ws] ${message}`, {serverUrl, accountUid, key, ...fields})
     }
 
@@ -1428,6 +1726,7 @@ export function useAgentWebSocketSubscription(
       ws.binaryType = 'arraybuffer'
       ws.addEventListener('open', () => {
         retry = 0
+        const afterSeq = afterSeqRef.current
         const action =
           afterSeq === undefined ? ({_: 'Subscribe', key} as const) : ({_: 'Subscribe', key, afterSeq} as const)
         log('open; signing subscribe', {afterSeq, omittedUndefinedAfterSeq: afterSeq === undefined})
@@ -1445,95 +1744,7 @@ export function useAgentWebSocketSubscription(
       ws.addEventListener('message', (message) => {
         void (async () => {
           try {
-            const event = await parseMessage(message.data)
-            if (event._ === 'connected') {
-              log('connected event', {connectedAt: event.connectedAt})
-            } else if (event._ === 'subscribed') {
-              log('subscribed event', {subscribedKey: event.key, accountId: event.accountId})
-            } else if (event._ === 'append') {
-              log('append event', {sessionId: event.event.sessionId, seq: event.event.seq})
-              const eventPayload = event.event.event as {
-                type?: string
-                role?: string
-                content?: string
-                name?: string
-                output?: unknown
-              }
-              // Central detection point: sync any hm:// content this agent event references onto the local
-              // node — tool-result URLs come from the registry's structured reference metadata, message URLs
-              // from the markdown prose.
-              if (eventPayload.type === 'tool_result' && typeof eventPayload.name === 'string') {
-                discoverReferences(getToolReferencedUrls(eventPayload.name, {output: eventPayload.output}))
-              } else if (eventPayload.type === 'message' && typeof eventPayload.content === 'string') {
-                discoverReferences(extractHmUrlsFromText(eventPayload.content))
-              }
-              if (eventPayload.type === 'message' && eventPayload.role === 'assistant') {
-                // The streamed text is now a durable message, but the run may continue
-                // (more turns after tool calls), so keep usage/activity until idle.
-                setPartials((current) => {
-                  const existing = current[event.event.sessionId]
-                  if (!existing) return current
-                  return {...current, [event.event.sessionId]: {...existing, text: ''}}
-                })
-              }
-              const sessionId = event.event.sessionId
-              queryClient.setQueriesData(
-                {queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]},
-                (old: any) => {
-                  if (!old || old._ !== 'GetSessionResponse') return old
-                  if (old.events.some((existing: any) => existing.id === event.event.id)) return old
-                  const events = old.events.filter((existing: any) => {
-                    if (typeof existing.id !== 'string' || !existing.id.startsWith('optimistic-')) return true
-                    const existingPayload = existing.event as {type?: string; role?: string; content?: string}
-                    return !(
-                      eventPayload.type === 'message' &&
-                      eventPayload.role === 'user' &&
-                      existingPayload.type === 'message' &&
-                      existingPayload.role === 'user' &&
-                      existingPayload.content === eventPayload.content
-                    )
-                  })
-                  return {...old, events: [...events, event.event]}
-                },
-              )
-              invalidateQueries(['agents', 'detail'])
-            } else if (event._ === 'appendPartial') {
-              const sessionId = event.key.slice('sessions/'.length)
-              const textDeltaLength = event.patch.textDelta?.length ?? 0
-              log('partial event', {
-                sessionId,
-                partialId: event.partialId,
-                textDeltaLength,
-                done: event.patch.done === true,
-                activity: event.patch.activity?.phase,
-                totalTokens: event.patch.usage?.total,
-              })
-              setPartials((current) => {
-                const existing = current[sessionId] ?? EMPTY_SESSION_LIVE_STATE
-                // Usage and activity updates always apply, even on the `done` patch.
-                const next: AgentSessionLiveState = {
-                  ...existing,
-                  ...(event.patch.usage ? {usage: event.patch.usage} : {}),
-                  ...(event.patch.activity ? {activity: event.patch.activity} : {}),
-                }
-                if (event.patch.done) {
-                  log('partial marked done; keeping visible until durable append', {
-                    sessionId,
-                    partialId: event.partialId,
-                    totalLength: existing.text.length,
-                  })
-                  return {...current, [sessionId]: next}
-                }
-                next.text = existing.text + (event.patch.textDelta || '')
-                log('partial state updated', {sessionId, partialId: event.partialId, totalLength: next.text.length})
-                return {...current, [sessionId]: next}
-              })
-            } else if (event._ === 'error') {
-              log('server error event', {message: event.message})
-            } else if (event._ === 'change') {
-              log('change event', {changedKey: event.key})
-              invalidateQueries(['agents'])
-            }
+            handlerRef.current(await parseMessage(message.data), log)
           } catch (error) {
             console.warn('[agents/ws] ignored malformed message', {
               serverUrl,
@@ -1564,10 +1775,209 @@ export function useAgentWebSocketSubscription(
       ws?.close()
     }
   }, [serverUrl, accountUid, key])
+}
+
+/** Subscribes to signed agent-server WebSocket updates and refreshes cached data. */
+export function useAgentWebSocketSubscription(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  key: AgentSubscriptionKey | undefined,
+  afterSeq?: number,
+): AgentSessionLiveState {
+  const [partials, setPartials] = useState<Record<string, AgentSessionLiveState>>({})
+  const referenceSubscriptionsRef = useRef(new Map<string, AgentReferenceSubscription>())
+
+  // Keep the local node peered with this server's HM node so agent-created content can be discovered locally.
+  useConnectLocalNodeToAgentHmServer(serverUrl)
+
+  useEffect(() => {
+    const subscriptions = referenceSubscriptionsRef.current
+    return () => {
+      for (const subscription of Array.from(subscriptions.values())) subscription.unsubscribe()
+      subscriptions.clear()
+    }
+  }, [serverUrl, accountUid, key])
+
+  useSignedAgentSocket(serverUrl, accountUid, key, afterSeq, (event, log) => {
+    if (event._ === 'connected') {
+      log('connected event', {connectedAt: event.connectedAt})
+    } else if (event._ === 'subscribed') {
+      log('subscribed event', {subscribedKey: event.key, accountId: event.accountId})
+    } else if (event._ === 'append') {
+      // Run-journal appends (runs/<id> keys) are handled by the run-tree hook, not here.
+      if (!('event' in event)) return
+      log('append event', {sessionId: event.event.sessionId, seq: event.event.seq})
+      const eventPayload = event.event.event as {
+        type?: string
+        role?: string
+        content?: string
+        name?: string
+        output?: unknown
+      }
+      // Central detection point: sync any hm:// content this agent event references onto the local
+      // node — tool-result URLs come from the registry's structured reference metadata, message URLs
+      // from the markdown prose.
+      if (key?.startsWith('sessions/') && event.key === key) {
+        if (eventPayload.type === 'tool_result' && typeof eventPayload.name === 'string') {
+          subscribeToAgentReferences(
+            getToolReferencedUrls(eventPayload.name, {output: eventPayload.output}),
+            referenceSubscriptionsRef.current,
+          )
+        } else if (eventPayload.type === 'message' && typeof eventPayload.content === 'string') {
+          subscribeToAgentReferences(extractHmUrlsFromText(eventPayload.content), referenceSubscriptionsRef.current)
+        }
+      }
+      if (eventPayload.type === 'message' && eventPayload.role === 'assistant') {
+        // The streamed text is now a durable message, but the run may continue
+        // (more turns after tool calls), so keep usage/activity until idle.
+        setPartials((current) => {
+          const existing = current[event.event.sessionId]
+          if (!existing) return current
+          return {...current, [event.event.sessionId]: {...existing, text: ''}}
+        })
+      }
+      const sessionId = event.event.sessionId
+      queryClient.setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
+        if (!old || old._ !== 'GetSessionResponse') return old
+        if (old.events.some((existing: any) => existing.id === event.event.id)) return old
+        const events = old.events.filter((existing: any) => {
+          if (typeof existing.id !== 'string' || !existing.id.startsWith('optimistic-')) return true
+          // Only a message the USER wrote can be the echo of a message the user is waiting on. The
+          // runtime writes as `role: 'user'` too, mid-run, over this same stream.
+          return !isOptimisticUserEcho(event.event.event, existing.event)
+        })
+        return {...old, events: [...events, event.event]}
+      })
+      invalidateQueries(['agents', 'detail'])
+    } else if (event._ === 'appendPartial') {
+      // Run-keyed partials (workflow progress) are handled by the run-tree hook, not here.
+      if (!event.key.startsWith('sessions/')) return
+      const patch = event.patch as {
+        textDelta?: string
+        done?: boolean
+        usage?: AgentRunUsage
+        activity?: AgentRunActivity
+      }
+      const sessionId = event.key.slice('sessions/'.length)
+      const textDeltaLength = patch.textDelta?.length ?? 0
+      log('partial event', {
+        sessionId,
+        partialId: event.partialId,
+        textDeltaLength,
+        done: patch.done === true,
+        activity: patch.activity?.phase,
+        totalTokens: patch.usage?.total,
+      })
+      setPartials((current) => {
+        const existing = current[sessionId] ?? EMPTY_SESSION_LIVE_STATE
+        // Usage and activity updates always apply, even on the `done` patch.
+        const next: AgentSessionLiveState = {
+          ...existing,
+          ...(patch.usage ? {usage: patch.usage} : {}),
+          ...(patch.activity ? {activity: patch.activity} : {}),
+        }
+        if (patch.done) {
+          log('partial marked done; keeping visible until durable append', {
+            sessionId,
+            partialId: event.partialId,
+            totalLength: existing.text.length,
+          })
+          return {...current, [sessionId]: next}
+        }
+        next.text = existing.text + (patch.textDelta || '')
+        log('partial state updated', {sessionId, partialId: event.partialId, totalLength: next.text.length})
+        return {...current, [sessionId]: next}
+      })
+    } else if (event._ === 'error') {
+      log('server error event', {message: event.message})
+    } else if (event._ === 'change') {
+      log('change event', {changedKey: event.key})
+      // Run rows tick often while a workflow executes; refreshing only the runs queries keeps
+      // that from re-fetching every session and agent list on each step.
+      if (event.key.startsWith('runs/')) invalidateQueries(['agents', 'runs'])
+      else invalidateQueries(['agents'])
+    }
+  })
 
   if (!key?.startsWith('sessions/')) return EMPTY_SESSION_LIVE_STATE
   return partials[key.slice('sessions/'.length)] ?? EMPTY_SESSION_LIVE_STATE
 }
+
+/** Live, durable-first state for one run tree streamed over the WebSocket. */
+export type AgentRunTreeLiveState = {
+  /** Every run in the tree, keyed by run id, newest snapshot wins. */
+  runs: Record<string, RunInfo>
+  /** In-flight progress per run, from `appendPartial` — never persisted, purely animation. */
+  progress: Record<string, {fraction?: number; label?: string}>
+  /** What each run is doing right now, when reported. */
+  activity: Record<string, AgentRunActivity>
+  /** Journal entries received so far, oldest first (replayed durably on every (re)connect). */
+  journal: RunJournalEntryInfo[]
+}
+
+const EMPTY_RUN_TREE_LIVE_STATE: AgentRunTreeLiveState = {runs: {}, progress: {}, activity: {}, journal: []}
+
+/** Journal entries kept in memory per run tree. Well above what the activity drawer renders. */
+const RUN_JOURNAL_BUFFER_LIMIT = 500
+
+/**
+ * Subscribes to one run tree (`runs/<rootRunId>`).
+ *
+ * Durable-first by construction: subscribing replays the current `RunInfo` of every run in the tree
+ * plus its journal, so a reload rebuilds the whole progress card from the socket alone. Partials
+ * only animate what the durable snapshots already say.
+ */
+export function useAgentRunTreeSubscription(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  rootRunId: string | undefined,
+): AgentRunTreeLiveState {
+  const [state, setState] = useState<AgentRunTreeLiveState>(() => ({runs: {}, progress: {}, activity: {}, journal: []}))
+  const key = rootRunId ? (`runs/${rootRunId}` as const) : undefined
+
+  // A different root means a different card; drop the previous tree rather than merging two.
+  useEffect(() => {
+    setState({runs: {}, progress: {}, activity: {}, journal: []})
+  }, [key])
+
+  useSignedAgentSocket(serverUrl, accountUid, key, undefined, (event, log) => {
+    if (event._ === 'change' && event.key.startsWith('runs/')) {
+      const run = event.value as RunInfo
+      setState((current) => ({...current, runs: {...current.runs, [run.id]: run}}))
+      // Keep the durable queries (and anything else reading runs) in step with the stream.
+      invalidateQueries(['agents', 'runs'])
+    } else if (event._ === 'append' && !('event' in event)) {
+      const entry: RunJournalEntryInfo = {
+        runId: event.runId,
+        seq: event.seq,
+        entry: event.entry,
+        createdAt: event.createdAt,
+      }
+      setState((current) => {
+        // Keyed on (runId, seq): seq is per-run, so it repeats across a tree's runs.
+        if (current.journal.some((existing) => existing.runId === entry.runId && existing.seq === entry.seq)) {
+          return current
+        }
+        // A long workflow journals without bound; the drawer only ever shows the tail.
+        return {...current, journal: [...current.journal, entry].slice(-RUN_JOURNAL_BUFFER_LIMIT)}
+      })
+    } else if (event._ === 'appendPartial' && event.key.startsWith('runs/')) {
+      const {runId, patch} = event as {runId: string; patch: AgentWSRunPatch}
+      setState((current) => ({
+        ...current,
+        progress: patch.progress ? {...current.progress, [runId]: patch.progress} : current.progress,
+        activity: patch.activity ? {...current.activity, [runId]: patch.activity} : current.activity,
+      }))
+    } else if (event._ === 'error') {
+      log('run subscription error', {message: event.message})
+    }
+  })
+
+  return rootRunId ? state : EMPTY_RUN_TREE_LIVE_STATE
+}
+
+/** Patch shape of a `runs/` appendPartial. */
+type AgentWSRunPatch = {progress?: {fraction?: number; label?: string}; activity?: AgentRunActivity}
 
 /** Adds an optimistic user message to the cached session while the signed request is in flight. */
 /**
@@ -1584,29 +1994,62 @@ export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: 
   })
 }
 
+/**
+ * Optimistically seeds the caches with a session that was just created.
+ *
+ * The mirror of {@link removeOptimisticSessionFromLists}, for the same reason on the other side:
+ * `CreateSession` only returns an id, and until the list refetch lands the sidebar's selection
+ * resolver cannot attribute the new session to its agent — so it would fall back to the agent's
+ * newest *old* session and the sync-back effect would make that wrong selection sticky. Seeding the
+ * list entry and an empty `GetSession` response makes the new session attributable immediately (and
+ * lets the optimistic first message render, which needs a cached session to attach to). Real
+ * fetches replace both seeds as they land.
+ */
+export function addOptimisticSessionToCaches(serverUrl: string, accountUid: string, session: SessionInfo) {
+  queryClient.setQueryData(['agents', 'sessions', serverUrl, accountUid], (old: any) => {
+    const list = Array.isArray(old) ? old : []
+    if (list.some((entry: AgentSessionListEntry) => entry.session.id === session.id)) return old
+    return [{serverUrl, session} satisfies AgentSessionListEntry, ...list]
+  })
+  queryClient.setQueryData(['agents', 'session', serverUrl, accountUid, session.id], (old: any) => {
+    if (old) return old
+    return {_: 'GetSessionResponse', session, events: [], systemPromptMarkdown: ''}
+  })
+}
+
 export function addOptimisticSessionMessage(
   serverUrl: string,
   accountUid: string,
   sessionId: string,
   message: AgentSessionDraftMessage | AgentSessionDraftMessage[],
-) {
+): AgentSessionDraftMessage[] {
+  // Every pending row gets an identity the server echoes back on the durable event. Callers send
+  // the returned drafts, so the row and the message on the wire share one id and the echo replaces
+  // exactly this row — text comparison can't do that, since the server re-serializes `content`.
+  const messages = (Array.isArray(message) ? message : [message]).map((message) => ({
+    ...message,
+    clientMessageId: message.clientMessageId ?? crypto.randomUUID(),
+  }))
   queryClient.setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
     if (!old || old._ !== 'GetSessionResponse') return old
-    const messages = Array.isArray(message) ? message : [message]
     const now = Date.now()
     return {
       ...old,
       events: [
         ...old.events,
         ...messages.map((message) => ({
-          id: `optimistic-${crypto.randomUUID()}`,
+          id: `optimistic-${message.clientMessageId}`,
           sessionId,
           seq: Number.MAX_SAFE_INTEGER,
           event: {
             type: 'message',
             role: 'user',
+            // Stamped rather than inferred: `role: 'user'` is a shape the runtime writes too, and
+            // this row is the one case where the app knows for certain a person typed it.
+            actor: 'user',
             content: message.text,
             rawMarkdown: message.text,
+            clientMessageId: message.clientMessageId,
             ...(message.blocks ? {blocks: message.blocks} : {}),
             // Mirrors the durable event shape so the context info chip shows without waiting for
             // the server round trip.
@@ -1618,17 +2061,20 @@ export function addOptimisticSessionMessage(
       ],
     }
   })
+  return messages
 }
 
 /** Creates a session for an existing server-hosted agent from the desktop GUI. */
 export function useCreateAgentSession(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({agentId, title}: {agentId: string; title: string}) => {
+    // No title by default: the agent names its session, with a server-side fallback from the first
+    // user message. Sending a display placeholder as a real title defeats both.
+    mutationFn: async ({agentId, title}: {agentId: string; title?: string}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSession', agentId, title, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
       })
     },
     onSuccess() {

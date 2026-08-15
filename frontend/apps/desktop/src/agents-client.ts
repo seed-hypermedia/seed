@@ -30,6 +30,10 @@ export type AgentTriggerSource = AgentsProtocol.AgentTriggerSource
 export type SessionEvent = AgentsProtocol.SessionEvent
 /** Durable event payload returned by the agents service. */
 export type SessionEventPayload = AgentsProtocol.SessionEventPayload
+/** Who performed a logged action: the log is shared, so every entry says who acted. */
+export type SessionActor = AgentsProtocol.SessionActor
+/** Model/provider/usage/timing stamped on a runtime-produced event at append time. */
+export type SessionEventMeta = AgentsProtocol.SessionEventMeta
 /** Server-sent WebSocket event after a signed subscription. */
 export type AgentWSEvent = AgentsProtocol.AgentWSEvent
 /** Cumulative token usage for the current agent run. */
@@ -46,6 +50,8 @@ export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
 export type ModelProviderAuthMode = NonNullable<AgentsProtocol.ModelProviderConfig['authMode']>
 /** Snapshot of a pending or finished provider OAuth sign-in. */
 export type ProviderOAuthStatus = AgentsProtocol.ProviderOAuthStatusResponse
+/** One tool document from an agent's ~/tools: a builtin binding or an authored lambda. */
+export type AgentToolInfo = AgentsProtocol.AgentToolInfo
 /** One file or directory inside an agent's private memory filesystem. */
 export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 /** Contents of one agent memory file. */
@@ -58,6 +64,14 @@ export type FileUploadTarget = AgentsProtocol.FileUploadTarget
 export type SigningIdentity = AgentsProtocol.SigningIdentity
 /** Avatar image payload for updating an agent account profile. */
 export type SigningIdentityIcon = AgentsProtocol.SigningIdentityIcon
+/** Public metadata returned for a durable run. */
+export type RunInfo = AgentsProtocol.RunInfo
+/** Lifecycle status of a durable run. */
+export type RunStatus = AgentsProtocol.RunStatus
+/** Step list snapshot shared by session todo lists and run progress. */
+export type RunPlan = AgentsProtocol.RunPlan
+/** One durable entry in a run's journal. */
+export type RunJournalEntryInfo = AgentsProtocol.RunJournalEntryInfo
 /**
  * Provider types exposed in the desktop provider-management UI. Most are
  * OpenAI-compatible and differ only by base URL; `custom` lets the user point at
@@ -81,8 +95,10 @@ type AgentsResponse = AgentsProtocol.AgentResponse
 export type AgentServerHealth = {
   status: string
   uptime: number
-  /** The Seed HM server the agent publishes to; desktop connects its local node to this for discovery. */
+  /** The Seed HM API server the agent publishes to; desktop connects its local node to this for discovery. */
   hmServerUrl?: string
+  /** Direct IPFS gateway for reads. Usually the same origin; local desktop topology splits it. */
+  ipfsServerUrl?: string
   /** Optional capability flags for tools that need server-side backends. Absent on older servers. */
   webTools?: {search: boolean; readBrowser: boolean}
   /** Whether the server offers subscription (OAuth) provider sign-in. Absent on older servers. */

@@ -8,7 +8,6 @@ import type {ReasoningLevel} from './reasoning'
 export type SeedAssistantPromptOptions = {
   currentTime?: string
   contextLines?: string[]
-  includeTitleToolInstruction?: boolean
 }
 
 /** Returns the shared Seed assistant instructions used by desktop chat and hosted agents. */
@@ -25,14 +24,11 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'Profile/account URLs use `hm://ACCOUNT_UID/:profile` or Seed web URLs ending in `/:profile`. Read these as profiles/accounts, not as normal documents. Profile reads should use the Seed API/SDK account/profile data and should include recent activity from that account plus related keys such as contacts/capabilities when available.',
     'When asked to read a profile or account, preserve the pasted server context. For example, if the user pasted a dev.hyper.media profile URL, pass that URL to the read tool or set dev/server appropriately instead of stripping it to a production hm:// URL.',
     'Append /:attributes to a document URL (e.g. `hm://z6Mk.../notes/:attributes`) to read only its metadata/attributes without the content. Use it when the user is viewing the attributes view or asks about document metadata.',
-    'Use list_activity_feed for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
+    'Append /:directory to an account or document URL (e.g. `hm://z6Mk.../notes/:directory`) to list its child documents (the directory view) with names, links, and child counts. Use it whenever asked what documents live under a space or document, instead of scraping links out of document content.',
+    'Use `read` with the `activity:` address for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
     'To explore a section of a site, read the directory first, then read each child document.',
+    'Tables read and write as GFM markdown tables carrying identity comments: a `<!-- id:… -->` line before the table, `<!-- col:… -->` inside each header cell, and `<!-- id:… -->` inside the last cell of each row. When editing a table, keep every comment for content you are keeping — they preserve table/column/row identity, history, and anchored comments; only omit them for rows or columns you are adding. Cells never carry their own ids. Use `\\|` for a literal pipe and `<br>` for a line break inside a cell. New tables may be plain GFM without any comments.',
   ]
-  if (options.includeTitleToolInstruction) {
-    parts.push(
-      'Use the set_session_title tool to maintain this chat title. On the first assistant turn of a new session, call set_session_title with a concise one-line purpose title as soon as you understand the user request. Do not mention this title-setting step to the user. If the conversation purpose later changes, call set_session_title again with the new purpose.',
-    )
-  }
   if (options.currentTime) parts.push(`The current time is: ${options.currentTime}`)
   if (options.contextLines?.length) parts.push('', ...options.contextLines)
   return parts.join('\n')
@@ -84,6 +80,11 @@ export type MessageSessionContentPart =
       type: 'text'
       text: string
       blocks?: AgentMessageBlock[]
+      /**
+       * Client-chosen id for this message, echoed back on the durable event so the sender can
+       * replace its optimistic pending row with the server's copy by identity instead of by text.
+       */
+      clientMessageId?: string
     }
   | {
       type: 'context'
@@ -131,6 +132,7 @@ export type UnsignedAgentAction =
   | ListProviderModels
   | ListSigningIdentities
   | CreateSigningIdentity
+  | ImportSigningIdentity
   | UpdateSigningIdentity
   | DeleteSigningIdentity
   | SetModelProvider
@@ -149,6 +151,7 @@ export type UnsignedAgentAction =
   | UpdateAgentTrigger
   | DeleteAgentTrigger
   | ListAgentMemory
+  | ListAgentTools
   | ReadAgentMemoryFile
   | WriteAgentMemoryFile
   | DeleteAgentMemoryFile
@@ -160,6 +163,7 @@ export type UnsignedAgentAction =
   | DeleteSession
   | GetSession
   | MessageSession
+  | InvokeSessionTool
   | UploadSessionAttachment
   | ReadSessionAttachment
   | BeginFileUpload
@@ -167,6 +171,12 @@ export type UnsignedAgentAction =
   | CommitFileUpload
   | AbortFileUpload
   | StopSession
+  | RetrySession
+  | GetRun
+  | ListRuns
+  | CancelRun
+  | SignalRun
+  | GetRunJournal
   | Subscribe
 
 /** Lists agents for the signed account. */
@@ -200,6 +210,21 @@ export type ListSigningIdentities = {
 /** Generates a new server-side Seed account key for future signing tools. */
 export type CreateSigningIdentity = {
   _: 'CreateSigningIdentity'
+  label?: string
+  clientRequestId?: string
+}
+
+/**
+ * Imports an existing Seed account key (an exported `.hmkey.json` seed, decrypted client-side)
+ * for the server to sign with. Unlike `CreateSigningIdentity`, nothing is published on import:
+ * the account may already exist on the network with a profile and content, and generating a
+ * fresh profile/home for it would overwrite what the account's owner already published.
+ */
+export type ImportSigningIdentity = {
+  _: 'ImportSigningIdentity'
+  /** Raw 32-byte ed25519 seed of the account key. */
+  seed: Uint8Array
+  /** Display label; clients default it to the key file's embedded profile name. */
   label?: string
   clientRequestId?: string
 }
@@ -345,6 +370,8 @@ export type AgentTriggerInput = {
   enabled?: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
+  /** Defaults to starting a new thread. */
+  continuation?: TriggerContinuation
 }
 
 /** Patch used to edit an activity trigger. */
@@ -353,6 +380,7 @@ export type AgentTriggerPatch = {
   enabled?: boolean
   source?: AgentTriggerSource
   prompt?: string | AgentPromptBlock[]
+  continuation?: TriggerContinuation
 }
 
 /** Activity source/filter that decides when an agent trigger fires. */
@@ -361,6 +389,30 @@ export type AgentTriggerSource =
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
   | {type: 'schedule'; schedule: AgentScheduleTrigger}
+  /** Fires when a run of this account finishes — the source that lets automations chain. */
+  | {
+      type: 'run-completed'
+      /** Only runs of this agent; omitted watches every agent on the account. */
+      agentId?: string
+      /** Only runs that ended this way; omitted watches all three terminal statuses. */
+      status?: 'succeeded' | 'failed' | 'canceled'
+      /** Case-insensitive substring the finished run's title must contain. */
+      titleMatch?: string
+    }
+
+/**
+ * What a trigger does when it fires. Omitted means `newThread`, which is what every trigger did
+ * before continuations existed.
+ */
+export type TriggerContinuation =
+  /** Start a fresh thread from the trigger's prompt. */
+  | {kind: 'newThread'}
+  /**
+   * Deliver a signal to a run parked on `ctx.waitForEvent` — the same delivery a SignalRun makes,
+   * so a trigger can answer a waiting run instead of starting a new one. Without `runId`, the
+   * account's parked runs are searched for one this signal satisfies.
+   */
+  | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
 
 /** Schedule configuration that decides when an agent trigger fires. */
 export type AgentScheduleTrigger =
@@ -399,6 +451,16 @@ export type AgentMemoryFile = {
 /** Lists every file and directory in an agent's memory. */
 export type ListAgentMemory = {
   _: 'ListAgentMemory'
+  agentId: string
+}
+
+/**
+ * Lists every tool document in an agent's `~/tools` — builtin bindings and authored lambdas alike,
+ * source included. This is the owner's transparency view: the same documents the agent itself sees
+ * when it reads `~/tools/`.
+ */
+export type ListAgentTools = {
+  _: 'ListAgentTools'
   agentId: string
 }
 
@@ -471,6 +533,62 @@ export type ListSessions = {
   limit?: number
   /** Continue after a previous page. Pass the `nextCursor` from `ListSessionsResponse` verbatim. */
   cursor?: SessionListCursor
+  /** List only the children of this session (ignores `includeChildren`). */
+  parentSessionId?: string
+  /**
+   * Pass false to exclude child sessions from the top-level listing (lineage-aware clients nest
+   * them under their parents). Absent/true returns every session, which keeps older clients whole.
+   */
+  includeChildren?: boolean
+}
+
+/** Loads one run. */
+export type GetRun = {
+  _: 'GetRun'
+  runId: string
+}
+
+/**
+ * Lists runs, newest first. Exactly one selector: `rootRunId` returns the whole tree of one root
+ * (oldest first, for tree rendering); `sessionId` returns root runs referencing a session;
+ * `agentId` returns runs of one agent.
+ */
+export type ListRuns = {
+  _: 'ListRuns'
+  rootRunId?: string
+  sessionId?: string
+  agentId?: string
+  status?: RunStatus
+  limit?: number
+}
+
+/** Cancels a run and every non-terminal descendant. */
+export type CancelRun = {
+  _: 'CancelRun'
+  runId: string
+}
+
+/**
+ * Delivers a named signal to a run parked on `ctx.waitForEvent`, waking it with the payload.
+ *
+ * This is how a person (or another system) answers a workflow that is waiting for something the
+ * activity feed cannot express — an approval, a webhook, a human decision. Signalling a run that is
+ * not listening for this signal is not an error: the response says it was not delivered.
+ */
+export type SignalRun = {
+  _: 'SignalRun'
+  runId: string
+  /** Signal name; a wait with no criteria accepts any name. */
+  signal: string
+  /** Whatever the run should receive. Must be JSON-serializable. */
+  payload?: unknown
+}
+
+/** Loads a run's durable journal entries, optionally after a sequence. */
+export type GetRunJournal = {
+  _: 'GetRunJournal'
+  runId: string
+  afterSeq?: number
 }
 
 /**
@@ -511,6 +629,27 @@ export type MessageSession = {
   sessionId: string
   content: MessageSessionContentPart[]
   clientMessageId?: string
+}
+
+/**
+ * Runs one verb (read, write, or call) AS THE USER on a session's shared log. The call and its
+ * result append as actor-'user' events the agent reads on its next turn — the same log, the same
+ * verbs, no side channel. Rejected while the session has a live run.
+ */
+export type InvokeSessionTool = {
+  _: 'InvokeSessionTool'
+  sessionId: string
+  verb: 'read' | 'write' | 'call'
+  input: unknown
+}
+
+export type InvokeSessionToolResponse = {
+  _: 'InvokeSessionToolResponse'
+  sessionId: string
+  /** Durable event id of the appended tool_result. */
+  resultEventId: string
+  output?: unknown
+  error?: string
 }
 
 /**
@@ -581,10 +720,20 @@ export type StopSession = {
   sessionId: string
 }
 
-/** Authorizes a WebSocket subscription to account/agent/session changes. */
+/**
+ * Re-runs a session whose latest run failed, without appending a new user message: the turn
+ * re-enters from the durable transcript (error events are not replayed to the provider). Rejected
+ * when a run is live or the latest run did not fail.
+ */
+export type RetrySession = {
+  _: 'RetrySession'
+  sessionId: string
+}
+
+/** Authorizes a WebSocket subscription to account/agent/session/run changes. */
 export type Subscribe = {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 
@@ -623,6 +772,7 @@ export type AgentTriggerInfo = {
   enabled: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
+  continuation?: TriggerContinuation
   createdAt: number
   updatedAt: number
   lastCheckedAt?: number
@@ -640,6 +790,161 @@ export type SessionInfo = {
   createdAt: number
   updatedAt: number
   startedByTrigger?: AgentSessionTriggerSummary
+  /** Set on sessions spawned by another session (sub-sessions and agent-started sessions). */
+  parentSessionId?: string
+  /** The run this session is the transcript of, for sessions created as run children. */
+  runId?: string
+  /** Todo/plan snapshot maintained by the agent via the update_plan tool. */
+  plan?: RunPlan
+  /** Number of sessions spawned under this one (rendered as the sub-session disclosure). */
+  childSessionCount?: number
+}
+
+/** Lifecycle status of a durable run. */
+export type RunStatus = 'queued' | 'claimed' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'canceled'
+
+/** Why a run is parked in `waiting`. */
+export type RunWaitInfo = {
+  /**
+   * What the run is waiting for: its spawned children, the clock, something to happen
+   * (`ctx.waitForEvent` — an activity event or a SignalRun), or a person, when it paused on its
+   * budget rather than spending more.
+   */
+  reason: 'children' | 'timer' | 'event' | 'budget-pause'
+  /** When the clock will wake it: a sleep's end, or an event wait's timeout. */
+  wakeAt?: number
+  /** Unresolved child tool calls the run is parked on. */
+  pendingChildren?: number
+  /** What the run said it is waiting for, e.g. "approval from the reviewer". */
+  label?: string
+  /**
+   * The signal name that would answer this wait by hand, when one can — absent for a run watching
+   * the activity feed, which nobody answers with a button.
+   */
+  answerWith?: string
+}
+
+/** One item on the checklist: a stable id, a label the model rewrites freely, and where it stands. */
+export type RunPlanStep = {
+  id: string
+  label: string
+  status: 'pending' | 'running' | 'done' | 'failed' | 'skipped'
+  /**
+   * Set when the RUNTIME closed this step rather than the agent or the user — every sub-agent
+   * attached to it came back succeeded, so the work is done as a matter of record and waiting for
+   * the model to say so would only stall the run.
+   *
+   * Absent means what it always meant: the status is the model's own word (or the user's). Only
+   * success is ever derived this way — a failed child's meaning is a judgment call, and the runtime
+   * does not make it.
+   */
+  resolvedBy?: 'runtime'
+}
+
+/** Step list snapshot rendered by the pinned run card and session todo lists. */
+export type RunPlan = {
+  title?: string
+  steps: RunPlanStep[]
+  /**
+   * When the last step stopped being able to move — every step done, failed or skipped.
+   *
+   * A checklist that has fully settled has finished telling its story, and the card showing it can
+   * leave the pinned slot and freeze into the log at this moment. That needs a timestamp that does
+   * not drift, which is why the server records it: plan edits leave no durable event of their own,
+   * so a client watching only the plan snapshot has no other way to say WHEN it settled. Cleared
+   * again if a later edit reopens a step, and absent on plans that have never fully settled.
+   */
+  settledAt?: number
+}
+
+/** Cumulative persisted usage for a run, including rolled-up child usage. */
+export type RunUsageInfo = AgentRunUsage & {
+  children?: AgentRunUsage & {runs: number}
+}
+
+/**
+ * Something a run committed to and had not delivered when it ended. Runs are asked to finish or
+ * honestly close their obligations before ending; when a run spends that budget without doing so it
+ * still ends, carrying the debt in the open rather than quietly writing it off.
+ */
+export type UnmetObligation =
+  /** A typed delegate child that never delivered a schema-valid `return_result` payload. */
+  | {kind: 'typed-result'}
+  /** Plan steps left neither finished nor written off — labels as the agent last wrote them. */
+  | {kind: 'plan'; steps: string[]}
+
+/** Public metadata returned for a durable run. */
+export type RunInfo = {
+  id: string
+  account: string
+  rootRunId: string
+  parentRunId?: string
+  /**
+   * The parent's tool call that spawned this run, when one did. It is how a delegate row in a
+   * transcript finds the child it started — including while that child is still working, before
+   * any result has been recorded against the call.
+   */
+  parentToolCallId?: string
+  /**
+   * The run this one continues. `ctx.continueAsNew` ends a run and starts a successor carrying only
+   * the state it declared, so a long-lived loop never grows an unbounded journal; the two runs are
+   * one piece of work, linked by this field (and by `continuedAsRunId` on the predecessor's output).
+   */
+  continuedFromRunId?: string
+  depth: number
+  kind: 'agent' | 'workflow'
+  agentId?: string
+  /** Transcript session for agent runs; workflow runs have none. */
+  sessionId?: string
+  origin: 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
+  /** Always present: every run is created with a real title (message excerpt, brief, or name). */
+  title: string
+  /** Label of the parent's plan step this run works on, when the spawner recorded one. */
+  stepLabel?: string
+  /**
+   * Id of that plan step — the durable join for attaching this run to its step. Prefer it over
+   * `stepLabel`: labels are display strings the agent rewrites between turns, so a stamped label
+   * stops matching the plan it came from, while step ids are stable by the plan verb's contract.
+   * Absent on runs spawned before this field existed, which still attach by label.
+   */
+  planStepId?: string
+  /** The exact module a workflow run executes — the code the agent wrote, for review. */
+  sourceText?: string
+  /** How many child runs this run spawned. Populated by GetRun/ListRuns; absent means zero. */
+  childRunCount?: number
+  status: RunStatus
+  wait?: RunWaitInfo
+  plan?: RunPlan
+  error?: {
+    code: string
+    message: string
+    /** Script stack for workflow errors; `workflow.js:LINE` frames index into `sourceText`. */
+    stack?: string
+    /** Tool name of the failed call this error propagated from, when it was one. */
+    tool?: string
+    /** Journal callSeq of that failed call — joins the error to its journaled args and result. */
+    callSeq?: number
+    /** Structured detail the failing tool attached. */
+    detail?: unknown
+  }
+  /**
+   * Obligations this run ended without meeting. Absent on every run that kept its word — which is
+   * nearly all of them — so its presence is the signal.
+   */
+  unmetObligations?: UnmetObligation[]
+  usage?: RunUsageInfo
+  createdAt: number
+  startedAt?: number
+  finishedAt?: number
+  updatedAt: number
+}
+
+/** One durable entry in a workflow run's journal (loose until the workflow engine lands). */
+export type RunJournalEntryInfo = {
+  runId: string
+  seq: number
+  entry: Record<string, unknown>
+  createdAt: number
 }
 
 /** Compact trigger attribution attached to sessions created by triggers. */
@@ -671,6 +976,41 @@ export type SessionEvent = {
   createdAt: number
 }
 
+/**
+ * Who performed a logged action. The session log is a shared workspace log, not a chat: the user
+ * holds the same verbs the agent does, and every entry says who acted. Events recorded before
+ * this field existed derive their actor from shape via {@link sessionEventActor}.
+ */
+export type SessionActor = 'user' | 'agent' | 'system' | 'trigger'
+
+/** Resolves an event payload's actor, deriving the pre-actor-field default from its shape. */
+export function sessionEventActor(payload: SessionEventPayload): SessionActor {
+  const value = payload as {actor?: unknown; type?: unknown; role?: unknown}
+  if (value.actor === 'user' || value.actor === 'agent' || value.actor === 'system' || value.actor === 'trigger') {
+    return value.actor
+  }
+  if (value.type === 'message' && value.role === 'user') return 'user'
+  if (value.type === 'error') return 'system'
+  return 'agent'
+}
+
+/**
+ * Provenance stamped on runtime-produced events at append time: what produced it, what it cost, how
+ * long it took. Written once, so an event still explains itself long after the run that made it is
+ * gone. Events recorded before this field existed simply have none — every reader treats it as
+ * optional detail, never as required structure.
+ */
+export type SessionEventMeta = {
+  /** Model that produced the message, e.g. `gpt-5-mini`. */
+  model?: string
+  /** Provider the model ran on, e.g. `openai`. */
+  provider?: string
+  /** Token usage for this one turn (not the run's cumulative total). */
+  usage?: AgentRunUsage
+  /** Wall time this message or tool call took, in milliseconds. */
+  durationMs?: number
+}
+
 /** Durable event payloads stored for a session. */
 export type SessionEventPayload =
   | {
@@ -687,10 +1027,27 @@ export type SessionEventPayload =
       contextLines?: string[]
       /** Session-private attachments that accompanied this user message. */
       attachments?: SessionAttachmentInfo[]
+      /**
+       * Echo of the sender's `clientMessageId` on a user message, so the sending client can match
+       * this event to its optimistic pending row by identity. Absent on events from other writers.
+       */
+      clientMessageId?: string
+      actor?: SessionActor
+      /** Model/provider/usage/timing behind an assistant message. Absent on user and legacy events. */
+      meta?: SessionEventMeta
     }
-  | {type: 'tool_call'; id: string; name: string; input: unknown}
-  | {type: 'tool_result'; toolCallId: string; name: string; output?: unknown; error?: string}
-  | {type: 'error'; message: string}
+  | {type: 'tool_call'; id: string; name: string; input: unknown; actor?: SessionActor}
+  | {
+      type: 'tool_result'
+      toolCallId: string
+      name: string
+      output?: unknown
+      error?: string
+      actor?: SessionActor
+      /** How long the tool took. Absent on legacy events and on results appended by a child's finalizer. */
+      meta?: SessionEventMeta
+    }
+  | {type: 'error'; message: string; actor?: SessionActor}
   | Record<string, unknown>
 
 /** Cumulative token usage for the current agent run, updated as turns complete. */
@@ -742,6 +1099,19 @@ export type AgentWSEvent =
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
   | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}
+  | {_: 'change'; key: `runs/${string}`; value: RunInfo}
+  | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
+  | {
+      _: 'appendPartial'
+      key: `runs/${string}`
+      runId: string
+      partialId: string
+      patch: {
+        progress?: {fraction?: number; label?: string}
+        activity?: AgentRunActivity
+        usage?: AgentRunUsage
+      }
+    }
   | {_: 'error'; message: string}
 
 /** Redacted provider metadata returned after provider writes. */
@@ -872,6 +1242,12 @@ export type CreateSigningIdentityResponse = {
   identity: SigningIdentity
 }
 
+/** Successful response for `ImportSigningIdentity`. */
+export type ImportSigningIdentityResponse = {
+  _: 'ImportSigningIdentityResponse'
+  identity: SigningIdentity
+}
+
 /** Successful response for `UpdateSigningIdentity`. */
 export type UpdateSigningIdentityResponse = {
   _: 'UpdateSigningIdentityResponse'
@@ -941,6 +1317,41 @@ export type ListAgentMemoryResponse = {
   entries: AgentMemoryEntry[]
   /** Total bytes across all memory files. */
   totalBytes: number
+}
+
+/** One tool document from an agent's `~/tools`: a builtin binding or an authored lambda. */
+export type AgentToolInfo = {
+  name: string
+  kind: 'builtin' | 'lambda'
+  /** One line for listings and the Space index. */
+  summary: string
+  /** Full model-facing instructions, shown on expansion. */
+  description: string
+  /** JSON Schema for the tool's input. */
+  input: Record<string, unknown>
+  /** JSON Schema for the tool's return value, when the tool declares one. */
+  output?: Record<string, unknown>
+  /** Lambda source code, exactly as authored. Builtins carry none. */
+  source?: string
+  /** Lambda source language. */
+  runtime?: 'typescript' | 'python'
+  /** Content address of the tool document (DAG-CBOR, CIDv1); changes on every edit. */
+  cid: string
+  enabled: boolean
+  /**
+   * For builtins: whether the agent's grant set actually offers this tool. Authored lambdas are
+   * always callable, so this is always true for them.
+   */
+  granted: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+/** Successful response for `ListAgentTools`. */
+export type ListAgentToolsResponse = {
+  _: 'ListAgentToolsResponse'
+  agentId: string
+  tools: AgentToolInfo[]
 }
 
 /** Successful response for `ReadAgentMemoryFile`. */
@@ -1033,7 +1444,55 @@ export type GetSessionResponse = {
 export type MessageSessionResponse = {
   _: 'MessageSessionResponse'
   sessionId: string
+  /**
+   * Final assistant event of the turn. Empty string when the turn did not produce one before the
+   * request returned: background enqueues and runs that parked on sub-sessions (the rest of the
+   * turn streams over WS).
+   */
   assistantEventId: string
+}
+
+/** Successful response for `RetrySession`. */
+export type RetrySessionResponse = {
+  _: 'RetrySessionResponse'
+  sessionId: string
+  /** Final assistant event of the retried turn; empty string when the turn parked (streams over WS). */
+  assistantEventId: string
+}
+
+/** Successful response for `GetRun`. */
+export type GetRunResponse = {
+  _: 'GetRunResponse'
+  run: RunInfo
+}
+
+/** Successful response for `ListRuns`. */
+export type ListRunsResponse = {
+  _: 'ListRunsResponse'
+  runs: RunInfo[]
+}
+
+/** Successful response for `CancelRun`. */
+export type CancelRunResponse = {
+  _: 'CancelRunResponse'
+  runId: string
+  /** False when the run was already terminal. */
+  canceled: boolean
+}
+
+/** Successful response for `SignalRun`. */
+export type SignalRunResponse = {
+  _: 'SignalRunResponse'
+  runId: string
+  /** False when the run was not parked on a wait this signal satisfies. */
+  delivered: boolean
+}
+
+/** Successful response for `GetRunJournal`. */
+export type GetRunJournalResponse = {
+  _: 'GetRunJournalResponse'
+  runId: string
+  entries: RunJournalEntryInfo[]
 }
 
 /** Successful response for `UploadSessionAttachment`. */
@@ -1100,6 +1559,7 @@ export type AgentResponse =
   | ListProviderModelsResponse
   | ListSigningIdentitiesResponse
   | CreateSigningIdentityResponse
+  | ImportSigningIdentityResponse
   | UpdateSigningIdentityResponse
   | DeleteSigningIdentityResponse
   | CreateAgentResponse
@@ -1118,6 +1578,7 @@ export type AgentResponse =
   | UpdateAgentTriggerResponse
   | DeleteAgentTriggerResponse
   | ListAgentMemoryResponse
+  | ListAgentToolsResponse
   | ReadAgentMemoryFileResponse
   | WriteAgentMemoryFileResponse
   | DeleteAgentMemoryFileResponse
@@ -1125,10 +1586,17 @@ export type AgentResponse =
   | UploadAgentMemoryFileToIpfsResponse
   | CreateSessionResponse
   | ListSessionsResponse
+  | RetrySessionResponse
+  | GetRunResponse
+  | ListRunsResponse
+  | CancelRunResponse
+  | SignalRunResponse
+  | GetRunJournalResponse
   | UpdateSessionResponse
   | DeleteSessionResponse
   | GetSessionResponse
   | MessageSessionResponse
+  | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse
   | BeginFileUploadResponse

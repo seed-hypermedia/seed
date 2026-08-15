@@ -13,6 +13,113 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Run titles became mandatory: every enqueue site now derives a real one, so the display layer
+  // never invents a label. Rows from before the requirement get the exact text the UI used to
+  // fall back to, so their cards read the same as they always did.
+  `UPDATE runs SET title = CASE
+      WHEN kind = 'workflow' THEN 'Workflow'
+      WHEN parent_run_id IS NOT NULL THEN 'Sub-session'
+      ELSE 'Agent turn'
+    END
+    WHERE title IS NULL OR trim(title) = '';`,
+  // What a trigger does when it fires. NULL means the only thing triggers used to do: start a new
+  // thread. The event bus milestone moves this (and the rest of a trigger) into a Space document;
+  // the column is where it lives until then.
+  `ALTER TABLE agent_triggers ADD COLUMN continuation_cbor BLOB;`,
+  // Waiting for something to happen, and continuing as a fresh run.
+  //
+  // Event waits get their own table rather than a marker on agent_triggers: a trigger is user
+  // configuration (listed and edited in the desktop, carrying cooldowns and prompts), while a wait
+  // is transient run state created by a running script and deleted the moment it is delivered,
+  // times out, or its run dies. Sharing the table would mean filtering the marker out of every
+  // trigger listing and mutation, forever, and a leaked row would read as a trigger the user never
+  // made.
+  `CREATE TABLE run_event_waits (
+      run_id TEXT NOT NULL REFERENCES runs (id),
+      wait_id TEXT NOT NULL,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      match_cbor BLOB NOT NULL,
+      timeout_at INTEGER,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, wait_id)
+  ) WITHOUT ROWID;
+
+  CREATE INDEX run_event_waits_by_account ON run_event_waits (account_id, created_at);
+
+  ALTER TABLE runs ADD COLUMN continued_from_run_id TEXT;`,
+  // The tool call that spawned a child run. It also rides in the run's input payload (the
+  // executor's contract), but only a column can be read back without decoding every run: this is
+  // what lets a delegate row in a transcript find the child it started while that child is
+  // still working.
+  `ALTER TABLE runs ADD COLUMN parent_tool_call_id TEXT;`,
+  `CREATE TABLE tool_documents (
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      agent_id TEXT NOT NULL REFERENCES agents (id),
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      cid TEXT NOT NULL,
+      doc_cbor BLOB NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (account_id, agent_id, name)
+  ) WITHOUT ROWID;
+
+  CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);`,
+  `CREATE TABLE runs (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      root_run_id TEXT NOT NULL,
+      parent_run_id TEXT REFERENCES runs (id),
+      depth INTEGER NOT NULL DEFAULT 0,
+      kind TEXT NOT NULL,
+      agent_id TEXT REFERENCES agents (id),
+      session_id TEXT REFERENCES sessions (id),
+      trigger_firing_id TEXT REFERENCES trigger_firings (id),
+      origin TEXT NOT NULL,
+      title TEXT,
+      model TEXT,
+      source_cid TEXT,
+      source_text TEXT,
+      input_cbor BLOB NOT NULL,
+      output_cbor BLOB,
+      error_cbor BLOB,
+      status TEXT NOT NULL,
+      wait_cbor BLOB,
+      attempt INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 1,
+      not_before INTEGER,
+      queue TEXT NOT NULL DEFAULT 'background',
+      lease_owner TEXT,
+      lease_expires_at INTEGER,
+      budget_cbor BLOB,
+      usage_cbor BLOB,
+      plan_cbor BLOB,
+      created_at INTEGER NOT NULL,
+      started_at INTEGER,
+      finished_at INTEGER,
+      updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+  CREATE INDEX runs_dispatch ON runs (status, queue, not_before, created_at);
+  CREATE INDEX runs_by_root ON runs (root_run_id, created_at);
+  CREATE INDEX runs_by_parent ON runs (parent_run_id);
+  CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
+  CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
+
+  CREATE TABLE run_journal (
+      run_id TEXT NOT NULL REFERENCES runs (id),
+      seq INTEGER NOT NULL,
+      entry_cbor BLOB NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, seq)
+  ) WITHOUT ROWID;
+
+  ALTER TABLE sessions ADD COLUMN parent_session_id TEXT REFERENCES sessions (id);
+  ALTER TABLE sessions ADD COLUMN run_id TEXT;
+  ALTER TABLE sessions ADD COLUMN plan_cbor BLOB;
+
+  CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);`,
   `ALTER TABLE sessions ADD COLUMN title_source TEXT NOT NULL DEFAULT 'system';
    UPDATE sessions
       SET title_source = CASE

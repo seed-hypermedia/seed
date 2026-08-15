@@ -1,5 +1,6 @@
 import {
   type AgentDefinition,
+  type AgentToolInfo,
   type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerSource,
@@ -14,6 +15,7 @@ import {
   useAgentServerHealth,
   useAgentServerUrl,
   useLocalAgentServerUrl,
+  useAgentTools,
   useAgentTrigger,
   useAgentTriggers,
   useAgentWebSocketSubscription,
@@ -29,6 +31,7 @@ import {
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
 } from '@/models/agents'
+import {SessionStatusDot, SubSessionsDisclosure} from '@/components/session-children'
 import {useSelectedAccountId} from '@/selected-account'
 import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -36,6 +39,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
+import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {
   AlertDialogAction,
   AlertDialogCancel,
@@ -53,13 +57,14 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {getSeedToolMetadata, seedToolRegistry} from '../../../../../../agents/protocol/src/tool-registry'
+import {getSeedTool} from '../../../../../../agents/protocol/src/tool-registry'
 import {
-  AGENT_EXECUTE_CODE_TOOL,
-  AGENT_MEMORY_TOOL_GROUP,
-  AGENT_READ_TOOL_GROUP,
-  AGENT_WEB_TOOL_GROUP,
-  AGENT_WRITE_TOOL_GROUP,
+  AGENT_EXECUTE_TOOL,
+  AGENT_PUBLISH_GRANT,
+  AGENT_SEARCH_TOOL,
+  AGENT_WEB_SEARCH_TOOL,
+  DEFAULT_AGENT_TOOLS,
+  normalizeStoredAgentTools,
   getToolAvailability,
   type AgentServerWebCapabilities,
 } from './agent-tools'
@@ -85,11 +90,14 @@ function AgentDetailPage({
   routeServerUrl,
   tab = 'sessions',
   triggerId,
+  memoryPath,
 }: {
   agentId: string
   routeServerUrl?: string
   tab?: AgentPageTab
   triggerId?: string
+  /** Memory file the route asked to open, set when a tool row linked to it. */
+  memoryPath?: string
 }) {
   const selectedAccountId = useSelectedAccountId()
   const navigate = useNavigate()
@@ -99,6 +107,12 @@ function AgentDetailPage({
   const serverUrl = routeServerUrl || serverUrlQuery.data || DEFAULT_AGENT_SERVER_URL
   const serverHealth = useAgentServerHealth(serverUrl)
   const agent = useAgentDetail(serverUrl, selectedAccountId, agentId)
+  // GetAgent returns every session including sub-sessions; the tab renders children nested under
+  // their parent's disclosure, so the flat list must hold top-level rows only or they show twice.
+  const topLevelSessions = useMemo(
+    () => (agent.data?.sessions ?? []).filter((session) => !session.parentSessionId),
+    [agent.data?.sessions],
+  )
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
   const createSession = useCreateAgentSession(serverUrl, selectedAccountId)
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
@@ -195,7 +209,9 @@ function AgentDetailPage({
 
   async function handleCreateSession() {
     try {
-      const result = await createSession.mutateAsync({agentId, title: 'Untitled session'})
+      // No title at creation: the agent names the session, with a server-side fallback from the
+      // first user message — 'Untitled session' is a display placeholder, never data.
+      const result = await createSession.mutateAsync({agentId})
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected session response')
       navigate({key: 'agent-session', agentId, sessionId: result.sessionId, serverUrl})
       // toast.success('Session created')
@@ -362,7 +378,7 @@ function AgentDetailPage({
                 agentId={agentId}
                 serverUrl={serverUrl}
                 activeTab={tab}
-                sessionsCount={agent.data.sessions.length}
+                sessionsCount={topLevelSessions.length}
                 triggersCount={triggers.data?.length}
                 onCreateSession={() => void handleCreateSession()}
                 creatingSession={createSession.isLoading}
@@ -379,14 +395,21 @@ function AgentDetailPage({
               {tab === 'sessions' ? (
                 <section className="flex min-h-0 flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
-                    {!agent.data.sessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
-                    {agent.data.sessions.map((session) => (
+                    {!topLevelSessions.length ? <SizableText color="muted">No sessions yet.</SizableText> : null}
+                    {topLevelSessions.map((session) => (
                       <SessionListItem
                         key={session.id}
                         session={session}
                         serverUrl={serverUrl}
+                        accountUid={selectedAccountId}
                         onOpen={(event) =>
                           clickNavigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl}, event)
+                        }
+                        onOpenSession={(child, event) =>
+                          clickNavigate(
+                            {key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl},
+                            event,
+                          )
                         }
                         onOpenTrigger={() =>
                           session.startedByTrigger
@@ -422,11 +445,19 @@ function AgentDetailPage({
               ) : null}
 
               {tab === 'memory' ? (
-                <AgentMemoryTab serverUrl={serverUrl} accountUid={selectedAccountId ?? null} agentId={agentId} />
+                <AgentMemoryTab
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  agentId={agentId}
+                  openPath={memoryPath}
+                />
               ) : null}
 
               {tab === 'tools' ? (
                 <AgentToolsTab
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  agentId={agentId}
                   definition={agent.data.agent.definition}
                   identities={signingIdentities.data || []}
                   identitiesLoading={signingIdentities.isLoading}
@@ -658,9 +689,85 @@ function DeleteAgentDialog({
   )
 }
 
+/**
+ * The full document behind an authored lambda tool: contract, source, and content address. The
+ * owner reads exactly what the agent wrote for itself.
+ */
+function AuthoredToolDialog({input}: {input: {tool: AgentToolInfo}; onClose: () => void}) {
+  const {tool} = input
+  return (
+    <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
+      <div className="flex flex-col gap-1">
+        <DialogTitle>
+          <span className="font-mono">{tool.name}</span>
+        </DialogTitle>
+        <div className="flex items-center gap-2">
+          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+            {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
+          </span>
+          <SizableText size="xs" color="muted">
+            Updated {formattedDateMedium(new Date(tool.updatedAt))}
+          </SizableText>
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Description sent to the model
+        </SizableText>
+        <SizableText size="sm" color="muted">
+          {tool.description}
+        </SizableText>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Source
+        </SizableText>
+        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">{tool.source}</pre>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Input schema
+        </SizableText>
+        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+          {JSON.stringify(tool.input, null, 2)}
+        </pre>
+      </div>
+      {tool.output ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Output schema
+          </SizableText>
+          <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+            {JSON.stringify(tool.output, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Version
+        </SizableText>
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground cursor-pointer truncate text-left font-mono text-xs"
+          title="Copy content address"
+          onClick={() => {
+            copyTextToClipboard(tool.cid)
+            toast.success('Content address copied')
+          }}
+        >
+          {tool.cid}
+        </button>
+        <SizableText size="xs" color="muted">
+          The document's content address — it changes every time the agent rewrites the tool.
+        </SizableText>
+      </div>
+    </div>
+  )
+}
+
 /** Shows the exact model-facing prompt and JSON schemas for a single tool, for agent-owner transparency. */
 function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: () => void}) {
-  const meta = getSeedToolMetadata(input.toolName)
+  const meta = getSeedTool(input.toolName)
   if (!meta) {
     return (
       <div className="flex flex-col gap-3">
@@ -714,36 +821,37 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
   )
 }
 
+// Reading, memory, publishing, delegation, and plans are verbs — always on, not configuration.
+// What the user toggles here is the CALLABLE tool set dispatched through the call verb.
 const AGENT_TOOL_OPTIONS = [
   {
-    names: AGENT_READ_TOOL_GROUP,
-    title: 'Read, search, and browse activity',
-    description: 'Find and read Seed content.',
+    names: [AGENT_SEARCH_TOOL],
+    title: 'Search Seed content',
+    description: 'Search documents, contacts, and comments across the Hypermedia network.',
   },
   {
-    names: AGENT_WEB_TOOL_GROUP,
-    title: 'Search and read the web',
-    description: 'Search the public web and read web pages as markdown. Requires server web backends.',
+    names: [AGENT_WEB_SEARCH_TOOL],
+    title: 'Search the web',
+    description: 'Search the public web. Requires the server’s web search backend.',
   },
   {
-    names: AGENT_MEMORY_TOOL_GROUP,
-    title: 'Memory',
-    description: 'Read and write private files in this agent’s persistent memory, shown on the Memory tab.',
-  },
-  {
-    names: [AGENT_EXECUTE_CODE_TOOL],
+    names: [AGENT_EXECUTE_TOOL],
     title: 'Execute code',
-    description: 'Run Python or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
+    description:
+      'Run TypeScript, Python, or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
   },
   {
-    names: AGENT_WRITE_TOOL_GROUP,
-    title: seedToolRegistry.write.label,
+    names: [AGENT_PUBLISH_GRANT],
+    title: 'Publish Seed content',
     description:
-      'Create and publish Seed content, publish markdown files from memory as documents, and publish files to IPFS.',
+      'Create and publish signed public documents, comments, and IPFS files under this agent’s signing identities. Private memory writing is always available.',
   },
 ]
 
 function AgentToolsTab({
+  serverUrl,
+  accountUid,
+  agentId,
   definition,
   identities,
   identitiesLoading,
@@ -752,6 +860,9 @@ function AgentToolsTab({
   onCreateIdentity,
   saving,
 }: {
+  serverUrl: string | undefined
+  accountUid: string | null
+  agentId: string
   definition: AgentDefinition
   identities: SigningIdentity[]
   identitiesLoading: boolean
@@ -761,16 +872,21 @@ function AgentToolsTab({
   saving: boolean
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
+  const authoredToolDialog = useAppDialog(AuthoredToolDialog)
+  const agentTools = useAgentTools(serverUrl, accountUid, agentId)
+  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
   const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-  const defaultTools = [...AGENT_READ_TOOL_GROUP, ...AGENT_WEB_TOOL_GROUP]
-  const [enabledTools, setEnabledTools] = useState<string[]>(definition.tools || defaultTools)
+  const defaultTools = [...DEFAULT_AGENT_TOOLS]
+  const [enabledTools, setEnabledTools] = useState<string[]>(
+    definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools,
+  )
   const [signingKeys, setSigningKeys] = useState<string[]>(definitionSigningKeys)
   const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
   const [newIdentityName, setNewIdentityName] = useState('Agent publisher')
 
   useEffect(() => {
-    setEnabledTools(definition.tools || defaultTools)
+    setEnabledTools(definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools)
     setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
   }, [definition])
 
@@ -786,7 +902,7 @@ function AgentToolsTab({
       }
       await onSave(nextDefinition)
     } catch (error) {
-      setEnabledTools(definition.tools || defaultTools)
+      setEnabledTools(definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools)
       setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
       toast.error(error instanceof Error ? error.message : 'Could not update agent tools')
     }
@@ -814,7 +930,7 @@ function AgentToolsTab({
     }
   }
 
-  const writeEnabled = enabledTools.includes(seedToolRegistry.write.name)
+  const writeEnabled = enabledTools.includes(AGENT_PUBLISH_GRANT)
 
   return (
     <section className="flex min-h-0 max-w-3xl flex-1 flex-col gap-5 overflow-y-auto pr-1">
@@ -826,7 +942,7 @@ function AgentToolsTab({
         {AGENT_TOOL_OPTIONS.map((group) => {
           const members = group.names.map((name) => ({
             name,
-            label: getSeedToolMetadata(name)?.label ?? name,
+            label: getSeedTool(name)?.label ?? name,
             ...getToolAvailability(name, webCapabilities),
           }))
           const groupAvailable = members.some((member) => member.available)
@@ -924,7 +1040,63 @@ function AgentToolsTab({
           )
         })}
       </div>
+      <div className="mt-2">
+        <SizableText weight="bold">Authored tools</SizableText>
+        <SizableText size="sm" color="muted" className="mt-0.5 block">
+          Tools this agent wrote for itself — documents in <span className="font-mono">~/tools</span>. Click one to read
+          its contract and source.
+        </SizableText>
+      </div>
+      {authoredTools.length > 0 ? (
+        <div className="grid gap-2">
+          {authoredTools.map((tool) => (
+            <button
+              key={tool.name}
+              type="button"
+              className={`border-border bg-card hover:bg-accent/40 flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-left ${
+                tool.enabled ? '' : 'opacity-60'
+              }`}
+              onClick={() => authoredToolDialog.open({tool})}
+            >
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <SizableText size="sm" weight="bold" className="font-mono">
+                    {tool.name}
+                  </SizableText>
+                  <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                    {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
+                  </span>
+                  {!tool.enabled ? (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                      Disabled
+                    </span>
+                  ) : null}
+                </div>
+                <SizableText size="sm" color="muted" className="line-clamp-2">
+                  {tool.summary}
+                </SizableText>
+                <SizableText size="xs" color="muted">
+                  Updated {formattedDateMedium(new Date(tool.updatedAt))}
+                </SizableText>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : agentTools.isLoading ? (
+        <SizableText size="sm" color="muted">
+          Loading this agent's authored tools…
+        </SizableText>
+      ) : (
+        <div className="border-border flex flex-col rounded-xl border border-dashed p-4">
+          <SizableText size="sm" color="muted">
+            Nothing yet. Ask the agent to write itself a tool — it lands here, versioned by content address, the moment
+            it's saved.
+          </SizableText>
+        </div>
+      )}
+
       {toolInfoDialog.content}
+      {authoredToolDialog.content}
       {enableWhpDialog.content}
 
       {writeEnabled ? (
@@ -1299,7 +1471,11 @@ function AgentTriggersTab({
                     key={session.id}
                     session={session}
                     serverUrl={serverUrl}
+                    accountUid={selectedAccountId}
                     onOpen={() => navigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl})}
+                    onOpenSession={(child) =>
+                      navigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl})
+                    }
                     onOpenTrigger={() =>
                       navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.id})
                     }
@@ -1555,12 +1731,18 @@ function StartSessionInput({
 
 function SessionListItem({
   session,
+  serverUrl,
+  accountUid,
   onOpen,
+  onOpenSession,
   onOpenTrigger,
 }: {
   session: SessionInfo
   serverUrl: string
+  accountUid: string | null | undefined
   onOpen: (event: React.MouseEvent<HTMLButtonElement>) => void
+  /** Opens a sub-session listed under this one. */
+  onOpenSession?: (session: SessionInfo, event: React.MouseEvent<HTMLButtonElement>) => void
   onOpenTrigger?: () => void
 }) {
   return (
@@ -1586,18 +1768,19 @@ function SessionListItem({
           Triggered by {session.startedByTrigger.triggerName}
         </button>
       ) : null}
+      {session.childSessionCount && onOpenSession ? (
+        <div className="mt-1 w-full pl-5">
+          <SubSessionsDisclosure
+            serverUrl={serverUrl}
+            accountUid={accountUid}
+            parentSessionId={session.id}
+            childSessionCount={session.childSessionCount}
+            onOpenSession={onOpenSession}
+          />
+        </div>
+      ) : null}
     </div>
   )
-}
-
-function SessionStatusDot({status}: {status: SessionInfo['status']}) {
-  const className =
-    status === 'error'
-      ? 'bg-destructive'
-      : status === 'streaming'
-        ? 'bg-muted-foreground animate-pulse'
-        : 'bg-green-500'
-  return <span className={`${className} size-2.5 flex-none rounded-full`} aria-label={status} title={status} />
 }
 
 export default function AgentDetailRoutePage() {
@@ -1613,6 +1796,7 @@ export default function AgentDetailRoutePage() {
       routeServerUrl={route.serverUrl}
       tab={route.tab}
       triggerId={route.triggerId}
+      memoryPath={route.memoryPath}
     />
   )
 }

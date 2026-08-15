@@ -33,7 +33,7 @@ Server-to-client events are not individually signed; authorization happens at su
 ```ts
 type Subscribe = {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 ```
@@ -48,10 +48,24 @@ type AgentWSEvent =
   | {_: 'connected'; connectedAt: number}
   | {_: 'subscribed'; key: string; accountId: string}
   | {_: 'append'; key: `sessions/${string}`; event: SessionEvent}
-  | {_: 'appendPartial'; key: `sessions/${string}`; partialId: string; patch: {textDelta?: string; done?: boolean}}
+  | {
+      _: 'appendPartial'
+      key: `sessions/${string}`
+      partialId: string
+      patch: {textDelta?: string; done?: boolean; usage?: AgentRunUsage; activity?: AgentRunActivity}
+    }
   | {_: 'change'; key: `sessions/${string}`; value: SessionInfo}
   | {_: 'change'; key: `agents/${string}`; value: AgentInfo}
   | {_: 'change'; key: `account/${string}`; value: {reason: string; agentId?: string; sessionId?: string}}
+  | {_: 'change'; key: `runs/${string}`; value: RunInfo}
+  | {_: 'append'; key: `runs/${string}`; runId: string; seq: number; entry: Record<string, unknown>; createdAt: number}
+  | {
+      _: 'appendPartial'
+      key: `runs/${string}`
+      runId: string
+      partialId: string
+      patch: {progress?: {fraction?: number; label?: string}; activity?: AgentRunActivity; usage?: AgentRunUsage}
+    }
   | {_: 'error'; message: string}
 ```
 
@@ -70,9 +84,24 @@ Agent detail updates and related session changes. The agent detail page uses thi
 Session event stream. The session page uses this key and receives:
 
 - replay of durable events after `afterSeq`;
-- future durable `append` events;
+- future durable `append` events — every actor's, not just the agent's: a verb the user ran through `InvokeSessionTool`
+  arrives on this stream as `tool_call`/`tool_result` events stamped `actor: 'user'`;
 - session status `change` events;
-- live assistant text `appendPartial` events.
+- live `appendPartial` events carrying assistant text deltas, cumulative run usage, and the current `AgentRunActivity`
+  (`phase`, `toolName`, `toolCallId`, `detail`, and the `outputTail` of a long-running tool call).
+
+### `runs/<rootRunId>`
+
+One subscription streams a whole run tree (the key is the ROOT run id; `root_run_id` is denormalized on every run row
+for this). On subscribe the server sends a snapshot — one `change` per run in the tree — followed by durable journal
+`append` replay (`afterSeq` applies per run). Live events:
+
+- `change` with a `RunInfo` whenever any run in the tree changes status/usage/plan;
+- `append` with a workflow journal entry, tagged with the originating `runId`;
+- `appendPartial` with ephemeral workflow progress (`ctx.progress`) and tool activity, tagged with `runId`.
+
+The pinned run card on the session page is durable-first: it reconstructs from `ListRuns` + `GetRunJournal` and uses
+this stream only for liveness.
 
 ## Authorization
 
@@ -89,6 +118,7 @@ Rules:
 - `account/<accountId>` must equal verified account ID.
 - `agents/<agentId>` must be owned by verified account.
 - `sessions/<sessionId>` must be owned by verified account.
+- `runs/<rootRunId>` must reference a run owned by the verified account.
 - A socket may not switch accounts after a successful subscription.
 
 ## Replay
@@ -107,11 +137,16 @@ For `sessions/<id>` with `afterSeq`, server sends:
 
 `append` is durable. It maps to a row in `session_events`.
 
-Desktop cache behavior:
+Desktop behavior:
 
 - inserts the event into the `GetSession` cache;
 - removes matching optimistic user events;
-- clears visible partial for that session because final durable data arrived.
+- clears visible partial for that session because final durable data arrived;
+- while that session is open, extracts `hm://` references from structured tool results and assistant messages and keeps
+  them subscribed through the desktop sync service until the session closes. This runs only for the exact mounted
+  `sessions/<id>` socket (a full session page or the selected Assistant-sidebar session), never account/agent sockets or
+  background sessions. Comment references recursively subscribe to their target document, ensuring newly published
+  comments and documents from a remote agent server are locally available before their links are opened.
 
 ### `appendPartial`
 

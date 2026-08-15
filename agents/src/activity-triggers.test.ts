@@ -240,6 +240,37 @@ describe('activity trigger matching', () => {
     ).toBe(false)
   })
 
+  test('criteria matching is one rule: every field must match, and nothing matches an empty rule', () => {
+    // The shared matcher behind both a parked run's ctx.waitForEvent and a document-watching
+    // trigger. A rule that matched everything is never what someone meant, so {} matches nothing.
+    const event = {type: 'Comment', resource: 'hm://z6MkDoc/spec', author: 'z6MkAlice'}
+    expect(triggers.matchesActivityCriteria({}, event)).toBe(false)
+    expect(triggers.matchesActivityCriteria({eventType: 'Comment'}, event)).toBe(true)
+    expect(triggers.matchesActivityCriteria({eventType: 'Ref'}, event)).toBe(false)
+    expect(triggers.matchesActivityCriteria({author: 'z6MkAlice'}, event)).toBe(true)
+    expect(triggers.matchesActivityCriteria({author: 'z6MkBob'}, event)).toBe(false)
+    // Every present field is a conjunct: the right document by the wrong author is not a match.
+    expect(triggers.matchesActivityCriteria({resource: 'hm://z6MkDoc/spec', author: 'z6MkBob'}, event)).toBe(false)
+  })
+
+  test('criteria matching compares resources canonically, so a version or query still matches', () => {
+    // This is the subtlety worth having in one place: the feed hands back versioned and
+    // query-decorated ids, and a rule written against the bare path has to keep matching.
+    for (const resource of [
+      'hm://z6MkDoc/spec',
+      'hm://z6MkDoc/spec/',
+      'hm://z6MkDoc/spec?v=abc',
+      'hm://z6MkDoc/spec?v=abc#block',
+    ]) {
+      expect(triggers.matchesActivityCriteria({resource: 'hm://z6MkDoc/spec'}, {type: 'Ref', resource})).toBe(true)
+    }
+    expect(
+      triggers.matchesActivityCriteria({resource: 'hm://z6MkDoc/spec'}, {type: 'Ref', resource: 'hm://z6MkDoc/other'}),
+    ).toBe(false)
+    // An event with no resource at all cannot satisfy a resource rule.
+    expect(triggers.matchesActivityCriteria({resource: 'hm://z6MkDoc/spec'}, {type: 'Ref'})).toBe(false)
+  })
+
   test('derives stable activity keys and summaries', () => {
     expect(triggers.activityEventKey({newBlob: {cid: 'bafyblob', blobType: 'Comment'}})).toBe('blob-bafyblob')
     expect(triggers.activityEventKey({newMention: {sourceBlob: {cid: 'bafymention'}, target: 'hm://z6Mktarget'}})).toBe(

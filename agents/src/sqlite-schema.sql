@@ -56,6 +56,7 @@ CREATE TABLE agent_triggers (
     enabled INTEGER NOT NULL,
     source_cbor BLOB NOT NULL,
     prompt TEXT NOT NULL,
+    continuation_cbor BLOB,
     cooldown_ms INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
@@ -73,11 +74,16 @@ CREATE TABLE sessions (
     title TEXT,
     title_source TEXT NOT NULL DEFAULT 'system',
     status TEXT NOT NULL,
+    parent_session_id TEXT REFERENCES sessions (id),
+    run_id TEXT,
+    plan_cbor BLOB,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;
 
 CREATE INDEX sessions_by_agent ON sessions (agent_id, updated_at DESC);
+
+CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);
 
 CREATE TABLE trigger_firings (
     id TEXT PRIMARY KEY,
@@ -114,6 +120,69 @@ CREATE TABLE session_events (
     UNIQUE (session_id, seq)
 ) WITHOUT ROWID;
 
+CREATE TABLE runs (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    root_run_id TEXT NOT NULL,
+    parent_run_id TEXT REFERENCES runs (id),
+    parent_tool_call_id TEXT,
+    continued_from_run_id TEXT,
+    depth INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL,
+    agent_id TEXT REFERENCES agents (id),
+    session_id TEXT REFERENCES sessions (id),
+    trigger_firing_id TEXT REFERENCES trigger_firings (id),
+    origin TEXT NOT NULL,
+    title TEXT,
+    model TEXT,
+    source_cid TEXT,
+    source_text TEXT,
+    input_cbor BLOB NOT NULL,
+    output_cbor BLOB,
+    error_cbor BLOB,
+    status TEXT NOT NULL,
+    wait_cbor BLOB,
+    attempt INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 1,
+    not_before INTEGER,
+    queue TEXT NOT NULL DEFAULT 'background',
+    lease_owner TEXT,
+    lease_expires_at INTEGER,
+    budget_cbor BLOB,
+    usage_cbor BLOB,
+    plan_cbor BLOB,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    finished_at INTEGER,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX runs_dispatch ON runs (status, queue, not_before, created_at);
+CREATE INDEX runs_by_root ON runs (root_run_id, created_at);
+CREATE INDEX runs_by_parent ON runs (parent_run_id);
+CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
+CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
+
+CREATE TABLE run_journal (
+    run_id TEXT NOT NULL REFERENCES runs (id),
+    seq INTEGER NOT NULL,
+    entry_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (run_id, seq)
+) WITHOUT ROWID;
+
+CREATE TABLE run_event_waits (
+    run_id TEXT NOT NULL REFERENCES runs (id),
+    wait_id TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    match_cbor BLOB NOT NULL,
+    timeout_at INTEGER,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (run_id, wait_id)
+) WITHOUT ROWID;
+
+CREATE INDEX run_event_waits_by_account ON run_event_waits (account_id, created_at);
+
 CREATE TABLE agent_drafts (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -148,6 +217,21 @@ CREATE TABLE action_idempotency (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (account_id, action, client_request_id)
 ) WITHOUT ROWID;
+
+CREATE TABLE tool_documents (
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    cid TEXT NOT NULL,
+    doc_cbor BLOB NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, agent_id, name)
+) WITHOUT ROWID;
+
+CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
 
 CREATE TABLE server_config (
     key TEXT PRIMARY KEY,

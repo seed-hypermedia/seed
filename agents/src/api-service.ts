@@ -1,28 +1,50 @@
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import {
+  callableToolRegistry,
+  getSeedTool,
+  sessionEventActor,
   isReasoningLevel,
   modelReasoningSupport,
   modelSupportsImageInput,
   normalizeSeedToolName,
   seedAssistantSystemPrompt,
   seedToolRegistry,
+  seedVerbRegistry,
+  toolContractMarkdown,
+  toolSummaryLine,
+  type JsonSchema,
   type SeedToolMetadata,
 } from '@seed-hypermedia/agents-protocol'
+import {validateJsonSchemaShape, validateJsonSchemaValue} from '@/json-schema'
 import * as activityTriggers from '@/activity-triggers'
 import * as agentMemory from '@/agent-memory'
 import * as sessionAttachments from '@/session-attachments'
 import {
+  buildLambdaProgram,
   CodeExecError,
   createCodeExecutor,
   defaultCodeExecConfig,
+  parseLambdaResult,
   type CodeExecAvailability,
   type CodeExecConfig,
+  type CodeExecResult,
   type CodeExecutor,
+  type LambdaRuntime,
 } from '@/code-exec'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
+import * as runs from '@/runs'
+import * as runEvents from '@/run-events'
+import * as toolDocs from '@/tool-documents'
+import {
+  lintWorkflowSource,
+  normalizeRunPlan,
+  runWorkflowVM,
+  type WorkflowChildResolution,
+  type WorkflowJournalEntry,
+} from '@/workflow-host'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
 import {
@@ -45,6 +67,8 @@ import {
   flattenToOperations,
   computeReplaceOps,
   hmBlockNodeToBlockNode,
+  rebindTableIdentities,
+  toAPIBlockNode,
   markdownBlockNodesToHMBlockNodes,
   packHmId,
   parseMarkdown,
@@ -90,9 +114,47 @@ const MAX_MESSAGE_TEXT_BYTES = 64 * 1024
 const MAX_SESSION_SPAWN_DEPTH = 3
 /** Most sessions one session may start with start_session, a backstop against runaway spawning. */
 const MAX_SESSION_SPAWNS_PER_SESSION = 10
+/** Failed return_result validation attempts before a typed sub-session fails `output-schema`. */
+const MAX_RETURN_RESULT_RETRIES = 3
+/**
+ * Times a run will hand the turn back to the agent because it ended owing something — an
+ * undelivered typed result, an unfinished plan, whatever obligations grow to cover next.
+ *
+ * ONE budget for the whole run, not one per kind of debt: a run that owes a result AND a finished
+ * checklist is one agent failing to finish one job, and three chances to finish it is three
+ * chances, not six.
+ *
+ * A run that PARKS and resumes starts the budget again, deliberately: its children have delivered
+ * since, so it is being asked about a different world than the one it stalled in. Parking is itself
+ * bounded (a session may spawn only so many children), so this cannot run away.
+ */
+const MAX_RUN_CONTINUATIONS = 3
+/** Plan step statuses that can never move again: the work is done, written off, or given up on. */
+const TERMINAL_PLAN_STEP_STATUSES: ReadonlyArray<runs.RunPlanState['steps'][number]['status']> = [
+  'done',
+  'failed',
+  'skipped',
+]
+/**
+ * Attempts an agent run gets before it is finally failed. Only RETRYABLE outcomes consume the extra
+ * ones (the queue re-queues 5xx/provider-overload with exponential backoff); anything classified
+ * non-retryable still fails on the first attempt. Three is what it takes to ride out a provider
+ * that is briefly overloaded — the failure mode that stranded a parked parent in live testing.
+ */
+const AGENT_RUN_MAX_ATTEMPTS = 3
+/** Workflow journal caps: replay cost is bounded by these; split bigger jobs into smaller workflows. */
+const WORKFLOW_JOURNAL_MAX_ENTRIES = 5_000
+const WORKFLOW_JOURNAL_MAX_BYTES = 8 * 1024 * 1024
 const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
+/**
+ * Ceiling on the model-facing text of a single tool result (~2k tokens). Durable session events
+ * and the UI keep the tool's full output; only what rides to the provider is cut, so one oversized
+ * read can't blow the context window. Applied on the live path (defineSeedPiTool) and again on
+ * replay, so resumed sessions see the same bounded transcript.
+ */
+export const MAX_MODEL_TOOL_RESULT_BYTES = 8 * 1024
 const MAX_WRITE_CONTENT_BYTES = 256 * 1024
 const DEFAULT_SESSION_PAGE_SIZE = 50
 const MAX_SESSION_PAGE_SIZE = 200
@@ -150,6 +212,20 @@ export type ServiceEvent =
       activity?: api.AgentRunActivity
     }
   | {type: 'account-change'; accountId: string; reason: string; agentId?: string; sessionId?: string}
+  | {type: 'run-change'; accountId: string; run: api.RunInfo}
+  | {type: 'run-append'; accountId: string; rootRunId: string; entry: api.RunJournalEntryInfo}
+  | {
+      type: 'run-partial'
+      accountId: string
+      rootRunId: string
+      runId: string
+      partialId: string
+      patch: {
+        progress?: {fraction?: number; label?: string}
+        activity?: api.AgentRunActivity
+        usage?: api.AgentRunUsage
+      }
+    }
 
 /** Error with an HTTP status code for API responses. */
 export class APIError extends Error {
@@ -168,7 +244,324 @@ class SessionStoppedError extends Error {
   }
 }
 
-type RunningSession = {accountId: string; abort?: () => Promise<void>; stopped: boolean}
+/** Thrown out of a Pi run when the turn parked on spawned sub-sessions instead of finishing. */
+class SessionParkedError extends Error {
+  constructor() {
+    super('Agent run parked on sub-sessions')
+  }
+}
+
+type RunningSession = {
+  accountId: string
+  abort?: () => Promise<void>
+  stopped: boolean
+  /** Sub-session tool calls of the current turn the run must park on (set by the sub_session executor). */
+  parkToolCallIds?: string[]
+  /** Validated `return_result` payload delivered by a typed sub-session child. */
+  subResult?: {value: unknown}
+  /** Failed `return_result` validation attempts (bounded; then the run fails `output-schema`). */
+  subResultRetries?: number
+  /** Set when the turn should end after the current tool batch (result delivered). */
+  completeAfterTools?: boolean
+}
+
+/** Validated delegate tool input for a model child, embedded in the child run's `input` so the run is self-describing. */
+type SubSessionSpec = {
+  title?: string
+  prompt?: string
+  agentId?: string
+  input: unknown
+  tools?: string[]
+  output?: JsonSchema
+}
+
+/**
+ * Verbs and callable tools a script's ctx.call may reach: everything session-independent.
+ * (delegate/plan have dedicated ctx.* forms; return_result is child-turn-only.)
+ */
+const WORKFLOW_CALLABLE_TOOLS = new Set([
+  seedVerbRegistry.read.name,
+  seedVerbRegistry.write.name,
+  ...Object.keys(callableToolRegistry),
+])
+
+/**
+ * The callable tools an agent may dispatch through `call`. `definition.tools` narrows the set
+ * (unknown and legacy names are ignored); omitting it grants every service-runtime callable.
+ * Execute drops out silently when this host cannot run sandboxes.
+ */
+/** Names of every callable tool the agent service can dispatch (excludes assistant-only tools). */
+function serviceCallableNames(): string[] {
+  return Object.values(callableToolRegistry as Record<string, SeedToolMetadata>)
+    .filter((tool) => tool.runtimes.includes('agent-service'))
+    .map((tool) => tool.name)
+}
+
+/**
+ * Whether this agent may publish signed public content (hm:// documents/comments, IPFS uploads).
+ * Memory writes are never gated. Grants are the pseudo-tool name 'publish' in definition.tools;
+ * legacy write-group names count so a pre-verbs agent keeps exactly the publishing posture its
+ * owner configured, and an undefined tools array (default agents) publishes.
+ */
+const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_write', 'attachment_to_ipfs']
+
+function publishGrantEnabled(definition: api.AgentDefinition): boolean {
+  if (definition.tools === undefined) return true
+  return definition.tools.some((tool) => tool === 'publish' || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
+}
+
+function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
+  const serviceCallables = serviceCallableNames()
+  const requested = definition.tools?.map(normalizeSeedToolName)
+  const enabled =
+    requested === undefined ? serviceCallables : serviceCallables.filter((name) => requested.includes(name))
+  return enabled.filter((name) => name !== callableToolRegistry.execute.name || codeExecAvailable)
+}
+
+/** Validates sub_session/ctx.agent input into the stored spec shape (shared by chat and workflows). */
+export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
+  const input = isPlainRecord(raw) ? raw : {}
+  // The model-facing field is `brief`; scripts' ctx.delegate may still pass `input`. Normalize to
+  // the stored `input` slot so child runs stay self-describing.
+  if (input.input === undefined && input.brief !== undefined) {
+    input.input = input.brief
+    delete input.brief
+  }
+  // Models often write the task brief into `prompt`. A prompt with no brief is meaningless as a
+  // bare system prompt, so read it as the brief instead of bouncing the call for a retry.
+  if (input.input === undefined && typeof input.prompt === 'string' && input.prompt) {
+    input.input = input.prompt
+    delete input.prompt
+  }
+  if (input.input === undefined) {
+    throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
+  }
+  if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
+    throw new APIError(400, 'Provide either prompt or agentId, not both')
+  }
+  const spec: SubSessionSpec = {
+    ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
+    ...(typeof input.prompt === 'string' && input.prompt ? {prompt: input.prompt} : {}),
+    ...(typeof input.agentId === 'string' && input.agentId ? {agentId: input.agentId} : {}),
+    input: input.input,
+    ...(Array.isArray(input.tools)
+      ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
+      : {}),
+  }
+  if (input.output !== undefined) {
+    const shapeErrors = validateJsonSchemaShape(input.output)
+    if (shapeErrors.length > 0) {
+      throw new APIError(
+        400,
+        `output schema is not supported: ${shapeErrors.map((error) => `${error.path}: ${error.message}`).join('; ')}`,
+      )
+    }
+    spec.output = input.output as JsonSchema
+  }
+  return spec
+}
+
+/**
+ * The child's first user message IS the parent's input, verbatim: sub-session transcripts must read
+ * as the exact briefing the parent wrote (spawners are instructed to pass human-readable markdown).
+ * Non-string inputs fall back to a bare fenced JSON block so nothing is ever hidden or reworded.
+ */
+function renderSubSessionInput(input: unknown): string {
+  if (typeof input === 'string') return input
+  return `\`\`\`json\n${JSON.stringify(input, null, 2)}\n\`\`\``
+}
+
+/** Content of a durable assistant message event, for typed-less sub-session results. */
+function assistantMessageText(event: api.SessionEvent): string {
+  const payload = event.event as {type?: string; content?: string}
+  return payload.type === 'message' && typeof payload.content === 'string' ? payload.content : ''
+}
+
+/**
+ * Reads an unmet-obligation list back off a persisted run. Runs are decoded from CBOR written by
+ * older builds, so anything unrecognized is dropped rather than trusted into the API surface.
+ */
+function normalizeUnmetObligations(raw: unknown): api.UnmetObligation[] {
+  if (!Array.isArray(raw)) return []
+  const obligations: api.UnmetObligation[] = []
+  for (const entry of raw) {
+    if (!isPlainRecord(entry)) continue
+    if (entry.kind === 'typed-result') obligations.push({kind: 'typed-result'})
+    else if (entry.kind === 'plan' && Array.isArray(entry.steps)) {
+      obligations.push({kind: 'plan', steps: entry.steps.filter((step): step is string => typeof step === 'string')})
+    }
+  }
+  return obligations
+}
+
+/**
+ * What a finished agent turn hands back. A delegate child answers its parent with the text it
+ * produced; a run driving a user's session answers the request with the event to render.
+ */
+function turnOutput(spec: SubSessionSpec | undefined, assistantEvent: api.SessionEvent): Record<string, unknown> {
+  return spec ? {text: assistantMessageText(assistantEvent)} : {assistantEventId: assistantEvent.id}
+}
+
+/** A plan whose every step has stopped being able to move. An empty plan has settled nothing. */
+function isPlanFullySettled(plan: runs.RunPlanState | undefined): boolean {
+  if (!plan?.steps.length) return false
+  return plan.steps.every((step) => TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
+}
+
+/**
+ * The live checklist as the model should see it this turn, or nothing when there is no plan.
+ *
+ * Rendered fresh from session state and injected into the replay — never stored as an event, so the
+ * transcript keeps exactly one copy of the truth and the log stays a record of what happened rather
+ * than of what the runtime reminded the model about.
+ *
+ * Step ids and labels are whatever the model last wrote, so they are escaped the same way user-action
+ * payloads are: text the model authored is being handed back to it inside a frame whose syntax it
+ * knows, and a label carrying `</plan_state>` would otherwise close the frame early and turn
+ * everything after it into instructions that nothing vouched for.
+ */
+function planStateBlock(plan: runs.RunPlanState | undefined): string | undefined {
+  if (!plan?.steps.length) return undefined
+  const lines = plan.steps.map(
+    (step) => `${escapeActionFraming(step.id)} · ${escapeActionFraming(step.label)} · ${step.status}`,
+  )
+  return [
+    '<plan_state>',
+    ...lines,
+    '',
+    'This is your live checklist; update statuses with the plan verb as you complete work — before you finish your reply.',
+    '</plan_state>',
+  ].join('\n')
+}
+
+/** The plan step a run was spawned to work on, when its spawner recorded one. */
+function planStepIdOf(run: runs.RunRecord): string | undefined {
+  const input = isPlainRecord(run.input) ? run.input : undefined
+  return typeof input?.planStepId === 'string' ? input.planStepId : undefined
+}
+
+/** One line per obligation, in the second person, as the agent will read it. */
+function obligationLine(obligation: api.UnmetObligation): string {
+  return obligation.kind === 'typed-result'
+    ? '- You have not delivered the result yet. Call the return_result tool now with a payload matching the required schema; that is how this task completes.'
+    : `- Your plan has unfinished steps: ${obligation.steps.join(
+        ', ',
+      )}. Continue that work now, or set every step to an honest terminal status — done, failed, or skipped.`
+}
+
+/**
+ * The message a run hands itself when a turn ends with work still owed. It lists every open
+ * obligation at once, so an agent that owes two things is asked once rather than nudged twice.
+ */
+function continuationPrompt(obligations: api.UnmetObligation[]): string {
+  return [
+    'This turn is ending with work you committed to still open:',
+    ...obligations.map(obligationLine),
+    '',
+    "Finish it now, or say plainly why you are stopping and close it out honestly. Don't leave the record claiming something you did not do.",
+  ].join('\n')
+}
+
+/** The notice a run leaves on the log when it runs out of chances with obligations still open. */
+function unmetObligationsNotice(obligations: api.UnmetObligation[]): string {
+  const lines = obligations.map((obligation) =>
+    obligation.kind === 'typed-result'
+      ? '- No result was delivered, so this task has no answer to hand back.'
+      : `- Unfinished plan steps: ${obligation.steps.join(', ')}.`,
+  )
+  return [
+    'This run ended with work still open:',
+    ...lines,
+    '',
+    'Nothing was completed on the agent’s behalf — the record shows the work exactly as it was left.',
+  ].join('\n')
+}
+
+/** Classifies an executor error into the persisted run-error shape with retryability. */
+function classifyRunError(error: unknown): runs.RunErrorInfo {
+  if (error instanceof APIError) {
+    return {
+      code: error.status >= 500 ? 'provider-error' : 'config-error',
+      message: error.message,
+      retryable: error.status >= 500,
+      httpStatus: error.status,
+    }
+  }
+  return {
+    code: 'provider-error',
+    message: error instanceof Error ? error.message : String(error),
+    retryable: true,
+  }
+}
+
+/** Public run metadata derived from a run record. */
+function runInfoFromRecord(run: runs.RunRecord): api.RunInfo {
+  const inputRecord = isPlainRecord(run.input) ? run.input : undefined
+  const stepLabel = typeof inputRecord?.planStepLabel === 'string' ? inputRecord.planStepLabel : undefined
+  const planStepId = typeof inputRecord?.planStepId === 'string' ? inputRecord.planStepId : undefined
+  // Runs written before the column existed carry the id only in their input payload.
+  const parentToolCallId =
+    run.parentToolCallId ??
+    (typeof inputRecord?.parentToolCallId === 'string' ? inputRecord.parentToolCallId : undefined)
+  const outputRecord = isPlainRecord(run.output) ? run.output : undefined
+  const unmetObligations = normalizeUnmetObligations(outputRecord?.unmetObligations ?? run.error?.unmetObligations)
+  return {
+    id: run.id,
+    account: run.accountId,
+    rootRunId: run.rootRunId,
+    ...(run.parentRunId ? {parentRunId: run.parentRunId} : {}),
+    ...(parentToolCallId ? {parentToolCallId} : {}),
+    ...(run.continuedFromRunId ? {continuedFromRunId: run.continuedFromRunId} : {}),
+    depth: run.depth,
+    kind: run.kind,
+    ...(run.agentId ? {agentId: run.agentId} : {}),
+    ...(run.sessionId ? {sessionId: run.sessionId} : {}),
+    origin: run.origin,
+    title: run.title,
+    ...(stepLabel ? {stepLabel} : {}),
+    ...(planStepId ? {planStepId} : {}),
+    ...(run.kind === 'workflow' && run.sourceText ? {sourceText: run.sourceText} : {}),
+    status: run.status,
+    ...(run.wait
+      ? {
+          wait: {
+            reason: run.wait.reason,
+            ...(run.wait.reason === 'timer' ? {wakeAt: run.wait.wakeAt} : {}),
+            ...(run.wait.reason === 'children' ? {pendingChildren: run.wait.toolCallIds.length} : {}),
+            ...(run.wait.reason === 'event'
+              ? {
+                  ...(run.wait.timeoutAt === undefined ? {} : {wakeAt: run.wait.timeoutAt}),
+                  ...(run.wait.label ? {label: run.wait.label} : {}),
+                  ...(run.wait.answerWith ? {answerWith: run.wait.answerWith} : {}),
+                }
+              : {}),
+            ...(run.wait.reason === 'budget-pause' && run.wait.note ? {label: run.wait.note} : {}),
+          },
+        }
+      : {}),
+    ...(run.plan ? {plan: run.plan} : {}),
+    ...(run.error
+      ? {
+          error: {
+            code: run.error.code,
+            message: run.error.message,
+            ...(run.error.stack ? {stack: run.error.stack} : {}),
+            ...(run.error.tool ? {tool: run.error.tool} : {}),
+            ...(typeof run.error.callSeq === 'number' ? {callSeq: run.error.callSeq} : {}),
+            ...(run.error.detail !== undefined ? {detail: run.error.detail} : {}),
+          },
+        }
+      : {}),
+    // A succeeded run carries its debts on its output, a failed one on its error; the surface says
+    // "this run ended owing something" either way, so clients need only look in one place.
+    ...(unmetObligations.length > 0 ? {unmetObligations} : {}),
+    ...(run.usage ? {usage: run.usage} : {}),
+    createdAt: run.createdAt,
+    ...(run.startedAt !== undefined ? {startedAt: run.startedAt} : {}),
+    ...(run.finishedAt !== undefined ? {finishedAt: run.finishedAt} : {}),
+    updatedAt: run.updatedAt,
+  }
+}
 
 /** Server-side implementation of the signed Agents action API. */
 export class Service {
@@ -176,20 +569,26 @@ export class Service {
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
+  readonly #ipfsServerUrl: string
   readonly #web: WebToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
-  /** In-flight background session runs (trigger + agent-started), awaited by {@link drainTriggerSessions} (tests + shutdown). */
+  /** In-flight background dispatch setup (trigger prompt builds + enqueues); the runs themselves live in the queue. */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
-  /**
-   * Spawn-chain depth per agent-started session, and spawn counts per starting session. Both are
-   * in-memory backstops against runaway start_session loops, not durable state: a server restart
-   * resets them, which only relaxes the limits until the next chain builds up again.
-   */
-  readonly #sessionSpawnDepth = new Map<string, number>()
-  readonly #sessionSpawnCounts = new Map<string, number>()
+  /** Sessions with a user verb mid-execution: agent runs must not start under them (reverse 409). */
+  readonly #liveUserVerbs = new Map<string, number>()
   /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
   readonly #subscriptionAuthEnabled: boolean
+  /** Durable run records + dispatch queue; every agent execution goes through it. */
+  readonly #runQueue: runs.RunQueue
+  /** Resolvers awaiting a run's terminal status (workflow children), resolved in the finalizer. */
+  readonly #runWaiters = new Map<string, Array<(run: runs.RunRecord) => void>>()
+  /** Live workflow VMs whose cancellation was requested; their interrupt handlers check this. */
+  readonly #workflowCancelFlags = new Set<string>()
+  /** Whether untitled sessions get a dedicated model call to name them (server opt-in). */
+  readonly #titleGenerationEnabled: boolean
+  /** Sessions with a title generation in flight, so parks + finalizes do not double-spend. */
+  readonly #namingSessions = new Set<string>()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -208,12 +607,16 @@ export class Service {
     options: {
       onEvent?: (event: ServiceEvent) => void
       hmServerUrl?: string
+      /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
+      ipfsServerUrl?: string
       web?: WebToolsConfig
       exec?: CodeExecConfig
       codeExecutor?: CodeExecutor
       providerOAuth?: ProviderOAuthManager
       /** Offer subscription (OAuth) provider sign-in. Explicit server opt-in; default off. */
       subscriptionAuth?: boolean
+      /** Generate titles for untitled sessions with a dedicated model call (default off: tests mock providers). */
+      titleGeneration?: boolean
     } = {},
   ) {
     this.#db = db
@@ -221,15 +624,76 @@ export class Service {
     this.#onEvent = options.onEvent
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
+    this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
+    this.#titleGenerationEnabled = options.titleGeneration ?? false
+    this.#runQueue = new runs.RunQueue(db, {
+      executors: {
+        agent: (run) => this.#executeAgentRun(run),
+        workflow: (run) => this.#executeWorkflowRun(run),
+      },
+      onRunChanged: (run) => this.#onRunChanged(run),
+      onRunFinalized: (run) => this.#onRunFinalized(run),
+      abortRun: (run) => {
+        if (run.kind === 'workflow') this.#workflowCancelFlags.add(run.id)
+        if (run.sessionId) void this.#abortLiveSessionRun(run.accountId, run.sessionId)
+      },
+    })
+    // Crash recovery: runs a dead process left claimed/running go back to queued (the sweep wakes
+    // the loop when it found any); their sessions' dangling tool calls are repaired on resume, and
+    // parked parents whose children finalized before the crash get their resolutions replayed.
+    this.#runQueue.sweepAtBoot()
+    this.#reconcileWaitingRunsAtBoot()
+  }
+
+  /**
+   * Boot pass closing the crash window between a child's terminal commit and its parent's
+   * wait-resolution (separate transactions): any waiting-on-children run whose child already
+   * finished gets the resolution replayed now, so no run stays `waiting` forever.
+   */
+  #reconcileWaitingRunsAtBoot(): void {
+    const waiting = this.#db
+      .query<{id: string; account_id: string}, []>(
+        `SELECT id, account_id FROM runs WHERE status = 'waiting' AND not_before IS NULL`,
+      )
+      .all()
+    for (const row of waiting) {
+      const run = runs.getRun(this.#db, row.account_id, row.id)
+      if (!run || run.wait?.reason !== 'children') continue
+      const children = this.#db.query<{id: string}, [string]>(`SELECT id FROM runs WHERE parent_run_id = ?`).all(run.id)
+      for (const childRow of children) {
+        const child = runs.getRun(this.#db, run.accountId, childRow.id)
+        if (!child || !runs.TERMINAL_RUN_STATUSES.includes(child.status)) continue
+        const input = child.input as {parentToolCallId?: string; parentToolName?: string} | null
+        if (typeof input?.parentToolCallId === 'string' && run.wait.toolCallIds.includes(input.parentToolCallId)) {
+          console.info('[agents/runs] boot reconcile: replaying finished child into parked parent', {
+            parentRunId: run.id,
+            childRunId: child.id,
+          })
+          this.#resolveSubSessionResult(child, run.id, input.parentToolCallId, input.parentToolName)
+        }
+      }
+      const refreshed = runs.getRun(this.#db, run.accountId, run.id)
+      if (refreshed?.status === 'waiting') this.#reconcileParkedRun(refreshed)
+    }
+  }
+
+  /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
+  stopRunQueue(): void {
+    this.#runQueue.stop()
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
    * connect their local node to it for discovery. */
   get hmServerUrl(): string {
     return this.#hmServerUrl
+  }
+
+  /** The HTTP server used for direct IPFS gateway reads. */
+  get ipfsServerUrl(): string {
+    return this.#ipfsServerUrl
   }
 
   /** Whether subscription provider sign-in is offered, for client capability display. */
@@ -270,6 +734,13 @@ export class Service {
         return this.#listSigningIdentities(verified.accountId)
       case 'CreateSigningIdentity':
         return this.#createSigningIdentity(verified.accountId, envelope.action.label, envelope.action.clientRequestId)
+      case 'ImportSigningIdentity':
+        return this.#importSigningIdentity(
+          verified.accountId,
+          envelope.action.seed,
+          envelope.action.label,
+          envelope.action.clientRequestId,
+        )
       case 'UpdateSigningIdentity':
         return this.#updateSigningIdentity(
           verified.accountId,
@@ -321,6 +792,8 @@ export class Service {
         return this.#deleteAgentTrigger(verified.accountId, envelope.action.triggerId)
       case 'ListAgentMemory':
         return this.#listAgentMemory(verified.accountId, envelope.action.agentId)
+      case 'ListAgentTools':
+        return this.#listAgentTools(verified.accountId, envelope.action.agentId)
       case 'ReadAgentMemoryFile':
         return this.#readAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
       case 'WriteAgentMemoryFile':
@@ -354,6 +827,8 @@ export class Service {
           envelope.action.agentId,
           envelope.action.limit,
           envelope.action.cursor,
+          envelope.action.parentSessionId,
+          envelope.action.includeChildren,
         )
       case 'UpdateSession':
         return this.#updateSession(verified.accountId, envelope.action.sessionId, envelope.action.title)
@@ -361,6 +836,13 @@ export class Service {
         return this.#deleteSession(verified.accountId, envelope.action.sessionId)
       case 'GetSession':
         return await this.#getSession(verified.accountId, envelope.action.sessionId, envelope.action.afterSeq)
+      case 'InvokeSessionTool':
+        return this.#invokeSessionTool(
+          verified.accountId,
+          envelope.action.sessionId,
+          envelope.action.verb,
+          envelope.action.input,
+        )
       case 'MessageSession':
         return this.#messageSession(
           verified.accountId,
@@ -393,6 +875,23 @@ export class Service {
         return this.#abortFileUpload(verified.accountId, envelope.action.uploadId)
       case 'StopSession':
         return this.#stopSession(verified.accountId, envelope.action.sessionId)
+      case 'RetrySession':
+        return this.#retrySession(verified.accountId, envelope.action.sessionId)
+      case 'GetRun':
+        return this.#getRun(verified.accountId, envelope.action.runId)
+      case 'ListRuns':
+        return this.#listRuns(verified.accountId, envelope.action)
+      case 'CancelRun':
+        return this.#cancelRun(verified.accountId, envelope.action.runId)
+      case 'SignalRun':
+        return this.#signalRun(
+          verified.accountId,
+          envelope.action.runId,
+          envelope.action.signal,
+          envelope.action.payload,
+        )
+      case 'GetRunJournal':
+        return this.#getRunJournal(verified.accountId, envelope.action.runId, envelope.action.afterSeq)
       case 'Subscribe':
         throw new APIError(400, 'Subscribe is only supported over WebSocket')
       default:
@@ -632,6 +1131,71 @@ export class Service {
     })
   }
 
+  /**
+   * Imports an existing account key (a `.hmkey.json` seed the client already decrypted).
+   *
+   * Deliberately publishes NOTHING: an imported identity usually already exists on the network
+   * with a profile and content its owner published — regenerating a profile/home here (what
+   * `CreateSigningIdentity` does for its fresh throwaway keys) would overwrite the real one.
+   * The label therefore lives only in the secret's metadata until the user renames it, which
+   * goes through the explicit `UpdateSigningIdentity` publish.
+   */
+  async #importSigningIdentity(
+    accountId: string,
+    seed: unknown,
+    rawLabel?: string,
+    clientRequestId?: string,
+  ): Promise<api.ImportSigningIdentityResponse> {
+    return this.#withIdempotency(accountId, 'ImportSigningIdentity', clientRequestId, {label: rawLabel}, async () => {
+      if (!(seed instanceof Uint8Array) || seed.byteLength !== 32) {
+        throw new APIError(400, 'Key seed must be exactly 32 bytes')
+      }
+      const label =
+        rawLabel === undefined ? undefined : normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
+      const keyPair = blobs.nobleKeyPairFromSeed(seed)
+      const identityAccountId = blobs.principalToString(keyPair.principal)
+      const name = `hm-account-${identityAccountId.slice(0, 16)}`
+      const existing = this.#db
+        .query<{id: string}, [string, string]>(`SELECT id FROM secrets WHERE account_id = ? AND name = ?`)
+        .get(accountId, name)
+      if (existing) throw new APIError(409, `This account key is already on the server (${identityAccountId})`)
+      // No fabricated display name: import publishes nothing, so any label stored here must be a
+      // truthful snapshot of the account's real profile name — the client resolves and sends it.
+      // Without one, the identity shows by its account id until the user renames it (which goes
+      // through UpdateSigningIdentity's explicit profile publish).
+      const metadata: Record<string, unknown> = {
+        kind: 'hm-account-key',
+        accountId: identityAccountId,
+        ...(label ? {label} : {}),
+        serverUrl: this.#hmServerUrl,
+        importedBy: 'user',
+      }
+      const now = Date.now()
+      const ciphertext = await encryptSecret(this.#db, seed)
+      const id = crypto.randomUUID()
+
+      this.#ensureAccount(accountId, now)
+      this.#db.run(
+        `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
+      )
+
+      return {
+        _: 'ImportSigningIdentityResponse',
+        identity: {
+          id,
+          name,
+          accountId: identityAccountId,
+          ...(label ? {label} : {}),
+          serverUrl: this.#hmServerUrl,
+          createdAt: now,
+          updatedAt: now,
+        },
+      }
+    })
+  }
+
   async #updateSigningIdentity(
     accountId: string,
     rawName: string,
@@ -656,9 +1220,9 @@ export class Service {
     let iconUrl = typeof metadata.icon === 'string' ? metadata.icon : undefined
     if (icon) {
       try {
-        iconUrl = await uploadIconToHmNode(this.#hmServerUrl, icon)
+        iconUrl = await publishIconToIpfs(this.#hmServerUrl, icon)
       } catch (error) {
-        throw new APIError(502, `Failed to upload agent account icon to ${this.#hmServerUrl}: ${errorMessage(error)}`)
+        throw new APIError(502, `Failed to publish agent account icon to ${this.#hmServerUrl}: ${errorMessage(error)}`)
       }
     }
     try {
@@ -1002,7 +1566,9 @@ export class Service {
 
     const sessions = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
       )
       .all(accountId, agentId)
@@ -1025,6 +1591,8 @@ export class Service {
     agentId?: string,
     limit?: number,
     cursor?: api.SessionListCursor,
+    parentSessionId?: string,
+    includeChildren?: boolean,
   ): api.ListSessionsResponse {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
     const conditions = ['account_id = ?']
@@ -1032,6 +1600,16 @@ export class Service {
     if (agentId !== undefined) {
       conditions.push('agent_id = ?')
       params.push(normalizeBoundedString(agentId, 'Agent ID', MAX_NAME_BYTES))
+    }
+    if (parentSessionId !== undefined) {
+      // Children of one parent; the top-level exclusion below does not apply.
+      conditions.push('parent_session_id = ?')
+      params.push(normalizeBoundedString(parentSessionId, 'Parent session ID', MAX_NAME_BYTES))
+    } else if (includeChildren === false) {
+      // Top-level listing for lineage-aware clients (they nest children under parents themselves).
+      // The default (field absent) keeps returning everything: older deployed desktops cannot send
+      // this field, and hiding agent-started sessions from them would be a silent regression.
+      conditions.push('parent_session_id IS NULL')
     }
     if (cursor !== undefined) {
       if (!isRecord(cursor)) throw new APIError(400, 'Session cursor must be an object')
@@ -1045,7 +1623,9 @@ export class Service {
 
     const rows = this.#db
       .query<SessionRow, (string | number)[]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
       )
       .all(...params)
@@ -1089,6 +1669,7 @@ export class Service {
     ])
     const response = this.#getAgent(accountId, agentId)
     this.#emit({type: 'agent-change', accountId, agent: response.agent})
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
     return response
   }
@@ -1101,14 +1682,42 @@ export class Service {
       .query<{id: string}, [string, string]>(`SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?`)
       .all(accountId, agentId)
     const sessionIds = sessions.map((session) => session.id)
+    // Cancel live work first so no executor streams into rows the transaction is about to delete.
+    const liveRuns = this.#db
+      .query<{id: string}, [string, string]>(
+        `SELECT id FROM runs WHERE account_id = ? AND agent_id = ?
+         AND status IN ('queued', 'claimed', 'running', 'waiting')`,
+      )
+      .all(accountId, agentId)
+    for (const liveRun of liveRuns) this.#runQueue.cancelTree(accountId, liveRun.id)
     const transaction = this.#db.transaction(() => {
       for (const sessionId of sessionIds) {
         this.#db.run(`DELETE FROM session_events WHERE session_id = ?`, [sessionId])
       }
+      // Run history survives agent deletion detached; FK columns must be cleared before the
+      // referenced rows go (runs.agent_id/session_id/trigger_firing_id are enforced FKs).
+      this.#db.run(
+        `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
+           SELECT id FROM trigger_firings WHERE account_id = ? AND agent_id = ?)`,
+        [accountId, agentId],
+      )
+      this.#db.run(
+        `UPDATE runs SET session_id = NULL WHERE session_id IN (
+           SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?)`,
+        [accountId, agentId],
+      )
+      this.#db.run(`UPDATE runs SET agent_id = NULL WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
+      // Sub-sessions of OTHER agents may hang off this agent's sessions: promote them to top level.
+      this.#db.run(
+        `UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id IN (
+           SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?)`,
+        [accountId, agentId],
+      )
       this.#db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agent_drafts WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
+      this.#db.run(`DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agents WHERE account_id = ? AND id = ?`, [accountId, agentId])
     })
     transaction()
@@ -1123,6 +1732,7 @@ export class Service {
       })
     }
 
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-deleted', agentId})
     return {_: 'DeleteAgentResponse', agentId}
   }
@@ -1140,6 +1750,36 @@ export class Service {
     return {_: 'ListAgentMemoryResponse', agentId, entries, totalBytes}
   }
 
+  /**
+   * The owner's view of `~/tools`: every tool document with its source, plus whether the agent's
+   * grant set actually offers it. The GUI shows the same documents the agent reads.
+   */
+  async #listAgentTools(accountId: string, agentId: string): Promise<api.ListAgentToolsResponse> {
+    const agent = this.#getAgentInfo(accountId, agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    const callables = enabledCallableTools(agent.definition, codeExecAvailable)
+    toolDocs.ensureBuiltinToolDocuments(this.#db, accountId, agentId)
+    const tools = toolDocs.listToolDocuments(this.#db, accountId, agentId).map(
+      (row): api.AgentToolInfo => ({
+        name: row.doc.name,
+        kind: row.doc.kind,
+        summary: row.doc.summary,
+        description: row.doc.description,
+        input: row.doc.input as Record<string, unknown>,
+        output: row.doc.output as Record<string, unknown> | undefined,
+        source: row.doc.source,
+        runtime: row.doc.runtime,
+        cid: row.cid,
+        enabled: row.enabled,
+        granted: row.doc.kind !== 'builtin' || callables.includes(row.doc.name),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      }),
+    )
+    return {_: 'ListAgentToolsResponse', agentId, tools}
+  }
+
   #readAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.ReadAgentMemoryFileResponse {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const file = withMemoryErrors(() => agentMemory.readMemoryFile(stateDir, filePath))
@@ -1154,6 +1794,7 @@ export class Service {
   ): api.WriteAgentMemoryFileResponse {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(stateDir, filePath, content))
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
     return {_: 'WriteAgentMemoryFileResponse', agentId, entry}
   }
@@ -1166,6 +1807,7 @@ export class Service {
   ): Promise<api.DownloadAgentMemoryFileResponse> {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const result = await withMemoryErrorsAsync(() => agentMemory.downloadToMemory(stateDir, url, filePath))
+    invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
     return {
       _: 'DownloadAgentMemoryFileResponse',
@@ -1185,8 +1827,7 @@ export class Service {
     const file = withMemoryErrors(() => agentMemory.readMemoryFile(stateDir, filePath))
     const bytes =
       file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
-    const fileName = file.path.split('/').at(-1) || 'file'
-    const {cid, url} = await uploadBytesToHmIpfs(this.#hmServerUrl, bytes, file.mimeType, fileName)
+    const {cid, url} = await publishBytesToIpfs(this.#hmServerUrl, bytes)
     return {
       _: 'UploadAgentMemoryFileToIpfsResponse',
       agentId,
@@ -1201,7 +1842,10 @@ export class Service {
   #deleteAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.DeleteAgentMemoryFileResponse {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(stateDir, filePath))
-    if (result.deleted) this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    if (result.deleted) {
+      invalidateSpaceIndex(accountId, agentId)
+      this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId})
+    }
     return {_: 'DeleteAgentMemoryFileResponse', agentId, path: result.path, deleted: result.deleted}
   }
 
@@ -1209,7 +1853,7 @@ export class Service {
     this.#requireAgent(accountId, agentId)
     const rows = this.#db
       .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND agent_id = ?
@@ -1256,8 +1900,9 @@ export class Service {
     const now = Date.now()
     const id = crypto.randomUUID()
     this.#db.run(
-      `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt,
+         continuation_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         accountId,
@@ -1266,12 +1911,14 @@ export class Service {
         trigger.enabled ? 1 : 0,
         cbor.encode(trigger.source),
         serializePromptBlocksForStorage(trigger.prompt),
+        trigger.continuation ? cbor.encode(trigger.continuation) : null,
         now,
         now,
       ],
     )
     const info = this.#getAgentTriggerInfo(accountId, id)
     if (!info) throw new APIError(500, 'Agent trigger was not created')
+    invalidateSpaceIndex(accountId)
     this.#emit({type: 'account-change', accountId, reason: 'trigger-created', agentId})
     return {_: 'CreateAgentTriggerResponse', trigger: info}
   }
@@ -1287,13 +1934,15 @@ export class Service {
     const next: api.AgentTriggerInfo = {...existing, ...patch, updatedAt: Date.now()}
     this.#db.run(
       `UPDATE agent_triggers
-       SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, updated_at = ?, last_error = NULL
+       SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, continuation_cbor = ?, updated_at = ?,
+           last_error = NULL
        WHERE account_id = ? AND id = ?`,
       [
         next.name,
         next.enabled ? 1 : 0,
         cbor.encode(next.source),
         serializePromptBlocksForStorage(next.prompt),
+        next.continuation ? cbor.encode(next.continuation) : null,
         next.updatedAt,
         accountId,
         triggerId,
@@ -1301,6 +1950,7 @@ export class Service {
     )
     const trigger = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!trigger) throw new APIError(404, 'Agent trigger not found')
+    invalidateSpaceIndex(accountId)
     this.#emit({type: 'account-change', accountId, reason: 'trigger-updated', agentId: trigger.agentId})
     return {_: 'UpdateAgentTriggerResponse', trigger}
   }
@@ -1309,10 +1959,17 @@ export class Service {
     const existing = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!existing) throw new APIError(404, 'Agent trigger not found')
     const transaction = this.#db.transaction(() => {
+      // Run history survives trigger deletion detached from its firing rows.
+      this.#db.run(
+        `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
+           SELECT id FROM trigger_firings WHERE account_id = ? AND trigger_id = ?)`,
+        [accountId, triggerId],
+      )
       this.#db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND trigger_id = ?`, [accountId, triggerId])
       this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND id = ?`, [accountId, triggerId])
     })
     transaction()
+    invalidateSpaceIndex(accountId)
     this.#emit({type: 'account-change', accountId, reason: 'trigger-deleted', agentId: existing.agentId})
     return {_: 'DeleteAgentTriggerResponse', triggerId}
   }
@@ -1328,7 +1985,12 @@ export class Service {
     )
   }
 
-  #createSessionOnce(accountId: string, agentId: string, rawTitle?: string): api.CreateSessionResponse {
+  #createSessionOnce(
+    accountId: string,
+    agentId: string,
+    rawTitle?: string,
+    opts: {parentSessionId?: string; runId?: string} = {},
+  ): api.CreateSessionResponse {
     const agent = this.#db
       .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
       .get(accountId, agentId)
@@ -1336,11 +1998,27 @@ export class Service {
 
     const now = Date.now()
     const sessionId = crypto.randomUUID()
-    const title = rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
+    // Clients historically sent the UI display placeholder as a literal title, which made every
+    // session look titled and defeated both naming paths. The placeholder means "no title".
+    const normalizedTitle =
+      rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
+    const title =
+      normalizedTitle && normalizedTitle.trim().toLowerCase() === 'untitled session' ? null : normalizedTitle
     this.#db.run(
-      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, accountId, agentId, title, 'system', 'idle', now, now],
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        sessionId,
+        accountId,
+        agentId,
+        title,
+        'system',
+        'idle',
+        opts.parentSessionId ?? null,
+        opts.runId ?? null,
+        now,
+        now,
+      ],
     )
     const sessionInfo = this.#getSessionInfo(accountId, sessionId)
     if (sessionInfo) {
@@ -1369,12 +2047,21 @@ export class Service {
   #deleteSession(accountId: string, sessionId: string): api.DeleteSessionResponse {
     const existing = this.#getSessionInfo(accountId, sessionId)
     if (!existing) throw new APIError(404, 'Session not found')
+    // Cancel live run trees first: detaching a parked parent's session would otherwise strand it
+    // in 'waiting' forever (its child resolutions early-return without a parent session), and a
+    // streaming executor would crash appending to deleted rows.
+    for (const liveRun of runs.listLiveSessionRuns(this.#db, accountId, sessionId)) {
+      this.#runQueue.cancelTree(accountId, liveRun.id)
+    }
     const transaction = this.#db.transaction(() => {
       this.#db.run(`UPDATE trigger_firings SET session_id = NULL WHERE account_id = ? AND session_id = ?`, [
         accountId,
         sessionId,
       ])
       this.#db.run(`DELETE FROM session_events WHERE session_id = ?`, [sessionId])
+      // Run history survives session deletion detached; children promote to top level.
+      this.#db.run(`UPDATE runs SET session_id = NULL WHERE session_id = ?`, [sessionId])
+      this.#db.run(`UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?`, [sessionId])
       this.#db.run(`DELETE FROM sessions WHERE account_id = ? AND id = ?`, [accountId, sessionId])
     })
     transaction()
@@ -1383,8 +2070,6 @@ export class Service {
     try {
       sessionAttachments.deleteSessionAttachments(this.#agentMemoryStateDir(accountId, existing.agentId), sessionId)
     } catch {}
-    this.#sessionSpawnDepth.delete(sessionId)
-    this.#sessionSpawnCounts.delete(sessionId)
     this.#emit({type: 'account-change', accountId, reason: 'session-deleted', agentId: existing.agentId, sessionId})
     return {_: 'DeleteSessionResponse', sessionId, agentId: existing.agentId}
   }
@@ -1510,6 +2195,7 @@ export class Service {
       if (target.kind === 'memory') {
         const stateDir = this.#agentMemoryStateDir(accountId, target.agentId)
         const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(stateDir, target.path, bytes))
+        invalidateSpaceIndex(accountId, target.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: target.agentId})
         return {_: 'CommitFileUploadResponse', entry}
       }
@@ -1532,6 +2218,93 @@ export class Service {
     this.#uploads.delete(uploadId)
     fs.rmSync(upload.partPath, {force: true})
     return {_: 'AbortFileUploadResponse', uploadId}
+  }
+
+  /** update_plan tool: stores the session's todo snapshot, rendered by the pinned progress card. */
+  #setSessionPlanFromAgent(accountId: string, sessionId: string, raw: unknown): api.SessionInfo {
+    // `normalizeRunPlan` reads only what the model may say, which is why `resolvedBy` cannot be
+    // forged: the runtime's mark is never taken from model input, only carried by the writer below.
+    return this.#writeSessionPlan(accountId, sessionId, normalizeRunPlan(raw))
+  }
+
+  /**
+   * The one place a session's checklist is written.
+   *
+   * Everything that must be true of a stored plan happens here, so no caller can write a plan that
+   * disagrees with another: the moment it settled is dated, and the runtime's mark on steps it
+   * closed itself is carried across later writes.
+   */
+  #writeSessionPlan(accountId: string, sessionId: string, plan: runs.RunPlanState): api.SessionInfo {
+    const previous = this.#storedSessionPlan(accountId, sessionId)
+    const stamped = this.#stampPlanSettledAt(previous, this.#carryResolvedBy(previous, plan))
+    const changes = this.#db.run(`UPDATE sessions SET plan_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+      cbor.encode(stamped),
+      Date.now(),
+      accountId,
+      sessionId,
+    ]).changes
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    if (changes > 0) {
+      this.#emit({type: 'session-change', accountId, session})
+      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
+    }
+    return session
+  }
+
+  /** The plan as currently stored, or undefined for a session that has never published one. */
+  #storedSessionPlan(accountId: string, sessionId: string): runs.RunPlanState | undefined {
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    return row?.plan_cbor ? cbor.decode<runs.RunPlanState>(row.plan_cbor) : undefined
+  }
+
+  /**
+   * Keeps the runtime's mark on a step it closed, through later writes that leave it closed.
+   *
+   * A step the runtime settled stays honestly labelled while it stays done: rewriting the plan (a
+   * renamed label, a step appended) must not quietly reattribute that closure to the agent. But the
+   * mark is a claim about how the step reached `done` — so reopening it, or writing it off as failed
+   * or skipped, drops the mark with the status it described. A step the model itself marks done
+   * again keeps it: the runtime did settle it, and that remains what happened.
+   */
+  #carryResolvedBy(previous: runs.RunPlanState | undefined, plan: runs.RunPlanState): runs.RunPlanState {
+    if (!previous?.steps.length) return plan
+    const runtimeSettled = new Set(
+      previous.steps.filter((step) => step.resolvedBy === 'runtime' && step.status === 'done').map((step) => step.id),
+    )
+    if (runtimeSettled.size === 0) return plan
+    return {
+      ...plan,
+      steps: plan.steps.map((step) =>
+        step.resolvedBy === undefined && step.status === 'done' && runtimeSettled.has(step.id)
+          ? {...step, resolvedBy: 'runtime' as const}
+          : step,
+      ),
+    }
+  }
+
+  /**
+   * Dates the moment a plan finished settling, carrying the old date forward while it stays settled.
+   *
+   * Plan edits leave no durable event — the checklist is session state, and the plan verb is
+   * deliberately kept out of the transcript — so a client watching the snapshot can see THAT every
+   * step is terminal but has no way to know WHEN that became true. Without a fixed moment the card
+   * showing the plan can never freeze into the log at the right place; it can only float at the
+   * bottom. So the one process that witnesses the transition writes it down.
+   */
+  #stampPlanSettledAt(previous: runs.RunPlanState | undefined, plan: runs.RunPlanState): runs.RunPlanState {
+    if (!isPlanFullySettled(plan)) {
+      // Reopened (or never settled): the story is being told again, so the old moment is not it.
+      const {settledAt: _cleared, ...rest} = plan
+      return rest
+    }
+    const previousSettledAt =
+      previous?.settledAt !== undefined && isPlanFullySettled(previous) ? previous.settledAt : undefined
+    return {...plan, settledAt: previousSettledAt ?? Date.now()}
   }
 
   #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {
@@ -1578,17 +2351,22 @@ export class Service {
     parentSessionId: string,
     agentId: string,
     raw: unknown,
+    parentRun?: runs.RunRecord,
   ): {sessionId: string; title: string} {
     const input = isPlainRecord(raw) ? raw : {}
     const prompt = normalizeBoundedString(input.prompt, 'Session prompt', MAX_MESSAGE_TEXT_BYTES)
-    const depth = this.#sessionSpawnDepth.get(parentSessionId) ?? 0
+    // Chain depth and fan-out are read from the durable session lineage, so restarts do not relax them.
+    const depth = this.#sessionChainDepth(parentSessionId)
     if (depth >= MAX_SESSION_SPAWN_DEPTH) {
       throw new APIError(
         400,
         `Session spawn chain limit reached (${MAX_SESSION_SPAWN_DEPTH}); this session was itself started by a chain of agent-started sessions. Finish the work here instead.`,
       )
     }
-    const spawned = this.#sessionSpawnCounts.get(parentSessionId) ?? 0
+    const spawned =
+      this.#db
+        .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM sessions WHERE parent_session_id = ?`)
+        .get(parentSessionId)?.n ?? 0
     if (spawned >= MAX_SESSION_SPAWNS_PER_SESSION) {
       throw new APIError(
         400,
@@ -1599,9 +2377,7 @@ export class Service {
       input.title === undefined || input.title === null || input.title === ''
         ? sessionTitleFromPrompt(prompt)
         : normalizeBoundedString(input.title, 'Session title', MAX_NAME_BYTES)
-    const session = this.#createSessionOnce(accountId, agentId, title)
-    this.#sessionSpawnCounts.set(parentSessionId, spawned + 1)
-    this.#sessionSpawnDepth.set(session.sessionId, depth + 1)
+    const session = this.#createSessionOnce(accountId, agentId, title, {parentSessionId})
     console.info('[agents/runtime] agent started session', {
       accountId,
       parentSessionId,
@@ -1609,9 +2385,16 @@ export class Service {
       agentId,
       depth: depth + 1,
     })
-    const run = (async () => {
+    const dispatch = (async () => {
       try {
-        await this.#messageSessionOnce(accountId, session.sessionId, [{type: 'text', text: prompt}])
+        await this.#messageSessionOnce(accountId, session.sessionId, [{type: 'text', text: prompt}], {
+          origin: 'agent',
+          background: true,
+          // Detached from the caller's TURN (no park, no result), but still a member of its run
+          // TREE so the progress card shows it, cancel cascades, and usage rolls up.
+          parentRunId: parentRun?.id,
+          title,
+        })
       } catch (error) {
         console.error('[agents/runtime] agent-started session run failed', {
           accountId,
@@ -1620,9 +2403,136 @@ export class Service {
         })
       }
     })()
-    this.#pendingTriggerSessions.add(run)
-    void run.finally(() => this.#pendingTriggerSessions.delete(run))
+    this.#pendingTriggerSessions.add(dispatch)
+    void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
     return {sessionId: session.sessionId, title}
+  }
+
+  /**
+   * Callables this session's transcript shows as expanded: a read of ~/tools/<name> or a call
+   * whose result carried the contract. Scans durable tool_call events only, so the answer is
+   * identical after resume, restart, or compaction — the transcript is the pin.
+   */
+  #expandedCallablesForSession(sessionId: string): string[] {
+    return expandedCallablesFromEvents(this.#db, sessionId)
+  }
+
+  /** Number of parent links above a session in the spawn chain (durable replacement for the old in-memory map). */
+  #sessionChainDepth(sessionId: string): number {
+    return (
+      this.#db
+        .query<{depth: number}, [string]>(
+          `WITH RECURSIVE chain(id, d) AS (
+             SELECT parent_session_id, 1 FROM sessions WHERE id = ?1 AND parent_session_id IS NOT NULL
+             UNION ALL
+             SELECT s.parent_session_id, c.d + 1
+             FROM sessions s JOIN chain c ON s.id = c.id
+             WHERE s.parent_session_id IS NOT NULL AND c.d < 32
+           )
+           SELECT COALESCE(MAX(d), 0) AS depth FROM chain`,
+        )
+        .get(sessionId)?.depth ?? 0
+    )
+  }
+
+  /**
+   * Runs one verb AS THE USER on the session's shared log. The call and result append as
+   * actor-'user' events, so the agent reads them on its next turn exactly as it reads its own —
+   * the log is the interface, there is no side channel. Execution failures are themselves log
+   * entries (the user's failed attempt is context too) and come back in the response; only
+   * pre-execution validation rejects the request outright.
+   */
+  async #invokeSessionTool(
+    accountId: string,
+    sessionId: string,
+    verb: string,
+    input: unknown,
+  ): Promise<api.InvokeSessionToolResponse> {
+    if (verb !== 'read' && verb !== 'write' && verb !== 'call') {
+      throw new APIError(400, 'verb must be read, write, or call')
+    }
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) {
+      throw new APIError(409, 'The agent is working in this thread right now; wait for its turn to finish')
+    }
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, session.agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    const context: AgentServicePiToolContext = {
+      db: this.#db,
+      accountId,
+      agentId: session.agentId,
+      definition,
+      hmServerUrl: this.#hmServerUrl,
+      ipfsServerUrl: this.#ipfsServerUrl,
+      web: this.#web,
+      stateDir: this.#agentMemoryStateDir(accountId, session.agentId),
+      sessionId,
+      modelAcceptsImages: false,
+      onMemoryChange: () => {
+        invalidateSpaceIndex(accountId, session.agentId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
+      },
+      onToolProgress: () => {},
+      codeExec: this.#codeExec,
+      callableTools: enabledCallableTools(definition, codeExecAvailable),
+      publishEnabled: publishGrantEnabled(definition),
+      startSession: () => {
+        throw new APIError(400, 'Delegation is a conversational ask; message the agent instead')
+      },
+    }
+    const toolCallId = `user-${crypto.randomUUID()}`
+    this.#liveUserVerbs.set(sessionId, (this.#liveUserVerbs.get(sessionId) ?? 0) + 1)
+    this.#appendSessionEvent(
+      accountId,
+      session.agentId,
+      sessionId,
+      {type: 'tool_call', id: toolCallId, name: verb, input, actor: 'user'},
+      Date.now(),
+    )
+    let output: Record<string, unknown> | undefined
+    let error: string | undefined
+    try {
+      output =
+        verb === 'read'
+          ? await executeReadVerb(context, input)
+          : verb === 'write'
+            ? await executeWriteVerb(context, input)
+            : await executeCallVerb(context, input, toolCallId)
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : String(caught)
+    } finally {
+      const remaining = (this.#liveUserVerbs.get(sessionId) ?? 1) - 1
+      if (remaining <= 0) this.#liveUserVerbs.delete(sessionId)
+      else this.#liveUserVerbs.set(sessionId, remaining)
+    }
+    const safeOutput = jsonSafeToolOutput(output ?? {})
+    const resultEvent = this.#appendSessionEvent(
+      accountId,
+      session.agentId,
+      sessionId,
+      {
+        type: 'tool_result',
+        toolCallId,
+        name: verb,
+        ...(error !== undefined ? {error} : {output: safeOutput}),
+        actor: 'user',
+      },
+      Date.now(),
+    )
+    return {
+      _: 'InvokeSessionToolResponse',
+      sessionId,
+      resultEventId: resultEvent.id,
+      ...(error !== undefined ? {error} : {output: safeOutput}),
+    }
   }
 
   async #messageSession(
@@ -1664,16 +2574,32 @@ export class Service {
     accountId: string,
     sessionId: string,
     rawContent: api.MessageSession['content'],
+    opts: {
+      origin?: runs.RunOrigin
+      background?: boolean
+      runId?: string
+      triggerFiringId?: string
+      /** Makes the new run a child in the caller's run tree (visible in the card, cancel-cascaded). */
+      parentRunId?: string
+      /** Human label for the run, shown in the progress card's children strip. */
+      title?: string
+    } = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
-    if (session.status === 'streaming') throw new APIError(409, 'Session is already streaming')
+    // Liveness is lease-based (run rows), not the status column, so a crash can never wedge this guard.
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) throw new APIError(409, 'Session is already streaming')
+    if (this.#liveUserVerbs.has(sessionId)) {
+      throw new APIError(409, 'A user tool action is still running in this thread; wait for it to finish')
+    }
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
@@ -1710,6 +2636,9 @@ export class Service {
         ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
         ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
         ...(attachments.length > 0 ? {attachments} : {}),
+        // Echoed so the sending client can replace its optimistic pending row by identity — the
+        // stored `content` is re-serialized and cannot be matched by text.
+        ...(firstMessage.clientMessageId ? {clientMessageId: firstMessage.clientMessageId} : {}),
       },
       now,
     )
@@ -1724,63 +2653,1603 @@ export class Service {
           content: modelTexts[index + 1]!,
           rawMarkdown: message.text,
           ...(message.blocks ? {blocks: message.blocks} : {}),
+          ...(message.clientMessageId ? {clientMessageId: message.clientMessageId} : {}),
         },
         Date.now(),
       )
     }
-    this.#updateSessionStatus(accountId, sessionId, 'streaming', now)
+    const origin = opts.origin ?? 'user'
+    const run = this.#runQueue.enqueue({
+      id: opts.runId,
+      accountId,
+      kind: 'agent',
+      origin,
+      agentId: session.agent_id,
+      sessionId,
+      triggerFiringId: opts.triggerFiringId,
+      parentRunId: opts.parentRunId,
+      // Titles are mandatory: a plain chat turn is named by what the user asked.
+      title: opts.title ?? sessionTitleFromPrompt(firstMessage.text),
+      input: {kind: 'session-message'},
+      queue: opts.background ? 'background' : 'interactive',
+      // Background turns ride out a flaky provider; a turn the user is watching fails fast instead,
+      // because retrying holds the session lock through the backoff — the error would never reach
+      // them and their next message would bounce off "already streaming". They have Retry.
+      maxAttempts: opts.background ? AGENT_RUN_MAX_ATTEMPTS : 1,
+      dispatch: opts.background === true,
+    })
+    // Background callers (triggers, agent-started sessions) return as soon as the run is durably
+    // queued; the dispatch loop picks it up and completion is observable via awaitQueueIdle/WS.
+    if (opts.background) return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
 
-    try {
-      const runningSessionKey = this.#runningSessionKey(accountId, sessionId)
-      const runningSession: RunningSession = {accountId, stopped: false}
-      this.#runningSessions.set(runningSessionKey, runningSession)
-      const assistantEvent = await this.#runPiAgent(accountId, definition, sessionId, runningSession)
-      const doneAt = Date.now()
-      this.#updateSessionStatus(accountId, sessionId, 'idle', doneAt)
-      return {_: 'MessageSessionResponse', sessionId, assistantEventId: assistantEvent.id}
-    } catch (error) {
-      if (error instanceof SessionStoppedError) {
-        const stoppedAt = Date.now()
-        const assistantEvent = this.#appendSessionEvent(
-          accountId,
-          session.agent_id,
-          sessionId,
-          {type: 'message', role: 'assistant', content: 'Stopped.'},
-          stoppedAt,
-        )
-        this.#updateSessionStatus(accountId, sessionId, 'idle', stoppedAt)
-        return {_: 'MessageSessionResponse', sessionId, assistantEventId: assistantEvent.id}
+    const final = await this.#runQueue.runInline(run.id)
+    if (final.status === 'queued') {
+      // The inline claim was refused: another live run owns this session (a concurrent send won the
+      // race while this request resolved message embeds). Withdraw our duplicate run and 409.
+      this.#runQueue.cancelTree(accountId, run.id)
+      throw new APIError(409, 'Session is already streaming')
+    }
+    if (final.status === 'succeeded' || final.status === 'canceled') {
+      const output = (final.output ?? {}) as {assistantEventId?: string}
+      return {_: 'MessageSessionResponse', sessionId, assistantEventId: output.assistantEventId ?? ''}
+    }
+    if (final.status === 'failed') {
+      const error = final.error ?? {code: 'run-failed', message: 'Agent run failed'}
+      throw new APIError(error.httpStatus ?? 502, error.message)
+    }
+    // Parked (waiting on children): the request returns and the client follows along over WS.
+    return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
+  }
+
+  /**
+   * Executes one claimed agent run: repairs interrupted tool calls, then replays the transcript
+   * into Pi. Sub-session child runs (a `spec` in the run input) get their definition overridden
+   * (inline prompt, tool restriction).
+   *
+   * A turn that ends still owing something — an undelivered typed result, an unfinished plan — does
+   * not simply end: the run hands the turn back with every open obligation named, up to
+   * {@link MAX_RUN_CONTINUATIONS} times, and only then finishes and says what was left undone.
+   */
+  async #executeAgentRun(run: runs.RunRecord): Promise<runs.RunOutcome> {
+    if (!run.sessionId || !run.agentId) {
+      return {type: 'failed', error: {code: 'config-error', message: 'Agent run is missing session or agent'}}
+    }
+    const sessionId = run.sessionId
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(run.accountId, run.agentId)
+    if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found', httpStatus: 404}}
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+    definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
+    const spec = this.#spawnContextForRun(run).spec
+    if (spec?.prompt) definition.systemPrompt = spec.prompt
+    if (spec?.tools) {
+      // Undefined parent tools means "all callables" — narrowing must intersect against that
+      // full set, not a stale minimal default, or the child loses tools the parent granted.
+      const base = (definition.tools ?? serviceCallableNames()).map(normalizeSeedToolName)
+      const requested = spec.tools.map(normalizeSeedToolName)
+      definition.tools = base.filter((tool) => requested.includes(tool))
+    }
+    this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, sessionId)
+    const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
+    this.#runningSessions.set(this.#runningSessionKey(run.accountId, sessionId), runningSession)
+    let continuations = 0
+    for (;;) {
+      try {
+        const assistantEvent = await this.#runPiAgent(run.accountId, definition, sessionId, runningSession, run)
+        if (runningSession.stopped) return {type: 'canceled', output: {assistantEventId: assistantEvent.id}}
+        // A delivered typed result IS the end of a typed child: its parent is waiting on that
+        // payload and has it. Nothing else the child might still owe is worth another turn.
+        if (spec?.output && runningSession.subResult) return {type: 'succeeded', output: runningSession.subResult.value}
+        const obligations = this.#openObligations(run, sessionId, spec, runningSession)
+        if (obligations.length > 0) {
+          if (continuations < MAX_RUN_CONTINUATIONS) {
+            // One prompt, every open obligation: the agent sees the whole debt at once instead of
+            // being told about one thing, answering it, and being told about the next.
+            continuations += 1
+            this.#appendSessionEvent(
+              run.accountId,
+              run.agentId,
+              sessionId,
+              {type: 'message', role: 'user', actor: 'system', content: continuationPrompt(obligations)},
+              Date.now(),
+            )
+            continue
+          }
+          // Budget spent. The run ends carrying the debt in the open — nothing is ticked off on the
+          // agent's behalf, and the log says exactly what was left: a record that quietly disagrees
+          // with reality is worse than one that admits it.
+          this.#appendSessionEvent(
+            run.accountId,
+            run.agentId,
+            sessionId,
+            {type: 'message', role: 'user', actor: 'system', content: unmetObligationsNotice(obligations)},
+            Date.now(),
+          )
+          // A typed child that never delivered FAILS: its parent is blocked on a result that is
+          // never coming, and only a failure resolves that call. An unfinished plan is a lesser
+          // thing — the work that did happen still happened — so the run succeeds owing it.
+          if (obligations.some((obligation) => obligation.kind === 'typed-result')) {
+            return {
+              type: 'failed',
+              error: {
+                code: 'output-schema',
+                message: 'Sub-session ended without delivering a valid return_result',
+                unmetObligations: obligations,
+              },
+            }
+          }
+          return {type: 'succeeded', output: {...turnOutput(spec, assistantEvent), unmetObligations: obligations}}
+        }
+        return {type: 'succeeded', output: turnOutput(spec, assistantEvent)}
+      } catch (error) {
+        if (error instanceof SessionParkedError) {
+          const pending = (runningSession.parkToolCallIds ?? []).filter(
+            (toolCallId) => !this.#sessionHasToolResult(sessionId, toolCallId),
+          )
+          runningSession.parkToolCallIds = undefined
+          runningSession.completeAfterTools = undefined
+          if (pending.length === 0) continue // every child already resolved; pick results up now
+          return {type: 'parked', wait: {reason: 'children', toolCallIds: pending}}
+        }
+        if (runningSession.subResult) return {type: 'succeeded', output: runningSession.subResult.value}
+        if (spec?.output && (runningSession.subResultRetries ?? 0) >= MAX_RETURN_RESULT_RETRIES) {
+          return {
+            type: 'failed',
+            error: {code: 'output-schema', message: 'Sub-session could not produce a schema-valid result'},
+          }
+        }
+        if (error instanceof SessionStoppedError || runningSession.stopped) {
+          const stoppedEvent = this.#appendSessionEvent(
+            run.accountId,
+            run.agentId,
+            sessionId,
+            {type: 'message', role: 'assistant', content: 'Stopped.'},
+            Date.now(),
+          )
+          return {type: 'canceled', output: {assistantEventId: stoppedEvent.id}}
+        }
+        return {type: 'failed', error: classifyRunError(error)}
       }
-      const failedAt = Date.now()
+    }
+  }
+
+  /**
+   * Closes a plan step whose sub-agents have all come back with the work done.
+   *
+   * The step is a promise the agent made to the user, and the delegation is how it kept it — but the
+   * agent cannot see its own checklist while its children run, and by the time it is resumed the
+   * plan verb has left no trace in the transcript to remind it. Before this, a step could sit
+   * `running` over finished work until a continuation prompt asked about it, and the honest ending
+   * would report an obligation that had in fact been met.
+   *
+   * So the runtime closes it on evidence, and only on evidence: EVERY run attached to the step came
+   * back `succeeded`. Failure is never derived — what a failed child means for the step is a
+   * judgment the model makes, and the continuation loop is there to make it ask.
+   */
+  #settlePlanStepFromChildren(child: runs.RunRecord, parentRunId: string): void {
+    const stepId = planStepIdOf(child)
+    if (!stepId || child.status !== 'succeeded') return
+    const parent = runs.getRun(this.#db, child.accountId, parentRunId)
+    if (!parent?.sessionId) return
+    const plan = this.#storedSessionPlan(child.accountId, parent.sessionId)
+    const step = plan?.steps.find((candidate) => candidate.id === stepId)
+    if (!plan || !step || TERMINAL_PLAN_STEP_STATUSES.includes(step.status)) return
+
+    // Every run working this step, across the whole tree: a batch step owns several children, and
+    // one of them finishing says nothing about the others.
+    const tree = runs.listRunTree(this.#db, child.accountId, parent.rootRunId)
+    const byId = new Map(tree.map((run) => [run.id, run]))
+    const attached = tree.filter(
+      (run) =>
+        planStepIdOf(run) === stepId &&
+        run.parentRunId !== undefined &&
+        byId.get(run.parentRunId)?.sessionId === parent.sessionId,
+    )
+    if (attached.length === 0 || !attached.every((run) => run.status === 'succeeded')) return
+
+    this.#writeSessionPlan(child.accountId, parent.sessionId, {
+      ...plan,
+      steps: plan.steps.map((candidate) =>
+        candidate.id === stepId ? {...candidate, status: 'done' as const, resolvedBy: 'runtime' as const} : candidate,
+      ),
+    })
+    console.info('[agents/runtime] plan step settled from children', {
+      sessionId: parent.sessionId,
+      stepId,
+      label: step.label,
+      children: attached.length,
+    })
+  }
+
+  /**
+   * Everything this run still owes, as one list.
+   *
+   * A run makes promises: a typed child promises its parent a schema-valid payload; a published plan
+   * promises the user a checklist that will be finished or honestly closed. Both are the same kind
+   * of thing — an obligation — so there is one place that knows what is open, one loop that asks for
+   * it, and one ending that admits what was never delivered. Adding a third kind of promise means
+   * adding a case here, and nothing else.
+   *
+   * Two things are deliberately NOT obligations. Steps left open while children are still working
+   * are not abandoned — someone else is carrying them. And `failed` / `skipped` steps are terminal:
+   * an agent that says it could not do something has kept the contract, and must never be nagged
+   * into pretending otherwise.
+   */
+  #openObligations(
+    run: runs.RunRecord,
+    sessionId: string,
+    spec: SubSessionSpec | undefined,
+    runningSession: RunningSession,
+  ): api.UnmetObligation[] {
+    const obligations: api.UnmetObligation[] = []
+    if (spec?.output && !runningSession.subResult) obligations.push({kind: 'typed-result'})
+    const steps = this.#unfinishedPlanSteps(run.accountId, sessionId)
+    if (steps.length > 0 && !this.#hasLiveChildRuns(run.id)) obligations.push({kind: 'plan', steps})
+    return obligations
+  }
+
+  /**
+   * Plan steps this session has neither finished nor written off. Sessions with no plan return
+   * nothing, so a plain conversation is never touched by any of this.
+   */
+  #unfinishedPlanSteps(accountId: string, sessionId: string): string[] {
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    if (!row?.plan_cbor) return []
+    const plan = cbor.decode<api.RunPlan>(row.plan_cbor)
+    return (plan.steps ?? [])
+      .filter((step) => !TERMINAL_PLAN_STEP_STATUSES.includes(step.status))
+      .map((step) => step.label)
+  }
+
+  /** Whether this run still has children working — a step left open for them is not abandoned. */
+  #hasLiveChildRuns(runId: string): boolean {
+    const placeholders = runs.TERMINAL_RUN_STATUSES.map(() => '?').join(', ')
+    return (
+      this.#db
+        .query<{id: string}, string[]>(
+          `SELECT id FROM runs WHERE parent_run_id = ? AND status NOT IN (${placeholders}) LIMIT 1`,
+        )
+        .get(runId, ...runs.TERMINAL_RUN_STATUSES) !== null
+    )
+  }
+
+  /** The sub_session/return_result slice of the Pi tool context, present only for run-backed turns. */
+  #subSessionToolContext(
+    accountId: string,
+    sessionId: string,
+    agentId: string,
+    run: runs.RunRecord | undefined,
+    runningSession: RunningSession | undefined,
+    outputSchema: JsonSchema | undefined,
+  ): Pick<AgentServicePiToolContext, 'spawnSubSession' | 'spawnWorkflow' | 'returnResultSchema' | 'deliverResult'> {
+    if (!run || !runningSession) return {}
+    const liveRun = run
+    const live = runningSession
+    const context: Pick<
+      AgentServicePiToolContext,
+      'spawnSubSession' | 'spawnWorkflow' | 'returnResultSchema' | 'deliverResult'
+    > = {
+      spawnSubSession: (toolCallId: string, input: unknown) =>
+        this.#spawnSubSession(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
+      spawnWorkflow: (toolCallId: string, input: unknown) =>
+        this.#spawnWorkflowFromChat(accountId, liveRun, sessionId, agentId, live, toolCallId, input),
+    }
+    if (outputSchema) {
+      const schema = outputSchema
+      context.returnResultSchema = schema
+      context.deliverResult = (payload: unknown) => {
+        const errors = validateJsonSchemaValue(schema, payload)
+        if (errors.length > 0) {
+          live.subResultRetries = (live.subResultRetries ?? 0) + 1
+          const detail = errors.map((error) => `${error.path}: ${error.message}`).join('; ')
+          if (live.subResultRetries >= MAX_RETURN_RESULT_RETRIES) {
+            live.completeAfterTools = true
+            throw new APIError(400, `Result rejected (attempt limit reached): ${detail}`)
+          }
+          throw new APIError(
+            400,
+            `Result does not match the required schema: ${detail}. Fix and call return_result again.`,
+          )
+        }
+        live.subResult = {value: payload}
+        live.completeAfterTools = true
+        return {accepted: true}
+      }
+    }
+    return context
+  }
+
+  #onRunChanged(run: runs.RunRecord): void {
+    this.#emit({type: 'run-change', accountId: run.accountId, run: runInfoFromRecord(run)})
+    if (run.kind === 'agent' && run.sessionId) this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
+    // Titling races the turn, not follows it: the user message exists the moment the run starts,
+    // so the title generates in parallel and lands while the answer is still streaming. The
+    // waiting/finalize triggers below stay as the retry net (e.g. the provider hiccuped here).
+    if (run.kind === 'agent' && run.sessionId && run.status === 'running') {
+      this.#ensureSessionTitled(run.accountId, run.sessionId)
+    }
+    if (run.status === 'waiting') {
+      this.#reconcileParkedRun(run)
+      if (run.kind === 'agent' && run.sessionId) this.#ensureSessionTitled(run.accountId, run.sessionId)
+    }
+  }
+
+  /**
+   * Server-side fallback naming: sessions must never stay "Untitled" just because no model called
+   * set_session_title (a parked first turn, an API-created session, a model that skipped the
+   * housekeeping). Derives a bounded title from the first user message; keeps title_source
+   * 'system' so both the agent and the user can still rename it.
+   */
+  /**
+   * The agent names its own sessions — that is the feature, not a derived echo of the user's
+   * words. The in-turn path is the set_session_title tool; this is the guarantee behind it: when a
+   * turn parks or finalizes leaving the session untitled (parked first turns skip the model's
+   * titling moment entirely), a dedicated minimal model call generates the title. Detached from
+   * the run, tracked for drain determinism, in-flight-deduped per session, and disabled unless the
+   * server opted in (`titleGeneration`) so mocked test providers never see surprise requests.
+   */
+  #ensureSessionTitled(accountId: string, sessionId: string): void {
+    if (!this.#titleGenerationEnabled) return
+    if (this.#namingSessions.has(sessionId)) return
+    const row = this.#db
+      .query<{title: string | null; title_source: string}, [string, string]>(
+        `SELECT title, title_source FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    if (!row || row.title_source !== 'system') return
+    // A stored literal placeholder counts as untitled (pre-normalization rows heal here).
+    if (row.title && row.title.trim().toLowerCase() !== 'untitled session') return
+    this.#namingSessions.add(sessionId)
+    const pending = this.#nameSessionWithModel(accountId, sessionId)
+      .catch((error) => {
+        console.warn('[agents/runtime] session title generation failed', {
+          sessionId,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      })
+      .finally(() => {
+        this.#namingSessions.delete(sessionId)
+        this.#pendingTriggerSessions.delete(pending)
+      }) as Promise<void>
+    this.#pendingTriggerSessions.add(pending)
+  }
+
+  /** Builds a conversation digest, asks the agent's own model for a title, and applies it guarded. */
+  async #nameSessionWithModel(accountId: string, sessionId: string): Promise<void> {
+    const session = this.#db
+      .query<{agent_id: string}, [string, string]>(`SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(accountId, sessionId)
+    if (!session) return
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, session.agent_id)
+    if (!agent) return
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+    const events = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+         WHERE session_id = ? ORDER BY seq ASC LIMIT 12`,
+      )
+      .all(sessionId)
+      .map(sessionEventRowToInfo)
+    const lines: string[] = []
+    for (const event of events) {
+      const value = event.event as {type?: string; role?: string; content?: string}
+      if (value.type !== 'message' || typeof value.content !== 'string') continue
+      if (value.role === 'user') lines.push(`User: ${value.content.slice(0, 1200)}`)
+      else if (value.role === 'assistant') lines.push(`Assistant: ${value.content.slice(0, 600)}`)
+    }
+    if (lines.length === 0) return
+    const title = await this.#generateSessionTitle(accountId, definition, lines.join('\n\n').slice(0, 4000))
+    if (!title) return
+    // Guarded exactly like the tool path: never overwrite a user title or a title that landed
+    // meanwhile (the model may have called set_session_title on a resumed turn).
+    this.#db.run(
+      `UPDATE sessions SET title = ?, updated_at = ? WHERE account_id = ? AND id = ?
+         AND (title IS NULL OR title = '' OR LOWER(TRIM(title)) = 'untitled session') AND title_source = 'system'`,
+      [title, Date.now(), accountId, sessionId],
+    )
+    const info = this.#getSessionInfo(accountId, sessionId)
+    if (info?.title === title) {
+      console.info('[agents/runtime] session titled by model', {sessionId, title})
+      this.#emit({type: 'session-change', accountId, session: info})
+      this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agent_id, sessionId})
+    }
+  }
+
+  /** One minimal, tool-less model call: the conversation digest in, one line out. */
+  async #generateSessionTitle(
+    accountId: string,
+    definition: api.AgentDefinition,
+    digest: string,
+  ): Promise<string | null> {
+    // The shared provider runtime, NOT an inline resolution: titling must honor the provider's
+    // auth mode (subscription OAuth has no apiKey secret — the old inline path silently bailed
+    // and left every subscription-provider session untitled).
+    let runtime: Awaited<ReturnType<Service['piProviderRuntimeForTitle']>>
+    try {
+      runtime = await this.piProviderRuntimeForTitle(accountId, definition)
+    } catch {
+      return null
+    }
+    const {provider, authStorage, modelRegistry, model} = runtime
+    const {session: piSession} = await pi.createAgentSession({
+      cwd: this.#dataDir,
+      agentDir: path.join(this.#dataDir, 'pi'),
+      model,
+      thinkingLevel: 'off',
+      authStorage,
+      modelRegistry,
+      resourceLoader: createSeedPiResourceLoader(
+        'You are a session-titling assistant. Reply with ONLY a concise one-line title (at most eight words) naming the purpose of the conversation you are shown. No quotes, no trailing punctuation, no explanation.',
+      ),
+      customTools: [],
+      tools: [],
+      noTools: 'builtin',
+      sessionManager: pi.SessionManager.inMemory(this.#dataDir),
+      settingsManager: pi.SettingsManager.inMemory({compaction: {enabled: false}}),
+    })
+    try {
+      piSession.agent.onPayload = (payload) => {
+        let next = restoreReasoningEffort(payload, definition)
+        if (provider.modelDefaults) next = mergePiPayloadDefaults(next, provider.modelDefaults)
+        return next
+      }
+      piSession.state.messages = [{role: 'user', content: digest, timestamp: Date.now()}] as never
+      let text = ''
+      const unsubscribe = piSession.subscribe((event) => {
+        if (event.type === 'message_end' && event.message.role === 'assistant') {
+          text = piAssistantText(event.message)
+        }
+      })
+      await piSession.agent.continue()
+      unsubscribe()
+      const firstLine = text.split('\n')[0]?.trim() ?? ''
+      const stripped = firstLine
+        .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
+        .replace(/[.]+$/, '')
+        .trim()
+      if (!stripped) return null
+      try {
+        return normalizeBoundedString(stripped, 'Session title', MAX_NAME_BYTES)
+      } catch {
+        return null
+      }
+    } finally {
+      piSession.dispose()
+    }
+  }
+
+  #onRunFinalized(run: runs.RunRecord): void {
+    this.#workflowCancelFlags.delete(run.id)
+    if (run.kind === 'agent' && run.sessionId) {
+      this.#ensureSessionTitled(run.accountId, run.sessionId)
+      this.#settleSessionPlanAfterRun(run)
+    }
+    const waiters = this.#runWaiters.get(run.id)
+    if (waiters) {
+      this.#runWaiters.delete(run.id)
+      for (const resolve of waiters) resolve(run)
+    }
+    // An automation can start where another finished; this is the one moment that knows a run is done.
+    this.#fireRunCompletedTriggers(run)
+    {
+      // A run that continued as a new run is NOT finished work: its successor inherited the same
+      // tool call and answers the parent when it is really done. Resolving here would hand the
+      // parent a result while the work is still going.
+      const continued = isPlainRecord(run.output) && typeof run.output.continuedAsRunId === 'string'
+      // The parent link is read through the spawn context, so a RETRY of a delegated session can
+      // still answer the call that spawned it — a retry run has no parentRunId of its own.
+      const spawn = this.#spawnContextForRun(run)
+      if (!continued && spawn.parentRunId) {
+        // Settle the step BEFORE the parent is requeued, so the resumed model reads a checklist that
+        // already agrees with what its children delivered.
+        this.#settlePlanStepFromChildren(run, spawn.parentRunId)
+      }
+      if (!continued && spawn.parentRunId && spawn.parentToolCallId) {
+        this.#resolveSubSessionResult(run, spawn.parentRunId, spawn.parentToolCallId, spawn.parentToolName)
+      }
+    }
+    if (run.kind === 'agent' && run.sessionId && run.status === 'failed' && run.error) {
+      this.#appendSessionEvent(
+        run.accountId,
+        run.agentId ?? '',
+        run.sessionId,
+        {type: 'error', message: run.error.message},
+        Date.now(),
+      )
+      this.#syncSessionStatusFromRuns(run.accountId, run.sessionId)
+    }
+    if (run.triggerFiringId && run.status === 'failed' && run.error) {
+      const firing = this.#db
+        .query<{trigger_id: string}, [string, string]>(
+          `SELECT trigger_id FROM trigger_firings WHERE account_id = ? AND id = ?`,
+        )
+        .get(run.accountId, run.triggerFiringId)
+      this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+        'error',
+        run.error.message,
+        run.accountId,
+        run.triggerFiringId,
+      ])
+      if (firing) {
+        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+          run.error.message,
+          run.accountId,
+          firing.trigger_id,
+        ])
+      }
+    }
+  }
+
+  /**
+   * A step can't still be "running" once the run that was running it is over. When a session-owning
+   * run finalizes and nothing else is live on the session, settle the update_plan todo the same way
+   * run plans settle: running→done on success, running→failed on failure. Pending steps are left
+   * alone — a session todo list legitimately spans turns.
+   */
+  /**
+   * The plan step a spawn is working on, or undefined when that is ambiguous.
+   *
+   * The model's `plan` verb maintains the SESSION plan (`sessions.plan_cbor`); `runs.plan_cbor` is
+   * only ever written by the workflow host. Reading the run plan alone therefore stamped nothing on
+   * model-spawned children, and step↔child attachment survived only by the coincidence of a child's
+   * title matching a step label — which breaks precisely when one step is named for a whole batch.
+   * So: session plan first, run plan as the fallback that still serves workflow children.
+   *
+   * Both the id and the label are returned. The id is the durable join: labels are display strings
+   * the model rewrites freely between turns, so a stamped label goes stale and stops naming any
+   * step in the plan it came from. Step ids are declared stable by the plan verb's own contract.
+   */
+  #runningPlanStep(
+    accountId: string,
+    parentRun: runs.RunRecord,
+    sessionId: string,
+  ): {id?: string; label: string} | undefined {
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    const sessionPlan = row?.plan_cbor ? cbor.decode<api.RunPlan>(row.plan_cbor) : undefined
+    const plan = sessionPlan ?? runs.getRun(this.#db, accountId, parentRun.id)?.plan
+    const running = (plan?.steps ?? []).filter((step) => step.status === 'running')
+    if (running.length !== 1) return undefined
+    const step = running[0]!
+    return {...(step.id ? {id: step.id} : {}), label: step.label}
+  }
+
+  #settleSessionPlanAfterRun(run: runs.RunRecord): void {
+    if (!run.sessionId) return
+    if (run.status !== 'succeeded' && run.status !== 'failed') return
+    if (runs.sessionHasLiveRun(this.#db, run.sessionId)) return
+    const row = this.#db
+      .query<{plan_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT plan_cbor FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(run.accountId, run.sessionId)
+    if (!row?.plan_cbor) return
+    const plan = cbor.decode<api.RunPlan>(row.plan_cbor)
+    const settled: 'done' | 'failed' = run.status === 'succeeded' ? 'done' : 'failed'
+    const steps = plan.steps.map((step) => (step.status === 'running' ? {...step, status: settled} : step))
+    if (steps.every((step, index) => step === plan.steps[index])) return
+    this.#setSessionPlanFromAgent(run.accountId, run.sessionId, {...plan, steps})
+  }
+
+  /**
+   * Maintains the legacy `sessions.status` column as a mirror derived from run state: `streaming`
+   * iff a non-terminal agent run references the session, `error` when the latest run failed, else
+   * `idle`. Old clients keep working; liveness truth lives in the runs table.
+   */
+  #syncSessionStatusFromRuns(accountId: string, sessionId: string): void {
+    const session = this.#db
+      .query<{status: string}, [string, string]>(`SELECT status FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(accountId, sessionId)
+    if (!session) return
+    let derived: api.SessionInfo['status'] = 'idle'
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) {
+      derived = 'streaming'
+    } else {
+      const latest = runs.latestSessionRun(this.#db, sessionId)
+      if (latest?.status === 'failed') derived = 'error'
+    }
+    if (derived === session.status) return
+    this.#updateSessionStatus(accountId, sessionId, derived, Date.now())
+  }
+
+  /**
+   * A crash between a persisted `tool_call` and its `tool_result` leaves a transcript providers
+   * reject. Before an agent run (re)enters the loop, synthesize an error result for every unmatched
+   * call so the request is well-formed and the model decides whether to re-issue the tool.
+   */
+  #synthesizeInterruptedToolResults(accountId: string, agentId: string, sessionId: string): void {
+    const events = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+      )
+      .all(sessionId)
+      .map(sessionEventRowToInfo)
+    const unmatched = new Map<string, string>()
+    for (const event of events) {
+      const value = event.event as {type?: string; id?: string; toolCallId?: string; name?: string}
+      // User-run verbs are not the model's dangling work: synthesizing an actor-less result for
+      // one creates a provider-illegal orphan on replay that permanently bricks the session.
+      if (sessionEventActor(event.event as never) === 'user') continue
+      if (value.type === 'tool_call') {
+        const toolCallId = typeof value.id === 'string' ? value.id : value.toolCallId
+        if (toolCallId) unmatched.set(toolCallId, typeof value.name === 'string' ? value.name : '')
+      } else if (value.type === 'tool_result' && typeof value.toolCallId === 'string') {
+        unmatched.delete(value.toolCallId)
+      }
+    }
+    // Spawn calls a waiting run still parks on are pending, not interrupted: their real results
+    // arrive from the child finalizer, and replay injects a synthetic pending result meanwhile.
+    for (const pendingId of runs.pendingWaitToolCallIds(this.#db, sessionId)) {
+      unmatched.delete(pendingId)
+    }
+    for (const [toolCallId, name] of unmatched) {
       this.#appendSessionEvent(
         accountId,
-        session.agent_id,
+        agentId,
         sessionId,
-        {type: 'error', message: error instanceof Error ? error.message : 'Agent run failed'},
-        failedAt,
+        {
+          type: 'tool_result',
+          toolCallId,
+          name,
+          error:
+            'Interrupted by a service restart before this tool finished; whether its side effects happened is unknown. Verify state before retrying.',
+        },
+        Date.now(),
       )
-      this.#updateSessionStatus(accountId, sessionId, 'error', failedAt)
-      throw error
     }
+  }
+
+  async #abortLiveSessionRun(accountId: string, sessionId: string): Promise<void> {
+    const running = this.#runningSessions.get(this.#runningSessionKey(accountId, sessionId))
+    if (running) {
+      running.stopped = true
+      await running.abort?.()
+    }
+  }
+
+  #getRun(accountId: string, runId: string): api.GetRunResponse {
+    const run = runs.getRun(this.#db, accountId, normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES))
+    if (!run) throw new APIError(404, 'Run not found')
+    return {_: 'GetRunResponse', run: this.#withChildRunCounts([run])[0]!}
+  }
+
+  /** Decorates run infos with how many children each spawned, in one grouped query. */
+  #withChildRunCounts(records: runs.RunRecord[]): api.RunInfo[] {
+    if (records.length === 0) return []
+    const placeholders = records.map(() => '?').join(', ')
+    const counts = new Map(
+      this.#db
+        .query<{parent_run_id: string; n: number}, string[]>(
+          `SELECT parent_run_id, COUNT(*) AS n FROM runs WHERE parent_run_id IN (${placeholders}) GROUP BY parent_run_id`,
+        )
+        .all(...records.map((record) => record.id))
+        .map((row) => [row.parent_run_id, row.n]),
+    )
+    return records.map((record) => {
+      const info = runInfoFromRecord(record)
+      const childRunCount = counts.get(record.id)
+      return childRunCount ? {...info, childRunCount} : info
+    })
+  }
+
+  #listRuns(accountId: string, action: api.ListRuns): api.ListRunsResponse {
+    const limit = boundedInteger(action.limit, 50, 1, 200)
+    let records: runs.RunRecord[]
+    if (action.rootRunId !== undefined) {
+      records = runs.listRunTree(
+        this.#db,
+        accountId,
+        normalizeBoundedString(action.rootRunId, 'Root run ID', MAX_NAME_BYTES),
+      )
+    } else if (action.sessionId !== undefined) {
+      records = runs.listSessionRootRuns(
+        this.#db,
+        accountId,
+        normalizeBoundedString(action.sessionId, 'Session ID', MAX_NAME_BYTES),
+        limit,
+      )
+    } else if (action.agentId !== undefined) {
+      records = runs.listAgentRuns(
+        this.#db,
+        accountId,
+        normalizeBoundedString(action.agentId, 'Agent ID', MAX_NAME_BYTES),
+        limit,
+      )
+    } else {
+      throw new APIError(400, 'ListRuns requires rootRunId, sessionId, or agentId')
+    }
+    if (action.status !== undefined) records = records.filter((run) => run.status === action.status)
+    return {_: 'ListRunsResponse', runs: this.#withChildRunCounts(records.slice(0, limit))}
+  }
+
+  #cancelRun(accountId: string, runId: string): api.CancelRunResponse {
+    const normalized = normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES)
+    const existing = runs.getRun(this.#db, accountId, normalized)
+    if (!existing) throw new APIError(404, 'Run not found')
+    const affected = this.#runQueue.cancelTree(accountId, normalized)
+    return {_: 'CancelRunResponse', runId: normalized, canceled: affected.length > 0}
+  }
+
+  /**
+   * Answers a run parked on `ctx.waitForEvent`: delivers the signal's payload into its journal and
+   * puts it back in the queue. Not delivering is a normal outcome (the run finished, timed out, or
+   * is listening for something else), so it reports rather than throws.
+   */
+  #signalRun(accountId: string, runId: string, signal: string, payload: unknown): api.SignalRunResponse {
+    const normalized = normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES)
+    const signalName = normalizeBoundedString(signal, 'Signal', MAX_NAME_BYTES)
+    const run = runs.getRun(this.#db, accountId, normalized)
+    if (!run) throw new APIError(404, 'Run not found')
+    // A budget-paused run is not listening for a payload — it is waiting for permission. Any
+    // signal is that permission.
+    if (run.status === 'waiting' && run.wait?.reason === 'budget-pause') {
+      const resumed = this.#runQueue.resumeBudgetPause(normalized)
+      return {_: 'SignalRunResponse', runId: normalized, delivered: !!resumed}
+    }
+    const target = runEvents
+      .listRunEventWaits(this.#db, normalized)
+      .find((wait) => runEvents.signalMatchesWait(wait.match, signalName))
+    if (!target) return {_: 'SignalRunResponse', runId: normalized, delivered: false}
+    const delivered = this.#deliverRunEvent(run, target.waitId, {
+      source: 'signal',
+      signal: signalName,
+      ...(payload === undefined ? {} : {payload: jsonSafeToolOutput(payload)}),
+    })
+    return {_: 'SignalRunResponse', runId: normalized, delivered}
+  }
+
+  /**
+   * Wakes one parked run with a payload, exactly once.
+   *
+   * The journal write and the requeue happen in a single transaction, so a signal that loses the
+   * race — to a timeout wake, a cancellation, or another signal — leaves nothing behind at all;
+   * there is no window where a run is woken without its payload, or handed two.
+   */
+  #deliverRunEvent(run: runs.RunRecord, waitId: string, delivery: runEvents.RunEventDelivery): boolean {
+    const now = Date.now()
+    let appended: {seq: number; entry: WorkflowJournalEntry} | null = null
+    const commit = this.#db.transaction(() => {
+      const current = runs.getRun(this.#db, run.accountId, run.id)
+      if (!current || current.status !== 'waiting' || current.wait?.reason !== 'event') return false
+      // The run's own journal says which call this wait belongs to, so the delivery files itself
+      // under the exact ctx.waitForEvent the script is awaiting.
+      const registration = this.#db
+        .query<{entry_cbor: Uint8Array}, [string]>(
+          `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
+        )
+        .all(run.id)
+        .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor))
+        .find((entry) => entry.kind === 'wait' && entry.waitId === waitId) as
+        | Extract<WorkflowJournalEntry, {kind: 'wait'}>
+        | undefined
+      if (!registration) return false
+      const seq =
+        (this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)
+          ?.n ?? 0) + 1
+      const entry: WorkflowJournalEntry = {
+        kind: 'event',
+        callSeq: registration.callSeq,
+        ...(registration.key ? {key: registration.key} : {}),
+        waitId,
+        delivery,
+      }
+      this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
+        run.id,
+        seq,
+        cbor.encode(entry),
+        now,
+      ])
+      this.#db.run(
+        `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = NULL, updated_at = ? WHERE id = ?`,
+        [now, run.id],
+      )
+      this.#db.run(`DELETE FROM run_event_waits WHERE run_id = ?`, [run.id])
+      appended = {seq, entry}
+      return true
+    })
+    if (!commit()) return false
+    const written = appended as {seq: number; entry: WorkflowJournalEntry} | null
+    if (written) {
+      this.#emit({
+        type: 'run-append',
+        accountId: run.accountId,
+        rootRunId: run.rootRunId,
+        entry: {
+          runId: run.id,
+          seq: written.seq,
+          entry: written.entry as unknown as Record<string, unknown>,
+          createdAt: now,
+        },
+      })
+    }
+    const woken = runs.getRun(this.#db, run.accountId, run.id)
+    if (woken) this.#emit({type: 'run-change', accountId: run.accountId, run: runInfoFromRecord(woken)})
+    this.#runQueue.wake()
+    return true
+  }
+
+  /**
+   * Delivers an activity-feed event to every run listening for it. Runs a script parked on
+   * `ctx.waitForEvent({eventType, resource, author})` alongside the trigger machinery: a wait is
+   * one run's private business, a trigger is the agent's standing configuration.
+   */
+  #deliverActivityToRunWaits(accountId: string, event: activityTriggers.ActivityFeedEvent): void {
+    for (const wait of runEvents.listAccountEventWaits(this.#db, accountId)) {
+      if (!runEvents.activityMatchesWait(wait.match, event)) continue
+      const run = runs.getRun(this.#db, accountId, wait.runId)
+      if (!run) continue
+      const delivered = this.#deliverRunEvent(run, wait.waitId, {source: 'activity', payload: event})
+      if (delivered) {
+        console.info('[agents/runs] activity woke a waiting run', {
+          accountId,
+          runId: wait.runId,
+          waitId: wait.waitId,
+        })
+      }
+    }
+  }
+
+  #getRunJournal(accountId: string, runId: string, afterSeq?: number): api.GetRunJournalResponse {
+    if (afterSeq !== undefined && (!Number.isInteger(afterSeq) || afterSeq < 0)) {
+      throw new APIError(400, 'afterSeq must be a non-negative integer')
+    }
+    const normalized = normalizeBoundedString(runId, 'Run ID', MAX_NAME_BYTES)
+    const run = runs.getRun(this.#db, accountId, normalized)
+    if (!run) throw new APIError(404, 'Run not found')
+    const entries = this.#db
+      .query<{seq: number; entry_cbor: Uint8Array; created_at: number}, [string, number]>(
+        `SELECT seq, entry_cbor, created_at FROM run_journal WHERE run_id = ? AND seq > ? ORDER BY seq ASC`,
+      )
+      .all(normalized, afterSeq ?? 0)
+      .map((row) => ({
+        runId: normalized,
+        seq: row.seq,
+        entry: cbor.decode<Record<string, unknown>>(row.entry_cbor),
+        createdAt: row.created_at,
+      }))
+    return {_: 'GetRunJournalResponse', runId: normalized, entries}
+  }
+
+  /**
+   * sub_session tool: spawns a child run + real session under the calling run and registers a park
+   * intent on the calling turn. The tool "returns" only transiently to Pi — the durable tool_result
+   * is appended later by {@link #resolveSubSessionResult} when the child reaches a terminal status.
+   */
+  #spawnSubSession(
+    accountId: string,
+    parentRun: runs.RunRecord,
+    parentSessionId: string,
+    parentAgentId: string,
+    runningSession: RunningSession,
+    toolCallId: string,
+    raw: unknown,
+  ): {status: string; sessionId: string; title: string} {
+    const spec = normalizeSubSessionSpec(raw)
+    if (parentRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
+      throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH}); finish the work here.`)
+    }
+    const childCount =
+      this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`).get(parentRun.id)
+        ?.n ?? 0
+    if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
+      throw new APIError(
+        400,
+        `This run already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions; finish the remaining work here.`,
+      )
+    }
+    const childAgentId = spec.agentId ?? parentAgentId
+    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
+    const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
+    const childRunId = crypto.randomUUID()
+    const session = this.#createSessionOnce(accountId, childAgentId, title, {
+      parentSessionId,
+      runId: childRunId,
+    })
+    const rendered = renderSubSessionInput(spec.input)
+    this.#appendSessionEvent(
+      accountId,
+      childAgentId,
+      session.sessionId,
+      {type: 'message', role: 'user', content: rendered},
+      Date.now(),
+    )
+    // If exactly one plan step is running right now, that step is what this spawn is working on —
+    // record it so the progress card shows the step and its sub-agent as one item.
+    const step = this.#runningPlanStep(accountId, parentRun, parentSessionId)
+    this.#runQueue.enqueue({
+      id: childRunId,
+      accountId,
+      kind: 'agent',
+      origin: 'agent',
+      parentRunId: parentRun.id,
+      parentToolCallId: toolCallId,
+      agentId: childAgentId,
+      sessionId: session.sessionId,
+      title,
+      input: {
+        spec,
+        parentToolCallId: toolCallId,
+        ...(step ? {planStepLabel: step.label} : {}),
+        ...(step?.id ? {planStepId: step.id} : {}),
+      },
+      queue: 'background',
+      maxAttempts: AGENT_RUN_MAX_ATTEMPTS,
+    })
+    runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
+    console.info('[agents/runtime] sub-session spawned', {
+      accountId,
+      parentRunId: parentRun.id,
+      childRunId,
+      sessionId: session.sessionId,
+      depth: parentRun.depth + 1,
+      typed: spec.output !== undefined,
+    })
+    return {status: 'spawned', sessionId: session.sessionId, title}
+  }
+
+  /**
+   * Child terminal status → parent resolution: appends the durable sub_session tool_result on the
+   * parent transcript and shrinks the parent's wait set, requeuing it when the set empties.
+   */
+  /**
+   * The delegation contract a run is executing: the spec it must satisfy and the parent tool call
+   * its result answers.
+   *
+   * A typed child's spec rides the input of the run that SPAWNED it. Any later run on the same
+   * session — a user retry, a new message — carries no spec of its own, and before this inherited
+   * nothing: the output schema, the return_result tool, the typed-completion semantics and the
+   * parent link all vanished, so the child could not fulfil its contract and the parent parked
+   * forever. `sessions.run_id` is the durable record of that spawn, so later runs inherit from it.
+   */
+  #spawnContextForRun(run: runs.RunRecord): {
+    spec?: SubSessionSpec
+    parentRunId?: string
+    parentToolCallId?: string
+    parentToolName?: string
+    /** True when the contract came from the session's spawning run rather than this run's input. */
+    inherited: boolean
+  } {
+    const readFrom = (input: unknown, parentRunId: string | undefined, inherited: boolean) => {
+      const record = isPlainRecord(input) ? input : {}
+      const spec = record.spec as SubSessionSpec | undefined
+      const parentToolCallId = typeof record.parentToolCallId === 'string' ? record.parentToolCallId : undefined
+      // Linkage alone is enough: workflow children carry a parent tool call and no spec at all.
+      if (!spec && !parentToolCallId) return undefined
+      return {
+        ...(spec ? {spec} : {}),
+        ...(parentRunId ? {parentRunId} : {}),
+        ...(parentToolCallId ? {parentToolCallId} : {}),
+        ...(typeof record.parentToolName === 'string' ? {parentToolName: record.parentToolName} : {}),
+        inherited,
+      }
+    }
+    const own = readFrom(run.input, run.parentRunId, false)
+    if (own) return own
+    if (!run.sessionId) return {inherited: false}
+    const row = this.#db
+      .query<{run_id: string | null}, [string, string]>(`SELECT run_id FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(run.accountId, run.sessionId)
+    const spawningRunId = row?.run_id
+    if (!spawningRunId || spawningRunId === run.id) return {inherited: false}
+    const spawning = runs.getRun(this.#db, run.accountId, spawningRunId)
+    if (!spawning) return {inherited: false}
+    return readFrom(spawning.input, spawning.parentRunId, true) ?? {inherited: false}
+  }
+
+  #resolveSubSessionResult(
+    child: runs.RunRecord,
+    parentRunId: string,
+    parentToolCallId: string,
+    parentToolName?: string,
+  ): void {
+    const parent = runs.getRun(this.#db, child.accountId, parentRunId)
+    if (!parent || parent.kind !== 'agent' || !parent.sessionId) return
+    const toolName = parentToolName ?? seedVerbRegistry.delegate.name
+    let result: Record<string, unknown>
+    if (child.status === 'succeeded') {
+      result = {status: 'succeeded', runId: child.id, sessionId: child.sessionId, output: child.output ?? null}
+    } else if (child.status === 'canceled') {
+      result = {status: 'canceled', runId: child.id, sessionId: child.sessionId}
+    } else {
+      result = {
+        status: 'failed',
+        runId: child.id,
+        sessionId: child.sessionId,
+        error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-session failed'},
+      }
+    }
+    // Append the durable result at most once, but ALWAYS resolve the wait: a crash (or double
+    // resolution) can leave the tool_result written while the parent still parks on the call.
+    const alreadyAnswered = this.#sessionHasToolResult(parent.sessionId, parentToolCallId)
+    if (!alreadyAnswered) {
+      this.#appendSessionEvent(
+        child.accountId,
+        parent.agentId ?? '',
+        parent.sessionId,
+        {type: 'tool_result', toolCallId: parentToolCallId, name: toolName, output: result},
+        Date.now(),
+      )
+    } else if (child.status === 'succeeded' && child.sessionId) {
+      // A late delivery: the child finally satisfied its contract, but the parent's call already
+      // has an answer (typically this child's own earlier failure). Say so in the child's log —
+      // silently dropping a valid result is how a session looks finished and changes nothing. It is
+      // a runtime-authored message, not an error: the agent did nothing wrong, and it should read
+      // this on its next turn the same way it reads anything else the system tells it.
+      this.#appendSessionEvent(
+        child.accountId,
+        child.agentId ?? '',
+        child.sessionId,
+        {
+          type: 'message',
+          role: 'user',
+          actor: 'system',
+          content:
+            'Result accepted, but the task that delegated this one had already stopped waiting for it — nothing was delivered upstream.',
+        },
+        Date.now(),
+      )
+    }
+    const resolution = this.#runQueue.resolveChildWait(parent.id, parentToolCallId)
+    console.info('[agents/runtime] sub-session resolved', {
+      childRunId: child.id,
+      parentRunId: parent.id,
+      status: child.status,
+      resolution,
+    })
+  }
+
+  #sessionHasToolResult(sessionId: string, toolCallId: string): boolean {
+    const rows = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+      )
+      .all(sessionId)
+      .map(sessionEventRowToInfo)
+    return rows.some((row) => {
+      const value = row.event as {type?: string; toolCallId?: string}
+      return value.type === 'tool_result' && value.toolCallId === toolCallId
+    })
+  }
+
+  /**
+   * Closes the park/resolve race: a fast child can finalize between the parent's park decision and
+   * the `waiting` status commit. After every waiting-on-children transition, drop wait entries whose
+   * durable tool_result already exists and requeue when none remain.
+   */
+  #reconcileParkedRun(run: runs.RunRecord): void {
+    if (run.status !== 'waiting' || run.wait?.reason !== 'children' || !run.sessionId) return
+    for (const toolCallId of run.wait.toolCallIds) {
+      if (this.#sessionHasToolResult(run.sessionId, toolCallId)) {
+        this.#runQueue.resolveChildWait(run.id, toolCallId)
+      }
+    }
+  }
+
+  /** Resolves when the run reaches a terminal status (resolved by the finalizer, race-safe). */
+  #awaitRunTerminal(accountId: string, runId: string): Promise<runs.RunRecord> {
+    return new Promise((resolve) => {
+      const waiters = this.#runWaiters.get(runId) ?? []
+      waiters.push(resolve)
+      this.#runWaiters.set(runId, waiters)
+      // Check AFTER registering so a finalization between check and register cannot be missed.
+      const current = runs.getRun(this.#db, accountId, runId)
+      if (current && runs.TERMINAL_RUN_STATUSES.includes(current.status)) {
+        const pending = this.#runWaiters.get(runId)
+        if (pending) {
+          this.#runWaiters.delete(runId)
+          for (const waiter of pending) waiter(current)
+        }
+      }
+    })
+  }
+
+  /** run_workflow tool: lints and spawns a workflow child run, parking the calling turn on it. */
+  #spawnWorkflowFromChat(
+    accountId: string,
+    parentRun: runs.RunRecord,
+    parentSessionId: string,
+    parentAgentId: string,
+    runningSession: RunningSession,
+    toolCallId: string,
+    raw: unknown,
+  ): {status: string; runId: string; title: string} {
+    const input = isPlainRecord(raw) ? raw : {}
+    const source = typeof input.source === 'string' ? input.source : ''
+    const title = normalizeBoundedString(input.title, 'Workflow title', MAX_NAME_BYTES)
+    const lintErrors = lintWorkflowSource(source)
+    if (lintErrors.length > 0) {
+      throw new APIError(400, `Workflow source rejected:\n- ${lintErrors.join('\n- ')}`)
+    }
+    if (parentRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
+      throw new APIError(400, `Workflow depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
+    }
+    const hasher = new Bun.CryptoHasher('sha256')
+    hasher.update(source)
+    const sourceCid = `sha256:${hasher.digest('hex')}`
+    const childRunId = crypto.randomUUID()
+    this.#runQueue.enqueue({
+      id: childRunId,
+      accountId,
+      kind: 'workflow',
+      origin: 'agent',
+      parentRunId: parentRun.id,
+      parentToolCallId: toolCallId,
+      agentId: parentAgentId,
+      title,
+      sourceCid,
+      sourceText: source,
+      input: {input: input.input ?? null, parentToolCallId: toolCallId, parentToolName: seedVerbRegistry.delegate.name},
+      queue: 'background',
+      maxAttempts: 1,
+    })
+    runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
+    console.info('[agents/workflow] workflow spawned from chat', {
+      accountId,
+      parentRunId: parentRun.id,
+      childRunId,
+      parentSessionId,
+      title,
+      sourceBytes: source.length,
+    })
+    return {status: 'spawned', runId: childRunId, title}
+  }
+
+  /** ctx.agent inside a workflow: spawns a child agent run + session under the workflow run. */
+  #spawnWorkflowChildAgent(
+    workflowRun: runs.RunRecord,
+    rawSpec: unknown,
+    stepLabel?: string,
+  ): {childRunId: string; sessionId?: string} {
+    const spec = normalizeSubSessionSpec(rawSpec)
+    if (workflowRun.depth + 1 > MAX_SESSION_SPAWN_DEPTH) {
+      throw new APIError(400, `Sub-session depth limit reached (${MAX_SESSION_SPAWN_DEPTH})`)
+    }
+    const currentPlan = runs.getRun(this.#db, workflowRun.accountId, workflowRun.id)?.plan ?? workflowRun.plan
+    const stepId = stepLabel ? currentPlan?.steps.find((step) => step.label === stepLabel)?.id : undefined
+    const childCount =
+      this.#db
+        .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM runs WHERE parent_run_id = ?`)
+        .get(workflowRun.id)?.n ?? 0
+    if (childCount >= MAX_SESSION_SPAWNS_PER_SESSION) {
+      throw new APIError(400, `This workflow already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions`)
+    }
+    const accountId = workflowRun.accountId
+    const childAgentId = spec.agentId ?? workflowRun.agentId
+    if (!childAgentId) throw new APIError(400, 'Workflow run has no agent to run sub-sessions as')
+    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
+    // Nest the child session under the chat session that (transitively) launched the workflow.
+    let ancestorSessionId: string | undefined
+    for (let cursor: runs.RunRecord | null = workflowRun; cursor; ) {
+      if (cursor.sessionId) {
+        ancestorSessionId = cursor.sessionId
+        break
+      }
+      cursor = cursor.parentRunId ? runs.getRun(this.#db, accountId, cursor.parentRunId) : null
+    }
+    const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
+    const childRunId = crypto.randomUUID()
+    const session = this.#createSessionOnce(accountId, childAgentId, title, {
+      ...(ancestorSessionId ? {parentSessionId: ancestorSessionId} : {}),
+      runId: childRunId,
+    })
+    const rendered = renderSubSessionInput(spec.input)
+    this.#appendSessionEvent(
+      accountId,
+      childAgentId,
+      session.sessionId,
+      {type: 'message', role: 'user', content: rendered},
+      Date.now(),
+    )
+    this.#runQueue.enqueue({
+      id: childRunId,
+      accountId,
+      kind: 'agent',
+      origin: 'workflow',
+      parentRunId: workflowRun.id,
+      agentId: childAgentId,
+      sessionId: session.sessionId,
+      title,
+      input: {
+        spec,
+        ...(stepLabel ? {planStepLabel: stepLabel} : {}),
+        // ctx.delegate({step}) names the step by label; the workflow's own plan (which IS written to
+        // runs.plan_cbor) is where that label has an id, so resolve it here for the same durable join.
+        ...(stepId ? {planStepId: stepId} : {}),
+      },
+      queue: 'background',
+      maxAttempts: AGENT_RUN_MAX_ATTEMPTS,
+    })
+    return {childRunId, sessionId: session.sessionId}
+  }
+
+  /** Executes one claimed workflow run in the QuickJS engine against journaled adapters. */
+  async #executeWorkflowRun(run: runs.RunRecord): Promise<runs.RunOutcome> {
+    if (!run.sourceText) {
+      return {type: 'failed', error: {code: 'config-error', message: 'Workflow run is missing its source'}}
+    }
+    // A run that has used up its wall-clock budget PAUSES rather than fails: the work so far is
+    // journaled and correct, and a person can look at it and let it continue. Failing here would
+    // throw that away over a limit that is a policy, not an error.
+    const budgetPause = budgetPauseFor(run)
+    if (budgetPause) {
+      console.info('[agents/workflow] run paused on its time budget', {runId: run.id, note: budgetPause.note})
+      return {type: 'parked', wait: budgetPause}
+    }
+    if (!run.agentId) {
+      return {type: 'failed', error: {code: 'config-error', message: 'Workflow run is missing its agent'}}
+    }
+    const agent = this.#db
+      .query<AgentRow, [string, string]>(
+        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+         FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(run.accountId, run.agentId)
+    if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found'}}
+    const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    // Scripts always hold the read/write verbs; definition.tools narrows only the callable set.
+    const allowedTools = new Set([
+      seedVerbRegistry.read.name,
+      seedVerbRegistry.write.name,
+      ...enabledCallableTools(definition, codeExecAvailable),
+    ])
+    const stateDir = this.#agentMemoryStateDir(run.accountId, run.agentId)
+    const partialId = crypto.randomUUID()
+    const emitRunPartial = (patch: {
+      progress?: {fraction?: number; label?: string}
+      activity?: api.AgentRunActivity
+    }): void => {
+      this.#emit({
+        type: 'run-partial',
+        accountId: run.accountId,
+        rootRunId: run.rootRunId,
+        runId: run.id,
+        partialId,
+        patch,
+      })
+    }
+    const piToolContext: AgentServicePiToolContext = {
+      db: this.#db,
+      accountId: run.accountId,
+      agentId: run.agentId,
+      definition,
+      hmServerUrl: this.#hmServerUrl,
+      ipfsServerUrl: this.#ipfsServerUrl,
+      web: this.#web,
+      stateDir,
+      sessionId: '',
+      modelAcceptsImages: false,
+      codeExec: this.#codeExec,
+      onMemoryChange: () => {
+        invalidateSpaceIndex(run.accountId, run.agentId)
+        this.#emit({
+          type: 'account-change',
+          accountId: run.accountId,
+          reason: 'agent-memory-changed',
+          agentId: run.agentId,
+        })
+      },
+      onToolProgress: (toolName, progress) =>
+        emitRunPartial({
+          activity: {
+            phase: 'tool',
+            toolName,
+            toolCallId: progress.toolCallId,
+            detail: progress.detail,
+            outputTail: progress.outputTail,
+          },
+        }),
+      callableTools: enabledCallableTools(definition, codeExecAvailable),
+      publishEnabled: publishGrantEnabled(definition),
+      startSession: () => {
+        throw new APIError(400, 'Detached delegation is not available in scripts; use ctx.delegate')
+      },
+    }
+    const toolDefs = createAgentServicePiTools(piToolContext)
+    const toolsByName = new Map(toolDefs.map((def) => [def.name, def]))
+
+    // Journal adapter with caps, backed by run_journal and streamed to runs/<root> subscribers.
+    let journalCount =
+      this.#db.query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM run_journal WHERE run_id = ?`).get(run.id)?.n ??
+      0
+    let journalBytes =
+      this.#db
+        .query<{b: number | null}, [string]>(`SELECT SUM(LENGTH(entry_cbor)) AS b FROM run_journal WHERE run_id = ?`)
+        .get(run.id)?.b ?? 0
+    let toolCallCounter = 0
+
+    const outcome = await runWorkflowVM({
+      runId: run.id,
+      input: (run.input as {input?: unknown} | null)?.input ?? null,
+      source: run.sourceText,
+      journal: {
+        load: () =>
+          this.#db
+            .query<{entry_cbor: Uint8Array}, [string]>(
+              `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
+            )
+            .all(run.id)
+            .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor)),
+        append: (entry) => {
+          const encoded = cbor.encode(entry)
+          if (
+            journalCount + 1 > WORKFLOW_JOURNAL_MAX_ENTRIES ||
+            journalBytes + encoded.byteLength > WORKFLOW_JOURNAL_MAX_BYTES
+          ) {
+            throw {code: 'journal-cap'}
+          }
+          journalCount += 1
+          journalBytes += encoded.byteLength
+          const seq = journalCount
+          const createdAt = Date.now()
+          this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
+            run.id,
+            seq,
+            encoded,
+            createdAt,
+          ])
+          this.#emit({
+            type: 'run-append',
+            accountId: run.accountId,
+            rootRunId: run.rootRunId,
+            entry: {runId: run.id, seq, entry: entry as unknown as Record<string, unknown>, createdAt},
+          })
+        },
+      },
+      effects: {
+        callTool: async (rawTool, input, description) => {
+          // Models occasionally leak the provider's function namespace into tool names
+          // (`functions.memory_write`); accept it rather than failing a real workflow over it.
+          const tool = rawTool.replace(/^functions\./, '')
+          if (!allowedTools.has(normalizeSeedToolName(tool))) {
+            const error = new Error(
+              `Tool "${tool}" is not available in this workflow. Available: ${[...allowedTools].join(
+                ', ',
+              )}. Chat-session tools are not callable here — use ctx.plan/ctx.step for progress and ctx.agent for delegation.`,
+            ) as Error & {code: string}
+            error.code = 'unknown-tool'
+            throw error
+          }
+          const name = normalizeSeedToolName(tool)
+          const metadata = getSeedTool(name)
+          if (metadata) {
+            const inputErrors = validateJsonSchemaValue(metadata.inputSchema, input ?? {})
+            if (inputErrors.length > 0) {
+              const error = new Error(
+                `Invalid input for ${tool}: ${inputErrors.map((e) => `${e.path}: ${e.message}`).join('; ')}`,
+              ) as Error & {code: string}
+              error.code = 'invalid-input'
+              throw error
+            }
+          }
+          toolCallCounter += 1
+          emitRunPartial({activity: {phase: 'tool', toolName: tool, ...(description ? {detail: description} : {})}})
+          try {
+            // Callable tools (search, web_search, execute, …) have no standalone provider tool —
+            // scripts reach them through the same call-verb dispatch the model uses.
+            if (piToolContext.callableTools.includes(name)) {
+              const result = await executeCallVerb(
+                piToolContext,
+                {tool: name, input},
+                `wf-${run.id}-${toolCallCounter}`,
+              )
+              return result
+            }
+            const def = toolsByName.get(name)
+            if (!def) {
+              const error = new Error(`Tool "${tool}" has no workflow executor`) as Error & {code: string}
+              error.code = 'unknown-tool'
+              throw error
+            }
+            const execute = def.execute as unknown as (
+              toolCallId: string,
+              params: unknown,
+            ) => Promise<{details?: unknown}>
+            const result = await execute(`wf-${run.id}-${toolCallCounter}`, input)
+            return result.details ?? null
+          } finally {
+            emitRunPartial({activity: {phase: 'thinking'}})
+          }
+        },
+        spawnAgent: (spec, stepLabel) => this.#spawnWorkflowChildAgent(run, spec, stepLabel),
+        awaitChild: async (childRunId): Promise<WorkflowChildResolution> => {
+          const child = await this.#awaitRunTerminal(run.accountId, childRunId)
+          if (child.status === 'succeeded') {
+            return {status: 'succeeded', output: child.output ?? null, sessionId: child.sessionId}
+          }
+          if (child.status === 'canceled') return {status: 'canceled', sessionId: child.sessionId}
+          return {
+            status: 'failed',
+            error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-agent failed'},
+            sessionId: child.sessionId,
+          }
+        },
+        updatePlan: (plan) => {
+          this.#runQueue.updatePlan(run.id, plan)
+        },
+        progress: (patch) => emitRunPartial({progress: patch}),
+        registerEventWait: (wait) =>
+          runEvents.putRunEventWait(this.#db, {
+            runId: run.id,
+            waitId: wait.waitId,
+            accountId: run.accountId,
+            match: (isPlainRecord(wait.match) ? wait.match : {}) as runEvents.RunEventMatch,
+            ...(wait.timeoutAt === undefined ? {} : {timeoutAt: wait.timeoutAt}),
+          }),
+      },
+      isCanceled: () => this.#workflowCancelFlags.has(run.id),
+    })
+
+    if (outcome.type === 'parked') return {type: 'parked', wait: outcome.wait}
+    if (outcome.type === 'continued') {
+      // The plan settles as a success: this generation finished what it set out to do, and the
+      // successor brings its own plan.
+      this.#finalizeWorkflowPlan(run, 'succeeded')
+      const continuedAsRunId = this.#continueWorkflowAsNew(run, outcome.state)
+      return {type: 'succeeded', output: {continued: true, continuedAsRunId}}
+    }
+    this.#finalizeWorkflowPlan(run, outcome.type)
+    if (outcome.type === 'succeeded') return {type: 'succeeded', output: outcome.output}
+    if (outcome.type === 'canceled') return {type: 'canceled'}
+    return {type: 'failed', error: outcome.error}
+  }
+
+  /**
+   * Starts the successor of a run that called `ctx.continueAsNew`.
+   *
+   * The successor is the SAME work, not a child: it keeps the predecessor's place in the run tree
+   * (same parent, same session, same tool call to answer) and carries only the state the script
+   * declared. What it does not keep is the journal — a fresh run id means a fresh journal, which is
+   * the whole point: a loop that runs for weeks never grows an unbounded replay log. Parent linkage
+   * is deliberately NOT reused for the chain (nesting each generation under the last would grow the
+   * tree without bound and eventually hit the depth limit); the link is `continuedFromRunId` here
+   * and `continuedAsRunId` on the predecessor's output.
+   */
+  #continueWorkflowAsNew(run: runs.RunRecord, state: unknown): string {
+    const previousInput = isPlainRecord(run.input) ? run.input : {}
+    const successorId = crypto.randomUUID()
+    this.#runQueue.enqueue({
+      id: successorId,
+      accountId: run.accountId,
+      kind: 'workflow',
+      origin: run.origin,
+      ...(run.parentRunId ? {parentRunId: run.parentRunId} : {}),
+      ...(run.parentToolCallId ? {parentToolCallId: run.parentToolCallId} : {}),
+      continuedFromRunId: run.id,
+      ...(run.agentId ? {agentId: run.agentId} : {}),
+      ...(run.sessionId ? {sessionId: run.sessionId} : {}),
+      title: run.title,
+      ...(run.sourceCid ? {sourceCid: run.sourceCid} : {}),
+      ...(run.sourceText ? {sourceText: run.sourceText} : {}),
+      input: {
+        input: state ?? null,
+        ...(typeof previousInput.parentToolCallId === 'string'
+          ? {parentToolCallId: previousInput.parentToolCallId}
+          : {}),
+        ...(typeof previousInput.parentToolName === 'string' ? {parentToolName: previousInput.parentToolName} : {}),
+      },
+      queue: run.queue,
+      ...(run.budget ? {budget: run.budget} : {}),
+      maxAttempts: run.maxAttempts,
+    })
+    console.info('[agents/workflow] continued as new run', {
+      runId: run.id,
+      successorId,
+      accountId: run.accountId,
+    })
+    return successorId
+  }
+
+  /**
+   * A terminal run must not advertise live work: steps still 'running' when the workflow ends
+   * (a script that returned or died mid-step) coerce to the outcome's truth, and never-started
+   * steps become 'skipped'. Without this the progress card spins forever on a finished run.
+   */
+  #finalizeWorkflowPlan(run: runs.RunRecord, outcomeType: 'succeeded' | 'failed' | 'canceled'): void {
+    const current = runs.getRun(this.#db, run.accountId, run.id)
+    const plan = current?.plan
+    if (!plan || plan.steps.length === 0) return
+    let changed = false
+    const steps = plan.steps.map((step) => {
+      if (step.status === 'running') {
+        changed = true
+        return {...step, status: outcomeType === 'succeeded' ? ('done' as const) : ('failed' as const)}
+      }
+      if (step.status === 'pending') {
+        changed = true
+        return {...step, status: 'skipped' as const}
+      }
+      return step
+    })
+    if (changed) this.#runQueue.updatePlan(run.id, {...plan, steps})
   }
 
   async #stopSession(accountId: string, sessionId: string): Promise<api.StopSessionResponse> {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
 
+    // Cancel every live run rooted at this session AND its descendants (spawned sub-sessions),
+    // then abort the in-memory Pi run if one is streaming right now.
+    const liveRuns = runs.listLiveSessionRuns(this.#db, accountId, sessionId)
+    let canceledAny = false
+    for (const run of liveRuns) {
+      const affected = this.#runQueue.cancelTree(accountId, run.id)
+      canceledAny = canceledAny || affected.length > 0
+    }
     const running = this.#runningSessions.get(this.#runningSessionKey(accountId, sessionId))
     if (running) {
       running.stopped = true
       await running.abort?.()
       return {_: 'StopSessionResponse', sessionId, stopped: true}
     }
+    if (canceledAny) return {_: 'StopSessionResponse', sessionId, stopped: true}
 
     if (session.status === 'streaming') {
-      this.#updateSessionStatus(accountId, sessionId, 'idle', Date.now())
+      // Stale mirror with no live run (should not happen post-sweep); re-derive.
+      this.#syncSessionStatusFromRuns(accountId, sessionId)
       return {_: 'StopSessionResponse', sessionId, stopped: true}
     }
 
     return {_: 'StopSessionResponse', sessionId, stopped: false}
+  }
+
+  /**
+   * Re-runs a failed turn without a new user message: enqueues a fresh interactive run whose
+   * transcript replay re-enters from the durable events (error events never reach the provider,
+   * and interrupted tool calls were already repaired with synthesized results).
+   */
+  async #retrySession(accountId: string, sessionId: string): Promise<api.RetrySessionResponse> {
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    if (runs.sessionHasLiveRun(this.#db, sessionId)) throw new APIError(409, 'Session is already streaming')
+    const latest = runs.latestSessionRun(this.#db, sessionId)
+    if (!latest || latest.status !== 'failed') {
+      throw new APIError(400, 'Nothing to retry: the latest run did not fail')
+    }
+    const run = this.#runQueue.enqueue({
+      accountId,
+      kind: 'agent',
+      origin: 'user',
+      agentId: session.agentId,
+      sessionId,
+      // The retry replays the failed turn, so it carries that turn's name.
+      title: latest.title,
+      input: {kind: 'session-retry', retryOfRunId: latest.id},
+      queue: 'interactive',
+      maxAttempts: 1,
+      dispatch: false,
+    })
+    const final = await this.#runQueue.runInline(run.id)
+    if (final.status === 'queued') {
+      this.#runQueue.cancelTree(accountId, run.id)
+      throw new APIError(409, 'Session is already streaming')
+    }
+    if (final.status === 'succeeded' || final.status === 'canceled') {
+      const output = (final.output ?? {}) as {assistantEventId?: string}
+      return {_: 'RetrySessionResponse', sessionId, assistantEventId: output.assistantEventId ?? ''}
+    }
+    if (final.status === 'failed') {
+      const error = final.error ?? {code: 'run-failed', message: 'Agent run failed'}
+      throw new APIError(error.httpStatus ?? 502, error.message)
+    }
+    // Parked on sub-sessions: the retried turn continues over WS like any parked turn.
+    return {_: 'RetrySessionResponse', sessionId, assistantEventId: ''}
   }
 
   #runningSessionKey(accountId: string, sessionId: string): string {
@@ -1806,7 +4275,12 @@ export class Service {
   }
 
   /** Builds the model-facing system prompt; `stateDir` enables the automatic memory listing. */
-  async #agentSystemPrompt(accountId: string, definition: api.AgentDefinition, stateDir?: string): Promise<string> {
+  async #agentSystemPrompt(
+    accountId: string,
+    agentId: string,
+    definition: api.AgentDefinition,
+    stateDir?: string,
+  ): Promise<string> {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
     const systemPrompt = await promptBlocksToResolvedMarkdown(
       normalizeSystemPromptBlocks(definition.systemPrompt),
@@ -1814,33 +4288,17 @@ export class Service {
     )
     const sharedPrompt = seedAssistantSystemPrompt({
       currentTime: new Date().toISOString(),
-      includeTitleToolInstruction: true,
     })
-    const definitionTools = (definition.tools ?? []).map(normalizeSeedToolName)
-    const memoryToolNames = [
-      seedToolRegistry.memory_list.name,
-      seedToolRegistry.memory_read.name,
-      seedToolRegistry.memory_write.name,
-      seedToolRegistry.memory_delete.name,
-      seedToolRegistry.memory_download.name,
-      seedToolRegistry.ipfs_read.name,
-      seedToolRegistry.ipfs_write.name,
-      seedToolRegistry.memory_publish_document.name,
-    ]
-    const memoryEnabled = definitionTools.some((tool) => memoryToolNames.includes(tool))
-    const memoryPrompt = memoryEnabled
-      ? '\n\nYou have a private persistent memory filesystem shared across all of your sessions, accessed with the memory_list, memory_read, memory_write, and memory_delete tools. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example notes/topic.md); update files by reading them and writing back the full revised content. Use memory_download to save web files (including binary media) into memory. Use ipfs_read to fetch an ipfs:// URL into memory, and ipfs_write to publish a memory file to IPFS, returning an ipfs:// URL you can reference from Hypermedia content. Use memory_publish_document to publish a markdown memory file as a Seed Hypermedia document: frontmatter becomes metadata and relative image links are resolved from memory automatically. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can open them with view_attachment or save one with attachment_to_memory.' +
-        (stateDir ? memoryListingPrompt(stateDir) : '')
+    const memoryPrompt =
+      '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL you can reference from Hypermedia content. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
+    const codeExecAvailable = (await this.#codeExec.availability()).available
+    const callables = enabledCallableTools(definition, codeExecAvailable)
+    const spaceIndex = stateDir
+      ? `\n\n${buildSpaceIndex({db: this.#db, accountId, agentId, stateDir, callableTools: callables})}`
       : ''
-    const execEnabled =
-      (definition.tools ?? []).includes(seedToolRegistry.execute_code.name) &&
-      (await this.#codeExec.availability()).available
-    const execPrompt = execEnabled
-      ? '\n\nYou can run Python or shell code with the execute_code tool. Code runs in an isolated sandbox with your memory mounted at /workspace (the working directory), so reading and writing files there directly reads and writes your persistent memory. Each call is a fresh sandbox: no variables, installed packages, or processes persist between calls — save anything durable as files. The sandbox has internet access, so you can install packages and fetch data, but it cannot reach private/local network addresses. To keep Python packages across calls, install them into the workspace, e.g. `pip install --target /workspace/pylibs <pkg>`, then add that directory to sys.path in later calls.'
-      : ''
-    const startSessionPrompt =
-      '\n\nYou can start a new independent session of yourself with the start_session tool, providing its first message; it begins running immediately in the background. Use it to delegate follow-up or parallel work. The new session does not share this conversation and you will not receive its results, so include all needed context in the prompt.'
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${execPrompt}${startSessionPrompt}`
+    const userActionsPrompt =
+      '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${userActionsPrompt}${spaceIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -1862,7 +4320,7 @@ export class Service {
     return `${basePrompt}\n\n<available_signing_identities>\n${safeJSONStringify(
       identities,
       2,
-    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nFor write tool document and draft creation, set the visible Seed document title explicitly with input.name (or input.title) and include markdown body in input.content/body/text. A markdown # heading is content only; do not rely on it to set the document title. Example: {"command":"document.create","signer":{"publicKey":"..."},"input":{"name":"Test Document","path":"test-document","content":"# Test Document\\n\\nBody text.","format":"markdown"}}.\n\nDo not create a document at a nested path unless its parent path already exists as a published document. For example, before creating path "/team/notes" you must have already created the document at "/team". Create parent documents first; top-level documents (directly under the account) are always allowed.\n\nFor write tool document.move, pass the existing document as input.source/sourceId/id and either input.destination as a full hm:// target or input.path as the new path on the same account. To move a document to the account home/root, use input.path = "/".`
+    )}\n</available_signing_identities>\nWhen signing or creating Seed content, use the publicKey value as the signing identity ID. Users may refer to these identities by profile name.\n\nTo publish a hypermedia document: write {address: "hm://<account>/<path>", content: "<markdown body>", options: {name: "Document Name", signer: {publicKey: "..."}}}. The name option sets the document name (stored as metadata.name) — a markdown # heading is body content only. Pass dryRun: true at the top level of the write call to validate a publish without publishing. Do not create a document at a nested path unless its parent path already exists as a published document (create "/team" before "/team/notes"; top-level paths are always allowed). To move a document, write the existing hm:// address with options {action: "move", toPath: "/new-path"} ("/" moves it to the account home).`
   }
 
   /**
@@ -1872,6 +4330,11 @@ export class Service {
    * model. Shared by agent runs and the session-titling call so both honor the
    * provider's auth mode.
    */
+  /** Internal alias so helper signatures can name the runtime type (private #-methods cannot be referenced in types). */
+  piProviderRuntimeForTitle(accountId: string, definition: api.AgentDefinition) {
+    return this.#piProviderRuntime(accountId, definition)
+  }
+
   async #piProviderRuntime(
     accountId: string,
     definition: api.AgentDefinition,
@@ -1946,20 +4409,32 @@ export class Service {
     definition: api.AgentDefinition,
     sessionId: string,
     runningSession?: RunningSession,
+    run?: runs.RunRecord,
   ): Promise<api.SessionEvent> {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
+    const subSessionOutputSchema = run ? this.#spawnContextForRun(run).spec?.output : undefined
     const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
 
     const cwd = this.#dataDir
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}})
     const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
     const resourceLoader = createSeedPiResourceLoader(
-      await this.#agentSystemPrompt(accountId, definition, agentStateDir),
+      await this.#agentSystemPrompt(accountId, session.agentId, definition, agentStateDir),
     )
     // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
     // (unsupported platform, missing runtime) so the model never sees a tool that can only fail.
     const codeExecAvailable = (await this.#codeExec.availability()).available
+    // Touch-expand is durable: any transcript read of ~/tools/<name> (or a call-miss that returned
+    // the contract) promotes that callable to a first-class provider tool for the rest of the
+    // thread — resume, park, and restart reconstruct the same set from the same events.
+    const enabledCallables = enabledCallableTools(definition, codeExecAvailable)
+    // SECURITY: promotion must never exceed the enabled callable set — a hallucinated
+    // `call {tool: 'bash'}` durably stores that name, and an unfiltered allowlist would hand it
+    // to Pi, activating Pi's own host bash/edit builtins outside the sandbox.
+    const expandedCallables = this.#expandedCallablesForSession(sessionId)
+      .map(normalizeSeedToolName)
+      .filter((name) => enabledCallables.includes(name))
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -1974,13 +4449,16 @@ export class Service {
         agentId: session.agentId,
         definition,
         hmServerUrl: this.#hmServerUrl,
+        ipfsServerUrl: this.#ipfsServerUrl,
         web: this.#web,
         stateDir: agentStateDir,
         sessionId,
         modelAcceptsImages: model.input.includes('image'),
         codeExec: this.#codeExec,
-        onMemoryChange: () =>
-          this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId}),
+        onMemoryChange: () => {
+          invalidateSpaceIndex(accountId, session.agentId)
+          this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
+        },
         // emitProgress is declared below in this scope; tools only call this mid-run, after it exists.
         onToolProgress: (toolName, progress) =>
           emitProgress({
@@ -1992,39 +4470,31 @@ export class Service {
               outputTail: progress.outputTail,
             },
           }),
-        setSessionTitle: (title) => this.#setSessionTitleFromAgent(accountId, sessionId, title),
-        startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input),
-      }),
-      tools: [
-        // Set-dedupe: legacy alias normalization can produce duplicate names.
-        ...new Set(
-          (definition.tools === undefined ? [seedToolRegistry.read.name] : definition.tools)
-            .map(normalizeSeedToolName)
-            .filter(
-              (tool) =>
-                tool === seedToolRegistry.search.name ||
-                tool === seedToolRegistry.read.name ||
-                tool === seedToolRegistry.list_activity_feed.name ||
-                tool === seedToolRegistry.web_search.name ||
-                tool === seedToolRegistry.web_read.name ||
-                tool === seedToolRegistry.write.name ||
-                tool === seedToolRegistry.memory_list.name ||
-                tool === seedToolRegistry.memory_read.name ||
-                tool === seedToolRegistry.memory_write.name ||
-                tool === seedToolRegistry.memory_delete.name ||
-                tool === seedToolRegistry.memory_download.name ||
-                tool === seedToolRegistry.ipfs_read.name ||
-                tool === seedToolRegistry.ipfs_write.name ||
-                tool === seedToolRegistry.attachment_to_memory.name ||
-                tool === seedToolRegistry.attachment_to_ipfs.name ||
-                tool === seedToolRegistry.memory_publish_document.name ||
-                (tool === seedToolRegistry.execute_code.name && codeExecAvailable),
-            ),
+        setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan),
+        startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
+        callableTools: enabledCallables,
+        publishEnabled: publishGrantEnabled(definition),
+        expandedCallables,
+        ...this.#subSessionToolContext(
+          accountId,
+          sessionId,
+          session.agentId,
+          run,
+          runningSession,
+          subSessionOutputSchema,
         ),
-        // Always available: attachments are session data the model was already told about.
-        seedToolRegistry.view_attachment.name,
-        seedToolRegistry.start_session.name,
-        seedToolRegistry.set_session_title.name,
+      }),
+      // The verbs are the provider-facing surface; expanded callables are promoted beside them.
+      tools: [
+        ...expandedCallables,
+        seedVerbRegistry.read.name,
+        seedVerbRegistry.write.name,
+        seedVerbRegistry.call.name,
+        // Delegation needs a run to park on; the rare runless invocation simply omits it.
+        ...(run !== undefined ? [seedVerbRegistry.delegate.name] : []),
+        seedVerbRegistry.plan.name,
+        // Typed delegate children must deliver their result through this tool.
+        ...(subSessionOutputSchema ? [seedVerbRegistry.return_result.name] : []),
       ],
       noTools: 'builtin',
       sessionManager: pi.SessionManager.inMemory(cwd),
@@ -2033,6 +4503,17 @@ export class Service {
 
     const mergeModelDefaults = provider.modelDefaults
     piSession.agent.onPayload = (payload) => {
+      // The next provider request is the tool batch's end: if this turn spawned sub-sessions (park)
+      // or delivered its typed result, the turn is over — refuse to send another provider request.
+      // Throwing here (caught below as a designed ending) guarantees the request never leaves.
+      if (runningSession && (runningSession.parkToolCallIds?.length || runningSession.completeAfterTools)) {
+        console.info('[agents/runtime] ending turn after tool batch', {
+          sessionId,
+          parked: runningSession.parkToolCallIds?.length ?? 0,
+          resultDelivered: runningSession.subResult !== undefined,
+        })
+        throw new SessionParkedError()
+      }
       const payloadTools = isRecord(payload) && Array.isArray(payload.tools) ? payload.tools.length : undefined
       console.info('[agents/runtime] sending provider request', {
         sessionId,
@@ -2047,7 +4528,30 @@ export class Service {
       if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
       return next
     }
-    piSession.state.messages = this.#piMessages(sessionId) as never
+    const replayMessages = this.#piMessages(sessionId)
+    // A park-resume after interleaved conversation can end on an assistant message (the late tool
+    // results attach adjacent to their calls, earlier in the transcript). Pi cannot continue from
+    // an assistant turn, and the model needs direction anyway: hand it back the floor explicitly.
+    // In-memory only — never persisted to the transcript.
+    const lastReplayed = replayMessages.at(-1) as {role?: string} | undefined
+    if (lastReplayed?.role === 'assistant') {
+      replayMessages.push({
+        role: 'user',
+        content:
+          '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>',
+        timestamp: Date.now(),
+      })
+    }
+    // The checklist, handed back every turn.
+    //
+    // The plan verb writes no transcript events on purpose — the checklist is the card, not
+    // conversation — with the consequence that a model resuming after its children finished is
+    // blind to the very list it published, and cannot close a step it can no longer see. This block
+    // is rebuilt from session state on every turn and never stored: not an event, not rendered,
+    // just the current truth placed where the model will read it last.
+    const planBlock = planStateBlock(this.#storedSessionPlan(accountId, sessionId))
+    if (planBlock) replayMessages.push({role: 'user', content: planBlock, timestamp: Date.now()})
+    piSession.state.messages = replayMessages as never
     let partialId = crypto.randomUUID()
     let partialText = ''
     let currentAssistantHadDelta = false
@@ -2089,6 +4593,18 @@ export class Service {
       this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, ...patch})
     }
 
+    // Provenance for the messages this turn produces. The run knows what model answered, on which
+    // provider, what the turn cost and how long it took — none of which is recoverable later, so it
+    // is stamped on the event as it is written and the transcript stays able to explain itself.
+    let turnStartedAt = Date.now()
+    let turnUsageForMeta: api.AgentRunUsage | undefined
+    const messageMeta = (): api.SessionEventMeta => ({
+      ...(definition.model ? {model: definition.model} : {}),
+      ...(model.provider ? {provider: model.provider} : {}),
+      ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
+      durationMs: Math.max(0, Date.now() - turnStartedAt),
+    })
+
     const appendAssistantMessage = (content: string): void => {
       if (!content.trim()) return
       this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, done: true})
@@ -2096,9 +4612,13 @@ export class Service {
         accountId,
         session.agentId,
         sessionId,
-        {type: 'message', role: 'assistant', content},
+        {type: 'message', role: 'assistant', content, meta: messageMeta()},
         Date.now(),
       )
+      // Text flushed mid-turn (before a tool batch) already spent its share of the clock; the next
+      // message is timed from here so no stretch of wall time is counted twice.
+      turnStartedAt = Date.now()
+      turnUsageForMeta = undefined
       partialId = crypto.randomUUID()
     }
 
@@ -2139,6 +4659,17 @@ export class Service {
         turnCount += 1
         const turnUsage = assistantMessage.usage
         if (turnUsage) {
+          turnUsageForMeta = {
+            input: turnUsage.input ?? 0,
+            output: turnUsage.output ?? 0,
+            cacheRead: turnUsage.cacheRead ?? 0,
+            cacheWrite: turnUsage.cacheWrite ?? 0,
+            total:
+              (turnUsage.input ?? 0) +
+              (turnUsage.output ?? 0) +
+              (turnUsage.cacheRead ?? 0) +
+              (turnUsage.cacheWrite ?? 0),
+          }
           runUsage.input += turnUsage.input ?? 0
           runUsage.output += turnUsage.output ?? 0
           runUsage.cacheRead += turnUsage.cacheRead ?? 0
@@ -2151,6 +4682,8 @@ export class Service {
           textChars: partialText.length || piAssistantText(event.message).length,
           tokens: {...runUsage},
         })
+        // Usage persists at every turn boundary so a crash loses at most one turn's accounting.
+        if (run) this.#runQueue.updateUsage(run.id, {...runUsage})
         emitProgress({usage: {...runUsage}, activity: {phase: 'thinking'}})
         if (assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted') {
           finalError = assistantMessage.errorMessage || 'Agent run failed'
@@ -2163,7 +4696,8 @@ export class Service {
         return
       }
       if (event.type === 'tool_execution_start') {
-        if (event.toolName === seedToolRegistry.set_session_title.name) return
+        // Plan updates are session state, not conversation: they render as the checklist, not as tool rows.
+        if (event.toolName === seedVerbRegistry.plan.name) return
         endStreamingLog()
         if (currentAssistantHadDelta) {
           flushPartialAssistantMessage()
@@ -2194,7 +4728,13 @@ export class Service {
         return
       }
       if (event.type === 'tool_execution_end') {
-        if (event.toolName === seedToolRegistry.set_session_title.name) return
+        if (event.toolName === seedVerbRegistry.plan.name) return
+        // Parked sub_session calls keep their durable tool_call unanswered: the real tool_result is
+        // appended by the child's finalizer, and the resumed turn replays it from there.
+        if (runningSession?.parkToolCallIds?.includes(event.toolCallId)) {
+          emitProgress({activity: {phase: 'thinking'}})
+          return
+        }
         const startedAt = toolStartedAt.get(event.toolCallId)
         toolStartedAt.delete(event.toolCallId)
         logRun(event.isError ? 'tool call failed' : 'tool call end', {
@@ -2213,6 +4753,10 @@ export class Service {
             Date.now(),
           )
         }
+        // How long the tool actually ran, stamped while the start time is still in hand: the pair of
+        // event timestamps is a decent guess, but only the executor knows the real span.
+        const toolMeta: api.SessionEventMeta | undefined =
+          startedAt === undefined ? undefined : {durationMs: Math.max(0, Date.now() - startedAt)}
         this.#appendSessionEvent(
           accountId,
           session.agentId,
@@ -2223,12 +4767,14 @@ export class Service {
                 toolCallId: event.toolCallId,
                 name: event.toolName,
                 error: piToolResultText(event.result),
+                ...(toolMeta ? {meta: toolMeta} : {}),
               }
             : {
                 type: 'tool_result',
                 toolCallId: event.toolCallId,
                 name: event.toolName,
                 output: piToolResultOutput(event.result),
+                ...(toolMeta ? {meta: toolMeta} : {}),
               },
           Date.now(),
         )
@@ -2259,13 +4805,20 @@ export class Service {
       await piSession.agent.continue()
     } catch (error) {
       endStreamingLog()
-      logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
-      throw error
+      // A park or delivered typed result ends the loop by throwing from onPayload; that (and any
+      // error Pi wraps it in) is a designed ending, not a failure — fall through to the end checks.
+      const endedByDesign = runningSession.parkToolCallIds?.length || runningSession.completeAfterTools
+      if (!endedByDesign) {
+        logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
+        throw error
+      }
+      logRun('turn ended after tool batch', {parked: runningSession.parkToolCallIds?.length ?? 0})
     } finally {
       endStreamingLog()
       this.#runningSessions.delete(runningSessionKey)
       unsubscribe()
       piSession.dispose()
+      if (run && runUsage.total > 0) this.#runQueue.updateUsage(run.id, {...runUsage})
       logRun('agent run finished', {
         durationMs: Date.now() - runStartedAt,
         turns: turnCount,
@@ -2275,6 +4828,17 @@ export class Service {
       })
     }
 
+    if (runningSession.parkToolCallIds?.length) {
+      // The turn ended by design: sub-sessions were spawned and the run parks on them.
+      if (partialText.trim()) flushPartialAssistantMessage()
+      throw new SessionParkedError()
+    }
+    if (runningSession.completeAfterTools && runningSession.subResult) {
+      // Typed result delivered; the abort that ended the loop is success, not an error.
+      if (partialText.trim()) flushPartialAssistantMessage()
+      if (assistantEvent) return assistantEvent
+      throw new SessionStoppedError()
+    }
     if (runningSession.stopped) {
       if (partialText.trim()) flushPartialAssistantMessage()
       if (assistantEvent) return assistantEvent
@@ -2293,6 +4857,53 @@ export class Service {
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
 
+    // Pass 1 — index every durable tool_result by call id. Providers require tool results to sit
+    // DIRECTLY after the assistant message that made the calls, but the durable event order
+    // interleaves once a parked parent converses (user turns land between a spawn's tool_call and
+    // its late-arriving tool_result). Results are therefore attached at flush time, not replayed
+    // positionally.
+    type ToolResultEvent = {toolCallId: string; name?: string; output?: unknown; error?: string; createdAt: number}
+    const resultsByCallId = new Map<string, ToolResultEvent>()
+    const knownCallIds = new Set<string>()
+    const userToolCallIds = new Set<string>()
+    for (const event of events) {
+      const value = event.event as {
+        type?: string
+        id?: string
+        toolCallId?: string
+        name?: string
+        output?: unknown
+        error?: string
+      }
+      const eventActor = sessionEventActor(event.event as never)
+      if (eventActor === 'user') {
+        // Track user calls so a stray actor-less result for one (e.g. a pre-fix synthetic) can be
+        // recognized and dropped instead of replaying as a provider-illegal orphan.
+        if (value.type === 'tool_call') {
+          const callId = typeof value.id === 'string' ? value.id : value.toolCallId
+          if (callId) userToolCallIds.add(callId)
+        }
+        continue
+      }
+      if (value.type === 'tool_call') {
+        const callId = typeof value.id === 'string' ? value.id : value.toolCallId
+        if (callId) knownCallIds.add(callId)
+      }
+      if (value.type === 'tool_result' && typeof value.toolCallId === 'string' && value.toolCallId) {
+        resultsByCallId.set(value.toolCallId, {
+          toolCallId: value.toolCallId,
+          name: value.name,
+          output: value.output,
+          error: value.error,
+          createdAt: event.createdAt,
+        })
+      }
+    }
+    // Spawn calls whose children are still running: replayed with a synthetic pending result so a
+    // new turn on a parked session is provider-legal and the model knows work is in flight. The
+    // REAL result is appended durably by the child's finalizer and replayed on later turns.
+    const pendingSpawnIds = runs.pendingWaitToolCallIds(this.#db, sessionId)
+
     const messages: unknown[] = []
     let pendingAssistant: {content: Record<string, unknown>[]; timestamp: number} | undefined
     const appendPendingAssistantContent = (part: Record<string, unknown>, timestamp: number): void => {
@@ -2302,6 +4913,7 @@ export class Service {
     const flushPendingAssistant = (): void => {
       if (!pendingAssistant) return
       const hasToolCall = pendingAssistant.content.some((part) => part.type === 'toolCall')
+      const toolCalls = pendingAssistant.content.filter((part) => part.type === 'toolCall')
       messages.push({
         role: 'assistant',
         content: pendingAssistant.content,
@@ -2312,6 +4924,41 @@ export class Service {
         stopReason: hasToolCall ? 'toolUse' : 'stop',
         timestamp: pendingAssistant.timestamp,
       })
+      // Results ride directly behind their calls, wherever their durable events actually landed.
+      for (const call of toolCalls) {
+        const callId = String(call.id)
+        const result = resultsByCallId.get(callId)
+        if (result) {
+          messages.push({
+            role: 'toolResult',
+            toolCallId: callId,
+            toolName: result.name || String(call.name) || seedToolRegistry.read.name,
+            content: [
+              {type: 'text', text: boundModelToolResultText(result.error ?? JSON.stringify(result.output ?? {}))},
+            ],
+            details: result.output,
+            isError: typeof result.error === 'string',
+            timestamp: result.createdAt,
+          })
+        } else if (pendingSpawnIds.has(callId)) {
+          messages.push({
+            role: 'toolResult',
+            toolCallId: callId,
+            toolName: String(call.name) || seedToolRegistry.read.name,
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({
+                  status: 'running',
+                  note: 'Still running in the background. Its real result will arrive in a later turn as this tool call’s result; do not wait for it — respond to the user now.',
+                }),
+              },
+            ],
+            isError: false,
+            timestamp: pendingAssistant?.timestamp ?? Date.now(),
+          })
+        }
+      }
       pendingAssistant = undefined
     }
 
@@ -2328,6 +4975,43 @@ export class Service {
         error?: string
         contextLines?: unknown
         attachments?: unknown
+      }
+      const eventActor = sessionEventActor(value as never)
+      // Poison guard: an actor-less result answering a USER call (a synthetic from before the
+      // synthesizer learned about actors) must not replay as an orphan provider toolResult.
+      if (
+        value.type === 'tool_result' &&
+        eventActor !== 'user' &&
+        typeof value.toolCallId === 'string' &&
+        userToolCallIds.has(value.toolCallId)
+      ) {
+        continue
+      }
+      if (eventActor === 'user' && (value.type === 'tool_call' || value.type === 'tool_result')) {
+        // The user acted on the shared log with their own verbs. Provider transcripts have no
+        // notion of user-made tool calls, so these replay as tagged user messages the model reads
+        // as ground truth.
+        flushPendingAssistant()
+        if (value.type === 'tool_call') {
+          messages.push({
+            role: 'user',
+            content: `<user_action verb="${value.name ?? ''}">\n${escapeActionFraming(
+              boundModelToolResultText(safeJSONStringify(value.input ?? {})),
+            )}\n</user_action>`,
+            timestamp: event.createdAt,
+          })
+        } else {
+          messages.push({
+            role: 'user',
+            content: `<user_action_result verb="${value.name ?? ''}">\n${escapeActionFraming(
+              boundModelToolResultText(
+                value.error !== undefined ? String(value.error) : safeJSONStringify(value.output ?? {}),
+              ),
+            )}\n</user_action_result>`,
+            timestamp: event.createdAt,
+          })
+        }
+        continue
       }
       if (value.type === 'message' && value.role === 'user' && typeof value.content === 'string') {
         flushPendingAssistant()
@@ -2363,11 +5047,14 @@ export class Service {
       } else if (value.type === 'tool_result') {
         flushPendingAssistant()
         if (typeof value.toolCallId !== 'string' || !value.toolCallId) continue
+        // Results with a known call are emitted adjacent to that call at flush time; only orphans
+        // (a result whose call event never persisted) keep the legacy inline placement.
+        if (knownCallIds.has(value.toolCallId)) continue
         messages.push({
           role: 'toolResult',
           toolCallId: value.toolCallId,
           toolName: value.name || seedToolRegistry.read.name,
-          content: [{type: 'text', text: value.error ?? JSON.stringify(value.output ?? {})}],
+          content: [{type: 'text', text: boundModelToolResultText(value.error ?? JSON.stringify(value.output ?? {}))}],
           details: value.output,
           isError: typeof value.error === 'string',
           timestamp: event.createdAt,
@@ -2436,7 +5123,9 @@ export class Service {
     }
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
@@ -2462,7 +5151,7 @@ export class Service {
       _: 'GetSessionResponse',
       session: sessionRowToInfo(session, triggerContext ?? undefined),
       events: events.map(sessionEventRowToInfo),
-      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, definition, agent.state_dir),
+      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, agent.id, definition, agent.state_dir),
       ...(triggerContext ? {triggerContext} : {}),
     }
   }
@@ -2517,6 +5206,8 @@ export class Service {
     accountId: string
     key: string
     replay?: api.GetSessionResponse
+    /** Snapshot + durable journal replay for `runs/<rootRunId>` subscriptions. */
+    runsReplay?: {runs: api.RunInfo[]; entries: api.RunJournalEntryInfo[]}
   }> {
     let verified: auth.VerifiedEnvelope
     try {
@@ -2543,6 +5234,24 @@ export class Service {
       const replay = await this.#getSession(verified.accountId, sessionId, envelope.action.afterSeq)
       return {accountId: verified.accountId, key, replay}
     }
+    const runMatch = /^runs\/([^/]+)$/.exec(key)
+    if (runMatch) {
+      const rootRunId = runMatch[1]
+      if (!rootRunId) throw new APIError(400, 'Subscription key is invalid')
+      const root = runs.getRun(this.#db, verified.accountId, rootRunId)
+      if (!root) throw new APIError(404, 'Run not found')
+      const tree = runs.listRunTree(this.#db, verified.accountId, root.rootRunId)
+      const afterSeq = envelope.action.afterSeq
+      const entries: api.RunJournalEntryInfo[] = []
+      for (const run of tree) {
+        entries.push(...this.#getRunJournal(verified.accountId, run.id, afterSeq).entries)
+      }
+      return {
+        accountId: verified.accountId,
+        key,
+        runsReplay: {runs: tree.map(runInfoFromRecord), entries},
+      }
+    }
     throw new APIError(400, 'Subscription key is not authorized')
   }
 
@@ -2559,7 +5268,7 @@ export class Service {
   #getAgentTriggerInfo(accountId: string, triggerId: string): api.AgentTriggerInfo | null {
     const trigger = this.#db
       .query<AgentTriggerRow, [string, string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers WHERE account_id = ? AND id = ?`,
       )
@@ -2570,7 +5279,9 @@ export class Service {
   #getSessionInfo(accountId: string, sessionId: string): api.SessionInfo | null {
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, created_at, updated_at
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+                (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
+                created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
@@ -2624,7 +5335,7 @@ export class Service {
   async processScheduledTriggers(now = Date.now()): Promise<TriggerProcessingResult> {
     const rows = this.#db
       .query<AgentTriggerRow, []>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE enabled = 1
@@ -2669,6 +5380,11 @@ export class Service {
         continue
       }
       try {
+        if (trigger.continuation?.kind === 'wake') {
+          if (this.#wakeFromTrigger(trigger.account, trigger, firingId, occurrence.activity)) fired += 1
+          else skipped += 1
+          continue
+        }
         const session = this.#createSessionOnce(
           trigger.account,
           trigger.agentId,
@@ -2683,7 +5399,14 @@ export class Service {
         // can't let the same occurrence fire twice.
         this.#db.run(
           `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL, enabled = CASE WHEN ? THEN 0 ELSE enabled END WHERE account_id = ? AND id = ?`,
-          [Date.now(), trigger.source.schedule.kind === 'once' ? 1 : 0, trigger.account, trigger.id],
+          // The caller's clock, not Date.now(): mixing the injected timestamp with the wall clock
+          // makes a firing in the same millisecond as trigger creation eligible to re-match.
+          [
+            Math.max(now, occurrence.scheduledAt),
+            trigger.source.schedule.kind === 'once' ? 1 : 0,
+            trigger.account,
+            trigger.id,
+          ],
         )
         fired += 1
         // Run the agent in the background; the session already exists for this occurrence.
@@ -2712,6 +5435,9 @@ export class Service {
     accountId: string,
     event: activityTriggers.ActivityFeedEvent,
   ): Promise<TriggerProcessingResult> {
+    // A parked run listening for this event is woken first: it is work already underway, and it
+    // does not care whether the event also fires somebody's trigger.
+    this.#deliverActivityToRunWaits(accountId, event)
     const activityKey = activityTriggers.activityEventKey(event)
     if (!activityKey) {
       console.log('[Agents Trigger] Skipping activity without stable key', {
@@ -2725,7 +5451,7 @@ export class Service {
     const firingKey = activityTriggers.activityFiringKey(event) ?? activityKey
     const rows = this.#db
       .query<AgentTriggerRow, [string]>(
-        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at,
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
                 last_checked_at, last_fired_at, last_error
          FROM agent_triggers
          WHERE account_id = ? AND enabled = 1
@@ -2776,6 +5502,11 @@ export class Service {
         continue
       }
       try {
+        if (trigger.continuation?.kind === 'wake') {
+          if (this.#wakeFromTrigger(accountId, trigger, firingId, event)) fired += 1
+          else skipped += 1
+          continue
+        }
         const session = this.#createSessionOnce(
           accountId,
           trigger.agentId,
@@ -2827,6 +5558,189 @@ export class Service {
   }
 
   /**
+   * A trigger whose continuation is `wake`: instead of starting a thread, it answers a run that is
+   * already parked on `ctx.waitForEvent`.
+   *
+   * This rides the SignalRun delivery path unchanged, so a trigger-sent signal has exactly the
+   * properties a hand-sent one does — one transaction, exactly once, and "nobody was listening" as
+   * a normal outcome rather than an error. Without an explicit `runId` it looks for any parked run
+   * of this account whose wait this signal satisfies, which is what makes "when the doc changes,
+   * unblock whoever is waiting on it" expressible without knowing run ids in advance.
+   */
+  #wakeFromTrigger(
+    accountId: string,
+    trigger: api.AgentTriggerInfo,
+    firingId: string,
+    event: activityTriggers.ActivityFeedEvent,
+  ): boolean {
+    const continuation = trigger.continuation
+    if (continuation?.kind !== 'wake') return false
+    const delivery: runEvents.RunEventDelivery = {
+      source: 'trigger',
+      signal: continuation.signal,
+      payload: continuation.payload === undefined ? event : continuation.payload,
+    }
+    const candidates = continuation.runId
+      ? runEvents.listRunEventWaits(this.#db, continuation.runId)
+      : runEvents.listAccountEventWaits(this.#db, accountId)
+    for (const wait of candidates) {
+      if (!runEvents.signalMatchesWait(wait.match, continuation.signal)) continue
+      const run = runs.getRun(this.#db, accountId, wait.runId)
+      if (!run) continue
+      if (!this.#deliverRunEvent(run, wait.waitId, delivery)) continue
+      this.#db.run(`UPDATE trigger_firings SET status = ?, session_id = NULL WHERE account_id = ? AND id = ?`, [
+        'delivered',
+        accountId,
+        firingId,
+      ])
+      this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
+        Date.now(),
+        accountId,
+        trigger.id,
+      ])
+      console.info('[Agents Trigger] Trigger woke a parked run', {
+        accountId,
+        triggerId: trigger.id,
+        runId: wait.runId,
+        signal: continuation.signal,
+      })
+      return true
+    }
+    // Nobody was listening. The firing row records that honestly rather than being deleted, so the
+    // history shows the trigger fired and found no one — which is what a user needs to debug it.
+    this.#db.run(`UPDATE trigger_firings SET status = ? WHERE account_id = ? AND id = ?`, [
+      'no-listener',
+      accountId,
+      firingId,
+    ])
+    console.info('[Agents Trigger] Trigger fired with no run listening', {
+      accountId,
+      triggerId: trigger.id,
+      signal: continuation.signal,
+    })
+    return false
+  }
+
+  /**
+   * Fires `run-completed` triggers for a run that just reached a terminal status — the source that
+   * lets one automation start the next.
+   *
+   * Runs inline on the finalize path (no new monitor, no new poll): finalization is already the one
+   * moment that knows a run is done. Every firing is deduped on the run id, so a replayed or
+   * re-finalized run cannot fire the same trigger twice.
+   */
+  #fireRunCompletedTriggers(run: runs.RunRecord): void {
+    if (!runs.TERMINAL_RUN_STATUSES.includes(run.status)) return
+    const rows = this.#db
+      .query<AgentTriggerRow, [string]>(
+        `SELECT id, account_id, agent_id, name, enabled, source_cbor, prompt, continuation_cbor, created_at, updated_at,
+                last_checked_at, last_fired_at, last_error
+         FROM agent_triggers WHERE account_id = ? AND enabled = 1 ORDER BY created_at ASC`,
+      )
+      .all(run.accountId)
+    const event: activityTriggers.ActivityFeedEvent = {
+      type: 'run-completed',
+      runId: run.id,
+      runTitle: run.title ?? '',
+      runStatus: run.status,
+      agentId: run.agentId ?? '',
+      ...(run.sessionId ? {sessionId: run.sessionId} : {}),
+    }
+    for (const row of rows) {
+      const trigger = agentTriggerRowToInfo(row)
+      if (trigger.source.type !== 'run-completed') continue
+      if (!matchesRunCompleted(trigger.source, run)) continue
+      if (this.#triggerAlreadyInChain(run, trigger.id)) {
+        console.info('[Agents Trigger] Skipping run-completed trigger already in this chain', {
+          accountId: run.accountId,
+          triggerId: trigger.id,
+          runId: run.id,
+        })
+        continue
+      }
+      const firingId = crypto.randomUUID()
+      const inserted = this.#db.run(
+        `INSERT OR IGNORE INTO trigger_firings
+           (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          firingId,
+          run.accountId,
+          trigger.agentId,
+          trigger.id,
+          `run:${run.id}`,
+          cbor.encode(event),
+          'created',
+          Date.now(),
+        ],
+      )
+      if (inserted.changes === 0) continue
+      try {
+        if (trigger.continuation?.kind === 'wake') {
+          this.#wakeFromTrigger(run.accountId, trigger, firingId, event)
+          continue
+        }
+        const session = this.#createSessionOnce(
+          run.accountId,
+          trigger.agentId,
+          `${trigger.name} — ${activityTriggers.activitySummary(event)}`,
+        )
+        this.#db.run(`UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ?`, [
+          session.sessionId,
+          run.accountId,
+          firingId,
+        ])
+        this.#db.run(`UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL WHERE account_id = ? AND id = ?`, [
+          Date.now(),
+          run.accountId,
+          trigger.id,
+        ])
+        this.#dispatchTriggerSession(run.accountId, trigger, firingId, session.sessionId, event)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Trigger firing failed'
+        this.#db.run(`UPDATE trigger_firings SET status = ?, error = ? WHERE account_id = ? AND id = ?`, [
+          'error',
+          message,
+          run.accountId,
+          firingId,
+        ])
+        this.#db.run(`UPDATE agent_triggers SET last_error = ? WHERE account_id = ? AND id = ?`, [
+          message,
+          run.accountId,
+          trigger.id,
+        ])
+      }
+    }
+  }
+
+  /**
+   * Has this trigger already fired somewhere in the chain that produced this run?
+   *
+   * Two run-completed triggers can otherwise feed each other forever: A finishes, B fires, B's run
+   * finishes, A fires. Walking back through the firings that caused each run catches that cycle at
+   * any length up to the cap, and the cap catches anything longer — a chain deeper than this is a
+   * loop whether or not it repeats a trigger id.
+   */
+  #triggerAlreadyInChain(run: runs.RunRecord, triggerId: string): boolean {
+    let current: runs.RunRecord | null = run
+    for (let hop = 0; hop < TRIGGER_CHAIN_MAX_HOPS && current?.triggerFiringId; hop += 1) {
+      const firing = this.#db
+        .query<{trigger_id: string; activity_cbor: Uint8Array}, [string]>(
+          `SELECT trigger_id, activity_cbor FROM trigger_firings WHERE id = ?`,
+        )
+        .get(current.triggerFiringId)
+      if (!firing) return false
+      if (firing.trigger_id === triggerId) return true
+      // A run-completed firing names the run that caused it, which is how the walk continues.
+      const activity = cbor.decode<{runId?: unknown}>(firing.activity_cbor)
+      const sourceRunId = typeof activity?.runId === 'string' ? activity.runId : undefined
+      current = sourceRunId ? runs.getRun(this.#db, run.accountId, sourceRunId) : null
+    }
+    // Ran out of hops with the trigger not yet seen: treat a chain this deep as a loop.
+    return !!current?.triggerFiringId
+  }
+
+  /**
    * Builds the trigger prompt and runs the agent for an already-created session, in the BACKGROUND.
    *
    * Never awaited by the poll loop, so a slow or hung agent run (a "session taking a long time to
@@ -2843,11 +5757,17 @@ export class Service {
     sessionId: string,
     activity: activityTriggers.ActivityFeedEvent,
   ): void {
-    const run = (async () => {
+    const dispatch = (async () => {
       try {
         const content = await triggerPromptMessage(trigger, firingId, activity, createSeedClient(this.#hmServerUrl))
-        await this.#messageSessionOnce(accountId, sessionId, content)
-        console.log('[Agents Trigger] Trigger session run completed', {
+        // Exactly-once: the run id derives from the firing id, so a duplicate dispatch is a no-op insert.
+        await this.#messageSessionOnce(accountId, sessionId, content, {
+          origin: 'trigger',
+          background: true,
+          runId: `firing-${firingId}`,
+          triggerFiringId: firingId,
+        })
+        console.log('[Agents Trigger] Trigger session run enqueued', {
           accountId,
           triggerId: trigger.id,
           sessionId,
@@ -2865,7 +5785,7 @@ export class Service {
           accountId,
           trigger.id,
         ])
-        console.error('[Agents Trigger] Trigger session run failed', {
+        console.error('[Agents Trigger] Trigger session dispatch failed', {
           accountId,
           triggerId: trigger.id,
           sessionId,
@@ -2873,17 +5793,23 @@ export class Service {
         })
       }
     })()
-    this.#pendingTriggerSessions.add(run)
-    void run.finally(() => this.#pendingTriggerSessions.delete(run))
+    this.#pendingTriggerSessions.add(dispatch)
+    void dispatch.finally(() => this.#pendingTriggerSessions.delete(dispatch))
   }
 
   /**
-   * Awaits all in-flight background trigger session runs started by {@link #dispatchTriggerSession}.
-   * Used by tests for determinism and by graceful shutdown so runs aren't cut off mid-write. Does not
-   * start new work; runs added after the snapshot are not awaited.
+   * Awaits in-flight background dispatch setup AND the run queue going idle, so tests and graceful
+   * shutdown observe every enqueued run's completion. Runs enqueued after the snapshot are covered
+   * by the queue-idle wait as long as they were enqueued before it resolves.
    */
   async drainTriggerSessions(): Promise<void> {
     await Promise.allSettled([...this.#pendingTriggerSessions])
+    await this.#runQueue.awaitIdle()
+  }
+
+  /** Alias for {@link drainTriggerSessions} under the name the runs feature documents. */
+  async awaitQueueIdle(): Promise<void> {
+    await this.drainTriggerSessions()
   }
 
   #ensureAccount(accountId: string, now: number): void {
@@ -2913,6 +5839,7 @@ type AgentTriggerRow = {
   enabled: number
   source_cbor: Uint8Array
   prompt: string
+  continuation_cbor: Uint8Array | null
   created_at: number
   updated_at: number
   last_checked_at: number | null
@@ -2926,6 +5853,10 @@ type SessionRow = {
   agent_id: string
   title: string | null
   status: api.SessionInfo['status']
+  parent_session_id: string | null
+  run_id: string | null
+  plan_cbor: Uint8Array | null
+  child_count: number
   created_at: number
   updated_at: number
 }
@@ -2976,42 +5907,16 @@ function parseIpfsCid(raw: unknown): string {
   return cid
 }
 
-/**
- * Uploads raw bytes to the HM node's public IPFS file-upload endpoint and returns the resulting
- * CID plus its `ipfs://<cid>` URI for use in Hypermedia content.
- */
-async function uploadBytesToHmIpfs(
-  hmServerUrl: string,
-  data: Uint8Array,
-  mimeType?: string,
-  fileName?: string,
-): Promise<{cid: string; url: string}> {
-  const formData = new FormData()
-  const blob = new Blob([new Uint8Array(data)], mimeType ? {type: mimeType} : undefined)
-  formData.append('file', blob, fileName || 'file')
-  const response = await fetch(`${hmServerUrl.replace(/\/$/, '')}/ipfs/file-upload`, {
-    method: 'POST',
-    body: formData,
-  })
-  if (!response.ok) {
-    throw new APIError(502, `IPFS upload failed with status ${response.status}`)
-  }
-  const cid = (await response.text()).trim()
-  if (!cid) throw new APIError(502, 'IPFS upload returned an empty CID')
-  return {cid, url: `ipfs://${cid}`}
+/** Chunks bytes as UnixFS and publishes every block through the typed Seed API. */
+async function publishBytesToIpfs(hmServerUrl: string, data: Uint8Array): Promise<{cid: string; url: string}> {
+  const chunked = await fileToIpfsBlobs(data)
+  await createSeedClient(hmServerUrl).publish({blobs: chunked.blobs})
+  return {cid: chunked.cid, url: `ipfs://${chunked.cid}`}
 }
 
-/**
- * Uploads raw avatar bytes to the HM node's public IPFS file-upload endpoint and
- * returns the resulting `ipfs://<cid>` URI for use as a profile avatar.
- */
-async function uploadIconToHmNode(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
-  const {url} = await uploadBytesToHmIpfs(
-    hmServerUrl,
-    new Uint8Array(icon.data),
-    icon.mimeType,
-    icon.fileName || 'icon',
-  )
+/** Publishes avatar bytes as UnixFS and returns their `ipfs://` URI. */
+async function publishIconToIpfs(hmServerUrl: string, icon: api.SigningIdentityIcon): Promise<string> {
+  const {url} = await publishBytesToIpfs(hmServerUrl, new Uint8Array(icon.data))
   return url
 }
 
@@ -3053,30 +5958,85 @@ async function publishSigningIdentityProfileAndHome(
 }
 
 /**
- * Renders the automatic top-level memory listing appended to memory-enabled system prompts.
- * Root files and folders only (with contained file counts), so the agent knows what it has
- * without an explicit memory_list call, while deep folders don't bloat the prompt.
+ * The Space index: the always-present, byte-budgeted summary of everything the agent could
+ * expand — callable tools (one line each, from tool documents), the memory top level, the live
+ * plan, and active triggers. Cached per agent and invalidated by memory/tool/trigger changes so
+ * long sessions stop paying a recursive tree walk on every turn.
  */
-function memoryListingPrompt(stateDir: string): string {
-  let summary: ReturnType<typeof agentMemory.summarizeMemoryTopLevel>
-  try {
-    summary = agentMemory.summarizeMemoryTopLevel(stateDir)
-  } catch {
-    return ''
+const SPACE_INDEX_BUDGET_BYTES = 2048
+
+type SpaceIndexInput = {
+  db: Database
+  accountId: string
+  agentId: string
+  stateDir: string
+  callableTools: string[]
+}
+
+const spaceIndexCache = new Map<string, string>()
+
+export function invalidateSpaceIndex(accountId: string, agentId?: string): void {
+  for (const key of spaceIndexCache.keys()) {
+    if (key.startsWith(agentId ? `${accountId}/${agentId}#` : `${accountId}/`)) {
+      spaceIndexCache.delete(key)
+    }
   }
-  if (!summary.entries.length) {
-    return '\n\n<memory_files>\n(empty)\n</memory_files>\nYour memory is currently empty.'
-  }
-  const lines = summary.entries.map((entry) =>
-    entry.type === 'dir'
-      ? `${entry.name}/ — ${entry.fileCount ?? 0} file${(entry.fileCount ?? 0) === 1 ? '' : 's'}`
-      : `${entry.name} — ${entry.size} bytes`,
+}
+
+export function buildSpaceIndex(input: SpaceIndexInput): string {
+  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}`
+  const cached = spaceIndexCache.get(cacheKey)
+  if (cached !== undefined) return cached
+
+  toolDocs.ensureBuiltinToolDocuments(input.db, input.accountId, input.agentId)
+  const tools = toolDocs
+    .listToolDocuments(input.db, input.accountId, input.agentId)
+    .filter((row) => row.enabled && (row.doc.kind !== 'builtin' || input.callableTools.includes(row.doc.name)))
+  const toolLines = tools.map(
+    (row) => `- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`,
   )
-  return `\n\n<memory_files>\n${lines.join('\n')}\n</memory_files>\nThis is the current top level of your memory (${
-    summary.totalFiles
-  } file${
-    summary.totalFiles === 1 ? '' : 's'
-  } total). Folder contents are not expanded here: use memory_list with a directory path to look inside a folder and memory_read to read a file.`
+
+  let memoryLine = 'memory/ — empty'
+  try {
+    const summary = agentMemory.summarizeMemoryTopLevel(input.stateDir)
+    if (summary.entries.length) {
+      const top = summary.entries
+        .slice(0, 12)
+        .map((entry) => (entry.type === 'dir' ? `${entry.name}/(${entry.fileCount ?? 0})` : entry.name))
+        .join(' · ')
+      memoryLine = `memory/ — ${summary.totalFiles} file${summary.totalFiles === 1 ? '' : 's'}: ${top}${
+        summary.entries.length > 12 ? ' · …' : ''
+      }`
+    }
+  } catch {}
+
+  const triggers = input.db
+    .query<{name: string}, [string, string]>(
+      `SELECT name FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND enabled = 1 ORDER BY name LIMIT 8`,
+    )
+    .all(input.accountId, input.agentId)
+
+  const parts = [
+    '<space>',
+    'tools/ (read ~/tools/<name> for a contract; call runs one; write ~/tools/<name> authors one)',
+    ...toolLines,
+    memoryLine,
+    ...(triggers.length ? [`triggers/ — active: ${triggers.map((row) => row.name).join(' · ')}`] : []),
+    '</space>',
+  ]
+  let index = parts.join('\n')
+  if (index.length > SPACE_INDEX_BUDGET_BYTES) {
+    // Over budget: drop the per-tool lines for a count, keeping the index honest but tiny.
+    index = [
+      '<space>',
+      `tools/ — ${tools.length} callable tools (read ~/tools/ to list them)`,
+      memoryLine,
+      ...(triggers.length ? [`triggers/ — ${triggers.length} active`] : []),
+      '</space>',
+    ].join('\n')
+  }
+  spaceIndexCache.set(cacheKey, index)
+  return index
 }
 
 /** Reraises agent-memory errors as API errors so they carry an HTTP status. */
@@ -3103,7 +6063,7 @@ function formatAttachmentMetadata(attachments: unknown): string | null {
       (item) => `- "${item.name}" (${item.mimeType || 'unknown type'}, ${item.size} bytes) — attachment id ${item.id}`,
     )
   if (lines.length === 0) return null
-  return `<attachments>\nThe user attached these session-private files. Use view_attachment with an id to see an image or read a text file; use attachment_to_memory to keep one across sessions or attachment_to_ipfs to publish one for Hypermedia content. Only view what you need.\n${lines.join(
+  return `<attachments>\nThe user attached these session-private files. Use \`read attachment:<id>\` to see an image or read a text file; use \`write ~/memory/<path>\` with {fromAttachment} to keep one across sessions, or \`write ipfs://\` with {fromAttachment} to publish one for Hypermedia content. Only read what you need.\n${lines.join(
     '\n',
   )}\n</attachments>`
 }
@@ -3161,6 +6121,23 @@ function agentRowToInfo(row: AgentRow): api.AgentInfo {
   }
 }
 
+/** How far back a run-completed chain is followed before it is called a loop. */
+const TRIGGER_CHAIN_MAX_HOPS = 8
+
+/** Does a finished run match what a `run-completed` trigger is watching for? */
+function matchesRunCompleted(
+  source: Extract<api.AgentTriggerSource, {type: 'run-completed'}>,
+  run: runs.RunRecord,
+): boolean {
+  if (source.agentId !== undefined && source.agentId !== run.agentId) return false
+  if (source.status !== undefined && source.status !== run.status) return false
+  if (source.titleMatch !== undefined) {
+    const title = (run.title ?? '').toLowerCase()
+    if (!title.includes(source.titleMatch.toLowerCase())) return false
+  }
+  return true
+}
+
 function agentTriggerRowToInfo(row: AgentTriggerRow): api.AgentTriggerInfo {
   return {
     id: row.id,
@@ -3170,6 +6147,7 @@ function agentTriggerRowToInfo(row: AgentTriggerRow): api.AgentTriggerInfo {
     enabled: row.enabled !== 0,
     source: cbor.decode<api.AgentTriggerSource>(row.source_cbor),
     prompt: parseStoredPromptBlocks(row.prompt),
+    ...(row.continuation_cbor ? {continuation: cbor.decode<api.TriggerContinuation>(row.continuation_cbor)} : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(row.last_checked_at === null ? {} : {lastCheckedAt: row.last_checked_at}),
@@ -3185,6 +6163,10 @@ function sessionRowToInfo(row: SessionRow, triggerContext?: api.AgentSessionTrig
     agentId: row.agent_id,
     ...(row.title ? {title: row.title} : {}),
     status: row.status,
+    ...(row.parent_session_id ? {parentSessionId: row.parent_session_id} : {}),
+    ...(row.run_id ? {runId: row.run_id} : {}),
+    ...(row.plan_cbor ? {plan: cbor.decode<api.RunPlan>(row.plan_cbor)} : {}),
+    ...(row.child_count > 0 ? {childSessionCount: row.child_count} : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(triggerContext
@@ -3265,7 +6247,7 @@ async function triggerPromptMessage(
         '</trigger_context>',
         '',
         '<trigger_instructions>',
-        'When responding to a comment activity with the write tool command comment.create, create a threaded reply, not a new top-level comment. Set input.replyCommentId to the exact parent comment id from trigger_context.activity.comment.id when present, or trigger_context.activity.commentId.id as a fallback. Set input.target to the target document id from trigger_context.activity.target.id.id or the activity comment target fields. Do not omit replyCommentId when the user was mentioned in a comment.',
+        'When responding to a comment activity, reply with the write verb as a THREADED reply, not a new top-level comment: write {address: <target document id>, content: <your reply>, options: {action: "comment", replyTo: <parent comment id>}}. Take the target document id from trigger_context.activity.target.id.id or the activity comment target fields, and replyTo from trigger_context.activity.comment.id when present, or trigger_context.activity.commentId.id as a fallback. Do not omit replyTo when the user was mentioned in a comment.',
         '</trigger_instructions>',
       ].join('\n'),
     },
@@ -3456,6 +6438,7 @@ function normalizeAgentTriggerInput(
     enabled: raw.enabled === undefined ? true : normalizeBoolean(raw.enabled, 'Trigger enabled'),
     source,
     prompt: normalizePromptBlocks(raw.prompt, 'Trigger prompt'),
+    ...(raw.continuation === undefined ? {} : {continuation: normalizeTriggerContinuation(raw.continuation)}),
   }
 }
 
@@ -3468,6 +6451,7 @@ function normalizeAgentTriggerPatch(
   if (raw.enabled !== undefined) patch.enabled = normalizeBoolean(raw.enabled, 'Trigger enabled')
   if (raw.source !== undefined) patch.source = normalizeAgentTriggerSource(raw.source)
   if (raw.prompt !== undefined) patch.prompt = normalizePromptBlocks(raw.prompt, 'Trigger prompt')
+  if (raw.continuation !== undefined) patch.continuation = normalizeTriggerContinuation(raw.continuation)
   if (Object.keys(patch).length === 0) throw new APIError(400, 'Agent trigger patch is empty')
   return patch
 }
@@ -3521,7 +6505,36 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
   if (raw.type === 'schedule') {
     return {type: 'schedule', schedule: normalizeScheduleTrigger(raw.schedule)}
   }
+  if (raw.type === 'run-completed') {
+    if (raw.status !== undefined && !runs.TERMINAL_RUN_STATUSES.includes(raw.status)) {
+      throw new APIError(400, 'Trigger run status must be succeeded, failed, or canceled')
+    }
+    return {
+      type: 'run-completed',
+      ...(raw.agentId === undefined
+        ? {}
+        : {agentId: normalizeBoundedString(raw.agentId, 'Trigger agent ID', MAX_NAME_BYTES)}),
+      ...(raw.status === undefined ? {} : {status: raw.status}),
+      ...(raw.titleMatch === undefined
+        ? {}
+        : {titleMatch: normalizeBoundedString(raw.titleMatch, 'Trigger title match', MAX_NAME_BYTES)}),
+    }
+  }
   throw new APIError(400, 'Trigger source type is unsupported')
+}
+
+function normalizeTriggerContinuation(raw: api.TriggerContinuation): api.TriggerContinuation {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Trigger continuation is required')
+  if (raw.kind === 'newThread') return {kind: 'newThread'}
+  if (raw.kind === 'wake') {
+    return {
+      kind: 'wake',
+      signal: normalizeBoundedString(raw.signal, 'Trigger signal', MAX_NAME_BYTES),
+      ...(raw.runId === undefined ? {} : {runId: normalizeBoundedString(raw.runId, 'Trigger run ID', MAX_NAME_BYTES)}),
+      ...(raw.payload === undefined ? {} : {payload: jsonSafeToolOutput(raw.payload)}),
+    }
+  }
+  throw new APIError(400, 'Trigger continuation kind is unsupported')
 }
 
 function normalizeScheduleTrigger(raw: api.AgentScheduleTrigger): api.AgentScheduleTrigger {
@@ -3942,25 +6955,45 @@ type WriteToolContext = {
   agentId: string
   definition: api.AgentDefinition
   hmServerUrl: string
+  ipfsServerUrl: string
 }
 
-type AgentServicePiToolContext = WriteToolContext & {
-  setSessionTitle: (title: string) => api.SessionInfo
+export type AgentServicePiToolContext = WriteToolContext & {
   web: WebToolsConfig
   /** Agent state directory holding the private memory filesystem. */
   stateDir: string
-  /** Session this run belongs to, scoping the attachment tools. */
+  /** Session this run belongs to, scoping attachment addresses. */
   sessionId: string
-  /** Whether the session's model accepts image content, gating view_attachment image output. */
+  /** Whether the session's model accepts image content, gating attachment image output. */
   modelAcceptsImages: boolean
-  /** Called after a memory tool mutates files, so clients watching the Memory tab refresh. */
+  /** Called after a write mutates memory files, so clients watching the Memory tab refresh. */
   onMemoryChange: () => void
   /** Reports live mid-call progress from a long-running tool, surfaced as run activity to clients. */
   onToolProgress: (toolName: string, progress: {toolCallId?: string; detail?: string; outputTail?: string}) => void
   /** Sandboxed code execution against the memory workspace. */
   codeExec: CodeExecutor
-  /** start_session tool: creates a new session of this agent and dispatches its first run in the background. */
+  /** Callable tool names this agent may dispatch through the call verb. */
+  callableTools: string[]
+  /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
+  publishEnabled: boolean
+  /**
+   * Callables the transcript shows the model has expanded (read the contract / hit touch-expand).
+   * Promoted to first-class provider tools so later turns get provider-side schema validation.
+   * Derived from durable events, so resume and compaction reconstruct the same set.
+   */
+  expandedCallables?: string[]
+  /** delegate {await: false}: creates a detached session of this agent and dispatches its first run. */
   startSession: (input: unknown) => {sessionId: string; title: string}
+  /** plan verb: stores the session's live checklist snapshot. Absent in session-less (script) contexts. */
+  setSessionPlan?: (plan: unknown) => api.SessionInfo
+  /** delegate (model child): spawns an awaited child run + session and parks the calling turn on it. */
+  spawnSubSession?: (toolCallId: string, input: unknown) => unknown
+  /** delegate {script}: lints + spawns a script child run and parks the calling turn on it. */
+  spawnWorkflow?: (toolCallId: string, input: unknown) => unknown
+  /** When set, this run is a typed delegate child: return_result uses this schema as its parameters. */
+  returnResultSchema?: JsonSchema
+  /** return_result tool: validates and records the typed result, ending the turn after the tool batch. */
+  deliverResult?: (payload: unknown) => unknown
 }
 
 type ResolvedAgentSigner = {
@@ -4004,10 +7037,14 @@ function defineSeedPiTool(
       if (hasPiContent(raw)) {
         const {piContent, ...rest} = raw
         const output = jsonSafeToolOutput(rest)
-        return {content: piContent, details: output}
+        // Text parts are bounded like any other result; image parts have their own inline cap.
+        const content = piContent.map((part) =>
+          part.type === 'text' ? {...part, text: boundModelToolResultText(part.text)} : part,
+        )
+        return {content, details: output}
       }
       const output = jsonSafeToolOutput(raw)
-      return {content: [{type: 'text', text: safeJSONStringify(output)}], details: output}
+      return {content: [{type: 'text', text: boundModelToolResultText(safeJSONStringify(output))}], details: output}
     },
   })
 }
@@ -4094,87 +7131,433 @@ async function executeAgentServiceSearch(
   }
 }
 
-function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolDefinition[] {
-  return [
-    defineSeedPiTool(seedToolRegistry.search, (params) => executeAgentServiceSearch(context, params)),
-    defineSeedPiTool(seedToolRegistry.read, (params) => readHypermedia(params)),
-    defineSeedPiTool(seedToolRegistry.web_search, (params) => executeWebSearch(context.web, params)),
-    defineSeedPiTool(seedToolRegistry.web_read, (params) => executeWebRead(context.web, params)),
-    defineSeedPiTool(seedToolRegistry.list_activity_feed, async (params) => {
-      const input: Record<string, unknown> = isRecord(params) ? params : {}
-      const client = createSeedClient(context.hmServerUrl)
-      const output = await client.request('ListEvents', {
-        pageSize:
-          typeof input.pageSize === 'number' ? Math.max(1, Math.min(50, Math.floor(input.pageSize))) : undefined,
-        pageToken: typeof input.pageToken === 'string' ? input.pageToken : undefined,
-        trustedOnly: typeof input.trustedOnly === 'boolean' ? input.trustedOnly : undefined,
-        filterAuthors: Array.isArray(input.filterAuthors)
-          ? input.filterAuthors.filter((author): author is string => typeof author === 'string')
-          : undefined,
-        filterEventType: Array.isArray(input.filterEventType)
-          ? input.filterEventType.filter((eventType): eventType is string => typeof eventType === 'string')
-          : undefined,
-        filterResource: typeof input.filterResource === 'string' ? input.filterResource : undefined,
-        currentAccount: context.accountId,
+// ---------------------------------------------------------------------------------------------
+// Verb dispatch: address parsing shared by read and write
+// ---------------------------------------------------------------------------------------------
+
+/** `~/memory/...` → relative memory path ('' = root); null when the address is not a memory address. */
+function memoryPathFromAddress(address: string): string | null {
+  if (address === '~/memory' || address === '~/memory/') return ''
+  if (address.startsWith('~/memory/')) return address.slice('~/memory/'.length)
+  return null
+}
+
+/** hm://<account>[/path] → {account, path}; null when not an hm address. */
+function parseHmAddress(address: string): {account: string; path: string} | null {
+  const match = /^hm:\/\/([^/?#]+)(\/[^?#]*)?/.exec(address)
+  if (!match) return null
+  const path = match[2] && match[2] !== '/' ? match[2].replace(/\/+$/, '') : '/'
+  return {account: match[1]!, path}
+}
+
+/** Renders the ~/tools listing from the agent's tool documents, one summary line each. */
+function toolsListing(context: AgentServicePiToolContext): Record<string, unknown> {
+  const verbs = Object.values(seedVerbRegistry as Record<string, SeedToolMetadata>).filter(
+    (tool) => !tool.hidden && tool.name !== 'return_result',
+  )
+  toolDocs.ensureBuiltinToolDocuments(context.db, context.accountId, context.agentId)
+  const rows = toolDocs
+    .listToolDocuments(context.db, context.accountId, context.agentId)
+    .filter((row) => row.enabled && (row.doc.kind !== 'builtin' || context.callableTools.includes(row.doc.name)))
+  const lines = [
+    '# ~/tools',
+    '',
+    '## Verbs (always available)',
+    ...verbs.map((tool) => `- ${toolSummaryLine(tool)}`),
+    '',
+    '## Callable with the call verb',
+    ...rows.map((row) => `- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`),
+    '',
+    'Write a document to ~/tools/<name> ({description, input, output?, source, runtime?}) to author a new tool, then call it by name.',
+    'Its source runs in the execute sandbox and receives the validated input: TypeScript (default) `export default (input) => result`; python `def main(input): return result`. Whatever it returns is the tool result; anything it prints comes back as logs.',
+  ]
+  return {
+    summary: `${verbs.length} verbs and ${rows.length} callable tools.`,
+    markdown: lines.join('\n'),
+    tools: rows.map((row) => row.doc.name),
+  }
+}
+
+/** Reads a memory address: file content, or a directory listing for dir addresses. */
+function readMemoryAddress(context: AgentServicePiToolContext, memoryPath: string): Record<string, unknown> {
+  const list = (path: string): Record<string, unknown> => {
+    const level = withMemoryErrors(() => agentMemory.listMemoryDir(context.stateDir, path))
+    const fileCount = level.entries.filter((entry) => entry.type === 'file').length
+    const dirCount = level.entries.length - fileCount
+    const where = level.path ? `${level.path}/` : 'Memory root'
+    const dirNote = dirCount
+      ? ` and ${dirCount} director${dirCount === 1 ? 'y' : 'ies'} (read a directory address to see inside)`
+      : ''
+    return {
+      summary: level.entries.length
+        ? `${where} holds ${fileCount} file${fileCount === 1 ? '' : 's'} (${level.totalBytes} bytes)${dirNote}.`
+        : `${where} is empty.`,
+      ...level,
+    }
+  }
+  if (memoryPath === '' || memoryPath.endsWith('/')) return list(memoryPath.replace(/\/+$/, ''))
+  try {
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, memoryPath))
+    const {data: _data, ...meta} = file
+    if (file.encoding === 'binary') {
+      return {
+        summary: `${file.path} is a binary file (${file.size} bytes${
+          file.mimeType ? `, ${file.mimeType}` : ''
+        }); content not shown. Use write ipfs:// with {fromPath} to publish it for Hypermedia content.`,
+        ...meta,
+      }
+    }
+    return {summary: `Read ${file.path} (${file.size} bytes).`, ...meta}
+  } catch (error) {
+    // A directory read without a trailing slash is a natural mistake; answer with the listing.
+    try {
+      return list(memoryPath)
+    } catch {
+      throw error
+    }
+  }
+}
+
+/** Reads an attachment address, inlining images for image-capable models. */
+function readAttachmentAddress(context: AgentServicePiToolContext, attachmentId: string): Record<string, unknown> {
+  const {info, data} = withAttachmentErrors(() =>
+    sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
+  )
+  const meta = {id: info.id, name: info.name, mimeType: info.mimeType, size: info.size}
+  const isImage = !!info.mimeType?.startsWith('image/')
+  if (isImage && context.modelAcceptsImages && info.size <= MAX_INLINE_IMAGE_BYTES) {
+    return {
+      summary: `Viewed ${info.name} (${info.mimeType}, ${info.size} bytes).`,
+      ...meta,
+      shownAsImage: true,
+      piContent: [
+        {type: 'text', text: `Attachment "${info.name}" (${info.mimeType}, ${info.size} bytes):`},
+        {type: 'image', data: Buffer.from(data).toString('base64'), mimeType: info.mimeType!},
+      ],
+    }
+  }
+  if (isTextMimeType(info.mimeType) && data.byteLength <= MAX_TOOL_RESULT_BYTES) {
+    const text = new TextDecoder('utf-8', {fatal: false}).decode(data)
+    return {summary: `Read ${info.name} (${info.size} bytes).`, ...meta, shownAsImage: false, content: text}
+  }
+  const reason = isImage
+    ? context.modelAcceptsImages
+      ? 'the image is too large to view inline'
+      : 'this model does not support image input'
+    : 'the content is not viewable inline'
+  return {
+    summary: `${info.name} (${info.mimeType || 'unknown type'}, ${
+      info.size
+    } bytes); ${reason}. Save it to memory with write and process it with the execute tool.`,
+    ...meta,
+    shownAsImage: false,
+  }
+}
+
+/** Reads a thread address: a compact transcript of one of this account's sessions. */
+function readThreadAddress(context: AgentServicePiToolContext, sessionId: string): Record<string, unknown> {
+  const session = context.db
+    .query<{id: string; title: string | null; agent_id: string}, [string, string]>(
+      `SELECT id, title, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+    )
+    .get(context.accountId, sessionId)
+  if (!session) throw new APIError(404, `No thread ${sessionId}`)
+  const rows = context.db
+    .query<SessionEventRow, [string]>(
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 200`,
+    )
+    .all(sessionId)
+    .reverse()
+    .map(sessionEventRowToInfo)
+  const lines = rows.map((row) => {
+    const event = row.event as {type?: string; role?: string; content?: unknown; name?: string; message?: string}
+    if (event.type === 'message') {
+      const content = typeof event.content === 'string' ? event.content : JSON.stringify(event.content)
+      return `**${event.role ?? 'unknown'}**: ${content}`
+    }
+    if (event.type === 'tool_call') return `→ tool call ${event.name ?? ''}`
+    if (event.type === 'tool_result') return `← tool result ${event.name ?? ''}`
+    if (event.type === 'error') return `⚠ error: ${event.message ?? ''}`
+    return `(${event.type ?? 'event'})`
+  })
+  const markdown = lines.join('\n\n')
+  const bounded =
+    markdown.length > MAX_TOOL_RESULT_BYTES
+      ? `[earlier events truncated]\n\n${markdown.slice(-MAX_TOOL_RESULT_BYTES)}`
+      : markdown
+  return {
+    summary: `Thread "${session.title ?? sessionId}": ${rows.length} recent events.`,
+    sessionId,
+    title: session.title,
+    markdown: bounded,
+  }
+}
+
+/** Reads a run address: the run's public record. */
+function readRunAddress(context: AgentServicePiToolContext, runId: string): Record<string, unknown> {
+  const run = runs.getRun(context.db, context.accountId, runId)
+  if (!run) throw new APIError(404, `No run ${runId}`)
+  return {
+    summary: `Run ${run.id} (${run.kind}) is ${run.status}.`,
+    ...runInfoFromRecord(run),
+    ...(run.sourceText ? {sourceText: run.sourceText} : {}),
+  }
+}
+
+/**
+ * Callables a session's transcript shows as expanded: a read of ~/tools/<name> or any call by
+ * name. Scans durable tool_call events only, so the answer is identical after resume, restart,
+ * or compaction — the transcript is the pin.
+ */
+export function expandedCallablesFromEvents(db: Database, sessionId: string): string[] {
+  const rows = db
+    .query<SessionEventRow, [string]>(
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+    )
+    .all(sessionId)
+  const expanded = new Set<string>()
+  for (const row of rows) {
+    const event = sessionEventRowToInfo(row).event as {
+      type?: string
+      name?: string
+      input?: {address?: unknown; tool?: unknown}
+    }
+    if (event.type !== 'tool_call' || !isRecord(event.input)) continue
+    // Only the AGENT's own touches expand its provider toolset; a user's palette call replays as
+    // a text block, not a tool exchange, and must not silently reshape the agent's active tools.
+    if (sessionEventActor(event as never) === 'user') continue
+    if (event.name === seedVerbRegistry.read.name && typeof event.input.address === 'string') {
+      const address = event.input.address.trim()
+      if (address.startsWith('~/tools/')) expanded.add(address.slice('~/tools/'.length).replace(/\/+$/, ''))
+    }
+    if (event.name === seedVerbRegistry.call.name && typeof event.input.tool === 'string') {
+      expanded.add(event.input.tool.trim())
+    }
+  }
+  return [...expanded]
+}
+
+/** Executes the read verb: one dispatcher over every address form. */
+export async function executeReadVerb(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const address = typeof input.address === 'string' ? input.address.trim() : ''
+  if (!address) throw new APIError(400, 'read requires an address')
+  const options = isRecord(input.options) ? input.options : {}
+  const format = input.format === 'json' ? 'json' : 'markdown'
+
+  const memoryPath = memoryPathFromAddress(address)
+  if (memoryPath !== null) return readMemoryAddress(context, memoryPath)
+
+  if (address === '~/tools' || address === '~/tools/') return toolsListing(context)
+  if (address.startsWith('~/tools/')) {
+    const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
+    const verb = (seedVerbRegistry as Record<string, SeedToolMetadata>)[name]
+    if (verb) return {summary: `Contract for ${name}.`, name, markdown: toolContractMarkdown(verb)}
+    toolDocs.ensureBuiltinToolDocuments(context.db, context.accountId, context.agentId)
+    const row = toolDocs.getToolDocument(context.db, context.accountId, context.agentId, name)
+    if (!row || (row.doc.kind === 'builtin' && !context.callableTools.includes(name))) {
+      return {...toolsListing(context), summary: `No tool named ${name}.`}
+    }
+    return {
+      summary: `Contract for ${name} (${row.cid}).`,
+      name,
+      cid: row.cid,
+      kind: row.doc.kind,
+      markdown: contractMarkdownForThisServer(context, row),
+    }
+  }
+
+  if (address.startsWith('ipfs://')) {
+    const cid = parseIpfsCid(address)
+    const gatewayUrl = `${context.ipfsServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
+    const targetPath = typeof options.path === 'string' && options.path.trim() ? options.path : `ipfs/${cid}`
+    const result = await withMemoryErrorsAsync(() =>
+      agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
+    )
+    context.onMemoryChange()
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, result.entry.path))
+    const base = {path: file.path, cid, size: file.size, mimeType: file.mimeType}
+    if (file.encoding === 'binary') {
+      return {
+        summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes${
+          file.mimeType ? `, ${file.mimeType}` : ''
+        }); binary content not shown.`,
+        ...base,
+      }
+    }
+    return {summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes).`, ...base, content: file.content}
+  }
+
+  if (address === 'activity:' || address.startsWith('activity:')) {
+    const client = createSeedClient(context.hmServerUrl)
+    const output = await client.request('ListEvents', {
+      pageSize:
+        typeof options.pageSize === 'number' ? Math.max(1, Math.min(50, Math.floor(options.pageSize))) : undefined,
+      pageToken: typeof options.pageToken === 'string' ? options.pageToken : undefined,
+      trustedOnly: typeof options.trustedOnly === 'boolean' ? options.trustedOnly : undefined,
+      filterAuthors: Array.isArray(options.authors)
+        ? options.authors.filter((author): author is string => typeof author === 'string')
+        : undefined,
+      filterEventType: Array.isArray(options.eventTypes)
+        ? options.eventTypes.filter((eventType): eventType is string => typeof eventType === 'string')
+        : undefined,
+      filterResource: typeof options.resource === 'string' ? options.resource : undefined,
+      currentAccount: context.accountId,
+    })
+    return {
+      summary: `Loaded ${Array.isArray(output.events) ? output.events.length : 0} activity feed event${
+        Array.isArray(output.events) && output.events.length === 1 ? '' : 's'
+      }.`,
+      ...output,
+    }
+  }
+
+  if (address.startsWith('attachment:')) return readAttachmentAddress(context, address.slice('attachment:'.length))
+  if (address.startsWith('thread:')) return readThreadAddress(context, address.slice('thread:'.length))
+  if (address.startsWith('run:')) return readRunAddress(context, address.slice('run:'.length))
+
+  // hm:// reads go through this server's configured HM endpoint — the local node in every desktop
+  // environment — never a hardcoded public gateway (environments.md).
+  if (address.startsWith('hm://')) return readHypermedia({id: address, format, server: context.hmServerUrl})
+  if (/^https?:\/\//.test(address)) {
+    // Seed sites and gateway URLs resolve as hypermedia first; anything else is a web page.
+    // Fall through to the web reader ONLY when the URL is established as not-hypermedia (the
+    // resolver's explicit marker) or the document is absent (404 on a real Seed site can still be
+    // an ordinary web page). Every other failure — transient daemon errors, too-large, network —
+    // surfaces instead of being silently replaced by scraped page HTML the model would mistake
+    // for the document's real content.
+    try {
+      return await readHypermedia({id: address, format, server: context.hmServerUrl})
+    } catch (error) {
+      const notHypermedia =
+        error instanceof Error && error.message.includes('does not appear to be a Seed Hypermedia resource')
+      const notFound = error instanceof APIError && error.status === 404
+      if (!notHypermedia && !notFound) throw error
+      return executeWebRead(context.web, {url: address, ...options})
+    }
+  }
+
+  throw new APIError(
+    400,
+    `Unrecognized address: ${address}. Supported: ~/memory/…, ~/tools/…, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread:<id>, run:<id>.`,
+  )
+}
+
+/** Executes the write verb: memory, ipfs publishing, and hypermedia documents. */
+/**
+ * An unknown loose option key is refused, never silently dropped: a write that "succeeds" while
+ * ignoring part of its input (options.metadata was the real case) is worse than an error the model
+ * can read and self-correct from — the error names the key and the full supported set.
+ */
+function assertKnownWriteOptions(
+  form: string,
+  options: Record<string, unknown>,
+  allowed: readonly string[],
+  hint?: string,
+): void {
+  const unknown = Object.keys(options).filter((key) => !allowed.includes(key))
+  if (unknown.length === 0) return
+  const migrations = unknown
+    .map((key) => RETIRED_WRITE_OPTION_HINTS[key])
+    .filter((entry): entry is string => entry !== undefined)
+  throw new APIError(
+    400,
+    `write ${form} does not understand option${unknown.length > 1 ? 's' : ''} ${unknown
+      .map((key) => `"${key}"`)
+      .join(', ')}. Supported options: ${allowed.length ? allowed.join(', ') : '(none)'}.${
+      migrations.length ? ` ${migrations.join(' ')}` : ''
+    }${hint ? ` ${hint}` : ''}`,
+  )
+}
+
+/** Retired option spellings answer with where the concept lives now, so old habits self-correct. */
+const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
+  title: 'A document has no separate title — its name lives in metadata.name; pass {name} (or metadata: {name}).',
+  dryRun: 'dryRun is a top-level field on the write call itself, next to address and content.',
+}
+
+const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
+const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
+  document: ['name', 'metadata'],
+  update: ['name', 'metadata'],
+  comment: ['target', 'replyTo'],
+  move: ['toPath'],
+  redirect: ['toUrl'],
+  delete: [],
+  fork: ['fromUrl'],
+}
+const HM_WRITE_OPTIONS_HINT = 'Extra command fields belong in options.input, never as loose option keys.'
+
+export async function executeWriteVerb(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const address = typeof input.address === 'string' ? input.address.trim() : ''
+  if (!address) throw new APIError(400, 'write requires an address')
+  const options = isRecord(input.options) ? input.options : {}
+  const content = typeof input.content === 'string' ? input.content : undefined
+  // Strict, top-level, and rehearsal-only: a mistyped dryRun must never silently publish. It is a
+  // flag on the call itself, not destination data, so it does not ride in options.
+  if (input.dryRun !== undefined && typeof input.dryRun !== 'boolean') {
+    throw new APIError(400, 'write dryRun must be a boolean')
+  }
+  const dryRun = input.dryRun === true
+  if (dryRun && !address.startsWith('hm://')) {
+    throw new APIError(400, 'dryRun applies only to hm:// writes — it validates a publish without publishing')
+  }
+
+  if (address.startsWith('~/tools/')) {
+    assertKnownWriteOptions('~/tools/<name>', options, ['delete', 'tool'])
+    const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
+    try {
+      if (options.delete === true) {
+        const deleted = toolDocs.deleteToolDocument(context.db, context.accountId, context.agentId, name)
+        context.onMemoryChange()
+        return {summary: deleted ? `Deleted tool ${name}.` : `No tool named ${name}.`, name, deleted}
+      }
+      const parsed = content !== undefined ? (JSON.parse(content) as unknown) : options.tool
+      const row = toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+        ...(isRecord(parsed) ? parsed : {}),
+        name,
       })
-      return {
-        summary: `Loaded ${Array.isArray(output.events) ? output.events.length : 0} activity feed event${
-          Array.isArray(output.events) && output.events.length === 1 ? '' : 's'
-        }.`,
-        ...output,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.write, (params) => writeHypermedia(context, params)),
-    defineSeedPiTool(seedToolRegistry.memory_list, (params) => {
-      const input = isRecord(params) ? params : {}
-      const level = withMemoryErrors(() => agentMemory.listMemoryDir(context.stateDir, input.path))
-      const fileCount = level.entries.filter((entry) => entry.type === 'file').length
-      const dirCount = level.entries.length - fileCount
-      const where = level.path ? `${level.path}/` : 'Memory root'
-      const dirNote = dirCount
-        ? ` and ${dirCount} director${dirCount === 1 ? 'y' : 'ies'} (list a directory path to see inside)`
-        : ''
-      return {
-        summary: level.entries.length
-          ? `${where} holds ${fileCount} file${fileCount === 1 ? '' : 's'} (${level.totalBytes} bytes)${dirNote}.`
-          : `${where} is empty.`,
-        ...level,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_read, (params) => {
-      const input = isRecord(params) ? params : {}
-      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
-      // Raw bytes never go to the model: binary files return metadata only.
-      const {data: _data, ...meta} = file
-      if (file.encoding === 'binary') {
-        return {
-          summary: `${file.path} is a binary file (${file.size} bytes${
-            file.mimeType ? `, ${file.mimeType}` : ''
-          }); content not shown. Use ipfs_write to publish it for Hypermedia content.`,
-          ...meta,
-        }
-      }
-      return {summary: `Read ${file.path} (${file.size} bytes).`, ...meta}
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_write, (params) => {
-      const input = isRecord(params) ? params : {}
-      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, input.path, input.content))
       context.onMemoryChange()
-      return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_delete, (params) => {
-      const input = isRecord(params) ? params : {}
-      const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, input.path))
+      return {
+        summary: `Saved tool ${name} (${row.cid}). Call it by name with the call verb; its contract is live in ~/tools now.`,
+        name,
+        cid: row.cid,
+        kind: row.doc.kind,
+      }
+    } catch (error) {
+      if (error instanceof toolDocs.ToolDocumentError) throw new APIError(error.status, error.message)
+      if (error instanceof SyntaxError) {
+        throw new APIError(
+          400,
+          'write ~/tools/<name> expects JSON content: {description, input, output?, source, runtime?}',
+        )
+      }
+      throw error
+    }
+  }
+
+  const memoryPath = memoryPathFromAddress(address)
+  if (memoryPath !== null) {
+    assertKnownWriteOptions('~/memory/<path>', options, ['delete', 'fromUrl', 'fromAttachment'])
+    if (options.delete === true) {
+      const result = withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, memoryPath))
       if (result.deleted) context.onMemoryChange()
       return {
         summary: result.deleted ? `Deleted ${result.path}.` : `Nothing existed at ${result.path}.`,
         ...result,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.memory_download, async (params) => {
-      const input = isRecord(params) ? params : {}
+    }
+    if (typeof options.fromUrl === 'string' && options.fromUrl) {
+      const fromUrl = options.fromUrl
       const result = await withMemoryErrorsAsync(() =>
-        agentMemory.downloadToMemory(context.stateDir, input.url, input.path),
+        agentMemory.downloadToMemory(context.stateDir, fromUrl, memoryPath),
       )
       context.onMemoryChange()
       return {
@@ -4187,21 +7570,447 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         finalUrl: result.finalUrl,
         contentType: result.contentType,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.execute_code, async (params, toolCallId) => {
-      const input = isRecord(params) ? params : {}
-      const language = typeof input.language === 'string' ? input.language : 'code'
+    }
+    if (typeof options.fromAttachment === 'string' && options.fromAttachment) {
+      const fromAttachment = options.fromAttachment
+      const {info, data} = withAttachmentErrors(() =>
+        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, fromAttachment),
+      )
+      const targetPath = memoryPath || `attachments/${info.name}`
+      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, targetPath, data))
+      context.onMemoryChange()
+      return {
+        summary: `Saved attachment ${info.name} to memory at ${entry.path} (${entry.size} bytes).`,
+        id: info.id,
+        path: entry.path,
+        size: entry.size,
+        mimeType: entry.mimeType,
+      }
+    }
+    if (content === undefined) {
+      throw new APIError(
+        400,
+        'write to ~/memory requires content (or options.delete / options.fromUrl / options.fromAttachment)',
+      )
+    }
+    const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, memoryPath, content))
+    context.onMemoryChange()
+    return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+  }
+
+  if (address.startsWith('ipfs:')) {
+    assertKnownWriteOptions('ipfs://', options, ['fromPath', 'fromAttachment'])
+    if (!context.publishEnabled) {
+      throw new APIError(
+        403,
+        'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.',
+      )
+    }
+    if (typeof options.fromAttachment === 'string' && options.fromAttachment) {
+      const fromAttachment = options.fromAttachment
+      const {info, data} = withAttachmentErrors(() =>
+        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, fromAttachment),
+      )
+      const {cid, url} = await publishBytesToIpfs(context.hmServerUrl, data)
+      return {
+        summary: `Published attachment ${info.name} to IPFS as ${url}.`,
+        id: info.id,
+        name: info.name,
+        cid,
+        url,
+        size: info.size,
+        mimeType: info.mimeType,
+      }
+    }
+    const fromPath =
+      typeof options.fromPath === 'string' && options.fromPath
+        ? memoryPathFromAddress(options.fromPath) ?? options.fromPath
+        : undefined
+    if (!fromPath)
+      throw new APIError(400, 'write ipfs:// requires options.fromPath (a memory path) or options.fromAttachment')
+    const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, fromPath))
+    const bytes =
+      file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
+    const {cid, url} = await publishBytesToIpfs(context.hmServerUrl, bytes)
+    return {
+      summary: `Uploaded ${file.path} to IPFS as ${url}.`,
+      path: file.path,
+      cid,
+      url,
+      size: file.size,
+      mimeType: file.mimeType,
+    }
+  }
+
+  const hm = parseHmAddress(address)
+  if (hm) {
+    if (!context.publishEnabled) {
+      throw new APIError(
+        403,
+        'Publishing is not enabled for this agent. The owner can grant "Publish Seed content" in its tool settings.',
+      )
+    }
+    // Publishing a memory markdown file (frontmatter + resolved images) keeps its dedicated pipeline.
+    const fromPath = typeof options.fromPath === 'string' && options.fromPath ? options.fromPath : undefined
+    if (fromPath) {
+      assertKnownWriteOptions('hm:// (fromPath)', options, ['fromPath', 'signer'])
+      return publishMemoryDocument(context as AgentServicePiToolContext, {
+        path: memoryPathFromAddress(fromPath) ?? fromPath,
+        // '/' means "derive the path from the file's frontmatter name", matching the old tool.
+        ...(hm.path !== '/' ? {documentPath: hm.path} : {}),
+        account: hm.account,
+        signer: options.signer,
+        dryRun,
+      })
+    }
+    const action = typeof options.action === 'string' ? options.action : 'document'
+    // Extra command fields ride ONLY in options.input, never as loose option keys: the command
+    // handlers accept aliases (reply, commentId, name, …), so a stray key silently changing the
+    // operation is a real hazard. Dotted raw commands get the same explicit envelope.
+    assertKnownWriteOptions(
+      `hm:// (action "${action}")`,
+      options,
+      [...HM_WRITE_BASE_OPTION_KEYS, ...(HM_WRITE_ACTION_OPTION_KEYS[action] ?? ['name', 'metadata'])],
+      HM_WRITE_OPTIONS_HINT,
+    )
+    if (options.metadata !== undefined && !isRecord(options.metadata)) {
+      throw new APIError(400, 'write options.metadata must be an object of document metadata attributes')
+    }
+    const passthrough = isRecord(options.input) ? options.input : {}
+    const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
+      command,
+      signer: options.signer,
+      dryRun,
+      input: {
+        ...passthrough,
+        ...(options.skipLinkCheck === true ? {skipLinkCheck: true} : {}),
+        ...commandInput,
+      },
+    })
+    switch (action) {
+      case 'document':
+        return writeHypermedia(
+          context,
+          envelope('document.create', {
+            account: hm.account,
+            path: hm.path,
+            ...(typeof options.name === 'string' ? {name: options.name} : {}),
+            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
+            ...(content !== undefined ? {content, format: 'markdown'} : {}),
+          }),
+        )
+      case 'update':
+        // The address IS the document being revised ("same address, new version" is the
+        // documented contract), so the edit target is filled from it — never a separate option.
+        return writeHypermedia(
+          context,
+          envelope('document.update', {
+            edit: address,
+            ...(typeof options.name === 'string' ? {name: options.name} : {}),
+            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
+            ...(content !== undefined ? {content, format: 'markdown'} : {}),
+          }),
+        )
+      case 'comment':
+        return writeHypermedia(
+          context,
+          envelope('comment.create', {
+            target: typeof options.target === 'string' ? options.target : address,
+            ...(typeof options.replyTo === 'string' ? {replyTo: options.replyTo} : {}),
+            ...(content !== undefined ? {content} : {}),
+          }),
+        )
+      case 'move':
+        return writeHypermedia(
+          context,
+          envelope('document.move', {
+            source: address,
+            ...(typeof options.toPath === 'string' ? {path: options.toPath} : {}),
+          }),
+        )
+      case 'redirect':
+        return writeHypermedia(
+          context,
+          envelope('document.redirect', {
+            source: address,
+            ...(typeof options.toUrl === 'string' ? {destination: options.toUrl} : {}),
+          }),
+        )
+      case 'delete':
+        return writeHypermedia(context, envelope('document.delete', {account: hm.account, path: hm.path}))
+      case 'fork':
+        return writeHypermedia(
+          context,
+          envelope('document.fork', {
+            account: hm.account,
+            path: hm.path,
+            ...(typeof options.fromUrl === 'string' ? {source: options.fromUrl} : {}),
+          }),
+        )
+      default:
+        // Dotted actions pass through as raw hypermedia commands (profile.update, draft.create,
+        // contact.create, capability.grant, …) with the address filling account/path and options
+        // spread into the command input — full envelope fidelity behind one verb.
+        if (action.includes('.')) {
+          return writeHypermedia(
+            context,
+            envelope(action, {
+              account: hm.account,
+              ...(hm.path !== '/' ? {path: hm.path} : {}),
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
+              ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+          )
+        }
+        throw new APIError(
+          400,
+          `Unknown write action "${action}". Supported: document (default), update, comment, move, redirect, delete, fork, or a raw command like draft.create / profile.update.`,
+        )
+    }
+  }
+
+  throw new APIError(
+    400,
+    `Unrecognized write address: ${address}. Supported: ~/memory/…, ipfs://, hm://<account>/<path>.`,
+  )
+}
+
+/**
+ * The execute contract as THIS server can honor it: the runtime enum lists only the runtimes it
+ * can actually run, so the model never reads an option that would fail inside the sandbox (the
+ * `ts` runtime needs an image with bun, which is an operator opt-in).
+ */
+function executeToolForRuntimes(runtimes: readonly string[]): SeedToolMetadata {
+  const base = callableToolRegistry.execute as SeedToolMetadata
+  const runtimeProperty = base.inputSchema.properties?.runtime
+  if (!runtimeProperty?.enum) return base
+  const offered = runtimeProperty.enum.filter((value) => runtimes.includes(value))
+  if (offered.length === 0 || offered.length === runtimeProperty.enum.length) return base
+  return {
+    ...base,
+    inputSchema: {
+      ...base.inputSchema,
+      properties: {...base.inputSchema.properties, runtime: {...runtimeProperty, enum: offered}},
+    },
+  }
+}
+
+/**
+ * A stored contract as THIS server can honor it.
+ *
+ * The document is the shipped contract, identical everywhere, which is what its CID means. The
+ * execute tool is the one place where a server can offer less than the document promises (the `ts`
+ * runtime needs an image with bun), so a read of it shows the narrowed enum and says so — the
+ * contract a model reads is then exactly the one it can call.
+ */
+function contractMarkdownForThisServer(context: AgentServicePiToolContext, row: toolDocs.ToolDocumentRow): string {
+  if (row.doc.name !== callableToolRegistry.execute.name) return toolDocs.toolDocumentContractMarkdown(row)
+  const offered = executeToolForRuntimes(context.codeExec.runtimes)
+  if (offered === (callableToolRegistry.execute as SeedToolMetadata)) {
+    return toolDocs.toolDocumentContractMarkdown(row)
+  }
+  const narrowed = {...row, doc: {...row.doc, input: offered.inputSchema}}
+  return `${toolDocs.toolDocumentContractMarkdown(narrowed)}\n\n> This server runs ${context.codeExec.runtimes.join(
+    ', ',
+  )}; the runtime list above is narrowed to what it can actually run.`
+}
+
+/**
+ * Runs an authored lambda tool: its stored source, executed in the same sandbox the execute tool
+ * uses, with the call's validated input handed in and its return value handed back. See
+ * tool-documents.ts for the ABI, and code-exec.ts for how the program is assembled.
+ *
+ * Failures are thrown rather than returned: a lambda that crashes, returns nothing, or returns
+ * something its own output schema rejects is a broken tool, and the model that authored it is the
+ * one who can fix it — so it gets the error, not a plausible-looking empty result.
+ */
+async function executeLambdaTool(
+  context: AgentServicePiToolContext,
+  row: toolDocs.ToolDocumentRow,
+  rawInput: unknown,
+  toolCallId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const doc = row.doc
+  const toolInput = isRecord(rawInput) ? rawInput : {}
+  const validationErrors = validateJsonSchemaValue(doc.input, toolInput)
+  if (validationErrors.length > 0) {
+    // Same touch-expand contract as builtins: a miss answers with the contract, not an error.
+    return {
+      summary: `Input for ${doc.name} did not match its contract — here it is; call again with valid input.`,
+      contract: toolDocs.toolDocumentContractMarkdown(row),
+      validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
+    }
+  }
+  const source = typeof doc.source === 'string' ? doc.source : ''
+  if (!source.trim()) throw new APIError(400, `Tool ${doc.name} has no source to run`)
+  const runtime: LambdaRuntime = doc.runtime === 'python' ? 'python' : 'ts'
+  // What the HOST can do comes first: when the server cannot run this runtime at all, saying the
+  // owner should grant something would send the user off to fix the wrong thing.
+  if (!context.codeExec.runtimes.includes(runtime)) {
+    throw new APIError(
+      400,
+      `Tool ${doc.name} is written in ${doc.runtime ?? 'typescript'}, which this server cannot run: ${
+        runtime === 'ts'
+          ? 'TypeScript tools need a sandbox image with bun on PATH.'
+          : 'code execution is unavailable here.'
+      }`,
+    )
+  }
+  // An authored tool is code in the sandbox, so it rides on the SAME grant the execute tool needs.
+  // Without this, writing a lambda would be a way around an owner who turned code execution off.
+  if (!context.callableTools.includes(callableToolRegistry.execute.name)) {
+    throw new APIError(
+      403,
+      `Tool ${doc.name} runs code in the sandbox, which is not enabled for this agent. Its owner can grant code execution in the agent's tool settings.`,
+    )
+  }
+
+  let execution: CodeExecResult
+  try {
+    execution = await context.codeExec.execute({
+      stateDir: context.stateDir,
+      runtime,
+      code: buildLambdaProgram(runtime, source, toolInput),
+      onProgress: (progress) =>
+        context.onToolProgress(seedVerbRegistry.call.name, {
+          toolCallId,
+          detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${doc.name}…`,
+          outputTail: progress.outputTail,
+        }),
+    })
+  } catch (error) {
+    if (error instanceof CodeExecError) throw new APIError(error.status, error.message)
+    throw error
+  }
+  if (execution.changedFiles.length) context.onMemoryChange()
+
+  const {result, hasResult, logs} = parseLambdaResult(execution.stdout)
+  if (!execution.success) {
+    const detail = (execution.stderr.trim() || logs || '').split('\n').slice(-8).join('\n')
+    throw new APIError(400, `Tool ${doc.name} failed (exit ${execution.exitCode})${detail ? `:\n${detail}` : ''}`)
+  }
+  if (!hasResult) {
+    throw new APIError(
+      400,
+      `Tool ${doc.name} finished without returning a value. ${
+        runtime === 'python'
+          ? 'Its main(input) function must return the result.'
+          : 'Its default export must return the result.'
+      }`,
+    )
+  }
+  if (doc.output) {
+    const outputErrors = validateJsonSchemaValue(doc.output, result)
+    if (outputErrors.length > 0) {
+      throw new APIError(
+        400,
+        `Tool ${doc.name} returned a value its own output schema rejects: ${outputErrors
+          .map((error) => `${error.path}: ${error.message}`)
+          .join('; ')}`,
+      )
+    }
+  }
+  const changeSummary = execution.changedFiles.length
+    ? `, ${execution.changedFiles.length} memory file${execution.changedFiles.length === 1 ? '' : 's'} changed`
+    : ''
+  return {
+    summary: `Ran ${doc.name} (${execution.durationMs}ms${changeSummary}).`,
+    result,
+    ...(logs ? {logs} : {}),
+    ...(execution.changedFiles.length ? {changedFiles: execution.changedFiles} : {}),
+    durationMs: execution.durationMs,
+  }
+}
+
+/**
+ * The pause a run has earned by outliving its wall-clock budget, or nothing when it still has time.
+ * Measured from when the run was created, so sleeps and parks count — the budget is about how long
+ * a piece of work may stay open, not how much CPU it burns.
+ */
+function budgetPauseFor(run: runs.RunRecord): {reason: 'budget-pause'; note: string} | null {
+  const maxWallMs = run.budget?.maxWallMs
+  if (maxWallMs === undefined || maxWallMs <= 0) return null
+  const elapsed = Date.now() - run.createdAt
+  if (elapsed < maxWallMs) return null
+  return {
+    reason: 'budget-pause',
+    note: `Paused after ${formatDurationForHumans(elapsed)}: its time budget was ${formatDurationForHumans(maxWallMs)}`,
+  }
+}
+
+/** Rough, readable duration for parked-state copy: "40 minutes", "3 hours", "2 days". */
+function formatDurationForHumans(ms: number): string {
+  const units: Array<[number, string]> = [
+    [86_400_000, 'day'],
+    [3_600_000, 'hour'],
+    [60_000, 'minute'],
+    [1_000, 'second'],
+  ]
+  for (const [size, name] of units) {
+    if (ms >= size) {
+      const count = Math.round(ms / size)
+      return `${count} ${name}${count === 1 ? '' : 's'}`
+    }
+  }
+  return 'less than a second'
+}
+
+/** Executes the call verb: contract-on-miss dispatch into the callable tool set. */
+export async function executeCallVerb(
+  context: AgentServicePiToolContext,
+  raw: unknown,
+  toolCallId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const toolName = typeof input.tool === 'string' ? normalizeSeedToolName(input.tool.trim()) : ''
+  const registryTool = toolName ? getSeedTool(toolName) : undefined
+  const tool =
+    registryTool && toolName === callableToolRegistry.execute.name
+      ? executeToolForRuntimes(context.codeExec.runtimes)
+      : registryTool
+  if (!tool || !context.callableTools.includes(toolName)) {
+    const lambda = toolName
+      ? toolDocs.getToolDocument(context.db, context.accountId, context.agentId, toolName)
+      : undefined
+    if (lambda && lambda.doc.kind === 'lambda' && lambda.enabled) {
+      return executeLambdaTool(context, lambda, input.input, toolCallId)
+    }
+    return {
+      ...toolsListing(context),
+      summary: toolName
+        ? `No callable tool named ${toolName}. Here is what you can call.`
+        : 'call requires a tool name. Here is what you can call.',
+    }
+  }
+  const toolInput = isRecord(input.input) ? input.input : {}
+  const validationErrors = validateJsonSchemaValue(tool.inputSchema, toolInput)
+  if (validationErrors.length > 0) {
+    // Touch-expand: a miss returns the contract instead of failing; the retry executes.
+    return {
+      summary: `Input for ${toolName} did not match its contract — here it is; call again with valid input.`,
+      contract: toolContractMarkdown(tool),
+      validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
+    }
+  }
+  switch (toolName) {
+    case 'search':
+      return executeAgentServiceSearch(context, toolInput)
+    case 'web_search':
+      return executeWebSearch(context.web, toolInput)
+    case 'execute': {
+      const runtime = typeof toolInput.runtime === 'string' ? toolInput.runtime : 'code'
       let result
       try {
         result = await context.codeExec.execute({
           stateDir: context.stateDir,
-          language: input.language as never,
-          code: typeof input.code === 'string' ? input.code : '',
-          timeoutSecs: typeof input.timeout_secs === 'number' ? input.timeout_secs : undefined,
+          runtime: toolInput.runtime as never,
+          code: typeof toolInput.code === 'string' ? toolInput.code : '',
+          timeoutSecs: typeof toolInput.timeout_secs === 'number' ? toolInput.timeout_secs : undefined,
           onProgress: (progress) =>
-            context.onToolProgress(seedToolRegistry.execute_code.name, {
+            context.onToolProgress(seedVerbRegistry.call.name, {
               toolCallId,
-              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${language} code…`,
+              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${runtime} code…`,
               outputTail: progress.outputTail,
             }),
         })
@@ -4214,132 +8023,94 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         ? `, ${result.changedFiles.length} memory file${result.changedFiles.length === 1 ? '' : 's'} changed`
         : ''
       return {
-        summary: `Ran ${input.language} code (exit ${result.exitCode}, ${result.durationMs}ms${changeSummary}).`,
+        summary: `Ran ${runtime} code (exit ${result.exitCode}, ${result.durationMs}ms${changeSummary}).`,
         ...result,
       }
-    }),
-    defineSeedPiTool(seedToolRegistry.ipfs_read, async (params) => {
-      const input = isRecord(params) ? params : {}
-      const cid = parseIpfsCid(input.url)
-      const gatewayUrl = `${context.hmServerUrl.replace(/\/$/, '')}/ipfs/${cid}`
-      const targetPath = typeof input.path === 'string' && input.path.trim() ? input.path : `ipfs/${cid}`
-      const result = await withMemoryErrorsAsync(() =>
-        agentMemory.downloadToMemory(context.stateDir, gatewayUrl, targetPath),
-      )
-      context.onMemoryChange()
-      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, result.entry.path))
-      const base = {path: file.path, cid, size: file.size, mimeType: file.mimeType}
-      if (file.encoding === 'binary') {
+    }
+    default:
+      throw new APIError(400, `Tool ${toolName} has no executor in this runtime`)
+  }
+}
+
+function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolDefinition[] {
+  const promoted = (context.expandedCallables ?? [])
+    .filter((name) => context.callableTools.includes(name))
+    .flatMap((name) => {
+      const registryTool = getSeedTool(name)
+      if (!registryTool) return []
+      // The promoted schema must say what this server can run, exactly like the call verb's does.
+      const tool =
+        name === callableToolRegistry.execute.name ? executeToolForRuntimes(context.codeExec.runtimes) : registryTool
+      return [
+        defineSeedPiTool(tool, (params, toolCallId) =>
+          executeCallVerb(context, {tool: name, input: params}, toolCallId),
+        ),
+      ]
+    })
+  return [
+    ...promoted,
+    defineSeedPiTool(seedVerbRegistry.read, (params) => executeReadVerb(context, params)),
+    defineSeedPiTool(seedVerbRegistry.write, (params) => executeWriteVerb(context, params)),
+    defineSeedPiTool(seedVerbRegistry.call, (params, toolCallId) => executeCallVerb(context, params, toolCallId)),
+    defineSeedPiTool(seedVerbRegistry.delegate, (params, toolCallId) => {
+      const input = isPlainRecord(params) ? params : {}
+      if (typeof input.script === 'string' && input.script) {
+        if (input.await === false) {
+          throw new APIError(
+            400,
+            'Detached script children are not supported: scripts are awaited. Drop `await: false`, or delegate a model child instead.',
+          )
+        }
+        if (!context.spawnWorkflow) throw new APIError(400, 'Script delegation is not available in this run context')
+        return context.spawnWorkflow(toolCallId, {
+          ...(typeof input.title === 'string' ? {title: input.title} : {title: 'Script'}),
+          source: input.script,
+          input: input.input,
+        })
+      }
+      if (input.await === false) {
+        // Detached children run as this agent with the brief as their first message; the other
+        // model-child fields have no meaning without an awaited result, so reject them loudly
+        // instead of silently discarding what the model asked for.
+        for (const field of ['agentId', 'output', 'tools'] as const) {
+          if (input[field] !== undefined) {
+            throw new APIError(
+              400,
+              `delegate {await: false} does not support \`${field}\` — a detached child runs as this agent and returns nothing. Await the child, or drop ${field}.`,
+            )
+          }
+        }
+        const brief = input.brief ?? input.input ?? input.prompt
+        if (brief === undefined)
+          throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
+        const started = context.startSession({
+          prompt: renderSubSessionInput(brief),
+          ...(typeof input.title === 'string' ? {title: input.title} : {}),
+        })
         return {
-          summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes${
-            file.mimeType ? `, ${file.mimeType}` : ''
-          }); binary content not shown.`,
-          ...base,
+          summary: `Started detached child "${started.title}"; it is now running in the background.`,
+          status: 'detached',
+          ...started,
         }
       }
-      return {summary: `Fetched ipfs://${cid} to ${file.path} (${file.size} bytes).`, ...base, content: file.content}
+      if (!context.spawnSubSession) throw new APIError(400, 'delegate is not available in this run context')
+      return context.spawnSubSession(toolCallId, params)
     }),
-    defineSeedPiTool(seedToolRegistry.ipfs_write, async (params) => {
-      const input = isRecord(params) ? params : {}
-      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, input.path))
-      const bytes =
-        file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
-      const fileName = file.path.split('/').at(-1) || 'file'
-      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, bytes, file.mimeType, fileName)
-      return {
-        summary: `Uploaded ${file.path} to IPFS as ${url}.`,
-        path: file.path,
-        cid,
-        url,
-        size: file.size,
-        mimeType: file.mimeType,
-      }
+    defineSeedPiTool(seedVerbRegistry.plan, (params) => {
+      if (!context.setSessionPlan) throw new APIError(400, 'plan is not available in this context')
+      const session = context.setSessionPlan(params)
+      return {ok: true, steps: session.plan?.steps.length ?? 0}
     }),
-    defineSeedPiTool(seedToolRegistry.memory_publish_document, (params) => publishMemoryDocument(context, params)),
-    defineSeedPiTool(seedToolRegistry.view_attachment, (params) => {
-      const input = isRecord(params) ? params : {}
-      const attachmentId = typeof input.id === 'string' ? input.id : ''
-      const {info, data} = withAttachmentErrors(() =>
-        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
-      )
-      const meta = {id: info.id, name: info.name, mimeType: info.mimeType, size: info.size}
-      const isImage = !!info.mimeType?.startsWith('image/')
-      if (isImage && context.modelAcceptsImages && info.size <= MAX_INLINE_IMAGE_BYTES) {
-        return {
-          summary: `Viewed ${info.name} (${info.mimeType}, ${info.size} bytes).`,
-          ...meta,
-          shownAsImage: true,
-          piContent: [
-            {type: 'text', text: `Attachment "${info.name}" (${info.mimeType}, ${info.size} bytes):`},
-            {type: 'image', data: Buffer.from(data).toString('base64'), mimeType: info.mimeType!},
-          ],
-        }
-      }
-      if (isTextMimeType(info.mimeType) && data.byteLength <= MAX_TOOL_RESULT_BYTES) {
-        const text = new TextDecoder('utf-8', {fatal: false}).decode(data)
-        return {summary: `Read ${info.name} (${info.size} bytes).`, ...meta, shownAsImage: false, content: text}
-      }
-      const reason = isImage
-        ? context.modelAcceptsImages
-          ? 'the image is too large to view inline'
-          : 'this model does not support image input'
-        : 'the content is not viewable inline'
-      return {
-        summary: `${info.name} (${info.mimeType || 'unknown type'}, ${
-          info.size
-        } bytes); ${reason}. Use attachment_to_memory and execute_code to inspect or process it.`,
-        ...meta,
-        shownAsImage: false,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.attachment_to_memory, (params) => {
-      const input = isRecord(params) ? params : {}
-      const attachmentId = typeof input.id === 'string' ? input.id : ''
-      const {info, data} = withAttachmentErrors(() =>
-        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
-      )
-      const targetPath =
-        typeof input.path === 'string' && input.path.trim() ? input.path.trim() : `attachments/${info.name}`
-      const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, targetPath, data))
-      context.onMemoryChange()
-      return {
-        summary: `Saved attachment ${info.name} to memory at ${entry.path} (${entry.size} bytes).`,
-        id: info.id,
-        path: entry.path,
-        size: entry.size,
-        mimeType: entry.mimeType,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.attachment_to_ipfs, async (params) => {
-      const input = isRecord(params) ? params : {}
-      const attachmentId = typeof input.id === 'string' ? input.id : ''
-      const {info, data} = withAttachmentErrors(() =>
-        sessionAttachments.readSessionAttachment(context.stateDir, context.sessionId, attachmentId),
-      )
-      const {cid, url} = await uploadBytesToHmIpfs(context.hmServerUrl, data, info.mimeType, info.name)
-      return {
-        summary: `Published attachment ${info.name} to IPFS as ${url}.`,
-        id: info.id,
-        name: info.name,
-        cid,
-        url,
-        size: info.size,
-        mimeType: info.mimeType,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.start_session, (params) => {
-      const started = context.startSession(params)
-      return {
-        summary: `Started session "${started.title}"; it is now running in the background.`,
-        ...started,
-      }
-    }),
-    defineSeedPiTool(seedToolRegistry.set_session_title, (params) => {
-      const title = isRecord(params) && typeof params.title === 'string' ? params.title : ''
-      console.info('[agents/runtime] set_session_title tool called')
-      const session = context.setSessionTitle(title)
-      return {ok: true, title: session.title || ''}
-    }),
+    defineSeedPiTool(
+      context.returnResultSchema
+        ? {...seedVerbRegistry.return_result, inputSchema: context.returnResultSchema}
+        : seedVerbRegistry.return_result,
+      (params) => {
+        if (!context.deliverResult)
+          throw new APIError(400, 'return_result is only available in typed delegate children')
+        return context.deliverResult(params)
+      },
+    ),
   ]
 }
 
@@ -4626,6 +8397,7 @@ async function writeCommentCreate(
   const resource = await client.request('Resource', resourceId)
   if (resource.type !== 'document') throw new APIError(400, `Comment target is ${resource.type}, not a document`)
   const blocks = commentMarkdownToBlocks(body)
+  await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
   const replyCommentVersion = parentComment?.version || undefined
   const rootReplyCommentVersion = parentComment
     ? parentComment.threadRootVersion || parentComment.version || undefined
@@ -4680,6 +8452,8 @@ async function writeCommentUpdate(
   const commentId = normalizeCommentId(request.input.comment ?? request.input.commentId, 'Comment ID')
   const body = normalizeWriteContent(request.input.body ?? request.input.content ?? request.input.text, 'Comment body')
   const existing = await client.request('Comment', commentId)
+  const blocks = commentMarkdownToBlocks(body)
+  await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
   if (request.dryRun) return writeToolResult(request.command, signer, {commentId, dryRun: true})
   const published = await client.publish(
     await updateComment(
@@ -4688,7 +8462,7 @@ async function writeCommentUpdate(
         targetAccount: existing.targetAccount,
         targetPath: existing.targetPath || '',
         targetVersion: existing.targetVersion,
-        content: commentMarkdownToBlocks(body),
+        content: blocks,
         replyParentVersion: existing.replyParentVersion || null,
         rootReplyCommentVersion: existing.threadRootVersion || null,
         visibility: existing.visibility === 'PRIVATE' ? 'Private' : '',
@@ -4752,11 +8526,22 @@ async function writeDocumentCreate(
   extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
-  const metadata = mergeWriteMetadata(parsed.metadata, request.input, {name: 'Untitled'})
+  const metadata = mergeWriteMetadata(parsed.metadata, request.input)
+  // A document cannot be born nameless: the name is its identity in every listing, and an
+  // "Untitled" default just hides the omission until it is published and visible to everyone.
+  const documentName = typeof metadata.name === 'string' ? metadata.name.trim() : ''
+  if (!documentName) {
+    throw new APIError(
+      400,
+      'document.create requires a name — pass options.name (or metadata: {name}, or frontmatter name in the content)',
+    )
+  }
+  metadata.name = documentName
   const account =
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
-  const path = normalizeDocumentPath(request.input.path, metadata.name || 'Untitled')
+  const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
+  await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -4801,7 +8586,14 @@ async function writeDocumentUpdate(
   request: ReturnType<typeof normalizeWriteToolRequest>,
   extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
-  const edit = normalizeBoundedString(request.input.edit ?? request.input.id, 'Document edit target', 2048)
+  const editSource = request.input.edit ?? request.input.id
+  if (editSource === undefined) {
+    throw new APIError(
+      400,
+      'Document edit target is required: pass the hm:// URL of the document to revise as input.edit. (The write verb with action "update" fills it from the address automatically.)',
+    )
+  }
+  const edit = normalizeBoundedString(editSource, 'Document edit target', 2048)
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
   const resource = await client.request('Resource', id)
   if (resource.type !== 'document') throw new APIError(400, `Resource is ${resource.type}, not a document`)
@@ -4811,14 +8603,35 @@ async function writeDocumentUpdate(
   ) {
     return writeToolError(request.command, 'Document version conflict', {currentVersion: resource.document.version})
   }
-  const parsed = parseWriteDocumentContent(request.input)
-  const metadata = mergeWriteMetadata(parsed.metadata, request.input)
-  const oldMap = createBlocksMap((resource.document.content || []).map((node) => hmBlockNodeToBlockNode(node)) as never)
-  const contentOps = computeReplaceOps(oldMap, parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)) as never)
+  // No content at all means a metadata-only update: the body is left untouched. This must stay
+  // distinct from empty content — diffing an absent body against the old tree would emit a
+  // delete sweep of every block.
+  const hasContent =
+    request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
+  const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
+  if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
+  let contentOps: DocumentOperation[] = []
+  if (parsed) {
+    const oldNodes = (resource.document.content || []).map((node) => toAPIBlockNode(node))
+    const oldMap = createBlocksMap(oldNodes)
+    // Tables: markdown only carries table/column/row ids, so cell block ids and
+    // unexpressible attributes (column width, header column) are rebound from
+    // the old document before diffing.
+    const newTree = rebindTableIdentities(
+      oldNodes,
+      parsed.blocks.map((node) => hmBlockNodeToBlockNode(node)),
+    )
+    contentOps = computeReplaceOps(oldMap, newTree)
+  }
   const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
-  if (ops.length === 0) throw new APIError(400, 'No document updates specified')
+  if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
   if (request.dryRun)
-    return writeToolResult(request.command, signer, {id: packHmId(id), blockCount: parsed.blocks.length, dryRun: true})
+    return writeToolResult(request.command, signer, {
+      id: packHmId(id),
+      ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
+      dryRun: true,
+    })
   const state = await resolveDocumentState(client, edit)
   const capability = await resolveCapability(client, resource.document.account, signer.publicKey)
   const {unsignedBytes, ts} = createChangeOps({
@@ -5059,10 +8872,12 @@ function writeDraftCreate(
 ): Record<string, unknown> {
   const parsed = parseWriteDocumentContent(request.input)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
-  const title =
-    normalizeOptionalBoundedString(request.input.name, 'Draft name', MAX_NAME_BYTES) || metadata.name || 'Untitled'
+  const name = normalizeOptionalBoundedString(request.input.name, 'Draft name', MAX_NAME_BYTES) || metadata.name
+  if (!name || !String(name).trim()) {
+    throw new APIError(400, 'draft.create requires a name — pass name (or metadata: {name}, or frontmatter name)')
+  }
   const draftId = crypto.randomUUID()
-  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, title, metadata, dryRun: true})
+  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, name, metadata, dryRun: true})
   const now = Date.now()
   context.db.run(
     `INSERT INTO agent_drafts (id, account_id, agent_id, signer_secret_name, title, content_format, content_cbor, metadata_cbor, edit_target, location_target, path_name, visibility, status, created_at, updated_at)
@@ -5072,7 +8887,7 @@ function writeDraftCreate(
       context.accountId,
       context.agentId,
       null,
-      title,
+      name,
       'json',
       cbor.encode(parsed.blocks),
       cbor.encode(metadata),
@@ -5085,7 +8900,7 @@ function writeDraftCreate(
       now,
     ],
   )
-  return writeToolResult(request.command, undefined, {draftId, title, metadata})
+  return writeToolResult(request.command, undefined, {draftId, name, metadata})
 }
 
 function writeDraftUpdate(
@@ -5102,16 +8917,16 @@ function writeDraftUpdate(
   const metadata = hasContent
     ? mergeWriteMetadata(parseWriteDocumentContent(request.input).metadata, request.input)
     : mergeWriteMetadata(existingMetadata, request.input)
-  const title =
+  const name =
     normalizeOptionalBoundedString(request.input.name, 'Draft name', MAX_NAME_BYTES) ||
     metadata.name ||
     existing.title ||
     'Untitled'
-  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, title, metadata, dryRun: true})
+  if (request.dryRun) return writeToolResult(request.command, undefined, {draftId, name, metadata, dryRun: true})
   context.db.run(
     `UPDATE agent_drafts SET title = ?, content_cbor = ?, metadata_cbor = ?, edit_target = COALESCE(?, edit_target), location_target = COALESCE(?, location_target), path_name = COALESCE(?, path_name), visibility = COALESCE(?, visibility), updated_at = ? WHERE account_id = ? AND agent_id = ? AND id = ?`,
     [
-      title,
+      name,
       cbor.encode(blocks),
       cbor.encode(metadata),
       undefinedToNull(request.input.edit) ?? null,
@@ -5124,7 +8939,7 @@ function writeDraftUpdate(
       draftId,
     ],
   )
-  return writeToolResult(request.command, undefined, {draftId, title, metadata})
+  return writeToolResult(request.command, undefined, {draftId, name, metadata})
 }
 
 function writeDraftGet(
@@ -5139,7 +8954,7 @@ function writeDraftGet(
   const markdown = blocksToMarkdown(doc)
   return writeToolResult(request.command, undefined, {
     draftId,
-    title: row.title,
+    name: row.title,
     metadata,
     markdown: ensureToolResultSize(markdown),
     status: row.status,
@@ -5170,7 +8985,9 @@ function writeDraftList(
       `SELECT id, title, status, edit_target, location_target, updated_at FROM agent_drafts WHERE account_id = ? AND agent_id = ? AND status <> 'deleted' ORDER BY updated_at DESC LIMIT ?`,
     )
     .all(context.accountId, context.agentId, limit)
-  return writeToolResult(request.command, undefined, {drafts: rows})
+  return writeToolResult(request.command, undefined, {
+    drafts: rows.map(({title, ...row}) => ({...row, name: title})),
+  })
 }
 
 function writeDraftDelete(
@@ -5210,9 +9027,9 @@ async function writeDraftPublish(
           metadata,
           expectedVersion: request.input.expectedVersion,
         }
-      : {content: blocks, format: 'json', metadata, path: row.path_name || undefined},
+      : {content: blocks, format: 'json', metadata, name: row.title, path: row.path_name || undefined},
   }
-  if (request.dryRun) return writeToolResult(request.command, signer, {draftId, title: row.title, dryRun: true})
+  if (request.dryRun) return writeToolResult(request.command, signer, {draftId, name: row.title, dryRun: true})
   const result = row.edit_target
     ? await writeDocumentUpdate(client, signer, publishRequest)
     : await writeDocumentCreate(client, signer, publishRequest)
@@ -5485,9 +9302,6 @@ function mergeWriteMetadata(
   defaults: HMMetadata = {},
 ): HMMetadata {
   const metadata: HMMetadata = {...defaults, ...inputMetadata, ...normalizeMetadataInput(input.metadata)}
-  if (metadata.name === undefined && input.name === undefined && input.title !== undefined) {
-    metadata.name = input.title as HMMetadata['name']
-  }
   for (const key of [
     'name',
     'summary',
@@ -5566,10 +9380,133 @@ function writeToolError(command: string, message: string, details?: Record<strin
   return {type: 'hypermedia_write_error', command, message, ...(details ? {details} : {})}
 }
 
+/** Every hm: link in a block tree: Link/Embed annotations plus link-bearing blocks (Embed, Button, …). */
+export function collectHmContentLinks(nodes: HMBlockNode[]): string[] {
+  const links: string[] = []
+  const visit = (list: HMBlockNode[]) => {
+    for (const node of list) {
+      const block = node.block as {link?: unknown; annotations?: unknown}
+      if (typeof block.link === 'string' && block.link.startsWith('hm:')) links.push(block.link)
+      if (Array.isArray(block.annotations)) {
+        for (const annotation of block.annotations) {
+          const link = isRecord(annotation) ? annotation.link : undefined
+          if (typeof link === 'string' && link.startsWith('hm:')) links.push(link)
+        }
+      }
+      if (node.children?.length) visit(node.children)
+    }
+  }
+  visit(nodes)
+  return links
+}
+
+/** Resolution checks per write are bounded; a document with more distinct links passes the rest unchecked. */
+const MAX_LINK_RESOLUTION_CHECKS = 50
+
+/**
+ * A published document with a dead hm:// link is broken exactly where nobody can fix it: at the
+ * reader. So content-bearing writes refuse to publish them. Malformed hm: links always fail;
+ * well-formed ones must resolve on the configured HM server — `{type: 'not-found'}` is a broken
+ * link, while a server that cannot answer (thrown request) never blocks publishing, because an
+ * infra flake must not be able to hold content hostage. `skipLinkCheck` skips only the resolution
+ * half, for links whose targets are about to exist; nothing skips malformed-ness.
+ */
+export async function assertHmContentLinks(
+  // Structural: only Resource lookups are needed, and the SeedClient generic makes a full
+  // Pick<> unsatisfiable for test fakes.
+  client: {
+    request: (key: 'Resource', id: NonNullable<ReturnType<typeof unpackHmId>>) => Promise<unknown>
+  },
+  nodes: HMBlockNode[],
+  options: {skipResolve?: boolean} = {},
+): Promise<void> {
+  const links = [...new Set(collectHmContentLinks(nodes))]
+  if (links.length === 0) return
+  const malformed: string[] = []
+  const targets: Array<{link: string; id: NonNullable<ReturnType<typeof unpackHmId>>}> = []
+  for (const link of links) {
+    // unpackHmId parses shape only; a link is well-formed when its uid is also a real Ed25519
+    // principal — "hm://my-doc/notes" parses but can never resolve anywhere.
+    const id = unpackHmId(link)
+    if (!id) {
+      malformed.push(link)
+      continue
+    }
+    try {
+      blobs.principalFromString(id.uid)
+      targets.push({link, id})
+    } catch {
+      malformed.push(link)
+    }
+  }
+  if (malformed.length > 0) {
+    throw new APIError(
+      400,
+      `Content contains malformed hm:// links — fix or remove them before publishing: ${malformed.join(' · ')}`,
+    )
+  }
+  if (options.skipResolve) return
+  const broken: string[] = []
+  const queue = targets.slice(0, MAX_LINK_RESOLUTION_CHECKS)
+  const CONCURRENCY = 4
+  for (let i = 0; i < queue.length; i += CONCURRENCY) {
+    await Promise.all(
+      queue.slice(i, i + CONCURRENCY).map(async ({link, id}) => {
+        try {
+          const resource = await client.request('Resource', {...id, blockRef: null})
+          if (isRecord(resource) && resource.type === 'not-found') broken.push(link)
+        } catch {
+          // Unreachable/erroring HM server: unverifiable, not broken. The write proceeds.
+        }
+      }),
+    )
+  }
+  if (broken.length > 0) {
+    throw new APIError(
+      400,
+      `Content links to hm:// resources that do not exist on the server: ${broken.join(' · ')}. ` +
+        'Fix the links (read them to verify), or pass options.skipLinkCheck: true only if the targets are about to be created.',
+    )
+  }
+}
+
+/**
+ * Neutralizes tag-framing inside user-action payloads: fetched content must not be able to close
+ * the <user_action_result> frame and forge trusted user actions (\u003c stays valid in JSON and
+ * renders as '<' to humans, but can never form a tag).
+ */
+function escapeActionFraming(text: string): string {
+  return text.replace(/</g, '\\u003c')
+}
+
 function ensureToolResultSize(text: string): string {
   if (new TextEncoder().encode(text).byteLength > MAX_TOOL_RESULT_BYTES)
     return text.slice(0, MAX_TOOL_RESULT_BYTES) + '\n[truncated]'
   return text
+}
+
+/**
+ * Bounds one tool result's model-facing text to MAX_MODEL_TOOL_RESULT_BYTES. The appended notice
+ * steers the model toward bounded strategies (narrower reads, memory + execute) instead of
+ * retrying the same call, which would truncate identically.
+ */
+export function boundModelToolResultText(text: string): string {
+  const totalBytes = Buffer.byteLength(text, 'utf8')
+  if (totalBytes <= MAX_MODEL_TOOL_RESULT_BYTES) return text
+  let lo = 0
+  let hi = text.length
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2)
+    if (Buffer.byteLength(text.slice(0, mid), 'utf8') <= MAX_MODEL_TOOL_RESULT_BYTES) lo = mid
+    else hi = mid - 1
+  }
+  let head = text.slice(0, lo)
+  const lastCode = head.charCodeAt(head.length - 1)
+  if (lastCode >= 0xd800 && lastCode <= 0xdbff) head = head.slice(0, -1)
+  return `${head}\n\n[RESULT TRUNCATED: ${totalBytes} bytes total, only the first ${Buffer.byteLength(
+    head,
+    'utf8',
+  )} bytes are shown. Retrying this exact call will truncate the same way. You must work with the data in bounded pieces instead: request a narrower slice if the tool supports it (a specific block, view, page, or query), or get the full data into a memory file (e.g. write ~/memory/<path> with {fromUrl} or {fromAttachment}) and process it with the execute tool, printing only the small portion you need.]`
 }
 
 function nullableString(value: unknown): string | null {
@@ -5665,6 +9602,12 @@ function emptyPiUsage(): {
   }
 }
 
+/** Deadline for each read-path HM request; without one, a wedged server hangs the agent run. */
+const HM_READ_TIMEOUT_MS = 30_000
+
+const fetchWithReadDeadline = ((input: RequestInfo | URL, init?: RequestInit) =>
+  fetch(input, {...init, signal: init?.signal ?? AbortSignal.timeout(HM_READ_TIMEOUT_MS)})) as typeof globalThis.fetch
+
 /**
  * Detects a trailing `:attributes` view term (or its legacy `:metadata` spelling) on a resolved id
  * and strips it, so the underlying document can be fetched. The caller then returns only the
@@ -5702,35 +9645,30 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
   if (requestedId.startsWith('-')) throw new APIError(400, 'Tool id is invalid')
 
   const defaultServerUrl = optionsToServerUrl({server, dev})
-  let {id, client, serverUrl} = await resolveIdWithClient(requestedId, {
+  const resolved = await resolveIdWithClient(requestedId, {
     serverUrl: defaultServerUrl,
     domainResolver: async (hostname) => {
-      const domain = await createSeedClient(defaultServerUrl).request('GetDomain', {domain: hostname})
+      const domain = await createSeedClient(defaultServerUrl, {fetch: fetchWithReadDeadline}).request('GetDomain', {
+        domain: hostname,
+      })
       return domain.registeredAccountUid
     },
   })
+  // Every read-path request carries a deadline: a wedged HM server must fail this tool call, not
+  // hang the session's run forever with a tool_call that never gets its tool_result.
+  const serverUrl = resolved.serverUrl
+  const client = createSeedClient(serverUrl, {fetch: fetchWithReadDeadline})
+  let id = resolved.id
   if (id.path?.[0] === ':profile') {
-    return readProfileHypermedia({requestedId, id, client, serverUrl, server, dev})
+    return readProfileHypermedia({requestedId, id, client, serverUrl})
+  }
+  if (id.path?.[id.path.length - 1] === ':directory') {
+    return readDirectoryHypermedia({requestedId, id: {...id, path: id.path.slice(0, -1)}, client, serverUrl})
   }
   const stripped = stripAttributesViewTerm(id)
   id = stripped.id
   const attributesOnly = stripped.attributesOnly
-  let resource = await client.request('Resource', id)
-  if (
-    (resource.type === 'not-found' || resource.type === 'error') &&
-    !server &&
-    !dev &&
-    requestedId.startsWith('hm:')
-  ) {
-    const devResolved = await resolveIdWithClient(requestedId, {serverUrl: 'https://dev.hyper.media'})
-    const devId = stripAttributesViewTerm(devResolved.id).id
-    const devResource = await devResolved.client.request('Resource', devId)
-    if (devResource.type !== 'not-found' && devResource.type !== 'error') {
-      id = devId
-      serverUrl = devResolved.serverUrl
-      resource = devResource
-    }
-  }
+  const resource = await client.request('Resource', id)
   const outputFormat = format || 'markdown'
   const result: Record<string, unknown> = {
     type: 'hypermedia_document',
@@ -5754,10 +9692,7 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
       result.resource = resource
     } else {
       const markdown = await documentToResolvedMarkdown(resource.document, {client})
-      if (new TextEncoder().encode(markdown).byteLength > MAX_TOOL_RESULT_BYTES) {
-        throw new APIError(502, 'Hypermedia document is too large for this agent tool')
-      }
-      result.markdown = markdown
+      result.markdown = ensureToolResultSize(markdown)
     }
     return result
   }
@@ -5768,10 +9703,7 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
       result.resource = resource
     } else {
       const markdown = await commentToResolvedMarkdown(resource.comment, {client})
-      if (new TextEncoder().encode(markdown).byteLength > MAX_TOOL_RESULT_BYTES) {
-        throw new APIError(502, 'Hypermedia document is too large for this agent tool')
-      }
-      result.markdown = markdown
+      result.markdown = ensureToolResultSize(markdown)
     }
     return result
   }
@@ -5785,28 +9717,11 @@ async function readProfileHypermedia(input: {
   id: ReturnType<typeof unpackHmId> & {}
   client: ReturnType<typeof createSeedClient>
   serverUrl: string
-  server: unknown
-  dev: unknown
 }): Promise<Record<string, unknown>> {
   const accountUid = input.id.path?.[1] || input.id.uid
-  let client = input.client
-  let serverUrl = input.serverUrl
-  let account = await client.request('Account', accountUid)
-  if (
-    account.type === 'account-not-found' &&
-    !input.server &&
-    !input.dev &&
-    (input.requestedId.startsWith('hm:') || input.requestedId.includes('hyper.media'))
-  ) {
-    const devResolved = await resolveIdWithClient(input.requestedId, {serverUrl: 'https://dev.hyper.media'})
-    const devAccountUid = devResolved.id.path?.[1] || devResolved.id.uid
-    const devAccount = await devResolved.client.request('Account', devAccountUid)
-    if (devAccount.type !== 'account-not-found') {
-      client = devResolved.client
-      serverUrl = devResolved.serverUrl
-      account = devAccount
-    }
-  }
+  const client = input.client
+  const serverUrl = input.serverUrl
+  const account = await client.request('Account', accountUid)
   const profileId = `hm://${accountUid}/:profile`
   const targetId = unpackHmId(`hm://${accountUid}`) || input.id
   const [activity, contacts, capabilities] = await Promise.all([
@@ -5830,7 +9745,6 @@ async function readProfileHypermedia(input: {
     accountUid,
     server: serverUrl,
     format: 'markdown',
-    ...(input.dev ? {dev: true} : {}),
     title: name,
     account,
     activity,
@@ -5849,6 +9763,60 @@ async function readProfileHypermedia(input: {
     ]
       .filter((line): line is string => typeof line === 'string')
       .join('\n'),
+  }
+}
+
+/**
+ * Implements the `:directory` view term: lists the alive child documents under the id, the same
+ * listing the desktop's directory tab shows. The Query listing carries bigints and Dates that
+ * don't survive the transcript's JSON encoding, so each entry is trimmed to plain data.
+ */
+async function readDirectoryHypermedia(input: {
+  requestedId: string
+  id: UnpackedHypermediaId
+  client: ReturnType<typeof createSeedClient>
+  serverUrl: string
+}): Promise<Record<string, unknown>> {
+  const {requestedId, id, client, serverUrl} = input
+  // No sort: the daemon's `Path` sort term currently returns an empty result set, so the
+  // listing relies on the server's default ordering.
+  const result = await client.request('Query', {
+    includes: [{space: id.uid, path: hmIdPathToEntityQueryPath(id.path), mode: 'Children'}],
+  })
+  const parentId = packHmId(id)
+  const entries = (result?.results ?? []).map((info) => ({
+    id: info.id.id,
+    path: hmIdPathToEntityQueryPath(info.path),
+    name: info.metadata?.name || undefined,
+    summary: info.metadata?.summary || undefined,
+    updateTime:
+      typeof info.updateTime === 'string'
+        ? info.updateTime
+        : info.updateTime && typeof info.updateTime === 'object'
+          ? new Date(Number(info.updateTime.seconds) * 1000).toISOString()
+          : undefined,
+    childrenCount: info.activitySummary?.childrenCount,
+  }))
+  const markdown = [
+    `# Directory of ${parentId}`,
+    '',
+    ...(entries.length
+      ? entries.map((entry) => {
+          const label = entry.name || entry.path || entry.id
+          const children = typeof entry.childrenCount === 'number' ? ` (${entry.childrenCount} children)` : ''
+          return `- [${label}](${entry.id})${children}${entry.summary ? ` — ${entry.summary}` : ''}`
+        })
+      : ['(no child documents)']),
+  ].join('\n')
+  return {
+    type: 'hypermedia_directory',
+    requestedId,
+    id: `${parentId}/:directory`,
+    server: serverUrl,
+    format: 'markdown',
+    view: 'directory',
+    documents: entries,
+    markdown: ensureToolResultSize(markdown),
   }
 }
 
@@ -5888,39 +9856,48 @@ function normalizeMessageContent(content: api.MessageSession['content']): Array<
   blocks?: api.AgentMessageBlock[]
   contextLines?: string[]
   attachmentIds?: string[]
+  clientMessageId?: string
 }> {
   if (!Array.isArray(content) || content.length === 0) throw new APIError(400, 'Message content is required')
   const contextLines: string[] = []
   const attachmentIds: string[] = []
-  const messages = content.flatMap<{text: string; blocks?: api.AgentMessageBlock[]; contextLines?: string[]}>(
-    (part) => {
-      if (!part || typeof part !== 'object') throw new APIError(400, 'Only text message content is supported')
-      if (part.type === 'context') {
-        contextLines.push(...normalizeContextLines(part.lines))
-        return []
+  const messages = content.flatMap<{
+    text: string
+    blocks?: api.AgentMessageBlock[]
+    contextLines?: string[]
+    clientMessageId?: string
+  }>((part) => {
+    if (!part || typeof part !== 'object') throw new APIError(400, 'Only text message content is supported')
+    if (part.type === 'context') {
+      contextLines.push(...normalizeContextLines(part.lines))
+      return []
+    }
+    if (part.type === 'attachment') {
+      if (typeof part.id !== 'string' || !/^[0-9a-f]{64}$/.test(part.id)) {
+        throw new APIError(400, 'Invalid attachment id')
       }
-      if (part.type === 'attachment') {
-        if (typeof part.id !== 'string' || !/^[0-9a-f]{64}$/.test(part.id)) {
-          throw new APIError(400, 'Invalid attachment id')
-        }
-        if (!attachmentIds.includes(part.id)) attachmentIds.push(part.id)
-        if (attachmentIds.length > MAX_MESSAGE_ATTACHMENTS) {
-          throw new APIError(400, `A message can reference at most ${MAX_MESSAGE_ATTACHMENTS} attachments`)
-        }
-        return []
+      if (!attachmentIds.includes(part.id)) attachmentIds.push(part.id)
+      if (attachmentIds.length > MAX_MESSAGE_ATTACHMENTS) {
+        throw new APIError(400, `A message can reference at most ${MAX_MESSAGE_ATTACHMENTS} attachments`)
       }
-      if (part.type !== 'text' || typeof part.text !== 'string') {
-        throw new APIError(400, 'Only text message content is supported')
-      }
-      const text = part.text.trim()
-      return [
-        {
-          text,
-          ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
-        },
-      ]
-    },
-  )
+      return []
+    }
+    if (part.type !== 'text' || typeof part.text !== 'string') {
+      throw new APIError(400, 'Only text message content is supported')
+    }
+    const text = part.text.trim()
+    const clientMessageId =
+      part.clientMessageId === undefined
+        ? undefined
+        : normalizeBoundedString(part.clientMessageId, 'Client message ID', MAX_NAME_BYTES)
+    return [
+      {
+        text,
+        ...(Array.isArray(part.blocks) && part.blocks.length > 0 ? {blocks: part.blocks} : {}),
+        ...(clientMessageId ? {clientMessageId} : {}),
+      },
+    ]
+  })
   if (messages.length === 0) throw new APIError(400, 'Message content is required')
   if (messages.some((message) => !message.text)) throw new APIError(400, 'Message content is required')
   if (
