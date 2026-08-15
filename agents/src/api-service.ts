@@ -7680,6 +7680,11 @@ export async function executeWriteVerb(
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
       command,
       signer: options.signer,
+      // The address account is the space this write lands in, which lets signer resolution pick
+      // the agent's key for that space instead of asking the model to restate it. A comment is
+      // the exception: its address is the document being commented ON, and any identity may be
+      // the one speaking, so that choice stays with the model.
+      ...(action === 'comment' ? {} : {signerSpace: hm.account}),
       dryRun,
       input: {
         ...passthrough,
@@ -8129,7 +8134,7 @@ async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise
     return writeDraftCommand(context, request)
   }
 
-  const signer = await resolveWriteSigner(context, request.signer)
+  const signer = await resolveWriteSigner(context, request.signer, request.signerSpace)
 
   switch (request.command) {
     case 'profile.update':
@@ -8172,6 +8177,7 @@ async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise
 function normalizeWriteToolRequest(raw: unknown): {
   command: string
   signer?: {profileName?: string; publicKey?: string}
+  signerSpace?: string
   server?: string
   dev?: boolean
   dryRun: boolean
@@ -8181,6 +8187,12 @@ function normalizeWriteToolRequest(raw: unknown): {
   const command = normalizeBoundedString(raw.command, 'Write command', MAX_NAME_BYTES)
   const signer = raw.signer
   if (signer !== undefined && !isPlainRecord(signer)) throw new APIError(400, 'Write signer must be an object')
+  // Set by the verb from the write address, never by the model: the space this write lands in,
+  // used only to disambiguate the signing identity. Named apart from the `space` some commands
+  // take as input so it can never bleed into a command's fields.
+  const signerSpace = raw.signerSpace
+  if (signerSpace !== undefined && typeof signerSpace !== 'string')
+    throw new APIError(400, 'Write signerSpace must be a string')
   const server = raw.server
   if (server !== undefined && typeof server !== 'string') throw new APIError(400, 'Write server must be a string')
   const dev = raw.dev
@@ -8189,11 +8201,14 @@ function normalizeWriteToolRequest(raw: unknown): {
   const explicitInput = raw.input === undefined ? {} : raw.input
   if (!isPlainRecord(explicitInput)) throw new APIError(400, 'Write input must be an object')
   const rootInput = Object.fromEntries(
-    Object.entries(raw).filter(([key]) => !['command', 'signer', 'server', 'dev', 'dryRun', 'input'].includes(key)),
+    Object.entries(raw).filter(
+      ([key]) => !['command', 'signer', 'signerSpace', 'server', 'dev', 'dryRun', 'input'].includes(key),
+    ),
   )
   return {
     command,
     ...(signer ? {signer: signer as {profileName?: string; publicKey?: string}} : {}),
+    ...(signerSpace ? {signerSpace} : {}),
     server,
     dev,
     dryRun,
@@ -8201,9 +8216,19 @@ function normalizeWriteToolRequest(raw: unknown): {
   }
 }
 
+/**
+ * Picks the identity that signs a write.
+ *
+ * `signerSpace` is the account the write lands in, taken from the address. A space's own key is
+ * the only key that can sign for that space, so when one enabled identity IS that account, using
+ * it is a determination rather than a guess — making the model restate an account it already put
+ * in the address only bought a failed call and a retry. Writes into a space the agent does not
+ * hold a key for stay ambiguous, and say which identities they could have meant.
+ */
 async function resolveWriteSigner(
   context: WriteToolContext,
   selector: {profileName?: string; publicKey?: string} | undefined,
+  signerSpace?: string,
 ): Promise<ResolvedAgentSigner> {
   const allowed =
     context.definition.signingKeys || (context.definition.signingKey ? [context.definition.signingKey] : [])
@@ -8220,9 +8245,22 @@ async function resolveWriteSigner(
     matches = identities.filter((identity) => identity.profileName === profileName)
     if (matches.length === 0) throw new APIError(400, 'Signer profile name is not enabled for this agent')
   } else if (matches.length > 1) {
-    throw new APIError(400, 'Multiple signing identities are enabled; choose a signer by profileName or publicKey')
+    const ownsSpace = signerSpace ? identities.filter((identity) => identity.publicKey === signerSpace) : []
+    if (ownsSpace.length !== 1) {
+      throw new APIError(
+        400,
+        `Multiple signing identities are enabled; choose one with options.signer, e.g. {signer: {publicKey: "${
+          identities[0]!.publicKey
+        }"}}. Enabled: ${describeSigningIdentities(identities)}`,
+      )
+    }
+    matches = ownsSpace
   }
-  if (matches.length > 1) throw new APIError(400, 'Signing profile name is ambiguous; choose by publicKey')
+  if (matches.length > 1)
+    throw new APIError(
+      400,
+      `Signing profile name is ambiguous; choose by publicKey. Enabled: ${describeSigningIdentities(matches)}`,
+    )
 
   const selected = matches[0]
   if (!selected) throw new APIError(400, 'Signing identity not found')
@@ -8241,6 +8279,11 @@ async function resolveWriteSigner(
       sign: (data) => keyPair.sign(data),
     },
   }
+}
+
+/** Names the identities a write could have been signed with, so the retry can pick one. */
+function describeSigningIdentities(identities: Array<{profileName: string; publicKey: string}>): string {
+  return identities.map((identity) => `"${identity.profileName}" (${identity.publicKey})`).join(', ')
 }
 
 async function listWriteSigningIdentities(
@@ -8311,7 +8354,8 @@ async function writeProfileAlias(
   return writeToolResult(request.command, signer, {alias, cids: published.cids})
 }
 
-async function writeCapabilityCreate(
+/** Exported for tests: the capability grant behind `write {action: "capability.grant"}`. */
+export async function writeCapabilityCreate(
   client: ReturnType<typeof createSeedClient>,
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
@@ -8321,14 +8365,27 @@ async function writeCapabilityCreate(
     'Capability delegate',
     MAX_NAME_BYTES,
   )
+  // The SDK only base58-decodes the delegate, which accepts a well-formed string of the wrong
+  // length and would grant access to a principal nobody holds. Reject it by name instead.
+  try {
+    blobs.principalFromString(delegateUid)
+  } catch (error) {
+    throw new APIError(400, `Capability delegate is not a valid account ID: ${(error as Error).message}`)
+  }
   const role = normalizeBoundedString(request.input.role, 'Capability role', MAX_NAME_BYTES).toUpperCase()
   if (role !== 'WRITER' && role !== 'AGENT') throw new APIError(400, 'Capability role must be WRITER or AGENT')
-  const path = normalizeOptionalBoundedString(request.input.path, 'Capability path', 2048)
+  // Root scope is the empty path — an omitted `path` on the blob, which is what grants the space.
+  const path = normalizeScopePath(request.input.path, 'Capability path') || undefined
   const label = normalizeOptionalBoundedString(request.input.label, 'Capability label', MAX_NAME_BYTES)
+  // The blob is built before the dryRun branch so a rehearsal fails everything the real publish
+  // would fail (a delegate that is not a principal, a path the backend would reject); the only
+  // step a dry run skips is the network call. A dryRun that passes and a publish that 500s is
+  // worse than no dryRun at all — the model trusts the green light and stops checking.
+  const capability = await createCapability({delegateUid, role, path, label}, signer.signer)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {delegate: delegateUid, role, path, label, dryRun: true})
-  const published = await client.publish(await createCapability({delegateUid, role, path, label}, signer.signer))
-  return writeToolResult(request.command, signer, {delegate: delegateUid, role, cids: published.cids})
+  const published = await client.publish(capability)
+  return writeToolResult(request.command, signer, {delegate: delegateUid, role, path, label, cids: published.cids})
 }
 
 async function writeContactCreate(
@@ -9091,8 +9148,11 @@ async function publishMemoryDocument(
     fileBlobs.push(...chunked.blobs)
   }
 
-  const signer = await resolveWriteSigner(context, signerSelector)
-  const account = normalizeOptionalBoundedString(input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
+  // The requested account is the space this lands in, so it disambiguates the signer the same
+  // way an hm:// write address does.
+  const requestedAccount = normalizeOptionalBoundedString(input.account, 'Document account', MAX_NAME_BYTES)
+  const signer = await resolveWriteSigner(context, signerSelector, requestedAccount)
+  const account = requestedAccount || signer.publicKey
   const nameOverride = normalizeOptionalBoundedString(input.name, 'Document name', MAX_NAME_BYTES)
   const title = nameOverride || frontmatter.name || titleFromMemoryPath(file.path)
   const docPath = normalizeDocumentPath(input.documentPath, title)
@@ -9335,13 +9395,25 @@ function metadataToWriteSetAttributes(metadata: HMMetadata): DocumentOperation[]
   return attrs.length ? ([{type: 'SetAttributes', attrs}] as DocumentOperation[]) : []
 }
 
+/**
+ * Shapes a path the way the backend stores one: root is the EMPTY path, and every other path has
+ * a leading slash and no trailing slash (`NewIRI` in backend/blob/index.go rejects anything else).
+ * A bare "/" is the shape a model reaches for first to mean "the whole space", and forwarding it
+ * verbatim surfaces as a 500 from PublishBlobs — so it is normalized here, not passed through.
+ */
+function normalizeScopePath(value: unknown, label: string): string {
+  if (value === undefined || value === null || value === '') return ''
+  const raw = normalizeBoundedString(value, label, 2048)
+  const trimmed = raw.replace(/\/+$/, '')
+  if (!trimmed) return ''
+  const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
+  if (path.includes('//')) throw new APIError(400, `${label} must not contain empty segments: ${raw}`)
+  return path
+}
+
 function normalizeDocumentPath(value: unknown, fallbackName: string): string {
-  const raw =
-    value === undefined || value === null || value === ''
-      ? slugifyLocal(fallbackName)
-      : normalizeBoundedString(value, 'Document path', 2048)
-  if (raw === '/') return ''
-  return raw.startsWith('/') ? raw : `/${raw}`
+  const raw = value === undefined || value === null || value === '' ? slugifyLocal(fallbackName) : value
+  return normalizeScopePath(raw, 'Document path')
 }
 
 function slugifyLocal(value: string): string {
