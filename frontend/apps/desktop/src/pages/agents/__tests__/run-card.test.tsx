@@ -197,7 +197,9 @@ describe('SessionRunCard (pinned)', () => {
     mockState.runs = [makeRun({id: 'root-1', status: 'running', title: 'Compare competitors'})]
     mockState.tree = [mockState.runs[0]!, makeChild({id: 'child-1', status: 'running', title: 'Research Acme'})]
     render(<SessionRunCard {...baseProps} frozenRunIds={new Set(['some-other-run'])} />)
-    expect(container.textContent).toContain('Compare competitors')
+    // A planless turn with one delegated child takes that child's model-authored title as its
+    // heading — the run's own title is just the user's raw message.
+    expect(container.textContent).toContain('Research Acme')
   })
 
   it('disappears once the run finishes — the transcript keeps the record', () => {
@@ -716,12 +718,17 @@ describe('RunRecordCard (in the chat bubble)', () => {
       {runId: 'root-1', seq: 3, createdAt: 500, entry: {kind: 'now', value: 12345}},
     ]
     render(<RunRecordCard {...recordProps} />)
-    expect(container.textContent).toContain('Activity')
+    // The journal lives in the details dialog now, behind its own Activity disclosure.
     expect(container.textContent).not.toContain('Gather')
+    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
+    expect(document.body.textContent).toContain('Activity')
+    expect(document.body.textContent).not.toContain('Gather')
 
-    click(Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.startsWith('Activity')))
+    click(
+      Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent?.startsWith('Activity')),
+    )
 
-    const drawer = container.querySelector('[aria-label="Run activity"]')
+    const drawer = document.body.querySelector('[aria-label="Run activity"]')
     const lines = Array.from(drawer?.children ?? []).map((node) => node.textContent)
     expect(lines).toEqual(['step: Gather (start)', 'tool: search', 'warn · retrying', 'failed: nope'])
   })

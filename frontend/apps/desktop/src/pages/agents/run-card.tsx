@@ -21,7 +21,8 @@ import {ChevronDown, ChevronRight, Info, Loader2, Workflow} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 
 /**
- * What a parked run is actually waiting for, in words.
+ * What a parked run is actually waiting for, in words — or nothing, when the card's own title says
+ * enough.
  *
  * "Waiting" alone is the least useful thing a card can say about a run that may sit for hours: the
  * question a person has is always WHY, and whether it is on them. Each wait reason answers that —
@@ -29,7 +30,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react'
  * keeps its title: the child rows below already show what is running, and a "waiting on N" line
  * would be one more spinner saying the same thing.
  */
-function parkedLabel(run: RunInfo): string {
+function parkedLabel(run: RunInfo): string | undefined {
   const wait = run.wait
   if (wait?.reason === 'budget-pause') return wait.label || 'Paused: out of time budget'
   if (wait?.reason === 'event') {
@@ -37,6 +38,24 @@ function parkedLabel(run: RunInfo): string {
     return `${wait.label || 'Waiting for something to happen'}${until}`
   }
   if (wait?.reason === 'timer' && wait.wakeAt) return `Sleeping until ${formatWakeTime(wait.wakeAt)}`
+  return undefined
+}
+
+/**
+ * The card's display name, preferring names the model authored over the user's raw message.
+ *
+ * A user turn's run is titled by whatever the user typed, which reads poorly as a heading
+ * ("again, wait 3 minutes and run again"). The plan title names the work when the model published
+ * one. A planless turn whose whole work is one delegated child takes that child's briefing title —
+ * the model writes those too. Everything else (delegate runs, planned turns) already carries a
+ * deliberate title of its own, and a plan's steps name the work without renaming the card.
+ */
+function cardTitle(run: RunInfo, plan: RunPlan | undefined, childRuns: RunInfo[]): string {
+  if (plan?.title) return plan.title
+  const isUserTurn = run.origin === 'user' && !run.parentRunId
+  if (isUserTurn && !plan?.steps.length && childRuns.length === 1 && childRuns[0]!.title) {
+    return childRuns[0]!.title
+  }
   return runTitle(run)
 }
 
@@ -281,35 +300,32 @@ function RunCardBody({
     if (isTerminal) setConfirmingCancel(false)
   }, [isTerminal])
 
+  const headerTitle = (isParked ? parkedLabel(run) : undefined) ?? cardTitle(run, plan, childRuns)
+
   return (
     <>
       <div className="flex min-w-0 items-center gap-2">
         {showRunControls ? <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" /> : null}
-        <span
-          className="min-w-0 flex-1 truncate text-xs font-medium"
-          title={isParked ? parkedLabel(run) : undefined}
-        >
-          {isParked ? parkedLabel(run) : isCompletedTranscript && plan?.title ? plan.title : runTitle(run)}
+        <span className="min-w-0 flex-1 truncate text-xs font-medium" title={headerTitle}>
+          {headerTitle}
         </span>
-        {/* Finished record: technical details live behind the same info bubble every tool row uses. */}
-        {isCompletedTranscript ? (
-          <span className="flex flex-none items-center gap-1.5">
-            {issueCount ? (
-              <span className="text-[10px] text-amber-700 dark:text-amber-300">
-                {issueCount} recovered issue{issueCount === 1 ? '' : 's'}
-              </span>
-            ) : null}
-            <button
-              type="button"
-              title="Run details"
-              aria-label="Run details"
-              onClick={() => setDetailsOpen(true)}
-              className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75"
-            >
-              <Info className="size-3" />
-            </button>
-          </span>
-        ) : null}
+        {/* Technical details live behind the same info bubble every tool row uses, live or done. */}
+        <span className="flex flex-none items-center gap-1.5">
+          {isCompletedTranscript && issueCount ? (
+            <span className="text-[10px] text-amber-700 dark:text-amber-300">
+              {issueCount} recovered issue{issueCount === 1 ? '' : 's'}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            title="Run details"
+            aria-label="Run details"
+            onClick={() => setDetailsOpen(true)}
+            className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75"
+          >
+            <Info className="size-3" />
+          </button>
+        </span>
         {!showRunControls ? null : confirmingCancel ? (
           <span className="flex flex-none items-center gap-1">
             <Button
@@ -366,53 +382,53 @@ function RunCardBody({
         </div>
       ) : null}
 
+      {/* Live: the work itself stays inline — that is the card's purpose. Finished record: the
+          checklist alone tells the story. Everything technical (hierarchy, code, activity) lives
+          in the details dialog below in both states. */}
       {isCompletedTranscript ? (
-        <>
-          {plan?.steps.length ? <RunPlanSteps plan={plan} compact={compact} settle="run-finished" /> : null}
-          <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-            <DialogContent className="max-h-[85vh] w-[min(44rem,calc(100vw-2rem))]">
-              <DialogHeader>
-                <DialogTitle>Run details</DialogTitle>
-                <DialogDescription>{plan?.title || runTitle(run)}</DialogDescription>
-              </DialogHeader>
-              <div className="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
-                <RunWorkHierarchy
-                  run={run}
-                  childRuns={childRuns}
-                  journal={liveState.journal}
-                  liveState={liveState}
-                  compact={compact}
-                  onOpenSession={onOpenSession}
-                  renderToolPart={(part) => (
-                    <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
-                  )}
-                />
-                <RunSourceDrawer runs={[run, ...childRuns]} />
-                <RunActivityDrawer journal={liveState.journal} />
-              </div>
-            </DialogContent>
-          </Dialog>
-        </>
+        plan?.steps.length ? (
+          <RunPlanSteps plan={plan} compact={compact} settle="run-finished" />
+        ) : null
       ) : (
-        <>
-          <RunWorkHierarchy
-            run={run}
-            childRuns={childRuns}
-            plan={plan}
-            journal={liveState.journal}
-            liveState={liveState}
-            compact={compact}
-            onOpenSession={onOpenSession}
-            onCancelRun={readOnly ? undefined : onCancelRun}
-            cancelPending={cancelPending}
-            renderToolPart={(part) => (
-              <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
-            )}
-          />
-          <RunSourceDrawer runs={[run, ...childRuns]} />
-          <RunActivityDrawer journal={liveState.journal} />
-        </>
+        <RunWorkHierarchy
+          run={run}
+          childRuns={childRuns}
+          plan={plan}
+          journal={liveState.journal}
+          liveState={liveState}
+          compact={compact}
+          onOpenSession={onOpenSession}
+          onCancelRun={readOnly ? undefined : onCancelRun}
+          cancelPending={cancelPending}
+          renderToolPart={(part) => (
+            <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
+          )}
+        />
       )}
+
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-h-[85vh] w-[min(44rem,calc(100vw-2rem))]">
+          <DialogHeader>
+            <DialogTitle>Run details</DialogTitle>
+            <DialogDescription>{headerTitle}</DialogDescription>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
+            <RunWorkHierarchy
+              run={run}
+              childRuns={childRuns}
+              journal={liveState.journal}
+              liveState={liveState}
+              compact={compact}
+              onOpenSession={onOpenSession}
+              renderToolPart={(part) => (
+                <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
+              )}
+            />
+            <RunSourceDrawer runs={[run, ...childRuns]} />
+            <RunActivityDrawer journal={liveState.journal} />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Status and elapsed time anchor the card's bottom-left; cost keeps the opposite corner. */}
       <div className="border-border flex items-center gap-2 border-t pt-1">
