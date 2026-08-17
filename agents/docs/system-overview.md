@@ -7,7 +7,8 @@ inspect everything that executed.
 ## Design principles
 
 1. **Signed control plane** — every HTTP action is wrapped in a signed DAG-CBOR envelope.
-2. **Account isolation** — persisted state belongs to one Seed account and server queries must prove ownership.
+2. **Account isolation** — persisted state belongs to one Seed account; access requires ownership or an accepted
+   agent-level reader/writer collaboration.
 3. **Durable sessions** — sessions are append-only event logs with replay by sequence number.
 4. **Live clients** — desktop clients subscribe over a signed WebSocket protocol and receive live changes.
 5. **Secret redaction** — API keys are encrypted at rest and never returned in API responses.
@@ -71,9 +72,11 @@ Shared Seed libraries
 8. Server persists the agent and broadcasts account changes.
 9. User opens agent detail and creates/opens a session.
 10. Desktop subscribes to `sessions/<sessionId>` over WebSocket.
-11. User sends a message with signed `MessageSession`.
-12. Server appends a durable user message and creates a `runs` row for the turn, claimed inline on the `interactive`
-    queue. Session status is a derived mirror of run state, so it reads `streaming` from here on.
+11. A writer sends a message with signed `MessageSession`; other accepted writers may send at the same time.
+12. Server immediately appends each durable user message with its acting account and exact signer, broadcasts it, and
+    creates a `runs` row. The first turn is claimed inline on the `interactive` queue; concurrent turns remain queued in
+    append order because only one model turn may own a session. Session status is a derived mirror of run state, so it
+    reads `streaming` while any of those turns remain live.
 13. Server creates an in-memory Pi SDK session configured from the Seed provider record, encrypted secret, the agent's
     system prompt (its own instructions plus the shared runtime prompt and its `<space>` index), and the tool set: the
     five verbs, plus any callables the transcript shows this thread has already expanded.
@@ -118,6 +121,8 @@ Shared Seed libraries
 ### Agent runtime
 
 - Agent create/list/get/update/delete.
+- Agent invitations, acceptance/decline, revocation, and reader/writer collaborator roles. Readers can inspect the
+  complete agent; writers can additionally mutate and interact, but only owners manage access or delete the agent.
 - Session create/get/list/message/stop/retry/delete.
 - Cross-agent session listing (`ListSessions`) with composite keyset pagination.
 - Pi SDK-backed model execution for OpenAI-compatible, Anthropic, and Google provider mappings.
@@ -139,7 +144,7 @@ Shared Seed libraries
 - Default and multi-server settings.
 - Provider management dialog for OpenAI/Anthropic/Google records/secrets.
 - Create-agent dialog with configured-provider selection.
-- Agent detail page with editable name/model/system prompt.
+- Agent detail page with editable name/model/system prompt and a Settings collaborator invite/member panel.
 - Session page with debounced inline title editing, optimistic user messages, durable events, live assistant partials,
   and shared chat rendering.
 - A mounted remote session page or currently selected Assistant-sidebar session keeps agent-created/referenced `hm://`

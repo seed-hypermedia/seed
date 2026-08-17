@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite'
 import {describe, expect, mock, test} from 'bun:test'
 import * as apisvc from '@/api-service'
+import * as auth from '@/auth'
 import * as cbor from '@/cbor'
 import * as sqlite from '@/sqlite'
 import {ProviderOAuthManager} from '@/provider-oauth'
@@ -187,6 +188,289 @@ describe('api service', () => {
       })
       expect(agentPromptText(list.agents[0]?.definition.systemPrompt)).toBe('You are helpful.')
     } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('invites read and write collaborators and enforces their roles', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const collaborator = blobs.generateNobleKeyPair()
+      const collaboratorAccountId = blobs.principalToString(collaborator.principal)
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+      await setDefaultProvider(svc, owner)
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Shared Agent', systemPrompt: 'Share carefully.', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = created.agentId
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'InviteAgentCollaborator', agentId, accountId: collaboratorAccountId, role: 'reader'},
+        }),
+      )
+      const invites = await svc.message(
+        await apisvc.createSignedEnvelope(collaborator, {action: {_: 'ListAgentInvites'}}),
+      )
+      expect(invites).toMatchObject({
+        _: 'ListAgentInvitesResponse',
+        invites: [{agentId, agentName: 'Shared Agent', role: 'reader'}],
+      })
+      const pendingList = await svc.message(
+        await apisvc.createSignedEnvelope(collaborator, {action: {_: 'ListAgents'}}),
+      )
+      expect(pendingList).toMatchObject({_: 'ListAgentsResponse', agents: []})
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(collaborator, {action: {_: 'GetAgent', agentId}})),
+      ).rejects.toThrow('Agent not found')
+
+      const accepted = await svc.message(
+        await apisvc.createSignedEnvelope(collaborator, {action: {_: 'AcceptAgentInvite', agentId}}),
+      )
+      expect(accepted).toMatchObject({_: 'AcceptAgentInviteResponse', agent: {id: agentId, accessRole: 'reader'}})
+      const readerList = await svc.message(await apisvc.createSignedEnvelope(collaborator, {action: {_: 'ListAgents'}}))
+      expect(readerList).toMatchObject({
+        _: 'ListAgentsResponse',
+        agents: [{id: agentId, accessRole: 'reader'}],
+      })
+      await expect(
+        svc.verifySubscription(
+          await apisvc.createSignedEnvelope(collaborator, {
+            action: {_: 'Subscribe', key: `agents/${agentId}`},
+          }),
+        ),
+      ).resolves.toMatchObject({accountId: collaboratorAccountId, key: `agents/${agentId}`})
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(collaborator, {
+            action: {_: 'WriteAgentMemoryFile', agentId, path: 'reader.txt', content: 'no'},
+          }),
+        ),
+      ).rejects.toThrow('Write access is required')
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(collaborator, {action: {_: 'CreateSession', agentId}})),
+      ).rejects.toThrow('Write access is required')
+
+      const promoted = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'InviteAgentCollaborator', agentId, accountId: collaboratorAccountId, role: 'writer'},
+        }),
+      )
+      expect(promoted).toMatchObject({collaborator: {status: 'accepted', role: 'writer'}})
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(collaborator, {
+            action: {_: 'WriteAgentMemoryFile', agentId, path: 'writer.txt', content: 'yes'},
+          }),
+        ),
+      ).resolves.toMatchObject({_: 'WriteAgentMemoryFileResponse'})
+      expect(
+        events.some(
+          (event) =>
+            event.type === 'account-change' &&
+            event.accountId === collaboratorAccountId &&
+            event.reason === 'agent-memory-changed',
+        ),
+      ).toBe(true)
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(collaborator, {
+            action: {
+              _: 'InviteAgentCollaborator',
+              agentId,
+              accountId: blobs.principalToString(blobs.generateNobleKeyPair().principal),
+              role: 'reader',
+            },
+          }),
+        ),
+      ).rejects.toThrow('Only the agent owner can do this')
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(collaborator, {action: {_: 'DeleteAgent', agentId}})),
+      ).rejects.toThrow('Only the agent owner can do this')
+
+      const members = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'ListAgentCollaborators', agentId}}),
+      )
+      expect(members).toMatchObject({
+        _: 'ListAgentCollaboratorsResponse',
+        collaborators: [
+          {accountId: blobs.principalToString(owner.principal), role: 'owner', status: 'accepted'},
+          {accountId: collaboratorAccountId, role: 'writer', status: 'accepted'},
+        ],
+      })
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'RemoveAgentCollaborator', agentId, accountId: collaboratorAccountId},
+        }),
+      )
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(collaborator, {action: {_: 'GetAgent', agentId}})),
+      ).rejects.toThrow('Agent not found')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('persists each concurrent collaborator message with its account and exact signer', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const liveEvents: apisvc.ServiceEvent[] = []
+    const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => liveEvents.push(event)})
+    let releaseFirstResponse = () => {}
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const collaborator = blobs.generateNobleKeyPair()
+      const collaboratorSigner = blobs.generateNobleKeyPair()
+      const ownerAccountId = blobs.principalToString(owner.principal)
+      const collaboratorAccountId = blobs.principalToString(collaborator.principal)
+      const collaboratorSignerId = blobs.principalToString(collaboratorSigner.principal)
+      auth.setLocalAuthorization(db, {
+        accountId: collaboratorAccountId,
+        signerId: collaboratorSignerId,
+        role: 'AGENT',
+      })
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Shared Agent', systemPrompt: 'Reply.', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSession', agentId: createdAgent.agentId},
+        }),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'InviteAgentCollaborator',
+            agentId: createdAgent.agentId,
+            accountId: collaboratorAccountId,
+            role: 'writer',
+          },
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(collaborator, {
+          action: {_: 'AcceptAgentInvite', agentId: createdAgent.agentId},
+        }),
+      )
+
+      const firstResponseGate = new Promise<void>((resolve) => {
+        releaseFirstResponse = resolve
+      })
+      let markFirstRequestStarted!: () => void
+      const firstRequestStarted = new Promise<void>((resolve) => {
+        markFirstRequestStarted = resolve
+      })
+      const requestBodies: string[] = []
+      globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+        requestBodies.push(String(init?.body))
+        const call = requestBodies.length
+        if (call === 1) {
+          markFirstRequestStarted()
+          await firstResponseGate
+        }
+        return openAIStreamResponse([
+          {id: `chat-${call}`, choices: [{delta: {content: `Reply ${call}`}}]},
+          {id: `chat-${call}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const ownerTurn = svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Owner message'}],
+            clientMessageId: 'shared-client-local-id',
+          },
+        }),
+      )
+      await firstRequestStarted
+
+      const collaboratorTurn = await svc.message(
+        await apisvc.createSignedEnvelope(collaboratorSigner, {
+          account: collaborator.principal,
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Collaborator message'}],
+            clientMessageId: 'shared-client-local-id',
+          },
+        }),
+      )
+      expect(collaboratorTurn).toMatchObject({_: 'MessageSessionResponse', assistantEventId: ''})
+
+      releaseFirstResponse()
+      await ownerTurn
+      await svc.awaitQueueIdle()
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(collaborator, {
+          action: {_: 'GetSession', sessionId: createdSession.sessionId},
+        }),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const userMessages = session.events
+        .map((event) => event.event)
+        .filter(
+          (event): event is Extract<typeof event, {type: 'message'}> =>
+            event.type === 'message' && event.role === 'user',
+        )
+      expect(userMessages).toHaveLength(2)
+      expect(userMessages[0]).toMatchObject({
+        content: 'Owner message',
+        meta: {accountId: ownerAccountId, signerId: ownerAccountId},
+      })
+      expect(userMessages[1]).toMatchObject({
+        content: 'Collaborator message',
+        meta: {accountId: collaboratorAccountId, signerId: collaboratorSignerId},
+      })
+      const collaboratorMessageAudience = liveEvents
+        .filter(
+          (event): event is Extract<apisvc.ServiceEvent, {type: 'session-event'}> =>
+            event.type === 'session-event' &&
+            (event.event.event as {meta?: {accountId?: string}}).meta?.accountId === collaboratorAccountId,
+        )
+        .map((event) => event.accountId)
+      expect(new Set(collaboratorMessageAudience)).toEqual(new Set([ownerAccountId, collaboratorAccountId]))
+      expect(requestBodies).toHaveLength(2)
+      expect(requestBodies[1]).toContain('concurrent_user_messages')
+      expect(requestBodies[1]).toContain('Collaborator message')
+    } finally {
+      releaseFirstResponse()
+      globalThis.fetch = originalFetch
+      svc.stopRunQueue()
       db.close()
       cleanup()
     }
@@ -4871,12 +5155,14 @@ describe('api service', () => {
       expect(session._).toBe('GetSessionResponse')
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(session.session.status).toBe('error')
+      const accountId = blobs.principalToString(account.principal)
       expect(session.events.map((event) => event.event)).toEqual([
         {
           type: 'message',
           role: 'user',
           content: 'Will this persist?',
           rawMarkdown: 'Will this persist?',
+          meta: {accountId, signerId: accountId},
         },
         {type: 'error', message: '500 nope'},
       ])
@@ -6318,6 +6604,7 @@ describe('obligations: what a run owes before it may end', () => {
       account,
       calls: () => calls,
       close: () => {
+        svc.stopRunQueue()
         db.close()
         cleanup()
       },

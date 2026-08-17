@@ -1,8 +1,8 @@
 import type {AgentRunUsage, SessionEventMeta} from '@/agents-client'
 
 /**
- * What a logged event can say about itself — how long it took, what it cost, which model produced
- * it — reduced to display rows.
+ * What a logged event can say about itself — who originated and signed it, how long it took, what
+ * it cost, which model produced it — reduced to display rows.
  *
  * The runtime stamps this at append time, so most of it is simply read back. But the log is older
  * than the stamp: every event recorded before `meta` existed has none, and even a stamped event may
@@ -44,6 +44,8 @@ function usageTotal(usage: AgentRunUsage): number {
 export function eventMetaRows(meta: SessionEventMeta | undefined): EventMetaRow[] {
   if (!meta) return []
   const rows: EventMetaRow[] = []
+  if (meta.accountId) rows.push({label: 'Originator', value: meta.accountId})
+  if (meta.signerId) rows.push({label: 'Signer', value: meta.signerId})
   if (meta.model) rows.push({label: 'Model', value: meta.model})
   if (meta.provider) rows.push({label: 'Provider', value: meta.provider})
   if (typeof meta.durationMs === 'number' && meta.durationMs >= 0) {

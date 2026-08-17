@@ -88,9 +88,12 @@ describe('sidebar new-chat selection after CreateSession', () => {
   it('lets the optimistic first message attach to the seeded session', () => {
     addOptimisticSessionToCaches(SERVER, ACCOUNT, session('s-new', 200))
     addOptimisticSessionMessage(SERVER, ACCOUNT, 's-new', [{text: 'hello'}])
-    const cached = queryClient.getQueryData(sessionKey('s-new')) as {events: Array<{event: {content: string}}>}
+    const cached = queryClient.getQueryData(sessionKey('s-new')) as {
+      events: {event: {content: string; meta?: {accountId?: string}}}[]
+    }
     expect(cached.events).toHaveLength(1)
     expect(cached.events[0]!.event.content).toBe('hello')
+    expect(cached.events[0]!.event.meta?.accountId).toBe(ACCOUNT)
   })
 
   it('does not duplicate a session the list already has, nor clobber a real GetSession cache', () => {

@@ -74,7 +74,9 @@ fall back to `dev`/`unknown`.
   `seedhypermedia/agents:<tag>`. The resolved tag is the version (`latest` for a manual run with no tag);
   `agents-stable` on the host tracks `:latest`.
 - `.github/workflows/dev-docker-images.yml` — on push to `main` touching `agents/**` (or manual dispatch), pushes
-  `seedhypermedia/agents:dev`, which `agents-dev` tracks.
+  `seedhypermedia/agents:dev`, which **both** `agents-staging` and `agents-dev` track. Note the consequence: while this
+  workflow is red on `main`, `:dev` stops moving, and staging silently keeps validating an older commit than the one you
+  are about to release. `/api/version` on staging is the check that catches it.
 - `.github/workflows/hotfix-agents-image.yml` — manual dispatch only, from `main` only. Runs the agents test gate and
   pushes ONLY `seedhypermedia/agents:latest`. Use this to hotfix the production agent server without cutting a full
   release of every image.
@@ -91,23 +93,41 @@ It stamps the current git `HEAD` (commit/branch/date) into the image and pushes 
 
 ### Deploy onto the agent host
 
-`agentic.seed.hyper.media` runs `/opt/agentic/docker-compose.yml` with Watchtower (`nickfedor/watchtower:1.18.1`,
-label-enabled, 5-minute interval) auto-pulling the `agents-stable` (`:latest`) and `agents-dev` (`:dev`) containers.
-After pushing a new image it deploys within the poll interval, or force it immediately:
+One host runs `/opt/agentic/docker-compose.yml` with three agents containers behind Caddy:
+
+| Hostname                           | Container        | Image tag | Code           | Data    |
+| ---------------------------------- | ---------------- | --------- | -------------- | ------- |
+| `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet |
+| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet |
+| `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet  |
+
+Staging is the release gate — same code as dev, real mainnet data — so the sequence before cutting a release is: land on
+`main`, wait for `:dev` to deploy, exercise `staging.agentic.seed.hyper.media`, then tag. See `environments.md` for the
+full picture, including why each container needs its own data volume.
+
+Watchtower (`nickfedor/watchtower:1.18.1`, label-enabled, 5-minute interval) auto-pulls the labeled containers. After
+pushing a new image it deploys within the poll interval, or force it immediately:
 
 ```bash
-# Force an update now (proves Watchtower works end to end and pulls labeled containers):
+# Force an update now, with compose (the reliable way):
+ssh ubuntu@agentic.seed.hyper.media \
+  'cd /opt/agentic && docker compose pull agents-stable agents-staging agents-dev && docker compose up -d'
+
+# Or a one-shot Watchtower. Note: only works when the resident Watchtower is stopped — it treats a
+# second instance as an "excess Watchtower container" and SIGTERMs it mid-run.
 ssh ubuntu@agentic.seed.hyper.media \
   'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
      nickfedor/watchtower:1.18.1 --run-once --label-enable --cleanup'
-
-# Or with compose directly:
-ssh ubuntu@agentic.seed.hyper.media \
-  'cd /opt/agentic && docker compose pull agents-stable agents-dev && docker compose up -d'
 ```
 
-> The host's `docker-compose.yml`/`Caddyfile` are not yet tracked in git (the `seed_infra/agentic` Terraform stack
-> provisions a bare Docker host only). Treat the file on the host as authoritative until that drift is captured.
+Watchtower reads `com.centurylinklabs.watchtower.enable` off the **running container**, so editing that label in the
+compose file changes nothing until `docker compose up -d <service>` recreates the container. That is the knob for
+temporarily pinning a deployment; it does not stop `bootstrap.sh`, whose `docker compose pull` will still move a pinned
+container on the next Terraform apply.
+
+> `/opt/agentic/docker-compose.yml` and `/opt/agentic/Caddyfile` are rendered by `seed_infra/agentic/main.tf` in the
+> SeedInfra repo and pushed over SSH by the `ssh_resource.files` resource. Edits made directly on the host survive until
+> the next apply and then vanish — mirror anything you change there back into `main.tf`.
 
 ## Configuration
 

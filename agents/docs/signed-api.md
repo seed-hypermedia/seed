@@ -67,6 +67,12 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
 `Service.message()`):
 
 - `ListAgents`
+- `ListAgentInvites`
+- `ListAgentCollaborators`
+- `InviteAgentCollaborator`
+- `RemoveAgentCollaborator`
+- `AcceptAgentInvite`
+- `DeclineAgentInvite`
 - `CreateAgent`
 - `ListModelProviders`
 - `ListProviderModels`
@@ -151,7 +157,25 @@ Response:
 {_: 'ListAgentsResponse'; agents: AgentInfo[]}
 ```
 
-Lists agents for the verified account, ordered by update time descending.
+Lists agents owned by the verified account plus agents on which it is an accepted reader or writer, ordered by update
+time descending. Each `AgentInfo.accessRole` is `owner`, `reader`, or `writer`; pending invitations are deliberately not
+returned here.
+
+### Agent invitations and collaborators
+
+- `ListAgentInvites {}` returns pending `AgentInviteInfo` rows for the signed account. An invite discloses only the
+  agent id/name, owner account, role, and timestamps; agent contents remain unavailable until acceptance.
+- `ListAgentCollaborators {agentId}` returns the owner and accepted members. The owner also sees pending invitations.
+- `InviteAgentCollaborator {agentId, accountId, role}` creates an invitation (`reader` or `writer`) or updates an
+  existing member's role. Owner-only.
+- `RemoveAgentCollaborator {agentId, accountId}` revokes an accepted member or cancels a pending invitation. Owner-only.
+- `AcceptAgentInvite {agentId}` accepts the signed account's pending invitation and returns the now-accessible agent.
+- `DeclineAgentInvite {agentId}` deletes the signed account's pending invitation.
+
+Readers can inspect all agent-scoped state. Writers can additionally create/update/delete agent-scoped resources and
+interact with sessions. Managing collaborators and deleting the agent remain owner-only. Account-scoped provider and
+secret mutations are never inherited from an agent collaboration; agent settings may list the owner's redacted
+providers/signing identities through optional `agentId` fields.
 
 ### `CreateAgent`
 
@@ -369,7 +393,7 @@ Response:
 {_: 'GetAgentResponse'; agent: AgentInfo; sessions: SessionInfo[]}
 ```
 
-Requires the agent to belong to the verified account.
+Requires owner, reader, or writer access to the agent.
 
 ### `UpdateAgent`
 
@@ -383,7 +407,8 @@ Request:
 }
 ```
 
-Updates definition after validating account ownership and provider existence.
+Updates the definition for the owner or an accepted writer after validating the owning account's provider and signing
+identities.
 
 ### `DeleteAgent`
 
@@ -722,21 +747,25 @@ deleted with the session.
 
 Flow:
 
-1. verify session belongs to account;
-2. reject if session is already `streaming`;
-3. append durable user message with `content`/`rawMarkdown` set to the model-facing markdown and optional `blocks`
-   preserved for rich UI replay;
-4. set session `streaming`;
-5. run model loop;
+1. verify the signed account has write access to the session's agent;
+2. append the durable user message immediately, with `content`/`rawMarkdown`, optional rich `blocks`, and
+   `meta.accountId` plus the exact cryptographic `meta.signerId` from the verified envelope;
+3. enqueue a durable run for that message;
+4. claim it inline when no other turn owns the session, otherwise leave it queued behind the current turn;
+5. run the model loop with one model turn at a time per session;
 6. emit live partials over WebSocket;
 7. append tool events and final assistant/error event;
-8. set session `idle` or `error`.
+8. start the next queued collaborator turn, if any.
 
-Internally the turn is a durable run row claimed inline from the dispatch queue (`agents/src/runs.ts`); the "already
-streaming" guard checks live runs, not the status column, so a crash cannot wedge it.
+Multiple writers may therefore submit to one session concurrently. Their messages are saved and broadcast in append
+order instead of receiving `409` while the agent is streaming; model turns remain serialized. A queued turn gets an
+in-memory handoff identifying the exact message events that arrived during the preceding response, so later assistant
+events from that preceding turn are not mistaken for answers to the newly queued messages.
+
+Internally each turn is a durable run row in the dispatch queue (`agents/src/runs.ts`).
 `MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant
-event existed: background enqueues (triggers, agent-started sessions) and turns that parked on children spawned with
-`delegate` — the rest of the turn streams over WebSocket.
+event existed: concurrent/background enqueues (including triggers and agent-started sessions) and turns that parked on
+children spawned with `delegate` — the rest of the turn streams over WebSocket.
 
 Idempotent through `clientMessageId`, but intentionally avoids one long SQLite transaction around network calls.
 

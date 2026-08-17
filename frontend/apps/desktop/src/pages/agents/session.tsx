@@ -12,7 +12,6 @@ import {
   ChatMessageBubble,
   type ChatBubbleMessage,
 } from '@/components/assistant-message-rendering'
-import {QueuedChatMessages, useQueuedChatMessages} from '@/components/chat-message-queue'
 import {
   addOptimisticSessionMessage,
   type AgentSessionDraftMessage,
@@ -268,12 +267,13 @@ function AgentSessionPage({
   )
   // Which runs the scroll already owns, so the pinned slot does not tell the same story twice.
   const frozenRuns = useMemo(() => frozenRunIds(chatRows), [chatRows])
+  const canWrite = !!agent.data && agent.data.agent.accessRole !== 'reader'
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
   const retrySession = useRetrySession(serverUrl, selectedAccountId)
   // Deliberately not gated on the mutation being in flight: the button stays put and shows its
   // pending state until the retried run actually starts streaming, which is what removes the row.
-  const retryableRowKey = retryableErrorRowKey(chatRows, !!isAgentBusy)
+  const retryableRowKey = canWrite ? retryableErrorRowKey(chatRows, !!isAgentBusy) : undefined
   const runStartedAt = useRunStartedAt(isAgentBusy)
   // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
   // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
@@ -374,14 +374,8 @@ function AgentSessionPage({
     [messageSession, selectedAccountId, serverUrl, sessionId],
   )
 
-  const {queuedMessages, queueMessage} = useQueuedChatMessages<AgentSessionDraftMessage>({
-    isBusy: isAgentBusy,
-    onFlush: doSendAgentMessage,
-  })
-
   async function handleSendMessage(message: AgentSessionDraftMessage) {
-    if (isAgentBusy) queueMessage(message)
-    else await doSendAgentMessage(message)
+    await doSendAgentMessage(message)
   }
 
   const handleRetrySession = useCallback(() => {
@@ -424,7 +418,7 @@ function AgentSessionPage({
         placeholder="Untitled session"
         onTitleChange={setTitleDraft}
         saveState={titleSaveState}
-        disabled={!session.data}
+        disabled={!session.data || !canWrite}
         backLabel="Back to agent sessions"
         onBack={() => {
           const agentId = session.data?.session.agentId
@@ -463,13 +457,17 @@ function AgentSessionPage({
                     toast.success('Session URL copied')
                   },
                 },
-                {
-                  key: 'delete-session',
-                  icon: <Trash2 className="size-4" />,
-                  label: 'Delete session',
-                  variant: 'destructive',
-                  onClick: openDeleteSessionDialog,
-                },
+                ...(canWrite
+                  ? [
+                      {
+                        key: 'delete-session',
+                        icon: <Trash2 className="size-4" />,
+                        label: 'Delete session',
+                        variant: 'destructive' as const,
+                        onClick: openDeleteSessionDialog,
+                      },
+                    ]
+                  : []),
               ]}
             />
           </>
@@ -577,15 +575,21 @@ function AgentSessionPage({
               sessionId={sessionId}
               sessionPlan={session.data.session.plan}
               frozenRunIds={frozenRuns}
+              readOnly={!canWrite}
               onOpenSession={(childSessionId, childAgentId) =>
                 navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
               }
             />
-            <QueuedChatMessages messages={queuedMessages} getText={(message) => message.text} />
             <AgentRichMessageComposer
               isBusy={isAgentBusy}
               isStreaming={isAgentStreaming}
-              disabledMessage={isDrivenByParent ? SUB_SESSION_DRIVEN_MESSAGE : undefined}
+              disabledMessage={
+                !canWrite
+                  ? 'You have read-only access to this agent.'
+                  : isDrivenByParent
+                    ? SUB_SESSION_DRIVEN_MESSAGE
+                    : undefined
+              }
               stopPending={stopSession.isPending}
               serverUrl={serverUrl}
               accountId={selectedAccountId ?? null}

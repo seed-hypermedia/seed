@@ -28,11 +28,14 @@ import {
 import {useOpenUrl} from '@/open-url'
 import {useRun, useSessionAttachmentDataUrls, useSessionRuns} from '@/models/agents'
 import {descendantsOf, isTerminalRun, RunWorkHierarchy, useRunTreeView} from '@/pages/agents/run-work'
+import {useAccount} from '@shm/shared/models/entity'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ParkedRunActions} from '@/pages/agents/run-parked-actions'
 import {useSelectedAccountId} from '@/selected-account'
 import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {cn} from '@shm/ui/utils'
 import {
   ArrowUpRight,
@@ -45,6 +48,7 @@ import {
   PenLine,
   RotateCcw,
   Search,
+  UserRound,
   Wrench,
 } from 'lucide-react'
 import React, {Suspense, useMemo, useState} from 'react'
@@ -100,6 +104,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
             {message.contextLines?.length ? <MessageContextInfo lines={message.contextLines} /> : null}
           </div>
           {rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
+          <UserMessageOrigin meta={message.meta} />
         </div>
       ) : (
         <AssistantMessageParts
@@ -214,10 +219,36 @@ function EventMetaSection({meta}: {meta?: SessionEventMeta}) {
         {rows.map((row) => (
           <div key={row.label} className="flex min-w-0 items-baseline justify-between gap-2 text-xs">
             <span className="text-muted-foreground shrink-0">{row.label}</span>
-            <span className="min-w-0 truncate text-right font-medium">{row.value}</span>
+            <span className="min-w-0 text-right font-medium break-all" title={row.value}>
+              {row.value}
+            </span>
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+function UserMessageOrigin({meta}: {meta?: SessionEventMeta}) {
+  const account = useAccount(meta?.accountId, {subscribe: true, enabled: !!meta?.accountId})
+  const metadata = account.data?.metadata
+  const label = metadata?.name || meta?.accountId || 'Unknown user'
+
+  return meta?.accountId ? (
+    <div
+      className="ring-border bg-background mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ring-1"
+      title={`${label}\n${meta.accountId}`}
+      aria-label={`Message from ${label}`}
+    >
+      <HMIcon id={hmId(meta.accountId)} name={metadata?.name} icon={metadata?.icon} size={26} />
+    </div>
+  ) : (
+    <div
+      className="ring-border bg-muted text-muted-foreground mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ring-1"
+      title="Unknown user (legacy message)"
+      aria-label="Message from unknown user"
+    >
+      <UserRound className="size-3.5" />
     </div>
   )
 }
@@ -352,7 +383,7 @@ export type ChatBubbleMessage = {
    * model must read as instruction (role 'user') and the reader must not mistake for the user.
    */
   actor?: SessionActor
-  /** Model, provider, per-turn usage, and wall time, as the runtime stamped them. */
+  /** User origin or model/provider/usage/timing, as the writer stamped it. */
   meta?: SessionEventMeta
 }
 

@@ -1,4 +1,6 @@
 import {
+  type AgentCollaboratorInfo,
+  type AgentCollaboratorRole,
   type AgentDefinition,
   type AgentToolInfo,
   type AgentTriggerInfo,
@@ -10,6 +12,7 @@ import {
 import {
   DEFAULT_AGENT_SERVER_URL,
   isLocalAgentServer,
+  useAgentCollaborators,
   useAgentDetail,
   useAgentList,
   useAgentServerHealth,
@@ -24,8 +27,10 @@ import {
   useCreateSigningIdentity,
   useDeleteAgent,
   useDeleteAgentTrigger,
+  useInviteAgentCollaborator,
   useModelProviders,
   useProviderModels,
+  useRemoveAgentCollaborator,
   useSigningIdentities,
   useUpdateAgent,
   useUpdateAgentTrigger,
@@ -37,7 +42,10 @@ import {useClickNavigate, useNavigate} from '@/utils/useNavigate'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
+import {useAccount} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {
@@ -49,13 +57,15 @@ import {
 } from '@shm/ui/components/alert-dialog'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Info, KeyRound, Plus, Trash2} from 'lucide-react'
+import {Info, KeyRound, Plus, Trash2, UserPlus, Users, X} from 'lucide-react'
+import {HMIcon} from '@shm/ui/hm-icon'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '../../../../../../agents/protocol/src/tool-registry'
 import {
@@ -81,7 +91,7 @@ import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agent
 import {ModelSelect} from './model-select'
 import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
 import {curateProviderModels, pickDefaultProviderModel} from './model-utils'
-import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
+import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
 import {ProviderSelect} from './provider-select'
 
@@ -118,19 +128,23 @@ function AgentDetailPage({
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
   const updateSigningIdentity = useUpdateSigningIdentity(serverUrl, selectedAccountId)
   const deleteAgentDialog = useAppDialog(DeleteAgentDialog, {isAlert: true})
-  const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId)
+  const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId, agentId)
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
   const editNameDialog = useAppDialog(EditAgentNameDialog)
-  const modelProviders = useModelProviders(serverUrl, selectedAccountId)
+  const modelProviders = useModelProviders(serverUrl, selectedAccountId, agentId)
+  const collaborators = useAgentCollaborators(serverUrl, selectedAccountId, agentId)
   const allAgents = useAgentList(serverUrl, selectedAccountId)
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `agents/${agentId}`)
+  const accessRole = agent.data?.agent.accessRole ?? 'owner'
+  const canWrite = accessRole === 'owner' || accessRole === 'writer'
+  const isOwner = accessRole === 'owner'
   const [name, setName] = useState('')
   const [modelProvider, setModelProvider] = useState('')
   const [model, setModel] = useState('')
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
-  const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProvider)
+  const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProvider, agentId)
   const selectedProviderType = modelProviders.data?.find((provider) => provider.name === modelProvider)?.type
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>([])
   const [promptEditorKey, setPromptEditorKey] = useState(0)
@@ -201,7 +215,7 @@ function AgentDetailPage({
     const result = await updateAgent.mutateAsync({agentId, definition: {...definition, name: trimmed}})
     if (result._ !== 'GetAgentResponse') throw new Error('Unexpected update response')
     // Keep the dedicated account's profile name in sync; leave shared accounts alone.
-    if (agentSigningKey && !isAccountShared) {
+    if (isOwner && agentSigningKey && !isAccountShared) {
       await updateSigningIdentity.mutateAsync({name: agentSigningKey, label: trimmed})
     }
     if (!nameModelDirty) setName(trimmed)
@@ -292,7 +306,7 @@ function AgentDetailPage({
     updateAgent.mutateAsync,
   ])
 
-  const promptEditorDisabled = !selectedAccountId || serverHealth.isError || agent.isError
+  const promptEditorDisabled = !selectedAccountId || serverHealth.isError || agent.isError || !canWrite
 
   useEffect(() => {
     if (!agent.data || !promptDirty || promptEditorDisabled) return
@@ -368,22 +382,27 @@ function AgentDetailPage({
               <AgentHeader
                 agent={agent.data.agent}
                 agentName={name}
-                onEditName={() =>
-                  editNameDialog.open({
-                    currentName: name,
-                    accountStatus: agentAccountStatus,
-                    onRename: handleRenameAgent,
-                  })
+                onEditName={
+                  canWrite
+                    ? () =>
+                        editNameDialog.open({
+                          currentName: name,
+                          accountStatus: agentAccountStatus,
+                          onRename: handleRenameAgent,
+                        })
+                    : undefined
                 }
                 agentId={agentId}
                 serverUrl={serverUrl}
                 activeTab={tab}
                 sessionsCount={topLevelSessions.length}
                 triggersCount={triggers.data?.length}
-                onCreateSession={() => void handleCreateSession()}
+                onCreateSession={canWrite ? () => void handleCreateSession() : undefined}
                 creatingSession={createSession.isLoading}
-                onCreateTrigger={() => createTriggerDialog.open({serverUrl, selectedAccountId, agentId})}
-                canCreateTrigger={!!selectedAccountId}
+                onCreateTrigger={
+                  canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined
+                }
+                canCreateTrigger={!!selectedAccountId && canWrite}
                 breadcrumbItems={breadcrumbItems}
               />
 
@@ -425,11 +444,13 @@ function AgentDetailPage({
                       />
                     ))}
                   </div>
-                  <StartSessionInput
-                    creating={createSession.isLoading}
-                    disabled={!selectedAccountId}
-                    onCreate={() => void handleCreateSession()}
-                  />
+                  {canWrite ? (
+                    <StartSessionInput
+                      creating={createSession.isLoading}
+                      disabled={!selectedAccountId}
+                      onCreate={() => void handleCreateSession()}
+                    />
+                  ) : null}
                 </section>
               ) : null}
 
@@ -441,6 +462,7 @@ function AgentDetailPage({
                   selectedTriggerId={triggerId}
                   triggers={triggers.data || []}
                   isLoading={triggers.isLoading}
+                  readOnly={!canWrite}
                 />
               ) : null}
 
@@ -450,6 +472,7 @@ function AgentDetailPage({
                   accountUid={selectedAccountId ?? null}
                   agentId={agentId}
                   openPath={memoryPath}
+                  readOnly={!canWrite}
                 />
               ) : null}
 
@@ -475,6 +498,8 @@ function AgentDetailPage({
                   onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
                   onCreateIdentity={(label) => createSigningIdentity.mutateAsync(label)}
                   saving={updateAgent.isLoading || createSigningIdentity.isLoading}
+                  readOnly={!canWrite}
+                  canCreateIdentity={isOwner}
                 />
               ) : null}
 
@@ -497,9 +522,11 @@ function AgentDetailPage({
                     </SizableText>
                   </div>
                   {promptEditorDisabled ? (
-                    <div className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm">
-                      Connect to the agent server to edit this prompt.
-                    </div>
+                    <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm whitespace-pre-wrap">
+                      {!canWrite
+                        ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
+                        : 'Connect to the agent server to edit this prompt.'}
+                    </pre>
                   ) : (
                     <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-4">
                       <AgentPromptEditor
@@ -524,9 +551,12 @@ function AgentDetailPage({
                       </SizableText>
                       <ProviderSelect
                         providers={modelProviders.data}
+                        disabled={!canWrite}
                         value={modelProvider}
                         onChange={handleProviderChange}
-                        onAddProvider={() => addProviderDialog.open({serverUrl, selectedAccountId})}
+                        onAddProvider={
+                          isOwner ? () => addProviderDialog.open({serverUrl, selectedAccountId}) : undefined
+                        }
                       />
                     </label>
                     <label className="flex flex-col gap-1">
@@ -535,6 +565,7 @@ function AgentDetailPage({
                       </SizableText>
                       <ModelSelect
                         models={providerModels.data}
+                        disabled={!canWrite}
                         providerType={selectedProviderType}
                         value={model}
                         onChange={(nextModel) => {
@@ -554,6 +585,7 @@ function AgentDetailPage({
                         </SizableText>
                         <ReasoningSelect
                           providerType={selectedProviderType}
+                          disabled={!canWrite}
                           model={model}
                           value={reasoningLevel}
                           onChange={(level) => {
@@ -564,6 +596,15 @@ function AgentDetailPage({
                       </label>
                     ) : null}
                   </div>
+                  <AgentCollaboratorsSettings
+                    serverUrl={serverUrl}
+                    accountUid={selectedAccountId ?? null}
+                    agentId={agentId}
+                    ownerAccountId={agent.data.agent.account}
+                    collaborators={collaborators.data || []}
+                    loading={collaborators.isLoading}
+                    isOwner={isOwner}
+                  />
                   <div className="flex flex-col gap-2">
                     <SizableText
                       size="xs"
@@ -578,23 +619,25 @@ function AgentDetailPage({
                             ? 'Settings save failed'
                             : ''}
                     </SizableText>
-                    <Button
-                      className="w-fit"
-                      variant="destructive"
-                      onClick={() =>
-                        deleteAgentDialog.open({
-                          serverUrl,
-                          selectedAccountId: selectedAccountId ?? null,
-                          agentId,
-                          agentName: name,
-                          onDeleted: () => navigate({key: 'agents'}),
-                        })
-                      }
-                      disabled={!selectedAccountId}
-                    >
-                      <Trash2 className="size-4" />
-                      Delete agent
-                    </Button>
+                    {isOwner ? (
+                      <Button
+                        className="w-fit"
+                        variant="destructive"
+                        onClick={() =>
+                          deleteAgentDialog.open({
+                            serverUrl,
+                            selectedAccountId: selectedAccountId ?? null,
+                            agentId,
+                            agentName: name,
+                            onDeleted: () => navigate({key: 'agents'}),
+                          })
+                        }
+                        disabled={!selectedAccountId}
+                      >
+                        <Trash2 className="size-4" />
+                        Delete agent
+                      </Button>
+                    ) : null}
                   </div>
                 </section>
               ) : null}
@@ -610,6 +653,7 @@ function AgentDetailPage({
           selectedTriggerId={triggerId}
           triggers={triggers.data || []}
           isLoading={triggers.isLoading}
+          readOnly={!canWrite}
         />
       ) : null}
     </PanelContainer>
@@ -635,6 +679,186 @@ function hasPromptContent(blocks: HMBlockNode[]): boolean {
     if (type && type !== 'paragraph' && type !== 'heading' && type !== 'code' && type !== 'math') return true
     return node.children ? hasPromptContent(node.children) : false
   })
+}
+
+function AgentCollaboratorsSettings({
+  serverUrl,
+  accountUid,
+  agentId,
+  ownerAccountId,
+  collaborators,
+  loading,
+  isOwner,
+}: {
+  serverUrl: string
+  accountUid: string | null
+  agentId: string
+  ownerAccountId: string
+  collaborators: AgentCollaboratorInfo[]
+  loading: boolean
+  isOwner: boolean
+}) {
+  const invite = useInviteAgentCollaborator(serverUrl, accountUid)
+  const remove = useRemoveAgentCollaborator(serverUrl, accountUid)
+  const [selected, setSelected] = useState<SearchResult[]>([])
+  const [role, setRole] = useState<AgentCollaboratorRole>('writer')
+  const excludedAccountIds = [ownerAccountId, ...collaborators.map((member) => member.accountId)]
+
+  async function handleInvite() {
+    if (!selected.length) return
+    try {
+      await Promise.all(
+        selected.map((member) => invite.mutateAsync({agentId, collaboratorAccountId: member.id.uid, role})),
+      )
+      toast.success(selected.length === 1 ? 'Invitation sent' : `${selected.length} invitations sent`)
+      setSelected([])
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not invite collaborator')
+    }
+  }
+
+  return (
+    <section className="border-border flex flex-col gap-3 border-t pt-4">
+      <div className="flex items-start gap-3">
+        <div className="bg-primary/10 text-primary flex size-9 flex-none items-center justify-center rounded-lg">
+          <Users className="size-4" />
+        </div>
+        <div>
+          <SizableText size="sm" weight="bold" className="block">
+            Collaborators
+          </SizableText>
+          <SizableText size="xs" color="muted" className="block">
+            Readers can view everything. Writers can also change settings, memory, tools, triggers, and sessions.
+          </SizableText>
+        </div>
+      </div>
+
+      {isOwner ? (
+        <div className="border-border flex overflow-hidden rounded-md border">
+          <AccountSearchInput
+            label="Collaborators"
+            placeholder="Invite collaborators"
+            values={selected}
+            onValuesChange={setSelected}
+            excludeUids={excludedAccountIds}
+          />
+          <select
+            aria-label="Collaborator role"
+            value={role}
+            onChange={(event) => setRole(event.currentTarget.value as AgentCollaboratorRole)}
+            className="border-border bg-background text-foreground border-l px-3 text-sm outline-none"
+          >
+            <option value="reader">Can read</option>
+            <option value="writer">Can write</option>
+          </select>
+          <Button
+            className="h-auto rounded-none"
+            onClick={() => void handleInvite()}
+            disabled={!selected.length || invite.isLoading}
+            aria-label="Send collaborator invitation"
+          >
+            <UserPlus className="size-4" />
+          </Button>
+        </div>
+      ) : null}
+
+      <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+        {loading ? (
+          <div className="flex items-center gap-2 p-3">
+            <Spinner />
+            <SizableText size="sm" color="muted">
+              Loading collaborators…
+            </SizableText>
+          </div>
+        ) : (
+          collaborators.map((member) => (
+            <AgentCollaboratorRow
+              key={member.accountId}
+              member={member}
+              isOwner={isOwner}
+              changing={invite.isLoading || remove.isLoading}
+              onRoleChange={(nextRole) =>
+                invite.mutate(
+                  {agentId, collaboratorAccountId: member.accountId, role: nextRole},
+                  {onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not change role')},
+                )
+              }
+              onRemove={() =>
+                remove.mutate(
+                  {agentId, collaboratorAccountId: member.accountId},
+                  {onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not remove member')},
+                )
+              }
+            />
+          ))
+        )}
+      </div>
+    </section>
+  )
+}
+
+function AgentCollaboratorRow({
+  member,
+  isOwner,
+  changing,
+  onRoleChange,
+  onRemove,
+}: {
+  member: AgentCollaboratorInfo
+  isOwner: boolean
+  changing: boolean
+  onRoleChange: (role: AgentCollaboratorRole) => void
+  onRemove: () => void
+}) {
+  const account = useAccount(member.accountId, {subscribe: true})
+  const metadata = account.data?.metadata
+  const canManage = isOwner && member.role !== 'owner'
+
+  return (
+    <div className="bg-card flex items-center gap-3 p-3">
+      <HMIcon id={hmId(member.accountId)} name={metadata?.name} icon={metadata?.icon} size={32} />
+      <div className="min-w-0 flex-1">
+        <SizableText size="sm" weight="bold" className="block truncate">
+          {metadata?.name || abbreviateUid(member.accountId)}
+        </SizableText>
+        <SizableText size="xs" color="muted" className="block truncate font-mono">
+          {member.accountId}
+        </SizableText>
+      </div>
+      {member.status === 'pending' ? (
+        <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+          Pending
+        </span>
+      ) : null}
+      {canManage ? (
+        <select
+          aria-label={`Role for ${metadata?.name || member.accountId}`}
+          value={member.role}
+          onChange={(event) => onRoleChange(event.currentTarget.value as AgentCollaboratorRole)}
+          disabled={changing}
+          className="border-border bg-background text-foreground rounded-md border px-2 py-1.5 text-xs"
+        >
+          <option value="reader">Can read</option>
+          <option value="writer">Can write</option>
+        </select>
+      ) : (
+        <SizableText size="xs" color="muted" className="capitalize">
+          {member.role}
+        </SizableText>
+      )}
+      {canManage ? (
+        <Button
+          variant="ghost"
+          size="iconSm"
+          onClick={onRemove}
+          disabled={changing}
+          aria-label={member.status === 'pending' ? 'Cancel invitation' : 'Remove collaborator'}
+        >
+          <X className="size-4" />
+        </Button>
+      ) : null}
+    </div>
+  )
 }
 
 function DeleteAgentDialog({
@@ -859,6 +1083,8 @@ function AgentToolsTab({
   onSave,
   onCreateIdentity,
   saving,
+  readOnly = false,
+  canCreateIdentity = false,
 }: {
   serverUrl: string | undefined
   accountUid: string | null
@@ -870,6 +1096,8 @@ function AgentToolsTab({
   onSave: (definition: AgentDefinition) => Promise<unknown>
   onCreateIdentity: (label: string) => Promise<unknown>
   saving: boolean
+  readOnly?: boolean
+  canCreateIdentity?: boolean
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
   const authoredToolDialog = useAppDialog(AuthoredToolDialog)
@@ -962,7 +1190,7 @@ function AgentToolsTab({
                   type="checkbox"
                   className="mt-1 size-4"
                   checked={checked}
-                  disabled={!groupAvailable && !setupAction}
+                  disabled={readOnly || (!groupAvailable && !setupAction)}
                   onChange={(event) => {
                     // Enabling an unavailable-but-fixable tool answers with setup help instead of
                     // a save; disabling always saves so users can still remove the tool.
@@ -1123,7 +1351,7 @@ function AgentToolsTab({
                     type="checkbox"
                     className="mt-1 size-4"
                     checked={checked}
-                    disabled={saving || identitiesLoading}
+                    disabled={readOnly || saving || identitiesLoading}
                     onChange={(event) => {
                       const nextSigningKeys = event.target.checked
                         ? Array.from(new Set([...signingKeys, identity.name]))
@@ -1140,7 +1368,7 @@ function AgentToolsTab({
               )
             })}
           </div>
-          {!identitiesLoading && identities.length === 0 ? (
+          {!readOnly && canCreateIdentity && !identitiesLoading && identities.length === 0 ? (
             <div className="border-border bg-background flex flex-col gap-3 rounded-lg border border-dashed p-3">
               <SizableText size="sm" color="muted">
                 No agent accounts are available on this server yet. Create a new server-side HM account key, then enable
@@ -1153,7 +1381,7 @@ function AgentToolsTab({
                 disabled={saving}
               />
             </div>
-          ) : showNewIdentityPanel ? (
+          ) : !readOnly && canCreateIdentity && showNewIdentityPanel ? (
             <NewAgentAccountPanel
               name={newIdentityName}
               onNameChange={setNewIdentityName}
@@ -1161,12 +1389,12 @@ function AgentToolsTab({
               onCancel={() => setShowNewIdentityPanel(false)}
               disabled={saving}
             />
-          ) : (
+          ) : !readOnly && canCreateIdentity ? (
             <Button className="w-fit" variant="ghost" onClick={() => setShowNewIdentityPanel(true)} disabled={saving}>
               <Plus className="size-4" />
               New Agent Account
             </Button>
-          )}
+          ) : null}
         </div>
       ) : null}
 
@@ -1224,6 +1452,7 @@ function AgentTriggersTab({
   selectedTriggerId,
   triggers,
   isLoading,
+  readOnly = false,
 }: {
   agentId: string
   serverUrl: string
@@ -1231,6 +1460,7 @@ function AgentTriggersTab({
   selectedTriggerId?: string
   triggers: AgentTriggerInfo[]
   isLoading: boolean
+  readOnly?: boolean
 }) {
   const navigate = useNavigate()
   const trigger = useAgentTrigger(serverUrl, selectedAccountId, selectedTriggerId)
@@ -1282,7 +1512,7 @@ function AgentTriggersTab({
   }, [nameDirty, selected])
 
   useEffect(() => {
-    if (!selectedTriggerId || !selected || !nameDirty) return
+    if (readOnly || !selectedTriggerId || !selected || !nameDirty) return
     const draftName = name.trim()
     if (!draftName) return
     if (draftName === selected.name) {
@@ -1313,7 +1543,7 @@ function AgentTriggersTab({
         })
     }, 600)
     return () => clearTimeout(timer)
-  }, [name, nameDirty, selected, selectedTriggerId, updateTrigger])
+  }, [name, nameDirty, readOnly, selected, selectedTriggerId, updateTrigger])
 
   async function handleEnabledChange(nextEnabled: boolean) {
     if (!selectedTriggerId || !selected) return
@@ -1329,7 +1559,7 @@ function AgentTriggersTab({
   }
 
   useEffect(() => {
-    if (!selectedTriggerId || !selected || !detailsDirty || detailsSaveState === 'saving') return
+    if (readOnly || !selectedTriggerId || !selected || !detailsDirty || detailsSaveState === 'saving') return
     const detailsKey = currentDetailsKey
     if (detailsKey === lastSavedDetailsKeyRef.current) {
       setDetailsDirty(false)
@@ -1367,7 +1597,7 @@ function AgentTriggersTab({
         })
     }, 800)
     return () => clearTimeout(timer)
-  }, [currentDetailsKey, detailsDirty, detailsSaveState, prompt, selected, selectedTriggerId, source])
+  }, [currentDetailsKey, detailsDirty, detailsSaveState, prompt, readOnly, selected, selectedTriggerId, source])
 
   async function handleDeleteTrigger() {
     if (!selectedTriggerId) return
@@ -1392,22 +1622,24 @@ function AgentTriggersTab({
             setNameDirty(true)
           }}
           saveState={nameSaveState}
-          disabled={!selected}
+          disabled={!selected || readOnly}
           backLabel="Back to agent triggers"
           onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'triggers'})}
           actions={
-            <OptionsDropdown
-              align="end"
-              menuItems={[
-                {
-                  key: 'delete-trigger',
-                  icon: <Trash2 className="size-4" />,
-                  label: 'Delete trigger',
-                  variant: 'destructive',
-                  onClick: () => void handleDeleteTrigger(),
-                },
-              ]}
-            />
+            !readOnly ? (
+              <OptionsDropdown
+                align="end"
+                menuItems={[
+                  {
+                    key: 'delete-trigger',
+                    icon: <Trash2 className="size-4" />,
+                    label: 'Delete trigger',
+                    variant: 'destructive',
+                    onClick: () => void handleDeleteTrigger(),
+                  },
+                ]}
+              />
+            ) : null
           }
         />
         <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
@@ -1419,48 +1651,69 @@ function AgentTriggersTab({
           ) : null}
           {selected ? (
             <>
-              <div className="grid gap-4">
-                <TriggerSourceFields
-                  source={source}
-                  onChange={(nextSource) => {
-                    setSource(nextSource)
-                    setDetailsDirty(true)
-                  }}
-                  trailing={
-                    <label className="flex h-9 items-center gap-2 text-base">
-                      <input
-                        type="checkbox"
-                        checked={enabled}
-                        disabled={updateTrigger.isLoading}
-                        onChange={(event) => void handleEnabledChange(event.target.checked)}
-                      />
-                      Enable Trigger
-                    </label>
-                  }
-                />
-                <div className="flex flex-col gap-1">
-                  <SizableText size="sm" weight="bold">
-                    Prompt
-                  </SizableText>
-                  <AgentPromptEditor
-                    key={selected.id}
-                    initialBlocks={prompt}
-                    onChange={(blocks) => {
-                      setPrompt(blocks)
+              {readOnly ? (
+                <div className="grid gap-4">
+                  <div className="border-border bg-muted/40 rounded-lg border p-3">
+                    <SizableText size="sm" weight="bold" className="block">
+                      Source
+                    </SizableText>
+                    <SizableText size="sm" color="muted">
+                      {summarizeTriggerSource(source)}
+                    </SizableText>
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <SizableText size="sm" weight="bold">
+                      Prompt
+                    </SizableText>
+                    <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
+                      {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
+                    </pre>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  <TriggerSourceFields
+                    source={source}
+                    onChange={(nextSource) => {
+                      setSource(nextSource)
                       setDetailsDirty(true)
                     }}
+                    trailing={
+                      <label className="flex h-9 items-center gap-2 text-base">
+                        <input
+                          type="checkbox"
+                          checked={enabled}
+                          disabled={updateTrigger.isLoading}
+                          onChange={(event) => void handleEnabledChange(event.target.checked)}
+                        />
+                        Enable Trigger
+                      </label>
+                    }
                   />
-                  <SizableText size="xs" color={detailsSaveState === 'error' ? undefined : 'muted'}>
-                    {detailsSaveState === 'saving'
-                      ? 'Saving…'
-                      : detailsSaveState === 'saved'
-                        ? 'Saved.'
-                        : detailsSaveState === 'error'
-                          ? 'Save failed.'
-                          : ''}
-                  </SizableText>
+                  <div className="flex flex-col gap-1">
+                    <SizableText size="sm" weight="bold">
+                      Prompt
+                    </SizableText>
+                    <AgentPromptEditor
+                      key={selected.id}
+                      initialBlocks={prompt}
+                      onChange={(blocks) => {
+                        setPrompt(blocks)
+                        setDetailsDirty(true)
+                      }}
+                    />
+                    <SizableText size="xs" color={detailsSaveState === 'error' ? undefined : 'muted'}>
+                      {detailsSaveState === 'saving'
+                        ? 'Saving…'
+                        : detailsSaveState === 'saved'
+                          ? 'Saved.'
+                          : detailsSaveState === 'error'
+                            ? 'Save failed.'
+                            : ''}
+                    </SizableText>
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="border-border flex flex-col gap-2 border-t pt-5">
                 <SizableText weight="bold">Sessions created by this trigger</SizableText>
                 {!trigger.data?.sessions.length ? (

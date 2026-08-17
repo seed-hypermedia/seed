@@ -1,17 +1,18 @@
 # Environments
 
-The agents server runs in five distinct environments. Same binary logic, very different surroundings: what spawns it,
-what it binds, which HM server it reads and writes through, whether code execution and web tools exist, and how it gets
-updated. This document describes each one and the configuration that makes it work. The full env-var reference lives in
-`operations.md`; this is about which of those knobs each environment turns and why.
+The agents server runs in five distinct kinds of environment (the hosted remote is one kind running as three deployments
+— production, staging, and dev). Same binary logic, very different surroundings: what spawns it, what it binds, which HM
+server it reads and writes through, whether code execution and web tools exist, and how it gets updated. This document
+describes each one and the configuration that makes it work. The full env-var reference lives in `operations.md`; this
+is about which of those knobs each environment turns and why.
 
 A quick orientation table:
 
-|                    | 1 · dev (`./dev up`)              | 2 · CI-built desktop apps    | 3 · `./dev build-desktop`    | 4 · production remote          | 5 · self-hosted remote    |
+|                    | 1 · dev (`./dev up`)              | 2 · CI-built desktop apps    | 3 · `./dev build-desktop`    | 4 · hosted remotes             | 5 · self-hosted remote    |
 | ------------------ | --------------------------------- | ---------------------------- | ---------------------------- | ------------------------------ | ------------------------- |
 | Process            | `bun --hot` under a watcher       | compiled binary, app-spawned | compiled binary, app-spawned | Docker container               | Docker container          |
 | Port               | `3051` (from `.env.vars`)         | `3050` (app default)         | `3050` (app default)         | `3050` behind Caddy `443`      | operator's choice         |
-| HM API / IPFS      | bridge `:58004` / daemon `:58001` | app bridge / app daemon      | app bridge / app daemon      | `https://hyper.media` (both)   | operator's endpoint(s)    |
+| HM API / IPFS      | bridge `:58004` / daemon `:58001` | app bridge / app daemon      | app bridge / app daemon      | `hyper.media` or `dev.` (both) | operator's endpoint(s)    |
 | Code exec          | host microVMs (msb)               | embedded msb runtime         | embedded msb runtime         | `/dev/kvm` plumbed, see gap    | needs KVM + runtime       |
 | web_search/crawler | Docker compose backends           | none (unless configured)     | none (unless configured)     | compose-internal SearXNG/Crawl | optional compose backends |
 | Updates            | file-watch restart                | app release cycle            | rebuild                      | Watchtower auto-pull           | operator pulls            |
@@ -105,19 +106,38 @@ runtime, entitlements, no Docker, daemon-backed HM URL), plus two local-only got
   previously-installed app's binary can hold a port the new build then attaches to. When in doubt, `/api/health` reports
   the running server's version.
 
-## 4. Production remote — `agentic.seed.hyper.media`
+## 4. Hosted remotes — production, staging, and dev
 
-An Ubuntu 24.04 VM (OVH/OpenStack, Terraform Cloud workspace `SHM-Agentic` in the SeedInfra repo, `seed_infra/agentic`).
-Terraform provisions a bare Docker host; the actual service definition is the compose file it writes to
-`/opt/agentic/docker-compose.yml`. The stack:
+One Ubuntu 24.04 VM (OVH/OpenStack, Terraform Cloud workspace `SHM-Agentic` in the SeedInfra repo, `seed_infra/agentic`)
+runs all three hosted agents servers. Terraform provisions a bare Docker host; the actual service definition is the
+compose file it writes to `/opt/agentic/docker-compose.yml`.
 
-- **Caddy** (`caddy:2`) terminates TLS on 80/443 and reverse-proxies two hostnames to two containers:
-  `agentic.seed.hyper.media` → `agents-stable` (image `seedhypermedia/agents:latest`), and
-  `dev.agentic.seed.hyper.media` → `agents-dev` (image `seedhypermedia/agents:dev`), each on internal port `3050`.
-- **agents-stable / agents-dev** run with:
-  - `SEED_AGENTS_HM_SERVER_URL` → `https://hyper.media` (stable) / `https://dev.hyper.media` (dev). Those origins serve
-    both typed `/api/*` and direct `/ipfs/*`, so `SEED_AGENTS_IPFS_SERVER_URL` defaults to the same value. Unlike every
-    local environment, production reads and writes through the public gateway — there is no co-located daemon.
+The three deployments differ in exactly two ways — which image tag they track, and which HM network they read:
+
+| Hostname                           | Container        | Image tag | Code           | Data    |
+| ---------------------------------- | ---------------- | --------- | -------------- | ------- |
+| `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet |
+| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet |
+| `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet  |
+
+Staging is the release gate: it runs the _same code_ as dev but against _production data_, so behavior can be validated
+on real mainnet content before a release tag promotes that code to `agents-stable`. Dev keeps devnet data, which is
+where you want to be while a change is still liable to write nonsense.
+
+Each container has its own `agents-*-data` volume, and that separation matters more than it looks: the activity monitor
+only polls for accounts that have enabled triggers **in its own database**, so three servers pointed at the same feed
+stay quiet about each other's agents. Copy prod's DB into staging and both would fire on the same mainnet mention and
+answer twice.
+
+The stack:
+
+- **Caddy** (`caddy:2`) terminates TLS on 80/443 and reverse-proxies each hostname above to its container on internal
+  port `3050`.
+- **agents-stable / agents-staging / agents-dev** run with:
+  - `SEED_AGENTS_HM_SERVER_URL` → `https://hyper.media` (stable, staging) / `https://dev.hyper.media` (dev). Those
+    origins serve both typed `/api/*` and direct `/ipfs/*`, so `SEED_AGENTS_IPFS_SERVER_URL` defaults to the same value.
+    Unlike every local environment, the hosted servers read and write through the public gateway — there is no
+    co-located daemon.
   - `devices: /dev/kvm:/dev/kvm` — hardware virtualization for the execute microVMs. Without the device the service runs
     but every execution fails 502. (This requires an OVH flavor that exposes KVM.)
   - Named volumes: `agents-*-data:/data` (the sqlite DB + agent state; `SEED_AGENTS_DB_PATH=/data/agents.sqlite` and
@@ -128,11 +148,16 @@ Terraform provisions a bare Docker host; the actual service definition is the co
 - **SearXNG** (json format enabled, limiter off — safe only because it is never published outside the compose network)
   and **Crawl4AI** (version-pinned; 0.9.0 changed auth defaults, so it must not float to `:latest`; needs shared memory
   for Chromium) serve the web tools, internal-only.
-- **Watchtower** (label-enabled, short poll interval) auto-pulls both agents images: pushing
-  `seedhypermedia/agents:latest` or `:dev` deploys within minutes. Images are pushed by the three GitHub workflows
-  described in `operations.md` (release tags → `:latest`, main pushes touching `agents/**` → `:dev`, plus a manual
-  hotfix path), or manually via `agents/scripts/build-and-push.sh`. Make sure the Watchtower container itself carries
-  `restart: unless-stopped` — a crashed auto-updater silently stops all deploys.
+- **Watchtower** (label-enabled, short poll interval) auto-pulls the agents images: pushing
+  `seedhypermedia/agents:latest` deploys to `agents-stable`, and pushing `:dev` deploys to **both** `agents-staging` and
+  `agents-dev`, within minutes. Images are pushed by the three GitHub workflows described in `operations.md` (release
+  tags → `:latest`, main pushes touching `agents/**` → `:dev`, plus a manual hotfix path), or manually via
+  `agents/scripts/build-and-push.sh`. Make sure the Watchtower container itself carries `restart: unless-stopped` — a
+  crashed auto-updater silently stops all deploys, and so does a _stopped_ one: `docker stop` on a container with that
+  policy stays stopped across reboots, which is how the host once sat four days without a deploy.
+
+  Watchtower reads `com.centurylinklabs.watchtower.enable` from the **running container**, not from the compose file, so
+  editing that label only takes effect after `docker compose up -d <service>` recreates the container.
 
 Secrets (provider API keys, OAuth credentials) are **not** in the compose environment: they are per-account rows in the
 database, written through the signed `SetSecret` API and encrypted at rest. Subscription OAuth

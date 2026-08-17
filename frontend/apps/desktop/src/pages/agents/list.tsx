@@ -1,8 +1,11 @@
 import {
   isLocalAgentServer,
   LOCAL_AGENT_SERVER_LABEL,
+  useAcceptAgentInvite,
+  useAgentInviteLists,
   useAgentLists,
   useAgentServerHealths,
+  useDeclineAgentInvite,
   useAgentServerUrls,
   useAgentWebSocketSubscription,
   useLocalAgentServerUrl,
@@ -10,12 +13,13 @@ import {
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {hostnameStripProtocol} from '@shm/shared'
+import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Bot, CircleUserRound, Settings} from 'lucide-react'
+import {Bot, Check, CircleUserRound, Mail, Settings, X} from 'lucide-react'
 import React, {useMemo} from 'react'
 import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
@@ -35,6 +39,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   const serverUrls = serverUrlsQuery.data || []
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls, selectedAccountId)
+  const inviteQueries = useAgentInviteLists(serverUrls, selectedAccountId)
   const healthQueries = useAgentServerHealths(serverUrls)
   const providersDialog = useAppDialog(ModelProvidersDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
@@ -46,6 +51,13 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
         (agentQueries[index]?.data || []).map((agent) => ({...agent, serverUrl})),
       ),
     [agentQueries, serverUrls],
+  )
+  const invites = useMemo(
+    () =>
+      serverUrls.flatMap((serverUrl, index) =>
+        (inviteQueries[index]?.data || []).map((invite) => ({...invite, serverUrl})),
+      ),
+    [inviteQueries, serverUrls],
   )
   const isLoadingAgents = agentQueries.some((query) => query.isFetching && !query.data)
   const agentError = agentQueries.find((query) => query.isError)?.error
@@ -140,6 +152,27 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
         {manageAccountsDialog.content}
         {createAgentDialog.content}
 
+        {invites.length ? (
+          <section className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+              <Mail className="text-muted-foreground size-4" />
+              <SizableText weight="bold">Invites</SizableText>
+              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-bold">
+                {invites.length}
+              </span>
+            </div>
+            <div className="flex flex-col gap-2">
+              {invites.map((invite) => (
+                <AgentInviteRow
+                  key={`${invite.serverUrl}:${invite.agentId}`}
+                  invite={invite}
+                  selectedAccountId={selectedAccountId}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
             <SizableText weight="bold">All Agents</SizableText>
@@ -170,12 +203,66 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                 name={agent.definition.name}
                 status={agent.status}
                 serverUrl={agent.serverUrl}
+                accessRole={agent.accessRole}
               />
             ))}
           </div>
         </section>
       </Container>
     </PanelContainer>
+  )
+}
+
+function AgentInviteRow({
+  invite,
+  selectedAccountId,
+}: {
+  invite: {
+    agentId: string
+    agentName: string
+    ownerAccountId: string
+    role: 'reader' | 'writer'
+    serverUrl: string
+  }
+  selectedAccountId: string
+}) {
+  const navigate = useNavigate()
+  const accept = useAcceptAgentInvite(invite.serverUrl, selectedAccountId)
+  const decline = useDeclineAgentInvite(invite.serverUrl, selectedAccountId)
+  const pending = accept.isLoading || decline.isLoading
+
+  return (
+    <div className="border-border bg-card flex items-center gap-3 rounded-lg border p-3">
+      <div className="bg-primary/10 text-primary flex size-9 flex-none items-center justify-center rounded-lg">
+        <Bot className="size-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <SizableText weight="bold" className="block truncate">
+          {invite.agentName}
+        </SizableText>
+        <SizableText size="xs" color="muted" className="block">
+          {invite.role === 'writer' ? 'Write collaborator' : 'Read collaborator'} · invited by{' '}
+          {abbreviateUid(invite.ownerAccountId)}
+        </SizableText>
+      </div>
+      <Button
+        size="sm"
+        onClick={() =>
+          accept.mutate(invite.agentId, {
+            onSuccess: (result) => {
+              if (result._ !== 'AcceptAgentInviteResponse') return
+              navigate({key: 'agent', agentId: invite.agentId, serverUrl: invite.serverUrl})
+            },
+          })
+        }
+        disabled={pending}
+      >
+        <Check className="size-4" /> Accept
+      </Button>
+      <Button variant="ghost" size="sm" onClick={() => decline.mutate(invite.agentId)} disabled={pending}>
+        <X className="size-4" /> Decline
+      </Button>
+    </div>
   )
 }
 

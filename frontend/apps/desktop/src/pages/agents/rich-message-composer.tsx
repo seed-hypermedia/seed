@@ -179,7 +179,7 @@ export function AgentRichMessageComposer({
             <Button
               size="sm"
               onClick={() => submitHandleRef.current?.submit()}
-              title={isBusy ? 'Queue message' : 'Send'}
+              title={isBusy ? 'Send while the agent is working' : 'Send'}
             >
               <Send className="size-3.5" />
             </Button>

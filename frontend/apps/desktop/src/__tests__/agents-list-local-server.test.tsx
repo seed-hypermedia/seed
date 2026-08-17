@@ -14,6 +14,14 @@ const mockState = vi.hoisted(() => ({
   healths: [] as Array<{isLoading: boolean; isError: boolean; data?: {uptime: number}}>,
   selectedAccountId: 'account-1' as string | null,
   accountIds: ['account-1'] as string[],
+  invites: [] as Array<{
+    agentId: string
+    agentName: string
+    ownerAccountId: string
+    role: 'reader' | 'writer'
+    createdAt: number
+    updatedAt: number
+  }>,
 }))
 
 vi.mock('@/models/agents', () => ({
@@ -24,6 +32,14 @@ vi.mock('@/models/agents', () => ({
   useLocalAgentServerUrl: () => ({data: mockState.localServerUrl}),
   useAgentServerHealths: () => mockState.healths,
   useAgentLists: () => mockState.serverUrls.map(() => ({data: [], isFetching: false, isError: false})),
+  useAgentInviteLists: () =>
+    mockState.serverUrls.map((_, index) => ({
+      data: index === 0 ? mockState.invites : [],
+      isFetching: false,
+      isError: false,
+    })),
+  useAcceptAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
+  useDeclineAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
   useAgentWebSocketSubscription: () => ({text: ''}),
 }))
 
@@ -108,10 +124,33 @@ describe('agents list — local server presentation', () => {
     ]
     mockState.selectedAccountId = 'account-1'
     mockState.accountIds = ['account-1']
+    mockState.invites = []
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('shows pending agent invitations with their role and actions', () => {
+    mockState.invites = [
+      {
+        agentId: 'shared-agent',
+        agentName: 'Research partner',
+        ownerAccountId: 'z6MkOwnerAccount',
+        role: 'writer',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]
+    const {container, root} = renderList()
+
+    expect(container.textContent).toContain('Invites')
+    expect(container.textContent).toContain('Research partner')
+    expect(container.textContent).toContain('Write collaborator')
+    expect(container.textContent).toContain('Accept')
+    expect(container.textContent).toContain('Decline')
+
+    cleanupRendered(root, container)
   })
 
   it('names the local server instead of showing its URL', () => {

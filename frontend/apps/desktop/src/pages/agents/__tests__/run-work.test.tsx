@@ -78,6 +78,7 @@ vi.mock('@/components/markdown', () => ({
 
 vi.mock('@shm/shared/models/entity', () => ({
   useResource: () => ({data: null}),
+  useAccount: () => ({data: null}),
 }))
 
 function makeRun(overrides: Partial<RunInfo> & Pick<RunInfo, 'id' | 'status'>): RunInfo {

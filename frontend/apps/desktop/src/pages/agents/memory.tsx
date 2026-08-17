@@ -48,10 +48,13 @@ export function AgentMemoryTab({
   accountUid,
   agentId,
   openPath,
+  readOnly = false,
 }: {
   serverUrl: string
   accountUid: string | null
   agentId: string
+  /** Prevents a reader collaborator from changing the shared memory. */
+  readOnly?: boolean
   /** File the route asked for — a tool row linking to `~/memory/<path>` lands the user on it. */
   openPath?: string
 }) {
@@ -268,47 +271,50 @@ export function AgentMemoryTab({
         <div className="flex flex-col">
           <SizableText weight="bold">Memory</SizableText>
           <SizableText size="xs" color="muted">
-            Private files this agent reads and writes across sessions. You can edit everything here.
+            Private files this agent reads and writes across sessions.{' '}
+            {readOnly ? 'You have read-only access.' : 'You can edit everything here.'}
             {memory.data
               ? ` ${fileCount} file${fileCount === 1 ? '' : 's'}, ${formatBytes(memory.data.totalBytes)}.`
               : ''}
           </SizableText>
         </div>
-        <div className="flex flex-none items-center gap-2">
-          <input
-            ref={uploadInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={(event) => {
-              const localFiles = Array.from(event.currentTarget.files ?? [])
-              event.currentTarget.value = ''
-              if (localFiles.length) void handleUploadLocalFiles(localFiles.map((file) => ({path: file.name, file})))
-            }}
-          />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => uploadInputRef.current?.click()}
-            disabled={writeFile.isLoading}
-          >
-            <Upload className="mr-2 size-4" /> Add file
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAddPanel((current) => (current === 'from-url' ? 'none' : 'from-url'))}
-          >
-            <Globe className="mr-2 size-4" /> From URL
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setAddPanel((current) => (current === 'new-file' ? 'none' : 'new-file'))}
-          >
-            <FilePlus className="mr-2 size-4" /> New file
-          </Button>
-        </div>
+        {!readOnly ? (
+          <div className="flex flex-none items-center gap-2">
+            <input
+              ref={uploadInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(event) => {
+                const localFiles = Array.from(event.currentTarget.files ?? [])
+                event.currentTarget.value = ''
+                if (localFiles.length) void handleUploadLocalFiles(localFiles.map((file) => ({path: file.name, file})))
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => uploadInputRef.current?.click()}
+              disabled={writeFile.isLoading}
+            >
+              <Upload className="mr-2 size-4" /> Add file
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddPanel((current) => (current === 'from-url' ? 'none' : 'from-url'))}
+            >
+              <Globe className="mr-2 size-4" /> From URL
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAddPanel((current) => (current === 'new-file' ? 'none' : 'new-file'))}
+            >
+              <FilePlus className="mr-2 size-4" /> New file
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {uploadProgress ? (
@@ -391,7 +397,7 @@ export function AgentMemoryTab({
             dropTarget === '' ? 'ring-primary/50 ring-2 ring-inset' : ''
           }`}
           onDragOver={(event) => {
-            if (!hasDraggedFiles(event)) return
+            if (readOnly || !hasDraggedFiles(event)) return
             event.preventDefault()
             // Dir rows stop propagation while hovered, so reaching here means the root is targeted.
             setDropTarget('')
@@ -401,7 +407,7 @@ export function AgentMemoryTab({
             setDropTarget(null)
           }}
           onDrop={(event) => {
-            if (!hasDraggedFiles(event)) return
+            if (readOnly || !hasDraggedFiles(event)) return
             event.preventDefault()
             setDropTarget(null)
             void handleDroppedItems(event.dataTransfer)
@@ -430,13 +436,13 @@ export function AgentMemoryTab({
                 expanded={entry.type === 'dir' && expandedDirs.has(entry.path)}
                 onToggle={entry.type === 'dir' ? () => toggleDir(entry.path) : undefined}
                 onSelect={() => (entry.type === 'file' ? selectFile(entry.path) : undefined)}
-                onRequestDelete={() => setConfirmDeletePath(entry.path)}
+                onRequestDelete={readOnly ? undefined : () => setConfirmDeletePath(entry.path)}
                 onCancelDelete={() => setConfirmDeletePath(null)}
                 onConfirmDelete={() => void handleDelete(entry.path)}
                 deleting={deleteFile.isLoading && confirmDeletePath === entry.path}
                 dropTargeted={entry.type === 'dir' && dropTarget === entry.path}
                 onDirDragOver={
-                  entry.type === 'dir'
+                  !readOnly && entry.type === 'dir'
                     ? (event) => {
                         if (!hasDraggedFiles(event)) return
                         event.preventDefault()
@@ -446,7 +452,7 @@ export function AgentMemoryTab({
                     : undefined
                 }
                 onDirDrop={
-                  entry.type === 'dir'
+                  !readOnly && entry.type === 'dir'
                     ? (event) => {
                         if (!hasDraggedFiles(event)) return
                         event.preventDefault()
@@ -478,9 +484,11 @@ export function AgentMemoryTab({
                 {formatBytes(selectedEntry.size)}
                 {selectedEntry.mimeType ? ` · ${selectedEntry.mimeType}` : ''} — too large to preview here.
               </SizableText>
-              <Button variant="outline" size="sm" onClick={() => setConfirmDeletePath(selectedPath)} className="mt-2">
-                <Trash2 className="mr-1 size-3.5" /> Delete
-              </Button>
+              {!readOnly ? (
+                <Button variant="outline" size="sm" onClick={() => setConfirmDeletePath(selectedPath)} className="mt-2">
+                  <Trash2 className="mr-1 size-3.5" /> Delete
+                </Button>
+              ) : null}
             </div>
           ) : file.isLoading ? (
             <div className="flex flex-1 items-center justify-center p-6">
@@ -504,7 +512,7 @@ export function AgentMemoryTab({
                   {file.data.mimeType ? ` · ${file.data.mimeType}` : ''}
                   {file.data.updatedAt ? ` · ${formattedDateMedium(new Date(file.data.updatedAt))}` : ''}
                 </SizableText>
-                {file.data.encoding === 'utf8' && dirty ? (
+                {!readOnly && file.data.encoding === 'utf8' && dirty ? (
                   <>
                     <Button
                       variant="ghost"
@@ -538,7 +546,7 @@ export function AgentMemoryTab({
                       key: 'publish-ipfs',
                       icon: <UploadCloud className="size-4" />,
                       label: uploadToIpfs.isLoading ? 'Publishing…' : 'Publish to IPFS',
-                      disabled: uploadToIpfs.isLoading,
+                      disabled: readOnly || uploadToIpfs.isLoading,
                       onClick: () => void handlePublishToIpfs(),
                     },
                   ]}
@@ -569,6 +577,7 @@ export function AgentMemoryTab({
                   className="focus:ring-primary/25 min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-sm outline-none focus:ring-2"
                   value={draftText ?? file.data.content ?? ''}
                   onChange={(event) => setDraftText(event.currentTarget.value)}
+                  readOnly={readOnly}
                   spellCheck={false}
                 />
               ) : (
@@ -681,7 +690,7 @@ function MemoryEntryRow({
   /** Collapses/expands this directory. */
   onToggle?: () => void
   onSelect: () => void
-  onRequestDelete: () => void
+  onRequestDelete?: () => void
   onCancelDelete: () => void
   onConfirmDelete: () => void
   /** True while dragged files hover this directory row. */
@@ -728,7 +737,7 @@ function MemoryEntryRow({
             Cancel
           </Button>
         </span>
-      ) : (
+      ) : onRequestDelete ? (
         <Button
           variant="ghost"
           size="iconSm"
@@ -738,7 +747,7 @@ function MemoryEntryRow({
         >
           <Trash2 className="size-3.5" />
         </Button>
-      )}
+      ) : null}
     </div>
   )
 }

@@ -78,6 +78,10 @@ bubble that opens the exact lines the model was given.
 
 ## Server settings and dialogs
 
+The Agents index shows an **Invites** section when the selected account has pending agent invitations, with Accept and
+Decline actions. Accepting opens the agent; accepted shared agents then appear in **All Agents** with a reader/writer
+badge.
+
 The Agents index has two sections: **Agent Servers** (agents grouped by server, each with per-server **Accounts** and
 **Providers** buttons opening `ManageAgentAccountsDialog` and `ModelProvidersDialog`) and **All Agents**, the aggregated
 list across servers with Create Agent. Health reads "Checking… / Offline / Online", and the status dot is suppressed for
@@ -142,7 +146,10 @@ Tabs: **Sessions** (default), **Triggers**, **Memory**, **Tools**, **Prompt**, *
   row deep-links to the file.
 - **Prompt** edits the system prompt with the Seed block editor; edits autosave, convert to markdown before the signed
   `UpdateAgent`, and are normalized server-side.
-- **Settings** edits the name, model, and reasoning level, and shows provider/status/id.
+- **Settings** edits the name, model, and reasoning level and manages agent collaborators. Owners get the same
+  account-search invite control used by document collaborators, with a read/write role picker; the member list includes
+  pending invitations and supports role changes, cancellation, and revocation. Readers see the agent in read-only mode;
+  writers can edit/interact but cannot manage collaborators or delete the agent.
 
 ### Tools tab
 
@@ -195,7 +202,8 @@ message.
 Every row knows its **actor**, and the actor is checked before the role — because the runtime writes to the log as
 `role: 'user'` (the only turn a model takes instruction from) while nobody typed those words:
 
-- **user** messages render as the familiar blue bubble;
+- **user** messages render as the familiar blue bubble with the originator's live Seed account icon on the right (legacy
+  rows without origin metadata use a neutral user glyph);
 - **system** messages render as `SystemMessageRow` — no bubble, no name, quiet grey, set in behind a left rule
   (`assistant-message-rendering.tsx:187`). This is what continuation prompts and unmet-obligation notices look like:
   visibly the machinery talking about the conversation rather than a voice in it;
@@ -207,9 +215,9 @@ Every row can explain itself. A **message** ⓘ opens the exact markdown the mod
 `<server>/agents/<agentId>/sessions/<sessionId>#event=<eventId>`, session/message/seq ids, and any window context that
 rode along hidden. A **tool** row's ⓘ opens `ToolCallDebugDialog` with the raw input and output payloads (and the source
 of a script child, when there is one). Both end in the same **Details** grid, built by `eventMetaRows()`
-(`models/event-meta.ts`): model, provider, duration, and the turn's token breakdown — total, input, output, cache read,
-cache write. The grid is strictly additive: an event recorded before the runtime stamped provenance shows no Details
-section at all rather than labelled blanks.
+(`models/event-meta.ts`): a user message's originator account and exact signer, or an agent event's model, provider,
+duration, and turn token breakdown — total, input, output, cache read, cache write. The grid is strictly additive: an
+event recorded before the runtime stamped provenance shows no Details section at all rather than labelled blanks.
 
 Tool rows dispatch a purpose-built detail view per tool (`assistant-message-rendering.tsx:2034`): `delegate` shows the
 brief and the child's own work, `execute` shows the code with a live output tail, an address-bearing `read` or `write`
@@ -217,7 +225,8 @@ shows the resolved target, and a hypermedia write command gets its own phrasing.
 tool's icon, label, and links, with input paths rebased under `input.` (`getRowToolMetadata`,
 `assistant-message-rendering.tsx:687`) — so it never reads "Call · execute".
 
-Other session-page behavior: optimistic user messages, queued messages while the agent is busy, live assistant partials
+Other session-page behavior: optimistic user messages stamped with the selected account immediately, concurrent sends
+while the agent is busy (the server persists them immediately and serializes their model turns), live assistant partials
 with a streaming cursor, a run status bar (hidden while a pending tool row is already showing its own live status, so
 there are never two spinners), auto-scroll with a scroll-to-latest pill, in-app `hm://` link handling, and signed
 `StopSession` from the stop button including recovery for sessions stuck in `streaming` with no live runner. Retry is

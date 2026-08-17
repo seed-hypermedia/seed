@@ -326,6 +326,7 @@ function agentRowToInfo(row: AgentRow): api.AgentInfo {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    accessRole: 'owner',
   }
 }
 
@@ -518,9 +519,10 @@ async function main(): Promise<void> {
           key: `account/${event.accountId}`,
           value: {reason: event.reason, agentId: event.agentId, sessionId: event.sessionId},
         })
-        // Memory writes happen mid-session with no agent-change event, so also notify
-        // agent-page subscribers watching the Memory tab.
-        if (event.reason === 'agent-memory-changed' && event.agentId) {
+        // Agent-scoped account changes also reach the open agent page. This covers memory writes
+        // (which have no agent-change event), collaborator changes, and an owner deleting an agent
+        // while a collaborator still has its detail page open.
+        if (event.agentId) {
           sendIfSubscribed(ws, `agents/${event.agentId}`, {
             _: 'change',
             key: `account/${event.accountId}`,

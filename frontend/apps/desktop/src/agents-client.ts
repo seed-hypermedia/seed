@@ -12,6 +12,12 @@ export type AgentMessageBlock = AgentsProtocol.AgentMessageBlock
 export type MessageSessionContentPart = AgentsProtocol.MessageSessionContentPart
 /** Public metadata returned by the agents service. */
 export type AgentInfo = AgentsProtocol.AgentInfo
+/** A read or write role granted to an agent collaborator. */
+export type AgentCollaboratorRole = AgentsProtocol.AgentCollaboratorRole
+/** One owner, collaborator, or pending invitation on an agent. */
+export type AgentCollaboratorInfo = AgentsProtocol.AgentCollaboratorInfo
+/** A pending agent invitation shown to its recipient. */
+export type AgentInviteInfo = AgentsProtocol.AgentInviteInfo
 /** Public metadata returned for a session. */
 export type SessionInfo = AgentsProtocol.SessionInfo
 /** Compact trigger attribution attached to sessions created by triggers. */
@@ -32,7 +38,7 @@ export type SessionEvent = AgentsProtocol.SessionEvent
 export type SessionEventPayload = AgentsProtocol.SessionEventPayload
 /** Who performed a logged action: the log is shared, so every entry says who acted. */
 export type SessionActor = AgentsProtocol.SessionActor
-/** Model/provider/usage/timing stamped on a runtime-produced event at append time. */
+/** User origin or runtime model/provider/usage/timing stamped on a durable event. */
 export type SessionEventMeta = AgentsProtocol.SessionEventMeta
 /** Server-sent WebSocket event after a signed subscription. */
 export type AgentWSEvent = AgentsProtocol.AgentWSEvent
