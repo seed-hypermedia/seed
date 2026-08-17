@@ -13,7 +13,7 @@ A quick orientation table:
 | Process            | `bun --hot` under a watcher       | compiled binary, app-spawned | compiled binary, app-spawned | Docker container               | Docker container          |
 | Port               | `3051` (from `.env.vars`)         | `3050` (app default)         | `3050` (app default)         | `3050` behind Caddy `443`      | operator's choice         |
 | HM API / IPFS      | bridge `:58004` / daemon `:58001` | app bridge / app daemon      | app bridge / app daemon      | `hyper.media` or `dev.` (both) | operator's endpoint(s)    |
-| Code exec          | host microVMs (msb)               | embedded msb runtime         | embedded msb runtime         | `/dev/kvm` plumbed, see gap    | needs KVM + runtime       |
+| Code exec          | host microVMs (msb)               | embedded msb runtime         | embedded msb runtime         | staged msb + `/dev/kvm`        | needs KVM                 |
 | web_search/crawler | Docker compose backends           | none (unless configured)     | none (unless configured)     | compose-internal SearXNG/Crawl | optional compose backends |
 | Updates            | file-watch restart                | app release cycle            | rebuild                      | Watchtower auto-pull           | operator pulls            |
 
@@ -163,12 +163,12 @@ Secrets (provider API keys, OAuth credentials) are **not** in the compose enviro
 database, written through the signed `SetSecret` API and encrypted at rest. Subscription OAuth
 (`SEED_AGENTS_SUBSCRIPTION_AUTH`) is an explicit opt-in flag wherever it is wanted.
 
-**Known gap — code execution inside the image.** `agents/Dockerfile` bundles the server with `bun run build` and its
-final stage copies only `package.json` and `dist/` — no `node_modules`. The microsandbox runtime cannot be bundled
-(native binding + `msb` + libkrunfw) and is not currently staged into the image, so the SDK's staged-runtime fallback
-finds nothing: the `/dev/kvm` plumbing and msb cache volumes are ready, but executions in the container fail until the
-image stages the runtime the way `build-binary.ts` does for desktop. Tracked in `roadmap.md` ("TypeScript execution in
-deployed images" — in truth all runtimes, in Docker).
+**Code execution inside the image.** The microsandbox runtime cannot be bundled (native binding + `msb` + libkrunfw), so
+`microsandbox` is `external` in the server bundle (`build.ts`) and the Dockerfile stages the package — plus its linux
+platform package — into `/app/node_modules` next to `main.js` (`scripts/stage-msb-runtime.ts`), the same layout
+`build-binary.ts` ships beside the desktop binary. The image build runs `--exec-selfcheck` so a staging regression fails
+the build instead of surfacing as `codeExec: false` on the servers. With `/dev/kvm` plumbed and the msb cache volumes
+mounted, executions run in-container; `/api/health` reports the probe result either way.
 
 ## 5. Self-hosted remote agents servers
 
@@ -193,10 +193,11 @@ What an operator must decide, in rough order of importance:
   the gateway, but needs a compatible Seed HTTP API/bridge for `SEED_AGENTS_HM_SERVER_URL`.
 - **TLS + hostname.** Put a reverse proxy (Caddy, nginx) in front; the desktop and web apps connect over HTTPS and the
   signed-envelope API assumes an authentic transport. CORS is already permissive server-side.
-- **Code execution.** Requires KVM (`--device /dev/kvm`) on a host whose virtualization is exposed, AND the microsandbox
-  runtime staged into the container (see the environment-4 gap — until the image stages it, exec in Docker needs a
-  custom image or `SEED_AGENTS_EXEC_BACKEND=off` to advertise honestly). Persist `/root/.microsandbox` if you enable it.
-  Set `SEED_AGENTS_EXEC_TS_IMAGE=` (empty) to withhold TypeScript, or leave the `oven/bun` default.
+- **Code execution.** Requires KVM (`--device /dev/kvm`) on a host whose virtualization is exposed. The image ships the
+  microsandbox runtime staged in `/app/node_modules`, so no custom image is needed; without KVM the server still runs
+  and `/api/health` reports `codeExec: false` (`kvm-missing`), or set `SEED_AGENTS_EXEC_BACKEND=off` to advertise
+  honestly. Persist `/root/.microsandbox` if you enable it. Set `SEED_AGENTS_EXEC_TS_IMAGE=` (empty) to withhold
+  TypeScript, or leave the `oven/bun` default.
 - **Web tools.** Optional SearXNG (`SEED_AGENTS_SEARXNG_URL`) and Crawl4AI (`SEED_AGENTS_CRAWLER_URL` +
   `SEED_AGENTS_CRAWLER_TOKEN`) containers, internal-only, exactly as production wires them. Without SearXNG the
   `web_search` callable is simply not offered to agents.

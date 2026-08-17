@@ -127,11 +127,6 @@ Delete provider, rotate secret, delete secret, last-used/error metadata.
 The `runs` table backs execution history, cancellation, and reconnect recovery, but the built-in `/agents` inspector
 still shows only sessions and events.
 
-### TypeScript execution in deployed images
-
-`execute {runtime: 'ts'}` is off unless `SEED_AGENTS_EXEC_TS_IMAGE` names an image with a JavaScript runtime. Turning it
-on in production is an infra change, not a code change.
-
 ### Desktop packaging coverage
 
 `desktop-smoke-test.yml` builds and runs on macOS only; the Linux and Windows binaries are compiled but never executed

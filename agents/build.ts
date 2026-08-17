@@ -24,9 +24,13 @@ const result = await Bun.build({
   publicPath: '/agents/',
   root: './src',
   plugins: [tailwind],
+  // Bundling `microsandbox` breaks it: its napi binding, `msb` hypervisor helper, and libkrunfw
+  // cannot live inside bundled JS, so the bundle dies at execute time with "Cannot find module
+  // '../../native/index.cjs'". Kept external; the Dockerfile stages the package into
+  // node_modules/ next to dist/ the same way build-binary.ts stages it next to the binary.
   // `canvas` is an optional native dep reached only through linkedom's guarded require — its
   // fallback shim covers us — and bundling it fails on machines where the binding never compiled.
-  external: ['canvas'],
+  external: ['microsandbox', 'canvas'],
 })
 
 if (!result.success) {
