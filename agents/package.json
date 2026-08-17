@@ -45,6 +45,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@connectrpc/connect-web": "1.4.0",
     "@types/bun": "latest",
     "@types/react": "^19",
     "@types/react-dom": "^19",
