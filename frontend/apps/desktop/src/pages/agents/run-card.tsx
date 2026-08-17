@@ -16,7 +16,8 @@ import {
 import {formatElapsed, formatTokenCount} from '@/components/agent-run-status'
 import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from '@/models/agents'
 import {Button} from '@shm/ui/button'
-import {ChevronDown, ChevronRight, Loader2, Workflow} from 'lucide-react'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
+import {ChevronDown, ChevronRight, Info, Loader2, Workflow} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 
 /**
@@ -290,6 +291,25 @@ function RunCardBody({
         >
           {isParked ? parkedLabel(run) : isCompletedTranscript && plan?.title ? plan.title : runTitle(run)}
         </span>
+        {/* Finished record: technical details live behind the same info bubble every tool row uses. */}
+        {isCompletedTranscript ? (
+          <span className="flex flex-none items-center gap-1.5">
+            {issueCount ? (
+              <span className="text-[10px] text-amber-700 dark:text-amber-300">
+                {issueCount} recovered issue{issueCount === 1 ? '' : 's'}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              title="Run details"
+              aria-label="Run details"
+              onClick={() => setDetailsOpen(true)}
+              className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75"
+            >
+              <Info className="size-3" />
+            </button>
+          </span>
+        ) : null}
         {!showRunControls ? null : confirmingCancel ? (
           <span className="flex flex-none items-center gap-1">
             <Button
@@ -349,27 +369,13 @@ function RunCardBody({
       {isCompletedTranscript ? (
         <>
           {plan?.steps.length ? <RunPlanSteps plan={plan} compact={compact} settle="run-finished" /> : null}
-          <div className="border-border flex flex-col border-t pt-1">
-            <button
-              type="button"
-              aria-expanded={detailsOpen}
-              className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start text-[11px]"
-              onClick={() => setDetailsOpen((current) => !current)}
-            >
-              {detailsOpen ? (
-                <ChevronDown className="size-3 flex-none" />
-              ) : (
-                <ChevronRight className="size-3 flex-none" />
-              )}
-              Run details
-              {issueCount ? (
-                <span className="text-amber-700 dark:text-amber-300">
-                  · {issueCount} recovered issue{issueCount === 1 ? '' : 's'}
-                </span>
-              ) : null}
-            </button>
-            {detailsOpen ? (
-              <div className="mt-1 flex min-w-0 flex-col gap-1.5">
+          <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+            <DialogContent className="max-h-[85vh] w-[min(44rem,calc(100vw-2rem))]">
+              <DialogHeader>
+                <DialogTitle>Run details</DialogTitle>
+                <DialogDescription>{plan?.title || runTitle(run)}</DialogDescription>
+              </DialogHeader>
+              <div className="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
                 <RunWorkHierarchy
                   run={run}
                   childRuns={childRuns}
@@ -384,8 +390,8 @@ function RunCardBody({
                 <RunSourceDrawer runs={[run, ...childRuns]} />
                 <RunActivityDrawer journal={liveState.journal} />
               </div>
-            ) : null}
-          </div>
+            </DialogContent>
+          </Dialog>
         </>
       ) : (
         <>

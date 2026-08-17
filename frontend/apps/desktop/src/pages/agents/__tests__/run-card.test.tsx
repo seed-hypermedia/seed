@@ -602,15 +602,14 @@ describe('RunRecordCard (in the chat bubble)', () => {
     expect(container.textContent).toContain('Madrid weather check')
     expect(container.textContent).toContain('Create weather tool')
     expect(container.textContent).toContain('Wait five minutes and recheck')
-    expect(container.textContent).toContain('Run details· 1 recovered issue')
+    expect(container.textContent).toContain('1 recovered issue')
     expect(container.textContent).not.toContain('Tool was unavailable')
     expect(container.textContent).not.toContain('First timer attempt')
 
-    click(
-      Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Run details')),
-    )
-    expect(container.textContent).toContain('Tool was unavailable')
-    expect(container.textContent).toContain('First timer attempt')
+    // The details dialog renders in a portal, so its content shows up on the body, not the card.
+    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
+    expect(document.body.textContent).toContain('Tool was unavailable')
+    expect(document.body.textContent).toContain('First timer attempt')
   })
 
   it('shows the workflow module behind a Code drawer', () => {
@@ -624,14 +623,12 @@ describe('RunRecordCard (in the chat bubble)', () => {
     mockState.tree = [mockState.run]
     render(<RunRecordCard {...recordProps} />)
 
-    // Completed technical details are collapsed by default; source is still available two
-    // deliberate disclosures deep, so it cannot dominate the successful transcript.
+    // Completed technical details live behind the info-bubble dialog; source is still one more
+    // disclosure deep inside it, so it cannot dominate the successful transcript.
     expect(container.textContent).not.toContain('export default async function')
-    click(
-      Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Run details')),
-    )
-    click(buttonWithText('Code'))
-    expect(container.textContent).toContain('export default async function (input, ctx) { return 1 }')
+    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
+    click(Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent === 'Code'))
+    expect(document.body.textContent).toContain('export default async function (input, ctx) { return 1 }')
   })
 
   it('renders the finished run: status, steps, children and error', () => {
@@ -702,11 +699,9 @@ describe('RunRecordCard (in the chat bubble)', () => {
     render(<RunRecordCard {...recordProps} runId="branch-1" />)
 
     expect(container.textContent).toContain('My workflow')
-    click(
-      Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Run details')),
-    )
-    expect(container.textContent).toContain('My child')
-    expect(container.textContent).not.toContain('Someone else')
+    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
+    expect(document.body.textContent).toContain('My child')
+    expect(document.body.textContent).not.toContain('Someone else')
   })
 
   it('keeps the activity journal collapsed until asked, then shows it oldest-first', () => {
