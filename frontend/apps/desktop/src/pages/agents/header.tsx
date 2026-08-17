@@ -17,11 +17,12 @@ import {
   Pencil,
   ScrollText,
   Settings,
+  Users,
   Wrench,
 } from 'lucide-react'
 import React, {Fragment, type ReactNode, useRef, useState} from 'react'
 
-export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'settings'
+export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
 
 export type AgentHeaderInfo = {
   definition: AgentDefinition
@@ -213,7 +214,8 @@ export function AgentHeader({
     {key: 'memory' as const, label: 'Memory', tooltip: "Browse and edit the agent's memory files", icon: Brain},
     {key: 'tools' as const, label: 'Tools', tooltip: 'Control tools and signing identities', icon: Wrench},
     {key: 'prompt' as const, label: 'Prompt', tooltip: 'Edit the system prompt', icon: ScrollText},
-    {key: 'settings' as const, label: 'Settings', tooltip: 'Edit agent settings', icon: Settings},
+    {key: 'collaborators' as const, label: 'Collaborators', tooltip: 'Manage who can access this agent', icon: Users},
+    {key: 'settings' as const, label: 'Settings', tooltip: 'Edit model settings', icon: Settings},
   ]
 
   const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label || 'Sessions'

@@ -68,7 +68,7 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Info, KeyRound, Pencil, Plus, Trash2, UserPlus, Users, X} from 'lucide-react'
+import {ArrowRight, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
 import {HMIcon} from '@shm/ui/hm-icon'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '../../../../../../agents/protocol/src/tool-registry'
@@ -547,6 +547,18 @@ function AgentDetailPage({
                 </section>
               ) : null}
 
+              {tab === 'collaborators' ? (
+                <AgentCollaboratorsTab
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  agentId={agentId}
+                  ownerAccountId={agent.data.agent.account}
+                  collaborators={collaborators.data || []}
+                  loading={collaborators.isLoading}
+                  isOwner={isOwner}
+                />
+              ) : null}
+
               {tab === 'settings' ? (
                 <section className="flex max-w-2xl flex-col gap-4">
                   <div className="grid gap-3 md:grid-cols-2">
@@ -601,15 +613,6 @@ function AgentDetailPage({
                       </label>
                     ) : null}
                   </div>
-                  <AgentCollaboratorsSettings
-                    serverUrl={serverUrl}
-                    accountUid={selectedAccountId ?? null}
-                    agentId={agentId}
-                    ownerAccountId={agent.data.agent.account}
-                    collaborators={collaborators.data || []}
-                    loading={collaborators.isLoading}
-                    isOwner={isOwner}
-                  />
                   <div className="flex flex-col gap-2">
                     <SizableText
                       size="xs"
@@ -686,7 +689,13 @@ function hasPromptContent(blocks: HMBlockNode[]): boolean {
   })
 }
 
-function AgentCollaboratorsSettings({
+/**
+ * The Collaborators tab, mirroring the document collaborators page: an invite row on top, then
+ * the owner and members as one flat list with the role reading quietly on the right. The agent
+ * API keeps roles explicit (reader/writer), so the invite row carries a role select the document
+ * page does not need.
+ */
+function AgentCollaboratorsTab({
   serverUrl,
   accountUid,
   agentId,
@@ -723,60 +732,51 @@ function AgentCollaboratorsSettings({
   }
 
   return (
-    <section className="border-border flex flex-col gap-3 border-t pt-4">
-      <div className="flex items-start gap-3">
-        <div className="bg-primary/10 text-primary flex size-9 flex-none items-center justify-center rounded-lg">
-          <Users className="size-4" />
-        </div>
-        <div>
-          <SizableText size="sm" weight="bold" className="block">
-            Collaborators
-          </SizableText>
-          <SizableText size="xs" color="muted" className="block">
+    <section className="flex max-w-2xl flex-col gap-4">
+      {isOwner ? (
+        <div className="flex flex-col gap-2">
+          <div className="border-border flex overflow-hidden rounded-md border">
+            <AccountSearchInput
+              label="Collaborators"
+              placeholder="Invite collaborators"
+              values={selected}
+              onValuesChange={setSelected}
+              excludeUids={excludedAccountIds}
+            />
+            <select
+              aria-label="Collaborator role"
+              value={role}
+              onChange={(event) => setRole(event.currentTarget.value as AgentCollaboratorRole)}
+              className="border-border bg-background text-foreground border-l px-3 text-sm outline-none"
+            >
+              <option value="reader">Can read</option>
+              <option value="writer">Can write</option>
+            </select>
+            {selected.length ? (
+              <Button
+                size="sm"
+                className="h-auto rounded-tl-none rounded-bl-none"
+                onClick={() => void handleInvite()}
+                disabled={invite.isLoading}
+                aria-label="Send collaborator invitation"
+              >
+                <ArrowRight className="size-4" />
+              </Button>
+            ) : null}
+          </div>
+          <SizableText size="xs" color="muted">
             Readers can view everything. Writers can also change settings, memory, tools, triggers, and sessions.
           </SizableText>
         </div>
-      </div>
-
-      {isOwner ? (
-        <div className="border-border flex overflow-hidden rounded-md border">
-          <AccountSearchInput
-            label="Collaborators"
-            placeholder="Invite collaborators"
-            values={selected}
-            onValuesChange={setSelected}
-            excludeUids={excludedAccountIds}
-          />
-          <select
-            aria-label="Collaborator role"
-            value={role}
-            onChange={(event) => setRole(event.currentTarget.value as AgentCollaboratorRole)}
-            className="border-border bg-background text-foreground border-l px-3 text-sm outline-none"
-          >
-            <option value="reader">Can read</option>
-            <option value="writer">Can write</option>
-          </select>
-          <Button
-            className="h-auto rounded-none"
-            onClick={() => void handleInvite()}
-            disabled={!selected.length || invite.isLoading}
-            aria-label="Send collaborator invitation"
-          >
-            <UserPlus className="size-4" />
-          </Button>
-        </div>
       ) : null}
 
-      <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-        {loading ? (
-          <div className="flex items-center gap-2 p-3">
-            <Spinner />
-            <SizableText size="sm" color="muted">
-              Loading collaborators…
-            </SizableText>
-          </div>
-        ) : (
-          collaborators.map((member) => (
+      {loading ? (
+        <div className="flex items-center justify-center py-8">
+          <Spinner className="size-8" />
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          {collaborators.map((member) => (
             <AgentCollaboratorRow
               key={member.accountId}
               member={member}
@@ -795,9 +795,9 @@ function AgentCollaboratorsSettings({
                 )
               }
             />
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
@@ -820,48 +820,45 @@ function AgentCollaboratorRow({
   const canManage = isOwner && member.role !== 'owner'
 
   return (
-    <div className="bg-card flex items-center gap-3 p-3">
+    <div className="flex items-center gap-3 rounded-md p-3">
       <HMIcon id={hmId(member.accountId)} name={metadata?.name} icon={metadata?.icon} size={32} />
-      <div className="min-w-0 flex-1">
-        <SizableText size="sm" weight="bold" className="block truncate">
+      <div className="flex flex-1 items-center gap-2 overflow-hidden">
+        <SizableText size="sm" className={`truncate ${metadata?.name ? '' : 'text-muted-foreground'}`}>
           {metadata?.name || abbreviateUid(member.accountId)}
         </SizableText>
-        <SizableText size="xs" color="muted" className="block truncate font-mono">
-          {member.accountId}
-        </SizableText>
+        {member.status === 'pending' ? (
+          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+            Pending
+          </span>
+        ) : null}
+        {canManage ? (
+          <span className="ml-auto flex shrink-0 items-center gap-1">
+            <select
+              aria-label={`Role for ${metadata?.name || member.accountId}`}
+              value={member.role}
+              onChange={(event) => onRoleChange(event.currentTarget.value as AgentCollaboratorRole)}
+              disabled={changing}
+              className="border-border bg-background text-foreground rounded-md border px-2 py-1.5 text-xs"
+            >
+              <option value="reader">Can read</option>
+              <option value="writer">Can write</option>
+            </select>
+            <Button
+              variant="ghost"
+              size="iconSm"
+              onClick={onRemove}
+              disabled={changing}
+              aria-label={member.status === 'pending' ? 'Cancel invitation' : 'Remove collaborator'}
+            >
+              <X className="size-4" />
+            </Button>
+          </span>
+        ) : (
+          <SizableText size="xs" color="muted" className="ml-auto shrink-0 capitalize">
+            {member.role}
+          </SizableText>
+        )}
       </div>
-      {member.status === 'pending' ? (
-        <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-          Pending
-        </span>
-      ) : null}
-      {canManage ? (
-        <select
-          aria-label={`Role for ${metadata?.name || member.accountId}`}
-          value={member.role}
-          onChange={(event) => onRoleChange(event.currentTarget.value as AgentCollaboratorRole)}
-          disabled={changing}
-          className="border-border bg-background text-foreground rounded-md border px-2 py-1.5 text-xs"
-        >
-          <option value="reader">Can read</option>
-          <option value="writer">Can write</option>
-        </select>
-      ) : (
-        <SizableText size="xs" color="muted" className="capitalize">
-          {member.role}
-        </SizableText>
-      )}
-      {canManage ? (
-        <Button
-          variant="ghost"
-          size="iconSm"
-          onClick={onRemove}
-          disabled={changing}
-          aria-label={member.status === 'pending' ? 'Cancel invitation' : 'Remove collaborator'}
-        >
-          <X className="size-4" />
-        </Button>
-      ) : null}
     </div>
   )
 }
