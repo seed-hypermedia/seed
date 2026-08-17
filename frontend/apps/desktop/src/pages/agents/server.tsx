@@ -94,6 +94,7 @@ function AgentServerContent({routeServerUrl, selectedAccountId}: {routeServerUrl
                 name={agent.definition.name}
                 status={agent.status}
                 serverUrl={serverUrl}
+                accessRole={agent.accessRole}
               />
             ))}
           </div>

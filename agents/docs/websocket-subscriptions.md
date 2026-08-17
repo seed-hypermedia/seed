@@ -116,9 +116,11 @@ this stream only for liveness.
 Rules:
 
 - `account/<accountId>` must equal verified account ID.
-- `agents/<agentId>` must be owned by verified account.
-- `sessions/<sessionId>` must be owned by verified account.
-- `runs/<rootRunId>` must reference a run owned by the verified account.
+- `agents/<agentId>` requires owner or accepted reader/writer access.
+- `sessions/<sessionId>` requires owner or accepted reader/writer access to its agent.
+- `runs/<rootRunId>` requires owner or accepted reader/writer access to its agent.
+- Accepted collaborators receive the agent's live service events under their own account subscription; pending and
+  revoked collaborators do not.
 - A socket may not switch accounts after a successful subscription.
 
 ## Replay

@@ -573,6 +573,8 @@ export class Service {
   readonly #web: WebToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
+  /** Accepted collaborator audiences, cached because partial text events can arrive per token. */
+  readonly #collaboratorAudience = new Map<string, Array<{account_id: string; role: api.AgentCollaboratorRole}>>()
   /** In-flight background dispatch setup (trigger prompt builds + enqueues); the runs themselves live in the queue. */
   readonly #pendingTriggerSessions = new Set<Promise<void>>()
   /** Sessions with a user verb mid-execution: agent runs must not start under them (reverse 409). */
@@ -721,17 +723,36 @@ export class Service {
       throw new APIError(401, message)
     }
 
+    const accountId = this.#actionAccountId(verified.accountId, envelope.action)
+
     switch (envelope.action._) {
       case 'ListAgents':
         return this.#listAgents(verified.accountId)
+      case 'ListAgentInvites':
+        return this.#listAgentInvites(verified.accountId)
+      case 'ListAgentCollaborators':
+        return this.#listAgentCollaborators(verified.accountId, envelope.action.agentId)
+      case 'InviteAgentCollaborator':
+        return this.#inviteAgentCollaborator(
+          verified.accountId,
+          envelope.action.agentId,
+          envelope.action.accountId,
+          envelope.action.role,
+        )
+      case 'RemoveAgentCollaborator':
+        return this.#removeAgentCollaborator(verified.accountId, envelope.action.agentId, envelope.action.accountId)
+      case 'AcceptAgentInvite':
+        return this.#acceptAgentInvite(verified.accountId, envelope.action.agentId)
+      case 'DeclineAgentInvite':
+        return this.#declineAgentInvite(verified.accountId, envelope.action.agentId)
       case 'CreateAgent':
         return this.#createAgent(verified.accountId, envelope.action.definition, envelope.action.clientRequestId)
       case 'ListModelProviders':
-        return this.#listModelProviders(verified.accountId)
+        return this.#listModelProviders(accountId)
       case 'ListProviderModels':
-        return this.#listProviderModels(verified.accountId, envelope.action.provider)
+        return this.#listProviderModels(accountId, envelope.action.provider)
       case 'ListSigningIdentities':
-        return this.#listSigningIdentities(verified.accountId)
+        return this.#listSigningIdentities(accountId)
       case 'CreateSigningIdentity':
         return this.#createSigningIdentity(verified.accountId, envelope.action.label, envelope.action.clientRequestId)
       case 'ImportSigningIdentity':
@@ -770,53 +791,53 @@ export class Service {
           envelope.action.metadata,
         )
       case 'GetAgent':
-        return this.#getAgent(verified.accountId, envelope.action.agentId)
+        return this.#getAgent(accountId, envelope.action.agentId, verified.accountId)
       case 'UpdateAgent':
-        return this.#updateAgent(verified.accountId, envelope.action.agentId, envelope.action.definition)
+        return this.#updateAgent(accountId, envelope.action.agentId, envelope.action.definition, verified.accountId)
       case 'DeleteAgent':
-        return this.#deleteAgent(verified.accountId, envelope.action.agentId)
+        return this.#deleteAgent(accountId, envelope.action.agentId)
       case 'ListAgentTriggers':
-        return this.#listAgentTriggers(verified.accountId, envelope.action.agentId)
+        return this.#listAgentTriggers(accountId, envelope.action.agentId)
       case 'GetAgentTrigger':
-        return this.#getAgentTrigger(verified.accountId, envelope.action.triggerId)
+        return this.#getAgentTrigger(accountId, envelope.action.triggerId)
       case 'CreateAgentTrigger':
         return this.#createAgentTrigger(
-          verified.accountId,
+          accountId,
           envelope.action.agentId,
           envelope.action.trigger,
           envelope.action.clientRequestId,
         )
       case 'UpdateAgentTrigger':
-        return this.#updateAgentTrigger(verified.accountId, envelope.action.triggerId, envelope.action.patch)
+        return this.#updateAgentTrigger(accountId, envelope.action.triggerId, envelope.action.patch)
       case 'DeleteAgentTrigger':
-        return this.#deleteAgentTrigger(verified.accountId, envelope.action.triggerId)
+        return this.#deleteAgentTrigger(accountId, envelope.action.triggerId)
       case 'ListAgentMemory':
-        return this.#listAgentMemory(verified.accountId, envelope.action.agentId)
+        return this.#listAgentMemory(accountId, envelope.action.agentId)
       case 'ListAgentTools':
-        return this.#listAgentTools(verified.accountId, envelope.action.agentId)
+        return this.#listAgentTools(accountId, envelope.action.agentId)
       case 'ReadAgentMemoryFile':
-        return this.#readAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
+        return this.#readAgentMemoryFile(accountId, envelope.action.agentId, envelope.action.path)
       case 'WriteAgentMemoryFile':
         return this.#writeAgentMemoryFile(
-          verified.accountId,
+          accountId,
           envelope.action.agentId,
           envelope.action.path,
           envelope.action.content,
         )
       case 'DeleteAgentMemoryFile':
-        return this.#deleteAgentMemoryFile(verified.accountId, envelope.action.agentId, envelope.action.path)
+        return this.#deleteAgentMemoryFile(accountId, envelope.action.agentId, envelope.action.path)
       case 'DownloadAgentMemoryFile':
         return this.#downloadAgentMemoryFile(
-          verified.accountId,
+          accountId,
           envelope.action.agentId,
           envelope.action.url,
           envelope.action.path,
         )
       case 'UploadAgentMemoryFileToIpfs':
-        return this.#uploadAgentMemoryFileToIpfs(verified.accountId, envelope.action.agentId, envelope.action.path)
+        return this.#uploadAgentMemoryFileToIpfs(accountId, envelope.action.agentId, envelope.action.path)
       case 'CreateSession':
         return this.#createSession(
-          verified.accountId,
+          accountId,
           envelope.action.agentId,
           envelope.action.title,
           envelope.action.clientRequestId,
@@ -831,67 +852,63 @@ export class Service {
           envelope.action.includeChildren,
         )
       case 'UpdateSession':
-        return this.#updateSession(verified.accountId, envelope.action.sessionId, envelope.action.title)
+        return this.#updateSession(accountId, envelope.action.sessionId, envelope.action.title)
       case 'DeleteSession':
-        return this.#deleteSession(verified.accountId, envelope.action.sessionId)
+        return this.#deleteSession(accountId, envelope.action.sessionId)
       case 'GetSession':
-        return await this.#getSession(verified.accountId, envelope.action.sessionId, envelope.action.afterSeq)
+        return await this.#getSession(accountId, envelope.action.sessionId, envelope.action.afterSeq)
       case 'InvokeSessionTool':
         return this.#invokeSessionTool(
-          verified.accountId,
+          accountId,
           envelope.action.sessionId,
           envelope.action.verb,
           envelope.action.input,
         )
       case 'MessageSession':
         return this.#messageSession(
-          verified.accountId,
+          accountId,
           envelope.action.sessionId,
           envelope.action.content,
           envelope.action.clientMessageId,
+          {accountId: verified.accountId, signerId: verified.signerId},
         )
       case 'UploadSessionAttachment':
         return this.#uploadSessionAttachment(
-          verified.accountId,
+          accountId,
           envelope.action.sessionId,
           envelope.action.name,
           envelope.action.mimeType,
           envelope.action.content,
         )
       case 'ReadSessionAttachment':
-        return this.#readSessionAttachment(verified.accountId, envelope.action.sessionId, envelope.action.attachmentId)
+        return this.#readSessionAttachment(accountId, envelope.action.sessionId, envelope.action.attachmentId)
       case 'BeginFileUpload':
-        return this.#beginFileUpload(verified.accountId, envelope.action.target, envelope.action.size)
+        return this.#beginFileUpload(accountId, envelope.action.target, envelope.action.size)
       case 'AppendFileUploadChunk':
         return this.#appendFileUploadChunk(
-          verified.accountId,
+          accountId,
           envelope.action.uploadId,
           envelope.action.offset,
           envelope.action.content,
         )
       case 'CommitFileUpload':
-        return this.#commitFileUpload(verified.accountId, envelope.action.uploadId)
+        return this.#commitFileUpload(accountId, envelope.action.uploadId)
       case 'AbortFileUpload':
-        return this.#abortFileUpload(verified.accountId, envelope.action.uploadId)
+        return this.#abortFileUpload(accountId, envelope.action.uploadId)
       case 'StopSession':
-        return this.#stopSession(verified.accountId, envelope.action.sessionId)
+        return this.#stopSession(accountId, envelope.action.sessionId)
       case 'RetrySession':
-        return this.#retrySession(verified.accountId, envelope.action.sessionId)
+        return this.#retrySession(accountId, envelope.action.sessionId)
       case 'GetRun':
-        return this.#getRun(verified.accountId, envelope.action.runId)
+        return this.#getRun(accountId, envelope.action.runId)
       case 'ListRuns':
-        return this.#listRuns(verified.accountId, envelope.action)
+        return this.#listRuns(accountId, envelope.action)
       case 'CancelRun':
-        return this.#cancelRun(verified.accountId, envelope.action.runId)
+        return this.#cancelRun(accountId, envelope.action.runId)
       case 'SignalRun':
-        return this.#signalRun(
-          verified.accountId,
-          envelope.action.runId,
-          envelope.action.signal,
-          envelope.action.payload,
-        )
+        return this.#signalRun(accountId, envelope.action.runId, envelope.action.signal, envelope.action.payload)
       case 'GetRunJournal':
-        return this.#getRunJournal(verified.accountId, envelope.action.runId, envelope.action.afterSeq)
+        return this.#getRunJournal(accountId, envelope.action.runId, envelope.action.afterSeq)
       case 'Subscribe':
         throw new APIError(400, 'Subscribe is only supported over WebSocket')
       default:
@@ -899,20 +916,362 @@ export class Service {
     }
   }
 
+  /** Resolves an agent-scoped action to the owning account and enforces read/write access once. */
+  #actionAccountId(actorAccountId: string, action: api.UnsignedAgentAction): string {
+    const fromAgent = (agentId: string, write = false) =>
+      this.#requireAgentAccess(actorAccountId, agentId, write ? 'writer' : 'reader').ownerAccountId
+    const fromSession = (sessionId: string, write = false) => {
+      const row = this.#db
+        .query<{agent_id: string}, [string]>(`SELECT agent_id FROM sessions WHERE id = ?`)
+        .get(sessionId)
+      if (!row) throw new APIError(404, 'Session not found')
+      try {
+        return fromAgent(row.agent_id, write)
+      } catch (error) {
+        if (error instanceof APIError && error.status === 404) throw new APIError(404, 'Session not found')
+        throw error
+      }
+    }
+    const fromTrigger = (triggerId: string, write = false) => {
+      const row = this.#db
+        .query<{agent_id: string}, [string]>(`SELECT agent_id FROM agent_triggers WHERE id = ?`)
+        .get(triggerId)
+      if (!row) throw new APIError(404, 'Agent trigger not found')
+      try {
+        return fromAgent(row.agent_id, write)
+      } catch (error) {
+        if (error instanceof APIError && error.status === 404) throw new APIError(404, 'Agent trigger not found')
+        throw error
+      }
+    }
+    const fromRun = (runId: string, write = false) => {
+      const row = this.#db
+        .query<{agent_id: string | null}, [string]>(`SELECT agent_id FROM runs WHERE id = ?`)
+        .get(runId)
+      if (!row?.agent_id) throw new APIError(404, 'Run not found')
+      try {
+        return fromAgent(row.agent_id, write)
+      } catch (error) {
+        if (error instanceof APIError && error.status === 404) throw new APIError(404, 'Run not found')
+        throw error
+      }
+    }
+    const fromUpload = (uploadId: string, write = false) => {
+      const upload = this.#uploads.get(uploadId)
+      if (!upload) throw new APIError(404, 'Upload not found')
+      return upload.target.kind === 'memory'
+        ? fromAgent(upload.target.agentId, write)
+        : fromSession(upload.target.sessionId, write)
+    }
+
+    switch (action._) {
+      case 'ListModelProviders':
+      case 'ListProviderModels':
+      case 'ListSigningIdentities':
+        return action.agentId ? fromAgent(action.agentId) : actorAccountId
+      case 'GetAgent':
+      case 'ListAgentTriggers':
+      case 'ListAgentMemory':
+      case 'ListAgentTools':
+      case 'ReadAgentMemoryFile':
+        return fromAgent(action.agentId)
+      case 'UpdateAgent':
+      case 'WriteAgentMemoryFile':
+      case 'DeleteAgentMemoryFile':
+      case 'DownloadAgentMemoryFile':
+      case 'UploadAgentMemoryFileToIpfs':
+      case 'CreateAgentTrigger':
+      case 'CreateSession':
+        return fromAgent(action.agentId, true)
+      case 'DeleteAgent':
+        return this.#requireAgentAccess(actorAccountId, action.agentId, 'owner').ownerAccountId
+      case 'GetAgentTrigger':
+        return fromTrigger(action.triggerId)
+      case 'UpdateAgentTrigger':
+      case 'DeleteAgentTrigger':
+        return fromTrigger(action.triggerId, true)
+      case 'ListSessions':
+        if (action.agentId) return fromAgent(action.agentId)
+        if (action.parentSessionId) return fromSession(action.parentSessionId)
+        return actorAccountId
+      case 'GetSession':
+      case 'ReadSessionAttachment':
+        return fromSession(action.sessionId)
+      case 'UpdateSession':
+      case 'DeleteSession':
+      case 'MessageSession':
+      case 'InvokeSessionTool':
+      case 'UploadSessionAttachment':
+      case 'StopSession':
+      case 'RetrySession':
+        return fromSession(action.sessionId, true)
+      case 'BeginFileUpload':
+        return action.target.kind === 'memory'
+          ? fromAgent(action.target.agentId, true)
+          : fromSession(action.target.sessionId, true)
+      case 'AppendFileUploadChunk':
+      case 'CommitFileUpload':
+      case 'AbortFileUpload':
+        return fromUpload(action.uploadId, true)
+      case 'GetRun':
+      case 'GetRunJournal':
+        return fromRun(action.runId)
+      case 'ListRuns':
+        if (action.agentId) return fromAgent(action.agentId)
+        if (action.sessionId) return fromSession(action.sessionId)
+        if (action.rootRunId) return fromRun(action.rootRunId)
+        return actorAccountId
+      case 'CancelRun':
+      case 'SignalRun':
+        return fromRun(action.runId, true)
+      default:
+        return actorAccountId
+    }
+  }
+
+  #requireAgentAccess(
+    actorAccountId: string,
+    agentId: string,
+    required: 'reader' | 'writer' | 'owner',
+  ): {ownerAccountId: string; role: api.AgentAccessRole} {
+    const row = this.#db
+      .query<{owner_account_id: string; role: string | null; status: string | null}, [string, string]>(
+        `SELECT a.account_id AS owner_account_id, c.role, c.status
+         FROM agents a
+         LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ?
+         WHERE a.id = ?`,
+      )
+      .get(actorAccountId, agentId)
+    if (!row) throw new APIError(404, 'Agent not found')
+    const role: api.AgentAccessRole =
+      row.owner_account_id === actorAccountId
+        ? 'owner'
+        : row.status === 'accepted' && (row.role === 'reader' || row.role === 'writer')
+          ? row.role
+          : (() => {
+              throw new APIError(404, 'Agent not found')
+            })()
+    if (required === 'owner' && role !== 'owner') throw new APIError(403, 'Only the agent owner can do this')
+    if (required === 'writer' && role === 'reader') throw new APIError(403, 'Write access is required')
+    return {ownerAccountId: row.owner_account_id, role}
+  }
+
   #listAgents(accountId: string): api.ListAgentsResponse {
     const rows = this.#db
-      .query<AgentRow, [string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
-         FROM agents
-         WHERE account_id = ?
-         ORDER BY updated_at DESC`,
+      .query<AgentRow, [string, string, string]>(
+        `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.created_at, a.updated_at,
+                CASE WHEN a.account_id = ? THEN 'owner' ELSE c.role END AS access_role
+         FROM agents a
+         LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ? AND c.status = 'accepted'
+         WHERE a.account_id = ? OR c.account_id IS NOT NULL
+         ORDER BY a.updated_at DESC`,
       )
-      .all(accountId)
+      .all(accountId, accountId, accountId)
 
     return {
       _: 'ListAgentsResponse',
-      agents: rows.map(agentRowToInfo),
+      agents: rows.map((row) => agentRowToInfo(row, row.access_role)),
     }
+  }
+
+  #listAgentInvites(accountId: string): api.ListAgentInvitesResponse {
+    const rows = this.#db
+      .query<
+        {
+          agent_id: string
+          owner_account_id: string
+          definition_cbor: Uint8Array
+          role: api.AgentCollaboratorRole
+          created_at: number
+          updated_at: number
+        },
+        [string]
+      >(
+        `SELECT c.agent_id, a.account_id AS owner_account_id, a.definition_cbor, c.role, c.created_at, c.updated_at
+         FROM agent_collaborators c
+         JOIN agents a ON a.id = c.agent_id
+         WHERE c.account_id = ? AND c.status = 'pending'
+         ORDER BY c.updated_at DESC`,
+      )
+      .all(accountId)
+    return {
+      _: 'ListAgentInvitesResponse',
+      invites: rows.map((row) => ({
+        agentId: row.agent_id,
+        agentName: normalizeDefinition(cbor.decode<api.AgentDefinition>(row.definition_cbor)).name,
+        ownerAccountId: row.owner_account_id,
+        role: row.role,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })),
+    }
+  }
+
+  #listAgentCollaborators(accountId: string, agentId: string): api.ListAgentCollaboratorsResponse {
+    const access = this.#requireAgentAccess(accountId, agentId, 'reader')
+    const owner = this.#db
+      .query<{created_at: number; updated_at: number}, [string]>(
+        `SELECT created_at, updated_at FROM agents WHERE id = ?`,
+      )
+      .get(agentId)
+    if (!owner) throw new APIError(404, 'Agent not found')
+    const rows = this.#db
+      .query<
+        {
+          account_id: string
+          role: api.AgentCollaboratorRole
+          status: 'accepted' | 'pending'
+          created_at: number
+          updated_at: number
+        },
+        [string]
+      >(
+        `SELECT account_id, role, status, created_at, updated_at
+         FROM agent_collaborators WHERE agent_id = ? ORDER BY status, updated_at DESC`,
+      )
+      .all(agentId)
+    return {
+      _: 'ListAgentCollaboratorsResponse',
+      agentId,
+      collaborators: [
+        {
+          accountId: access.ownerAccountId,
+          role: 'owner',
+          status: 'accepted',
+          createdAt: owner.created_at,
+          updatedAt: owner.updated_at,
+        },
+        ...rows
+          .filter((row) => access.role === 'owner' || row.status === 'accepted')
+          .map((row) => ({
+            accountId: row.account_id,
+            role: row.role,
+            status: row.status,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          })),
+      ],
+    }
+  }
+
+  #inviteAgentCollaborator(
+    accountId: string,
+    agentId: string,
+    rawCollaboratorAccountId: string,
+    role: api.AgentCollaboratorRole,
+  ): api.InviteAgentCollaboratorResponse {
+    this.#requireAgentAccess(accountId, agentId, 'owner')
+    if (role !== 'reader' && role !== 'writer') throw new APIError(400, 'Collaborator role must be reader or writer')
+    const collaboratorAccountId = normalizeAccountId(rawCollaboratorAccountId)
+    if (collaboratorAccountId === accountId) throw new APIError(400, 'The agent owner is already a member')
+    const now = Date.now()
+    this.#ensureAccount(collaboratorAccountId, now)
+    this.#db.run(
+      `INSERT INTO agent_collaborators (agent_id, account_id, role, status, created_at, updated_at)
+       VALUES (?, ?, ?, 'pending', ?, ?)
+       ON CONFLICT(agent_id, account_id) DO UPDATE SET
+         role = excluded.role,
+         status = CASE WHEN agent_collaborators.status = 'accepted' THEN 'accepted' ELSE 'pending' END,
+         updated_at = excluded.updated_at`,
+      [agentId, collaboratorAccountId, role, now, now],
+    )
+    const row = this.#db
+      .query<
+        {role: api.AgentCollaboratorRole; status: 'accepted' | 'pending'; created_at: number; updated_at: number},
+        [string, string]
+      >(`SELECT role, status, created_at, updated_at FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`)
+      .get(agentId, collaboratorAccountId)
+    if (!row) throw new APIError(500, 'Collaborator was not saved')
+    this.#collaboratorAudience.delete(agentId)
+    this.#onEvent?.({type: 'account-change', accountId, reason: 'agent-collaborators-changed', agentId})
+    this.#onEvent?.({
+      type: 'account-change',
+      accountId: collaboratorAccountId,
+      reason: 'agent-invites-changed',
+      agentId,
+    })
+    return {
+      _: 'InviteAgentCollaboratorResponse',
+      collaborator: {
+        accountId: collaboratorAccountId,
+        role: row.role,
+        status: row.status,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      },
+    }
+  }
+
+  #removeAgentCollaborator(
+    accountId: string,
+    agentId: string,
+    rawCollaboratorAccountId: string,
+  ): api.RemoveAgentCollaboratorResponse {
+    this.#requireAgentAccess(accountId, agentId, 'owner')
+    const collaboratorAccountId = normalizeAccountId(rawCollaboratorAccountId)
+    const removed = this.#db.run(`DELETE FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`, [
+      agentId,
+      collaboratorAccountId,
+    ])
+    if (removed.changes === 0) throw new APIError(404, 'Collaborator not found')
+    this.#collaboratorAudience.delete(agentId)
+    this.#onEvent?.({type: 'account-change', accountId, reason: 'agent-collaborators-changed', agentId})
+    this.#onEvent?.({
+      type: 'account-change',
+      accountId: collaboratorAccountId,
+      reason: 'agent-invites-changed',
+      agentId,
+    })
+    return {_: 'RemoveAgentCollaboratorResponse', agentId, accountId: collaboratorAccountId}
+  }
+
+  #acceptAgentInvite(accountId: string, agentId: string): api.AcceptAgentInviteResponse {
+    const now = Date.now()
+    const row = this.#db
+      .query<{owner_account_id: string; role: api.AgentCollaboratorRole}, [string, string]>(
+        `SELECT a.account_id AS owner_account_id, c.role
+         FROM agent_collaborators c JOIN agents a ON a.id = c.agent_id
+         WHERE c.agent_id = ? AND c.account_id = ? AND c.status = 'pending'`,
+      )
+      .get(agentId, accountId)
+    if (!row) throw new APIError(404, 'Agent invitation not found')
+    this.#db.run(
+      `UPDATE agent_collaborators SET status = 'accepted', accepted_at = ?, updated_at = ?
+       WHERE agent_id = ? AND account_id = ? AND status = 'pending'`,
+      [now, now, agentId, accountId],
+    )
+    this.#collaboratorAudience.delete(agentId)
+    this.#onEvent?.({
+      type: 'account-change',
+      accountId: row.owner_account_id,
+      reason: 'agent-collaborators-changed',
+      agentId,
+    })
+    this.#onEvent?.({type: 'account-change', accountId, reason: 'agent-invites-changed', agentId})
+    const agent = this.#getAgentInfo(row.owner_account_id, agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    return {_: 'AcceptAgentInviteResponse', agent: {...agent, accessRole: row.role}}
+  }
+
+  #declineAgentInvite(accountId: string, agentId: string): api.DeclineAgentInviteResponse {
+    const row = this.#db
+      .query<{owner_account_id: string}, [string, string]>(
+        `SELECT a.account_id AS owner_account_id
+         FROM agent_collaborators c JOIN agents a ON a.id = c.agent_id
+         WHERE c.agent_id = ? AND c.account_id = ? AND c.status = 'pending'`,
+      )
+      .get(agentId, accountId)
+    if (!row) throw new APIError(404, 'Agent invitation not found')
+    this.#db.run(`DELETE FROM agent_collaborators WHERE agent_id = ? AND account_id = ?`, [agentId, accountId])
+    this.#collaboratorAudience.delete(agentId)
+    this.#onEvent?.({
+      type: 'account-change',
+      accountId: row.owner_account_id,
+      reason: 'agent-collaborators-changed',
+      agentId,
+    })
+    this.#onEvent?.({type: 'account-change', accountId, reason: 'agent-invites-changed', agentId})
+    return {_: 'DeclineAgentInviteResponse', agentId}
   }
 
   async #createAgent(
@@ -1555,7 +1914,7 @@ export class Service {
     }
   }
 
-  #getAgent(accountId: string, agentId: string): api.GetAgentResponse {
+  #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
     const agent = this.#db
       .query<AgentRow, [string, string]>(
         `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
@@ -1573,7 +1932,12 @@ export class Service {
       )
       .all(accountId, agentId)
 
-    return {_: 'GetAgentResponse', agent: agentRowToInfo(agent), sessions: this.#sessionRowsToInfo(accountId, sessions)}
+    const access = this.#requireAgentAccess(viewerAccountId, agentId, 'reader')
+    return {
+      _: 'GetAgentResponse',
+      agent: agentRowToInfo(agent, access.role),
+      sessions: this.#sessionRowsToInfo(accountId, sessions),
+    }
   }
 
   /**
@@ -1595,8 +1959,18 @@ export class Service {
     includeChildren?: boolean,
   ): api.ListSessionsResponse {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
-    const conditions = ['account_id = ?']
-    const params: (string | number)[] = [accountId]
+    const conditions = [
+      `EXISTS (
+        SELECT 1 FROM agents visible_agent
+        LEFT JOIN agent_collaborators visible_collaborator
+          ON visible_collaborator.agent_id = visible_agent.id
+          AND visible_collaborator.account_id = ?
+          AND visible_collaborator.status = 'accepted'
+        WHERE visible_agent.id = sessions.agent_id
+          AND (visible_agent.account_id = ? OR visible_collaborator.account_id IS NOT NULL)
+      )`,
+    ]
+    const params: (string | number)[] = [accountId, accountId]
     if (agentId !== undefined) {
       conditions.push('agent_id = ?')
       params.push(normalizeBoundedString(agentId, 'Agent ID', MAX_NAME_BYTES))
@@ -1632,7 +2006,9 @@ export class Service {
 
     const hasMore = rows.length > pageSize
     const page = hasMore ? rows.slice(0, pageSize) : rows
-    const sessions = this.#sessionRowsToInfo(accountId, page)
+    const sessions = page.map((session) =>
+      sessionRowToInfo(session, this.#getSessionTriggerContext(session.account_id, session.id) ?? undefined),
+    )
     const referencedAgentIds = new Set(sessions.map((session) => session.agentId))
     const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
     const last = page[page.length - 1]
@@ -1645,7 +2021,12 @@ export class Service {
     }
   }
 
-  #updateAgent(accountId: string, agentId: string, rawDefinition: api.AgentDefinition): api.GetAgentResponse {
+  #updateAgent(
+    accountId: string,
+    agentId: string,
+    rawDefinition: api.AgentDefinition,
+    viewerAccountId = accountId,
+  ): api.GetAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
     const existing = this.#db
       .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
@@ -1667,7 +2048,7 @@ export class Service {
       accountId,
       agentId,
     ])
-    const response = this.#getAgent(accountId, agentId)
+    const response = this.#getAgent(accountId, agentId, viewerAccountId)
     this.#emit({type: 'agent-change', accountId, agent: response.agent})
     invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
@@ -1678,6 +2059,12 @@ export class Service {
     const existing = this.#getAgentInfo(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
 
+    const collaboratorAccountIds = this.#db
+      .query<{account_id: string}, [string]>(
+        `SELECT account_id FROM agent_collaborators WHERE agent_id = ? AND status = 'accepted'`,
+      )
+      .all(agentId)
+      .map((row) => row.account_id)
     const sessions = this.#db
       .query<{id: string}, [string, string]>(`SELECT id FROM sessions WHERE account_id = ? AND agent_id = ?`)
       .all(accountId, agentId)
@@ -1718,6 +2105,7 @@ export class Service {
       this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM agent_drafts WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
       this.#db.run(`DELETE FROM tool_documents WHERE account_id = ? AND agent_id = ?`, [accountId, agentId])
+      this.#db.run(`DELETE FROM agent_collaborators WHERE agent_id = ?`, [agentId])
       this.#db.run(`DELETE FROM agents WHERE account_id = ? AND id = ?`, [accountId, agentId])
     })
     transaction()
@@ -1733,7 +2121,11 @@ export class Service {
     }
 
     invalidateSpaceIndex(accountId, agentId)
+    this.#collaboratorAudience.delete(agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-deleted', agentId})
+    for (const collaboratorAccountId of collaboratorAccountIds) {
+      this.#onEvent?.({type: 'account-change', accountId: collaboratorAccountId, reason: 'agent-deleted', agentId})
+    }
     return {_: 'DeleteAgentResponse', agentId}
   }
 
@@ -2540,18 +2932,22 @@ export class Service {
     sessionId: string,
     content: api.MessageSession['content'],
     clientMessageId?: string,
+    origin?: {accountId: string; signerId: string},
   ): Promise<api.MessageSessionResponse> {
     const normalizedId =
       clientMessageId === undefined
         ? undefined
         : normalizeBoundedString(clientMessageId, 'Client message ID', MAX_NAME_BYTES)
     const requestCBOR = normalizedId === undefined ? undefined : cbor.encode({sessionId, content})
+    // Idempotency belongs to the acting account, not the agent owner's storage account: two
+    // collaborators may legitimately generate the same client-local id.
+    const idempotencyAccountId = origin?.accountId ?? accountId
     if (normalizedId !== undefined && requestCBOR !== undefined) {
       const existing = this.#db
         .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
           `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
         )
-        .get(accountId, 'MessageSession', normalizedId)
+        .get(idempotencyAccountId, 'MessageSession', normalizedId)
       if (existing) {
         if (!bytesEqual(existing.request_cbor, requestCBOR))
           throw new APIError(409, 'Client message ID payload mismatch')
@@ -2559,12 +2955,12 @@ export class Service {
       }
     }
 
-    const response = await this.#messageSessionOnce(accountId, sessionId, content)
+    const response = await this.#messageSessionOnce(accountId, sessionId, content, origin ? {userOrigin: origin} : {})
     if (normalizedId !== undefined && requestCBOR !== undefined) {
       this.#db.run(
         `INSERT INTO action_idempotency (account_id, action, client_request_id, request_cbor, response_cbor, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [accountId, 'MessageSession', normalizedId, requestCBOR, cbor.encode(response), Date.now()],
+        [idempotencyAccountId, 'MessageSession', normalizedId, requestCBOR, cbor.encode(response), Date.now()],
       )
     }
     return response
@@ -2583,6 +2979,8 @@ export class Service {
       parentRunId?: string
       /** Human label for the run, shown in the progress card's children strip. */
       title?: string
+      /** Signed Seed account and exact signer behind an interactive user message. */
+      userOrigin?: {accountId: string; signerId: string}
     } = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
@@ -2595,8 +2993,6 @@ export class Service {
       )
       .get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
-    // Liveness is lease-based (run rows), not the status column, so a crash can never wedge this guard.
-    if (runs.sessionHasLiveRun(this.#db, sessionId)) throw new APIError(409, 'Session is already streaming')
     if (this.#liveUserVerbs.has(sessionId)) {
       throw new APIError(409, 'A user tool action is still running in this thread; wait for it to finish')
     }
@@ -2624,25 +3020,10 @@ export class Service {
       if (!info) throw new APIError(404, `Attachment not found: ${attachmentId}`)
       return info
     })
-    this.#appendSessionEvent(
-      accountId,
-      session.agent_id,
-      sessionId,
-      {
-        type: 'message',
-        role: 'user',
-        content: modelTexts[0]!,
-        rawMarkdown: firstMessage.text,
-        ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
-        ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
-        ...(attachments.length > 0 ? {attachments} : {}),
-        // Echoed so the sending client can replace its optimistic pending row by identity — the
-        // stored `content` is re-serialized and cannot be matched by text.
-        ...(firstMessage.clientMessageId ? {clientMessageId: firstMessage.clientMessageId} : {}),
-      },
-      now,
-    )
-    for (const [index, message] of messages.slice(1).entries()) {
+    const userMeta: api.SessionEventMeta | undefined = opts.userOrigin
+      ? {accountId: opts.userOrigin.accountId, signerId: opts.userOrigin.signerId}
+      : undefined
+    const userEvents = [
       this.#appendSessionEvent(
         accountId,
         session.agent_id,
@@ -2650,14 +3031,42 @@ export class Service {
         {
           type: 'message',
           role: 'user',
-          content: modelTexts[index + 1]!,
-          rawMarkdown: message.text,
-          ...(message.blocks ? {blocks: message.blocks} : {}),
-          ...(message.clientMessageId ? {clientMessageId: message.clientMessageId} : {}),
+          content: modelTexts[0]!,
+          rawMarkdown: firstMessage.text,
+          ...(firstMessage.blocks ? {blocks: firstMessage.blocks} : {}),
+          ...(firstMessage.contextLines ? {contextLines: firstMessage.contextLines} : {}),
+          ...(attachments.length > 0 ? {attachments} : {}),
+          // Echoed so the sending client can replace its optimistic pending row by identity — the
+          // stored `content` is re-serialized and cannot be matched by text.
+          ...(firstMessage.clientMessageId ? {clientMessageId: firstMessage.clientMessageId} : {}),
+          ...(userMeta ? {meta: userMeta} : {}),
         },
-        Date.now(),
+        now,
+      ),
+    ]
+    for (const [index, message] of messages.slice(1).entries()) {
+      userEvents.push(
+        this.#appendSessionEvent(
+          accountId,
+          session.agent_id,
+          sessionId,
+          {
+            type: 'message',
+            role: 'user',
+            content: modelTexts[index + 1]!,
+            rawMarkdown: message.text,
+            ...(message.blocks ? {blocks: message.blocks} : {}),
+            ...(message.clientMessageId ? {clientMessageId: message.clientMessageId} : {}),
+            ...(userMeta ? {meta: userMeta} : {}),
+          },
+          Date.now(),
+        ),
       )
     }
+    // A user message is durable before its run is scheduled. If another turn already owns this
+    // session, leave this run queued instead of rejecting the writer; the per-session run claim
+    // serializes model work while every collaborator remains free to contribute to the shared log.
+    const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
     const origin = opts.origin ?? 'user'
     const run = this.#runQueue.enqueue({
       id: opts.runId,
@@ -2670,24 +3079,30 @@ export class Service {
       parentRunId: opts.parentRunId,
       // Titles are mandatory: a plain chat turn is named by what the user asked.
       title: opts.title ?? sessionTitleFromPrompt(firstMessage.text),
-      input: {kind: 'session-message'},
+      input: {
+        kind: 'session-message',
+        userEventIds: userEvents.map((event) => event.id),
+        queuedBehindAnotherTurn,
+      },
       queue: opts.background ? 'background' : 'interactive',
       // Background turns ride out a flaky provider; a turn the user is watching fails fast instead,
       // because retrying holds the session lock through the backoff — the error would never reach
       // them and their next message would bounce off "already streaming". They have Retry.
       maxAttempts: opts.background ? AGENT_RUN_MAX_ATTEMPTS : 1,
-      dispatch: opts.background === true,
+      dispatch: opts.background === true || queuedBehindAnotherTurn,
     })
-    // Background callers (triggers, agent-started sessions) return as soon as the run is durably
-    // queued; the dispatch loop picks it up and completion is observable via awaitQueueIdle/WS.
-    if (opts.background) return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
+    // Background callers and concurrent collaborators return as soon as both their message and its
+    // serialized follow-up run are durable. Completion remains observable through the session WS.
+    if (opts.background || queuedBehindAnotherTurn) {
+      return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
+    }
 
     const final = await this.#runQueue.runInline(run.id)
-    if (final.status === 'queued') {
-      // The inline claim was refused: another live run owns this session (a concurrent send won the
-      // race while this request resolved message embeds). Withdraw our duplicate run and 409.
-      this.#runQueue.cancelTree(accountId, run.id)
-      throw new APIError(409, 'Session is already streaming')
+    if (final.status === 'queued' || final.status === 'claimed' || final.status === 'running') {
+      // A concurrent request may wake the dispatcher between our enqueue and inline claim. The
+      // message is already durable and this run is still the unique work item for it, so leave it
+      // serialized in the queue and let every writer return successfully.
+      return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
     }
     if (final.status === 'succeeded' || final.status === 'canceled') {
       const output = (final.output ?? {}) as {assistantEventId?: string}
@@ -4529,18 +4944,61 @@ export class Service {
       return next
     }
     const replayMessages = this.#piMessages(sessionId)
-    // A park-resume after interleaved conversation can end on an assistant message (the late tool
-    // results attach adjacent to their calls, earlier in the transcript). Pi cannot continue from
-    // an assistant turn, and the model needs direction anyway: hand it back the floor explicitly.
-    // In-memory only — never persisted to the transcript.
-    const lastReplayed = replayMessages.at(-1) as {role?: string} | undefined
-    if (lastReplayed?.role === 'assistant') {
+    const runInput = run && isRecord(run.input) ? run.input : undefined
+    const queuedUserEventIds =
+      runInput?.queuedBehindAnotherTurn === true && Array.isArray(runInput.userEventIds)
+        ? runInput.userEventIds.filter((id): id is string => typeof id === 'string')
+        : []
+    // A concurrent collaborator's message is appended immediately, even while the preceding
+    // assistant response is still streaming. That means durable ordering can be user B, then the
+    // tail of assistant A. Put an in-memory handoff last so the serialized follow-up turn cannot
+    // mistake A's later event for an answer to B. The original messages remain the only durable
+    // copies; this is provider guidance, not another transcript event.
+    if (queuedUserEventIds.length) {
+      const wanted = new Set(queuedUserEventIds)
+      const concurrentMessages = this.#db
+        .query<SessionEventRow, [string]>(
+          `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+        )
+        .all(sessionId)
+        .filter((row) => wanted.has(row.id))
+        .map((row) => {
+          const payload = cbor.decode<api.SessionEventPayload>(row.event_cbor) as {
+            type?: string
+            role?: string
+            content?: string
+            meta?: api.SessionEventMeta
+          }
+          return {
+            eventId: row.id,
+            accountId: payload.meta?.accountId,
+            content: payload.type === 'message' && payload.role === 'user' ? payload.content : undefined,
+          }
+        })
+        .filter((message): message is {eventId: string; accountId: string | undefined; content: string} =>
+          Boolean(message.content),
+        )
       replayMessages.push({
         role: 'user',
-        content:
-          '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>',
+        content: `<concurrent_user_messages>\nThese user messages arrived while the previous response was already in progress. Any assistant event that follows them in the durable transcript belongs to that earlier turn and does not answer them. Respond to these messages now:\n${JSON.stringify(
+          concurrentMessages,
+        )}\n</concurrent_user_messages>`,
         timestamp: Date.now(),
       })
+    } else {
+      // A park-resume after interleaved conversation can end on an assistant message (the late tool
+      // results attach adjacent to their calls, earlier in the transcript). Pi cannot continue from
+      // an assistant turn, and the model needs direction anyway: hand it back the floor explicitly.
+      // In-memory only — never persisted to the transcript.
+      const lastReplayed = replayMessages.at(-1) as {role?: string} | undefined
+      if (lastReplayed?.role === 'assistant') {
+        replayMessages.push({
+          role: 'user',
+          content:
+            '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>',
+          timestamp: Date.now(),
+        })
+      }
     }
     // The checklist, handed back every turn.
     //
@@ -5114,7 +5572,45 @@ export class Service {
   }
 
   #emit(event: ServiceEvent): void {
-    this.#onEvent?.(event)
+    const onEvent = this.#onEvent
+    if (!onEvent) return
+    onEvent(event)
+    const agentId =
+      event.type === 'agent-change'
+        ? event.agent.id
+        : event.type === 'session-change'
+          ? event.session.agentId
+          : event.type === 'session-event' || event.type === 'session-partial'
+            ? event.agentId
+            : event.type === 'account-change'
+              ? event.agentId
+              : event.type === 'run-change'
+                ? event.run.agentId
+                : event.type === 'run-append' || event.type === 'run-partial'
+                  ? this.#db
+                      .query<{agent_id: string | null}, [string]>(
+                        `SELECT agent_id FROM runs WHERE root_run_id = ? LIMIT 1`,
+                      )
+                      .get(event.rootRunId)?.agent_id
+                  : undefined
+    if (!agentId) return
+    let collaborators = this.#collaboratorAudience.get(agentId)
+    if (!collaborators) {
+      collaborators = this.#db
+        .query<{account_id: string; role: api.AgentCollaboratorRole}, [string]>(
+          `SELECT account_id, role FROM agent_collaborators WHERE agent_id = ? AND status = 'accepted'`,
+        )
+        .all(agentId)
+      this.#collaboratorAudience.set(agentId, collaborators)
+    }
+    for (const collaborator of collaborators) {
+      if (collaborator.account_id === event.accountId) continue
+      const sharedEvent =
+        event.type === 'agent-change'
+          ? {...event, accountId: collaborator.account_id, agent: {...event.agent, accessRole: collaborator.role}}
+          : {...event, accountId: collaborator.account_id}
+      onEvent(sharedEvent as ServiceEvent)
+    }
   }
 
   async #getSession(accountId: string, sessionId: string, afterSeq?: number): Promise<api.GetSessionResponse> {
@@ -5223,28 +5719,29 @@ export class Service {
     if (agentMatch) {
       const agentId = agentMatch[1]
       if (!agentId) throw new APIError(400, 'Subscription key is invalid')
-      const agent = this.#getAgentInfo(verified.accountId, agentId)
-      if (!agent) throw new APIError(404, 'Agent not found')
+      this.#requireAgentAccess(verified.accountId, agentId, 'reader')
       return {accountId: verified.accountId, key}
     }
     const sessionMatch = /^sessions\/([^/]+)$/.exec(key)
     if (sessionMatch) {
       const sessionId = sessionMatch[1]
       if (!sessionId) throw new APIError(400, 'Subscription key is invalid')
-      const replay = await this.#getSession(verified.accountId, sessionId, envelope.action.afterSeq)
+      const ownerAccountId = this.#actionAccountId(verified.accountId, {_: 'GetSession', sessionId})
+      const replay = await this.#getSession(ownerAccountId, sessionId, envelope.action.afterSeq)
       return {accountId: verified.accountId, key, replay}
     }
     const runMatch = /^runs\/([^/]+)$/.exec(key)
     if (runMatch) {
       const rootRunId = runMatch[1]
       if (!rootRunId) throw new APIError(400, 'Subscription key is invalid')
-      const root = runs.getRun(this.#db, verified.accountId, rootRunId)
+      const ownerAccountId = this.#actionAccountId(verified.accountId, {_: 'GetRun', runId: rootRunId})
+      const root = runs.getRun(this.#db, ownerAccountId, rootRunId)
       if (!root) throw new APIError(404, 'Run not found')
-      const tree = runs.listRunTree(this.#db, verified.accountId, root.rootRunId)
+      const tree = runs.listRunTree(this.#db, ownerAccountId, root.rootRunId)
       const afterSeq = envelope.action.afterSeq
       const entries: api.RunJournalEntryInfo[] = []
       for (const run of tree) {
-        entries.push(...this.#getRunJournal(verified.accountId, run.id, afterSeq).entries)
+        entries.push(...this.#getRunJournal(ownerAccountId, run.id, afterSeq).entries)
       }
       return {
         accountId: verified.accountId,
@@ -5829,6 +6326,7 @@ type AgentRow = {
   status: api.AgentInfo['status']
   created_at: number
   updated_at: number
+  access_role?: api.AgentAccessRole
 }
 
 type AgentTriggerRow = {
@@ -6109,7 +6607,7 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
-function agentRowToInfo(row: AgentRow): api.AgentInfo {
+function agentRowToInfo(row: AgentRow, accessRole: api.AgentAccessRole = 'owner'): api.AgentInfo {
   return {
     id: row.id,
     account: row.account_id,
@@ -6118,6 +6616,7 @@ function agentRowToInfo(row: AgentRow): api.AgentInfo {
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    accessRole,
   }
 }
 
@@ -9949,6 +10448,18 @@ function getOrCreateSecretEncryptionKey(db: Database): Uint8Array {
   const key = crypto.getRandomValues(new Uint8Array(32))
   db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [SECRET_KEY_CONFIG_KEY, key])
   return key
+}
+
+function normalizeAccountId(value: unknown): string {
+  const accountId = normalizeBoundedString(value, 'Collaborator account', MAX_NAME_BYTES)
+  try {
+    const principal = blobs.principalFromString(accountId)
+    const canonical = blobs.principalToString(principal)
+    if (canonical !== accountId) throw new Error('not canonical')
+    return canonical
+  } catch {
+    throw new APIError(400, 'Collaborator account must be a valid Seed account ID')
+  }
 }
 
 function normalizeBoundedString(value: unknown, label: string, maxBytes: number): string {

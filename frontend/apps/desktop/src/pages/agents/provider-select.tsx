@@ -19,7 +19,7 @@ export function ProviderSelect({
   providers: ModelProviderInfo[] | undefined
   value: string
   onChange: (name: string) => void
-  onAddProvider: () => void
+  onAddProvider?: () => void
   disabled?: boolean
 }) {
   const hasValueOption = !value || providers?.some((provider) => provider.name === value)
@@ -27,7 +27,7 @@ export function ProviderSelect({
     <Select
       value={value}
       onValueChange={(next) => {
-        if (next === ADD_PROVIDER_VALUE) onAddProvider()
+        if (next === ADD_PROVIDER_VALUE) onAddProvider?.()
         else onChange(next)
       }}
       disabled={disabled}
@@ -46,7 +46,7 @@ export function ProviderSelect({
             </span>
           </SelectItem>
         ))}
-        <SelectItem value={ADD_PROVIDER_VALUE}>+ Add provider…</SelectItem>
+        {onAddProvider ? <SelectItem value={ADD_PROVIDER_VALUE}>+ Add provider…</SelectItem> : null}
       </SelectContent>
     </Select>
   )

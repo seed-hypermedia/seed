@@ -75,7 +75,6 @@ import {
 import type {CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {RunRecordCard, SessionRunCard} from '@/pages/agents/run-card'
 import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
-import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
 
 /**
  * Assistant sidebar.
@@ -313,6 +312,7 @@ export function AssistantPanel({
           agentId={activeAgent.agent.id}
           agentName={activeAgent.agent.definition.name}
           accountUid={accountUid}
+          readOnly={activeAgent.agent.accessRole === 'reader'}
           composerRef={composerRef}
           onSessionCreated={selectSession}
         />
@@ -544,11 +544,13 @@ function AssistantDraftChat({
   accountUid,
   composerRef,
   onSessionCreated,
+  readOnly,
 }: {
   serverUrl: string
   agentId: string
   agentName: string
   accountUid: string | null | undefined
+  readOnly: boolean
   composerRef: React.MutableRefObject<CommentEditorSubmitHandle | null>
   onSessionCreated: (ref: AssistantSessionRef) => void
 }) {
@@ -607,6 +609,7 @@ function AssistantDraftChat({
         isBusy={false}
         isStreaming={false}
         stopPending={false}
+        disabledMessage={readOnly ? 'You have read-only access to this agent.' : undefined}
         serverUrl={serverUrl}
         accountId={accountUid ?? null}
         composerHandleRef={composerRef}
@@ -642,6 +645,7 @@ function AssistantSessionChat({
 
   const autoScroll = useChatAutoScroll()
 
+  const readOnly = agentDetail.data?.agent.accessRole === 'reader'
   const status = session.data?.session.status
   const isStreaming = status === 'streaming'
   const isBusy = messageSession.isPending || isStreaming
@@ -699,11 +703,6 @@ function AssistantSessionChat({
     [accountUid, messageSession, serverUrl, sessionId],
   )
 
-  const {queuedMessages, queueMessage} = useQueuedChatMessages<AgentSessionDraftMessage>({
-    isBusy,
-    onFlush: doSendMessage,
-  })
-
   // Retry is offered on a trailing error only, and survives its own in-flight state: the row goes
   // away when the retried run starts streaming, not when the request is sent.
   const retryableRowKey = retryableErrorRowKey(rows, !!isBusy)
@@ -714,8 +713,7 @@ function AssistantSessionChat({
   }, [retrySession, sessionId])
 
   function handleSend(message: AgentSessionDraftMessage) {
-    if (isBusy) queueMessage(message)
-    else doSendMessage(message)
+    doSendMessage(message)
   }
 
   async function handleStop() {
@@ -807,12 +805,11 @@ function AssistantSessionChat({
         sessionId={sessionId}
         sessionPlan={session.data?.session.plan}
         frozenRunIds={frozenRuns}
+        readOnly={readOnly}
         onOpenSession={(childSessionId, childAgentId) =>
           navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
         }
       />
-
-      <QueuedChatMessages messages={queuedMessages} getText={(message) => message.text} />
 
       {/* No focus-on-mount here: session chats mount with the panel itself (e.g. on app launch),
           where stealing focus from the document would be wrong. Focus is imperative, via the
@@ -820,7 +817,13 @@ function AssistantSessionChat({
       <AgentRichMessageComposer
         isBusy={isBusy}
         isStreaming={isStreaming}
-        disabledMessage={isDrivenByParent ? SUB_SESSION_DRIVEN_MESSAGE : undefined}
+        disabledMessage={
+          readOnly
+            ? 'You have read-only access to this agent.'
+            : isDrivenByParent
+              ? SUB_SESSION_DRIVEN_MESSAGE
+              : undefined
+        }
         stopPending={stopSession.isPending}
         serverUrl={serverUrl}
         accountId={accountUid ?? null}

@@ -5,6 +5,15 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Agent invitations and collaborators
+
+Agents can now be shared with Seed accounts through explicit pending invitations and accepted reader/writer roles. The
+SQLite membership row never changes ownership: every existing agent/session/run query still executes against the owner's
+account after one centralized access-resolution check. Readers can inspect the complete agent; writers can mutate and
+interact; collaborator management and deletion remain owner-only. Signed WebSocket subscriptions use the same check and
+durable service events fan out to accepted collaborators. Desktop adds pending invites to the Agents index and reuses
+the document collaborator account-search pattern in Agent Settings for invites, roles, revocation, and read-only states.
+
 ### Remote agent content sync hardening
 
 The desktop already discovered `hm://` references from open agent sessions, but the implementation issued one request

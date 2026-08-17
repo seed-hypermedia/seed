@@ -13,6 +13,20 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Agent-level invitations and accepted read/write collaborators. The invited account is a real
+  // Seed principal and gets an accounts row before this membership row is inserted.
+  `CREATE TABLE agent_collaborators (
+      agent_id TEXT NOT NULL REFERENCES agents (id),
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      role TEXT NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      accepted_at INTEGER,
+      PRIMARY KEY (agent_id, account_id)
+  ) WITHOUT ROWID;
+
+  CREATE INDEX agent_collaborators_by_account ON agent_collaborators (account_id, status, updated_at DESC);`,
   // Run titles became mandatory: every enqueue site now derives a real one, so the display layer
   // never invents a label. Rows from before the requirement get the exact text the UI used to
   // fall back to, so their cards read the same as they always did.

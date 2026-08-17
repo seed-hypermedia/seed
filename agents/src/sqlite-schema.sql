@@ -48,6 +48,19 @@ CREATE TABLE agents (
 
 CREATE INDEX agents_by_account ON agents (account_id, updated_at DESC);
 
+CREATE TABLE agent_collaborators (
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    role TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    accepted_at INTEGER,
+    PRIMARY KEY (agent_id, account_id)
+) WITHOUT ROWID;
+
+CREATE INDEX agent_collaborators_by_account ON agent_collaborators (account_id, status, updated_at DESC);
+
 CREATE TABLE agent_triggers (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),

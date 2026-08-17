@@ -82,6 +82,7 @@ export function SessionRunCard({
   compact,
   frozenRunIds,
   onOpenSession,
+  readOnly = false,
 }: {
   serverUrl: string
   accountUid: string | null | undefined
@@ -98,6 +99,8 @@ export function SessionRunCard({
   frozenRunIds?: ReadonlySet<string>
   /** Opens the transcript of an agent child run. */
   onOpenSession?: (sessionId: string, agentId?: string) => void
+  /** Hides run controls for reader collaborators while preserving live progress. */
+  readOnly?: boolean
 }) {
   const runs = useSessionRuns(serverUrl, accountUid, sessionId)
   const cancelRun = useCancelRun(serverUrl, accountUid)
@@ -141,6 +144,7 @@ export function SessionRunCard({
           onOpenSession={onOpenSession}
           onCancelRun={(runId) => cancelRun.mutate(runId)}
           cancelPending={cancelRun.isPending}
+          readOnly={readOnly}
         />
       </RunCardShell>
     )
@@ -229,6 +233,7 @@ function RunCardBody({
   onOpenSession,
   onCancelRun,
   cancelPending,
+  readOnly = false,
 }: {
   /** Agent server this run lives on, so its tool rows can link into the agent's own pages. */
   serverUrl: string
@@ -241,6 +246,7 @@ function RunCardBody({
   onOpenSession?: (sessionId: string, agentId?: string) => void
   onCancelRun: (runId: string) => void
   cancelPending: boolean
+  readOnly?: boolean
 }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
   const isTerminal = isTerminalRun(run.status)
@@ -271,7 +277,7 @@ function RunCardBody({
         >
           {isParked ? parkedLabel(run, childRuns, doneChildren) : runTitle(run)}
         </span>
-        {isTerminal ? null : confirmingCancel ? (
+        {isTerminal || readOnly ? null : confirmingCancel ? (
           <span className="flex flex-none items-center gap-1">
             <Button
               size="sm"
@@ -309,7 +315,7 @@ function RunCardBody({
       ) : null}
 
       {/* The run has stopped and is asking; the answer belongs where the question is. */}
-      <ParkedRunActions run={run} serverUrl={serverUrl} accountUid={accountUid} />
+      {!readOnly ? <ParkedRunActions run={run} serverUrl={serverUrl} accountUid={accountUid} /> : null}
 
       {progress && !isTerminal ? (
         <div className="flex flex-col gap-1">
@@ -333,7 +339,7 @@ function RunCardBody({
         liveState={liveState}
         compact={compact}
         onOpenSession={onOpenSession}
-        onCancelRun={onCancelRun}
+        onCancelRun={readOnly ? undefined : onCancelRun}
         cancelPending={cancelPending}
         renderToolPart={(part) => (
           <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />

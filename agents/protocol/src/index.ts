@@ -127,6 +127,12 @@ export type AgentAction = UnsignedAgentAction & {
 /** Supported agent service actions before the signing timestamp is attached. */
 export type UnsignedAgentAction =
   | ListAgents
+  | ListAgentInvites
+  | ListAgentCollaborators
+  | InviteAgentCollaborator
+  | RemoveAgentCollaborator
+  | AcceptAgentInvite
+  | DeclineAgentInvite
   | CreateAgent
   | ListModelProviders
   | ListProviderModels
@@ -184,6 +190,44 @@ export type ListAgents = {
   _: 'ListAgents'
 }
 
+/** Lists pending invitations sent to the signed account. */
+export type ListAgentInvites = {
+  _: 'ListAgentInvites'
+}
+
+/** Lists the owner and collaborators who can access one agent. */
+export type ListAgentCollaborators = {
+  _: 'ListAgentCollaborators'
+  agentId: string
+}
+
+/** Invites an account to read or write one owned agent. */
+export type InviteAgentCollaborator = {
+  _: 'InviteAgentCollaborator'
+  agentId: string
+  accountId: string
+  role: AgentCollaboratorRole
+}
+
+/** Revokes an accepted collaborator or cancels a pending invitation. */
+export type RemoveAgentCollaborator = {
+  _: 'RemoveAgentCollaborator'
+  agentId: string
+  accountId: string
+}
+
+/** Accepts a pending invitation sent to the signed account. */
+export type AcceptAgentInvite = {
+  _: 'AcceptAgentInvite'
+  agentId: string
+}
+
+/** Declines a pending invitation sent to the signed account. */
+export type DeclineAgentInvite = {
+  _: 'DeclineAgentInvite'
+  agentId: string
+}
+
 /** Creates a new agent definition. */
 export type CreateAgent = {
   _: 'CreateAgent'
@@ -194,17 +238,23 @@ export type CreateAgent = {
 /** Lists configured model providers for the signed account. */
 export type ListModelProviders = {
   _: 'ListModelProviders'
+  /** Lists the owning account's providers when viewing a shared agent. */
+  agentId?: string
 }
 
 /** Lists remote models available from one configured provider. */
 export type ListProviderModels = {
   _: 'ListProviderModels'
   provider: string
+  /** Resolves the provider against the owning account of a shared agent. */
+  agentId?: string
 }
 
 /** Lists uploaded Seed account keys available to the signed account. */
 export type ListSigningIdentities = {
   _: 'ListSigningIdentities'
+  /** Lists the owning account's redacted identities when viewing a shared agent. */
+  agentId?: string
 }
 
 /** Generates a new server-side Seed account key for future signing tools. */
@@ -752,6 +802,31 @@ export type ModelProviderConfig = {
   authMode?: 'api-key' | 'subscription'
 }
 
+/** A collaborator's access level on an agent. */
+export type AgentCollaboratorRole = 'reader' | 'writer'
+
+/** The signed account's relationship to an agent. */
+export type AgentAccessRole = 'owner' | AgentCollaboratorRole
+
+/** One owner, accepted collaborator, or pending invitation on an agent. */
+export type AgentCollaboratorInfo = {
+  accountId: string
+  role: AgentAccessRole
+  status: 'accepted' | 'pending'
+  createdAt: number
+  updatedAt: number
+}
+
+/** A pending agent invitation visible to its recipient before agent contents are disclosed. */
+export type AgentInviteInfo = {
+  agentId: string
+  agentName: string
+  ownerAccountId: string
+  role: AgentCollaboratorRole
+  createdAt: number
+  updatedAt: number
+}
+
 /** Public metadata returned for an agent. */
 export type AgentInfo = {
   id: string
@@ -761,6 +836,8 @@ export type AgentInfo = {
   status: 'idle' | 'running' | 'stopped' | 'error'
   createdAt: number
   updatedAt: number
+  /** Permissions of the signed account that requested this value. */
+  accessRole?: AgentAccessRole
 }
 
 /** Public metadata returned for an agent trigger. */
@@ -995,12 +1072,17 @@ export function sessionEventActor(payload: SessionEventPayload): SessionActor {
 }
 
 /**
- * Provenance stamped on runtime-produced events at append time: what produced it, what it cost, how
- * long it took. Written once, so an event still explains itself long after the run that made it is
- * gone. Events recorded before this field existed simply have none — every reader treats it as
- * optional detail, never as required structure.
+ * Provenance stamped on events at append time: which account and signer authored a user event, or
+ * which runtime produced an agent event, what it cost, and how long it took. Written once, so an
+ * event still explains itself long after its request or run is gone. Events recorded before this
+ * field existed simply have none — every reader treats it as optional detail, never as required
+ * structure.
  */
 export type SessionEventMeta = {
+  /** Seed account that originated a user-authored event. */
+  accountId?: string
+  /** Exact cryptographic signer of the signed action that originated a user-authored event. */
+  signerId?: string
   /** Model that produced the message, e.g. `gpt-5-mini`. */
   model?: string
   /** Provider the model ran on, e.g. `openai`. */
@@ -1033,7 +1115,7 @@ export type SessionEventPayload =
        */
       clientMessageId?: string
       actor?: SessionActor
-      /** Model/provider/usage/timing behind an assistant message. Absent on user and legacy events. */
+      /** Origin metadata for user messages, or model/provider/usage/timing for assistant messages. */
       meta?: SessionEventMeta
     }
   | {type: 'tool_call'; id: string; name: string; input: unknown; actor?: SessionActor}
@@ -1166,6 +1248,44 @@ export type SigningIdentity = {
 export type ListAgentsResponse = {
   _: 'ListAgentsResponse'
   agents: AgentInfo[]
+}
+
+/** Successful response for `ListAgentInvites`. */
+export type ListAgentInvitesResponse = {
+  _: 'ListAgentInvitesResponse'
+  invites: AgentInviteInfo[]
+}
+
+/** Successful response for `ListAgentCollaborators`. */
+export type ListAgentCollaboratorsResponse = {
+  _: 'ListAgentCollaboratorsResponse'
+  agentId: string
+  collaborators: AgentCollaboratorInfo[]
+}
+
+/** Successful response for an agent collaborator upsert. */
+export type InviteAgentCollaboratorResponse = {
+  _: 'InviteAgentCollaboratorResponse'
+  collaborator: AgentCollaboratorInfo
+}
+
+/** Successful response for revoking or canceling agent access. */
+export type RemoveAgentCollaboratorResponse = {
+  _: 'RemoveAgentCollaboratorResponse'
+  agentId: string
+  accountId: string
+}
+
+/** Successful response for accepting an agent invitation. */
+export type AcceptAgentInviteResponse = {
+  _: 'AcceptAgentInviteResponse'
+  agent: AgentInfo
+}
+
+/** Successful response for declining an agent invitation. */
+export type DeclineAgentInviteResponse = {
+  _: 'DeclineAgentInviteResponse'
+  agentId: string
 }
 
 /** Successful response for `CreateAgent`. */
@@ -1555,6 +1675,12 @@ export type ErrorResponse = {
 /** Response values for the Agents API. */
 export type AgentResponse =
   | ListAgentsResponse
+  | ListAgentInvitesResponse
+  | ListAgentCollaboratorsResponse
+  | InviteAgentCollaboratorResponse
+  | RemoveAgentCollaboratorResponse
+  | AcceptAgentInviteResponse
+  | DeclineAgentInviteResponse
   | ListModelProvidersResponse
   | ListProviderModelsResponse
   | ListSigningIdentitiesResponse

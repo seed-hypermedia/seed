@@ -1,7 +1,8 @@
 # Security model
 
-The Agents security model centers on signed account-scoped actions, server-side ownership checks, encrypted/redacted
-secrets, signed WebSocket subscriptions, and a model-facing tool surface whose authority is fixed at five verbs.
+The Agents security model centers on signed account-scoped actions, server-side owner/collaborator checks,
+encrypted/redacted secrets, signed WebSocket subscriptions, and a model-facing tool surface whose authority is fixed at
+five verbs.
 
 ## Trust boundaries
 
@@ -38,6 +39,23 @@ A socket cannot switch accounts after a successful subscription.
 
 Server-to-client events are not individually signed.
 
+## Agent collaboration authorization
+
+An agent remains owned by `agents.account_id`. `agent_collaborators` adds explicit per-agent access for another signed
+Seed account, first as a pending invitation and then as an accepted `reader` or `writer` row:
+
+- pending invitees see only invitation metadata and cannot access agent contents;
+- readers can inspect all agent-scoped state, including memory, tools, prompts, sessions, transcripts, attachments, and
+  runs;
+- writers can additionally mutate agent-scoped state and interact with sessions;
+- only the owner can invite/revoke members or delete the agent;
+- provider, secret, OAuth, and signing-identity mutations remain scoped to the collaborator's own account. Optional
+  `agentId` on provider/identity list actions exposes only the owner's redacted records needed to render/edit that
+  shared agent.
+
+Agent/session/run WebSocket subscriptions use the same access check. Service events are fanned out to every accepted
+collaborator's account subscription; revocation takes effect before subsequent requests or subscriptions.
+
 ## Account isolation
 
 Account-owned tables include `account_id`:
@@ -45,6 +63,7 @@ Account-owned tables include `account_id`:
 - model providers;
 - secrets;
 - agents;
+- agent collaborators (the invited account is also stored explicitly);
 - sessions;
 - runs;
 - tool documents;
@@ -356,7 +375,8 @@ For every new action:
 3. Normalize inputs at the boundary.
 4. Scope DB queries by account ownership.
 5. Redact sensitive data.
-6. Add unauthorized/cross-account tests.
+6. Add unauthorized/cross-account tests, including reader-vs-writer and pending-vs-accepted behavior for agent-scoped
+   actions.
 7. Decide idempotency/replay semantics.
 8. Decide WebSocket fanout policy.
 9. Update docs.

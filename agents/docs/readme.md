@@ -34,6 +34,7 @@ Completed and usable locally:
 - encrypted secrets and redacted provider/secret responses;
 - model-provider CRUD, provider listing, and provider-backed model listing for model dropdowns;
 - agent CRUD and session CRUD, including inline session-title editing;
+- pending agent invitations plus accepted reader/writer collaborators, with agent-wide read/write enforcement;
 - durable session event replay;
 - schedule triggers for interval, weekly, and one-time proactive sessions;
 - Pi SDK-backed chat execution;

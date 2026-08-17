@@ -23,11 +23,13 @@ export function AgentListRow({
   name,
   status,
   serverUrl,
+  accessRole,
 }: {
   agentId: string
   name: string
   status: string
   serverUrl: string
+  accessRole?: 'owner' | 'reader' | 'writer'
 }) {
   const navigate = useNavigate()
   const statusIndicator = getAgentStatusIndicator(status)
@@ -36,9 +38,16 @@ export function AgentListRow({
       className="border-border hover:bg-muted/60 flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-3 transition-colors"
       onClick={() => navigate({key: 'agent', agentId, serverUrl})}
     >
-      <SizableText weight="bold" className="min-w-0 truncate">
-        {name}
-      </SizableText>
+      <div className="flex min-w-0 items-center gap-2">
+        <SizableText weight="bold" className="min-w-0 truncate">
+          {name}
+        </SizableText>
+        {accessRole && accessRole !== 'owner' ? (
+          <span className="bg-muted text-muted-foreground flex-none rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+            {accessRole}
+          </span>
+        ) : null}
+      </div>
       <Tooltip content={statusIndicator.label} asChild>
         <span className={`size-2.5 shrink-0 rounded-full ${statusIndicator.className}`} />
       </Tooltip>

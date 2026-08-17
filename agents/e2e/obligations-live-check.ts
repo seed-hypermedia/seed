@@ -17,7 +17,7 @@ async function action(input: Record<string, unknown>, timeoutMs = 120_000): Prom
   const response = await fetch(`${BASE}/api/message`, {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor'},
-    body: cbor.encode(envelope),
+    body: cbor.encode(envelope) as BodyInit,
     signal: AbortSignal.timeout(timeoutMs),
   })
   const body = cbor.decode<any>(new Uint8Array(await response.arrayBuffer()))

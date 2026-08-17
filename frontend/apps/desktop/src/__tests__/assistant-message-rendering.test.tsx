@@ -60,6 +60,13 @@ vi.mock('../components/markdown', () => ({
 
 vi.mock('@shm/shared/models/entity', () => ({
   useResource: () => ({data: null}),
+  useAccount: (accountId?: string) => ({
+    data: accountId ? {metadata: {name: accountId === 'z6MkAlice' ? 'Alice' : 'Account'}} : null,
+  }),
+}))
+
+vi.mock('@shm/ui/hm-icon', () => ({
+  HMIcon: ({name}: {name?: string}) => React.createElement('div', {'data-testid': 'account-icon'}, name),
 }))
 
 // models/agents creates the tRPC client at import time, which needs the electronTRPC preload global.
@@ -153,6 +160,33 @@ describe('assistant message rendering', () => {
     expect(document.body.textContent).toContain('Context shared with the agent')
     expect(document.body.textContent).toContain('URL: hm://z6MkDoc/plan')
     expect(document.body.textContent).toContain('View: document')
+
+    cleanupRendered(root, container)
+  })
+
+  it('shows the originator icon and exact account and signer metadata on user messages', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    act(() => {
+      root.render(
+        <ChatMessageBubble
+          message={{
+            role: 'user',
+            content: 'Shared update',
+            meta: {accountId: 'z6MkAlice', signerId: 'z6MkAliceDeviceSigner'},
+          }}
+        />,
+      )
+    })
+
+    expect(container.querySelector('[data-testid="account-icon"]')?.textContent).toBe('Alice')
+    expect(container.querySelector('[aria-label="Message from Alice"]')).toBeTruthy()
+    click(findButton(container, (element) => element.title === 'Show markdown sent to the LLM'))
+    expect(document.body.textContent).toContain('Originator')
+    expect(document.body.textContent).toContain('z6MkAlice')
+    expect(document.body.textContent).toContain('Signer')
+    expect(document.body.textContent).toContain('z6MkAliceDeviceSigner')
 
     cleanupRendered(root, container)
   })

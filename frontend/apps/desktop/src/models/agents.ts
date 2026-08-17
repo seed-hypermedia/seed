@@ -5,6 +5,7 @@ import {
   normalizeAgentServerUrl,
   sendAgentAction,
   signAgentAction,
+  type AgentCollaboratorRole,
   type AgentDefinition,
   type AgentInfo,
   type AgentMessageBlock,
@@ -400,6 +401,44 @@ export function useAgentList(serverUrl: string | undefined, accountUid: string |
   })
 }
 
+/** Lists pending agent invitations on one configured server. */
+export function useAgentInvites(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useQuery({
+    queryKey: ['agents', 'invites', serverUrl, accountUid],
+    queryFn: async () => {
+      if (!serverUrl || !accountUid) return []
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentInvites'}})
+      if (res._ !== 'ListAgentInvitesResponse') throw new Error('Unexpected ListAgentInvites response')
+      return res.invites
+    },
+    enabled: !!serverUrl && !!accountUid,
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Lists pending invitations for each configured server. */
+export function useAgentInviteLists(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
+  return useQueries({
+    queries: (serverUrls || []).map((serverUrl) => ({
+      queryKey: ['agents', 'invites', serverUrl, accountUid],
+      queryFn: async () => {
+        if (!accountUid) return []
+        const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentInvites'}})
+        if (res._ !== 'ListAgentInvitesResponse') throw new Error('Unexpected ListAgentInvites response')
+        return res.invites
+      },
+      enabled: !!accountUid,
+      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
+      retry: false,
+      useErrorBoundary: false,
+    })),
+  })
+}
+
 /** Lists agents for each configured server. */
 export function useAgentLists(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
   return useQueries({
@@ -453,13 +492,21 @@ export function useHasAnyAgent(serverUrls: string[] | undefined, accountUid: str
   return {hasAgents, isSettled}
 }
 
-/** Lists configured model providers for the selected account on the configured server. */
-export function useModelProviders(serverUrl: string | undefined, accountUid: string | null | undefined) {
+/** Lists configured model providers for the selected account or a shared agent's owner. */
+export function useModelProviders(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId?: string,
+) {
   return useQuery({
-    queryKey: ['agents', 'providers', serverUrl, accountUid],
+    queryKey: ['agents', 'providers', serverUrl, accountUid, agentId],
     queryFn: async () => {
       if (!serverUrl || !accountUid) return []
-      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListModelProviders'}})
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'ListModelProviders', ...(agentId ? {agentId} : {})},
+      })
       if (res._ !== 'ListModelProvidersResponse') throw new Error('Unexpected ListModelProviders response')
       return res.providers
     },
@@ -476,12 +523,17 @@ export function useProviderModels(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
   provider: string | undefined,
+  agentId?: string,
 ) {
   return useQuery({
-    queryKey: ['agents', 'provider-models', serverUrl, accountUid, provider],
+    queryKey: ['agents', 'provider-models', serverUrl, accountUid, provider, agentId],
     queryFn: async () => {
       if (!serverUrl || !accountUid || !provider) return []
-      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListProviderModels', provider}})
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'ListProviderModels', provider, ...(agentId ? {agentId} : {})},
+      })
       if (res._ !== 'ListProviderModelsResponse') throw new Error('Unexpected ListProviderModels response')
       return res.models
     },
@@ -496,13 +548,21 @@ export function useProviderModels(
   })
 }
 
-/** Lists uploaded HM account keys for the selected account on the configured server. */
-export function useSigningIdentities(serverUrl: string | undefined, accountUid: string | null | undefined) {
+/** Lists uploaded HM account keys for the selected account or a shared agent's owner. */
+export function useSigningIdentities(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId?: string,
+) {
   return useQuery({
-    queryKey: ['agents', 'signing-identities', serverUrl, accountUid],
+    queryKey: ['agents', 'signing-identities', serverUrl, accountUid, agentId],
     queryFn: async (): Promise<SigningIdentity[]> => {
       if (!serverUrl || !accountUid) return []
-      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSigningIdentities'}})
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'ListSigningIdentities', ...(agentId ? {agentId} : {})},
+      })
       if (res._ !== 'ListSigningIdentitiesResponse') throw new Error('Unexpected ListSigningIdentities response')
       return res.identities
     },
@@ -839,6 +899,96 @@ export function useCreateAgent(serverUrl: string | undefined, accountUid: string
     },
     onSuccess() {
       invalidateQueries(['agents', 'list'])
+    },
+  })
+}
+
+/** Lists everyone with access to one agent, including pending invitations. */
+export function useAgentCollaborators(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  agentId: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'collaborators', serverUrl, accountUid, agentId],
+    queryFn: async () => {
+      if (!serverUrl || !accountUid || !agentId) return []
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentCollaborators', agentId}})
+      if (res._ !== 'ListAgentCollaboratorsResponse') throw new Error('Unexpected collaborator list response')
+      return res.collaborators
+    },
+    enabled: !!serverUrl && !!accountUid && !!agentId,
+    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Invites an account or updates an existing collaborator's role. */
+export function useInviteAgentCollaborator(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({
+      agentId,
+      collaboratorAccountId,
+      role,
+    }: {
+      agentId: string
+      collaboratorAccountId: string
+      role: AgentCollaboratorRole
+    }) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'InviteAgentCollaborator', agentId, accountId: collaboratorAccountId, role},
+      })
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/** Revokes a collaborator or cancels their pending invitation. */
+export function useRemoveAgentCollaborator(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, collaboratorAccountId}: {agentId: string; collaboratorAccountId: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'RemoveAgentCollaborator', agentId, accountId: collaboratorAccountId},
+      })
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/** Accepts one pending agent invitation. */
+export function useAcceptAgentInvite(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (agentId: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'AcceptAgentInvite', agentId}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/** Declines one pending agent invitation. */
+export function useDeclineAgentInvite(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (agentId: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'DeclineAgentInvite', agentId}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
     },
   })
 }
@@ -2047,6 +2197,9 @@ export function addOptimisticSessionMessage(
             // Stamped rather than inferred: `role: 'user'` is a shape the runtime writes too, and
             // this row is the one case where the app knows for certain a person typed it.
             actor: 'user',
+            // The exact signer arrives with the durable echo; the acting account is already known
+            // locally, so its profile icon can render without waiting for the round trip.
+            meta: {accountId: accountUid},
             content: message.text,
             rawMarkdown: message.text,
             clientMessageId: message.clientMessageId,

@@ -127,6 +127,23 @@ Current agent statuses:
 
 Most runtime work currently operates at the session level; agent status is not yet a rich run-state machine.
 
+### `agent_collaborators`
+
+Stores pending invitations and accepted agent-level access grants, keyed by `(agent_id, account_id)`. The `account_id`
+is the invited/collaborating Seed account; the agent's owning account remains on `agents.account_id` and all agent
+content continues to be stored under that owner.
+
+Important columns:
+
+- `role` — `reader` or `writer`;
+- `status` — `pending` or `accepted`;
+- `accepted_at` — acceptance time, NULL while pending;
+- `created_at`, `updated_at`.
+
+Readers may inspect agent settings, memory, tools, triggers, sessions, transcripts, runs, and attachments. Writers may
+also mutate those agent-scoped resources and interact with sessions. Collaborators cannot manage this table or delete
+the agent; those remain owner-only. Deleting an agent deletes its collaboration rows.
+
 ### `agent_triggers`
 
 Stores saved agent-scoped trigger definitions for HM activity triggers and schedule triggers.
@@ -348,6 +365,8 @@ Current event payloads:
 type SessionActor = 'user' | 'agent' | 'system' | 'trigger'
 
 type SessionEventMeta = {
+  accountId?: string // Seed account that originated a user message
+  signerId?: string // exact cryptographic signer from its verified action envelope
   model?: string // model that produced the message
   provider?: string // provider it ran on
   usage?: AgentRunUsage // this turn's tokens, not the run's cumulative total
@@ -384,7 +403,8 @@ type SessionEventPayload =
 `actor` and `meta` are both optional because events predating them exist. Never treat either as required structure:
 `sessionEventActor()` in the protocol package derives the actor of an older event from its shape (a user-role message is
 `user`, an error is `system`, everything else is `agent`), and `meta` is display detail that is simply absent on older
-rows.
+rows. New signed user messages always stamp both the acting Seed `accountId` and exact `signerId`; they may differ when
+the account uses an authorized device/delegate signer.
 
 Plan updates are **not** durable events — the `plan` verb writes `sessions.plan_cbor` in place, which is why the plan
 snapshot carries its own `settledAt` timestamp.
@@ -436,12 +456,14 @@ Session WebSocket subscriptions use the same replay logic when `afterSeq` is sup
 Do not hold write transactions during provider/tool network calls.
 
 `CreateAgent` and `CreateSession` can use short idempotent transactions. `MessageSession` must avoid long SQLite
-transactions because it performs model/network work.
+transactions because it performs model/network work. Concurrent collaborators append synchronously through the single
+service process, then enqueue independently; the run queue serializes model turns per session without delaying event
+persistence.
 
 ## Improvement areas
 
-- Move from `MAX(seq)+1` event sequence allocation to a stronger per-session sequence allocator if concurrent appends
-  become possible.
+- Move from `MAX(seq)+1` event sequence allocation to a stronger per-session sequence allocator before supporting
+  multiple service processes writing the same database.
 - Add retention/pruning for old events, runs, journals, and idempotency rows.
 - Add secret versioning/rotation metadata.
 - Add audit log tables for provider/secret/tool/security events.

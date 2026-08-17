@@ -12,8 +12,8 @@ Complete enough to build on; treat as baseline functionality:
   gate; encrypted provider secrets;
 - registry-driven providers (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, Custom) executing
   through the Pi SDK, with per-agent reasoning levels and ChatGPT/Codex subscription auth;
-- agent and session CRUD, durable event replay, live WebSocket subscriptions, streaming assistant partials, desktop
-  streaming markdown;
+- agent and session CRUD, pending invitations and accepted reader/writer agent collaborators, durable event replay,
+  collaborator-aware WebSocket subscriptions, streaming assistant partials, desktop streaming markdown;
 - the local agents server as a desktop subprocess, with the assistant sidebar unified onto agent sessions across every
   configured server;
 - **the runs tree** — every turn, child, and script is a run row and the table is the dispatch queue (leases, boot-sweep
