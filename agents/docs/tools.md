@@ -67,9 +67,10 @@ type ToolDocument = {
   `validateJsonSchemaShape`. `write ~/tools/<name>` with `{delete: true}` removes an authored tool; builtins refuse
   deletion and point at the agent's grants instead.
 
-`ListAgentTools` (`api-service.ts:1656`) returns the owner's view of the same documents — name, kind, summary,
-description, schemas, `source`, `runtime`, `cid`, `enabled`, and `granted` (whether the agent's grant set actually
-offers it).
+`ListAgentTools` returns the desktop's view of the same documents — name, kind, summary, description, schemas, `source`,
+`runtime`, `cid`, `enabled`, and `granted` (whether the agent's grant set actually offers it). Writers can also use
+`SaveAgentTool` and `DeleteAgentTool` from the Tools tab. The save action creates or updates every editable field and
+can rename an existing authored tool atomically; it refuses to overwrite another tool. Builtins remain read-only.
 
 ## The Space index
 
@@ -391,9 +392,10 @@ than a rescue.
 in-process QuickJS-WASM realm (`agents/src/workflow-host.ts`). Everything external crosses through `ctx`:
 `ctx.call(tool, input, {description})`, `ctx.delegate`, `ctx.parallel`, `ctx.sleep`, `ctx.waitForEvent`,
 `ctx.continueAsNew`, `ctx.step`, `ctx.plan`, `ctx.now`, `ctx.log`, `ctx.progress`, `ctx.input`, `ctx.runId`. Scripts
-hold the read and write verbs plus the agent's callable set (`api-service.ts:3801`); every effect is journaled, so
-resume after a crash or a timer wake replays from the top with completed work never re-executing. Detached script
-children are rejected outright — scripts are awaited.
+hold the read and write verbs plus the agent's callable set (`api-service.ts:3801`), including enabled authored lambda
+tools created earlier in the same parent turn; every effect is journaled, so resume after a crash or a timer wake
+replays from the top with completed work never re-executing. Detached script children are rejected outright — scripts
+are awaited.
 
 **Parallelism.** Independent children must be spawned together: every `delegate` call in one reply runs at the same
 time, and the turn then parks (cheaply, restart-proof) until all of them resolve, with each call receiving its own
@@ -409,7 +411,9 @@ at `api-service.ts:3438`), 10 awaited children per run and 10 detached starts pe
 
 Maintains the thread's visible checklist:
 `{title?, steps: [{id, label, status: pending | running | done | failed | skipped}]}`. Calls replace the whole plan, are
-stored on `sessions.plan_cbor`, and write **no transcript event** — the checklist is the card, not conversation.
+stored on `sessions.plan_cbor`, and write **no transcript event** — the checklist is the card, not conversation. The
+server stamps the owning run id; when every step settles, it copies that snapshot onto the run so the completed plan
+stays in transcript history even after a later turn replaces the session's mutable plan.
 
 That choice has a consequence the runtime handles explicitly. A model resuming after its children finished is blind to
 the very list it published, so `planStateBlock()` (`api-service.ts:414`) rebuilds a `<plan_state>` block from session

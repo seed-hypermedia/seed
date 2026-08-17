@@ -153,7 +153,7 @@ Tabs: **Sessions** (default), **Triggers**, **Memory**, **Tools**, **Prompt**, *
 
 ### Tools tab
 
-Four toggles, and nothing else is configurable — because nothing else is a grant (`detail.tsx:826`):
+Four toggles configure the grant set (`detail.tsx`); verbs and authored tools are not grants:
 
 | toggle               | grant                                                                                |
 | -------------------- | ------------------------------------------------------------------------------------ |
@@ -173,12 +173,11 @@ server's own reason otherwise) and a plain "this server does not support code ex
 has an info (ⓘ) button opening `ToolInfoDialog` with the exact model-facing description and input/output schemas from
 the shared registry.
 
-Below the toggles, **Authored tools** lists the lambda documents this agent wrote for itself, read from
-`ListAgentTools`. Each card shows the tool name, a TypeScript/Python badge, a Disabled badge when applicable, its
-summary, and when it was last updated; clicking opens `AuthoredToolDialog` with the description sent to the model, the
-full source, the input and output schemas, and the document's content address (click to copy) with the note that it
-changes every time the agent rewrites the tool. With none yet, the empty state says so: "Ask the agent to write itself a
-tool — it lands here, versioned by content address, the moment it's saved."
+Below the toggles, **Authored tools** lists lambda documents from `ListAgentTools`. Each card shows its name, runtime,
+summary, and update time. Writers can add a tool or open the same `AuthoredToolDialog` to edit every document field:
+name, summary, description, runtime, source, input schema, and optional output schema. Renames are atomic and refuse to
+overwrite another tool. A separate destructive confirmation permanently deletes a tool. Readers can inspect the same
+form and content address but do not see create, edit, or delete controls.
 
 The tab also manages the HM account keys the agent may sign with, including a **New account** workflow that generates a
 server-side key, publishes its profile, and creates an account home document stating that it is an agentic account.
@@ -301,13 +300,18 @@ journal — `ctx.log` lines toned by level, step transitions, tool and child cal
 error — ordered across runs and capped at the last 100 lines, each unfolding its full journal entry on click.
 
 **Parked runs** get a specific banner rather than a bare "Waiting": "Waiting on N sub-sessions — M done" for children, a
-label and wake time for a timer, and for an event wait `ParkedRunActions` (`run-parked-actions.tsx`) renders the run's
-`answerWith` signal as an **Answer** button (with an optional "Answer with data" payload editor) or, for a budget pause,
-**Resume** — the one wait a person has to end, so it does not hide behind "Waiting".
+timer countdown with a once-per-second clock, elapsed-time track, and wake time, and for an event wait
+`ParkedRunActions` (`run-parked-actions.tsx`) renders the run's `answerWith` signal as an **Answer** button (with an
+optional "Answer with data" payload editor) or, for a budget pause, **Resume** — the one wait a person has to end, so it
+does not hide behind "Waiting". A timer child attached to the running plan step renders that countdown in the step
+itself; it is not repeated as a loose workflow row. Timer-script transcript calls read **Waiting/Waited**, never the
+internal verb name “Delegate”.
 
-With no live run but a `SessionInfo.plan` present, the card falls back to the plan verb's todo list alone
-(`run-card.tsx:147`), in `idle` settle mode once a run exists and `live` before one does — and hides itself entirely
-when every step is done or skipped, because a finished checklist with its run over is just noise.
+With no live run but an unfinished `SessionInfo.plan` present, the card falls back to the plan verb's todo list alone
+(`run-card.tsx:147`). Once the plan settles, its server-stamped owning run keeps the complete snapshot and the same card
+freezes into the transcript before the closing assistant answer. The checklist stays open and readable there; code,
+activity, child runs, and recovered child failures move under a collapsed **Run details** disclosure so a successful
+answer remains the final, dominant state.
 
 Data flow is durable-first: the latest root run from `ListRuns {sessionId}` (`useSessionRuns`), the tree from
 `ListRuns {rootRunId}` (`useRunTree`), and the signed `runs/<rootRunId>` subscription (`useAgentRunTreeSubscription`)
@@ -374,8 +378,6 @@ matching optimistic events when the durable one arrives.
 ## Known UI gaps
 
 - Provider deletion is missing; secret rotation UX is minimal; there is no provider test button.
-- Authored tools are read-only in the UI — an owner can inspect and see the disabled flag, but only the agent creates,
-  edits, or deletes them (there is no `SetAgentTool` action).
 - Newly added provider types still need real-provider manual smoke coverage, and the UI does not surface which providers
   are verified end-to-end.
 - No model presets or capability validation beyond suggested defaults.
@@ -393,5 +395,6 @@ matching optimistic events when the durable one arrives.
 7. Ask it to delegate two independent pieces of research in one turn; confirm both children render as uniform peers
    under one step.
 8. Ask it to write itself a tool, then call it; confirm the card appears in Authored tools with its source and CID.
-9. Run a read from the wrench palette; confirm the row carries the "You" chip and the agent refers to it next turn.
-10. Reload the window and confirm the transcript, run records, and card state all reconstruct.
+9. Add a tool manually, edit every field including its name, then delete it; confirm each change appears immediately.
+10. Run a read from the wrench palette; confirm the row carries the "You" chip and the agent refers to it next turn.
+11. Reload the window and confirm the transcript, run records, and card state all reconstruct.

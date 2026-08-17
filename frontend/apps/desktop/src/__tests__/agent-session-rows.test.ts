@@ -218,6 +218,50 @@ describe('interleaveRunRecords', () => {
     expect(rows.map((row) => row.kind)).toEqual(['message', 'message', 'run-record'])
   })
 
+  it('places an owned completed plan before the closing answer and carries the checklist with it', () => {
+    const ownedPlan = {
+      ownerRunId: 'r1',
+      settledAt: 1_700_000_000_001.5,
+      title: 'Madrid weather check',
+      steps: [{id: 'wait', label: 'Wait five minutes and recheck', status: 'done' as const}],
+    }
+    const rows = interleaveRunRecords(
+      messageRows(),
+      [
+        run({
+          id: 'r1',
+          status: 'succeeded',
+          childRunCount: 1,
+          startedAt: 1_700_000_000_000,
+          finishedAt: 1_700_000_000_003,
+        }),
+      ],
+      ownedPlan,
+    )
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'run-record', 'message'])
+    expect(rows[1]).toMatchObject({kind: 'run-record', plan: ownedPlan})
+  })
+
+  it('places a child-work record at the delivered delegation result rather than after the closing answer', () => {
+    const rows = interleaveRunRecords(
+      buildAgentSessionChatRows(
+        [
+          event(1, {type: 'message', role: 'user', content: 'go'}),
+          event(2, {type: 'tool_call', id: 'd1', name: 'delegate', input: {title: 'Wait'}}),
+          event(6, {type: 'tool_result', toolCallId: 'd1', name: 'delegate', output: {status: 'succeeded'}}),
+          event(8, {type: 'message', role: 'assistant', content: 'done'}),
+        ],
+        CONTEXT,
+      ),
+      [run({id: 'r1', status: 'succeeded', childRunCount: 1, finishedAt: 1_700_000_000_009})],
+    )
+    expect(rows.map((row) => row.kind)).toEqual(['message', 'message', 'run-record', 'message'])
+    const delegate = rows[1]
+    expect(delegate.kind === 'message' ? delegate.message.parts?.[0] : undefined).toMatchObject({
+      completedAt: 1_700_000_000_006,
+    })
+  })
+
   it('places an older record between turns, not at the bottom', () => {
     const rows = interleaveRunRecords(
       buildAgentSessionChatRows(

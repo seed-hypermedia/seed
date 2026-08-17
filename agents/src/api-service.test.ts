@@ -6104,6 +6104,256 @@ describe('api service', () => {
     }
   })
 
+  test('authored tool composes through a durable wait workflow and the completed plan keeps its run owner', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      let lambdaCalls = 0
+      svc = new apisvc.Service(db, dataDir, {
+        codeExecutor: {
+          enabled: true,
+          runtimes: ['ts'],
+          availability: async () => ({available: true, runtimes: ['ts']}),
+          execute: async () => {
+            lambdaCalls += 1
+            return {
+              success: true,
+              exitCode: 0,
+              stdout: `__SEED_TOOL_RESULT__${JSON.stringify({temperature: 20 + lambdaCalls})}\n`,
+              stderr: '',
+              durationMs: 1,
+              truncated: false,
+              changedFiles: [],
+            }
+          },
+        },
+      })
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Weather watcher',
+              systemPrompt: 'Use a plan and durable waits.',
+              modelProvider: 'openai',
+              model: 'gpt',
+              tools: ['execute'],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const toolDocument = JSON.stringify({
+        description: 'Read the current temperature.',
+        input: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {city: {type: 'string'}},
+          required: ['city'],
+        },
+        output: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {temperature: {type: 'number'}},
+          required: ['temperature'],
+        },
+        source: 'export default function (input) { return {temperature: 21} }',
+      })
+      const workflowSource = [
+        'export default async function (input, ctx) {',
+        '  await ctx.sleep(5)',
+        "  return await ctx.call('current_weather', {city: 'Madrid'}, {description: 'Rechecking Madrid'})",
+        '}',
+      ].join('\n')
+      const toolReply = (id: string, name: string, args: unknown) =>
+        openAIStreamResponse([
+          {
+            id,
+            choices: [
+              {
+                delta: {
+                  tool_calls: [{index: 0, id, type: 'function', function: {name, arguments: JSON.stringify(args)}}],
+                },
+              },
+            ],
+          },
+          {id, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+
+      let parentRequest = 0
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        parentRequest += 1
+        switch (parentRequest) {
+          case 1:
+            return toolReply('plan-start', 'plan', {
+              title: 'Madrid weather check',
+              steps: [
+                {id: 'create', label: 'Create weather tool', status: 'running'},
+                {id: 'first', label: 'Check Madrid now', status: 'pending'},
+                {id: 'wait', label: 'Wait five minutes and recheck', status: 'pending'},
+              ],
+            })
+          case 2:
+            return toolReply('write-tool', 'write', {address: '~/tools/current_weather', content: toolDocument})
+          case 3:
+            return toolReply('first-weather', 'call', {tool: 'current_weather', input: {city: 'Madrid'}})
+          case 4:
+            return toolReply('plan-waiting', 'plan', {
+              title: 'Madrid weather check',
+              steps: [
+                {id: 'create', label: 'Create weather tool', status: 'done'},
+                {id: 'first', label: 'Check Madrid now', status: 'done'},
+                {id: 'wait', label: 'Wait five minutes and recheck', status: 'running'},
+              ],
+            })
+          case 5:
+            return toolReply('wait-recheck', 'delegate', {
+              title: 'Wait five minutes and recheck Madrid',
+              script: workflowSource,
+            })
+          case 6:
+            return toolReply('plan-done', 'plan', {
+              title: 'Madrid weather check',
+              steps: [
+                {id: 'create', label: 'Create weather tool', status: 'done'},
+                {id: 'first', label: 'Check Madrid now', status: 'done'},
+                {id: 'wait', label: 'Wait five minutes and recheck', status: 'done'},
+              ],
+            })
+          case 7:
+            return openAIStreamResponse([
+              {id: 'answer', choices: [{delta: {content: 'Madrid changed from 21°C to 22°C.'}}]},
+              {id: 'answer', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+            ])
+          case 8:
+            return toolReply('next-plan', 'plan', {
+              title: 'Follow-up',
+              steps: [{id: 'confirm', label: 'Confirm the report', status: 'done'}],
+            })
+          case 9:
+            return openAIStreamResponse([
+              {id: 'next-answer', choices: [{delta: {content: 'Confirmed.'}}]},
+              {id: 'next-answer', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+            ])
+          default:
+            throw new Error(`Unexpected provider request ${parentRequest}: ${JSON.stringify(body.messages)}`)
+        }
+      }) as unknown as typeof fetch
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Check Madrid, wait, then check again.'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      expect(lambdaCalls).toBe(2)
+      expect(parentRequest).toBe(7)
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.events.at(-1)?.event).toMatchObject({
+        type: 'message',
+        role: 'assistant',
+        content: 'Madrid changed from 21°C to 22°C.',
+      })
+
+      const roots = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId: createdSession.sessionId}}),
+      )
+      if (roots._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(roots.runs).toHaveLength(1)
+      expect(session.session.plan).toMatchObject({
+        ownerRunId: roots.runs[0]!.id,
+        steps: [{status: 'done'}, {status: 'done'}, {status: 'done'}],
+        settledAt: expect.any(Number),
+      })
+      // The session plan may be replaced next turn; its completed snapshot is also durable on this
+      // run, which is what keeps the checklist in transcript history afterward.
+      expect(roots.runs[0]!.plan).toMatchObject({
+        ownerRunId: roots.runs[0]!.id,
+        steps: [{status: 'done'}, {status: 'done'}, {status: 'done'}],
+      })
+
+      const tree = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', rootRunId: roots.runs[0]!.id}}),
+      )
+      if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const workflows = tree.runs.filter((run) => run.kind === 'workflow')
+      expect(workflows).toHaveLength(1)
+      expect(workflows[0]).toMatchObject({status: 'succeeded', planStepId: 'wait'})
+      const journal = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetRunJournal', runId: workflows[0]!.id}}),
+      )
+      if (journal._ !== 'GetRunJournalResponse') throw new Error('unexpected response')
+      expect(journal.entries.map((entry) => entry.entry.kind)).toEqual(['timer', 'fired', 'call', 'result'])
+      expect(journal.entries.find((entry) => entry.entry.kind === 'result')?.entry).toMatchObject({
+        status: 'succeeded',
+        output: {result: {temperature: 22}},
+      })
+
+      // A later turn may replace the session-level plan; both completed plans remain attached to
+      // their own runs for transcript history, with distinct settle moments and owners.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Confirm that report.'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+      expect(parentRequest).toBe(9)
+      const laterRoots = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId: createdSession.sessionId}}),
+      )
+      if (laterRoots._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(laterRoots.runs).toHaveLength(2)
+      expect(laterRoots.runs[0]?.plan).toMatchObject({
+        ownerRunId: laterRoots.runs[0]!.id,
+        title: 'Follow-up',
+      })
+      expect(laterRoots.runs[1]?.plan).toMatchObject({
+        ownerRunId: roots.runs[0]!.id,
+        title: 'Madrid weather check',
+      })
+      expect(laterRoots.runs[0]?.plan?.settledAt).toEqual(expect.any(Number))
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
   test('sessions never stay "Untitled session": placeholder titles normalize away and heal', async () => {
     // Eric's live repro: the desktop created sessions with the literal display placeholder as a
     // stored title, so the DB was never "untitled" — and a model that parks or just skips

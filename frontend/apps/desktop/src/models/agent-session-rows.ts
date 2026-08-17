@@ -73,11 +73,11 @@ function isPlanFullySettled(plan: RunPlan | undefined): boolean {
 /**
  * A moment in the log where a run's story could have finished being told.
  *
- * Only one thing qualifies: a delivered typed result. The plan verb deliberately writes no tool
- * rows — the checklist is session state, rendered as the card rather than as conversation — so there
- * is nothing in the transcript to scan for it, and the server stamps `RunPlan.settledAt` instead.
+ * A delivered typed result or delegation result closes the orchestration it represents. The plan
+ * verb deliberately writes no tool rows — the checklist is session state, rendered as the card
+ * rather than as conversation — so the server stamps `RunPlan.settledAt` for that path instead.
  */
-type SettleMarker = {kind: 'typed-result'; at: number}
+type SettleMarker = {kind: 'typed-result' | 'delegation-result'; at: number}
 
 function settleMarkers(rows: AgentSessionChatRow[]): SettleMarker[] {
   const markers: SettleMarker[] = []
@@ -85,8 +85,15 @@ function settleMarkers(rows: AgentSessionChatRow[]): SettleMarker[] {
     if (row.kind !== 'message' || row.createdAt === undefined) continue
     for (const part of row.message.parts ?? []) {
       if (part.type !== 'tool') continue
+      const completedAt = part.completedAt ?? row.createdAt
       if (part.name === 'return_result' && !part.isError && (part.result !== undefined || part.rawOutput)) {
-        markers.push({kind: 'typed-result', at: row.createdAt})
+        markers.push({kind: 'typed-result', at: completedAt})
+      }
+      if (
+        (part.name === 'delegate' || part.name === 'sub_session' || part.name === 'run_workflow') &&
+        (part.result !== undefined || part.rawOutput)
+      ) {
+        markers.push({kind: 'delegation-result', at: completedAt})
       }
     }
   }
@@ -121,10 +128,19 @@ export function runStoryFrozenAt(
   context: {markers?: SettleMarker[]; plan?: RunPlan} = {},
 ): number | undefined {
   const {markers = [], plan} = context
-  // A finished run is judged on what it carried itself. The session's checklist may have moved on to
-  // a later turn, and lending it to an old plain turn would invent an orchestration that never was.
+  // A server-stamped session plan still belongs to its run after that run finishes. Prefer the
+  // plan's settle moment so its completed checklist lands before the closing assistant answer,
+  // rather than using finishedAt (which is necessarily a few milliseconds after that answer).
   if (TERMINAL_RUN_STATUSES.has(run.status)) {
-    return isOrchestrationRecord(run, run.plan) ? run.finishedAt ?? run.updatedAt : undefined
+    const ownedPlan = plan?.ownerRunId === run.id ? plan : run.plan
+    if (!isOrchestrationRecord(run, ownedPlan)) return undefined
+    if (ownedPlan?.ownerRunId === run.id && isPlanFullySettled(ownedPlan) && ownedPlan.settledAt !== undefined) {
+      return ownedPlan.settledAt
+    }
+    const delegationResult = markers
+      .filter((marker) => marker.kind === 'delegation-result' && runOwnsMoment(run, marker.at))
+      .at(-1)
+    return delegationResult?.at ?? run.finishedAt ?? run.updatedAt
   }
   // A parked run is the one thing on screen that may be waiting on YOU — for an answer, for a
   // budget. Whatever its checklist says, that story is not over, and the place to answer it is the
@@ -157,9 +173,13 @@ export function interleaveRunRecords(
   const markers = settleMarkers(rows)
   const records = runs
     .flatMap((run, index) => {
-      // A finished run is read from what it carried itself; only a live newest run borrows the
-      // session's checklist, which is the one the pinned card would be showing on it right now.
-      const borrowsSessionPlan = index === 0 && !TERMINAL_RUN_STATUSES.has(run.status) && !run.plan
+      // New plans name their owning run, so the completed checklist stays with the correct turn
+      // after it ends. Legacy unstamped plans retain the old live-newest fallback, but are never
+      // lent to a finished run where ownership would only be a guess.
+      const ownsSessionPlan = sessionPlan?.ownerRunId === run.id
+      const borrowsLegacyLivePlan =
+        index === 0 && !TERMINAL_RUN_STATUSES.has(run.status) && !run.plan && !sessionPlan?.ownerRunId
+      const borrowsSessionPlan = !run.plan && (ownsSessionPlan || borrowsLegacyLivePlan)
       const plan = borrowsSessionPlan ? sessionPlan : run.plan
       const frozenAt = runStoryFrozenAt(run, {markers, plan})
       if (frozenAt === undefined) return []
@@ -461,6 +481,7 @@ export function buildAgentSessionChatRows(
         result: resultText,
         rawOutput: payload.output,
         ...(explicitResultActor ? {actor: explicitResultActor} : {}),
+        completedAt: event.createdAt,
         ...(meta ? {meta} : {}),
         ...(payload.error ? {isError: true} : {}),
       }

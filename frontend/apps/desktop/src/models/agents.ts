@@ -9,6 +9,7 @@ import {
   type AgentDefinition,
   type AgentInfo,
   type AgentMessageBlock,
+  type AgentToolInput,
   type AgentRunActivity,
   type AgentRunUsage,
   type AgentTriggerInput,
@@ -1129,6 +1130,48 @@ export function useAgentTools(
     refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
+  })
+}
+
+/** Creates, edits, or atomically renames an authored tool document. */
+export function useSaveAgentTool(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({
+      agentId,
+      tool,
+      previousName,
+    }: {
+      agentId: string
+      tool: AgentToolInput
+      previousName?: string
+    }) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'SaveAgentTool', agentId, tool, ...(previousName ? {previousName} : {})},
+      })
+      if (res._ !== 'SaveAgentToolResponse') throw new Error('Unexpected SaveAgentTool response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'tools'])
+    },
+  })
+}
+
+/** Permanently deletes an authored tool document. */
+export function useDeleteAgentTool(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, name}: {agentId: string; name: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgentTool', agentId, name}})
+      if (res._ !== 'DeleteAgentToolResponse') throw new Error('Unexpected DeleteAgentTool response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents', 'tools'])
+    },
   })
 }
 

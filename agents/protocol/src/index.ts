@@ -158,6 +158,8 @@ export type UnsignedAgentAction =
   | DeleteAgentTrigger
   | ListAgentMemory
   | ListAgentTools
+  | SaveAgentTool
+  | DeleteAgentTool
   | ReadAgentMemoryFile
   | WriteAgentMemoryFile
   | DeleteAgentMemoryFile
@@ -512,6 +514,33 @@ export type ListAgentMemory = {
 export type ListAgentTools = {
   _: 'ListAgentTools'
   agentId: string
+}
+
+/** Every editable field in an authored lambda tool document. */
+export type AgentToolInput = {
+  name: string
+  summary?: string
+  description: string
+  input: Record<string, unknown>
+  output?: Record<string, unknown>
+  source: string
+  runtime: 'typescript' | 'python'
+}
+
+/** Creates or updates an authored tool, optionally renaming the previous document atomically. */
+export type SaveAgentTool = {
+  _: 'SaveAgentTool'
+  agentId: string
+  tool: AgentToolInput
+  /** Existing authored-tool name when editing; omit when creating. */
+  previousName?: string
+}
+
+/** Permanently deletes one authored tool document. */
+export type DeleteAgentTool = {
+  _: 'DeleteAgentTool'
+  agentId: string
+  name: string
 }
 
 /** Reads one file (text or binary) from an agent's memory. */
@@ -922,6 +951,11 @@ export type RunPlanStep = {
 export type RunPlan = {
   title?: string
   steps: RunPlanStep[]
+  /**
+   * Run that owns this session-level plan. Stamped by the server, never accepted from model input.
+   * This lets clients freeze a completed checklist into the correct turn even after that run ends.
+   */
+  ownerRunId?: string
   /**
    * When the last step stopped being able to move — every step done, failed or skipped.
    *
@@ -1474,6 +1508,22 @@ export type ListAgentToolsResponse = {
   tools: AgentToolInfo[]
 }
 
+/** Successful response for `SaveAgentTool`. */
+export type SaveAgentToolResponse = {
+  _: 'SaveAgentToolResponse'
+  agentId: string
+  tool: AgentToolInfo
+}
+
+/** Successful response for `DeleteAgentTool`. */
+export type DeleteAgentToolResponse = {
+  _: 'DeleteAgentToolResponse'
+  agentId: string
+  name: string
+  /** False when the authored tool was already absent. */
+  deleted: boolean
+}
+
 /** Successful response for `ReadAgentMemoryFile`. */
 export type ReadAgentMemoryFileResponse = {
   _: 'ReadAgentMemoryFileResponse'
@@ -1705,6 +1755,8 @@ export type AgentResponse =
   | DeleteAgentTriggerResponse
   | ListAgentMemoryResponse
   | ListAgentToolsResponse
+  | SaveAgentToolResponse
+  | DeleteAgentToolResponse
   | ReadAgentMemoryFileResponse
   | WriteAgentMemoryFileResponse
   | DeleteAgentMemoryFileResponse

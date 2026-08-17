@@ -11,12 +11,86 @@ import {useAgentRunTreeSubscription, useRunTree, type AgentRunTreeLiveState} fro
 import {SessionStatusDot} from '@/components/session-children'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import type {ChatToolPart} from '@/models/chat-parts'
-import {Bot, Check, ChevronDown, ChevronRight, CircleDashed, Loader2, Minus, Workflow, X} from 'lucide-react'
+import {Bot, Check, ChevronDown, ChevronRight, CircleDashed, Clock3, Loader2, Minus, Workflow, X} from 'lucide-react'
 import React, {useMemo, useState} from 'react'
 
 export const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
 
 export const isTerminalRun = (status: RunStatus) => TERMINAL_RUN_STATUSES.has(status)
+
+type RunTimer = {startedAt: number; wakeAt: number}
+
+/** Finds the durable timer currently parking a run, including when the page loaded mid-wait. */
+function activeRunTimer(run: RunInfo, journal: RunJournalEntryInfo[]): RunTimer | undefined {
+  if (run.wait?.reason !== 'timer' || !run.wait.wakeAt) return undefined
+  const timer = [...journal].reverse().find((entry) => {
+    if (entry.runId !== run.id) return false
+    const payload = entry.entry as {kind?: string; wakeAt?: number}
+    return payload.kind === 'timer' && payload.wakeAt === run.wait?.wakeAt
+  })
+  return {startedAt: timer?.createdAt ?? run.updatedAt, wakeAt: run.wait.wakeAt}
+}
+
+function TimerProgress({run, timer, wide = false}: {run: RunInfo; timer: RunTimer; wide?: boolean}) {
+  const [now, setNow] = useState(() => Date.now())
+
+  React.useEffect(() => {
+    setNow(Date.now())
+    const interval = setInterval(() => setNow(Date.now()), 1_000)
+    return () => clearInterval(interval)
+  }, [timer.startedAt, timer.wakeAt])
+
+  const duration = Math.max(1, timer.wakeAt - timer.startedAt)
+  const remaining = Math.max(0, timer.wakeAt - now)
+  const elapsedFraction = Math.min(1, Math.max(0, (now - timer.startedAt) / duration))
+  const totalSeconds = Math.ceil(remaining / 1_000)
+  const hours = Math.floor(totalSeconds / 3_600)
+  const minutes = Math.floor((totalSeconds % 3_600) / 60)
+  const seconds = totalSeconds % 60
+  const remainingLabel =
+    remaining <= 0
+      ? 'Waking…'
+      : hours > 0
+        ? `${hours}h ${String(minutes).padStart(2, '0')}m left`
+        : `${minutes}:${String(seconds).padStart(2, '0')} left`
+  const wakeLabel = new Date(timer.wakeAt).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'})
+
+  return (
+    <div
+      role="timer"
+      data-testid={`run-timer-${run.id}`}
+      aria-label={`${remainingLabel}; scheduled for ${wakeLabel}`}
+      title={`Scheduled for ${wakeLabel}`}
+      className={`border-primary/20 bg-primary/5 text-primary flex min-w-0 items-center gap-1.5 rounded-full border px-2 py-0.5 ${
+        wide ? 'w-full' : 'flex-none'
+      }`}
+    >
+      <Clock3 className="size-3 flex-none" />
+      <span className="flex-none text-[10px] font-medium tabular-nums">{remainingLabel}</span>
+      <span className={`bg-primary/15 h-1 overflow-hidden rounded-full ${wide ? 'min-w-12 flex-1' : 'w-10'}`}>
+        <span
+          className="bg-primary block h-full rounded-full transition-[width] duration-1000 motion-reduce:transition-none"
+          style={{width: `${elapsedFraction * 100}%`}}
+        />
+      </span>
+      {wide ? <span className="text-muted-foreground flex-none text-[10px]">until {wakeLabel}</span> : null}
+    </div>
+  )
+}
+
+/** A live durable timer with a ticking countdown and elapsed-time track. */
+export function RunTimerProgress({
+  run,
+  journal,
+  wide = false,
+}: {
+  run: RunInfo
+  journal: RunJournalEntryInfo[]
+  wide?: boolean
+}) {
+  const timer = useMemo(() => activeRunTimer(run, journal), [journal, run])
+  return timer ? <TimerProgress run={run} timer={timer} wide={wide} /> : null
+}
 
 /** A run's title. Mandatory at creation, so the display layer never invents a label. */
 export function runTitle(run: RunInfo): string {
@@ -174,6 +248,7 @@ function ChildRunPresence({
   activityDetail,
   errorToolPart,
   renderToolPart,
+  timer,
   onOpen,
 }: {
   run: RunInfo
@@ -182,16 +257,18 @@ function ChildRunPresence({
   /** The journaled call the run's terminal error points at, when it points at one. */
   errorToolPart?: ChatToolPart
   renderToolPart?: (part: ChatToolPart) => React.ReactNode
+  timer?: RunTimer
   /** Opens the child's sub-session; surfaced inside the error inspector as the way deeper. */
   onOpen?: () => void
 }) {
-  const KindIcon = run.kind === 'workflow' ? Workflow : Bot
+  const KindIcon = timer ? Clock3 : run.kind === 'workflow' ? Workflow : Bot
   const status = runStatusAsSessionStatus(run.status)
   return (
     <>
       {/* A stale "still running" child under a finished parent gets the quiet dot, never the pulse. */}
       <SessionStatusDot status={status === 'streaming' && !live ? 'idle' : status} className="size-2 flex-none" />
       <KindIcon className="text-muted-foreground size-3 flex-none" />
+      {timer ? <TimerProgress run={run} timer={timer} /> : null}
       {live && activityDetail ? (
         <span className="text-muted-foreground min-w-0 flex-1 truncate text-[10px]">{activityDetail}</span>
       ) : null}
@@ -365,6 +442,7 @@ export function PlanStepRow({
   activityDetail,
   errorToolPart,
   renderToolPart,
+  timer,
   onOpen,
   onCancel,
   cancelPending,
@@ -378,6 +456,7 @@ export function PlanStepRow({
   /** The journaled call the child's terminal error points at, for the error inspector. */
   errorToolPart?: ChatToolPart
   renderToolPart?: (part: ChatToolPart) => React.ReactNode
+  timer?: RunTimer
   onOpen?: () => void
   onCancel?: () => void
   cancelPending?: boolean
@@ -411,6 +490,7 @@ export function PlanStepRow({
           activityDetail={activityDetail}
           errorToolPart={errorToolPart}
           renderToolPart={renderToolPart}
+          timer={timer}
           onOpen={onOpen}
         />
       ) : null}
@@ -445,6 +525,7 @@ export function RunChildRow({
   activityDetail,
   errorToolPart,
   renderToolPart,
+  timer,
   onOpen,
   onCancel,
   cancelPending,
@@ -455,6 +536,7 @@ export function RunChildRow({
   /** The journaled call the run's terminal error points at, for the error inspector. */
   errorToolPart?: ChatToolPart
   renderToolPart?: (part: ChatToolPart) => React.ReactNode
+  timer?: RunTimer
   onOpen?: () => void
   onCancel?: () => void
   cancelPending?: boolean
@@ -471,6 +553,7 @@ export function RunChildRow({
         activityDetail={activityDetail}
         errorToolPart={errorToolPart}
         renderToolPart={renderToolPart}
+        timer={timer}
         onOpen={onOpen}
       />
     </>
@@ -562,6 +645,8 @@ export function RunWorkHierarchy({
     return journalToolParts(journal.filter((entry) => own.has(entry.runId)))
   }, [journal, run.id, childRuns])
 
+  const timerFor = (child: RunInfo): RunTimer | undefined => activeRunTimer(child, journal)
+
   // The journaled call a failed run's terminal error points at (`error.callSeq`), so its error
   // inspector can show the call — name, arguments, result — instead of only the message.
   const failingToolPart = (child: RunInfo): ChatToolPart | undefined => {
@@ -580,6 +665,7 @@ export function RunWorkHierarchy({
       activityDetail={liveState.activity[child.id]?.detail}
       errorToolPart={failingToolPart(child)}
       renderToolPart={renderToolPart}
+      timer={timerFor(child)}
       onOpen={child.sessionId && onOpenSession ? () => onOpenSession(child.sessionId!, child.agentId) : undefined}
       onCancel={onCancelRun ? () => onCancelRun(child.id) : undefined}
       cancelPending={cancelPending}
@@ -620,6 +706,7 @@ export function RunWorkHierarchy({
                 activityDetail={primary ? liveState.activity[primary.id]?.detail : undefined}
                 errorToolPart={primary ? failingToolPart(primary) : undefined}
                 renderToolPart={renderToolPart}
+                timer={primary ? timerFor(primary) : undefined}
                 onOpen={
                   primary?.sessionId && onOpenSession
                     ? () => onOpenSession(primary.sessionId!, primary.agentId)

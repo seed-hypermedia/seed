@@ -27,7 +27,7 @@ import {
 } from './tool-summary'
 import {useOpenUrl} from '@/open-url'
 import {useRun, useSessionAttachmentDataUrls, useSessionRuns} from '@/models/agents'
-import {descendantsOf, isTerminalRun, RunWorkHierarchy, useRunTreeView} from '@/pages/agents/run-work'
+import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from '@/pages/agents/run-work'
 import {useAccount} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ParkedRunActions} from '@/pages/agents/run-parked-actions'
@@ -42,6 +42,7 @@ import {
   BookOpenText,
   ChevronDown,
   ChevronRight,
+  Clock3,
   Compass,
   Info,
   Loader2,
@@ -1871,6 +1872,7 @@ function DelegateRunView({
     <div className="flex min-w-0 flex-col gap-2">
       {/* A delegated child can be the thing waiting on you, so it gets the same answer affordance. */}
       <ParkedRunActions run={focus} serverUrl={serverUrl} accountUid={accountUid} />
+      <RunTimerProgress run={focus} journal={liveState.journal} wide />
       <RunWorkHierarchy
         run={focus}
         childRuns={children}
@@ -1955,8 +1957,18 @@ export function ToolCallLine({
   const reportedSessionId = getToolSessionId(item)
   const metadata = getRowToolMetadata(item)
   const render = metadata?.render
-  const Icon = toolIcons[render?.kind || 'generic']
+  const script = isDelegateToolName(item.name) ? getToolString(item.args, 'script') : undefined
+  const isScriptWorkflow = !!script
+  const isTimerWorkflow = !!script && /\bctx\.(?:sleep|minutes|hours)\s*\(/.test(script)
+  const Icon = isTimerWorkflow ? Clock3 : toolIcons[render?.kind || 'generic']
   const isPending = item.result === undefined && item.rawOutput === undefined
+  const rowLabel = isTimerWorkflow
+    ? isPending
+      ? 'Waiting'
+      : 'Waited'
+    : isScriptWorkflow
+      ? 'Workflow'
+      : render?.label || item.name
   // An awaited delegation reports its child only when it finishes — but the child run records the
   // call that started it the moment it spawns, so the row is a way in DURING the work, not after.
   const spawnedChild = useSpawnedChildRun(
@@ -1974,7 +1986,9 @@ export function ToolCallLine({
   const sourceChip = addressSummary?.chip ?? toolRowSourceChip(item)
   const colorClass = item.isError
     ? 'border-destructive/30 bg-destructive/5'
-    : toolColorClasses[render?.color || 'muted']
+    : isTimerWorkflow
+      ? 'border-primary/25 bg-primary/5'
+      : toolColorClasses[render?.color || 'muted']
   const customView = getToolCustomView(item)
   const rowContext = useMemo(
     () => ({serverUrl, accountUid, agentId, sessionId}),
@@ -2024,7 +2038,7 @@ export function ToolCallLine({
             <AddressToolSummary summary={addressSummary} override={item.summaryOverride} />
           ) : (
             <>
-              <span className="shrink-0 font-medium">{render?.label || item.name}</span>
+              <span className="shrink-0 font-medium">{rowLabel}</span>
               {summary ? (
                 childSessionId && serverUrl ? (
                   <ToolRouteLink
@@ -2051,7 +2065,9 @@ export function ToolCallLine({
           {/* One quiet marker of where this came from, then the row's state, then the raw payload. */}
           <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {sourceChip ? <ToolSourceChip>{sourceChip}</ToolSourceChip> : null}
-            {isPending ? <ToolChip>{render?.pendingLabel || 'Running'}</ToolChip> : null}
+            {isPending ? (
+              <ToolChip>{isTimerWorkflow ? 'Scheduled' : render?.pendingLabel || 'Running'}</ToolChip>
+            ) : null}
             {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
             {getFirstToolValue(item.rawOutput, ['dryRun']) === true ? <ToolChip>Dry run</ToolChip> : null}
             <button

@@ -84,4 +84,150 @@ describe('ListAgentTools', () => {
       db.close()
     }
   })
+
+  test('creates, edits, renames, and deletes authored tools without overwriting another document', async () => {
+    const db = new Database(':memory:', {create: true, strict: true})
+    const opened = sqlite.openWithDatabase(db)
+    if (!opened.ok) throw new Error('unexpected schema mismatch')
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-agents-tools-api-'))
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetModelProvider', name: 'openai', provider: {type: 'openai'}},
+        }),
+      )
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Tool editor', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error(`unexpected: ${created._}`)
+      const agentId = created.agentId
+      const original = {
+        name: 'word_count',
+        summary: 'Count words.',
+        description: 'Counts words in a string.',
+        input: {type: 'object', properties: {text: {type: 'string'}}, required: ['text']},
+        output: {type: 'object', properties: {count: {type: 'number'}}},
+        source: 'export default (input) => ({count: input.text.split(/\\s+/).length})',
+        runtime: 'typescript' as const,
+      }
+
+      const saved = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'SaveAgentTool', agentId, tool: original}}),
+      )
+      if (saved._ !== 'SaveAgentToolResponse') throw new Error(`unexpected: ${saved._}`)
+      expect(saved.tool).toMatchObject({name: 'word_count', summary: 'Count words.', kind: 'lambda'})
+      const createdAt = saved.tool.createdAt
+
+      const renamed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SaveAgentTool',
+            agentId,
+            previousName: 'word_count',
+            tool: {
+              ...original,
+              name: 'token_count',
+              summary: 'Count tokens.',
+              description: 'Counts whitespace-delimited tokens.',
+              runtime: 'python',
+              source: 'def main(input):\n    return {"count": len(input["text"].split())}',
+            },
+          },
+        }),
+      )
+      if (renamed._ !== 'SaveAgentToolResponse') throw new Error(`unexpected: ${renamed._}`)
+      expect(renamed.tool).toMatchObject({
+        name: 'token_count',
+        summary: 'Count tokens.',
+        runtime: 'python',
+        createdAt,
+      })
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SaveAgentTool', agentId, tool: {...original, name: 'other_count'}},
+        }),
+      )
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'SaveAgentTool',
+              agentId,
+              previousName: 'token_count',
+              tool: {...original, name: 'other_count'},
+            },
+          }),
+        ),
+      ).rejects.toThrow('already exists')
+
+      const listed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentTools', agentId}}),
+      )
+      if (listed._ !== 'ListAgentToolsResponse') throw new Error(`unexpected: ${listed._}`)
+      expect(listed.tools.some((tool) => tool.name === 'word_count')).toBe(false)
+      expect(listed.tools.filter((tool) => tool.kind === 'lambda').map((tool) => tool.name)).toEqual([
+        'other_count',
+        'token_count',
+      ])
+
+      const deleted = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteAgentTool', agentId, name: 'token_count'}}),
+      )
+      expect(deleted).toEqual({_: 'DeleteAgentToolResponse', agentId, name: 'token_count', deleted: true})
+      const deletedAgain = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteAgentTool', agentId, name: 'token_count'}}),
+      )
+      expect(deletedAgain).toMatchObject({deleted: false})
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {action: {_: 'DeleteAgentTool', agentId, name: 'search'}}),
+        ),
+      ).rejects.toThrow('builtin')
+
+      const reader = blobs.generateNobleKeyPair()
+      const readerAccountId = blobs.principalToString(reader.principal)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'InviteAgentCollaborator', agentId, accountId: readerAccountId, role: 'reader'},
+        }),
+      )
+      await svc.message(await apisvc.createSignedEnvelope(reader, {action: {_: 'AcceptAgentInvite', agentId}}))
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(reader, {action: {_: 'SaveAgentTool', agentId, tool: original}})),
+      ).rejects.toThrow('Write access is required')
+
+      const writer = blobs.generateNobleKeyPair()
+      const writerAccountId = blobs.principalToString(writer.principal)
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'InviteAgentCollaborator', agentId, accountId: writerAccountId, role: 'writer'},
+        }),
+      )
+      await svc.message(await apisvc.createSignedEnvelope(writer, {action: {_: 'AcceptAgentInvite', agentId}}))
+      const writerSaved = await svc.message(
+        await apisvc.createSignedEnvelope(writer, {
+          action: {_: 'SaveAgentTool', agentId, tool: {...original, name: 'shared_tool'}},
+        }),
+      )
+      expect(writerSaved).toMatchObject({_: 'SaveAgentToolResponse', tool: {name: 'shared_tool'}})
+
+      const stranger = blobs.generateNobleKeyPair()
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {action: {_: 'SaveAgentTool', agentId, tool: original}}),
+        ),
+      ).rejects.toThrow('Agent not found')
+    } finally {
+      fs.rmSync(dataDir, {recursive: true, force: true})
+      db.close()
+    }
+  })
 })

@@ -58,6 +58,8 @@ export type ModelProviderAuthMode = NonNullable<AgentsProtocol.ModelProviderConf
 export type ProviderOAuthStatus = AgentsProtocol.ProviderOAuthStatusResponse
 /** One tool document from an agent's ~/tools: a builtin binding or an authored lambda. */
 export type AgentToolInfo = AgentsProtocol.AgentToolInfo
+/** Every editable field submitted when creating or updating an authored tool. */
+export type AgentToolInput = AgentsProtocol.AgentToolInput
 /** One file or directory inside an agent's private memory filesystem. */
 export type AgentMemoryEntry = AgentsProtocol.AgentMemoryEntry
 /** Contents of one agent memory file. */

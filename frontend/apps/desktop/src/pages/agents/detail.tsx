@@ -3,6 +3,7 @@ import {
   type AgentCollaboratorRole,
   type AgentDefinition,
   type AgentToolInfo,
+  type AgentToolInput,
   type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerSource,
@@ -26,11 +27,13 @@ import {
   useCreateAgentTrigger,
   useCreateSigningIdentity,
   useDeleteAgent,
+  useDeleteAgentTool,
   useDeleteAgentTrigger,
   useInviteAgentCollaborator,
   useModelProviders,
   useProviderModels,
   useRemoveAgentCollaborator,
+  useSaveAgentTool,
   useSigningIdentities,
   useUpdateAgent,
   useUpdateAgentTrigger,
@@ -57,6 +60,7 @@ import {
 } from '@shm/ui/components/alert-dialog'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {Textarea} from '@shm/ui/components/textarea'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -64,7 +68,7 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Info, KeyRound, Plus, Trash2, UserPlus, Users, X} from 'lucide-react'
+import {Info, KeyRound, Pencil, Plus, Trash2, UserPlus, Users, X} from 'lucide-react'
 import {HMIcon} from '@shm/ui/hm-icon'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '../../../../../../agents/protocol/src/tool-registry'
@@ -913,78 +917,251 @@ function DeleteAgentDialog({
   )
 }
 
-/**
- * The full document behind an authored lambda tool: contract, source, and content address. The
- * owner reads exactly what the agent wrote for itself.
- */
-function AuthoredToolDialog({input}: {input: {tool: AgentToolInfo}; onClose: () => void}) {
-  const {tool} = input
+/** One create/edit surface for every authored-tool document field. */
+function AuthoredToolDialog({
+  input,
+  onClose,
+}: {
+  input: {
+    serverUrl?: string
+    accountUid: string | null
+    agentId: string
+    tool?: AgentToolInfo
+    readOnly?: boolean
+  }
+  onClose: () => void
+}) {
+  const {tool, readOnly = false} = input
+  const saveTool = useSaveAgentTool(input.serverUrl, input.accountUid)
+  const [name, setName] = useState(tool?.name ?? '')
+  const [summary, setSummary] = useState(tool?.summary ?? '')
+  const [description, setDescription] = useState(tool?.description ?? '')
+  const [runtime, setRuntime] = useState<'typescript' | 'python'>(tool?.runtime ?? 'typescript')
+  const [source, setSource] = useState(tool?.source ?? 'export default async function (input) {\n  return {}\n}\n')
+  const [inputSchema, setInputSchema] = useState(
+    JSON.stringify(tool?.input ?? {type: 'object', properties: {}}, null, 2),
+  )
+  const [outputSchema, setOutputSchema] = useState(tool?.output ? JSON.stringify(tool.output, null, 2) : '')
+
+  async function handleSave(event: React.FormEvent) {
+    event.preventDefault()
+    try {
+      const parsedInput = JSON.parse(inputSchema) as unknown
+      const parsedOutput = outputSchema.trim() ? (JSON.parse(outputSchema) as unknown) : undefined
+      if (!parsedInput || typeof parsedInput !== 'object' || Array.isArray(parsedInput)) {
+        throw new Error('Input schema must be a JSON object')
+      }
+      if (
+        parsedOutput !== undefined &&
+        (!parsedOutput || typeof parsedOutput !== 'object' || Array.isArray(parsedOutput))
+      ) {
+        throw new Error('Output schema must be a JSON object or left blank')
+      }
+      const nextTool: AgentToolInput = {
+        name: name.trim(),
+        ...(summary.trim() ? {summary: summary.trim()} : {}),
+        description,
+        input: parsedInput as Record<string, unknown>,
+        ...(parsedOutput ? {output: parsedOutput as Record<string, unknown>} : {}),
+        source,
+        runtime,
+      }
+      await saveTool.mutateAsync({agentId: input.agentId, tool: nextTool, previousName: tool?.name})
+      toast.success(tool ? 'Tool updated' : 'Tool created')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not save tool')
+    }
+  }
+
   return (
-    <div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
+    <form className="flex max-h-[78vh] w-full max-w-3xl flex-col gap-4 overflow-y-auto" onSubmit={handleSave}>
       <div className="flex flex-col gap-1">
-        <DialogTitle>
-          <span className="font-mono">{tool.name}</span>
-        </DialogTitle>
-        <div className="flex items-center gap-2">
-          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-            {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
-          </span>
-          <SizableText size="xs" color="muted">
-            Updated {formattedDateMedium(new Date(tool.updatedAt))}
-          </SizableText>
-        </div>
+        <DialogTitle>{tool ? 'Edit authored tool' : 'Add authored tool'}</DialogTitle>
+        <DialogDescription>
+          Define the name, model-facing contract, runtime, and executable source. Tool names use lowercase letters,
+          numbers, underscores, and hyphens.
+        </DialogDescription>
       </div>
-      <div className="flex flex-col gap-1">
+
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <label className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <SizableText size="sm" weight="bold">
+            Name
+          </SizableText>
+          <Input
+            className="font-mono"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="weather_lookup"
+            pattern="[a-z][a-z0-9_-]{1,63}"
+            minLength={2}
+            maxLength={64}
+            required
+            disabled={readOnly || saveTool.isLoading}
+            autoFocus={!tool}
+          />
+        </label>
+        <label className="flex flex-col gap-1.5 sm:w-40">
+          <SizableText size="sm" weight="bold">
+            Runtime
+          </SizableText>
+          <select
+            className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+            value={runtime}
+            onChange={(event) => setRuntime(event.target.value === 'python' ? 'python' : 'typescript')}
+            disabled={readOnly || saveTool.isLoading}
+          >
+            <option value="typescript">TypeScript</option>
+            <option value="python">Python</option>
+          </select>
+        </label>
+      </div>
+
+      <label className="flex flex-col gap-1.5">
+        <SizableText size="sm" weight="bold">
+          List summary
+        </SizableText>
+        <Input
+          value={summary}
+          onChange={(event) => setSummary(event.target.value)}
+          placeholder="One short sentence; derived from the description when blank"
+          maxLength={140}
+          disabled={readOnly || saveTool.isLoading}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1.5">
         <SizableText size="sm" weight="bold">
           Description sent to the model
         </SizableText>
-        <SizableText size="sm" color="muted">
-          {tool.description}
-        </SizableText>
-      </div>
-      <div className="flex flex-col gap-1">
+        <Textarea
+          className="min-h-24 resize-y"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          placeholder="Explain what the tool does and when to call it."
+          required
+          disabled={readOnly || saveTool.isLoading}
+        />
+      </label>
+
+      <label className="flex flex-col gap-1.5">
         <SizableText size="sm" weight="bold">
           Source
         </SizableText>
-        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">{tool.source}</pre>
-      </div>
-      <div className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Input schema
-        </SizableText>
-        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
-          {JSON.stringify(tool.input, null, 2)}
-        </pre>
-      </div>
-      {tool.output ? (
-        <div className="flex flex-col gap-1">
+        <Textarea
+          className="min-h-56 resize-y font-mono text-xs"
+          value={source}
+          onChange={(event) => setSource(event.target.value)}
+          spellCheck={false}
+          required
+          disabled={readOnly || saveTool.isLoading}
+        />
+      </label>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="flex min-w-0 flex-col gap-1.5">
           <SizableText size="sm" weight="bold">
-            Output schema
+            Input schema
           </SizableText>
-          <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
-            {JSON.stringify(tool.output, null, 2)}
-          </pre>
+          <Textarea
+            className="min-h-48 resize-y font-mono text-xs"
+            value={inputSchema}
+            onChange={(event) => setInputSchema(event.target.value)}
+            spellCheck={false}
+            required
+            disabled={readOnly || saveTool.isLoading}
+          />
+        </label>
+        <label className="flex min-w-0 flex-col gap-1.5">
+          <SizableText size="sm" weight="bold">
+            Output schema <span className="text-muted-foreground font-normal">(optional)</span>
+          </SizableText>
+          <Textarea
+            className="min-h-48 resize-y font-mono text-xs"
+            value={outputSchema}
+            onChange={(event) => setOutputSchema(event.target.value)}
+            placeholder="Leave blank for any output"
+            spellCheck={false}
+            disabled={readOnly || saveTool.isLoading}
+          />
+        </label>
+      </div>
+
+      {tool ? (
+        <div className="border-border flex min-w-0 flex-col gap-1 border-t pt-3">
+          <SizableText size="xs" color="muted">
+            Current version
+          </SizableText>
+          <button
+            type="button"
+            className="text-muted-foreground hover:text-foreground truncate text-left font-mono text-xs"
+            title="Copy content address"
+            onClick={() => {
+              copyTextToClipboard(tool.cid)
+              toast.success('Content address copied')
+            }}
+          >
+            {tool.cid}
+          </button>
         </div>
       ) : null}
-      <div className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Version
-        </SizableText>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground cursor-pointer truncate text-left font-mono text-xs"
-          title="Copy content address"
-          onClick={() => {
-            copyTextToClipboard(tool.cid)
-            toast.success('Content address copied')
-          }}
-        >
-          {tool.cid}
-        </button>
-        <SizableText size="xs" color="muted">
-          The document's content address — it changes every time the agent rewrites the tool.
-        </SizableText>
+
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onClose}>
+          {readOnly ? 'Close' : 'Cancel'}
+        </Button>
+        {!readOnly ? (
+          <Button type="submit" disabled={saveTool.isLoading}>
+            {saveTool.isLoading ? <Spinner /> : null}
+            {tool ? 'Save changes' : 'Create tool'}
+          </Button>
+        ) : null}
       </div>
+    </form>
+  )
+}
+
+function DeleteAuthoredToolDialog({
+  input,
+  onClose,
+}: {
+  input: {serverUrl?: string; accountUid: string | null; agentId: string; tool: AgentToolInfo}
+  onClose: () => void
+}) {
+  const deleteTool = useDeleteAgentTool(input.serverUrl, input.accountUid)
+
+  async function handleDelete(event: React.MouseEvent<HTMLButtonElement>) {
+    event.preventDefault()
+    try {
+      await deleteTool.mutateAsync({agentId: input.agentId, name: input.tool.name})
+      toast.success('Tool deleted')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not delete tool')
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 rounded-lg p-4">
+      <AlertDialogTitle>Delete authored tool?</AlertDialogTitle>
+      <AlertDialogDescription>
+        This permanently deletes <span className="font-mono">{input.tool.name}</span>. Calls and workflows that refer to
+        this name will stop working. This action cannot be undone.
+      </AlertDialogDescription>
+      <AlertDialogFooter>
+        <AlertDialogCancel asChild>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+        </AlertDialogCancel>
+        <AlertDialogAction asChild>
+          <Button variant="destructive" onClick={(event) => void handleDelete(event)} disabled={deleteTool.isLoading}>
+            <Trash2 className="size-4" />
+            Delete tool
+          </Button>
+        </AlertDialogAction>
+      </AlertDialogFooter>
     </div>
   )
 }
@@ -1100,7 +1277,8 @@ function AgentToolsTab({
   canCreateIdentity?: boolean
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
-  const authoredToolDialog = useAppDialog(AuthoredToolDialog)
+  const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
+  const deleteAuthoredToolDialog = useAppDialog(DeleteAuthoredToolDialog, {isAlert: true})
   const agentTools = useAgentTools(serverUrl, accountUid, agentId)
   const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
@@ -1268,46 +1446,83 @@ function AgentToolsTab({
           )
         })}
       </div>
-      <div className="mt-2">
-        <SizableText weight="bold">Authored tools</SizableText>
-        <SizableText size="sm" color="muted" className="mt-0.5 block">
-          Tools this agent wrote for itself — documents in <span className="font-mono">~/tools</span>. Click one to read
-          its contract and source.
-        </SizableText>
+      <div className="mt-2 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <SizableText weight="bold">Authored tools</SizableText>
+          <SizableText size="sm" color="muted" className="mt-0.5 block">
+            Custom documents in <span className="font-mono">~/tools</span>. Open one to inspect or edit its complete
+            contract and source.
+          </SizableText>
+        </div>
+        {!readOnly ? (
+          <Button
+            size="sm"
+            className="shrink-0"
+            onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId})}
+          >
+            <Plus className="size-4" />
+            Add tool
+          </Button>
+        ) : null}
       </div>
       {authoredTools.length > 0 ? (
         <div className="grid gap-2">
           {authoredTools.map((tool) => (
-            <button
+            <div
               key={tool.name}
-              type="button"
-              className={`border-border bg-card hover:bg-accent/40 flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-left ${
+              className={`border-border bg-card hover:bg-accent/20 flex items-start gap-1 rounded-xl border p-2 ${
                 tool.enabled ? '' : 'opacity-60'
               }`}
-              onClick={() => authoredToolDialog.open({tool})}
             >
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <SizableText size="sm" weight="bold" className="font-mono">
-                    {tool.name}
-                  </SizableText>
-                  <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                    {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
-                  </span>
-                  {!tool.enabled ? (
+              <button
+                type="button"
+                className="hover:bg-accent/40 min-w-0 flex-1 rounded-lg p-2 text-left"
+                onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool, readOnly})}
+              >
+                <div className="flex min-w-0 flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <SizableText size="sm" weight="bold" className="font-mono">
+                      {tool.name}
+                    </SizableText>
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                      Disabled
+                      {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
                     </span>
-                  ) : null}
+                    {!tool.enabled ? (
+                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                        Disabled
+                      </span>
+                    ) : null}
+                  </div>
+                  <SizableText size="sm" color="muted" className="line-clamp-2">
+                    {tool.summary}
+                  </SizableText>
+                  <SizableText size="xs" color="muted">
+                    Updated {formattedDateMedium(new Date(tool.updatedAt))}
+                  </SizableText>
                 </div>
-                <SizableText size="sm" color="muted" className="line-clamp-2">
-                  {tool.summary}
-                </SizableText>
-                <SizableText size="xs" color="muted">
-                  Updated {formattedDateMedium(new Date(tool.updatedAt))}
-                </SizableText>
-              </div>
-            </button>
+              </button>
+              {!readOnly ? (
+                <div className="flex shrink-0 items-center gap-0.5 pt-1">
+                  <Button
+                    variant="ghost"
+                    size="iconSm"
+                    aria-label={`Edit ${tool.name}`}
+                    onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="iconSm"
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label={`Delete ${tool.name}`}
+                    onClick={() => deleteAuthoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           ))}
         </div>
       ) : agentTools.isLoading ? (
@@ -1317,14 +1532,15 @@ function AgentToolsTab({
       ) : (
         <div className="border-border flex flex-col rounded-xl border border-dashed p-4">
           <SizableText size="sm" color="muted">
-            Nothing yet. Ask the agent to write itself a tool — it lands here, versioned by content address, the moment
-            it's saved.
+            Nothing yet. Add a tool here or ask the agent to write one for itself; either way it lands in this list as a
+            versioned document.
           </SizableText>
         </div>
       )}
 
       {toolInfoDialog.content}
       {authoredToolDialog.content}
+      {deleteAuthoredToolDialog.content}
       {enableWhpDialog.content}
 
       {writeEnabled ? (
