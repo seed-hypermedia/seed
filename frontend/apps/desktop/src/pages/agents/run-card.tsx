@@ -24,9 +24,11 @@ import React, {useEffect, useMemo, useRef, useState} from 'react'
  *
  * "Waiting" alone is the least useful thing a card can say about a run that may sit for hours: the
  * question a person has is always WHY, and whether it is on them. Each wait reason answers that —
- * a budget pause and an approval need a human, a sleep and a child do not.
+ * a budget pause and an approval need a human, a sleep does not. A run parked on its children just
+ * keeps its title: the child rows below already show what is running, and a "waiting on N" line
+ * would be one more spinner saying the same thing.
  */
-function parkedLabel(run: RunInfo, childRuns: RunInfo[], doneChildren: number): string {
+function parkedLabel(run: RunInfo): string {
   const wait = run.wait
   if (wait?.reason === 'budget-pause') return wait.label || 'Paused: out of time budget'
   if (wait?.reason === 'event') {
@@ -34,9 +36,6 @@ function parkedLabel(run: RunInfo, childRuns: RunInfo[], doneChildren: number): 
     return `${wait.label || 'Waiting for something to happen'}${until}`
   }
   if (wait?.reason === 'timer' && wait.wakeAt) return `Sleeping until ${formatWakeTime(wait.wakeAt)}`
-  if (childRuns.length) {
-    return `Waiting on ${childRuns.length} sub-session${childRuns.length === 1 ? '' : 's'} — ${doneChildren} done`
-  }
   return runTitle(run)
 }
 
@@ -258,7 +257,6 @@ function RunCardBody({
   const isTerminal = isTerminalRun(run.status)
   const isParked = run.status === 'waiting'
   const progress = liveState.progress[run.id]
-  const doneChildren = childRuns.filter((child) => isTerminalRun(child.status)).length
   const usageTotal = (run.usage?.total ?? 0) + (run.usage?.children?.total ?? 0)
   const planIsComplete =
     !!plan?.steps.length &&
@@ -288,13 +286,9 @@ function RunCardBody({
         {showRunControls ? <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" /> : null}
         <span
           className="min-w-0 flex-1 truncate text-xs font-medium"
-          title={isParked ? parkedLabel(run, childRuns, doneChildren) : undefined}
+          title={isParked ? parkedLabel(run) : undefined}
         >
-          {isParked
-            ? parkedLabel(run, childRuns, doneChildren)
-            : isCompletedTranscript && plan?.title
-              ? plan.title
-              : runTitle(run)}
+          {isParked ? parkedLabel(run) : isCompletedTranscript && plan?.title ? plan.title : runTitle(run)}
         </span>
         {!showRunControls ? null : confirmingCancel ? (
           <span className="flex flex-none items-center gap-1">

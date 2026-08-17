@@ -416,7 +416,7 @@ describe('SessionRunCard (pinned)', () => {
     expect(mockState.cancel).toHaveBeenCalledWith('root-1')
   })
 
-  it('names the sub-sessions a parked run is waiting on', () => {
+  it('keeps the run title while parked on children, without a redundant waiting line', () => {
     mockState.runs = [makeRun({id: 'root-1', status: 'waiting', title: 'Parent turn'})]
     mockState.tree = [
       mockState.runs[0]!,
@@ -424,7 +424,8 @@ describe('SessionRunCard (pinned)', () => {
       makeChild({id: 'child-2', status: 'running', title: 'Two'}),
     ]
     render(<SessionRunCard {...baseProps} />)
-    expect(container.textContent).toContain('Waiting on 2 sub-sessions — 1 done')
+    expect(container.textContent).toContain('Parent turn')
+    expect(container.textContent).not.toContain('Waiting on')
   })
 
   it('cancels one child on the spot, without a confirmation step', () => {
