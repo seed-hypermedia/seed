@@ -151,6 +151,11 @@ Tabs: **Sessions** (default), **Triggers**, **Memory**, **Tools**, **Prompt**, *
   pending invitations and supports role changes, cancellation, and revocation. Readers see the agent in read-only mode;
   writers can edit/interact but cannot manage collaborators or delete the agent.
 
+Shared conversation identity reaches the model as well as the UI. The runtime builds a current member roster with each
+accepted participant's role, stable Seed account ID, and profile display name when resolvable. Every signed human chat
+message is replayed with a runtime-authored `<message_sender>` account prefix, so the agent keeps different people's
+requests and preferences distinct even when a profile is unavailable.
+
 ### Tools tab
 
 Four toggles configure the grant set (`detail.tsx`); verbs and authored tools are not grants:

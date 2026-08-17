@@ -393,7 +393,18 @@ describe('api service', () => {
         markFirstRequestStarted = resolve
       })
       const requestBodies: string[] = []
-      globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url)
+        if (href.includes('/api/Account')) {
+          const accountId = href.includes(ownerAccountId) ? ownerAccountId : collaboratorAccountId
+          return Response.json(
+            serialize({
+              type: 'account',
+              id: unpackHmId(`hm://${accountId}`),
+              metadata: {name: accountId === ownerAccountId ? 'Olivia Owner' : 'Casey Collaborator'},
+            }),
+          )
+        }
         requestBodies.push(String(init?.body))
         const call = requestBodies.length
         if (call === 1) {
@@ -465,8 +476,13 @@ describe('api service', () => {
         .map((event) => event.accountId)
       expect(new Set(collaboratorMessageAudience)).toEqual(new Set([ownerAccountId, collaboratorAccountId]))
       expect(requestBodies).toHaveLength(2)
+      expect(requestBodies[0]).toContain('<conversation_members>')
+      expect(requestBodies[0]).toContain('Olivia Owner')
+      expect(requestBodies[0]).toContain('Casey Collaborator')
+      expect(requestBodies[0]).toContain(`<message_sender>\\n{\\"accountId\\":\\"${ownerAccountId}\\"}`)
       expect(requestBodies[1]).toContain('concurrent_user_messages')
       expect(requestBodies[1]).toContain('Collaborator message')
+      expect(requestBodies[1]).toContain(collaboratorAccountId)
     } finally {
       releaseFirstResponse()
       globalThis.fetch = originalFetch
