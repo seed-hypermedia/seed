@@ -514,13 +514,11 @@ describe('SessionRunCard (pinned)', () => {
         }}
       />,
     )
-    const listWithTitle = Array.from(container.querySelectorAll('div')).find(
-      (div) =>
-        div.textContent?.includes('Build supplement knowledge base') &&
-        div.querySelector('span')?.textContent === 'Build supplement knowledge base',
-    )
-    expect(listWithTitle?.textContent).toContain('Publish Seed docs')
-    expect(listWithTitle?.textContent).toContain('Research supplement knowledge base')
+    // The plan's title is the header's job now, so the checklist is found by its container class.
+    const list = Array.from(container.querySelectorAll('div'))
+      .filter((div) => div.className.includes('gap-0.5'))
+      .find((div) => div.textContent?.includes('Publish Seed docs'))
+    expect(list?.textContent).toContain('Research supplement knowledge base')
   })
 
   it('keeps an unfinished todo list after the run ends, but stops spinning it', () => {

@@ -641,13 +641,14 @@ function RunElapsed({run}: {run: RunInfo}) {
   )
 }
 
-/** The step list, fed by a run's plan or by the session's `update_plan` todo list. */
+/**
+ * The step list, fed by a run's plan or by the session's `update_plan` todo list. Steps only — the
+ * plan's title is the card header's job, and repeating it here (the old all-caps line) showed the
+ * same words twice in one card.
+ */
 function RunPlanSteps({plan, compact, settle = 'live'}: {plan: RunPlan; compact?: boolean; settle?: PlanSettle}) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
-      {plan.title ? (
-        <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
-      ) : null}
       {plan.steps.map((step) => (
         <PlanStepRow key={step.id} step={step} compact={compact} settle={settle} />
       ))}
