@@ -21,6 +21,7 @@
     "@seed-hypermedia/client": "file:../frontend/packages/client"
   },
   "dependencies": {
+    "@jitl/quickjs-singlefile-cjs-release-sync": "0.32.0",
     "@mariozechner/pi-ai": "0.70.6",
     "@mariozechner/pi-coding-agent": "0.70.2",
     "@mozilla/readability": "0.6.0",
@@ -34,7 +35,7 @@
     "lucide-react": "^0.545.0",
     "microsandbox": "0.6.8",
     "multiformats": "^13.4.1",
-    "quickjs-emscripten": "^0.32.0",
+    "quickjs-emscripten-core": "0.32.0",
     "react": "^19",
     "react-dom": "^19",
     "react-router-dom": "^7.13.0",

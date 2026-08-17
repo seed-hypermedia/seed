@@ -14,7 +14,40 @@
  * them (or replays them from the journal), and delivers results back while pumping the VM microtask
  * queue. This supports true `ctx.parallel` fan-out without asyncify.
  */
-import {getQuickJS, type QuickJSContext, type QuickJSRuntime} from 'quickjs-emscripten'
+// The singlefile variant carries the QuickJS wasm embedded in its JS instead of loading
+// `emscripten-module.wasm` from disk at runtime, which no bundled deployment can serve: the
+// Docker image and the compiled desktop binary both bundle main.js away from node_modules, and
+// the wasmfile variant's loader then dies with ENOENT on the missing file.
+import singlefileVariant from '@jitl/quickjs-singlefile-cjs-release-sync'
+import {
+  newQuickJSWASMModuleFromVariant,
+  type QuickJSContext,
+  type QuickJSRuntime,
+  type QuickJSWASMModule,
+} from 'quickjs-emscripten-core'
+
+// Memoized like quickjs-emscripten's getQuickJS() was; newQuickJSWASMModuleFromVariant
+// instantiates a fresh wasm module per call, which no per-run code path should pay for.
+let quickJSModule: Promise<QuickJSWASMModule> | undefined
+const loadQuickJS = () => (quickJSModule ??= newQuickJSWASMModuleFromVariant(singlefileVariant))
+
+/**
+ * Proves the embedded QuickJS wasm instantiates and evaluates in this build. Part of the
+ * packaging selfcheck (`--exec-selfcheck`): a bundling regression that loses the wasm should
+ * fail the image or binary build, not the first delegated script in production.
+ */
+export async function quickjsSelfcheck(): Promise<void> {
+  const QuickJS = await loadQuickJS()
+  const vm = QuickJS.newContext()
+  try {
+    const handle = vm.unwrapResult(vm.evalCode('6 * 7'))
+    const value = vm.dump(handle)
+    handle.dispose()
+    if (value !== 42) throw new Error(`QuickJS selfcheck evaluated to ${String(value)}`)
+  } finally {
+    vm.dispose()
+  }
+}
 import type {RunPlanState} from '@/runs'
 
 /**
@@ -350,7 +383,7 @@ class WorkflowFailure extends Error {
 export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<WorkflowVMOutcome> {
   const fuelMs = adapters.fuelMs ?? DEFAULT_FUEL_MS
   const parkThresholdMs = adapters.timerParkThresholdMs ?? DEFAULT_TIMER_PARK_THRESHOLD_MS
-  const QuickJS = await getQuickJS()
+  const QuickJS = await loadQuickJS()
   const runtime: QuickJSRuntime = QuickJS.newRuntime()
   runtime.setMemoryLimit(adapters.memoryBytes ?? DEFAULT_MEMORY_BYTES)
   runtime.setMaxStackSize(1024 * 1024)
