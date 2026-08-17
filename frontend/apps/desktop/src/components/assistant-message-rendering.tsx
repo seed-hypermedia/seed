@@ -29,6 +29,7 @@ import {useOpenUrl} from '@/open-url'
 import {useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from '@/models/agents'
 import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from '@/pages/agents/run-work'
 import {useAccount} from '@shm/shared/models/entity'
+import {useRouteLink} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ParkedRunActions} from '@/pages/agents/run-parked-actions'
 import {useSelectedAccountId} from '@/selected-account'
@@ -234,15 +235,19 @@ function UserMessageOrigin({meta}: {meta?: SessionEventMeta}) {
   const account = useAccount(meta?.accountId, {subscribe: true, enabled: !!meta?.accountId})
   const metadata = account.data?.metadata
   const label = metadata?.name || meta?.accountId || 'Unknown user'
+  const linkProps = useRouteLink(
+    meta?.accountId ? {key: 'site-profile', id: hmId(meta.accountId), tab: 'profile'} : null,
+  )
 
   return meta?.accountId ? (
-    <div
-      className="ring-border bg-background mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ring-1"
-      title={`${label}\n${meta.accountId}`}
-      aria-label={`Message from ${label}`}
+    <a
+      {...linkProps}
+      className="ring-border bg-background hover:ring-primary/60 mt-0.5 flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full ring-1 transition-shadow"
+      title={label}
+      aria-label={`Open ${label}'s profile`}
     >
       <HMIcon id={hmId(meta.accountId)} name={metadata?.name} icon={metadata?.icon} size={26} />
-    </div>
+    </a>
   ) : (
     <div
       className="ring-border bg-muted text-muted-foreground mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ring-1"
@@ -2021,7 +2026,7 @@ export function ToolCallLine({
 
   return (
     <ToolRowContext.Provider value={rowContext}>
-      <div className={cn('my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs', colorClass)}>
+      <div className={cn('group/toolrow my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs', colorClass)}>
         {/* The whole header row toggles expansion; inner links/buttons stop propagation. */}
         <div
           className="flex min-w-0 cursor-pointer items-center gap-1.5 select-none"
@@ -2092,7 +2097,7 @@ export function ToolCallLine({
                 event.stopPropagation()
                 setDetailsOpen(true)
               }}
-              className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75"
+              className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/toolrow:opacity-100 focus-visible:opacity-100"
             >
               <Info className="size-3" />
             </button>

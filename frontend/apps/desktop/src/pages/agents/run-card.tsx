@@ -304,12 +304,13 @@ function RunCardBody({
 
   return (
     <>
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="group/runhead flex min-w-0 items-center gap-2">
         {showRunControls ? <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" /> : null}
         <span className="min-w-0 flex-1 truncate text-xs font-medium" title={headerTitle}>
           {headerTitle}
         </span>
-        {/* Technical details live behind the same info bubble every tool row uses, live or done. */}
+        {/* Technical details live behind the same info bubble every tool row uses, live or done —
+            and like those, the bubble shows itself only while the row is hovered. */}
         <span className="flex flex-none items-center gap-1.5">
           {isCompletedTranscript && issueCount ? (
             <span className="text-[10px] text-amber-700 dark:text-amber-300">
@@ -321,7 +322,7 @@ function RunCardBody({
             title="Run details"
             aria-label="Run details"
             onClick={() => setDetailsOpen(true)}
-            className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75"
+            className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/runhead:opacity-100 focus-visible:opacity-100"
           >
             <Info className="size-3" />
           </button>
