@@ -1,7 +1,9 @@
 import {defineConfig} from 'tsup'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/hm-types.ts', 'src/vault.ts', 'src/os-keychain.ts', 'src/vault-local.ts'],
+  // Every module gets its own entry so the published `./*` subpath export always
+  // resolves to a real runtime file, not just a stray `.d.ts`.
+  entry: ['src/*.ts', '!src/*.test.ts'],
   format: ['esm'],
   dts: false,
   splitting: true,
