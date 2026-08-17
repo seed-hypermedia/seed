@@ -815,6 +815,15 @@ export class Service {
         return this.#listAgentMemory(accountId, envelope.action.agentId)
       case 'ListAgentTools':
         return this.#listAgentTools(accountId, envelope.action.agentId)
+      case 'SaveAgentTool':
+        return this.#saveAgentTool(
+          accountId,
+          envelope.action.agentId,
+          envelope.action.tool,
+          envelope.action.previousName,
+        )
+      case 'DeleteAgentTool':
+        return this.#deleteAgentTool(accountId, envelope.action.agentId, envelope.action.name)
       case 'ReadAgentMemoryFile':
         return this.#readAgentMemoryFile(accountId, envelope.action.agentId, envelope.action.path)
       case 'WriteAgentMemoryFile':
@@ -976,6 +985,8 @@ export class Service {
       case 'ReadAgentMemoryFile':
         return fromAgent(action.agentId)
       case 'UpdateAgent':
+      case 'SaveAgentTool':
+      case 'DeleteAgentTool':
       case 'WriteAgentMemoryFile':
       case 'DeleteAgentMemoryFile':
       case 'DownloadAgentMemoryFile':
@@ -2172,6 +2183,92 @@ export class Service {
     return {_: 'ListAgentToolsResponse', agentId, tools}
   }
 
+  #saveAgentTool(
+    accountId: string,
+    agentId: string,
+    tool: api.AgentToolInput,
+    previousName?: string,
+  ): api.SaveAgentToolResponse {
+    if (!this.#getAgentInfo(accountId, agentId)) throw new APIError(404, 'Agent not found')
+    const normalizedPreviousName =
+      previousName === undefined
+        ? undefined
+        : normalizeBoundedString(previousName, 'Previous tool name', MAX_NAME_BYTES)
+    const normalizedTool = {
+      ...tool,
+      name: normalizeBoundedString(tool.name, 'Tool name', MAX_NAME_BYTES),
+    }
+
+    try {
+      const saved = this.#db.transaction(() => {
+        const previous = normalizedPreviousName
+          ? toolDocs.getToolDocument(this.#db, accountId, agentId, normalizedPreviousName)
+          : undefined
+        if (normalizedPreviousName && !previous) throw new APIError(404, `Tool "${normalizedPreviousName}" not found`)
+        if (previous?.doc.kind === 'builtin') throw new APIError(400, 'Builtin tools cannot be edited')
+
+        const target = toolDocs.getToolDocument(this.#db, accountId, agentId, normalizedTool.name)
+        if ((!normalizedPreviousName || normalizedTool.name !== normalizedPreviousName) && target) {
+          throw new APIError(409, `A tool named "${normalizedTool.name}" already exists`)
+        }
+
+        let row = toolDocs.saveLambdaToolDocument(this.#db, accountId, agentId, normalizedTool)
+        if (previous && normalizedTool.name !== normalizedPreviousName) {
+          this.#db.run(`UPDATE tool_documents SET created_at = ? WHERE account_id = ? AND agent_id = ? AND name = ?`, [
+            previous.createdAt,
+            accountId,
+            agentId,
+            normalizedTool.name,
+          ])
+          toolDocs.deleteToolDocument(this.#db, accountId, agentId, normalizedPreviousName!)
+          row = toolDocs.getToolDocument(this.#db, accountId, agentId, normalizedTool.name)!
+        }
+        return row
+      })()
+
+      invalidateSpaceIndex(accountId, agentId)
+      this.#emit({type: 'account-change', accountId, reason: 'agent-tools-changed', agentId})
+      return {
+        _: 'SaveAgentToolResponse',
+        agentId,
+        tool: {
+          name: saved.doc.name,
+          kind: 'lambda',
+          summary: saved.doc.summary,
+          description: saved.doc.description,
+          input: saved.doc.input as Record<string, unknown>,
+          output: saved.doc.output as Record<string, unknown> | undefined,
+          source: saved.doc.source,
+          runtime: saved.doc.runtime,
+          cid: saved.cid,
+          enabled: saved.enabled,
+          granted: true,
+          createdAt: saved.createdAt,
+          updatedAt: saved.updatedAt,
+        },
+      }
+    } catch (error) {
+      if (error instanceof toolDocs.ToolDocumentError) throw new APIError(error.status, error.message)
+      throw error
+    }
+  }
+
+  #deleteAgentTool(accountId: string, agentId: string, rawName: string): api.DeleteAgentToolResponse {
+    if (!this.#getAgentInfo(accountId, agentId)) throw new APIError(404, 'Agent not found')
+    const name = normalizeBoundedString(rawName, 'Tool name', MAX_NAME_BYTES)
+    try {
+      const deleted = toolDocs.deleteToolDocument(this.#db, accountId, agentId, name)
+      if (deleted) {
+        invalidateSpaceIndex(accountId, agentId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-tools-changed', agentId})
+      }
+      return {_: 'DeleteAgentToolResponse', agentId, name, deleted}
+    } catch (error) {
+      if (error instanceof toolDocs.ToolDocumentError) throw new APIError(error.status, error.message)
+      throw error
+    }
+  }
+
   #readAgentMemoryFile(accountId: string, agentId: string, filePath: string): api.ReadAgentMemoryFileResponse {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
     const file = withMemoryErrors(() => agentMemory.readMemoryFile(stateDir, filePath))
@@ -2613,10 +2710,13 @@ export class Service {
   }
 
   /** update_plan tool: stores the session's todo snapshot, rendered by the pinned progress card. */
-  #setSessionPlanFromAgent(accountId: string, sessionId: string, raw: unknown): api.SessionInfo {
-    // `normalizeRunPlan` reads only what the model may say, which is why `resolvedBy` cannot be
-    // forged: the runtime's mark is never taken from model input, only carried by the writer below.
-    return this.#writeSessionPlan(accountId, sessionId, normalizeRunPlan(raw))
+  #setSessionPlanFromAgent(accountId: string, sessionId: string, raw: unknown, ownerRunId?: string): api.SessionInfo {
+    // `normalizeRunPlan` reads only what the model may say, which is why `resolvedBy` and
+    // `ownerRunId` cannot be forged: both runtime marks are stamped or carried below.
+    return this.#writeSessionPlan(accountId, sessionId, {
+      ...normalizeRunPlan(raw),
+      ...(ownerRunId ? {ownerRunId} : {}),
+    })
   }
 
   /**
@@ -2628,13 +2728,21 @@ export class Service {
    */
   #writeSessionPlan(accountId: string, sessionId: string, plan: runs.RunPlanState): api.SessionInfo {
     const previous = this.#storedSessionPlan(accountId, sessionId)
-    const stamped = this.#stampPlanSettledAt(previous, this.#carryResolvedBy(previous, plan))
+    const carried = this.#carryResolvedBy(previous, plan)
+    const stamped = this.#stampPlanSettledAt(previous, this.#preserveCompletedPlanOwner(previous, carried))
     const changes = this.#db.run(`UPDATE sessions SET plan_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
       cbor.encode(stamped),
       Date.now(),
       accountId,
       sessionId,
     ]).changes
+    // A completed checklist is transcript history, not merely the session's latest mutable state.
+    // Copy it onto the run that owned it so a later turn can publish a new plan without erasing the
+    // old turn's finished plan card from the scroll.
+    if (stamped.ownerRunId && isPlanFullySettled(stamped)) {
+      const owner = runs.getRun(this.#db, accountId, stamped.ownerRunId)
+      if (owner?.sessionId === sessionId) this.#runQueue.updatePlan(owner.id, stamped)
+    }
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     if (changes > 0) {
@@ -2652,6 +2760,18 @@ export class Service {
       )
       .get(accountId, sessionId)
     return row?.plan_cbor ? cbor.decode<runs.RunPlanState>(row.plan_cbor) : undefined
+  }
+
+  /**
+   * Keeps a closed plan attached to the run that completed it when a later turn only rewrites it.
+   * Stable step ids define continuity; adding/removing/reopening work starts a new owned snapshot.
+   */
+  #preserveCompletedPlanOwner(previous: runs.RunPlanState | undefined, plan: runs.RunPlanState): runs.RunPlanState {
+    if (!previous?.ownerRunId || !isPlanFullySettled(previous) || !isPlanFullySettled(plan)) return plan
+    const previousIds = previous.steps.map((step) => step.id)
+    const sameSteps =
+      previousIds.length === plan.steps.length && previousIds.every((id, index) => id === plan.steps[index]?.id)
+    return sameSteps ? {...plan, ownerRunId: previous.ownerRunId} : plan
   }
 
   /**
@@ -2695,7 +2815,9 @@ export class Service {
       return rest
     }
     const previousSettledAt =
-      previous?.settledAt !== undefined && isPlanFullySettled(previous) ? previous.settledAt : undefined
+      previous?.settledAt !== undefined && previous.ownerRunId === plan.ownerRunId && isPlanFullySettled(previous)
+        ? previous.settledAt
+        : undefined
     return {...plan, settledAt: previousSettledAt ?? Date.now()}
   }
 
@@ -3659,7 +3781,7 @@ export class Service {
     const settled: 'done' | 'failed' = run.status === 'succeeded' ? 'done' : 'failed'
     const steps = plan.steps.map((step) => (step.status === 'running' ? {...step, status: settled} : step))
     if (steps.every((step, index) => step === plan.steps[index])) return
-    this.#setSessionPlanFromAgent(run.accountId, run.sessionId, {...plan, steps})
+    this.#setSessionPlanFromAgent(run.accountId, run.sessionId, {...plan, steps}, run.id)
   }
 
   /**
@@ -4198,6 +4320,10 @@ export class Service {
     hasher.update(source)
     const sourceCid = `sha256:${hasher.digest('hex')}`
     const childRunId = crypto.randomUUID()
+    // A script child is work on the running plan step just like a model child. Stamp the same
+    // durable join so the timer/progress UI lives inside that step instead of appearing again as a
+    // loose workflow row.
+    const step = this.#runningPlanStep(accountId, parentRun, parentSessionId)
     this.#runQueue.enqueue({
       id: childRunId,
       accountId,
@@ -4209,7 +4335,13 @@ export class Service {
       title,
       sourceCid,
       sourceText: source,
-      input: {input: input.input ?? null, parentToolCallId: toolCallId, parentToolName: seedVerbRegistry.delegate.name},
+      input: {
+        input: input.input ?? null,
+        parentToolCallId: toolCallId,
+        parentToolName: seedVerbRegistry.delegate.name,
+        ...(step ? {planStepLabel: step.label} : {}),
+        ...(step?.id ? {planStepId: step.id} : {}),
+      },
       queue: 'background',
       maxAttempts: 1,
     })
@@ -4318,11 +4450,18 @@ export class Service {
     if (!agent) return {type: 'failed', error: {code: 'config-error', message: 'Agent not found'}}
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const codeExecAvailable = (await this.#codeExec.availability()).available
-    // Scripts always hold the read/write verbs; definition.tools narrows only the callable set.
+    // Scripts always hold the read/write verbs; definition.tools narrows only the built-in
+    // callable set. Enabled authored tools are callable too — the same execute grant and runtime
+    // checks as a chat `call` still apply inside executeLambdaTool.
+    const authoredTools = toolDocs
+      .listToolDocuments(this.#db, run.accountId, run.agentId)
+      .filter((row) => row.enabled && row.doc.kind === 'lambda')
+      .map((row) => row.doc.name)
     const allowedTools = new Set([
       seedVerbRegistry.read.name,
       seedVerbRegistry.write.name,
       ...enabledCallableTools(definition, codeExecAvailable),
+      ...authoredTools,
     ])
     const stateDir = this.#agentMemoryStateDir(run.accountId, run.agentId)
     const partialId = crypto.randomUUID()
@@ -4456,9 +4595,10 @@ export class Service {
           toolCallCounter += 1
           emitRunPartial({activity: {phase: 'tool', toolName: tool, ...(description ? {detail: description} : {})}})
           try {
-            // Callable tools (search, web_search, execute, …) have no standalone provider tool —
-            // scripts reach them through the same call-verb dispatch the model uses.
-            if (piToolContext.callableTools.includes(name)) {
+            // Callable tools (search, web_search, execute, …) and authored lambdas have no
+            // standalone provider tool — scripts reach both through the same call-verb dispatch
+            // the model uses. The authored name was admitted into allowedTools above.
+            if (piToolContext.callableTools.includes(name) || authoredTools.includes(name)) {
               const result = await executeCallVerb(
                 piToolContext,
                 {tool: name, input},
@@ -4885,7 +5025,7 @@ export class Service {
               outputTail: progress.outputTail,
             },
           }),
-        setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan),
+        setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan, run?.id),
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
         callableTools: enabledCallables,
         publishEnabled: publishGrantEnabled(definition),

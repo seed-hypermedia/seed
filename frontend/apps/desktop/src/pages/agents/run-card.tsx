@@ -5,6 +5,7 @@ import {
   RunWorkHierarchy,
   PlanStepRow,
   RunErrorChip,
+  RunTimerProgress,
   descendantsOf,
   isTerminalRun,
   journalToolParts,
@@ -212,6 +213,7 @@ export function RunRecordCard({
         onOpenSession={onOpenSession}
         onCancelRun={(id) => cancelRun.mutate(id)}
         cancelPending={cancelRun.isPending}
+        transcript
       />
     </div>
   )
@@ -234,6 +236,7 @@ function RunCardBody({
   onCancelRun,
   cancelPending,
   readOnly = false,
+  transcript = false,
 }: {
   /** Agent server this run lives on, so its tool rows can link into the agent's own pages. */
   serverUrl: string
@@ -247,13 +250,25 @@ function RunCardBody({
   onCancelRun: (runId: string) => void
   cancelPending: boolean
   readOnly?: boolean
+  /** Completed transcript record: checklist first, implementation details collapsed. */
+  transcript?: boolean
 }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const isTerminal = isTerminalRun(run.status)
   const isParked = run.status === 'waiting'
   const progress = liveState.progress[run.id]
   const doneChildren = childRuns.filter((child) => isTerminalRun(child.status)).length
   const usageTotal = (run.usage?.total ?? 0) + (run.usage?.children?.total ?? 0)
+  const planIsComplete =
+    !!plan?.steps.length &&
+    plan.steps.every((step) => step.status === 'done' || step.status === 'failed' || step.status === 'skipped')
+  const isCompletedTranscript =
+    transcript &&
+    (run.status === 'succeeded' ||
+      (planIsComplete && run.status !== 'failed' && run.status !== 'canceled' && !isParked))
+  const showRunControls = !isTerminal && !isCompletedTranscript && !readOnly
+  const issueCount = childRuns.filter((child) => child.status === 'failed' || child.status === 'canceled').length
   // The journaled call this run's own terminal error points at, for its error inspector.
   const rootErrorToolPart = useMemo(() => {
     const callSeq = run.error?.callSeq
@@ -270,14 +285,18 @@ function RunCardBody({
   return (
     <>
       <div className="flex min-w-0 items-center gap-2">
-        {isTerminal ? null : <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" />}
+        {showRunControls ? <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" /> : null}
         <span
           className="min-w-0 flex-1 truncate text-xs font-medium"
           title={isParked ? parkedLabel(run, childRuns, doneChildren) : undefined}
         >
-          {isParked ? parkedLabel(run, childRuns, doneChildren) : runTitle(run)}
+          {isParked
+            ? parkedLabel(run, childRuns, doneChildren)
+            : isCompletedTranscript && plan?.title
+              ? plan.title
+              : runTitle(run)}
         </span>
-        {isTerminal || readOnly ? null : confirmingCancel ? (
+        {!showRunControls ? null : confirmingCancel ? (
           <span className="flex flex-none items-center gap-1">
             <Button
               size="sm"
@@ -317,6 +336,8 @@ function RunCardBody({
       {/* The run has stopped and is asking; the answer belongs where the question is. */}
       {!readOnly ? <ParkedRunActions run={run} serverUrl={serverUrl} accountUid={accountUid} /> : null}
 
+      <RunTimerProgress run={run} journal={liveState.journal} wide />
+
       {progress && !isTerminal ? (
         <div className="flex flex-col gap-1">
           {progress.label ? <span className="text-muted-foreground text-[11px]">{progress.label}</span> : null}
@@ -331,30 +352,81 @@ function RunCardBody({
         </div>
       ) : null}
 
-      <RunWorkHierarchy
-        run={run}
-        childRuns={childRuns}
-        plan={plan}
-        journal={liveState.journal}
-        liveState={liveState}
-        compact={compact}
-        onOpenSession={onOpenSession}
-        onCancelRun={readOnly ? undefined : onCancelRun}
-        cancelPending={cancelPending}
-        renderToolPart={(part) => (
-          <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
-        )}
-      />
-
-      <RunSourceDrawer runs={[run, ...childRuns]} />
-
-      <RunActivityDrawer journal={liveState.journal} />
+      {isCompletedTranscript ? (
+        <>
+          {plan?.steps.length ? <RunPlanSteps plan={plan} compact={compact} settle="run-finished" /> : null}
+          <div className="border-border flex flex-col border-t pt-1">
+            <button
+              type="button"
+              aria-expanded={detailsOpen}
+              className="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start text-[11px]"
+              onClick={() => setDetailsOpen((current) => !current)}
+            >
+              {detailsOpen ? (
+                <ChevronDown className="size-3 flex-none" />
+              ) : (
+                <ChevronRight className="size-3 flex-none" />
+              )}
+              Run details
+              {issueCount ? (
+                <span className="text-amber-700 dark:text-amber-300">
+                  · {issueCount} recovered issue{issueCount === 1 ? '' : 's'}
+                </span>
+              ) : null}
+            </button>
+            {detailsOpen ? (
+              <div className="mt-1 flex min-w-0 flex-col gap-1.5">
+                <RunWorkHierarchy
+                  run={run}
+                  childRuns={childRuns}
+                  journal={liveState.journal}
+                  liveState={liveState}
+                  compact={compact}
+                  onOpenSession={onOpenSession}
+                  renderToolPart={(part) => (
+                    <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
+                  )}
+                />
+                <RunSourceDrawer runs={[run, ...childRuns]} />
+                <RunActivityDrawer journal={liveState.journal} />
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <>
+          <RunWorkHierarchy
+            run={run}
+            childRuns={childRuns}
+            plan={plan}
+            journal={liveState.journal}
+            liveState={liveState}
+            compact={compact}
+            onOpenSession={onOpenSession}
+            onCancelRun={readOnly ? undefined : onCancelRun}
+            cancelPending={cancelPending}
+            renderToolPart={(part) => (
+              <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
+            )}
+          />
+          <RunSourceDrawer runs={[run, ...childRuns]} />
+          <RunActivityDrawer journal={liveState.journal} />
+        </>
+      )}
 
       {/* Status and elapsed time anchor the card's bottom-left; cost keeps the opposite corner. */}
       <div className="border-border flex items-center gap-2 border-t pt-1">
-        <span className={`flex-none rounded-full border px-1.5 py-0.5 text-[10px] ${runStatusClass(run.status)}`}>
+        <span
+          className={`flex-none rounded-full border px-1.5 py-0.5 text-[10px] ${runStatusClass(
+            isCompletedTranscript && !isTerminal ? 'succeeded' : run.status,
+          )}`}
+        >
           {/* A budget pause is the one wait a person has to end, so it does not hide behind "Waiting". */}
-          {run.wait?.reason === 'budget-pause' ? 'Paused' : RUN_STATUS_LABELS[run.status]}
+          {isCompletedTranscript && !isTerminal
+            ? 'Plan complete'
+            : run.wait?.reason === 'budget-pause'
+              ? 'Paused'
+              : RUN_STATUS_LABELS[run.status]}
         </span>
         <RunElapsed run={run} />
         {!compact && usageTotal > 0 ? (

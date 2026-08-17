@@ -101,6 +101,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  vi.useRealTimers()
 })
 
 const baseProps = {serverUrl: 'http://localhost:3050', accountUid: 'account-1', sessionId: 'session-1'}
@@ -130,6 +131,51 @@ describe('SessionRunCard (pinned)', () => {
     expect(container.textContent).toContain('Research Acme')
     expect(container.textContent).toContain('Research Globex')
     expect(buttonWithText('Cancel')).toBeTruthy()
+  })
+
+  it('shows a parked timer inside its active plan step and visibly counts down', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(10_000)
+    mockState.runs = [makeRun({id: 'root-1', status: 'waiting', title: 'Madrid weather check'})]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeChild({
+        id: 'timer-1',
+        status: 'waiting',
+        kind: 'workflow',
+        title: 'Wait five minutes and recheck Madrid',
+        planStepId: 'wait',
+        updatedAt: 10_000,
+        wait: {reason: 'timer', wakeAt: 310_000},
+      } as never),
+    ]
+    mockState.journal = [
+      {
+        runId: 'timer-1',
+        seq: 1,
+        createdAt: 10_000,
+        entry: {kind: 'timer', callSeq: 1, key: 'sleep|300000', wakeAt: 310_000},
+      },
+    ]
+    render(
+      <SessionRunCard
+        {...baseProps}
+        sessionPlan={{steps: [{id: 'wait', label: 'Wait five minutes and recheck', status: 'running'}]}}
+      />,
+    )
+
+    const timer = container.querySelector('[role="timer"]') as HTMLElement
+    expect(timer).toBeTruthy()
+    expect(timer.textContent).toContain('5:00 left')
+    const fill = timer.querySelector('[style]') as HTMLElement
+    expect(fill.style.width).toBe('0%')
+
+    act(() => vi.advanceTimersByTime(61_000))
+    expect(timer.textContent).toContain('3:59 left')
+    expect(Number.parseFloat(fill.style.width)).toBeGreaterThan(20)
+    // The timer is integrated into the plan row; its workflow title is not repeated below it.
+    expect(container.textContent).not.toContain('Wait five minutes and recheck Madrid')
+    vi.useRealTimers()
   })
 
   it('clears the pinned slot as soon as the transcript has frozen the run, mid-flight', () => {
@@ -521,6 +567,51 @@ describe('RunRecordCard (in the chat bubble)', () => {
     render(<RunRecordCard {...recordProps} plan={{steps: [{id: 's1', label: 'Fan out research', status: 'done'}]}} />)
 
     expect(container.textContent).toContain('Fan out research')
+    // The plan can freeze into the scroll while the agent writes its closing answer. At that point
+    // it is already a completed record, not another live spinner or cancel surface.
+    expect(container.textContent).toContain('Plan complete')
+    expect(container.querySelector('.animate-spin')).toBeNull()
+    expect(buttonWithText('Cancel')).toBeUndefined()
+  })
+
+  it('keeps a successful completed checklist visible and hides recovered issues in run details', () => {
+    mockState.run = makeRun({id: 'root-1', status: 'succeeded', title: 'Long raw user prompt', finishedAt: 5_000})
+    mockState.tree = [
+      mockState.run,
+      makeChild({
+        id: 'failed-timer',
+        status: 'failed',
+        kind: 'workflow',
+        title: 'First timer attempt',
+        error: {code: 'unknown-tool', message: 'Tool was unavailable'},
+      }),
+      makeChild({id: 'good-timer', status: 'succeeded', kind: 'workflow', title: 'Five-minute timer'}),
+    ]
+    render(
+      <RunRecordCard
+        {...recordProps}
+        plan={{
+          title: 'Madrid weather check',
+          steps: [
+            {id: 'create', label: 'Create weather tool', status: 'done'},
+            {id: 'wait', label: 'Wait five minutes and recheck', status: 'done'},
+          ],
+        }}
+      />,
+    )
+
+    expect(container.textContent).toContain('Madrid weather check')
+    expect(container.textContent).toContain('Create weather tool')
+    expect(container.textContent).toContain('Wait five minutes and recheck')
+    expect(container.textContent).toContain('Run details· 1 recovered issue')
+    expect(container.textContent).not.toContain('Tool was unavailable')
+    expect(container.textContent).not.toContain('First timer attempt')
+
+    click(
+      Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Run details')),
+    )
+    expect(container.textContent).toContain('Tool was unavailable')
+    expect(container.textContent).toContain('First timer attempt')
   })
 
   it('shows the workflow module behind a Code drawer', () => {
@@ -534,8 +625,12 @@ describe('RunRecordCard (in the chat bubble)', () => {
     mockState.tree = [mockState.run]
     render(<RunRecordCard {...recordProps} />)
 
-    // Collapsed by default; the source appears once opened.
+    // Completed technical details are collapsed by default; source is still available two
+    // deliberate disclosures deep, so it cannot dominate the successful transcript.
     expect(container.textContent).not.toContain('export default async function')
+    click(
+      Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Run details')),
+    )
     click(buttonWithText('Code'))
     expect(container.textContent).toContain('export default async function (input, ctx) { return 1 }')
   })
@@ -608,6 +703,9 @@ describe('RunRecordCard (in the chat bubble)', () => {
     render(<RunRecordCard {...recordProps} runId="branch-1" />)
 
     expect(container.textContent).toContain('My workflow')
+    click(
+      Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.includes('Run details')),
+    )
     expect(container.textContent).toContain('My child')
     expect(container.textContent).not.toContain('Someone else')
   })

@@ -471,6 +471,35 @@ describe('integrated step rows', () => {
 })
 
 describe('delegate expanded view', () => {
+  it('presents a timer script as elapsed time, not as delegation', () => {
+    mockState.run = makeRun({
+      id: 'timer-run',
+      status: 'succeeded',
+      kind: 'workflow',
+      title: 'Five-minute timer',
+    } as never)
+    render(
+      <ToolCallLine
+        item={{
+          type: 'tool',
+          id: 'timer-call',
+          name: 'delegate',
+          args: {
+            title: 'Wait five minutes and recheck Madrid',
+            script: 'export default async function (input, ctx) { await ctx.sleep(300000) }',
+          },
+          rawOutput: {status: 'succeeded', runId: 'timer-run'},
+        }}
+        serverUrl="https://agents.test"
+        accountUid="account-1"
+      />,
+    )
+
+    expect(container.textContent).toContain('Waited')
+    expect(container.textContent).toContain('Wait five minutes and recheck Madrid')
+    expect(container.textContent).not.toContain('Delegate')
+  })
+
   it('leads with the hierarchy, not the script source', () => {
     mockState.run = makeRun({
       id: 'wf-run-1',

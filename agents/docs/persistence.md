@@ -245,7 +245,9 @@ Important columns:
 - `attempt`, `max_attempts`, `not_before` (backoff/timer wake), `queue` (`interactive` or `background`)
 - `lease_owner`, `lease_expires_at` — crash recovery: the boot sweep requeues rows a dead process left claimed/running
 - `budget_cbor`, `usage_cbor` (persisted per turn boundary, child usage rolled up into the parent on finalize)
-- `plan_cbor` — the run's checklist snapshot, fed by the `plan` verb and by scripts' `ctx.step`/`ctx.plan`
+- `plan_cbor` — a workflow's own `ctx.step`/`ctx.plan` snapshot, or the immutable copy of a session plan written onto
+  its owning agent run when that plan settles; the latter keeps completed checklist history after the session starts a
+  new mutable plan
 
 A run's `output_cbor`/`error_cbor` may also carry `unmetObligations`: what the run committed to and had not delivered
 when it ended — an undelivered typed result (`{kind: 'typed-result'}`) or plan steps left neither finished nor written

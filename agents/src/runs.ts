@@ -76,6 +76,8 @@ export type RunPlanStepState = {
 export type RunPlanState = {
   title?: string
   steps: RunPlanStepState[]
+  /** Session-owning run that published this plan; absent on workflow-local plans and legacy rows. */
+  ownerRunId?: string
   /** When every step last became terminal; cleared if an edit reopens one. See `RunPlan.settledAt`. */
   settledAt?: number
 }

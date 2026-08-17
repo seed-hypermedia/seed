@@ -30,6 +30,8 @@ export type ChatToolPart = {
   args?: Record<string, unknown>
   result?: string
   rawOutput?: unknown
+  /** Durable timestamp of the result event; the row itself stays positioned at the call event. */
+  completedAt?: number
   /** The result was an error (validation failure, tool crash) — `result` holds the message. */
   isError?: boolean
   /** Who ran the tool. The log is shared: 'user' marks verbs the user ran themselves. */
