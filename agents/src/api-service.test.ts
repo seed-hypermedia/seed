@@ -7019,6 +7019,70 @@ describe('obligations: what a run owes before it may end', () => {
     }
   })
 
+  test('a new turn after the checklist settles starts clean: the plan retires to the run that owned it', async () => {
+    // Eric's screenshot: every new request resurrected the finished checklist — the settled plan
+    // was handed back as <plan_state>, the model appended the new steps to it, and the same
+    // finished steps rendered twice (frozen in the scroll AND again on the new turn's card).
+    const originalFetch = globalThis.fetch
+    let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
+    try {
+      const planStateCalls: number[] = []
+      scenario = await runPlanScenario((call, messagesJSON) => {
+        if (messagesJSON.includes('<plan_state>')) planStateCalls.push(call)
+        if (call === 1) {
+          return toolTurn(
+            planCall('t1', [
+              ['s1', 'Do the thing', 'done'],
+              ['s2', 'Do the other thing', 'done'],
+            ]),
+            't1',
+          )
+        }
+        return say(`t${call}`, call === 2 ? 'Both steps are done.' : 'Started fresh.')
+      })
+      // Turn one settled the whole checklist; its durable copy landed on the run that owned it.
+      const firstRuns = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {action: {_: 'ListRuns', sessionId: scenario.sessionId}}),
+      )
+      if (firstRuns._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const firstRunId = firstRuns.runs[0]!.id
+      expect(firstRuns.runs[0]?.plan).toMatchObject({ownerRunId: firstRunId, settledAt: expect.any(Number)})
+
+      await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: scenario.sessionId,
+            content: [{type: 'text', text: 'Now do something new'}],
+          },
+        }),
+      )
+      await scenario.svc.awaitQueueIdle()
+
+      // The finished checklist was never handed back to the model as its live plan...
+      expect(planStateCalls).toEqual([])
+      // ...and the session let go of it, so the new task plans from nothing while the settled
+      // snapshot stays on its own run for the transcript's frozen card.
+      const session = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {action: {_: 'GetSession', sessionId: scenario.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.session.plan).toBeUndefined()
+      const laterRuns = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {action: {_: 'ListRuns', sessionId: scenario.sessionId}}),
+      )
+      if (laterRuns._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      expect(laterRuns.runs).toHaveLength(2)
+      expect(laterRuns.runs.find((run) => run.id === firstRunId)?.plan).toMatchObject({
+        ownerRunId: firstRunId,
+        steps: [{status: 'done'}, {status: 'done'}],
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+      scenario?.close()
+    }
+  })
+
   test('a continued agent that starts new work parks on its child instead of being asked again', async () => {
     const originalFetch = globalThis.fetch
     let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
@@ -7118,7 +7182,9 @@ describe('obligations: what a run owes before it may end', () => {
   test('the moment the last step settles is dated once, holds still, and clears when a step reopens', async () => {
     // The checklist is session state with no durable event of its own, so nothing else in the system
     // can say WHEN it finished — and the card that freezes into the transcript at that moment needs
-    // exactly that. Restamping it on every later write would drag the frozen card down the log.
+    // exactly that. The next user turn retires the finished checklist to the run that owned it, and
+    // the date goes with it, unmoved; a reopened step is a NEW checklist with no settle date of its
+    // own until its own story completes.
     const originalFetch = globalThis.fetch
     let scenario: Awaited<ReturnType<typeof runPlanScenario>> | undefined
     const planOf = async (svc: apisvc.Service, account: blobs.Signer, sessionId: string) => {
@@ -7127,6 +7193,13 @@ describe('obligations: what a run owes before it may end', () => {
       )
       if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
       return session.session.plan
+    }
+    const runsOf = async (svc: apisvc.Service, account: blobs.Signer, sessionId: string) => {
+      const runsList = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListRuns', sessionId}}),
+      )
+      if (runsList._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      return runsList.runs
     }
     try {
       scenario = await runPlanScenario((call) => {
@@ -7149,30 +7222,21 @@ describe('obligations: what a run owes before it may end', () => {
             't3',
           )
         }
-        // Message 2: rewrite the very same settled plan — nothing about it has changed.
-        if (call === 5) {
+        // Message 3: reopen a step. The story is being told again — as a new checklist.
+        if (call === 6) {
           return toolTurn(
-            planCall('t5', [
-              ['s1', 'First', 'done'],
-              ['s2', 'Second', 'done'],
-            ]),
-            't5',
-          )
-        }
-        // Message 3: reopen a step. The story is being told again.
-        if (call === 7) {
-          return toolTurn(
-            planCall('t7', [
+            planCall('t6', [
               ['s1', 'First', 'done'],
               ['s2', 'Second', 'pending'],
             ]),
-            't7',
+            't6',
           )
         }
         return say(`t${call}`, 'Ready.')
       })
       const firstSettledAt = (await planOf(scenario.svc, scenario.account, scenario.sessionId))?.settledAt
       expect(typeof firstSettledAt).toBe('number')
+      const firstRunId = (await runsOf(scenario.svc, scenario.account, scenario.sessionId))[0]!.id
 
       await scenario.svc.message(
         await apisvc.createSignedEnvelope(scenario.account, {
@@ -7184,8 +7248,13 @@ describe('obligations: what a run owes before it may end', () => {
         }),
       )
       await scenario.svc.awaitQueueIdle()
-      // Rewritten, still settled, still the same moment: the date marks the transition, not the write.
-      expect((await planOf(scenario.svc, scenario.account, scenario.sessionId))?.settledAt).toBe(firstSettledAt)
+      // The new turn retired the finished checklist: the session let go of it, and its run keeps
+      // the settled snapshot with the moment unmoved — the date marks the transition, not a write.
+      expect(await planOf(scenario.svc, scenario.account, scenario.sessionId)).toBeUndefined()
+      const retiredOwner = (await runsOf(scenario.svc, scenario.account, scenario.sessionId)).find(
+        (run) => run.id === firstRunId,
+      )
+      expect(retiredOwner?.plan?.settledAt).toBe(firstSettledAt)
 
       await scenario.svc.message(
         await apisvc.createSignedEnvelope(scenario.account, {
@@ -7200,6 +7269,9 @@ describe('obligations: what a run owes before it may end', () => {
       const reopened = await planOf(scenario.svc, scenario.account, scenario.sessionId)
       expect(reopened?.steps.map((step) => step.status)).toEqual(['done', 'pending'])
       expect(reopened?.settledAt).toBeUndefined()
+      // A new checklist for a new turn: owned by its own run, not borrowed from the finished one.
+      expect(reopened?.ownerRunId).toBeDefined()
+      expect(reopened?.ownerRunId).not.toBe(firstRunId)
     } finally {
       globalThis.fetch = originalFetch
       scenario?.close()
@@ -7640,7 +7712,7 @@ describe('obligations that resolve themselves', () => {
     }
   }, 60_000)
 
-  test("the runtime's mark and the settle date both survive a later rewrite of the plan", async () => {
+  test("the runtime's mark and the settle date both survive the model's own rewrite of the plan", async () => {
     const originalFetch = globalThis.fetch
     let scenario: Awaited<ReturnType<typeof startDelegationSession>> | undefined
     try {
@@ -7654,26 +7726,39 @@ describe('obligations that resolve themselves', () => {
             delegateTool(1, 'spawn-1', 'Research', 'You are the researcher.'),
           ])
         }
-        // Turn 3 answers the second user message: rewrite the same settled plan with a new label,
-        // which is what models do to a checklist they are still narrating.
-        if (parentTurn === 3) {
-          return toolTurn('p3', [planTool(0, 'plan-3', [['s1', 'Research the topic thoroughly', 'done']])])
+        // Resumed after the child delivered — same run, and the runtime has already closed the
+        // step. Rewrite it with a new label, which is what models do to a checklist they are
+        // still narrating.
+        if (parentTurn === 2) {
+          return toolTurn('p2', [planTool(0, 'plan-2', [['s1', 'Research the topic thoroughly', 'done']])])
         }
         return say(`p${parentTurn}`, 'Done.')
       })
       await scenario.send('Research the topic')
       await scenario.svc.awaitQueueIdle()
       const first = await scenario.plan()
+      expect(first?.steps[0]?.label).toBe('Research the topic thoroughly')
+      // The rewrite went through: the label is the model's. The mark is not — model input never
+      // carries resolvedBy (it is stamped or carried server-side), so its survival proves the
+      // carry across the model's own write.
       expect(first?.steps[0]?.resolvedBy).toBe('runtime')
       expect(typeof first?.settledAt).toBe('number')
 
       await scenario.send('Say that again')
       await scenario.svc.awaitQueueIdle()
-      const rewritten = await scenario.plan()
-      expect(rewritten?.steps[0]?.label).toBe('Research the topic thoroughly')
-      // A rewrite that leaves the step closed changes neither who closed it nor when.
-      expect(rewritten?.steps[0]?.resolvedBy).toBe('runtime')
-      expect(rewritten?.settledAt).toBe(first?.settledAt)
+      // The next user turn retires the finished checklist to the run that owned it — mark, date,
+      // and rewritten label all intact — and the session starts the new turn with no plan at all.
+      expect(await scenario.plan()).toBeUndefined()
+      const runsList = await scenario.svc.message(
+        await apisvc.createSignedEnvelope(scenario.account, {
+          action: {_: 'ListRuns', sessionId: scenario.sessionId},
+        }),
+      )
+      if (runsList._ !== 'ListRunsResponse') throw new Error('unexpected response')
+      const retired = runsList.runs.map((run) => run.plan).find((plan) => plan !== undefined)
+      expect(retired?.steps[0]?.label).toBe('Research the topic thoroughly')
+      expect(retired?.steps[0]?.resolvedBy).toBe('runtime')
+      expect(retired?.settledAt).toBe(first?.settledAt)
     } finally {
       globalThis.fetch = originalFetch
       scenario?.close()
