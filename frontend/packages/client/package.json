@@ -23,17 +23,18 @@
   "sideEffects": false,
   "publishConfig": {
     "access": "public",
-    "main": "./dist/index.js",
+    "main": "./dist/index.mjs",
     "types": "./dist/index.d.ts",
     "exports": {
       ".": {
-        "import": "./dist/index.js",
-        "types": "./dist/index.d.ts"
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.mjs"
       },
       "./*": {
-        "import": "./dist/*.js",
-        "types": "./dist/*.d.ts"
-      }
+        "types": "./dist/*.d.ts",
+        "import": "./dist/*.mjs"
+      },
+      "./package.json": "./package.json"
     }
   },
   "scripts": {
@@ -48,6 +49,7 @@
     "@ipld/dag-cbor": "^9.2.5",
     "@noble/ciphers": "^2.1.1",
     "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
     "blockstore-core": "^5.0.2",
     "cborg": "^4.5.8",
     "cheerio": "^1.2.0",
@@ -66,7 +68,7 @@
   },
   "peerDependencies": {
     "pdfjs-dist": "^4.2.67",
-    "zod": ">=3.20.0"
+    "zod": "^3.20.0"
   },
   "peerDependenciesMeta": {
     "pdfjs-dist": {

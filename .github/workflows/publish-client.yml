@@ -100,8 +100,50 @@ jobs:
             fi
           fi
 
+      - name: Verify published tarball installs and imports cleanly
+        working-directory: frontend/packages/client
+        run: |
+          set -euo pipefail
+
+          PACK_DIR=$(mktemp -d)
+          INSTALL_DIR=$(mktemp -d)
+          trap 'rm -rf "$PACK_DIR" "$INSTALL_DIR"' EXIT
+
+          # `pnpm pack` applies publishConfig exactly as `pnpm publish` will, so
+          # this exercises the real consumer-facing manifest.
+          pnpm pack --pack-destination "$PACK_DIR"
+          TARBALL_PATH=$(ls "$PACK_DIR"/*.tgz)
+
+          cd "$INSTALL_DIR"
+          npm init -y >/dev/null
+          npm pkg set type=module >/dev/null
+          # No explicit zod: let npm resolve the peer range, so a range that
+          # admits an incompatible major fails here rather than in a user's app.
+          npm install "$TARBALL_PATH" >/dev/null
+
+          # A bare import must resolve without type-stripping the shipped source.
+          node -e "
+            import('@seed-hypermedia/client').then((m) => {
+              if (typeof m.createSeedClient !== 'function') {
+                throw new Error('createSeedClient missing from package entrypoint')
+              }
+              console.log('entrypoint OK, ' + Object.keys(m).length + ' exports')
+            })
+          "
+          # Subpath exports used by third-party sign-in must resolve too.
+          node -e "
+            Promise.all([
+              import('@seed-hypermedia/client/hmauth'),
+              import('@seed-hypermedia/client/blobs'),
+            ]).then(([hmauth, blobs]) => {
+              if (hmauth.DELEGATION_PATH !== '/delegate') throw new Error('bad hmauth subpath export')
+              if (typeof blobs.principalToString !== 'function') throw new Error('bad blobs subpath export')
+              console.log('subpath exports OK')
+            })
+          "
+
       - name: Publish
-        run: npm publish --access public
+        run: pnpm publish --access public --no-git-checks
         working-directory: frontend/packages/client
 
   publish-cli:
