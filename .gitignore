@@ -128,6 +128,19 @@ ops/dist/*
 !ops/dist/deploy.js
 seed-pprof-*
 
+# Security probe output. Probe scripts are tracked; their measurements never are.
+docs/security/probes/**/out/
+
+# Local load-testing script, deliberately untracked: it defaults to ramping real traffic and its
+# own examples point at production hosts. Keep it local rather than shipping a DoS tool in the repo.
+/scripts/crawler-load-test.py
+
+# Stray load-test and metrics-dump scratch files at the repo root. The load script's --out and
+# /debug/metrics dumps land here by default and are not worth committing.
+/run.json
+/m2.txt
+/m3.txt
+
 # Local daemon binaries from ad-hoc Go builds.
 /seed-daemon
 /seed-daemon-*

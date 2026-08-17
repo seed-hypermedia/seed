@@ -243,9 +243,9 @@ func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 // This means if someone creates a Ref to update a private document,
 // the Ref itself becomes public, leaking that the document path exists.
 //
-// This is verified by checking that on a PublicOnly server, a private document's
-// info is not exposed after a Ref is created. If the Ref is public, the document
-// appears in listings even though the underlying doc is private.
+// WARNING: this is NOT a regression test. It asserts nothing and ends in a t.Log, so it passes
+// whether or not the vulnerability exists. VULN-5 is still open. Do not read a green CI run here as
+// coverage. See docs/security/audit-log.md.
 func TestPrivateDocSecurity_CreateRefIgnoresVisibility(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
