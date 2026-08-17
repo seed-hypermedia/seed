@@ -13,6 +13,12 @@ const registered = vi.hoisted(() => ({platform: null as AgentsPlatform | null}))
 const mocks = vi.hoisted(() => ({
   storedKeyPair: null as CryptoKeyPair | null,
   keyPairFromStore: null as CryptoKeyPair | null,
+  appContext: {origin: undefined as string | undefined},
+}))
+
+vi.mock('@shm/shared', () => ({
+  routeToHref: vi.fn(),
+  useUniversalAppContext: () => mocks.appContext,
 }))
 
 vi.mock('@shm/ui/agents/platform', () => ({
@@ -62,6 +68,7 @@ function fakeWindow() {
 beforeEach(() => {
   mocks.storedKeyPair = null
   mocks.keyPairFromStore = null
+  mocks.appContext.origin = undefined
 })
 
 afterEach(() => {
@@ -87,6 +94,22 @@ describe('web agents platform', () => {
     expect(typeof platform.useNavigate).toBe('function')
     expect(typeof platform.useOpenUrl).toBe('function')
     expect(platform.CommentEditor).toBeTruthy()
+  })
+
+  it('points agent hm:// links at this deployment, not the default gateway', async () => {
+    // Without this the shared markdown renderer falls back to DEFAULT_GATEWAY_URL, so a
+    // self-hosted site would hand out hyper.media hrefs for the agent's links.
+    mocks.appContext.origin = 'https://mysite.example'
+    const platform = await loadPlatform()
+
+    expect(platform.useGatewayUrl?.()).toBe('https://mysite.example')
+  })
+
+  it('leaves the gateway unset when the deployment has no origin, so the shared fallback applies', async () => {
+    mocks.appContext.origin = undefined
+    const platform = await loadPlatform()
+
+    expect(platform.useGatewayUrl?.()).toBeUndefined()
   })
 
   it('defaults to the configured Seed agent server', async () => {

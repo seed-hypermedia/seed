@@ -61,6 +61,18 @@ function useWebAgentsOpenUrl() {
 }
 
 /**
+ * Public host for hm:// links the agent writes into chat.
+ *
+ * `origin` is this deployment's own web URL, which is what a reader should land on; without it the
+ * shared renderer falls back to the default gateway and a self-hosted site would hand out
+ * hyper.media hrefs. Only the href is affected — clicks are intercepted and routed in-app either
+ * way — so this matters for hover, copy-link, and open-in-new-tab.
+ */
+function useWebAgentsGatewayUrl(): string | undefined {
+  return useUniversalAppContext().origin ?? undefined
+}
+
+/**
  * The web sign-in affordance for the shared no-account page.
  *
  * `hasAccounts` stays false because the web app has no account picker: an identity either exists
@@ -108,6 +120,7 @@ export function registerWebAgentsPlatform() {
     useAccountUid: () => useLocalKeyPair()?.id ?? null,
     useNavigate: useWebAgentsNavigate,
     useOpenUrl: useWebAgentsOpenUrl,
+    useGatewayUrl: useWebAgentsGatewayUrl,
     useSignInPrompt: useWebSignInPrompt,
     CommentEditor,
     ReadOnlyMessageViewer: React.lazy(() =>
