@@ -683,9 +683,6 @@ export function RunWorkHierarchy({
     <div className="flex min-w-0 flex-col gap-1">
       {plan?.steps.length || unattachedChildren.length ? (
         <div className="flex min-w-0 flex-col gap-0.5">
-          {plan?.title ? (
-            <span className="text-muted-foreground text-[10px] tracking-wide uppercase">{plan.title}</span>
-          ) : null}
           {(plan?.steps ?? []).flatMap((step) => {
             const attached = childrenByStep.get(step.id) ?? []
             // One child: the step IS that child's row — clicking it opens the sub-session.
