@@ -56,6 +56,8 @@ export {
   unpackHmId,
 } from './hm-types'
 export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
+export {toHMSigner, toPrincipalSigner} from './signer'
+export type {AnySigner, PrincipalSigner} from './signer'
 
 export {resolveHypermediaUrl, resolveId} from './hm-resolver'
 export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, ResolvedUrl} from './hm-resolver'

@@ -14,6 +14,9 @@ import {CID} from 'multiformats/cid'
 import * as Digest from 'multiformats/hashes/digest'
 import {sha256 as sha256hasher} from 'multiformats/hashes/sha2'
 import * as cbor from './cbor'
+import {type AnySigner, toPrincipalSigner} from './signer'
+
+export type {AnySigner}
 
 // Ed25519 multicodec (0xed) varint prefix. No existing JS library exports this constant.
 export const ED25519_VARINT_PREFIX = new Uint8Array([0xed, 0x01])
@@ -203,7 +206,7 @@ export interface Profile extends Blob {
 
 /** Create a signed and encoded Profile blob. */
 export async function createProfile(
-  signer: Signer,
+  anySigner: AnySigner,
   opts: {
     /** Display name (required for non-alias profiles). */
     name: string
@@ -216,6 +219,7 @@ export async function createProfile(
   },
   ts: Timestamp,
 ): Promise<Encoded<Profile>> {
+  const signer = await toPrincipalSigner(anySigner)
   opts = {...opts} // Copying opts to avoid mutating the original object.
 
   if (opts.account && principalEqual(opts.account, signer.principal)) {
@@ -242,7 +246,12 @@ export async function createProfile(
 }
 
 /** Create a signed and encoded alias Profile blob (identity redirect). */
-export async function createProfileAlias(signer: Signer, alias: Principal, ts: Timestamp): Promise<Encoded<Profile>> {
+export async function createProfileAlias(
+  anySigner: AnySigner,
+  alias: Principal,
+  ts: Timestamp,
+): Promise<Encoded<Profile>> {
+  const signer = await toPrincipalSigner(anySigner)
   const blob: Profile = {
     type: 'Profile',
     signer: signer.principal,
@@ -271,7 +280,7 @@ export interface Capability extends Blob {
 
 /** Create a signed and encoded Capability blob. */
 export async function createCapability(
-  issuer: Signer,
+  anyIssuer: AnySigner,
   delegate: Principal,
   role: Role,
   ts: Timestamp,
@@ -284,6 +293,16 @@ export async function createCapability(
     audience?: Principal
   } = {},
 ): Promise<Encoded<Capability>> {
+  const issuer = await toPrincipalSigner(anyIssuer)
+
+  // Spreading opts directly would put explicit `undefined` values on the blob,
+  // which the DAG-CBOR encoder writes as null rather than omitting. Only carry
+  // over keys that were actually set.
+  const present: {-readonly [K in 'path' | 'label' | 'audience']?: Capability[K]} = {}
+  if (opts.path !== undefined) present.path = opts.path
+  if (opts.label !== undefined) present.label = opts.label
+  if (opts.audience !== undefined) present.audience = opts.audience
+
   const blob: Capability = {
     type: 'Capability',
     signer: issuer.principal,
@@ -291,7 +310,7 @@ export async function createCapability(
     ts,
     delegate,
     role,
-    ...opts,
+    ...present,
   }
 
   return encode(await sign(issuer, blob))
@@ -312,10 +331,10 @@ export interface Encoded<T extends Blob> extends Decoded<T> {
  * Sign a blob with a Signer.
  * Fills sig with zeros, CBOR-encodes, signs, replaces sig.
  */
-export async function sign<T extends Blob>(signer: Signer, blob: T): Promise<T> {
+export async function sign<T extends Blob>(signer: AnySigner, blob: T): Promise<T> {
   const unsigned = {...blob, sig: new Uint8Array(ED25519_SIGNATURE_SIZE)}
   const data = new Uint8Array(cbor.encode(unsigned))
-  const sig = await signer.sign(data)
+  const sig = await (await toPrincipalSigner(signer)).sign(data)
   return {...unsigned, sig}
 }
 

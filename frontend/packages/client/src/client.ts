@@ -1,15 +1,9 @@
 import {z} from 'zod'
-import {
-  type HMPrepareDocumentChangeInput,
-  type HMRequest,
-  type HMSigner,
-  HMActionSchema,
-  HMRequestSchema,
-  packHmId,
-} from './hm-types'
+import {type HMPrepareDocumentChangeInput, type HMRequest, HMActionSchema, HMRequestSchema, packHmId} from './hm-types'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {deserialize} from 'superjson'
 import {SeedClientError, SeedNetworkError, SeedValidationError} from './errors'
+import type {AnySigner} from './signer'
 import {createDocumentChange, createGenesisChange, signDocumentChange} from './change'
 import {createVersionRef} from './ref'
 
@@ -148,7 +142,7 @@ export type SeedClient = {
   ): Promise<Extract<HMRequest, {key: K}>['output']>
   publish(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
   publishBlobs(input: PublishBlobsRequest['input']): Promise<PublishBlobsRequest['output']>
-  publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void>
+  publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<void>
   baseUrl: string
 }
 
@@ -260,7 +254,7 @@ export function createSeedClient(baseUrl: string, options?: SeedClientOptions): 
     return request<PublishBlobsRequest>('PublishBlobs', input)
   }
 
-  async function publishDocument(input: PublishDocumentInput, signer: HMSigner): Promise<void> {
+  async function publishDocument(input: PublishDocumentInput, signer: AnySigner): Promise<void> {
     // Brand-new home documents need their deterministic genesis change created and
     // signed client-side — the server's PrepareChange cannot bootstrap it (it has no
     // signing key, and requires the genesis to already exist).
