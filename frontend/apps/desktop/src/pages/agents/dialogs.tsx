@@ -604,6 +604,106 @@ function NewAgentAccountDialog({
   )
 }
 
+/** Renames a single agent account and/or uploads a new profile photo. */
+export function EditAgentAccountDialog({
+  onClose,
+  input,
+}: {
+  onClose: () => void
+  input: {serverUrl: string | undefined; selectedAccountId: string | null | undefined; identity: SigningIdentity}
+}) {
+  const {identity} = input
+  const updateIdentity = useUpdateSigningIdentity(input.serverUrl, input.selectedAccountId)
+  const [label, setLabel] = useState(identity.label || identity.accountId || identity.name)
+  const [iconFile, setIconFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const profileId = identity.accountId ? hmId(identity.accountId) : undefined
+
+  // Release the object URL when the dialog unmounts or the preview is replaced.
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
+
+  async function handleSave() {
+    const nextLabel = label.trim()
+    if (!nextLabel) {
+      toast.error('Account name is required')
+      return
+    }
+    try {
+      const icon = iconFile
+        ? {
+            data: new Uint8Array(await iconFile.arrayBuffer()),
+            mimeType: iconFile.type || undefined,
+            fileName: iconFile.name,
+          }
+        : undefined
+      const result = await updateIdentity.mutateAsync({name: identity.name, label: nextLabel, icon})
+      if (result._ !== 'UpdateSigningIdentityResponse') throw new Error('Unexpected update response')
+      toast.success('Agent account updated')
+      onClose()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not update agent account')
+    }
+  }
+
+  return (
+    <div className="flex w-full min-w-0 flex-col gap-4">
+      <DialogTitle>Edit agent account</DialogTitle>
+      <div className="flex items-center gap-3">
+        <label
+          className="group/icon relative shrink-0 cursor-pointer overflow-hidden rounded-full"
+          style={{width: 48, height: 48}}
+          aria-label="Upload account photo"
+        >
+          <input
+            type="file"
+            accept="image/*"
+            disabled={updateIdentity.isLoading}
+            className="absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-default"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (file) {
+                setIconFile(file)
+                setPreviewUrl(URL.createObjectURL(file))
+              }
+            }}
+          />
+          <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-black/40 opacity-0 group-hover/icon:opacity-100">
+            <Camera className="size-4 text-white" />
+          </div>
+          {previewUrl ? (
+            <img src={previewUrl} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <HMIcon id={profileId} name={label} icon={identity.icon} size={48} />
+          )}
+        </label>
+        <Input
+          autoFocus
+          value={label}
+          onChange={(event) => setLabel(event.target.value)}
+          placeholder="Account name"
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') void handleSave()
+          }}
+        />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button onClick={() => void handleSave()} disabled={updateIdentity.isLoading || !label.trim()}>
+          {updateIdentity.isLoading ? <Spinner /> : null}
+          Save
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function DeleteAgentAccountDialog({
   onClose,
   input,

@@ -57,7 +57,9 @@ None of these are stored as events; they exist only in the replay handed to Pi.
 
 - **`<plan_state>`** — `planStateBlock()` (line 414), appended as the last user message of every turn. The plan verb
   writes no transcript event, so this block is how a resumed model can see the checklist it published. Step ids and
-  labels pass through `escapeActionFraming()`.
+  labels pass through `escapeActionFraming()`. A checklist that fully settled under an earlier run is not injected: the
+  new turn retires it to the run that owned it (`#retireSettledSessionPlan`) and starts with no plan, so a new request
+  never resurrects a finished list.
 - **`<background_work_update>`** (line 4431) — pushed when a park-resume leaves the replay ending on an assistant
   message, which Pi cannot continue from. Tells the model its children finished and to act on their results.
 - **`<window_context>`** (line 4914) — the desktop's current window, arriving as `context` content parts and formatted

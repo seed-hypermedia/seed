@@ -160,6 +160,9 @@ Both are the runtime keeping the card honest, and both are visible in the plan s
   runtime does not make.
 - a plan with `settledAt` set has had every step reach a terminal status, which is when the card can leave the pinned
   slot and freeze into the log. An edit that reopens a step clears it.
+- a settled plan disappearing from `SessionInfo.plan` on the next user message is retirement, not loss: the new turn
+  clears the session's snapshot so the model plans the new task from scratch, and the settled copy stays on the run that
+  owned it (`RunInfo.plan`), which is what the frozen transcript card renders.
 
 ## Server unresponsive but process alive (100% CPU)
 

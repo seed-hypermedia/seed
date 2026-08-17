@@ -26,7 +26,7 @@ import {
   type ToolRowSummary,
 } from './tool-summary'
 import {useOpenUrl} from '@/open-url'
-import {useRun, useSessionAttachmentDataUrls, useSessionRuns} from '@/models/agents'
+import {useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from '@/models/agents'
 import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from '@/pages/agents/run-work'
 import {useAccount} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -1818,6 +1818,11 @@ function OpenTranscriptLink({sessionId, serverUrl}: {sessionId: string; serverUr
  * child run itself records the tool call that started it. This walks the same tree the pinned card
  * watches (the session's current turn and everything under it) and picks out the run answering
  * this call. Idle unless asked: a call that already reported its runId never opens these queries.
+ *
+ * The tree stays queryable after the turn ends, because a DETACHED child (`await: false`) outlives
+ * its parent turn by design — its call never records a result, and without this lookup its row
+ * would show "Starting the child…" forever over a child that is alive and working. Only the live
+ * turn also holds the tree socket; a resolved child's own view takes the watching from there.
  */
 function useSpawnedChildRun(
   serverUrl: string | undefined,
@@ -1830,6 +1835,11 @@ function useSpawnedChildRun(
   // The turn making this call is the session's newest root run. A call from an older turn that
   // never recorded a child stays unresolved, and keeps the transcript link as its way in.
   const turn = sessionRuns.data?.[0]
+  const finishedTree = useRunTree(
+    serverUrl,
+    accountUid,
+    enabled && turn && isTerminalRun(turn.status) ? turn.rootRunId : undefined,
+  )
   const {runsById} = useRunTreeView(
     serverUrl ?? '',
     accountUid,
@@ -1837,10 +1847,15 @@ function useSpawnedChildRun(
     turn,
     enabled && !!turn && !isTerminalRun(turn.status),
   )
-  return useMemo(
-    () => Object.values(runsById).find((run) => run.parentToolCallId === toolCallId),
-    [runsById, toolCallId],
-  )
+  return useMemo(() => {
+    const runs = [...(finishedTree.data ?? []), ...Object.values(runsById)]
+    const matches = runs.filter((run) => run.parentToolCallId === toolCallId)
+    if (matches.length === 0) return undefined
+    // A `ctx.continueAsNew` successor carries the same spawning call as the run it continues, so
+    // the chain is all one child here — and the newest link is the one whose story is still going.
+    const continued = new Set(matches.map((run) => run.continuedFromRunId).filter(Boolean))
+    return matches.find((run) => !continued.has(run.id)) ?? matches[matches.length - 1]
+  }, [finishedTree.data, runsById, toolCallId])
 }
 
 /** The child run's own account of its work — the same hierarchy the run card shows. */

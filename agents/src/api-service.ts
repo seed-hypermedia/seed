@@ -2722,7 +2722,8 @@ export class Service {
   }
 
   /**
-   * The one place a session's checklist is written.
+   * The one place a session's checklist is written (#retireSettledSessionPlan is the one place it
+   * is cleared).
    *
    * Everything that must be true of a stored plan happens here, so no caller can write a plan that
    * disagrees with another: the moment it settled is dated, and the runtime's mark on steps it
@@ -2762,6 +2763,32 @@ export class Service {
       )
       .get(accountId, sessionId)
     return row?.plan_cbor ? cbor.decode<runs.RunPlanState>(row.plan_cbor) : undefined
+  }
+
+  /**
+   * Retires a checklist that fully settled under an earlier run, so the next turn starts clean.
+   *
+   * A settled plan's durable home is the run that owned it — #writeSessionPlan copies it there the
+   * moment it settles, which is what keeps the finished card frozen in the transcript. The session's
+   * own snapshot is only the LIVE checklist, and once its story is over, keeping it would hand a
+   * finished list to the next turn: the pinned card would lend it to the new run and the model would
+   * be re-shown steps it has no business reopening. Called only for plans with a stamped owner; the
+   * copy is re-verified here so retiring can never be the write that loses the checklist.
+   */
+  #retireSettledSessionPlan(accountId: string, sessionId: string, plan: runs.RunPlanState): void {
+    if (plan.ownerRunId) {
+      const owner = runs.getRun(this.#db, accountId, plan.ownerRunId)
+      if (owner?.sessionId === sessionId && !owner.plan) this.#runQueue.updatePlan(owner.id, plan)
+    }
+    const changes = this.#db.run(
+      `UPDATE sessions SET plan_cbor = NULL, updated_at = ? WHERE account_id = ? AND id = ?`,
+      [Date.now(), accountId, sessionId],
+    ).changes
+    if (changes === 0) return
+    const session = this.#getSessionInfo(accountId, sessionId)
+    if (!session) return
+    this.#emit({type: 'session-change', accountId, session})
+    this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
   }
 
   /**
@@ -5191,7 +5218,20 @@ export class Service {
     // blind to the very list it published, and cannot close a step it can no longer see. This block
     // is rebuilt from session state on every turn and never stored: not an event, not rendered,
     // just the current truth placed where the model will read it last.
-    const planBlock = planStateBlock(this.#storedSessionPlan(accountId, sessionId))
+    //
+    // Unless the list is over. A checklist that fully settled under an EARLIER run is a finished
+    // story, already frozen into the transcript on the run that owns it. Handing it back as "your
+    // live checklist" invites the model to append the new request's steps to it, so every new task
+    // resurrects the old plan and the same finished steps render twice — once frozen in the
+    // scroll, once again on the new turn's card. The new turn retires it instead and starts clean.
+    const storedPlan = this.#storedSessionPlan(accountId, sessionId)
+    const planIsHistory =
+      storedPlan !== undefined &&
+      isPlanFullySettled(storedPlan) &&
+      storedPlan.ownerRunId !== undefined &&
+      storedPlan.ownerRunId !== run?.id
+    if (planIsHistory) this.#retireSettledSessionPlan(accountId, sessionId, storedPlan)
+    const planBlock = planIsHistory ? undefined : planStateBlock(storedPlan)
     if (planBlock) replayMessages.push({role: 'user', content: planBlock, timestamp: Date.now()})
     piSession.state.messages = replayMessages as never
     let partialId = crypto.randomUUID()

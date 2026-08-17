@@ -86,6 +86,7 @@ import {AgentMemoryTab} from './memory'
 import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
 import {
   AddModelProviderDialog,
+  EditAgentAccountDialog,
   EditAgentNameDialog,
   EnableWindowsHypervisorDialog,
   type AgentAccountRenameStatus,
@@ -1224,29 +1225,13 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
 
 // Reading, memory, publishing, delegation, and plans are verbs — always on, not configuration.
 // What the user toggles here is the CALLABLE tool set dispatched through the call verb.
-const AGENT_TOOL_OPTIONS = [
-  {
-    names: [AGENT_SEARCH_TOOL],
-    title: 'Search Seed content',
-    description: 'Search documents, contacts, and comments across the Hypermedia network.',
-  },
-  {
-    names: [AGENT_WEB_SEARCH_TOOL],
-    title: 'Search the web',
-    description: 'Search the public web. Requires the server’s web search backend.',
-  },
-  {
-    names: [AGENT_EXECUTE_TOOL],
-    title: 'Execute code',
-    description:
-      'Run TypeScript, Python, or shell code in an isolated sandbox with this agent’s memory mounted as its workspace.',
-  },
-  {
-    names: [AGENT_PUBLISH_GRANT],
-    title: 'Publish Seed content',
-    description:
-      'Create and publish signed public documents, comments, and IPFS files under this agent’s signing identities. Private memory writing is always available.',
-  },
+const AGENT_TOOL_OPTIONS: {names: string[]; title: string; infoTool?: string}[] = [
+  {names: [AGENT_SEARCH_TOOL], title: 'Search Seed content'},
+  {names: [AGENT_WEB_SEARCH_TOOL], title: 'Search the web'},
+  {names: [AGENT_EXECUTE_TOOL], title: 'Execute code'},
+  // The publish grant is not a registry tool — publishing runs through the always-on `write`
+  // verb, so its info dialog shows the write verb's model-facing contract.
+  {names: [AGENT_PUBLISH_GRANT], title: 'Publish Seed content', infoTool: 'write'},
 ]
 
 function AgentToolsTab({
@@ -1279,6 +1264,7 @@ function AgentToolsTab({
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
   const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
   const deleteAuthoredToolDialog = useAppDialog(DeleteAuthoredToolDialog, {isAlert: true})
+  const editAccountDialog = useAppDialog(EditAgentAccountDialog)
   const agentTools = useAgentTools(serverUrl, accountUid, agentId)
   const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
@@ -1336,283 +1322,296 @@ function AgentToolsTab({
     }
   }
 
-  const writeEnabled = enabledTools.includes(AGENT_PUBLISH_GRANT)
+  const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
+  const ungrantedIdentities = identities.filter((identity) => !signingKeys.includes(identity.name))
 
   return (
-    <section className="flex min-h-0 max-w-3xl flex-1 flex-col gap-5 overflow-y-auto pr-1">
+    <section className="flex min-h-0 max-w-3xl flex-1 flex-col gap-4 overflow-y-auto pr-1">
       <div>
         <SizableText weight="bold">Tools</SizableText>
       </div>
 
-      <div className="grid gap-3">
+      <div className="grid gap-2">
         {AGENT_TOOL_OPTIONS.map((group) => {
-          const members = group.names.map((name) => ({
-            name,
-            label: getSeedTool(name)?.label ?? name,
-            ...getToolAvailability(name, webCapabilities),
-          }))
-          const groupAvailable = members.some((member) => member.available)
+          const availability = group.names.map((name) => getToolAvailability(name, webCapabilities))
+          const groupAvailable = availability.some((entry) => entry.available)
           // Unavailability the user can fix locally (e.g. turn on a Windows feature): keep the
           // checkbox clickable and answer the click with setup instructions instead of a save.
-          const setupAction = members.find((member) => member.action)?.action
+          const setupAction = availability.find((entry) => entry.action)?.action
+          const note = availability.find((entry) => entry.note)?.note
           const checked = group.names.some((name) => enabledTools.includes(name))
+          const isPublishGroup = group.names.includes(AGENT_PUBLISH_GRANT)
           return (
             <div
               key={group.names.join('|')}
-              className={`border-border bg-card flex flex-col gap-3 rounded-xl border p-4 ${
+              className={`group/tool border-border bg-card flex flex-col gap-3 rounded-xl border px-4 py-3 ${
                 groupAvailable || setupAction ? '' : 'opacity-60'
               }`}
             >
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  className="mt-1 size-4"
-                  checked={checked}
-                  disabled={readOnly || (!groupAvailable && !setupAction)}
-                  onChange={(event) => {
-                    // Enabling an unavailable-but-fixable tool answers with setup help instead of
-                    // a save; disabling always saves so users can still remove the tool.
-                    if (!groupAvailable && event.target.checked) {
-                      if (setupAction === 'enable-whp') enableWhpDialog.open({})
-                      return
-                    }
-                    const nextTools = event.target.checked
-                      ? Array.from(new Set([...enabledTools, ...group.names]))
-                      : enabledTools.filter((item) => !group.names.includes(item))
-                    void saveTools(nextTools, signingKeys)
-                  }}
-                />
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <SizableText size="sm" weight="bold">
-                      {group.title}
-                    </SizableText>
-                    {!groupAvailable ? (
-                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                        {setupAction ? 'Setup required' : 'Unavailable'}
-                      </span>
-                    ) : null}
-                  </div>
-                  <SizableText size="sm" color="muted">
-                    {group.description}
+              <div className="flex items-center gap-3">
+                <label className="flex min-w-0 flex-1 items-center gap-3">
+                  <input
+                    type="checkbox"
+                    className="size-4"
+                    checked={checked}
+                    disabled={readOnly || (!groupAvailable && !setupAction)}
+                    onChange={(event) => {
+                      // Enabling an unavailable-but-fixable tool answers with setup help instead of
+                      // a save; disabling always saves so users can still remove the tool.
+                      if (!groupAvailable && event.target.checked) {
+                        if (setupAction === 'enable-whp') enableWhpDialog.open({})
+                        return
+                      }
+                      const nextTools = event.target.checked
+                        ? Array.from(new Set([...enabledTools, ...group.names]))
+                        : enabledTools.filter((item) => !group.names.includes(item))
+                      void saveTools(nextTools, signingKeys)
+                    }}
+                  />
+                  <SizableText size="sm" weight="bold" className="truncate">
+                    {group.title}
                   </SizableText>
-                </div>
-              </label>
-
-              <div className="border-border/60 ml-7 flex flex-col gap-1.5 border-l pl-3">
-                {members.map((member) => (
-                  <div
-                    key={member.name}
-                    className={`flex items-start gap-2 ${member.available || member.action ? '' : 'opacity-60'}`}
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col">
-                      <div className="flex items-center gap-2">
-                        <SizableText size="xs" weight="bold" className="font-mono">
-                          {member.name}
-                        </SizableText>
-                        {!member.available ? (
-                          <span className="bg-muted text-muted-foreground rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                            {member.action ? 'Setup required' : 'Unavailable'}
-                          </span>
-                        ) : null}
-                      </div>
-                      {member.note ? (
-                        <SizableText size="xs" color="muted">
-                          {member.note}{' '}
-                          {member.action === 'enable-whp' ? (
+                  {!groupAvailable ? (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                      {setupAction ? 'Setup required' : 'Unavailable'}
+                    </span>
+                  ) : null}
+                </label>
+                <Button
+                  variant="ghost"
+                  size="iconSm"
+                  className="opacity-0 group-hover/tool:opacity-100"
+                  aria-label={`About ${group.title}`}
+                  onClick={() => toolInfoDialog.open({toolName: group.infoTool ?? group.names[0]})}
+                >
+                  <Info className="size-3.5" />
+                </Button>
+              </div>
+              {!groupAvailable && note ? (
+                <SizableText size="xs" color="muted" className="pl-7">
+                  {note}{' '}
+                  {setupAction === 'enable-whp' ? (
+                    <button
+                      type="button"
+                      className="text-primary cursor-pointer underline underline-offset-2"
+                      onClick={() => enableWhpDialog.open({})}
+                    >
+                      Show me how
+                    </button>
+                  ) : null}
+                </SizableText>
+              ) : null}
+              {isPublishGroup && checked ? (
+                <div className="border-border/60 flex flex-col gap-2 border-t pt-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <KeyRound className="text-muted-foreground size-4 shrink-0" />
+                    <SizableText size="sm" weight="bold" className="shrink-0">
+                      Author as:
+                    </SizableText>
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pl-1">
+                      {grantedIdentities.map((identity) => {
+                        const displayName = identity.label || identity.accountId || identity.name
+                        return (
+                          <div key={identity.id} className="group/identity flex min-w-0 items-center gap-1.5">
                             <button
                               type="button"
-                              className="text-primary cursor-pointer underline underline-offset-2"
-                              onClick={() => enableWhpDialog.open({})}
+                              className="hover:bg-accent/40 flex min-w-0 cursor-pointer items-center gap-1.5 rounded-full py-0.5 pr-2 pl-0.5 disabled:cursor-default disabled:hover:bg-transparent"
+                              disabled={readOnly}
+                              aria-label={`Edit ${displayName}`}
+                              onClick={() =>
+                                editAccountDialog.open({serverUrl, selectedAccountId: accountUid, identity})
+                              }
                             >
-                              Show me how
+                              {identity.accountId ? (
+                                <HMIcon
+                                  id={hmId(identity.accountId)}
+                                  name={displayName}
+                                  icon={identity.icon}
+                                  size={24}
+                                />
+                              ) : (
+                                <KeyRound className="text-muted-foreground size-4" />
+                              )}
+                              <SizableText size="sm" weight="bold" className="truncate">
+                                {displayName}
+                              </SizableText>
                             </button>
-                          ) : null}
+                            {!readOnly ? (
+                              <Button
+                                variant="ghost"
+                                size="iconSm"
+                                className="text-muted-foreground hover:text-destructive opacity-0 group-hover/identity:opacity-100"
+                                aria-label={`Remove ${displayName}`}
+                                disabled={saving || identitiesLoading}
+                                onClick={() =>
+                                  void saveTools(
+                                    enabledTools,
+                                    signingKeys.filter((name) => name !== identity.name),
+                                  )
+                                }
+                              >
+                                <X className="size-3.5" />
+                              </Button>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                      {grantedIdentities.length === 0 ? (
+                        <SizableText size="sm" color="muted">
+                          None
                         </SizableText>
                       ) : null}
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="iconSm"
-                      aria-label={`About the ${member.label} tool`}
-                      onClick={() => toolInfoDialog.open({toolName: member.name})}
-                    >
-                      <Info className="size-3.5" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      <div className="mt-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <SizableText weight="bold">Authored tools</SizableText>
-          <SizableText size="sm" color="muted" className="mt-0.5 block">
-            Custom documents in <span className="font-mono">~/tools</span>. Open one to inspect or edit its complete
-            contract and source.
-          </SizableText>
-        </div>
-        {!readOnly ? (
-          <Button
-            size="sm"
-            className="shrink-0"
-            onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId})}
-          >
-            <Plus className="size-4" />
-            Add tool
-          </Button>
-        ) : null}
-      </div>
-      {authoredTools.length > 0 ? (
-        <div className="grid gap-2">
-          {authoredTools.map((tool) => (
-            <div
-              key={tool.name}
-              className={`border-border bg-card hover:bg-accent/20 flex items-start gap-1 rounded-xl border p-2 ${
-                tool.enabled ? '' : 'opacity-60'
-              }`}
-            >
-              <button
-                type="button"
-                className="hover:bg-accent/40 min-w-0 flex-1 rounded-lg p-2 text-left"
-                onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool, readOnly})}
-              >
-                <div className="flex min-w-0 flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <SizableText size="sm" weight="bold" className="font-mono">
-                      {tool.name}
-                    </SizableText>
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                      {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
-                    </span>
-                    {!tool.enabled ? (
-                      <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                        Disabled
-                      </span>
+                    {!readOnly ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        {ungrantedIdentities.length > 0 ? (
+                          <OptionsDropdown
+                            ariaLabel="Grant a signing identity"
+                            button={
+                              <Button variant="outline" size="xs" disabled={saving || identitiesLoading}>
+                                Grant
+                              </Button>
+                            }
+                            menuItems={ungrantedIdentities.map((identity) => ({
+                              key: identity.id,
+                              label: identity.label || identity.accountId || identity.name,
+                              icon: identity.accountId ? (
+                                <HMIcon
+                                  id={hmId(identity.accountId)}
+                                  name={identity.label}
+                                  icon={identity.icon}
+                                  size={20}
+                                />
+                              ) : (
+                                <KeyRound className="size-4" />
+                              ),
+                              onClick: () =>
+                                void saveTools(enabledTools, Array.from(new Set([...signingKeys, identity.name]))),
+                            }))}
+                          />
+                        ) : null}
+                        {canCreateIdentity && !showNewIdentityPanel && identities.length > 0 ? (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => setShowNewIdentityPanel(true)}
+                            disabled={saving}
+                          >
+                            <Plus className="size-3.5" />
+                            New Account
+                          </Button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
-                  <SizableText size="sm" color="muted" className="line-clamp-2">
-                    {tool.summary}
-                  </SizableText>
-                  <SizableText size="xs" color="muted">
-                    Updated {formattedDateMedium(new Date(tool.updatedAt))}
-                  </SizableText>
-                </div>
-              </button>
-              {!readOnly ? (
-                <div className="flex shrink-0 items-center gap-0.5 pt-1">
-                  <Button
-                    variant="ghost"
-                    size="iconSm"
-                    aria-label={`Edit ${tool.name}`}
-                    onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="iconSm"
-                    className="text-muted-foreground hover:text-destructive"
-                    aria-label={`Delete ${tool.name}`}
-                    onClick={() => deleteAuthoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                  {!readOnly && canCreateIdentity && !identitiesLoading && identities.length === 0 ? (
+                    <div className="border-border bg-background flex flex-col gap-3 rounded-lg border border-dashed p-3">
+                      <SizableText size="sm" color="muted">
+                        No agent accounts are available on this server yet. Create a new server-side HM account key,
+                        then enable it for this agent.
+                      </SizableText>
+                      <NewAgentAccountPanel
+                        name={newIdentityName}
+                        onNameChange={setNewIdentityName}
+                        onCreate={() => void handleCreateIdentity()}
+                        disabled={saving}
+                      />
+                    </div>
+                  ) : !readOnly && canCreateIdentity && showNewIdentityPanel ? (
+                    <NewAgentAccountPanel
+                      name={newIdentityName}
+                      onNameChange={setNewIdentityName}
+                      onCreate={() => void handleCreateIdentity()}
+                      onCancel={() => setShowNewIdentityPanel(false)}
+                      disabled={saving}
+                    />
+                  ) : null}
                 </div>
               ) : null}
             </div>
-          ))}
+          )
+        })}
+        {authoredTools.map((tool) => (
+          <div
+            key={tool.name}
+            className={`group/tool border-border bg-card hover:bg-accent/20 flex items-center gap-2 rounded-xl border px-4 py-2 ${
+              tool.enabled ? '' : 'opacity-60'
+            }`}
+          >
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left"
+              onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool, readOnly})}
+            >
+              <SizableText size="sm" weight="bold" className="shrink-0 font-mono">
+                {tool.name}
+              </SizableText>
+              <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
+              </span>
+              {!tool.enabled ? (
+                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                  Disabled
+                </span>
+              ) : null}
+              <SizableText size="sm" color="muted" className="truncate">
+                {tool.summary}
+              </SizableText>
+            </button>
+            {!readOnly ? (
+              <div className="flex shrink-0 items-center gap-0.5 opacity-0 group-hover/tool:opacity-100">
+                <Button
+                  variant="ghost"
+                  size="iconSm"
+                  aria-label={`Edit ${tool.name}`}
+                  onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="iconSm"
+                  className="text-muted-foreground hover:text-destructive"
+                  aria-label={`Delete ${tool.name}`}
+                  onClick={() => deleteAuthoredToolDialog.open({serverUrl, accountUid, agentId, tool})}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+              </div>
+            ) : null}
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-3 px-1">
+          {agentTools.isLoading && authoredTools.length === 0 ? (
+            <SizableText size="sm" color="muted">
+              Loading custom tools…
+            </SizableText>
+          ) : authoredTools.length === 0 ? (
+            <SizableText size="sm" color="muted">
+              No custom tools yet — add one here or ask the agent to write one for itself.
+            </SizableText>
+          ) : (
+            <span />
+          )}
+          {!readOnly ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={() => authoredToolDialog.open({serverUrl, accountUid, agentId})}
+            >
+              <Plus className="size-4" />
+              Add tool
+            </Button>
+          ) : null}
         </div>
-      ) : agentTools.isLoading ? (
-        <SizableText size="sm" color="muted">
-          Loading this agent's authored tools…
-        </SizableText>
-      ) : (
-        <div className="border-border flex flex-col rounded-xl border border-dashed p-4">
-          <SizableText size="sm" color="muted">
-            Nothing yet. Add a tool here or ask the agent to write one for itself; either way it lands in this list as a
-            versioned document.
-          </SizableText>
-        </div>
-      )}
+      </div>
 
       {toolInfoDialog.content}
       {authoredToolDialog.content}
       {deleteAuthoredToolDialog.content}
       {enableWhpDialog.content}
-
-      {writeEnabled ? (
-        <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4">
-          <div className="flex items-start gap-3">
-            <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
-              <KeyRound className="size-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <SizableText size="sm" weight="bold">
-                Signing identity
-              </SizableText>
-            </div>
-          </div>
-          <div className="flex flex-col gap-2">
-            {identities.map((identity) => {
-              const checked = signingKeys.includes(identity.name)
-              return (
-                <label
-                  key={identity.id}
-                  className="border-border bg-background flex items-start gap-3 rounded-lg border px-3 py-2"
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-1 size-4"
-                    checked={checked}
-                    disabled={readOnly || saving || identitiesLoading}
-                    onChange={(event) => {
-                      const nextSigningKeys = event.target.checked
-                        ? Array.from(new Set([...signingKeys, identity.name]))
-                        : signingKeys.filter((name) => name !== identity.name)
-                      void saveTools(enabledTools, nextSigningKeys)
-                    }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <SizableText size="sm" weight="bold" className="block truncate">
-                      {identity.label || identity.accountId || identity.name}
-                    </SizableText>
-                  </div>
-                </label>
-              )
-            })}
-          </div>
-          {!readOnly && canCreateIdentity && !identitiesLoading && identities.length === 0 ? (
-            <div className="border-border bg-background flex flex-col gap-3 rounded-lg border border-dashed p-3">
-              <SizableText size="sm" color="muted">
-                No agent accounts are available on this server yet. Create a new server-side HM account key, then enable
-                it for this agent.
-              </SizableText>
-              <NewAgentAccountPanel
-                name={newIdentityName}
-                onNameChange={setNewIdentityName}
-                onCreate={() => void handleCreateIdentity()}
-                disabled={saving}
-              />
-            </div>
-          ) : !readOnly && canCreateIdentity && showNewIdentityPanel ? (
-            <NewAgentAccountPanel
-              name={newIdentityName}
-              onNameChange={setNewIdentityName}
-              onCreate={() => void handleCreateIdentity()}
-              onCancel={() => setShowNewIdentityPanel(false)}
-              disabled={saving}
-            />
-          ) : !readOnly && canCreateIdentity ? (
-            <Button className="w-fit" variant="ghost" onClick={() => setShowNewIdentityPanel(true)} disabled={saving}>
-              <Plus className="size-4" />
-              New Agent Account
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+      {editAccountDialog.content}
 
       {saving ? (
         <SizableText size="xs" color="muted">

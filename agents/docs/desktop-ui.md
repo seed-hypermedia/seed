@@ -158,7 +158,7 @@ requests and preferences distinct even when a profile is unavailable.
 
 ### Tools tab
 
-Four toggles configure the grant set (`detail.tsx`); verbs and authored tools are not grants:
+Four compact toggle rows configure the grant set (`detail.tsx`); verbs and authored tools are not grants:
 
 | toggle               | grant                                                                                |
 | -------------------- | ------------------------------------------------------------------------------------ |
@@ -175,19 +175,23 @@ Availability comes from the server health response via `getToolAvailability()`: 
 explanation when no SearXNG backend is configured, and `execute` greys out when the server reports `codeExec: false` —
 with targeted help when the cause is fixable locally (a Windows Hypervisor Platform prompt for `whp-disabled`, the
 server's own reason otherwise) and a plain "this server does not support code execution" for remote servers. Each row
-has an info (ⓘ) button opening `ToolInfoDialog` with the exact model-facing description and input/output schemas from
-the shared registry.
+has a hover-revealed info (ⓘ) button opening `ToolInfoDialog` with the exact model-facing description and input/output
+schemas from the shared registry — the row itself carries only the checkbox, title, and any availability badge.
 
-Below the toggles, **Authored tools** lists lambda documents from `ListAgentTools`. Each card shows its name, runtime,
-summary, and update time. Writers can add a tool or open the same `AuthoredToolDialog` to edit every document field:
-name, summary, description, runtime, source, input schema, and optional output schema. Renames are atomic and refuse to
-overwrite another tool. A separate destructive confirmation permanently deletes a tool. Readers can inspect the same
-form and content address but do not see create, edit, or delete controls.
+When the Publish grant is enabled, its card expands with a one-row **Author as:** section managing the HM account keys
+the agent may sign with: each granted account inline with its profile avatar (`HMIcon`), name, and an ✕ remove button
+that appears on hover, followed by small **Grant** and **New Account** buttons. Clicking an account opens
+`EditAgentAccountDialog` to rename it or upload a profile photo. Grant is a dropdown of server accounts not yet granted
+to this agent; New Account opens the workflow that generates a server-side key, publishes its profile, and creates an
+account home document stating that it is an agentic account.
 
-The tab also manages the HM account keys the agent may sign with, including a **New account** workflow that generates a
-server-side key, publishes its profile, and creates an account home document stating that it is an agentic account.
-
-The Execute code toggle names all three runtimes — TypeScript, Python, and shell (copy drift fixed in `0d877e3a1`).
+Custom tools — lambda documents from `ListAgentTools` — continue the same list: one row per tool with its name, runtime
+badge, and truncated summary, with hover-revealed edit/delete buttons. When there are none, a short "No custom tools
+yet" line sits at the bottom of the list next to the **Add tool** button. Writers can add a tool or open the same
+`AuthoredToolDialog` to edit every document field: name, summary, description, runtime, source, input schema, and
+optional output schema. Renames are atomic and refuse to overwrite another tool. A separate destructive confirmation
+permanently deletes a tool. Readers can inspect the same form and content address but do not see create, edit, or delete
+controls.
 
 ## Session page
 
@@ -391,7 +395,7 @@ matching optimistic events when the durable one arrives.
 
 1. Start server; start desktop; open Agents and confirm health is online.
 2. Save a provider (API key or ChatGPT sign-in) and create an agent using it.
-3. Open the agent, check the Tools tab shows four grants and an empty Authored tools state.
+3. Open the agent, check the Tools tab shows four grants and the "No custom tools yet" note.
 4. Create a session and send a message; confirm the user message appears immediately and the reply streams as markdown.
 5. Ask it to read a Seed URL, including a clean HM web-domain URL; confirm the tool row shows the requested URL and the
    resolved identity.
@@ -399,7 +403,7 @@ matching optimistic events when the durable one arrives.
    transcript when the run ends.
 7. Ask it to delegate two independent pieces of research in one turn; confirm both children render as uniform peers
    under one step.
-8. Ask it to write itself a tool, then call it; confirm the card appears in Authored tools with its source and CID.
+8. Ask it to write itself a tool, then call it; confirm the row appears in Custom tools with its source and CID.
 9. Add a tool manually, edit every field including its name, then delete it; confirm each change appears immediately.
 10. Run a read from the wrench palette; confirm the row carries the "You" chip and the agent refers to it next turn.
 11. Reload the window and confirm the transcript, run records, and card state all reconstruct.

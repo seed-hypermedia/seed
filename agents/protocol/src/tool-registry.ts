@@ -367,7 +367,7 @@ const planVerb = {
   name: 'plan',
   label: 'Plan',
   description:
-    "Maintain the visible plan for the current task. Call this when starting any task with 3 or more distinct steps (declare them all as pending, then mark the first running), and again whenever a step's status changes: running when you begin it, done when finished, failed if it cannot complete, skipped if no longer needed. Keep step labels short and outcome-oriented. Send the full current list each time; it replaces the previous plan. The user sees this as a live checklist and can act on it, so keeping it current is part of doing the task well. Plan BEFORE delegating: children spawned while a step is running attach under it — one step can own a whole parallel batch.",
+    "Maintain the visible plan for the current task. Call this when starting any task with 3 or more distinct steps (declare them all as pending, then mark the first running), and again whenever a step's status changes: running when you begin it, done when finished, failed if it cannot complete, skipped if no longer needed. Keep step labels short and outcome-oriented. Send the full current list each time; it replaces the previous plan. Each task gets its own checklist: a plan whose every step has finished is history — when the user asks for something new, publish a fresh plan with only the new task's steps (new ids), never re-list finished work. The user sees this as a live checklist and can act on it, so keeping it current is part of doing the task well. Plan BEFORE delegating: children spawned while a step is running attach under it — one step can own a whole parallel batch.",
   inputSchema: {
     type: 'object',
     additionalProperties: false,

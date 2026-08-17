@@ -24,7 +24,11 @@ const mockState = vi.hoisted(() => ({
 
 vi.mock('@/models/agents', () => ({
   useSessionRuns: () => ({data: mockState.runs}),
-  useRunTree: () => ({data: mockState.tree}),
+  // Honours its rootRunId argument the way the real query's `enabled` does: a caller that passed
+  // undefined asked for nothing, and handing it the tree anyway would hide gating bugs.
+  useRunTree: (_serverUrl: unknown, _accountUid: unknown, rootRunId: string | undefined) => ({
+    data: rootRunId ? mockState.tree : [],
+  }),
   useRun: () => ({data: mockState.run, isLoading: false}),
   useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: mockState.journal}),
   useCancelRun: () => ({mutate: vi.fn(), isPending: false}),
@@ -673,6 +677,53 @@ describe('delegate expanded view', () => {
       {key: 'agent-session', sessionId: 'child-session-live-2', serverUrl: 'http://localhost:3050'},
       expect.anything(),
     )
+  })
+
+  it('a detached child that outlives its finished turn still resolves, to the newest continueAsNew link', () => {
+    // Eric's live repro: "until I tell you to stop" spawned a detached monitoring workflow, the
+    // turn succeeded, and the delegate row spun on "Starting the child…" forever — the child
+    // lookup was gated on the turn still being live. The loop's every link carries the same
+    // spawning call; the row must find the tree after the turn ends and show the link still alive.
+    mockState.runs = [makeRun({id: 'turn-3', status: 'succeeded', sessionId: 'session-1'} as never)]
+    mockState.tree = [
+      mockState.runs[0]!,
+      makeRun({
+        id: 'loop-1',
+        status: 'succeeded',
+        kind: 'workflow',
+        rootRunId: 'turn-3',
+        parentRunId: 'turn-3',
+        parentToolCallId: 'call-loop',
+        title: 'Madrid weather monitor',
+      } as never),
+      makeRun({
+        id: 'loop-2',
+        status: 'waiting',
+        kind: 'workflow',
+        rootRunId: 'turn-3',
+        parentRunId: 'turn-3',
+        parentToolCallId: 'call-loop',
+        continuedFromRunId: 'loop-1',
+        title: 'Madrid weather monitor',
+        plan: {steps: [{id: 's1', label: 'Check the temperature', status: 'running'}]},
+      } as never),
+    ]
+    render(
+      <ChatMessageBubble
+        message={{
+          role: 'assistant',
+          sessionId: 'session-1',
+          parts: [{type: 'tool', id: 'call-loop', name: 'delegate', args: {title: 'Monitor', brief: 'Watch it.'}}],
+        }}
+        serverUrl="http://localhost:3050"
+        accountUid="account-1"
+      />,
+    )
+    click(container.querySelector('button[title="Show tool details"]'))
+
+    // The live link's own work is on screen instead of the spinner.
+    expect(container.textContent).toContain('Check the temperature')
+    expect(container.textContent).not.toContain('Starting the child')
   })
 
   it("shows only this run's own calls, never a sibling script's", () => {
