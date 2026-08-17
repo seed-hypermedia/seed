@@ -70,11 +70,6 @@ vi.mock('@shm/ui/agents/dialogs', () => ({
   ManageAgentAccountsDialog: () => null,
   ModelProvidersDialog: () => null,
 }))
-vi.mock('@shm/ui/agents/dialogs', () => ({
-  CreateAgentDialog: () => null,
-  ManageAgentAccountsDialog: () => null,
-  ModelProvidersDialog: () => null,
-}))
 vi.mock('@shm/ui/universal-dialog', () => ({
   useAppDialog: () => ({content: null, open: vi.fn(), close: vi.fn()}),
 }))

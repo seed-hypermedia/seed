@@ -73,6 +73,7 @@
     "react-icons": "4.9.0",
     "react-markdown": "^10.1.0",
     "react-virtuoso": "4.6.2",
+    "remark-gfm-v4": "npm:remark-gfm@4.0.1",
     "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.0",
     "tailwindcss": "^4.1.8",

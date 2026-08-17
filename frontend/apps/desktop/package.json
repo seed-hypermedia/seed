@@ -128,7 +128,6 @@
     "rehype-remark": "9.1.2",
     "rehype-stringify": "9.0.3",
     "remark-gfm": "^4.0.1",
-    "remark-gfm-v4": "npm:remark-gfm@4.0.1",
     "remark-parse": "10.0.1",
     "remark-rehype": "10.1.0",
     "remark-stringify": "10.0.2",

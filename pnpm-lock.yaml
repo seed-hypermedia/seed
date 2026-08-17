@@ -565,9 +565,6 @@ importers:
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
-      remark-gfm-v4:
-        specifier: npm:remark-gfm@4.0.1
-        version: remark-gfm@4.0.1
       remark-parse:
         specifier: 10.0.1
         version: 10.0.1
@@ -1902,6 +1899,9 @@ importers:
       react-virtuoso:
         specifier: 4.6.2
         version: 4.6.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      remark-gfm-v4:
+        specifier: npm:remark-gfm@4.0.1
+        version: remark-gfm@4.0.1
       sonner:
         specifier: ^2.0.5
         version: 2.0.7(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
