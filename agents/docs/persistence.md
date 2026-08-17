@@ -406,7 +406,9 @@ type SessionEventPayload =
 `sessionEventActor()` in the protocol package derives the actor of an older event from its shape (a user-role message is
 `user`, an error is `system`, everything else is `agent`), and `meta` is display detail that is simply absent on older
 rows. New signed user messages always stamp both the acting Seed `accountId` and exact `signerId`; they may differ when
-the account uses an authorized device/delegate signer.
+the account uses an authorized device/delegate signer. Model replay preserves that distinction by prefixing signed human
+messages with their authoritative `accountId`; for shared agents the system prompt also carries the accepted member
+roster, roles, and best-effort profile display names.
 
 Plan updates are **not** durable events — the `plan` verb writes `sessions.plan_cbor` in place, which is why the plan
 snapshot carries its own `settledAt` timestamp.
