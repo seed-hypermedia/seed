@@ -39,7 +39,6 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {cn} from '@shm/ui/utils'
 import {
-  ArrowUpRight,
   BookOpenText,
   ChevronDown,
   ChevronRight,
@@ -53,7 +52,7 @@ import {
   UserRound,
   Wrench,
 } from 'lucide-react'
-import React, {Suspense, useMemo, useState} from 'react'
+import React, {Fragment, Suspense, useMemo, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Markdown} from './markdown'
@@ -533,6 +532,11 @@ function ToolSourceChip({children}: {children: React.ReactNode}) {
   )
 }
 
+/**
+ * One result link in a tool row's trailing strip. Quiet text rather than a pill: a web search
+ * returns many of these, and a row of bordered chips overflowed the line while saying nothing a
+ * plain link doesn't.
+ */
 function ToolResourceLink({url, label}: {url: string; label: string}) {
   const openUrl = useOpenUrl()
 
@@ -544,10 +548,9 @@ function ToolResourceLink({url, label}: {url: string; label: string}) {
         event.stopPropagation()
         openUrl(url, event.metaKey || event.shiftKey)
       }}
-      className="bg-background/75 hover:bg-background inline-flex max-w-40 items-center gap-1 rounded-full border px-2 py-0.75 text-left text-[10px] font-medium transition-colors"
+      className="text-muted-foreground hover:text-foreground max-w-32 shrink-0 truncate text-left text-[10px] decoration-1 underline-offset-2 hover:underline"
     >
-      <span className="truncate">{label}</span>
-      <ArrowUpRight className="size-2.5 shrink-0" />
+      {label}
     </button>
   )
 }
@@ -2075,9 +2078,14 @@ export function ToolCallLine({
                 )
               ) : null}
               {liveTool?.detail ? <span className="text-foreground/60 min-w-0 truncate">{liveTool.detail}</span> : null}
-              <div className="flex min-w-0 shrink-0 items-center gap-1 overflow-hidden">
-                {links.map((link) => (
-                  <ToolResourceLink key={link.url} url={link.url} label={link.label} />
+              {/* One clipped line of text links: the strip shrinks before the summary does, and
+                  whatever does not fit is cut rather than wrapped into a second row. */}
+              <div className="flex min-w-0 shrink items-center gap-1.5 overflow-hidden whitespace-nowrap">
+                {links.map((link, index) => (
+                  <Fragment key={link.url}>
+                    {index ? <span className="text-muted-foreground shrink-0 text-[10px] opacity-60">·</span> : null}
+                    <ToolResourceLink url={link.url} label={link.label} />
+                  </Fragment>
                 ))}
               </div>
             </>
