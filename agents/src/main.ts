@@ -414,7 +414,11 @@ async function main(): Promise<void> {
         console.error('exec-selfcheck: staged node_modules present but no msb helper was found in it')
         process.exit(1)
       }
-      console.log(`exec-selfcheck: SDK loaded; msb=${process.env.MSB_PATH ?? '(binding-relative)'}`)
+      // The workflow engine's QuickJS wasm is embedded in the bundle; prove it instantiates so a
+      // bundling regression fails the build instead of the first delegated script in production.
+      const {quickjsSelfcheck} = await import('@/workflow-host')
+      await quickjsSelfcheck()
+      console.log(`exec-selfcheck: SDK loaded; msb=${process.env.MSB_PATH ?? '(binding-relative)'}; quickjs ok`)
       process.exit(0)
     } catch (error) {
       console.error(`exec-selfcheck: ${error instanceof Error ? error.message : String(error)}`)
