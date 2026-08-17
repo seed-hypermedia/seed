@@ -1,7 +1,8 @@
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import {base58btc} from 'multiformats/bases/base58'
-import type {HMPublishBlobsInput, HMSigner} from './hm-types'
-import {signObject, toPublishInput} from './signing'
+import type {HMPublishBlobsInput} from './hm-types'
+import {signObject, signerPublicKey, toPublishInput} from './signing'
+import type {AnySigner} from './signer'
 
 export type ContactSubscribe = {
   site?: boolean
@@ -94,8 +95,8 @@ async function computeTSID(timestampMs: bigint, blobData: Uint8Array): Promise<s
  * Create a new contact blob and compute its record ID.
  * Returns the publish input plus a `recordId` in "authority/tsid" format.
  */
-export async function createContact(input: CreateContactInput, signer: HMSigner): Promise<CreateContactResult> {
-  const signerKey = await signer.getPublicKey()
+export async function createContact(input: CreateContactInput, signer: AnySigner): Promise<CreateContactResult> {
+  const signerKey = await signerPublicKey(signer)
   const ts = BigInt(Date.now())
   const signerUid = base58btc.encode(new Uint8Array(signerKey))
   const authority = input.accountUid || signerUid
@@ -130,8 +131,8 @@ export async function createContact(input: CreateContactInput, signer: HMSigner)
 /**
  * Update an existing contact blob. Reuses the original TSID.
  */
-export async function updateContact(input: UpdateContactInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
-  const signerKey = await signer.getPublicKey()
+export async function updateContact(input: UpdateContactInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
+  const signerKey = await signerPublicKey(signer)
   const tsid = extractTsid(input.contactId)
   const accountUid = input.accountUid || extractAuthority(input.contactId)
 
@@ -161,8 +162,8 @@ export async function updateContact(input: UpdateContactInput, signer: HMSigner)
  * Delete a contact by publishing a tombstone blob.
  * A tombstone has the same TSID but no subject and no name.
  */
-export async function deleteContact(input: DeleteContactInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
-  const signerKey = await signer.getPublicKey()
+export async function deleteContact(input: DeleteContactInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
+  const signerKey = await signerPublicKey(signer)
   const tsid = extractTsid(input.contactId)
   const accountUid = input.accountUid || extractAuthority(input.contactId)
 

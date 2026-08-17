@@ -4,7 +4,8 @@
  */
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import type {HMPublishBlobsInput, HMSigner} from './hm-types'
+import type {HMPublishBlobsInput} from './hm-types'
+import {type AnySigner, toHMSigner} from './signer'
 
 export const cborCodec = {
   code: 0x71 as const,
@@ -18,8 +19,18 @@ export function normalizeBytes(data: Uint8Array): Uint8Array<ArrayBuffer> {
   return normalized
 }
 
-export async function signObject(signer: HMSigner, data: unknown): Promise<Uint8Array> {
+export async function signObject(signer: AnySigner, data: unknown): Promise<Uint8Array> {
   return await signer.sign(cborEncode(data))
+}
+
+/**
+ * Read a signer's principal, accepting either signer shape.
+ *
+ * Lets the blob builders take an `AnySigner` without each one having to
+ * normalize first.
+ */
+export async function signerPublicKey(signer: AnySigner): Promise<Uint8Array> {
+  return toHMSigner(signer).getPublicKey()
 }
 
 export function toPublishInput(

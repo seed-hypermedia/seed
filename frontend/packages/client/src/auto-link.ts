@@ -10,7 +10,8 @@
  * - Full I/O convenience: fetch parent, check, build ops, sign, publish
  */
 
-import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from './hm-types'
+import type {HMBlockNode, HMDocument, UnpackedHypermediaId} from './hm-types'
+import type {AnySigner} from './signer'
 import {entityQueryPathToHmIdPath, packHmId, unpackHmId} from './hm-types'
 import type {SeedClient} from './client'
 import type {DocumentOperation} from './change'
@@ -155,7 +156,7 @@ export type AutoLinkChildToParentOptions = {
   /** hm:// URL of the published child document (without version). */
   childHmUrl: string
   /** Signer for the parent document change. */
-  signer: HMSigner
+  signer: AnySigner
 }
 
 /**
