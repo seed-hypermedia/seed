@@ -41,7 +41,7 @@ export class ActivityMonitor {
       label: 'Agents Activity',
       intervalMs: options.pollIntervalMs,
       timeoutMs: options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS,
-      run: () => this.pollOnce(),
+      run: (signal) => this.pollOnce(signal),
     })
   }
 
@@ -55,14 +55,37 @@ export class ActivityMonitor {
     this.#loop.stop()
   }
 
-  /** Runs one polling cycle for all accounts that have enabled triggers. */
-  async pollOnce(): Promise<void> {
+  /**
+   * Runs one polling cycle for all accounts that have enabled triggers.
+   *
+   * `signal` bounds the whole cycle (see {@link PollLoop}): when it aborts, the cycle stops fetching and
+   * returns instead of grinding through the remaining accounts. Accounts are polled in a stable order, so
+   * a cycle repeatedly cut short still makes progress — the next cycle starts again from the first account.
+   */
+  async pollOnce(signal?: AbortSignal): Promise<void> {
     for (const accountId of this.#enabledTriggerAccounts()) {
-      await this.#pollAccount(accountId)
+      if (signal?.aborted) {
+        console.warn('[Agents Activity] Poll cycle aborted, skipping remaining accounts', {
+          nextAccountId: accountId,
+          serverUrl: this.#options.hmServerUrl,
+        })
+        return
+      }
+      await this.#pollAccount(accountId, signal)
     }
   }
 
-  async #pollAccount(accountId: string): Promise<void> {
+  /**
+   * Per-request deadline for one ListEvents call, combined with the cycle-wide `signal` so a hung request
+   * is cut off by whichever fires first. Without the cycle signal a slow upstream could keep the cycle
+   * alive far past the loop's own timeout, one 20s request at a time.
+   */
+  #requestSignal(cycle?: AbortSignal): AbortSignal {
+    const perRequest = AbortSignal.timeout(this.#options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS)
+    return cycle ? AbortSignal.any([perRequest, cycle]) : perRequest
+  }
+
+  async #pollAccount(accountId: string, signal?: AbortSignal): Promise<void> {
     const startedAt = Date.now()
     const client = this.#options.client ?? createSeedClient(this.#options.hmServerUrl)
     const previous = this.#getWatermark(accountId)
@@ -78,6 +101,7 @@ export class ActivityMonitor {
         previousSuccessAt: previous?.lastSuccessAt,
       })
       for (let page = 0; page < this.#options.maxPagesPerPoll; page += 1) {
+        if (signal?.aborted) break
         const response = await client.request(
           'ListEvents',
           {
@@ -89,7 +113,7 @@ export class ActivityMonitor {
             // instead of being buried at its create-time position where the page walk never reaches it.
             order: 'observed',
           },
-          {signal: AbortSignal.timeout(this.#options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS)},
+          {signal: this.#requestSignal(signal)},
         )
         const events = Array.isArray(response.events) ? (response.events as activityTriggers.ActivityFeedEvent[]) : []
         fetched.push(...events)
@@ -153,6 +177,9 @@ export class ActivityMonitor {
       // separately (planned session auto-restart), not by re-observing the triggering event.
       let cursor = previous.seenKeys
       for (const event of newEvents.reverse()) {
+        // Safe to stop early: the watermark advances after each event below, so an aborted cycle resumes
+        // from the last handled event rather than replaying the batch.
+        if (signal?.aborted) break
         await this.#service.processActivityEvent(accountId, event)
         const key = activityTriggers.activityEventKey(event)
         if (key) cursor = [key, ...cursor.filter((seen) => seen !== key)].slice(0, this.#options.pageSize)
@@ -164,6 +191,16 @@ export class ActivityMonitor {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      if (signal?.aborted) {
+        // The cycle was cancelled (loop timeout or shutdown), not an upstream fault. Recording it as a
+        // watermark error would misreport a healthy server as failing and bury real errors in the noise.
+        console.warn('[Agents Activity] Poll aborted mid-cycle', {
+          accountId,
+          serverUrl: this.#options.hmServerUrl,
+          error: message,
+        })
+        return
+      }
       console.error('[Agents Activity] Poll failed', {accountId, serverUrl: this.#options.hmServerUrl, error: message})
       this.#recordWatermarkError(accountId, startedAt, message)
     }
