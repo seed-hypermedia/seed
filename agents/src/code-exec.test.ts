@@ -185,7 +185,12 @@ describe('code exec', () => {
         fakeSdk({mounts: []}),
       )
       expect(withoutBun.runtimes).toEqual(['python', 'shell'])
-      expect((await withoutBun.availability()).runtimes).toEqual(['python', 'shell'])
+      // `availability()` probes the real host before it reports runtimes, so its exact set is not
+      // ours to assert here: a machine without virtualization answers `[]` however this executor is
+      // configured (that case has its own test below, and CI runners have no /dev/kvm). What holds
+      // on every host is the claim this test is named for — withhold the image, and ts is not on
+      // offer. The configured set itself is asserted through `runtimes` above.
+      expect((await withoutBun.availability()).runtimes).not.toContain('ts')
       await expect(withoutBun.execute({stateDir, runtime: 'ts', code: 'console.log(1)'})).rejects.toThrow(
         'needs a sandbox image with bun',
       )
