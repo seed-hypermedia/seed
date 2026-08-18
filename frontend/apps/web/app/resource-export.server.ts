@@ -40,12 +40,7 @@ import {HMNotFoundError} from '@shm/shared/models/entity'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {getComment, resolveResource} from './loaders'
 import type {ParsedRequest} from './request'
-import {
-  extractExportView,
-  getHmIdOfRequest,
-  ResourceExportFormat,
-  ResourceExportPath,
-} from './resource-export-path'
+import {extractExportView, getHmIdOfRequest, ResourceExportFormat, ResourceExportPath} from './resource-export-path'
 import {serverUniversalClient} from './server-universal-client'
 import {getConfig} from './site-config.server'
 
