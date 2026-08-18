@@ -375,31 +375,42 @@ func TestApplyChangeOpIndexOverflow(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 
 	// A multi-block op advances the op ID index quadratically per block, so a
-	// single move op with enough blocks overflows the packed 24-bit index.
-	// Today's writer can't author such a change (it re-applies its own ops),
-	// but they exist in the wild from older writers, and applying one — e.g.
-	// serving GetDocument for such a document — must fail with an error
-	// instead of panicking the whole process.
-	const numBlocks = 6000
+	// single move op with enough blocks overflows the op ID index cap. Today's
+	// writer can't author such a change (it re-applies its own ops), but they
+	// exist in the wild from older writers, and applying one — e.g. serving
+	// GetDocument for such a document — must fail with an error instead of
+	// panicking the whole process.
+	hugeMove := func(numBlocks int) *blob.Change {
+		moved := make([]string, numBlocks)
+		for i := range moved {
+			moved[i] = fmt.Sprintf("b%d", i)
+		}
 
-	moved := make([]string, numBlocks)
-	for i := range moved {
-		moved[i] = fmt.Sprintf("b%d", i)
+		return &blob.Change{
+			BaseBlob: blob.BaseBlob{
+				Type:   blob.TypeChange,
+				Signer: alice.Principal(),
+				Ts:     time.Now(),
+			},
+			Body: blob.ChangeBody{
+				Ops: []blob.OpMap{blob.NewOpMoveBlocks("", moved, []uint64{0, 0, 0})},
+			},
+		}
 	}
 
-	ch := &blob.Change{
-		BaseBlob: blob.BaseBlob{
-			Type:   blob.TypeChange,
-			Signer: alice.Principal(),
-			Ts:     time.Now(),
-		},
-		Body: blob.ChangeBody{
-			Ops: []blob.OpMap{blob.NewOpMoveBlocks("", moved, []uint64{0, 0, 0})},
-		},
-	}
+	t.Run("real-world-sized import applies", func(t *testing.T) {
+		// The largest single move op seen in the wild carries 6,411 blocks
+		// (op index peaks around 20.5M), which overflowed the old 2^24 cap.
+		doc := must.Do2(New("mydoc", cclock.New()))
+		require.NoError(t, doc.ApplyChange(cid.Undef, hugeMove(6411)))
+	})
 
-	doc := must.Do2(New("mydoc", cclock.New()))
-	err := doc.ApplyChange(cid.Undef, ch)
-	require.ErrorContains(t, err, "op ID index")
-	require.ErrorContains(t, err, "overflows")
+	t.Run("overflowing the cap fails cleanly", func(t *testing.T) {
+		// 70k blocks push the quadratic index past the 2^31-1 cap
+		// (at block ~65,537).
+		doc := must.Do2(New("mydoc", cclock.New()))
+		err := doc.ApplyChange(cid.Undef, hugeMove(70_000))
+		require.ErrorContains(t, err, "op ID index")
+		require.ErrorContains(t, err, "overflows")
+	})
 }
