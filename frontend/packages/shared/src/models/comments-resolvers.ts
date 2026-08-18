@@ -11,10 +11,32 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {BIG_INT} from '../constants'
 import {LIST_PAGE_SIZE, listAllPages} from '../list-all-pages'
-import {hmIdPathToEntityQueryPath} from '../utils/path-api'
+import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {getCommentGroups} from '../comments'
-import {parseFragment, unpackHmId} from '../utils'
+import {hmId, parseFragment, unpackHmId} from '../utils'
 import {documentMetadataParseAdjustments} from './entity'
+
+/**
+ * Maps items to async results with at most `limit` requests in flight. The daemon has no
+ * in-flight cap of its own, so callers fanning out per-item RPCs bound the burst here
+ * (docs/daemon-saturation-incident.md). Real relief is server-side citation/comment
+ * pagination; until then this keeps a heavily-cited document from firing a whole
+ * citations page of lookups at once.
+ */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let next = 0
+  const workers = Array.from({length: Math.min(limit, items.length)}, async () => {
+    while (next < items.length) {
+      const index = next++
+      results[index] = await fn(items[index]!)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+const CITING_LOOKUP_CONCURRENCY = 16
 
 /**
  * Parses raw comment data with validation, filtering out invalid comments
@@ -169,22 +191,43 @@ export function createDiscussionsResolver(client: GRPCClient) {
     const discussions = getCommentGroups(allComments, commentId)
     discussions.forEach((g) => g.comments.forEach(addAuthor))
 
-    // Process citing discussions - group by doc to dedupe listComments calls
-    const mentionsByDoc = new Map<string, {mention: any; id: UnpackedHypermediaId}[]>()
-    citationsResult
-      ?.filter((m) => m.sourceType === 'Comment' && m.sourceDocument !== targetId.id)
-      .forEach((mention) => {
-        const id = unpackHmId(mention.sourceDocument)
-        if (!id) return
-        if (!mentionsByDoc.has(mention.sourceDocument)) {
-          mentionsByDoc.set(mention.sourceDocument, [])
-        }
-        mentionsByDoc.get(mention.sourceDocument)!.push({mention, id})
-      })
+    // Process citing discussions: comments on other documents that link to this one.
+    // citation.sourceDocument can't be used to find the citing comment's own document,
+    // because the backend sets it to the requested IRI for every comment citation (see
+    // seed-hypermedia/seed#921), so fetch each candidate comment and read its real target.
+    const directCommentIds = new Set(allComments.map((c) => c.id))
+    const citingCommentIds = new Set(
+      citationsResult
+        ?.filter((m) => m.sourceType === 'Comment')
+        .map((m) => m.source.slice('hm://'.length))
+        .filter((id) => !directCommentIds.has(id)) ?? [],
+    )
 
-    const citingResults = await Promise.all(
-      Array.from(mentionsByDoc.values()).map(async (mentions) => {
-        const docId = mentions[0]!.id
+    const citingComments = (
+      await mapWithConcurrency(Array.from(citingCommentIds), CITING_LOOKUP_CONCURRENCY, (id) =>
+        client.comments
+          .getComment({id})
+          .then(parseComment)
+          .catch(() => null),
+      )
+    ).filter((c): c is HMComment => c !== null)
+
+    // Group by the citing comment's own document to dedupe listComments calls
+    const citingByDoc = new Map<string, {docId: UnpackedHypermediaId; comments: HMComment[]}>()
+    citingComments.forEach((comment) => {
+      const docId = hmId(comment.targetAccount, {path: entityQueryPathToHmIdPath(comment.targetPath)})
+      // A comment targeting this document that listComments didn't return
+      // (e.g. deleted or private) is not a citing discussion.
+      if (!docId.uid || docId.id === targetId.id) return
+      const group = citingByDoc.get(docId.id) ?? {docId, comments: []}
+      group.comments.push(comment)
+      citingByDoc.set(docId.id, group)
+    })
+
+    const citingResults = await mapWithConcurrency(
+      Array.from(citingByDoc.values()),
+      CITING_LOOKUP_CONCURRENCY,
+      async ({docId, comments: docCitingComments}) => {
         const [commentsRes, metadata] = await Promise.all([
           client.comments
             .listComments({
@@ -195,28 +238,23 @@ export function createDiscussionsResolver(client: GRPCClient) {
             .catch(() => null),
           loadDocumentMetadata(client, docId),
         ])
-        if (!commentsRes) return []
 
-        const comments = commentsRes.comments.map(parseComment).filter((c): c is HMComment => c !== null)
+        const comments = commentsRes?.comments.map(parseComment).filter((c): c is HMComment => c !== null) ?? []
 
-        return mentions.map(({mention}): HMExternalCommentGroup | null => {
-          const citingCommentId = mention.source.slice(5)
-          const citingComment = comments.find((c) => c.id === citingCommentId)
-          if (!citingComment) return null
-
+        return docCitingComments.map((citingComment): HMExternalCommentGroup => {
           addAuthor(citingComment)
-          const replies = getCommentGroups(comments, citingCommentId)[0]?.comments ?? []
+          const replies = getCommentGroups(comments, citingComment.id)[0]?.comments ?? []
           replies.forEach(addAuthor)
 
           return {
             comments: [citingComment, ...replies],
             moreCommentsCount: 0,
-            id: mention.source,
+            id: `hm://${citingComment.id}`,
             target: metadata,
             type: 'externalCommentGroup',
           }
         })
-      }),
+      },
     )
 
     const citingDiscussions = citingResults.flat().filter((d): d is HMExternalCommentGroup => d !== null)
