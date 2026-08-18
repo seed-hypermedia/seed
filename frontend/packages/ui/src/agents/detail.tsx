@@ -95,7 +95,7 @@ import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {ModelSelect} from './model-select'
 import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
-import {curateProviderModels, pickDefaultProviderModel} from './model-utils'
+import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
 import {ProviderSelect} from './provider-select'
@@ -1379,7 +1379,7 @@ function AgentToolsTab({
                   size="iconSm"
                   className="opacity-0 group-hover/tool:opacity-100 max-sm:size-10 max-sm:opacity-100"
                   aria-label={`About ${group.title}`}
-                  onClick={() => toolInfoDialog.open({toolName: group.infoTool ?? group.names[0]})}
+                  onClick={() => toolInfoDialog.open({toolName: group.infoTool ?? group.names[0]!})}
                 >
                   <Info className="size-3.5" />
                 </Button>

@@ -1,8 +1,7 @@
-import {type AgentRunActivity, type AgentSessionTriggerContext, type SessionEvent, type SessionInfo} from './client'
+import {type AgentRunActivity, type AgentSessionTriggerContext} from './client'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {useChatAutoScroll} from './chat-autoscroll'
-import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble, type ChatBubbleMessage} from './message-rendering'
-import {QueuedChatMessages, useQueuedChatMessages} from './chat-message-queue'
+import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
 import {
   addOptimisticSessionMessage,
   type AgentSessionDraftMessage,

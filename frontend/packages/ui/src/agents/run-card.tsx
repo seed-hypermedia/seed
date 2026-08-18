@@ -17,7 +17,7 @@ import {formatElapsed, formatTokenCount} from './agent-run-status'
 import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from './models'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
-import {ChevronDown, ChevronRight, Info, Loader2, Workflow} from 'lucide-react'
+import {ChevronDown, ChevronRight, Info, Loader2} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 
 /**
