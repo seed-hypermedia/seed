@@ -139,6 +139,11 @@ export type AgentsPlatform = {
   useGatewayUrl?: () => string | undefined
   /** Hook returning the app's sign-in affordance (see {@link AgentsSignInPrompt}). */
   useSignInPrompt?: () => AgentsSignInPrompt
+  /**
+   * Hook returning a navigator to the app's own agent-servers settings surface (desktop's Settings
+   * window). Omitted when the app has none; the agents list then manages servers in a dialog.
+   */
+  useOpenServerSettings?: () => () => void
   /** Rich block editor used for prompts and chat composition (see {@link AgentsRichEditorProps}). */
   CommentEditor: React.ComponentType<AgentsRichEditorProps>
   /**

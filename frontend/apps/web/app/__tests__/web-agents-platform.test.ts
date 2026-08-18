@@ -84,6 +84,9 @@ describe('web agents platform', () => {
     expect(platform.connectToHmServer).toBeUndefined()
     expect(platform.getLocalServerUrl).toBeUndefined()
     expect(platform.oauthRedirectCatcher).toBeUndefined()
+    // No settings window on web either — omitting this makes the agents list manage servers in a
+    // dialog instead of navigating to a route that does not exist.
+    expect(platform.useOpenServerSettings).toBeUndefined()
   })
 
   it('provides the members the shared UI cannot run without', async () => {

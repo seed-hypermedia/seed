@@ -106,6 +106,10 @@ const desktopAgentsPlatform: AgentsPlatform = {
   useOpenUrl: useDesktopOpenUrl,
   useGatewayUrl: () => useGatewayUrl().data,
   useSignInPrompt: useDesktopSignInPrompt,
+  useOpenServerSettings: () => {
+    const navigate = useNavigate()
+    return () => navigate({key: 'settings', tab: 'agent-servers'})
+  },
   CommentEditor,
   ReadOnlyMessageViewer: React.lazy(() =>
     import('@shm/editor/readonly-viewer').then((module) => ({default: module.ReadOnlyViewer})),

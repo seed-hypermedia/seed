@@ -22,7 +22,7 @@ let mockServers: string[] = ['http://localhost:3050']
 let mockLocalServer: string | null = null
 
 vi.mock('@shm/ui/agents/models', () => ({
-  DEFAULT_AGENT_SERVER_URL: 'http://localhost:3050',
+  getDefaultAgentServerUrl: () => 'http://localhost:3050',
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   useAgentServerHealth: () => ({isError: true, isLoading: false}),
   useAgentServerUrl: () => ({data: mockDefaultServer}),
@@ -49,7 +49,7 @@ vi.mock('@sentry/electron/renderer', () => ({}))
 vi.mock('@sentry/electron/preload', () => ({}))
 
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {AgentServersSettings} from '../pages/settings'
+import {AgentServersSettings} from '@shm/ui/agents/server-settings'
 
 function renderSettings() {
   const container = document.createElement('div')

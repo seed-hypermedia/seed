@@ -24,6 +24,8 @@ import React, {useMemo} from 'react'
 import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
 import {AgentsNoAccountPage} from './no-account'
+import {getAgentsPlatform} from './platform'
+import {AgentServersDialog} from './server-settings'
 
 function AgentsListPage() {
   const selectedAccountId = useSelectedAccountId()
@@ -44,6 +46,9 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   const providersDialog = useAppDialog(ModelProvidersDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
   const createAgentDialog = useAppDialog(CreateAgentDialog)
+  const serverSettingsDialog = useAppDialog(AgentServersDialog)
+  // Platforms with a settings window (desktop) open it; the rest manage servers in a dialog here.
+  const openServerSettings = (getAgentsPlatform().useOpenServerSettings ?? (() => null))()
 
   const agents = useMemo(
     () =>
@@ -81,7 +86,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
           <div className="flex items-center justify-between gap-4">
             <SizableText weight="bold">Agent Servers</SizableText>
             <Tooltip content="Configure agent servers">
-              <Button onClick={() => navigate({key: 'settings', tab: 'agent-servers'})}>
+              <Button onClick={() => (openServerSettings ? openServerSettings() : serverSettingsDialog.open(true))}>
                 <Settings className="size-4" />
               </Button>
             </Tooltip>
@@ -153,6 +158,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
         {providersDialog.content}
         {manageAccountsDialog.content}
         {createAgentDialog.content}
+        {serverSettingsDialog.content}
 
         {invites.length ? (
           <section className="flex flex-col gap-3">
