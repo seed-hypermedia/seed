@@ -68,7 +68,7 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowRight, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
+import {ArrowRight, ArrowRightLeft, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
 import {HMIcon} from '@shm/ui/hm-icon'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '@seed-hypermedia/agents-protocol'
@@ -92,6 +92,7 @@ import {
   type AgentAccountRenameStatus,
 } from './dialogs'
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
+import {MoveAgentDialog} from './move-agent-dialog'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {ModelSelect} from './model-select'
 import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
@@ -133,6 +134,7 @@ function AgentDetailPage({
   const updateAgent = useUpdateAgent(serverUrl, selectedAccountId)
   const updateSigningIdentity = useUpdateSigningIdentity(serverUrl, selectedAccountId)
   const deleteAgentDialog = useAppDialog(DeleteAgentDialog, {isAlert: true})
+  const moveAgentDialog = useAppDialog(MoveAgentDialog)
   const signingIdentities = useSigningIdentities(serverUrl, selectedAccountId, agentId)
   const createSigningIdentity = useCreateSigningIdentity(serverUrl, selectedAccountId)
   const createTriggerDialog = useAppDialog(CreateAgentTriggerDialog)
@@ -408,11 +410,50 @@ function AgentDetailPage({
                   canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined
                 }
                 canCreateTrigger={!!selectedAccountId && canWrite}
+                menuItems={
+                  isOwner
+                    ? [
+                        {
+                          key: 'move-server',
+                          label: 'Move to another server…',
+                          icon: <ArrowRightLeft className="size-4" />,
+                          disabled: !selectedAccountId,
+                          onClick: () =>
+                            moveAgentDialog.open({
+                              sourceServerUrl: serverUrl,
+                              selectedAccountId,
+                              agentId,
+                              agentName: name,
+                              modelProvider: agent.data?.agent.definition.modelProvider ?? '',
+                              sessionsCount: topLevelSessions.length,
+                              onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
+                                navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
+                            }),
+                        },
+                        {
+                          key: 'delete-agent',
+                          label: 'Delete agent…',
+                          icon: <Trash2 className="size-4" />,
+                          variant: 'destructive' as const,
+                          disabled: !selectedAccountId,
+                          onClick: () =>
+                            deleteAgentDialog.open({
+                              serverUrl,
+                              selectedAccountId: selectedAccountId ?? null,
+                              agentId,
+                              agentName: name,
+                              onDeleted: () => navigate({key: 'agents'}),
+                            }),
+                        },
+                      ]
+                    : undefined
+                }
                 breadcrumbItems={breadcrumbItems}
               />
 
               {createTriggerDialog.content}
               {deleteAgentDialog.content}
+              {moveAgentDialog.content}
               {addProviderDialog.content}
               {editNameDialog.content}
 

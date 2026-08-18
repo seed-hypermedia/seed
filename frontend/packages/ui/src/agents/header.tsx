@@ -5,6 +5,7 @@ import type {NavRoute} from '@shm/shared/routes'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Button} from '@shm/ui/button'
 import {Badge} from '@shm/ui/components/badge'
+import {OptionsDropdown, type MenuItemType} from '@shm/ui/options-dropdown'
 import {PageTab} from '@shm/ui/page-tabs'
 import {ReasoningBadge} from './reasoning-select'
 import {SizableText} from '@shm/ui/text'
@@ -177,6 +178,7 @@ export function AgentHeader({
   creatingSession,
   onCreateTrigger,
   canCreateTrigger,
+  menuItems,
   breadcrumbItems,
 }: {
   agent?: AgentHeaderInfo
@@ -193,6 +195,8 @@ export function AgentHeader({
   creatingSession?: boolean
   onCreateTrigger?: () => void
   canCreateTrigger?: boolean
+  /** Rows for the top-right options menu; the menu renders only when at least one row is present. */
+  menuItems?: (MenuItemType | null)[]
   breadcrumbItems?: AgentBreadcrumbItem[]
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -312,6 +316,9 @@ export function AgentHeader({
               <Button className="max-sm:min-h-10" onClick={onCreateTrigger} disabled={!canCreateTrigger}>
                 <GitBranch className="mr-2 size-4" /> New trigger
               </Button>
+            ) : null}
+            {menuItems?.some((item) => item != null) ? (
+              <OptionsDropdown menuItems={menuItems} align="end" ariaLabel="Agent options" />
             ) : null}
           </div>
         </div>

@@ -30,6 +30,7 @@ import {
   type SigningIdentityIcon,
 } from './client'
 import {isOptimisticUserEcho} from './agent-session-rows'
+import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform} from './platform'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
@@ -1003,6 +1004,25 @@ export function useDeleteAgent(serverUrl: string | undefined, accountUid: string
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgent', agentId}})
     },
     onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/**
+ * Moves one agent to another configured agent server: copies its portable state (definition,
+ * memory, authored tools, triggers) to the target, then deletes the original. See
+ * {@link moveAgentToServer} for what moves and what each server keeps.
+ */
+export function useMoveAgent(accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (input: Omit<MoveAgentOptions, 'accountUid' | 'send'>) => {
+      if (!accountUid) throw new Error('Select an account first')
+      return moveAgentToServer({...input, accountUid})
+    },
+    onSettled() {
+      // The copy may exist even when the mutation errored (e.g. the source delete failed), so
+      // refresh agent state on both servers regardless of outcome.
       invalidateQueries(['agents'])
     },
   })
