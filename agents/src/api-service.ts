@@ -1850,7 +1850,7 @@ export class Service {
     secretName: string,
     piProviderId: string,
   ): Promise<PersistedOAuthBackend> {
-    const key = `${accountId} ${secretName}`
+    const key = `${accountId}\u0000${secretName}`
     const existing = this.#oauthBackends.get(key)
     if (existing) return existing
     const plaintext = await this.#getSecretPlaintext(accountId, secretName)
@@ -3670,7 +3670,7 @@ export class Service {
       tools: [],
       noTools: 'builtin',
       sessionManager: pi.SessionManager.inMemory(this.#dataDir),
-      settingsManager: pi.SettingsManager.inMemory({compaction: {enabled: false}}),
+      settingsManager: pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}}),
     })
     try {
       piSession.agent.onPayload = (payload) => {
@@ -5058,7 +5058,10 @@ export class Service {
     const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
 
     const cwd = this.#dataDir
-    const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}})
+    // Retry policy belongs to the run queue (interactive turns fail fast, background runs ride the
+    // queue's backoff). Pi's own auto-retry must stay off: it re-drives the turn from a detached
+    // timer that dispose() does not cancel, so it would replay the turn after the run finalized.
+    const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}})
     const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
     const resourceLoader = createSeedPiResourceLoader(
       await this.#agentSystemPrompt(accountId, session.agentId, definition, agentStateDir),
