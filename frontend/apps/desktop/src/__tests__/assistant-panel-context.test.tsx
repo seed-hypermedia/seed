@@ -24,7 +24,7 @@ const mockState = vi.hoisted(() => ({
   createAgentDialogInput: null as null | {onCreated?: (created: {serverUrl: string; agentId: string}) => void},
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
@@ -54,14 +54,21 @@ vi.mock('@/models/agents', () => ({
   useCancelRun: () => ({mutate: vi.fn(), isPending: false}),
 }))
 
+vi.mock('@shm/ui/agents/account', () => ({useSelectedAccountId: () => 'account-1'}))
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => 'account-1'}))
+vi.mock('@shm/ui/agents/navigation', () => ({
+  useNavigate: () => mockState.navigate,
+  useClickNavigate: () => vi.fn(),
+  useOpenUrl: () => vi.fn(),
+  resolveHypermediaRoute: () => null,
+}))
 vi.mock('@/utils/useNavigate', () => ({useNavigate: () => mockState.navigate}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
 // The real composer drags in the ProseMirror editor stack, which does not load under jsdom. The
 // mock honors the contract these tests care about: a textarea stands in for the editor, it
 // focuses itself when told to focus on mount (the default, as in the real component), it renders
 // the driven-by-parent notice instead of an input, and it exposes an imperative focus handle.
-vi.mock('@/pages/agents/rich-message-composer', () => {
+vi.mock('@shm/ui/agents/rich-message-composer', () => {
   const React = require('react')
   return {
     SUB_SESSION_DRIVEN_MESSAGE: 'This sub-session is being driven by its parent',
@@ -96,7 +103,7 @@ vi.mock('@/pages/agents/rich-message-composer', () => {
 
 // The real create dialog drags in the prompt editor stack; the panel only mounts it via
 // useAppDialog, which is what these tests assert.
-vi.mock('@/pages/agents/dialogs', () => ({
+vi.mock('@shm/ui/agents/dialogs', () => ({
   CreateAgentDialog: ({input}: {input: (typeof mockState)['createAgentDialogInput']}) => {
     mockState.createAgentDialogMounts += 1
     mockState.createAgentDialogInput = input

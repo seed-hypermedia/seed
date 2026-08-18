@@ -1,11 +1,11 @@
-import type {RunInfo} from '@/agents-client'
+import type {RunInfo} from '@shm/ui/agents/client'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 // vi.mock calls below are hoisted above these imports, so components get the mocked hooks.
-import {journalToolParts, RunWorkHierarchy} from '../run-work'
-import {ChatMessageBubble, ToolCallLine} from '@/components/assistant-message-rendering'
+import {journalToolParts, RunWorkHierarchy} from '@shm/ui/agents/run-work'
+import {ChatMessageBubble, ToolCallLine} from '@shm/ui/agents/message-rendering'
 
 /**
  * The elegant work view: journal calls rendered as chat tool rows labeled by the script's own
@@ -22,7 +22,7 @@ const mockState = vi.hoisted(() => ({
   pushNavigate: vi.fn(),
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   useSessionRuns: () => ({data: mockState.runs}),
   // Honours its rootRunId argument the way the real query's `enabled` does: a caller that passed
   // undefined asked for nothing, and handing it the tree anyway would hide gating bugs.
@@ -36,17 +36,15 @@ vi.mock('@/models/agents', () => ({
   useSessionAttachmentDataUrls: () => ({}),
 }))
 
-vi.mock('@/utils/useNavigate', () => ({
+vi.mock('@shm/ui/agents/navigation', () => ({
   useClickNavigate: () => mockState.navigate,
   useNavigate: () => mockState.pushNavigate,
-}))
-
-vi.mock('@/selected-account', () => ({
-  useSelectedAccountId: () => 'account-1',
-}))
-
-vi.mock('@/open-url', () => ({
   useOpenUrl: () => vi.fn(),
+  resolveHypermediaRoute: () => null,
+}))
+
+vi.mock('@shm/ui/agents/account', () => ({
+  useSelectedAccountId: () => 'account-1',
 }))
 
 // Avoid vi.importActual here: navigation → routing → utils barrel → url-to-route → navigation
@@ -76,7 +74,7 @@ vi.mock('@shm/shared/utils/entity-id-url', async () => {
   return {...actual, packHmId: vi.fn()}
 })
 
-vi.mock('@/components/markdown', () => ({
+vi.mock('@shm/ui/agents/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
 }))
 

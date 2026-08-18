@@ -15,16 +15,21 @@ const mockState = vi.hoisted(() => ({
 
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
-vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
-vi.mock('@/models/agents', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/models/agents')>()
+vi.mock('@shm/ui/agents/navigation', () => ({
+  useNavigate: () => vi.fn(),
+  useClickNavigate: () => vi.fn(),
+  useOpenUrl: () => vi.fn(),
+  resolveHypermediaRoute: () => null,
+}))
+vi.mock('@shm/ui/agents/models', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shm/ui/agents/models')>()
   return {
     ...actual,
     useLocalAgentServerUrl: () => ({data: mockState.localServerUrl}),
   }
 })
 
-import {AgentBreadcrumb} from '../pages/agents/header'
+import {AgentBreadcrumb} from '@shm/ui/agents/header'
 
 let root: Root
 let container: HTMLDivElement

@@ -34,7 +34,8 @@
       "@shm/shared": ["../../packages/shared/src/index.ts"],
       "@shm/shared/*": ["../../packages/shared/src/*"],
       "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
-      "@seed-hypermedia/client/*": ["../../packages/client/src/*"]
+      "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
+      "@seed-hypermedia/agents-protocol": ["../../../agents/protocol/src/index.ts"]
     }
   },
   "include": ["src"]

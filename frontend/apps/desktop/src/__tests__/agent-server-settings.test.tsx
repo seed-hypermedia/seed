@@ -21,8 +21,8 @@ let mockServers: string[] = ['http://localhost:3050']
 /** The desktop-managed server, which is always shown but never persisted. */
 let mockLocalServer: string | null = null
 
-vi.mock('@/models/agents', () => ({
-  DEFAULT_AGENT_SERVER_URL: 'http://localhost:3050',
+vi.mock('@shm/ui/agents/models', () => ({
+  getDefaultAgentServerUrl: () => 'http://localhost:3050',
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   useAgentServerHealth: () => ({isError: true, isLoading: false}),
   useAgentServerUrl: () => ({data: mockDefaultServer}),
@@ -49,7 +49,7 @@ vi.mock('@sentry/electron/renderer', () => ({}))
 vi.mock('@sentry/electron/preload', () => ({}))
 
 import {TooltipProvider} from '@shm/ui/tooltip'
-import {AgentServersSettings} from '../pages/settings'
+import {AgentServersSettings} from '@shm/ui/agents/server-settings'
 
 function renderSettings() {
   const container = document.createElement('div')

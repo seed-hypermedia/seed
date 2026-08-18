@@ -9,16 +9,16 @@ const {sendAgentActionMock, invalidateQueriesMock} = vi.hoisted(() => ({
   invalidateQueriesMock: vi.fn(),
 }))
 
-vi.mock('@/trpc', () => ({
-  client: {
-    appSettings: {
-      getSetting: {query: vi.fn()},
-      setSetting: {mutate: vi.fn()},
-    },
-  },
+vi.mock('@shm/ui/agents/platform', () => ({
+  getAgentsPlatform: () => ({
+    defaultServerUrl: () => null,
+    getSetting: vi.fn(),
+    setSetting: vi.fn(),
+  }),
+  setAgentsPlatform: vi.fn(),
 }))
 
-vi.mock('@/agents-client', () => ({
+vi.mock('@shm/ui/agents/client', () => ({
   getAgentServerHealth: vi.fn(),
   getAgentWebSocketUrl: vi.fn(),
   isSafeAgentServerSecretTarget: vi.fn(() => true),
@@ -35,7 +35,7 @@ vi.mock('@shm/shared/models/query-client', () => ({
   },
 }))
 
-import {useSaveModelProvider, useStartProviderOAuth} from '@/models/agents'
+import {useSaveModelProvider, useStartProviderOAuth} from '@shm/ui/agents/models'
 
 function renderHook<T>(useHook: () => T) {
   let result: T

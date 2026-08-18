@@ -24,7 +24,7 @@ const mockState = vi.hoisted(() => ({
   }>,
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
@@ -43,6 +43,7 @@ vi.mock('@/models/agents', () => ({
   useAgentWebSocketSubscription: () => ({text: ''}),
 }))
 
+vi.mock('@shm/ui/agents/account', () => ({useSelectedAccountId: () => mockState.selectedAccountId}))
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => mockState.selectedAccountId}))
 // The signed-out state pulls in the auth dialog, whose real module graph reaches the editor
 // package; only its hook surface matters here.
@@ -50,15 +51,21 @@ vi.mock('@/components/desktop-auth-dialog', () => ({
   useDesktopAuthDialog: () => ({content: null, open: vi.fn(), close: vi.fn()}),
 }))
 vi.mock('@/models/daemon', () => ({useMyAccountIds: () => ({data: mockState.accountIds})}))
-vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
+vi.mock('@shm/ui/agents/navigation', () => ({
+  useNavigate: () => vi.fn(),
+  useClickNavigate: () => vi.fn(),
+  useOpenUrl: () => vi.fn(),
+  resolveHypermediaRoute: () => null,
+}))
+vi.mock('@shm/ui/agents/platform', () => ({
+  getAgentsPlatform: () => ({
+    useSignInPrompt: () => ({hasAccounts: !!mockState.accountIds.length, signIn: vi.fn(), dialog: null}),
+  }),
+  setAgentsPlatform: vi.fn(),
+}))
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
-vi.mock('./dialogs', () => ({
-  CreateAgentDialog: () => null,
-  ManageAgentAccountsDialog: () => null,
-  ModelProvidersDialog: () => null,
-}))
-vi.mock('../pages/agents/dialogs', () => ({
+vi.mock('@shm/ui/agents/dialogs', () => ({
   CreateAgentDialog: () => null,
   ManageAgentAccountsDialog: () => null,
   ModelProvidersDialog: () => null,
@@ -89,7 +96,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
   }
 })
 
-import AgentsListPage from '../pages/agents/list'
+import AgentsListPage from '@shm/ui/agents/list'
 
 function renderList() {
   const container = document.createElement('div')

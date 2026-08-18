@@ -28,7 +28,7 @@ const mockState = vi.hoisted(() => ({
   health: {data: undefined},
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   DEFAULT_AGENT_SERVER_URL: 'http://localhost:3051',
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
@@ -80,7 +80,7 @@ vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
 // The prompt editor drags in the ProseMirror stack, which does not load under jsdom; the accounts
 // dialog never renders it.
-vi.mock('@/pages/agents/prompt-editor', () => ({
+vi.mock('@shm/ui/agents/prompt-editor', () => ({
   AgentPromptEditor: () => null,
   promptBlocksForRequest: vi.fn(),
   promptBlocksToMarkdown: vi.fn(() => ''),
@@ -89,7 +89,7 @@ vi.mock('@/pages/agents/prompt-editor', () => ({
 import {keyfile} from '@seed-hypermedia/client'
 import * as blobs from '@shm/shared/blobs'
 import {Dialog, DialogContent} from '@shm/ui/components/dialog'
-import {ManageAgentAccountsDialog} from '../dialogs'
+import {ManageAgentAccountsDialog} from '@shm/ui/agents/dialogs'
 
 let container: HTMLDivElement
 let root: Root

@@ -213,6 +213,26 @@ export function routeToHref(
     const viewParam = route.view ? `?view=${route.view}` : ''
     return `/hm/notifications${viewParam}`
   }
+  if (typeof route !== 'string' && route.key === 'agents') {
+    return '/hm/agents'
+  }
+  if (typeof route !== 'string' && route.key === 'agent-server') {
+    return `/hm/agents/server?url=${encodeURIComponent(route.serverUrl)}`
+  }
+  if (typeof route !== 'string' && route.key === 'agent') {
+    const query: string[] = []
+    if (route.serverUrl) query.push(`server=${encodeURIComponent(route.serverUrl)}`)
+    if (route.tab) query.push(`tab=${route.tab}`)
+    if (route.triggerId) query.push(`trigger=${encodeURIComponent(route.triggerId)}`)
+    if (route.memoryPath) query.push(`file=${encodeURIComponent(route.memoryPath)}`)
+    return `/hm/agents/agent/${encodeURIComponent(route.agentId)}${query.length ? `?${query.join('&')}` : ''}`
+  }
+  if (typeof route !== 'string' && route.key === 'agent-session') {
+    const query: string[] = []
+    if (route.serverUrl) query.push(`server=${encodeURIComponent(route.serverUrl)}`)
+    if (route.agentId) query.push(`agent=${encodeURIComponent(route.agentId)}`)
+    return `/hm/agents/session/${encodeURIComponent(route.sessionId)}${query.length ? `?${query.join('&')}` : ''}`
+  }
   if (typeof route !== 'string' && route.key === 'site-settings-emails') {
     const siteBase =
       !route.accountUid || options?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`

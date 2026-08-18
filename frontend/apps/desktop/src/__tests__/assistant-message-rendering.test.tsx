@@ -2,7 +2,7 @@ import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import type {ChatMessagePart} from '@/models/chat-parts'
+import type {ChatMessagePart} from '@shm/ui/agents/chat-parts'
 
 /**
  * Rendering coverage for assistant/agent chat bubbles.
@@ -18,13 +18,15 @@ const mockState = vi.hoisted(() => ({
   openUrl: vi.fn(),
 }))
 
-vi.mock('@/utils/useNavigate', () => ({
+vi.mock('@shm/ui/agents/navigation', () => ({
   useNavigate: () => mockState.navigate,
   useClickNavigate: () => mockState.clickNavigate,
+  useOpenUrl: () => mockState.openUrl,
+  resolveHypermediaRoute: () => null,
 }))
 
-vi.mock('@/open-url', () => ({
-  useOpenUrl: () => mockState.openUrl,
+vi.mock('@shm/ui/agents/account', () => ({
+  useSelectedAccountId: () => 'account-1',
 }))
 
 // Avoid vi.importActual here: navigation → routing → utils barrel → url-to-route → navigation
@@ -54,7 +56,7 @@ vi.mock('@shm/shared/utils/entity-id-url', async () => {
   return {...actual, packHmId: vi.fn()}
 })
 
-vi.mock('../components/markdown', () => ({
+vi.mock('@shm/ui/agents/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
 }))
 
@@ -70,7 +72,7 @@ vi.mock('@shm/ui/hm-icon', () => ({
 }))
 
 // models/agents creates the tRPC client at import time, which needs the electronTRPC preload global.
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   useSessionAttachmentDataUrls: () => ({}),
   // The delegate row resolves its live child through these; inert here — no child ever resolves.
   useSessionRuns: () => ({data: undefined}),
@@ -81,7 +83,7 @@ vi.mock('@/models/agents', () => ({
   useSignalRun: () => ({mutate: () => {}, isPending: false}),
 }))
 
-import {AgentErrorRow, ChatMessageBubble} from '../components/assistant-message-rendering'
+import {AgentErrorRow, ChatMessageBubble} from '@shm/ui/agents/message-rendering'
 
 /** Renders one assistant bubble carrying the given tool part. */
 function renderToolPart(part: ChatMessagePart, serverUrl?: string, agentId?: string) {
@@ -181,7 +183,7 @@ describe('assistant message rendering', () => {
     })
 
     expect(container.querySelector('[data-testid="account-icon"]')?.textContent).toBe('Alice')
-    expect(container.querySelector('[aria-label="Message from Alice"]')).toBeTruthy()
+    expect(container.querySelector(`[aria-label="Open Alice's profile"]`)).toBeTruthy()
     click(findButton(container, (element) => element.title === 'Show markdown sent to the LLM'))
     expect(document.body.textContent).toContain('Originator')
     expect(document.body.textContent).toContain('z6MkAlice')

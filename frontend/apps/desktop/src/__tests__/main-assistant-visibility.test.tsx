@@ -41,7 +41,7 @@ vi.mock('@/ipc', () => ({
   },
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   useAgentServerUrls: () => ({data: mockState.serverUrls, isLoading: false, isSuccess: true}),
   useHasAnyAgent: () => ({
     hasAgents: mockState.hasAgents,
@@ -71,6 +71,10 @@ vi.mock('@/models/accounts', () => ({
 
 vi.mock('@/models/documents', () => ({
   useCreateDraft: () => async () => {},
+}))
+
+vi.mock('@shm/ui/agents/account', () => ({
+  useSelectedAccountId: () => null,
 }))
 
 vi.mock('@/selected-account', () => ({

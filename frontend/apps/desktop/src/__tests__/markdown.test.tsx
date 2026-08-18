@@ -7,23 +7,24 @@ const openUrlMock = vi.hoisted(() => vi.fn())
 const useGatewayUrlMock = vi.hoisted(() => vi.fn())
 const useResourceMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/open-url', async () => {
-  const actual = await vi.importActual<typeof import('@/open-url')>('@/open-url')
+vi.mock('@shm/ui/agents/navigation', async () => {
+  const actual = await vi.importActual<typeof import('@shm/ui/agents/navigation')>('@shm/ui/agents/navigation')
   return {
     ...actual,
     useOpenUrl: () => openUrlMock,
   }
 })
 
-vi.mock('@/models/gateway-settings', () => ({
-  useGatewayUrl: () => useGatewayUrlMock(),
+vi.mock('@shm/ui/agents/platform', () => ({
+  getAgentsPlatform: () => ({useGatewayUrl: () => useGatewayUrlMock()}),
+  setAgentsPlatform: vi.fn(),
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
   useResource: (id: unknown) => useResourceMock(id),
 }))
 
-import {Markdown} from '../components/markdown'
+import {Markdown} from '@shm/ui/agents/markdown'
 
 function renderMarkdown(content: string) {
   const container = document.createElement('div')
@@ -49,7 +50,7 @@ describe('Markdown', () => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     openUrlMock.mockReset()
     useGatewayUrlMock.mockReset()
-    useGatewayUrlMock.mockReturnValue({data: 'https://gw.seed.test'})
+    useGatewayUrlMock.mockReturnValue('https://gw.seed.test')
     useResourceMock.mockReset()
     useResourceMock.mockImplementation((id?: {uid?: string} | null) => {
       if (id?.uid === 'z6MkSite') {

@@ -15,25 +15,20 @@ const signAgentActionMock = vi.fn()
 
 const storeData: Record<string, any> = {}
 
-vi.mock('@/trpc', () => ({
-  client: {
-    appSettings: {
-      getSetting: {
-        query: getSettingMock,
-      },
-      setSetting: {
-        mutate: setSettingMock,
-      },
-    },
-    sync: {
-      subscribe: {
-        subscribe: syncSubscribeMock,
-      },
-    },
-  },
-}))
+vi.mock('@shm/ui/agents/platform', async () => {
+  const {getDefaultAgentServerUrl} = await import('@/agents-defaults')
+  return {
+    getAgentsPlatform: () => ({
+      defaultServerUrl: () => getDefaultAgentServerUrl(),
+      getSetting: getSettingMock,
+      setSetting: setSettingMock,
+      subscribeToEntity: syncSubscribeMock,
+    }),
+    setAgentsPlatform: vi.fn(),
+  }
+})
 
-vi.mock('@/agents-client', () => ({
+vi.mock('@shm/ui/agents/client', () => ({
   getAgentServerHealth: getAgentServerHealthMock,
   getAgentWebSocketUrl: getAgentWebSocketUrlMock,
   isSafeAgentServerSecretTarget: vi.fn(),
@@ -143,7 +138,7 @@ describe('agent server models', () => {
     vi.clearAllMocks()
     process.env.NODE_ENV = 'test'
     getSettingMock.mockImplementation(async (key: string) => storeData[key] ?? null)
-    setSettingMock.mockImplementation(async ({key, value}: {key: string; value: any}) => {
+    setSettingMock.mockImplementation(async (key: string, value: any) => {
       storeData[key] = value
       return undefined
     })
@@ -165,12 +160,13 @@ describe('agent server models', () => {
     process.env.NODE_ENV = 'development'
 
     vi.resetModules()
-    const mod = await import('../models/agents')
+    const mod = await import('@shm/ui/agents/models')
+    const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
     const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
-    expect(rendered.result().data).toEqual([mod.DEFAULT_AGENT_SERVER_URL])
+    expect(rendered.result().data).toEqual([DEFAULT_AGENT_SERVER_URL])
 
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
@@ -179,12 +175,13 @@ describe('agent server models', () => {
     process.env.NODE_ENV = 'production'
 
     vi.resetModules()
-    const mod = await import('../models/agents')
+    const mod = await import('@shm/ui/agents/models')
+    const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
     const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
 
-    expect(rendered.result().data).toEqual([mod.DEFAULT_AGENT_SERVER_URL])
+    expect(rendered.result().data).toEqual([DEFAULT_AGENT_SERVER_URL])
 
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
@@ -194,7 +191,7 @@ describe('agent server models', () => {
     storeData['agent-server-urls'] = []
 
     vi.resetModules()
-    const mod = await import('../models/agents')
+    const mod = await import('@shm/ui/agents/models')
     const rendered = renderHook(() => mod.useConfiguredAgentServerUrls())
 
     await waitForCondition(() => rendered.result().data !== undefined)
@@ -209,15 +206,15 @@ describe('agent server models', () => {
     storeData['agent-server-urls'] = ['http://localhost:3050']
 
     vi.resetModules()
-    const mod = await import('../models/agents')
+    const mod = await import('@shm/ui/agents/models')
     const rendered = renderHook(() => mod.useSetAgentServerUrls())
 
     await act(async () => {
       await rendered.result().mutateAsync([])
     })
 
-    expect(setSettingMock).toHaveBeenCalledWith({key: 'agent-server-urls', value: []})
-    expect(setSettingMock).toHaveBeenCalledWith({key: 'agent-server-url', value: null})
+    expect(setSettingMock).toHaveBeenCalledWith('agent-server-urls', [])
+    expect(setSettingMock).toHaveBeenCalledWith('agent-server-url', null)
     expect(storeData['agent-server-url']).toBeNull()
     expect(invalidateQueriesMock).toHaveBeenCalledWith(['agents'])
 
@@ -228,14 +225,14 @@ describe('agent server models', () => {
     process.env.NODE_ENV = 'production'
 
     vi.resetModules()
-    const mod = await import('../models/agents')
+    const {DEFAULT_AGENT_SERVER_URL} = await import('@/agents-defaults')
 
-    expect(mod.DEFAULT_AGENT_SERVER_URL).toBe('https://agentic.seed.hyper.media')
+    expect(DEFAULT_AGENT_SERVER_URL).toBe('https://agentic.seed.hyper.media')
   })
 
   it('syncs references only for the mounted session and unsubscribes when it closes', async () => {
     vi.resetModules()
-    const mod = await import('../models/agents')
+    const mod = await import('@shm/ui/agents/models')
     const rendered = renderHook(() =>
       mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'sessions/open-session'),
     )
@@ -288,7 +285,7 @@ describe('agent server models', () => {
         }),
         recursive: false,
       },
-      expect.objectContaining({onData: expect.any(Function), onError: expect.any(Function)}),
+      expect.objectContaining({onError: expect.any(Function)}),
     )
 
     socket.emit('message', {
@@ -314,7 +311,7 @@ describe('agent server models', () => {
         id: expect.objectContaining({id: 'hm://z6MkOwner/notes'}),
         recursive: true,
       },
-      expect.objectContaining({onData: expect.any(Function), onError: expect.any(Function)}),
+      expect.objectContaining({onError: expect.any(Function)}),
     )
 
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
@@ -323,7 +320,7 @@ describe('agent server models', () => {
 
   it('does not sync session references from an account-level background subscription', async () => {
     vi.resetModules()
-    const mod = await import('../models/agents')
+    const mod = await import('@shm/ui/agents/models')
     const rendered = renderHook(() =>
       mod.useAgentWebSocketSubscription('https://agents.test', 'account-1', 'account/account-1'),
     )

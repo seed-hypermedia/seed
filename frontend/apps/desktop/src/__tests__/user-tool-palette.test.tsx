@@ -6,13 +6,13 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 
 const mutateAsync = vi.fn(async () => ({_: 'InvokeSessionToolResponse', sessionId: 's1', resultEventId: 'e1'}))
 const healthData = {webTools: {search: true, readBrowser: true}, codeExec: false}
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   useInvokeSessionTool: () => ({mutateAsync, isPending: false}),
   useAgentServerHealth: () => ({data: healthData}),
 }))
 vi.mock('@shm/ui/toast', () => ({toast: {error: vi.fn(), success: vi.fn()}}))
 
-import {UserToolPalette} from '../pages/agents/user-tool-palette'
+import {UserToolPalette} from '@shm/ui/agents/user-tool-palette'
 
 function render() {
   const container = document.createElement('div')

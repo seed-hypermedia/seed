@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import type {AgentInfo} from '../agents-client'
-import type {AgentSessionListEntry} from '../models/agents'
+import type {AgentInfo} from '@shm/ui/agents/client'
+import type {AgentSessionListEntry} from '@shm/ui/agents/models'
 import {resolveAssistantSelection, type AssistantAgentOption} from '../models/assistant-selection'
 
 /**

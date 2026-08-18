@@ -2,7 +2,7 @@ import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {Markdown} from '../markdown'
+import {Markdown} from '@shm/ui/agents/markdown'
 
 vi.mock('@/models/gateway-settings', () => ({
   useGatewayUrl: () => ({data: undefined}),

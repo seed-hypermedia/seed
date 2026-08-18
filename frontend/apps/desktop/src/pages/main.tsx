@@ -4,7 +4,7 @@ import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
-import {useAgentServerUrls, useHasAnyAgent} from '@/models/agents'
+import {useAgentServerUrls, useHasAnyAgent} from '@shm/ui/agents/models'
 import {useConnectPeer} from '@/models/contacts'
 import {useCreateDraft} from '@/models/documents'
 import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
@@ -55,9 +55,9 @@ var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
 var Explore = lazy(() => import('./explore'))
 var Agents = lazy(() => import('./agents'))
-var AgentServer = lazy(() => import('./agents/server'))
-var AgentDetail = lazy(() => import('./agents/detail'))
-var AgentSession = lazy(() => import('./agents/session'))
+var AgentServer = lazy(() => import('@shm/ui/agents/server'))
+var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
+var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
 var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))

@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import type {AgentInfo, ModelProviderInfo, ProviderModelInfo} from '../agents-client'
+import type {AgentInfo, ModelProviderInfo, ProviderModelInfo} from '@shm/ui/agents/client'
 
 // The module under test reaches hooks in @/models/agents, which pull in the tRPC/gRPC clients;
 // neither exists outside Electron. The functions under test are pure.

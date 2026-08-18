@@ -2,7 +2,7 @@ import {lazy, useEffect, useState} from 'react'
 import {WebCommentingProps} from './commenting'
 import {isPerfEnabled, markEditorLoadStart, markPanelOpenStart} from './web-perf-marks'
 
-function clientLazy<ComponentProps extends {}>(doImport: () => Promise<{default: React.FC<ComponentProps>}>) {
+export function clientLazy<ComponentProps extends {}>(doImport: () => Promise<{default: React.FC<ComponentProps>}>) {
   const ClientComponent = lazy(doImport)
   function ClientAwokenComponent(props: ComponentProps) {
     const [isClientAwake, setIsClientAwake] = useState(false)

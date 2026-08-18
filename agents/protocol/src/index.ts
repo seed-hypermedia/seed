@@ -186,10 +186,27 @@ export type UnsignedAgentAction =
   | SignalRun
   | GetRunJournal
   | Subscribe
+  | RegisterSigner
 
 /** Lists agents for the signed account. */
 export type ListAgents = {
   _: 'ListAgents'
+}
+
+/**
+ * Registers the envelope's signer as a delegated signer for another account, proven by a signed
+ * Capability blob (the account key delegating role AGENT to this signer). After registration the
+ * signer may send envelopes whose `account` is the delegating account — this is how a web device
+ * key acts as the vault account it was delegated from, so both surfaces see the same agents.
+ */
+export type RegisterSigner = {
+  _: 'RegisterSigner'
+  /**
+   * Raw canonical DAG-CBOR bytes of the signed Capability blob. The server verifies the blob's
+   * own signature (the account's), that its delegate is the envelope signer, and its role, so
+   * possession of both keys is proven end to end.
+   */
+  capability: Uint8Array
 }
 
 /** Lists pending invitations sent to the signed account. */
@@ -1284,6 +1301,15 @@ export type ListAgentsResponse = {
   agents: AgentInfo[]
 }
 
+/** Successful response for `RegisterSigner`. */
+export type RegisterSignerResponse = {
+  _: 'RegisterSignerResponse'
+  /** The delegating account the signer may now act as. */
+  accountId: string
+  /** The registered delegate signer. */
+  signerId: string
+}
+
 /** Successful response for `ListAgentInvites`. */
 export type ListAgentInvitesResponse = {
   _: 'ListAgentInvitesResponse'
@@ -1725,6 +1751,7 @@ export type ErrorResponse = {
 /** Response values for the Agents API. */
 export type AgentResponse =
   | ListAgentsResponse
+  | RegisterSignerResponse
   | ListAgentInvitesResponse
   | ListAgentCollaboratorsResponse
   | InviteAgentCollaboratorResponse

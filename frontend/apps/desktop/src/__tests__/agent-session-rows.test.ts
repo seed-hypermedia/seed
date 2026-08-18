@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest'
-import type {RunInfo, SessionEvent} from '@/agents-client'
+import type {RunInfo, SessionEvent} from '@shm/ui/agents/client'
 import {
   buildAgentSessionChatRows,
   frozenRunIds,
   interleaveRunRecords,
   isOptimisticUserEcho,
   retryableErrorRowKey,
-} from '@/models/agent-session-rows'
+} from '@shm/ui/agents/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@/components/assistant-session-ref'
 
 const CONTEXT = {serverUrl: 'http://localhost:3050', agentId: 'agent-1', sessionId: 'session-1'}

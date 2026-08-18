@@ -1,10 +1,10 @@
-import type {RunInfo} from '@/agents-client'
+import type {RunInfo} from '@shm/ui/agents/client'
 import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 // vi.mock calls below are hoisted above this import, so the cards get the mocked hooks.
-import {RunRecordCard, SessionRunCard} from '../run-card'
+import {RunRecordCard, SessionRunCard} from '@shm/ui/agents/run-card'
 
 /**
  * Rendering coverage for the run cards.
@@ -25,24 +25,22 @@ const mockState = vi.hoisted(() => ({
 
 // The card renders the chat's own tool rows, which reach for navigation and the app context —
 // neither exists in this environment, and neither is what these tests are about.
-vi.mock('@/utils/useNavigate', () => ({
+vi.mock('@shm/ui/agents/navigation', () => ({
   useNavigate: () => vi.fn(),
   useClickNavigate: () => vi.fn(),
-}))
-
-vi.mock('@/open-url', () => ({
   useOpenUrl: () => vi.fn(),
+  resolveHypermediaRoute: () => null,
 }))
 
-vi.mock('@/selected-account', () => ({
+vi.mock('@shm/ui/agents/account', () => ({
   useSelectedAccountId: () => 'account-1',
 }))
 
-vi.mock('@/components/markdown', () => ({
+vi.mock('@shm/ui/agents/markdown', () => ({
   Markdown: ({children}: {children: React.ReactNode}) => React.createElement('div', null, children),
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   useSessionRuns: () => ({data: mockState.runs}),
   useRunTree: () => ({data: mockState.tree}),
   useRun: () => ({data: mockState.run, isLoading: false}),
