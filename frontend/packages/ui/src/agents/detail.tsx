@@ -613,7 +613,10 @@ function AgentDetailPage({
                         value={modelProvider}
                         onChange={handleProviderChange}
                         onAddProvider={
-                          isOwner ? () => addProviderDialog.open({serverUrl, selectedAccountId}) : undefined
+                          isOwner
+                            ? () =>
+                                addProviderDialog.open({serverUrl, selectedAccountId, onSaved: handleProviderChange})
+                            : undefined
                         }
                       />
                     </label>
@@ -668,25 +671,6 @@ function AgentDetailPage({
                             ? 'Settings save failed'
                             : ''}
                     </SizableText>
-                    {isOwner ? (
-                      <Button
-                        className="w-fit"
-                        variant="destructive"
-                        onClick={() =>
-                          deleteAgentDialog.open({
-                            serverUrl,
-                            selectedAccountId: selectedAccountId ?? null,
-                            agentId,
-                            agentName: name,
-                            onDeleted: () => navigate({key: 'agents'}),
-                          })
-                        }
-                        disabled={!selectedAccountId}
-                      >
-                        <Trash2 className="size-4" />
-                        Delete agent
-                      </Button>
-                    ) : null}
                   </div>
                 </section>
               ) : null}

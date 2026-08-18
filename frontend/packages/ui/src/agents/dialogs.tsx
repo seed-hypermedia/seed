@@ -22,7 +22,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {queryAccount} from '@shm/shared/models/queries'
-import {queryClient} from '@shm/shared/models/query-client'
+import {queryClient, useQueryClient} from '@shm/shared/models/query-client'
 import {useUniversalClient} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {
@@ -150,7 +150,12 @@ export function AddModelProviderDialog({
   input,
   onClose,
 }: {
-  input: {serverUrl: string; selectedAccountId: string | null | undefined}
+  input: {
+    serverUrl: string
+    selectedAccountId: string | null | undefined
+    /** Called with the saved provider's name so openers (e.g. a provider dropdown) can auto-select it. */
+    onSaved?: (providerName: string) => void
+  }
   onClose: () => void
 }) {
   return (
@@ -164,7 +169,10 @@ export function AddModelProviderDialog({
       <AddModelProviderForm
         serverUrl={input.serverUrl}
         selectedAccountId={input.selectedAccountId}
-        onSaved={onClose}
+        onSaved={(providerName) => {
+          input.onSaved?.(providerName)
+          onClose()
+        }}
         onCancel={onClose}
       />
     </div>
@@ -184,10 +192,11 @@ function AddModelProviderForm({
 }: {
   serverUrl: string
   selectedAccountId: string | null | undefined
-  onSaved?: () => void
+  onSaved?: (providerName: string) => void
   onCancel?: () => void
   submitLabel?: string
 }) {
+  const activeQueryClient = useQueryClient()
   const saveProvider = useSaveModelProvider(serverUrl, selectedAccountId)
   const health = useAgentServerHealth(serverUrl)
   const [type, setType] = useState<ModelProviderType>('openai')
@@ -219,6 +228,7 @@ function AddModelProviderForm({
   const canSubmit = !saveProvider.isLoading && apiKeyOk && baseUrlOk
 
   async function handleSave() {
+    const providerName = name.trim()
     try {
       await saveProvider.mutateAsync({
         type,
@@ -228,8 +238,12 @@ function AddModelProviderForm({
         oauthSecretName: subscriptionMode && oauthSecretName ? oauthSecretName : undefined,
       })
       setApiKey('')
+      // Refetch provider lists before reporting the save: callers auto-select the
+      // new provider, and their stale-selection resets would otherwise clobber a
+      // name the (still stale) list doesn't contain yet.
+      await activeQueryClient.refetchQueries({queryKey: ['agents', 'providers']}).catch(() => {})
       toast.success('Model provider saved')
-      onSaved?.()
+      onSaved?.(providerName)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not save model provider')
     }
@@ -986,6 +1000,7 @@ export function CreateAgentDialog({
           <AddModelProviderForm
             serverUrl={selectedServerUrl}
             selectedAccountId={input.selectedAccountId}
+            onSaved={setProviderName}
             submitLabel="Add provider"
           />
         </div>
@@ -1019,7 +1034,11 @@ export function CreateAgentDialog({
             value={providerName}
             onChange={setProviderName}
             onAddProvider={() =>
-              addProviderDialog.open({serverUrl: selectedServerUrl, selectedAccountId: input.selectedAccountId})
+              addProviderDialog.open({
+                serverUrl: selectedServerUrl,
+                selectedAccountId: input.selectedAccountId,
+                onSaved: setProviderName,
+              })
             }
           />
         </label>

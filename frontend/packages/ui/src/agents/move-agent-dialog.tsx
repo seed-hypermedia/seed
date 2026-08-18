@@ -164,7 +164,11 @@ export function MoveAgentDialog({
               value={providerOverride}
               onChange={setProviderOverride}
               onAddProvider={() =>
-                addProviderDialog.open({serverUrl: targetServerUrl, selectedAccountId: input.selectedAccountId})
+                addProviderDialog.open({
+                  serverUrl: targetServerUrl,
+                  selectedAccountId: input.selectedAccountId,
+                  onSaved: setProviderOverride,
+                })
               }
               disabled={moving}
             />
@@ -174,7 +178,11 @@ export function MoveAgentDialog({
               className="w-fit"
               disabled={moving}
               onClick={() =>
-                addProviderDialog.open({serverUrl: targetServerUrl, selectedAccountId: input.selectedAccountId})
+                addProviderDialog.open({
+                  serverUrl: targetServerUrl,
+                  selectedAccountId: input.selectedAccountId,
+                  onSaved: setProviderOverride,
+                })
               }
             >
               <Plus className="size-4" />
