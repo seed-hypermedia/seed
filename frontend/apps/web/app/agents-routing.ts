@@ -1,6 +1,8 @@
-import type {AgentRoute, NavRoute} from '@shm/shared/routes'
+import {agentRouteSchema, type NavRoute} from '@shm/shared/routes'
 
-const AGENT_TABS: NonNullable<AgentRoute['tab']>[] = ['sessions', 'triggers', 'memory', 'tools', 'prompt', 'settings']
+// Derived from the route schema so a tab added there (e.g. 'collaborators') is parseable here
+// without anyone remembering this file exists.
+const AGENT_TABS = agentRouteSchema.shape.tab.unwrap().options
 
 /**
  * Parses a /hm/agents URL into its NavRoute. Mirrors the agent-route cases of `routeToHref` in

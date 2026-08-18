@@ -1,5 +1,5 @@
 import {routeToHref} from '@shm/shared'
-import type {NavRoute} from '@shm/shared/routes'
+import {agentRouteSchema, type NavRoute} from '@shm/shared/routes'
 import {describe, expect, it} from 'vitest'
 import {agentsRouteFromUrl} from '../agents-routing'
 
@@ -45,6 +45,13 @@ describe('web agents routing', () => {
       agentId: 'agent-1',
     }
     expect(roundTrip(route)).toEqual(route)
+  })
+
+  it('round-trips every tab the agent route schema allows', () => {
+    for (const tab of agentRouteSchema.shape.tab.unwrap().options) {
+      const route: NavRoute = {key: 'agent', agentId: 'agent-1', tab}
+      expect(roundTrip(route)).toMatchObject({key: 'agent', agentId: 'agent-1', tab})
+    }
   })
 
   it('drops an unknown tab rather than producing an invalid route', () => {
