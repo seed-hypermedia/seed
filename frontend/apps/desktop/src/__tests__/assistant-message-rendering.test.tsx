@@ -183,7 +183,7 @@ describe('assistant message rendering', () => {
     })
 
     expect(container.querySelector('[data-testid="account-icon"]')?.textContent).toBe('Alice')
-    expect(container.querySelector('[aria-label="Message from Alice"]')).toBeTruthy()
+    expect(container.querySelector(`[aria-label="Open Alice's profile"]`)).toBeTruthy()
     click(findButton(container, (element) => element.title === 'Show markdown sent to the LLM'))
     expect(document.body.textContent).toContain('Originator')
     expect(document.body.textContent).toContain('z6MkAlice')
