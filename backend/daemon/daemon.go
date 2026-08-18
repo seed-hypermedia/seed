@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"seed/backend/storage"
 	"seed/backend/storage/vault"
 	"seed/backend/util/cleanup"
+	"seed/backend/util/grpcrecovery"
 	"seed/backend/util/pprofx"
 	"seed/backend/util/syncperf"
 
@@ -381,7 +383,19 @@ func initGRPC(
 		return
 	}
 
-	srv = grpc.NewServer(opts.serverOptions...)
+	grpcLog := logging.New("seed/grpc", LogLevel)
+
+	// Recovery is appended after the caller's options, which makes it the last
+	// interceptor in the chain and therefore the one closest to the handler:
+	// grpc.ChainUnaryInterceptor appends, and the outer metrics and tracing
+	// interceptors installed by cmd/seed-daemon should observe the resulting
+	// Internal error rather than have the panic unwind through them.
+	// Installing it here rather than at the call site covers every embedder of
+	// the daemon, including the desktop app and the tests.
+	srv = grpc.NewServer(slices.Concat(opts.serverOptions, []grpc.ServerOption{
+		grpc.ChainUnaryInterceptor(grpcrecovery.UnaryServerInterceptor(grpcLog)),
+		grpc.ChainStreamInterceptor(grpcrecovery.StreamServerInterceptor(grpcLog)),
+	})...)
 	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, taskMgr, embedder)
 	apis.Register(srv)
 
