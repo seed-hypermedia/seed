@@ -105,6 +105,13 @@ export type AgentsPlatform = {
   defaultServerUrl: () => string | null
   /** Returns a signer whose principal is the given account, used to sign agent actions. */
   getSigner: (accountUid: string) => Promise<blobs.Signer>
+  /**
+   * Proves a delegated signer to an agent server so it accepts envelopes whose account differs
+   * from the signing key (web: the vault account delegated to the local device key). Called once
+   * per server when it rejects the signer as unauthorized; omitted on platforms whose signing key
+   * is the account itself (desktop's daemon signing).
+   */
+  registerSigner?: (serverUrl: string) => Promise<void>
   /** Reads one persisted agents setting (JSON-compatible value) by key. */
   getSetting: (key: string) => Promise<unknown>
   /** Persists one agents setting (JSON-compatible value) by key. */

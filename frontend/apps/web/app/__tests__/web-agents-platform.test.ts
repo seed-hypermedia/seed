@@ -12,8 +12,11 @@ import type {AgentsPlatform} from '@shm/ui/agents/platform'
 const registered = vi.hoisted(() => ({platform: null as AgentsPlatform | null}))
 const mocks = vi.hoisted(() => ({
   storedKeyPair: null as CryptoKeyPair | null,
+  storedExtras: {} as {delegatedAccountUid?: string; capabilityCid?: string; capabilityBlob?: Uint8Array},
   keyPairFromStore: null as CryptoKeyPair | null,
+  localKeyPair: null as {id: string; delegatedAccountUid?: string} | null,
   appContext: {origin: undefined as string | undefined},
+  sendAgentAction: vi.fn(),
 }))
 
 vi.mock('@shm/shared', () => ({
@@ -29,12 +32,16 @@ vi.mock('@shm/ui/agents/platform', () => ({
 
 vi.mock('@/auth', () => ({
   keyPairStore: {get: () => mocks.keyPairFromStore},
-  useLocalKeyPair: () => null,
+  useLocalKeyPair: () => mocks.localKeyPair,
   useCreateAccount: () => ({createAccount: vi.fn(), content: null}),
 }))
 
 vi.mock('@/local-db', () => ({
-  getStoredLocalKeys: async () => (mocks.storedKeyPair ? {keyPair: mocks.storedKeyPair} : null),
+  getStoredLocalKeys: async () => (mocks.storedKeyPair ? {keyPair: mocks.storedKeyPair, ...mocks.storedExtras} : null),
+}))
+
+vi.mock('@shm/ui/agents/client', () => ({
+  sendAgentAction: (input: unknown) => mocks.sendAgentAction(input),
 }))
 
 // The rich editor drags in the whole ProseMirror stack; the adapter only passes it through.
@@ -67,8 +74,11 @@ function fakeWindow() {
 
 beforeEach(() => {
   mocks.storedKeyPair = null
+  mocks.storedExtras = {}
   mocks.keyPairFromStore = null
+  mocks.localKeyPair = null
   mocks.appContext.origin = undefined
+  mocks.sendAgentAction.mockReset()
 })
 
 afterEach(() => {
@@ -184,4 +194,65 @@ describe('web agents platform', () => {
 
     await expect(platform.getSigner('z6MkSomeAccount')).rejects.toThrow(/no local web identity/)
   })
+
+  it('reports the vault-delegated account as the identity, so web matches desktop', async () => {
+    const platform = await loadPlatform()
+
+    mocks.localKeyPair = {id: 'z6MkDeviceKey', delegatedAccountUid: 'z6MkVaultAccount'}
+    expect(platform.useAccountUid()).toBe('z6MkVaultAccount')
+
+    mocks.localKeyPair = {id: 'z6MkDeviceKey'}
+    expect(platform.useAccountUid()).toBe('z6MkDeviceKey')
+  })
+
+  it('signs as the delegated account with the device key, but refuses unrelated accounts', async () => {
+    const {blobs, keyPair, devicePrincipal} = await makeDeviceIdentity()
+    mocks.storedKeyPair = keyPair
+    mocks.storedExtras = {delegatedAccountUid: 'z6MkVaultAccount'}
+    const platform = await loadPlatform()
+
+    const asDevice = await platform.getSigner(devicePrincipal)
+    expect(blobs.principalToString(asDevice.principal)).toBe(devicePrincipal)
+
+    const asAccount = await platform.getSigner('z6MkVaultAccount')
+    expect(blobs.principalToString(asAccount.principal)).toBe(devicePrincipal)
+
+    await expect(platform.getSigner('z6MkSomeoneElse')).rejects.toThrow(/local web identity/)
+  })
+
+  it('registers the delegation with a self-signed envelope carrying the stored capability', async () => {
+    const {devicePrincipal, keyPair} = await makeDeviceIdentity()
+    const capability = new Uint8Array([1, 2, 3, 4])
+    mocks.storedKeyPair = keyPair
+    mocks.storedExtras = {delegatedAccountUid: 'z6MkVaultAccount', capabilityBlob: capability}
+    const platform = await loadPlatform()
+
+    await platform.registerSigner!('https://agents.example.com')
+
+    expect(mocks.sendAgentAction).toHaveBeenCalledWith({
+      serverUrl: 'https://agents.example.com',
+      // The registration proves itself: the envelope is signed by the device key AS the device
+      // key, and the capability inside is the account's own signature over the delegation.
+      accountUid: devicePrincipal,
+      action: {_: 'RegisterSigner', capability},
+    })
+  })
+
+  it('refuses to register when there is no delegation to prove', async () => {
+    const {keyPair} = await makeDeviceIdentity()
+    mocks.storedKeyPair = keyPair
+    const platform = await loadPlatform()
+
+    await expect(platform.registerSigner!('https://agents.example.com')).rejects.toThrow(/No account delegation/)
+    expect(mocks.sendAgentAction).not.toHaveBeenCalled()
+  })
 })
+
+/** A real WebCrypto Ed25519 device identity, as the browser would hold. */
+async function makeDeviceIdentity() {
+  const blobs = await import('@shm/shared/blobs')
+  const keyPair = (await crypto.subtle.generateKey({name: 'Ed25519'}, false, ['sign', 'verify'])) as CryptoKeyPair
+  const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey))
+  const devicePrincipal = blobs.principalToString(blobs.principalFromEd25519(rawPublicKey))
+  return {blobs, keyPair, devicePrincipal}
+}

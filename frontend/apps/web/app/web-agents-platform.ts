@@ -6,6 +6,7 @@ import * as blobs from '@shm/shared/blobs'
 import {SEED_AGENT_SERVER_URL} from '@shm/shared/constants'
 import type {NavRoute} from '@shm/shared/routes'
 import type {NavMode} from '@shm/shared/utils/navigation'
+import {sendAgentAction} from '@shm/ui/agents/client'
 import {setAgentsPlatform} from '@shm/ui/agents/platform'
 import React, {useCallback} from 'react'
 
@@ -13,19 +14,51 @@ import React, {useCallback} from 'react'
  * Web adapter for the shared Agents UI in @shm/ui/agents.
  *
  * Signing uses the local web identity (non-extractable WebCrypto Ed25519 device key in IndexedDB).
- * The agents server only accepts envelopes where the signer is the account — it has no delegation
- * registration API yet — so on web the device key *is* the agents account; `useAccountUid` returns
- * the device key's principal rather than the vault-delegated account UID.
+ * When the vault delegated an account to this device key, the device signs envelopes *as that
+ * account* — so web and desktop see the same agents — and {@link registerWebSigner} proves the
+ * delegation to each agent server with the vault-issued Capability blob. Without a delegation the
+ * device key is its own account, as before.
  */
 async function getWebAgentsSigner(accountUid: string): Promise<blobs.Signer> {
-  const keyPair: CryptoKeyPair | null = keyPairStore.get() ?? (await getStoredLocalKeys())?.keyPair ?? null
+  const stored = await getStoredLocalKeys()
+  const keyPair: CryptoKeyPair | null = keyPairStore.get() ?? stored?.keyPair ?? null
   if (!keyPair) throw new Error('Sign in to use agents: no local web identity is available')
   const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey))
   const signer = new blobs.WebCryptoKeyPair(keyPair, rawPublicKey)
-  if (blobs.principalToString(signer.principal) !== accountUid) {
+  const devicePrincipal = blobs.principalToString(signer.principal)
+  if (devicePrincipal !== accountUid && stored?.delegatedAccountUid !== accountUid) {
     throw new Error('Agents actions must be signed by the local web identity')
   }
   return signer
+}
+
+/**
+ * Proves this device key's delegation to an agent server (see the platform seam's registerSigner).
+ *
+ * Sends a self-signed RegisterSigner action carrying the vault-issued Capability blob. The bytes
+ * are stored at sign-in; sessions delegated before that was stored fall back to fetching the
+ * published blob by CID through this site's own IPFS proxy.
+ */
+async function registerWebSigner(serverUrl: string): Promise<void> {
+  const stored = await getStoredLocalKeys()
+  if (!stored?.delegatedAccountUid) {
+    throw new Error('No account delegation is available for this web identity')
+  }
+  let capability = stored.capabilityBlob ?? null
+  if (!capability && stored.capabilityCid) {
+    const res = await fetch(`/hm/api/file/${stored.capabilityCid}`)
+    if (res.ok) capability = new Uint8Array(await res.arrayBuffer())
+  }
+  if (!capability) {
+    throw new Error('The delegation capability for this web identity is not available')
+  }
+  const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', stored.keyPair.publicKey))
+  const devicePrincipal = blobs.principalToString(blobs.principalFromEd25519(rawPublicKey))
+  await sendAgentAction({
+    serverUrl,
+    accountUid: devicePrincipal,
+    action: {_: 'RegisterSigner', capability},
+  })
 }
 
 const SETTING_STORAGE_PREFIX = 'seed.agents.setting.'
@@ -115,9 +148,13 @@ export function registerWebAgentsPlatform() {
       }
       window.localStorage.setItem(settingStorageKey(key), JSON.stringify(value))
     },
-    // The device key is the agents account on web (see module docs), so the account UID is the
-    // local web identity's principal.
-    useAccountUid: () => useLocalKeyPair()?.id ?? null,
+    registerSigner: registerWebSigner,
+    // The vault-delegated account when one exists — the same identity desktop signs as, so both
+    // surfaces see the same agents — else the device key is its own account.
+    useAccountUid: () => {
+      const keyPair = useLocalKeyPair()
+      return keyPair?.delegatedAccountUid ?? keyPair?.id ?? null
+    },
     useNavigate: useWebAgentsNavigate,
     useOpenUrl: useWebAgentsOpenUrl,
     useGatewayUrl: useWebAgentsGatewayUrl,

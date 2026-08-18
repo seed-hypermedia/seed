@@ -728,6 +728,8 @@ export class Service {
     const accountId = this.#actionAccountId(verified.accountId, envelope.action)
 
     switch (envelope.action._) {
+      case 'RegisterSigner':
+        return this.#registerSigner(envelope.signer, envelope.action.capability)
       case 'ListAgents':
         return this.#listAgents(verified.accountId)
       case 'ListAgentInvites':
@@ -1067,6 +1069,16 @@ export class Service {
     if (required === 'owner' && role !== 'owner') throw new APIError(403, 'Only the agent owner can do this')
     if (required === 'writer' && role === 'reader') throw new APIError(403, 'Write access is required')
     return {ownerAccountId: row.owner_account_id, role}
+  }
+
+  #registerSigner(envelopeSigner: Uint8Array, capabilityBytes: Uint8Array): api.RegisterSignerResponse {
+    let registered: {accountId: string; signerId: string}
+    try {
+      registered = auth.registerDelegatedSigner(this.#db, capabilityBytes, envelopeSigner)
+    } catch (error) {
+      throw new APIError(400, error instanceof Error ? error.message : 'Invalid capability')
+    }
+    return {_: 'RegisterSignerResponse', ...registered}
   }
 
   #listAgents(accountId: string): api.ListAgentsResponse {

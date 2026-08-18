@@ -160,11 +160,13 @@ export function getAgentWebSocketUrl(serverUrl: string): string {
 
 export async function signAgentAction(input: {accountUid: string; action: AgentAction}) {
   const signer = await getAgentsPlatform().getSigner(input.accountUid)
+  // The account is who the action is for; the signer is who holds the key. They differ on web,
+  // where a delegated device key acts as the vault account (see the platform's registerSigner).
   return blobs.sign(signer, {
     type: 'AgentsAction',
     signer: signer.principal,
     sig: new Uint8Array(blobs.ED25519_SIGNATURE_SIZE),
-    account: signer.principal,
+    account: blobs.principalFromString(input.accountUid),
     action: {...omitUndefined(input.action), ts: Date.now()},
   } as unknown as blobs.Blob)
 }
@@ -184,6 +186,28 @@ function omitUndefined<T>(value: T): T {
 }
 
 export async function sendAgentAction(input: {
+  serverUrl: string
+  accountUid: string
+  action: AgentAction
+}): Promise<AgentsResponse> {
+  try {
+    return await sendSignedAgentAction(input)
+  } catch (error) {
+    // A delegated signer the server has not seen yet is rejected with this exact message. When the
+    // platform can prove the delegation (web holds the vault-issued Capability blob), register it
+    // once and retry, so the same account sees the same agents on every surface.
+    const registerSigner = getAgentsPlatform().registerSigner
+    if (!registerSigner || !isUnauthorizedSignerError(error) || input.action._ === 'RegisterSigner') throw error
+    await registerSigner(input.serverUrl)
+    return await sendSignedAgentAction(input)
+  }
+}
+
+function isUnauthorizedSignerError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Signer is not authorized')
+}
+
+async function sendSignedAgentAction(input: {
   serverUrl: string
   accountUid: string
   action: AgentAction

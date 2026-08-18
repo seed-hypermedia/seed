@@ -198,25 +198,30 @@ export interface StoredLocalKeys {
   keyPair: CryptoKeyPair
   delegatedAccountUid?: string
   capabilityCid?: string
+  /** Raw signed Capability blob bytes, kept so delegated signers can prove themselves offline. */
+  capabilityBlob?: Uint8Array
   vaultUrl?: string
   notifyServerUrl?: string
 }
 
 export async function getStoredLocalKeys(): Promise<StoredLocalKeys | null> {
   const store = (await getDB()).transaction(KEYS_STORE_NAME).objectStore(KEYS_STORE_NAME)
-  const [privateKey, publicKey, delegatedAccountUid, capabilityCid, vaultUrl, notifyServerUrl] = await Promise.all([
-    storeGet<CryptoKey>(store, 'privateKey'),
-    storeGet<CryptoKey>(store, 'publicKey'),
-    storeGet<string | undefined>(store, 'delegatedAccountUid'),
-    storeGet<string | undefined>(store, 'capabilityCid'),
-    storeGet<string | undefined>(store, 'vaultUrl'),
-    storeGet<string | undefined>(store, 'notifyServerUrl'),
-  ])
+  const [privateKey, publicKey, delegatedAccountUid, capabilityCid, capabilityBlob, vaultUrl, notifyServerUrl] =
+    await Promise.all([
+      storeGet<CryptoKey>(store, 'privateKey'),
+      storeGet<CryptoKey>(store, 'publicKey'),
+      storeGet<string | undefined>(store, 'delegatedAccountUid'),
+      storeGet<string | undefined>(store, 'capabilityCid'),
+      storeGet<Uint8Array | undefined>(store, 'capabilityBlob'),
+      storeGet<string | undefined>(store, 'vaultUrl'),
+      storeGet<string | undefined>(store, 'notifyServerUrl'),
+    ])
   if (!privateKey || !publicKey) return null
   return {
     keyPair: {privateKey, publicKey},
     delegatedAccountUid: delegatedAccountUid ?? undefined,
     capabilityCid: capabilityCid ?? undefined,
+    capabilityBlob: capabilityBlob ?? undefined,
     vaultUrl: vaultUrl ?? undefined,
     notifyServerUrl: notifyServerUrl ?? undefined,
   }
@@ -224,7 +229,13 @@ export async function getStoredLocalKeys(): Promise<StoredLocalKeys | null> {
 
 export async function writeLocalKeys(
   keyPair: CryptoKeyPair,
-  options?: {delegatedAccountUid?: string; capabilityCid?: string; vaultUrl?: string; notifyServerUrl?: string},
+  options?: {
+    delegatedAccountUid?: string
+    capabilityCid?: string
+    capabilityBlob?: Uint8Array
+    vaultUrl?: string
+    notifyServerUrl?: string
+  },
 ): Promise<void> {
   const store = (await getDB()).transaction(KEYS_STORE_NAME, 'readwrite').objectStore(KEYS_STORE_NAME)
   const writes: Promise<void>[] = [
@@ -236,6 +247,9 @@ export async function writeLocalKeys(
   }
   if (options?.capabilityCid !== undefined) {
     writes.push(storePut(store, options.capabilityCid, 'capabilityCid'))
+  }
+  if (options?.capabilityBlob !== undefined) {
+    writes.push(storePut(store, options.capabilityBlob, 'capabilityBlob'))
   }
   if (options?.vaultUrl !== undefined) {
     writes.push(storePut(store, options.vaultUrl, 'vaultUrl'))
@@ -250,6 +264,9 @@ export async function writeLocalKeys(
   }
   if (options?.capabilityCid === undefined) {
     writes.push(storeDelete(store, 'capabilityCid'))
+  }
+  if (options?.capabilityBlob === undefined) {
+    writes.push(storeDelete(store, 'capabilityBlob'))
   }
   if (options?.vaultUrl === undefined) {
     writes.push(storeDelete(store, 'vaultUrl'))

@@ -1,6 +1,7 @@
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import * as blobs from '@shm/shared/blobs'
+import * as cbor from '@/cbor'
 
 const MAX_ACTION_CLOCK_SKEW_MS = 30_000
 
@@ -40,6 +41,57 @@ export function isAuthorizedSigner(db: Database, accountId: string, signerId: st
     )
     .get(accountId, signerId)
   return row?.role === 'AGENT' || row?.role === 'OWNER'
+}
+
+/**
+ * Registers a delegated signer for an account from a signed Capability blob.
+ *
+ * The proof is end to end: the blob's own signature shows the account key granted the delegation,
+ * and requiring `delegate == envelopeSigner` shows the caller holds the delegated key (the
+ * envelope's signature already verified). A third party replaying a published capability cannot
+ * register because it cannot sign the envelope as the delegate.
+ */
+export function registerDelegatedSigner(
+  db: Database,
+  capabilityBytes: Uint8Array,
+  envelopeSigner: blobs.Principal,
+): {accountId: string; signerId: string} {
+  if (!(capabilityBytes instanceof Uint8Array) || !capabilityBytes.length) {
+    throw new Error('Invalid capability bytes')
+  }
+  let capability: blobs.Capability
+  try {
+    capability = cbor.decode<blobs.Capability>(capabilityBytes)
+  } catch {
+    throw new Error('Capability is not valid CBOR')
+  }
+  if (!capability || typeof capability !== 'object' || capability.type !== 'Capability') {
+    throw new Error('Blob is not a Capability')
+  }
+  validatePrincipal('capability signer', capability.signer)
+  validatePrincipal('capability delegate', capability.delegate)
+  if (!blobs.verify(capability as unknown as blobs.Blob)) {
+    throw new Error('Invalid capability signature')
+  }
+  if (!blobs.principalEqual(capability.delegate, envelopeSigner)) {
+    throw new Error('Capability delegate does not match envelope signer')
+  }
+  // WRITER is a broader grant than AGENT, so both prove the account trusts this key to act for it.
+  if (capability.role !== 'AGENT' && capability.role !== 'WRITER') {
+    throw new Error('Capability role does not permit agent actions')
+  }
+  const accountId = blobs.principalToString(capability.signer)
+  const signerId = blobs.principalToString(capability.delegate)
+  if (accountId === signerId) {
+    throw new Error('Capability delegates to its own issuer')
+  }
+  setLocalAuthorization(db, {
+    accountId,
+    signerId,
+    role: 'AGENT',
+    capability: Buffer.from(capabilityBytes).toString('base64'),
+  })
+  return {accountId, signerId}
 }
 
 /** Inserts or updates a local account authorization. Useful for tests and future admin actions. */
