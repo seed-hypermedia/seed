@@ -2461,17 +2461,7 @@ export class Service {
   #deleteAgentTrigger(accountId: string, triggerId: string): api.DeleteAgentTriggerResponse {
     const existing = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!existing) throw new APIError(404, 'Agent trigger not found')
-    const transaction = this.#db.transaction(() => {
-      // Run history survives trigger deletion detached from its firing rows.
-      this.#db.run(
-        `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
-           SELECT id FROM trigger_firings WHERE account_id = ? AND trigger_id = ?)`,
-        [accountId, triggerId],
-      )
-      this.#db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND trigger_id = ?`, [accountId, triggerId])
-      this.#db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND id = ?`, [accountId, triggerId])
-    })
-    transaction()
+    deleteAgentTriggerRows(this.#db, accountId, triggerId)
     invalidateSpaceIndex(accountId)
     this.#emit({type: 'account-change', accountId, reason: 'trigger-deleted', agentId: existing.agentId})
     return {_: 'DeleteAgentTriggerResponse', triggerId}
@@ -3034,6 +3024,10 @@ export class Service {
       onMemoryChange: () => {
         invalidateSpaceIndex(accountId, session.agentId)
         this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
+      },
+      onTriggersChange: () => {
+        invalidateSpaceIndex(accountId, session.agentId)
+        this.#emit({type: 'account-change', accountId, reason: 'trigger-updated', agentId: session.agentId})
       },
       onToolProgress: () => {},
       codeExec: this.#codeExec,
@@ -4540,6 +4534,15 @@ export class Service {
           agentId: run.agentId,
         })
       },
+      onTriggersChange: () => {
+        invalidateSpaceIndex(run.accountId, run.agentId)
+        this.#emit({
+          type: 'account-change',
+          accountId: run.accountId,
+          reason: 'trigger-updated',
+          agentId: run.agentId,
+        })
+      },
       onToolProgress: (toolName, progress) =>
         emitRunPartial({
           activity: {
@@ -5096,6 +5099,10 @@ export class Service {
         onMemoryChange: () => {
           invalidateSpaceIndex(accountId, session.agentId)
           this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
+        },
+        onTriggersChange: () => {
+          invalidateSpaceIndex(accountId, session.agentId)
+          this.#emit({type: 'account-change', accountId, reason: 'trigger-updated', agentId: session.agentId})
         },
         // emitProgress is declared below in this scope; tools only call this mid-run, after it exists.
         onToolProgress: (toolName, progress) =>
@@ -6753,17 +6760,20 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
   } catch {}
 
   const triggers = input.db
-    .query<{name: string}, [string, string]>(
-      `SELECT name FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND enabled = 1 ORDER BY name LIMIT 8`,
+    .query<{name: string; enabled: number}, [string, string]>(
+      `SELECT name, enabled FROM agent_triggers WHERE account_id = ? AND agent_id = ? ORDER BY name LIMIT 16`,
     )
     .all(input.accountId, input.agentId)
+  const activeTriggers = triggers.filter((row) => row.enabled)
 
   const parts = [
     '<space>',
     'tools/ (read ~/tools/<name> for a contract; call runs one; write ~/tools/<name> authors one)',
     ...toolLines,
     memoryLine,
-    ...(triggers.length ? [`triggers/ — active: ${triggers.map((row) => row.name).join(' · ')}`] : []),
+    `triggers/ (read ~/triggers/; write ~/triggers/<name> creates or edits an automation)${
+      activeTriggers.length ? ` — active: ${activeTriggers.map((row) => row.name).join(' · ')}` : ''
+    }`,
     '</space>',
   ]
   let index = parts.join('\n')
@@ -6773,7 +6783,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
       '<space>',
       `tools/ — ${tools.length} callable tools (read ~/tools/ to list them)`,
       memoryLine,
-      ...(triggers.length ? [`triggers/ — ${triggers.length} active`] : []),
+      `triggers/ — ${activeTriggers.length} active (read ~/triggers/)`,
       '</space>',
     ].join('\n')
   }
@@ -7703,6 +7713,8 @@ type WriteToolContext = {
 
 export type AgentServicePiToolContext = WriteToolContext & {
   web: WebToolsConfig
+  /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
+  onTriggersChange?: () => void
   /** Agent state directory holding the private memory filesystem. */
   stateDir: string
   /** Session this run belongs to, scoping attachment addresses. */
@@ -8047,6 +8059,430 @@ function readRunAddress(context: AgentServicePiToolContext, runId: string): Reco
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Introspection addresses: ~/triggers/, ~/self, and the thread: listing. These are what let an
+// agent understand and (within the consent rules) shape its own standing configuration.
+// ---------------------------------------------------------------------------------------------
+
+const AGENT_TRIGGER_INFO_COLUMNS = `id, account_id, agent_id, name, enabled, source_cbor, prompt,
+       continuation_cbor, created_at, updated_at, last_checked_at, last_fired_at, last_error`
+
+/** Deletes one trigger and its firing rows, detaching run history first. Shared by the signed action and the write verb. */
+function deleteAgentTriggerRows(db: Database, accountId: string, triggerId: string): void {
+  const transaction = db.transaction(() => {
+    // Run history survives trigger deletion detached from its firing rows.
+    db.run(
+      `UPDATE runs SET trigger_firing_id = NULL WHERE trigger_firing_id IN (
+         SELECT id FROM trigger_firings WHERE account_id = ? AND trigger_id = ?)`,
+      [accountId, triggerId],
+    )
+    db.run(`DELETE FROM trigger_firings WHERE account_id = ? AND trigger_id = ?`, [accountId, triggerId])
+    db.run(`DELETE FROM agent_triggers WHERE account_id = ? AND id = ?`, [accountId, triggerId])
+  })
+  transaction()
+}
+
+/**
+ * Resolves a ~/triggers/<name> address segment to this agent's trigger rows: exact name matches
+ * first, then the segment as a trigger id. Names are not unique, so callers must treat multiple
+ * matches as ambiguous rather than picking one silently.
+ */
+function triggerRowsByAddressName(db: Database, accountId: string, agentId: string, name: string): AgentTriggerRow[] {
+  const byName = db
+    .query<AgentTriggerRow, [string, string, string]>(
+      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+       WHERE account_id = ? AND agent_id = ? AND name = ? ORDER BY updated_at DESC`,
+    )
+    .all(accountId, agentId, name)
+  if (byName.length > 0) return byName
+  const byId = db
+    .query<AgentTriggerRow, [string, string, string]>(
+      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers WHERE account_id = ? AND agent_id = ? AND id = ?`,
+    )
+    .get(accountId, agentId, name)
+  return byId ? [byId] : []
+}
+
+/** One human line describing when a trigger fires, for listings and the Space index. */
+function triggerSourceSummaryLine(source: api.AgentTriggerSource): string {
+  if (source.type === 'schedule') {
+    const schedule = source.schedule
+    if (schedule.kind === 'interval') return `every ${schedule.every} ${schedule.unit}`
+    if (schedule.kind === 'weekly') {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+      return `weekly on ${schedule.daysOfWeek.map((day) => days[day] ?? String(day)).join(', ')} at ${
+        schedule.timeOfDay
+      } (${schedule.timezone})`
+    }
+    return `once at ${new Date(schedule.runAt).toISOString()}`
+  }
+  if (source.type === 'document-comment') return `new comments on ${source.resource}`
+  if (source.type === 'user-mention') return `mentions of ${source.mentionedAccounts.join(', ')}`
+  if (source.type === 'site-update') return `activity under ${source.resourcePrefix}`
+  if (source.type === 'run-completed') {
+    return `when a run finishes${source.status ? ` (${source.status})` : ''}${
+      source.titleMatch ? ` titled ~"${source.titleMatch}"` : ''
+    }`
+  }
+  return 'unknown source'
+}
+
+/** A compact listing entry for one trigger, shared by ~/triggers/ and ~/self. */
+function triggerListingEntry(row: AgentTriggerRow): Record<string, unknown> {
+  const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
+  return {
+    name: row.name,
+    id: row.id,
+    status: row.enabled ? 'active' : 'disabled',
+    type: source.type,
+    when: triggerSourceSummaryLine(source),
+    ...(row.last_fired_at === null ? {} : {lastFiredAt: row.last_fired_at}),
+    ...(row.last_error === null ? {} : {lastError: row.last_error}),
+  }
+}
+
+function agentTriggerRows(db: Database, accountId: string, agentId: string): AgentTriggerRow[] {
+  return db
+    .query<AgentTriggerRow, [string, string]>(
+      `SELECT ${AGENT_TRIGGER_INFO_COLUMNS} FROM agent_triggers
+       WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
+    )
+    .all(accountId, agentId)
+}
+
+/** Lists this agent's triggers for `read ~/triggers/`. */
+function triggersListing(context: AgentServicePiToolContext): Record<string, unknown> {
+  const rows = agentTriggerRows(context.db, context.accountId, context.agentId)
+  return {
+    summary: `${rows.length} trigger${
+      rows.length === 1 ? '' : 's'
+    }. Read ~/triggers/<name> for one; write ~/triggers/<name> to create or edit one.`,
+    triggers: rows.map(triggerListingEntry),
+    contract: [
+      'write ~/triggers/<name> with JSON content {source, prompt, enabled?, continuation?}.',
+      'source shapes: {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}} · {type: "document-comment", resource, author?} · {type: "user-mention", mentionedAccounts: [..], resourcePrefix?} · {type: "site-update", resourcePrefix, eventTypes?} · {type: "run-completed", agentId?, status?, titleMatch?}.',
+      'prompt: markdown that starts the session when the trigger fires (runtime context about the matching event is appended).',
+      'continuation (optional): {kind: "newThread"} (default) or {kind: "wake", signal, runId?, payload?} to deliver into a parked run.',
+      'enabled defaults to true; write with enabled false to turn a trigger off. {delete: true} removes one.',
+    ].join('\n'),
+  }
+}
+
+/** Reads one trigger for `read ~/triggers/<name>`: the full rule plus its recent firings. */
+function readTriggerAddress(context: AgentServicePiToolContext, name: string): Record<string, unknown> {
+  const rows = triggerRowsByAddressName(context.db, context.accountId, context.agentId, name)
+  if (rows.length === 0) return {...triggersListing(context), summary: `No trigger named ${name}.`}
+  if (rows.length > 1) {
+    throw new APIError(
+      400,
+      `${rows.length} triggers are named "${name}" — read one by id instead: ${rows
+        .map((row) => `~/triggers/${row.id}`)
+        .join(', ')}`,
+    )
+  }
+  const row = rows[0]!
+  const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
+  const firings = context.db
+    .query<
+      {id: string; session_id: string | null; status: string; error: string | null; created_at: number},
+      [string, string]
+    >(
+      `SELECT id, session_id, status, error, created_at FROM trigger_firings
+       WHERE account_id = ? AND trigger_id = ? ORDER BY created_at DESC LIMIT 5`,
+    )
+    .all(context.accountId, row.id)
+  return {
+    summary: `Trigger "${row.name}" is ${row.enabled ? 'active' : 'disabled'}: ${triggerSourceSummaryLine(source)}.`,
+    id: row.id,
+    name: row.name,
+    enabled: row.enabled !== 0,
+    source,
+    prompt: promptBlocksToMarkdown(parseStoredPromptBlocks(row.prompt)),
+    ...(row.continuation_cbor ? {continuation: cbor.decode<api.TriggerContinuation>(row.continuation_cbor)} : {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ...(row.last_fired_at === null ? {} : {lastFiredAt: row.last_fired_at}),
+    ...(row.last_error === null ? {} : {lastError: row.last_error}),
+    recentFirings: firings.map((firing) => ({
+      firingId: firing.id,
+      ...(firing.session_id ? {sessionId: firing.session_id, thread: `thread:${firing.session_id}`} : {}),
+      status: firing.status,
+      ...(firing.error ? {error: firing.error} : {}),
+      firedAt: firing.created_at,
+    })),
+  }
+}
+
+/**
+ * Writes one trigger for `write ~/triggers/<name>`: create, edit, enable/disable, or delete. The
+ * agent manages its own triggers directly — `enabled` is honored as written (defaulting to true),
+ * so "do this every morning" becomes a trigger that is live the moment the agent writes it.
+ */
+function writeTriggerAddress(
+  context: AgentServicePiToolContext,
+  name: string,
+  content: string | undefined,
+  options: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!name || name.includes('/')) throw new APIError(400, 'write ~/triggers/<name> needs a single trigger name')
+  const existing = triggerRowsByAddressName(context.db, context.accountId, context.agentId, name)
+  if (existing.length > 1) {
+    throw new APIError(
+      400,
+      `${existing.length} triggers are named "${name}" — address one by id instead: ${existing
+        .map((row) => `~/triggers/${row.id}`)
+        .join(', ')}`,
+    )
+  }
+  const row = existing[0]
+
+  if (options.delete === true) {
+    if (!row) return {summary: `No trigger named ${name}.`, name, deleted: false}
+    deleteAgentTriggerRows(context.db, context.accountId, row.id)
+    context.onTriggersChange?.()
+    return {summary: `Deleted trigger "${row.name}".`, name: row.name, id: row.id, deleted: true}
+  }
+
+  let parsed: unknown
+  try {
+    parsed = content !== undefined ? (JSON.parse(content) as unknown) : options.trigger
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new APIError(400, 'write ~/triggers/<name> expects JSON content: {source, prompt, enabled?, continuation?}')
+    }
+    throw error
+  }
+  if (!isRecord(parsed)) {
+    throw new APIError(400, 'write ~/triggers/<name> expects JSON content: {source, prompt, enabled?, continuation?}')
+  }
+  // The address is the name; a name inside the content must not silently retarget the write.
+  const trigger = normalizeAgentTriggerInput({...parsed, name} as api.AgentTriggerInput)
+  const now = Date.now()
+  let id: string
+  if (row) {
+    id = row.id
+    context.db.run(
+      `UPDATE agent_triggers
+       SET name = ?, enabled = ?, source_cbor = ?, prompt = ?, continuation_cbor = ?,
+           updated_at = ?, last_error = NULL
+       WHERE account_id = ? AND id = ?`,
+      [
+        trigger.name,
+        trigger.enabled ? 1 : 0,
+        cbor.encode(trigger.source),
+        serializePromptBlocksForStorage(trigger.prompt),
+        trigger.continuation ? cbor.encode(trigger.continuation) : null,
+        now,
+        context.accountId,
+        id,
+      ],
+    )
+  } else {
+    id = crypto.randomUUID()
+    context.db.run(
+      `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt,
+         continuation_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        context.accountId,
+        context.agentId,
+        trigger.name,
+        trigger.enabled ? 1 : 0,
+        cbor.encode(trigger.source),
+        serializePromptBlocksForStorage(trigger.prompt),
+        trigger.continuation ? cbor.encode(trigger.continuation) : null,
+        now,
+        now,
+      ],
+    )
+  }
+  context.onTriggersChange?.()
+  return {
+    summary: `Saved trigger "${trigger.name}" (${trigger.enabled ? 'enabled' : 'disabled'}): ${triggerSourceSummaryLine(
+      trigger.source,
+    )}.`,
+    id,
+    name: trigger.name,
+    enabled: trigger.enabled,
+    source: trigger.source,
+  }
+}
+
+/** Reads `~/self`: everything the agent is allowed to know about its own configuration. */
+function readSelfAddress(context: AgentServicePiToolContext): Record<string, unknown> {
+  const definition = context.definition
+  const provider = context.db
+    .query<{id: string; name: string; type: string}, [string, string]>(
+      `SELECT id, name, type FROM model_providers WHERE account_id = ? AND id = ?`,
+    )
+    .get(context.accountId, definition.modelProvider)
+  let systemPrompt = ''
+  try {
+    systemPrompt =
+      typeof definition.systemPrompt === 'string'
+        ? definition.systemPrompt
+        : promptBlocksToMarkdown(normalizePromptBlocks(definition.systemPrompt, 'Prompt'))
+  } catch {}
+  const triggerRows = agentTriggerRows(context.db, context.accountId, context.agentId)
+  let memory: Record<string, unknown> | undefined
+  try {
+    const memorySummary = agentMemory.summarizeMemoryTopLevel(context.stateDir)
+    memory = {
+      totalFiles: memorySummary.totalFiles,
+      topLevel: memorySummary.entries.map((entry) =>
+        entry.type === 'dir' ? `${entry.name}/ (${entry.fileCount ?? 0} files)` : entry.name,
+      ),
+    }
+  } catch {}
+  const sessionCount =
+    context.db
+      .query<{n: number}, [string, string]>(`SELECT COUNT(*) AS n FROM sessions WHERE account_id = ? AND agent_id = ?`)
+      .get(context.accountId, context.agentId)?.n ?? 0
+  const signingKeys = definition.signingKeys ?? (definition.signingKey ? [definition.signingKey] : [])
+  return {
+    summary: `You are "${definition.name}" (${definition.model}) with ${triggerRows.length} trigger${
+      triggerRows.length === 1 ? '' : 's'
+    } and ${sessionCount} conversation${sessionCount === 1 ? '' : 's'}.`,
+    agentId: context.agentId,
+    name: definition.name,
+    model: definition.model,
+    modelProvider: provider ? {id: provider.id, name: provider.name, type: provider.type} : definition.modelProvider,
+    ...(definition.reasoningLevel ? {reasoningLevel: definition.reasoningLevel} : {}),
+    systemPrompt,
+    grants: {callableTools: context.callableTools, publish: context.publishEnabled},
+    ...(signingKeys.length ? {signingKeys} : {}),
+    ...(definition.metadata ? {metadata: definition.metadata} : {}),
+    triggers: triggerRows.map(triggerListingEntry),
+    ...(memory ? {memory} : {}),
+    sessionCount,
+    guidance: [
+      'Your memory lives in ~/memory/ and your tools in ~/tools/ — read and write them freely.',
+      'Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately.',
+      'Browse your other conversations with read thread: (options {query, agentId, limit}) and read one with thread:<id>.',
+      'Your definition (name, model, system prompt, grants, signing keys) is edited by the user in the desktop; you cannot change it yourself.',
+    ].join('\n'),
+  }
+}
+
+/**
+ * Lists (and searches) the account's conversations for `read thread:` with no id. Search covers
+ * titles and, bounded, recent message text — enough to find "that thread where we discussed X"
+ * without scanning the whole log history.
+ */
+function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
+  const limit = boundedInteger(options.limit, 25, 1, 100)
+  const agentId = typeof options.agentId === 'string' && options.agentId ? options.agentId : undefined
+  const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
+
+  type ThreadRow = {
+    id: string
+    agent_id: string
+    title: string | null
+    status: string
+    parent_session_id: string | null
+    created_at: number
+    updated_at: number
+  }
+  const agentNames = new Map(
+    context.db
+      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
+        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+      )
+      .all(context.accountId)
+      .map((row) => {
+        try {
+          return [row.id, cbor.decode<api.AgentDefinition>(row.definition_cbor).name] as const
+        } catch {
+          return [row.id, row.id] as const
+        }
+      }),
+  )
+  const loadThreads = (ids?: string[]): ThreadRow[] => {
+    const conditions = ['account_id = ?']
+    const params: (string | number)[] = [context.accountId]
+    if (agentId) {
+      conditions.push('agent_id = ?')
+      params.push(agentId)
+    }
+    if (ids) {
+      if (ids.length === 0) return []
+      conditions.push(`id IN (${ids.map(() => '?').join(', ')})`)
+      params.push(...ids)
+    }
+    params.push(ids ? ids.length : limit)
+    return context.db
+      .query<ThreadRow, (string | number)[]>(
+        `SELECT id, agent_id, title, status, parent_session_id, created_at, updated_at
+         FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC LIMIT ?`,
+      )
+      .all(...params)
+  }
+  const entry = (row: ThreadRow, snippet?: string): Record<string, unknown> => ({
+    thread: `thread:${row.id}`,
+    ...(row.title ? {title: row.title} : {}),
+    agent: agentNames.get(row.agent_id) ?? row.agent_id,
+    agentId: row.agent_id,
+    status: row.status,
+    ...(row.parent_session_id ? {parentThread: `thread:${row.parent_session_id}`} : {}),
+    updatedAt: row.updated_at,
+    ...(snippet ? {snippet} : {}),
+  })
+
+  if (!query) {
+    const rows = loadThreads()
+    return {
+      summary: `${rows.length} conversation${
+        rows.length === 1 ? '' : 's'
+      }, newest first. Read one with thread:<id>; search with options {query}.`,
+      threads: rows.map((row) => entry(row)),
+    }
+  }
+
+  // Title matches: scan the most recent 400 sessions in JS (no LIKE-escaping pitfalls).
+  const titleMatches = context.db
+    .query<ThreadRow, (string | number)[]>(
+      `SELECT id, agent_id, title, status, parent_session_id, created_at, updated_at
+       FROM sessions WHERE account_id = ?${agentId ? ' AND agent_id = ?' : ''} ORDER BY updated_at DESC LIMIT 400`,
+    )
+    .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
+    .filter((row) => (row.title ?? '').toLowerCase().includes(query))
+  // Content matches: a bounded scan over the most recent message events, one snippet per thread.
+  const snippets = new Map<string, string>()
+  const eventRows = context.db
+    .query<{session_id: string; event_cbor: Uint8Array}, (string | number)[]>(
+      `SELECT e.session_id, e.event_cbor FROM session_events e
+       JOIN sessions s ON s.id = e.session_id
+       WHERE s.account_id = ?${agentId ? ' AND s.agent_id = ?' : ''}
+       ORDER BY e.created_at DESC LIMIT 4000`,
+    )
+    .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
+  for (const eventRow of eventRows) {
+    if (snippets.has(eventRow.session_id)) continue
+    let event: {type?: string; content?: unknown}
+    try {
+      event = cbor.decode(eventRow.event_cbor)
+    } catch {
+      continue
+    }
+    if (event.type !== 'message') continue
+    const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
+    const index = text.toLowerCase().indexOf(query)
+    if (index < 0) continue
+    const start = Math.max(0, index - 80)
+    const end = Math.min(text.length, index + query.length + 80)
+    snippets.set(eventRow.session_id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
+  }
+  const matchedIds = [...new Set([...titleMatches.map((row) => row.id), ...snippets.keys()])].slice(0, limit)
+  const rows = loadThreads(matchedIds)
+  return {
+    summary: `${rows.length} conversation${
+      rows.length === 1 ? '' : 's'
+    } matching "${query}" (titles and recent messages). Read one with thread:<id>.`,
+    threads: rows.map((row) => entry(row, snippets.get(row.id))),
+  }
+}
+
 /**
  * Callables a session's transcript shows as expanded: a read of ~/tools/<name> or any call by
  * name. Scans durable tool_call events only, so the answer is identical after resume, restart,
@@ -8093,6 +8529,13 @@ export async function executeReadVerb(
 
   const memoryPath = memoryPathFromAddress(address)
   if (memoryPath !== null) return readMemoryAddress(context, memoryPath)
+
+  if (address === '~/self' || address === '~/self/') return readSelfAddress(context)
+
+  if (address === '~/triggers' || address === '~/triggers/') return triggersListing(context)
+  if (address.startsWith('~/triggers/')) {
+    return readTriggerAddress(context, address.slice('~/triggers/'.length).replace(/\/+$/, ''))
+  }
 
   if (address === '~/tools' || address === '~/tools/') return toolsListing(context)
   if (address.startsWith('~/tools/')) {
@@ -8159,7 +8602,12 @@ export async function executeReadVerb(
   }
 
   if (address.startsWith('attachment:')) return readAttachmentAddress(context, address.slice('attachment:'.length))
-  if (address.startsWith('thread:')) return readThreadAddress(context, address.slice('thread:'.length))
+  if (address.startsWith('thread:')) {
+    const threadId = address.slice('thread:'.length).trim()
+    // A bare `thread:` lists (and with options.query searches) the account's conversations.
+    if (!threadId) return threadsListing(context, options)
+    return readThreadAddress(context, threadId)
+  }
   if (address.startsWith('run:')) return readRunAddress(context, address.slice('run:'.length))
 
   // hm:// reads go through this server's configured HM endpoint — the local node in every desktop
@@ -8185,7 +8633,7 @@ export async function executeReadVerb(
 
   throw new APIError(
     400,
-    `Unrecognized address: ${address}. Supported: ~/memory/…, ~/tools/…, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread:<id>, run:<id>.`,
+    `Unrecognized address: ${address}. Supported: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.`,
   )
 }
 
@@ -8251,6 +8699,11 @@ export async function executeWriteVerb(
   const dryRun = input.dryRun === true
   if (dryRun && !address.startsWith('hm://')) {
     throw new APIError(400, 'dryRun applies only to hm:// writes — it validates a publish without publishing')
+  }
+
+  if (address.startsWith('~/triggers/')) {
+    assertKnownWriteOptions('~/triggers/<name>', options, ['delete', 'trigger'])
+    return writeTriggerAddress(context, address.slice('~/triggers/'.length).replace(/\/+$/, ''), content, options)
   }
 
   if (address.startsWith('~/tools/')) {

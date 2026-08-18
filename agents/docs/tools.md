@@ -74,10 +74,12 @@ can rename an existing authored tool atomically; it refuses to overwrite another
 
 ## The Space index
 
-Every system prompt carries a compact `<space>` block built by `buildSpaceIndex()` (`api-service.ts:5900`): one line per
-enabled tool document (`- name — summary`, authored tools tagged `(authored)`), a one-line memory top-level summary, and
-active trigger names. It is cached per `(account, agent, callable set)` and invalidated on memory or tool writes. Over
-`SPACE_INDEX_BUDGET_BYTES` (2048) the per-tool lines collapse to a count, so the index stays honest but tiny.
+Every system prompt carries a compact `<space>` block built by `buildSpaceIndex()`: one line per enabled tool document
+(`- name — summary`, authored tools tagged `(authored)`), a one-line memory top-level summary, and a triggers line that
+names active triggers and advertises the `read ~/triggers/` / `write ~/triggers/<name>` affordance even when no triggers
+exist — so an agent asked "do this every morning" knows it can create the automation. It is cached per
+`(account, agent, callable set)` and invalidated on memory, tool, or trigger writes. Over `SPACE_INDEX_BUDGET_BYTES`
+(2048) the per-tool lines collapse to a count, so the index stays honest but tiny.
 
 The point is that the agent always knows what it _could_ expand without paying for every contract up front.
 
@@ -133,24 +135,26 @@ type ReadInput = {
 }
 ```
 
-| address           | behavior                                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------------------------ |
-| `~/memory/<path>` | file content, or a directory listing (`{entries: [{path, type, size}]}`) for a directory address       |
-| `~/tools/<name>`  | one tool's full contract as markdown; `~/tools/` alone lists everything callable                       |
-| `hm://…`          | a hypermedia document or comment, markdown by default                                                  |
-| `ipfs://<cid>`    | fetches through the configured `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it |
-| `https://…`       | resolved as hypermedia first, then read as a web page                                                  |
-| `activity:`       | the activity feed via `ListEvents`, filtered by `options`                                              |
-| `attachment:<id>` | a session-private attachment (images are returned as image content to vision models)                   |
-| `thread:<id>`     | a conversation transcript (its last 200 events) rendered as markdown                                   |
-| `run:<id>`        | a run's public record, plus `sourceText` for script runs                                               |
+| address             | behavior                                                                                                                                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/memory/<path>`   | file content, or a directory listing (`{entries: [{path, type, size}]}`) for a directory address                                                                                                                     |
+| `~/tools/<name>`    | one tool's full contract as markdown; `~/tools/` alone lists everything callable                                                                                                                                     |
+| `~/triggers/<name>` | one trigger — source, prompt markdown, status, continuation, recent firings; `~/triggers/` lists all, with the write contract inline                                                                                 |
+| `~/self`            | the agent's own record: definition (name, model, provider, reasoning level, system prompt), grants, signing-key names, triggers, memory summary, session count, and guidance on what it can change itself            |
+| `hm://…`            | a hypermedia document or comment, markdown by default                                                                                                                                                                |
+| `ipfs://<cid>`      | fetches through the configured `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it                                                                                                               |
+| `https://…`         | resolved as hypermedia first, then read as a web page                                                                                                                                                                |
+| `activity:`         | the activity feed via `ListEvents`, filtered by `options`                                                                                                                                                            |
+| `attachment:<id>`   | a session-private attachment (images are returned as image content to vision models)                                                                                                                                 |
+| `thread:<id>`       | a conversation transcript (its last 200 events) rendered as markdown                                                                                                                                                 |
+| `thread:`           | lists the account's conversations, newest first; `options.query` searches titles plus a bounded scan (4000 most recent events) of message text with snippets, `options.agentId` filters, `options.limit` caps at 100 |
+| `run:<id>`          | a run's public record, plus `sourceText` for script runs                                                                                                                                                             |
 
 Unrecognized addresses fail with the supported list (`api-service.ts:7350`).
 
-`thread:` and `run:` are scoped by **account**, not by agent (`readThreadAddress`, `api-service.ts:7167`;
-`readRunAddress`, `api-service.ts:7206`). The verb's own description says "another conversation transcript of yours",
-which is narrower than what the query enforces: one agent can read the transcripts and runs of every other agent on the
-same account.
+`thread:` and `run:` are scoped by **account**, not by agent (`readThreadAddress`, `threadsListing`, `readRunAddress`).
+One agent can list, search, and read the transcripts and runs of every other agent on the same account — deliberate, so
+an agent asked "what did my research agent find yesterday?" can answer (see `security.md`).
 
 **Tool contracts.** A read of `~/tools/<name>` resolves verbs from the registry and everything else from the agent's
 tool documents. A builtin the agent has not been granted reads as "no tool named …" plus the listing, so grants are not
@@ -213,6 +217,13 @@ memory/tools/ipfs write is refused rather than ignored.
   `options.tool` as an object); the name comes from the address. Non-JSON content fails with that exact shape as the
   message. `options.delete` deletes an authored tool. Both paths emit the memory-change event, so the desktop Tools tab
   updates live.
+- **`~/triggers/<name>`** — creates or edits a trigger (`writeTriggerAddress`). `content` is JSON
+  `{source, prompt, enabled?, continuation?}` (or `options.trigger` as an object); the name comes from the address and a
+  name inside the content cannot retarget the write. Sources and continuations are validated by the same normalizers the
+  signed CRUD actions use. `enabled` is honored as written and defaults to true, so the agent enables, disables, and
+  retires its own automations directly (see the threat-model note in `security.md`). Names are not unique, so an
+  ambiguous name is refused with the matching ids; addressing by id works too. `options.delete` removes a trigger.
+  Writes emit `trigger-updated` account events, so the desktop Triggers tab updates live.
 - **`ipfs://`** — publishes `options.fromPath` (a memory file) or `options.fromAttachment` by chunking it into UnixFS
   blocks with the shared client helper and sending those blocks through `PublishBlobs` on the typed HM API; it returns
   the root `ipfs://<cid>` URL. This deliberately does not depend on a server-specific `/ipfs/file-upload` route.

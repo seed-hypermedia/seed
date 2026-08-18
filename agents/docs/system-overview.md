@@ -24,7 +24,7 @@ inspect everything that executed.
 12. **Everything that executes is a run** — turns, children, and scripts are rows in one tree that is also the queue, so
     waiting is free and a crash is recoverable.
 
-The vocabulary above is defined once in [`GLOSSARY.md`](../../GLOSSARY.md) at the repo root.
+The vocabulary above is defined once in [`glossary.md`](./glossary.md).
 
 ## Major components
 

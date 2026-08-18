@@ -96,12 +96,14 @@ const readVerb = {
     'Read anything you can address. One verb for your whole world; the address shape picks the source:',
     '- `~/memory/<path>` — a file in your persistent memory. A directory path (or `~/memory/`) lists entries with sizes.',
     '- `~/tools/<name>` — a tool contract: full description plus input/output schemas. `~/tools/` lists every tool you can call.',
+    '- `~/triggers/<name>` — one of your triggers (its source, prompt, status, and recent firings). `~/triggers/` lists them all.',
+    '- `~/self` — everything about you: your definition (model, system prompt, grants, signing keys), your triggers, and a memory summary.',
     '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile.',
     '- `ipfs://<cid>` — fetch content by CID into memory and return it (binary files return metadata only).',
     '- `https://…` — read a public web page as markdown.',
     '- `activity:` — the recent activity feed; filter with options {authors, eventTypes, resource, pageSize, pageToken}.',
     '- `attachment:<id>` — a file attached to this conversation (images are shown to you when the model supports it).',
-    '- `thread:<id>` — another conversation transcript of yours. `run:<id>` — a run journal.',
+    "- `thread:<id>` — another conversation transcript of yours. `thread:` alone lists your account's conversations, newest first; options {query} searches titles and message text, {agentId} filters to one agent, {limit} caps results. `run:<id>` — a run journal.",
     'Directory listings return {entries: [{path, type, size}]}; memory file reads return {content}. Prefer reading exactly what you need; directory listings are cheap, whole trees are not.',
   ].join('\n'),
   inputSchema: {
@@ -112,7 +114,7 @@ const readVerb = {
         type: 'string',
         minLength: 1,
         description:
-          'What to read: ~/memory/…, ~/tools/…, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread:<id>, run:<id>.',
+          'What to read: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.',
       },
       format: {
         type: 'string',
@@ -122,7 +124,7 @@ const readVerb = {
       options: {
         type: 'object',
         description:
-          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; ipfs {path} to choose the memory destination.',
+          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, agentId, limit}; ipfs {path} to choose the memory destination.',
       },
     },
     required: ['address'],
@@ -153,6 +155,7 @@ const writeVerb = {
   description: [
     'Write anything you can address. The address shape picks the destination:',
     '- `~/memory/<path>` — write `content` to a memory file (parent folders are created automatically; writing an existing file replaces its whole content — there is no append). Options: {delete: true} removes a file or directory; {fromUrl} downloads a URL to the path instead of writing content; {fromAttachment: "<id>"} saves a conversation attachment to the path.',
+    '- `~/triggers/<name>` — create or edit one of your triggers: a standing rule that starts a session (or wakes a parked run) when something happens — a schedule, a comment, a mention, site activity, or a finished run. `content` is JSON {source, prompt, enabled?, continuation?} (read ~/triggers/ for the source shapes); enabled defaults to true, and writing with enabled false turns a trigger off. {delete: true} removes a trigger.',
     '- `ipfs://` — publish to IPFS and get a CID URL back. Provide {fromPath: "~/memory/<path>"} or {fromAttachment: "<id>"} in options.',
     '- `hm://<account>/<path>` — publish a hypermedia document with markdown `content`. The default creates a NEW document; pass {action: "update"} to revise an existing document in place (same address, new version); an update with `content` replaces the whole body, while omitting `content` changes only name/metadata and leaves the body untouched. Options: {name} sets the document name, REQUIRED when creating (it is stored as metadata.name; a # heading is body content, not the name); {metadata} sets further document metadata attributes as an object (e.g. {summary, icon, cover, or custom keys}) — metadata belongs here, never in the body text; {signer} picks the signing identity by profileName or publicKey; {action} also covers "comment" (with {target, replyTo}), "move" (with {toPath}), "redirect" (with {toUrl}), "delete", "fork" (with {fromUrl}). Unrecognized option keys are refused, not ignored. Parent documents must exist before nested paths.',
     'Writing to hm:// publishes signed content other people can see — be sure the content is ready. Pass top-level dryRun: true to validate an hm:// write without publishing anything.',
@@ -165,7 +168,8 @@ const writeVerb = {
       address: {
         type: 'string',
         minLength: 1,
-        description: 'Where to write: ~/memory/<path>, ipfs://, or hm://<account>/<path>.',
+        description:
+          'Where to write: ~/memory/<path>, ~/tools/<name>, ~/triggers/<name>, ipfs://, or hm://<account>/<path>.',
       },
       content: {
         type: 'string',

@@ -160,6 +160,26 @@ Two things are granted per agent, both stored in `definition.tools`; the verbs t
 A delegate child's `tools` narrowing intersects against the parent's full callable set, so delegation can only ever
 reduce authority (`api-service.ts:2623`).
 
+## Agent-managed triggers
+
+Agents manage their own triggers directly: `write ~/triggers/<name>` creates, edits, enables, disables, or deletes a
+trigger, and `enabled` is honored exactly as written (defaulting to true). This is a **deliberate product decision by
+the owner** (2026-08-19): "do this every morning" said in chat should just work, without a separate approval step in the
+desktop.
+
+What that means for the threat model: a trigger is standing authority to act with nobody present, and an agent — which
+can be steered by a prompt injection in content it reads — can now grant that authority to itself. The draft→active
+consent design in `harness/m6-event-bus-design.md` proposed gating activation on a user gesture; that gate was built and
+then removed on the owner's direction. The remaining mitigations are visibility, not prevention:
+
+- every trigger write is a durable, actor-stamped `tool_call`/`tool_result` pair on the session log;
+- trigger writes emit `trigger-updated` account events, so the desktop Triggers tab reflects changes live;
+- a trigger fires only what the agent could already do — its callable set and publish grant still bound the blast
+  radius, and delegation still only narrows authority;
+- the firing-chain loop guard (`TRIGGER_CHAIN_MAX_HOPS`) still stops runaway trigger chains.
+
+If consent is ever wanted back, the enforcement point is `writeTriggerAddress` and the history is in git.
+
 ## Framing injection (`<user_action>`, `<plan_state>`)
 
 Two model-facing frames carry text the model or a fetched page authored, handed back inside tags whose syntax the model
@@ -185,11 +205,12 @@ session has a live run, and execution failures append to the log rather than bei
 The `read` verb reaches memory, tool contracts, hypermedia, IPFS, the public web, the activity feed, attachments, other
 threads, and run records.
 
-`thread:` and `run:` reads are scoped by `account_id` alone (`api-service.ts:7167`, `api-service.ts:7206`), so an agent
-can read the transcripts and run records of **every other agent on the same account** — including their tool inputs and
-results. Within one owner's account that is arguably fine, and the model-facing description ("another conversation
-transcript of yours") suggests it was meant to be per-agent. Decide which it is before agents on one account are treated
-as isolated from each other.
+`thread:` and `run:` reads are scoped by `account_id` alone, so an agent can read the transcripts and run records of
+**every other agent on the same account** — including their tool inputs and results. The bare `thread:` listing/search
+(`threadsListing`) deliberately follows the same account scope, and `read ~/self` exposes only what the account owner
+already configured (definition, grants, signing-key names — never secret material, never provider keys). Within one
+owner's account that is arguably fine; decide whether agents on one account should ever be isolated from each other
+before treating them as such.
 
 Risks:
 

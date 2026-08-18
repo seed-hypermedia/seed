@@ -985,9 +985,9 @@ the model (`agents/protocol/src/reasoning.ts`); absent means off, or the provide
 disabled.
 
 `tools` is a **grant list, not the tool surface**. The five verbs — `read`, `write`, `call`, `delegate`, `plan` — are
-always on and can never be granted or revoked; see [the glossary](../../GLOSSARY.md). (The one exception is structural,
-not a permission: `delegate` needs a run to park on, so the rare runless invocation simply omits it.) What `tools`
-narrows is:
+always on and can never be granted or revoked; see [the glossary](./glossary.md). (The one exception is structural, not
+a permission: `delegate` needs a run to park on, so the rare runless invocation simply omits it.) What `tools` narrows
+is:
 
 - the **callable set** dispatched through `call` (today `search`, `web_search`, `execute`; `navigate` is
   assistant-runtime only). An omitted `tools` array grants every service-runtime callable; an explicit array keeps only

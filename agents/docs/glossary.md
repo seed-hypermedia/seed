@@ -2,8 +2,9 @@
 
 ## The three nouns
 
-- **Space** — everything an agent _has_, as one addressable tree: `~/memory/` (its files), `~/tools/` (its tools), and
-  later `~/plans/` and `~/triggers/`. Configuration is content.
+- **Space** — everything an agent _has_, as one addressable tree: `~/memory/` (its files), `~/tools/` (its tools),
+  `~/triggers/` (its automations), `~/self` (its own definition, read-only), and later `~/plans/`. Configuration is
+  content.
 - **Log** — everything that _happened_ in a thread: an append-only sequence of events (messages, tool calls, results,
   plan updates), each stamped with an **actor**. It's a shared workspace log, not a chat transcript — you and the agent
   write to the same one.
@@ -12,9 +13,11 @@
 
 ## The five verbs (the agent's — and your — whole tool surface)
 
-- **read** — one verb, any address: `~/memory/…`, `~/tools/…`, `hm://…`, `ipfs://…`, `https://…`, `activity:`,
-  `attachment:…`, `thread:…`, `run:…`.
-- **write** — the mirror: memory files, authored tools, hypermedia publishing (gated by the **publish grant**), IPFS.
+- **read** — one verb, any address: `~/memory/…`, `~/tools/…`, `~/triggers/…`, `~/self`, `hm://…`, `ipfs://…`,
+  `https://…`, `activity:`, `attachment:…`, `thread:…` (bare `thread:` lists and searches the account's conversations),
+  `run:…`.
+- **write** — the mirror: memory files, authored tools, triggers, hypermedia publishing (gated by the **publish
+  grant**), IPFS.
 - **call** — invoke a callable tool by name (`search`, `web_search`, `execute`, or an authored lambda). Wrong input
   returns the tool's **contract** instead of an error — that's **touch-expand**.
 - **delegate** — spawn a child run: a **model child** (give it a **brief**) or a **script child** (give it a `script`).
@@ -69,7 +72,8 @@
 ## Triggers & the bus
 
 - **trigger** — standing configuration binding a **source** (schedule, comment, mention, site-update, **run-completed**)
-  to a **continuation** (today: new thread, or **wake** a parked run). Draft→active consent and trigger _documents_ are
+  to a **continuation** (today: new thread, or **wake** a parked run). Readable and writable at `~/triggers/<name>`: the
+  agent creates, edits, enables, and disables its own triggers directly. Trigger _documents_ (CID-versioned) are still
   the day package.
 - **firing** — one trigger activation, deduped exactly-once; run-completed chains are loop-guarded (8 hops).
 

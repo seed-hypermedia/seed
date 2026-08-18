@@ -14,12 +14,19 @@
 > used by both trigger matching and run event waits. The desktop can render a `run-completed` trigger but cannot create
 > one — that is API-only today.
 >
-> **Superseded but not yet built:** trigger **documents** in `~/triggers/` read and written through the `read`/`write`
-> verbs, replacing the `CreateAgentTrigger`/`UpdateAgentTrigger`/`DeleteAgentTrigger` actions, with **draft→active
-> consent** (an agent's own write lands as `draft`; only a user action activates it) as the security story. That, the
-> `document-change` source, the `appendTo`/`runPlan` continuations, the data-preserving migration off `agent_triggers`,
-> and the desktop editor are designed in `harness/m6-event-bus-design.md` and **not implemented**. Until they are, the
-> CRUD actions in "Signed API changes" below are still the real interface.
+> **Added 2026-08-18 (introspection slice):** the `~/triggers/` verb surface now exists **on the existing
+> `agent_triggers` rows** — `read ~/triggers/` lists (with the write contract inline), `read ~/triggers/<name>` returns
+> one trigger plus recent firings, and `write ~/triggers/<name>` creates/edits/enables/disables/deletes by name (or id),
+> honoring `enabled` as written. There is **no draft/consent step**: the owner decided (2026-08-19) that agents manage
+> their own triggers directly, so "do this every morning" works in one turn (see `security.md` for the threat-model
+> note).
+>
+> **Superseded but not yet built:** trigger **documents** (content-addressed, CID-versioned like `~/tools/`), replacing
+> the `CreateAgentTrigger`/`UpdateAgentTrigger`/`DeleteAgentTrigger` actions. That, the `document-change` source, the
+> `appendTo`/`runPlan` continuations, the data-preserving migration off `agent_triggers`, and the desktop editor
+> replacing the CRUD dialogs are designed in `harness/m6-event-bus-design.md` and **not implemented** (its draft→active
+> consent proposal is explicitly not wanted). Until they are, the CRUD actions in "Signed API changes" below remain the
+> desktop's interface, now alongside the verb surface.
 
 Status: Phase 1 CRUD and UI shell has started. Backend CRUD/persistence and the desktop Triggers tab/detail shell are in
 place. Phase 2 matching/idempotency utilities and background ActivityFeed polling have started. Schedule triggers are

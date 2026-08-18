@@ -5,6 +5,27 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Agent introspection: ~/triggers/, ~/self, thread listing (2026-08-18/19)
+
+Agents became introspective: they can read everything about themselves and manage their own automations. Three
+additions, all riding the existing tables (no protocol deletions, no migrations):
+
+- **`~/triggers/` through the verbs.** `read ~/triggers/` lists the agent's triggers with the write contract inline;
+  `read ~/triggers/<name>` returns one trigger (source, prompt markdown, continuation, recent firings);
+  `write ~/triggers/<name>` creates, edits, enables, disables, or deletes by name or id, validated by the same
+  normalizers the signed CRUD actions use, with `enabled` honored as written (default true). A draft→active consent gate
+  was built first and then **removed on the owner's direction** — agents enable and disable their own triggers directly,
+  with no approval step; `security.md` records the threat-model tradeoff. Trigger writes emit `trigger-updated` account
+  events so the desktop Triggers tab updates live.
+- **`read ~/self`.** The agent's own record: definition (name, model, provider, reasoning level, system prompt), grants,
+  signing-key names, triggers, memory summary, session count, and guidance on what it can and cannot change.
+- **`read thread:`** (bare address) lists the account's conversations newest-first and searches them — titles plus a
+  bounded scan of recent message text with snippets (`options {query, agentId, limit}`).
+
+The Space index now always advertises the triggers affordance and names active triggers, so "do this every morning" is a
+request the agent can complete in one turn. Docs: `tools.md`, `security.md`, `persistence.md`, `agent-triggers-plan.md`,
+`m6-event-bus-design.md`.
+
 ### Agent invitations and collaborators
 
 Agents can now be shared with Seed accounts through explicit pending invitations and accepted reader/writer roles. The
@@ -29,8 +50,8 @@ exact document versions.
 
 The tool surface was rebuilt from the ground up on a stack of `harness/*` milestone branches, each gated (full suite,
 adversarial self-review, simulated-model gate) and written up in `docs/harness/reviews/`. Architecture and vocabulary:
-`docs/harness/plan.md` and the root `GLOSSARY.md`. Breaking changes were preferred over aliases throughout — old tool
-names simply stopped existing, and stored transcripts keep their historical events without re-dispatching.
+`docs/harness/plan.md` and `docs/glossary.md`. Breaking changes were preferred over aliases throughout — old tool names
+simply stopped existing, and stored transcripts keep their historical events without re-dispatching.
 
 - **M1 — the five verbs.** `protocol/src/tool-registry.ts` was rewritten: `seedVerbRegistry` is `read`, `write`, `call`,
   `delegate`, `plan` plus the hidden `return_result`; `callableToolRegistry` is `search`, `web_search`, `navigate`,

@@ -63,6 +63,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     sessionId: 'session-1',
     modelAcceptsImages: false,
     onMemoryChange: mock(() => {}),
+    onTriggersChange: mock(() => {}),
     onToolProgress: mock(() => {}),
     codeExec: fakeExec,
     callableTools: ['search', 'web_search', 'execute'],
@@ -582,6 +583,136 @@ describe('space index and touch-expand pins', () => {
     append(4, {type: 'tool_call', id: 't3', name: 'read', input: {address: '~/memory/x'}})
     expect(apisvc.expandedCallablesFromEvents(context.db, 's1').sort()).toEqual(['execute', 'web_search'])
     expect(apisvc.expandedCallablesFromEvents(context.db, 'missing')).toEqual([])
+  })
+})
+
+describe('trigger introspection (~/triggers/ and ~/self)', () => {
+  const scheduleTrigger = JSON.stringify({
+    source: {type: 'schedule', schedule: {kind: 'interval', every: 30, unit: 'minutes'}},
+    prompt: 'Check the news and summarize.',
+    enabled: true,
+  })
+
+  test('trigger writes take effect immediately and default to enabled', async () => {
+    const context = makeContext()
+    const saved = await executeWriteVerb(context, {address: '~/triggers/morning-brief', content: scheduleTrigger})
+    expect(saved.enabled).toBe(true)
+    expect(context.onTriggersChange).toHaveBeenCalled()
+    const row = context.db
+      .query<{enabled: number}, []>(`SELECT enabled FROM agent_triggers WHERE name = 'morning-brief'`)
+      .get()
+    expect(row?.enabled).toBe(1)
+
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    expect(String(listing.summary)).toContain('1 trigger')
+    const one = await executeReadVerb(context, {address: '~/triggers/morning-brief'})
+    expect(one.enabled).toBe(true)
+    expect(String(one.summary)).toContain('active')
+    expect(String(one.prompt)).toContain('Check the news')
+    expect((one.source as {type: string}).type).toBe('schedule')
+  })
+
+  test('the agent can disable and re-enable a trigger by writing it', async () => {
+    const context = makeContext()
+    const mentionTrigger = (enabled: boolean) =>
+      JSON.stringify({
+        source: {type: 'user-mention', mentionedAccounts: ['z6MkMe']},
+        prompt: 'Reply politely.',
+        enabled,
+      })
+    const saved = await executeWriteVerb(context, {address: '~/triggers/mentions', content: mentionTrigger(true)})
+    expect(saved.enabled).toBe(true)
+
+    const disabled = await executeWriteVerb(context, {address: '~/triggers/mentions', content: mentionTrigger(false)})
+    expect(disabled.enabled).toBe(false)
+    expect(String(disabled.summary)).toContain('disabled')
+
+    const reenabled = await executeWriteVerb(context, {address: '~/triggers/mentions', content: mentionTrigger(true)})
+    expect(reenabled.enabled).toBe(true)
+    const rows = context.db.query<{id: string}, []>(`SELECT id FROM agent_triggers`).all()
+    expect(rows.length).toBe(1)
+  })
+
+  test('delete, unknown options, and bad JSON are handled loudly', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/triggers/x', content: scheduleTrigger})
+    await expect(executeWriteVerb(context, {address: '~/triggers/x', content: 'not json'})).rejects.toThrow(
+      'expects JSON content',
+    )
+    await expect(
+      executeWriteVerb(context, {address: '~/triggers/x', content: scheduleTrigger, options: {overwrite: true}}),
+    ).rejects.toThrow('does not understand')
+    const missing = await executeWriteVerb(context, {address: '~/triggers/nope', options: {delete: true}})
+    expect(missing.deleted).toBe(false)
+    const deleted = await executeWriteVerb(context, {address: '~/triggers/x', options: {delete: true}})
+    expect(deleted.deleted).toBe(true)
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    expect((listing.triggers as unknown[]).length).toBe(0)
+  })
+
+  test('read ~/self reports definition, grants, triggers, and guidance', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/triggers/morning', content: scheduleTrigger})
+    const self = await executeReadVerb(context, {address: '~/self'})
+    expect(self.agentId).toBe('test-agent')
+    expect(self.name).toBe('Test')
+    expect((self.grants as {publish: boolean}).publish).toBe(true)
+    expect((self.grants as {callableTools: string[]}).callableTools).toContain('search')
+    expect((self.triggers as unknown[]).length).toBe(1)
+    expect(String(self.guidance)).toContain('~/triggers/')
+  })
+
+  test('space index advertises the triggers affordance and lists active triggers', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/triggers/nightly', content: scheduleTrigger})
+    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+    const index = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(index).toContain('write ~/triggers/<name>')
+    expect(index).toContain('active: nightly')
+  })
+})
+
+describe('thread listing and search', () => {
+  test('thread: lists sessions newest-first and searches titles and message text', async () => {
+    const context = makeContext()
+    const now = Date.now()
+    const addSession = (id: string, title: string, updatedAt: number) =>
+      context.db.run(
+        `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, 'test-account', 'test-agent', title, 'system', 'idle', now, updatedAt],
+      )
+    addSession('s1', 'Launch planning', now - 1000)
+    addSession('s2', 'Weekly review', now)
+    context.db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
+      'e1',
+      's1',
+      1,
+      cborEncode({type: 'message', role: 'user', content: 'let us discuss the pelican rodeo budget'}),
+      now,
+    ])
+
+    const listing = await executeReadVerb(context, {address: 'thread:'})
+    const threads = listing.threads as Array<{thread: string; snippet?: string}>
+    expect(threads.length).toBe(2)
+    expect(threads[0]?.thread).toBe('thread:s2')
+
+    const byTitle = await executeReadVerb(context, {address: 'thread:', options: {query: 'weekly'}})
+    expect((byTitle.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2'])
+
+    const byContent = await executeReadVerb(context, {address: 'thread:', options: {query: 'pelican rodeo'}})
+    const contentThreads = byContent.threads as Array<{thread: string; snippet?: string}>
+    expect(contentThreads[0]?.thread).toBe('thread:s1')
+    expect(String(contentThreads[0]?.snippet)).toContain('pelican rodeo')
+
+    const byAgent = await executeReadVerb(context, {address: 'thread:', options: {agentId: 'other-agent'}})
+    expect((byAgent.threads as unknown[]).length).toBe(0)
   })
 })
 

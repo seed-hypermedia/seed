@@ -21,8 +21,8 @@ The runtime is built on three nouns and five verbs. The nouns: an agent's **Spac
 session **Log** (append-only, every event stamped with an actor), and the **Runs** table (every turn, child, and script,
 which doubles as the dispatch queue). The verbs — `read`, `write`, `call`, `delegate`, `plan` — are the entire
 model-facing tool surface and are always on; everything that used to be its own tool is now an address form of a verb or
-a callable dispatched through `call`. [`GLOSSARY.md`](../../GLOSSARY.md) at the repo root defines this vocabulary and is
-the sanctioned wording for these docs; do not restate it here, point at it.
+a callable dispatched through `call`. [`glossary.md`](./glossary.md) defines this vocabulary and is the sanctioned
+wording for these docs; do not restate it here, point at it.
 
 ## Quick status
 
@@ -78,6 +78,10 @@ Completed and usable locally:
   subscriptions with journal replay;
 - wake sources for day-scale work: `ctx.waitForEvent` parks a run for nothing until a signal, an activity event, or a
   timeout, and a trigger can carry a `wake` continuation instead of starting a new thread;
+- agent introspection: `read`/`write ~/triggers/<name>` (the agent creates, edits, enables, disables, and deletes its
+  own triggers directly, on the existing `agent_triggers` rows), `read ~/self` (the agent's own definition, grants,
+  triggers, and memory summary), and `read thread:` (list and search the account's conversations by title and recent
+  message text), with the Space index advertising active triggers and the triggers affordance;
 - a record/replay model-gate harness (`agents/e2e/run.ts`, replayed offline by `agents/src/e2e-replay.test.ts` — whose
   cassettes are stale since the verb collapse, so that replay currently **skips**) and a live gate against a real server
   and model (`agents/e2e/live-gate.ts`), plus a blind simulated-model gate methodology (see `operations.md`);
@@ -105,8 +109,8 @@ Important incomplete work:
 
 ## Start here reading order
 
-0. [Glossary](../../GLOSSARY.md) — the sanctioned vocabulary: three nouns, five verbs, delegation, plans, tools,
-   triggers. Read it first; the rest of these docs assume its words.
+0. [Glossary](./glossary.md) — the sanctioned vocabulary: three nouns, five verbs, delegation, plans, tools, triggers.
+   Read it first; the rest of these docs assume its words.
 1. [System overview](./system-overview.md) — architecture, boundaries, lifecycle, completed/incomplete status.
 2. [Implementation history](./implementation-history.md) — notes on the recent commits that built this feature.
 3. [Operations](./operations.md) — how to run, configure, inspect, and troubleshoot the service locally.
@@ -277,7 +281,7 @@ Use this routing table:
 - database/migration changes → `persistence.md`
 - provider/runtime changes → `model-providers.md`, `pi-sdk-migration.md`, `roadmap.md`
 - verb/tool changes (`agents/protocol/src/tool-registry.ts`, `tool-documents.ts`) → `tools.md`, `security.md`
-- new vocabulary for a mechanism → `GLOSSARY.md` at the repo root, then use its words here
+- new vocabulary for a mechanism → `glossary.md`, then use its words here
 - architecture milestones → `harness/plan.md` (as-built notes) and its `harness/reviews/`
 - security/auth/logging changes → `security.md`, `operations.md`
 - UI workflow changes → `desktop-ui.md`

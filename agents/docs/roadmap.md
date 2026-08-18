@@ -2,7 +2,7 @@
 
 Living document, last reconciled against the code on **2026-08-13** (the `harness/full` line). Larger project
 descriptions live in [Future projects](./future-projects.md); how the current system is shaped and named lives in the
-root `GLOSSARY.md` and `docs/harness/plan.md`.
+`docs/glossary.md` and `docs/harness/plan.md`.
 
 ## Current completed baseline
 
@@ -42,20 +42,20 @@ Complete enough to build on; treat as baseline functionality:
 
 ## Highest priority next steps
 
-### 1. Finish M6 — trigger documents and activation consent
+### 1. Finish M6 — trigger documents
 
-Why: triggers are the one piece of standing authority an agent can hold, and today they are protocol rows with no
-consent step. The design is written (`docs/harness/m6-event-bus-design.md`); the bus underneath already ships.
+Why: triggers are the one piece of standing authority an agent can hold. **Shipped 2026-08-18 (introspection slice):**
+the `~/triggers/**` verb surface (read listing/detail, write create/edit/enable/disable/delete, `enabled` honored as
+written — no consent step, by owner decision; see `security.md`) plus `read ~/self` and the `thread:` listing/search.
+All of it rides the existing `agent_triggers` rows.
 
-Work:
+Remaining work:
 
-- trigger documents in `~/triggers/**`, read and written through the verbs like the rest of the Space;
-- **draft→active consent**: an agent's own write lands as `draft` regardless of what it wrote; only a user action (an
-  `ActivateTrigger` gesture) makes a trigger live;
+- the content-addressed document form (CID per trigger, like `~/tools/`), and the migration off `agent_triggers` that
+  carries firing keys forward so nothing re-fires;
 - the `document-change` source and the `appendTo` continuation (`runPlan` waits for `~/plans/` to exist);
-- a data-preserving migration off `agent_triggers` that carries firing keys forward so nothing re-fires;
 - deletion of the trigger CRUD actions, and the desktop editor that replaces them — including a form for `run-completed`
-  triggers, which today can only be created through the API.
+  triggers, which today can only be created through the API or an agent's `write ~/triggers/<name>`.
 
 ### 2. Delegated signers for clients that are not the account key
 

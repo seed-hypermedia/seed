@@ -169,6 +169,10 @@ schedule table is required.
 NULL means the only thing triggers used to do: start a new thread. The event-bus milestone moves this (and the rest of a
 trigger) into a Space document; the column is where it lives until then.
 
+Rows are written by the signed CRUD actions and by the agent itself through `write ~/triggers/<name>`
+(`writeTriggerAddress`), which honors `enabled` as written — the agent manages its own triggers directly (see
+`security.md`).
+
 The table also carries a `cooldown_ms` column that nothing reads or writes. It is vestigial — no protocol field sets it
 and no monitor consults it.
 

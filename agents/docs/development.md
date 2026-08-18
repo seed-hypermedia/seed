@@ -135,7 +135,7 @@ callable — not as a sixth verb. In practice:
 4. Anything promoted into the provider payload must be filtered against the agent's enabled callable set. Promotion is
    derived from durable events, so an unfiltered allowlist would let a hallucinated tool name activate a real one.
 5. Grants are `publish` plus the callable set. Do not add a grant for a verb.
-6. Update `tools.md`, `security.md`, and — if you invented a word for the mechanism — `GLOSSARY.md`.
+6. Update `tools.md`, `security.md`, and — if you invented a word for the mechanism — `glossary.md`.
 
 ## Adding provider backends
 
@@ -158,7 +158,7 @@ Update routing:
 - provider execution/config → `model-providers.md`
 - verbs, callables, tool documents (`agents/protocol/src/tool-registry.ts`, `tool-documents.ts`) → `tools.md`,
   `security.md`
-- new vocabulary for a mechanism → `GLOSSARY.md` at the repo root, then use its words everywhere else
+- new vocabulary for a mechanism → `glossary.md`, then use its words everywhere else
 - desktop workflow/rendering → `desktop-ui.md`
 - security/auth/secrets/logging → `security.md`
 - major milestone completed → `implementation-history.md`, `roadmap.md`

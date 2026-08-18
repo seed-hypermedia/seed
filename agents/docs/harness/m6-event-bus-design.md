@@ -5,9 +5,17 @@ of `plan.md` and from the M5 machinery that M6 should reuse rather than reinvent
 
 As of 2026-08-13 on `harness/full`, the "tonight" subset from [Sizing](#sizing) is built (commit `b7596f83c`, reviewed
 in [`reviews/05-exec-time.md`](./reviews/05-exec-time.md)): the `run-completed` source, the `wake` continuation, the
-shared activity matcher, and the firing-chain loop guard, all riding the existing `agent_triggers` rows. **Everything
-about documents is still unbuilt** — no `~/triggers/**`, no draft→active consent, no migration, no protocol deletion.
-Each section below is marked with what it actually got. The design text itself is unchanged.
+shared activity matcher, and the firing-chain loop guard, all riding the existing `agent_triggers` rows.
+
+**Update 2026-08-18/19:** a second slice landed — the `~/triggers/**` **verb surface**, still on the existing rows
+rather than documents. `read ~/triggers/`, `read ~/triggers/<name>`, and `write ~/triggers/<name>` exist, and the agent
+creates, edits, enables, disables, and deletes its own triggers directly — **the draft→active consent proposed below was
+built and then removed on the owner's direction** (2026-08-19): agents manage their own triggers without an approval
+step, and `security.md` records the threat-model tradeoff. Alongside it: `read ~/self` and the `thread:` listing/search,
+for self-knowledge and cross-session browsing. **Still unbuilt from the day package:** the content-addressed document
+form (CID per trigger), the `document-change` source, `appendTo`/`runPlan`, the migration off `agent_triggers`, the
+protocol deletion, and firing-history-as-runs. Each section below is marked with what it actually got. The design text
+itself is unchanged — read its consent sections as historical design, not as the plan of record.
 
 **Sizing up front: this is a day package, not a night one.** See [Sizing](#sizing) for the split — there is a coherent
 ~4 hour subset (the bus underneath) that can land tonight and leaves the system strictly better even if the document

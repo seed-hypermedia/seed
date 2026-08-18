@@ -135,7 +135,9 @@ Tabs: **Sessions** (default), **Triggers**, **Memory**, **Tools**, **Prompt**, *
   cover activity and schedule triggers (interval, weekly day/time, one-time), an optional cooldown in minutes, document
   autocomplete for comment triggers, account/site autocomplete for mention and site-update triggers, rich block editing
   for trigger prompts, and autosave on every edit including the enabled toggle. Per-type logic lives in
-  `trigger-types.tsx` so the forms and the session UI cannot drift.
+  `trigger-types.tsx` so the forms and the session UI cannot drift. Agents can also create, edit, enable, disable, and
+  delete their own triggers via `write ~/triggers/<name>`; the list refreshes live from `trigger-updated` account
+  events, so agent-made changes appear immediately.
 - **Memory** (`memory.tsx`) browses and edits `~/memory`: entry list with sizes and per-row delete (two-step inline
   confirm), a monospace editor with dirty-state Save/Revert for text files, inline image/audio/video previews, per-file
   download, **Add file** upload, a **From URL** server-side download form, a **New file** form accepting nested paths,
