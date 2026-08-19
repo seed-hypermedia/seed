@@ -1,6 +1,7 @@
 import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
+import {verifyEnvelope} from '@/auth'
 import {getBuildInfo} from '@/build-info'
 import {withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
@@ -231,21 +232,27 @@ function json(data: unknown, init: ResponseInit = {}): Response {
   return Response.json(data, {...init, headers: {...corsHeaders(), ...init.headers}})
 }
 
-function getDebugOverview(db: Database): {
+function getDebugOverview(
+  db: Database,
+  accountId: string,
+): {
   connections?: number
   uptime: number
   agents: DebugAgent[]
   watermarks: DebugWatermark[]
 } {
+  // Every query is scoped to the authenticated account: this inspector is account-owned data
+  // (agent definitions, trigger prompts, sessions), never a cross-account view.
   const agentRows = db
-    .query<AgentRow, []>(
+    .query<AgentRow, [string]>(
       `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
        FROM agents
+       WHERE account_id = ?
        ORDER BY updated_at DESC`,
     )
-    .all()
+    .all(accountId)
   const triggerRows = db
-    .query<DebugTriggerRow, []>(
+    .query<DebugTriggerRow, [string]>(
       `SELECT t.id, t.account_id, t.agent_id, t.name, t.enabled, t.source_cbor, t.prompt,
               t.created_at, t.updated_at, t.last_checked_at, t.last_fired_at, t.last_error,
               COUNT(f.id) AS firing_count,
@@ -253,20 +260,22 @@ function getDebugOverview(db: Database): {
               MAX(f.created_at) AS last_firing_at
        FROM agent_triggers t
        LEFT JOIN trigger_firings f ON f.trigger_id = t.id
+       WHERE t.account_id = ?
        GROUP BY t.id
        ORDER BY t.updated_at DESC`,
     )
-    .all()
+    .all(accountId)
   const sessionRows = db
-    .query<DebugSessionRow, []>(
+    .query<DebugSessionRow, [string]>(
       `SELECT s.id, s.account_id, s.agent_id, s.title, s.status, s.created_at, s.updated_at,
               COUNT(e.id) AS event_count, MAX(e.created_at) AS last_event_at
        FROM sessions s
        LEFT JOIN session_events e ON e.session_id = s.id
+       WHERE s.account_id = ?
        GROUP BY s.id
        ORDER BY s.updated_at DESC`,
     )
-    .all()
+    .all(accountId)
   const triggersByAgent = new Map<string, DebugTrigger[]>()
   for (const row of triggerRows) {
     const triggers = triggersByAgent.get(row.agent_id) ?? []
@@ -280,12 +289,13 @@ function getDebugOverview(db: Database): {
     sessionsByAgent.set(row.agent_id, sessions)
   }
   const watermarkRows = db
-    .query<ActivityWatermarkRow, []>(
+    .query<ActivityWatermarkRow, [string]>(
       `SELECT account_id, server_url, cursor_cbor, last_poll_at, last_success_at, last_error
        FROM activity_watermarks
+       WHERE account_id = ?
        ORDER BY last_poll_at DESC`,
     )
-    .all()
+    .all(accountId)
   return {
     uptime: process.uptime(),
     watermarks: watermarkRows.map(debugWatermarkRowToInfo),
@@ -297,14 +307,17 @@ function getDebugOverview(db: Database): {
   }
 }
 
-function getDebugSession(db: Database, sessionId: string): Response {
+function getDebugSession(db: Database, accountId: string, sessionId: string): Response {
+  // Scoped to the authenticated account. A session belonging to another account looks
+  // identical to a missing one (404), so this never confirms another account's session ids.
+  // The session_events lookup below inherits this scoping through the verified session.
   const session = db
-    .query<SessionRow, [string]>(
+    .query<SessionRow, [string, string]>(
       `SELECT id, account_id, agent_id, title, status, created_at, updated_at
        FROM sessions
-       WHERE id = ?`,
+       WHERE id = ? AND account_id = ?`,
     )
-    .get(sessionId)
+    .get(sessionId, accountId)
   if (!session) return json({error: 'Session not found'}, {status: 404})
   const events = db
     .query<SessionEventRow, [string]>(
@@ -315,6 +328,61 @@ function getDebugSession(db: Database, sessionId: string): Response {
     )
     .all(sessionId)
   return json({session: sessionRowToInfo(session), events: events.map(sessionEventRowToInfo)})
+}
+
+/**
+ * Authenticates an inspector request from the `Authorization: Envelope <base64-cbor>` header and
+ * returns the verified account id. The inspector reads account-owned rows (agent definitions,
+ * transcripts), so it requires the same signed envelope as the CBOR action API — the account id is
+ * public, so it cannot be trusted from a query string. Throws {@link apisvc.APIError} on failure.
+ */
+function authenticateInspector(db: Database, req: Request): string {
+  const header = req.headers.get('Authorization') ?? ''
+  const prefix = 'Envelope '
+  if (!header.startsWith(prefix)) {
+    throw new apisvc.APIError(401, 'Signed envelope required in Authorization header')
+  }
+  let envelope: api.SignedActionEnvelope
+  try {
+    envelope = cbor.decode<api.SignedActionEnvelope>(
+      new Uint8Array(Buffer.from(header.slice(prefix.length).trim(), 'base64')),
+    )
+  } catch {
+    throw new apisvc.APIError(401, 'Invalid authorization envelope')
+  }
+  return verifyEnvelope(db, envelope).accountId
+}
+
+/**
+ * Inspector routes (`/agents/api/status`, `/agents/api/session`). Extracted into a factory so the
+ * same handlers are covered by the route tests. Every response is scoped to the account proven by a
+ * signed envelope; an unauthenticated request is rejected.
+ */
+export function createInspectorRoutes(db: Database, connections: () => number): Bun.Serve.Routes<undefined, string> {
+  const withAuth =
+    (handler: (accountId: string, req: BunRequest) => Response) =>
+    (req: BunRequest): Response => {
+      let accountId: string
+      try {
+        accountId = authenticateInspector(db, req)
+      } catch (error) {
+        const status = error instanceof apisvc.APIError ? error.status : 401
+        return json({error: error instanceof Error ? error.message : 'Unauthorized'}, {status})
+      }
+      return handler(accountId, req)
+    }
+  return {
+    '/agents/api/status': {
+      GET: withAuth((accountId) => json({...getDebugOverview(db, accountId), connections: connections()})),
+    },
+    '/agents/api/session': {
+      GET: withAuth((accountId, req) => {
+        const sessionId = new URL(req.url).searchParams.get('id') ?? ''
+        if (!sessionId) return json({error: 'Session ID is required'}, {status: 400})
+        return getDebugSession(db, accountId, sessionId)
+      }),
+    },
+  }
 }
 
 function agentRowToInfo(row: AgentRow): api.AgentInfo {
@@ -571,16 +639,7 @@ async function main(): Promise<void> {
         if (upgraded) return undefined as unknown as Response
         return new Response('WebSocket upgrade failed', {status: 400})
       },
-      '/agents/api/status': {
-        GET: () => json({...getDebugOverview(db), connections: clients.size}),
-      },
-      '/agents/api/session': {
-        GET: (req: BunRequest) => {
-          const sessionId = new URL(req.url).searchParams.get('id') ?? ''
-          if (!sessionId) return json({error: 'Session ID is required'}, {status: 400})
-          return getDebugSession(db, sessionId)
-        },
-      },
+      ...createInspectorRoutes(db, () => clients.size),
       '/agents': index,
       '/agents/*': isProd
         ? (req: BunRequest) => {
