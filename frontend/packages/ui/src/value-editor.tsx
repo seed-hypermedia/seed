@@ -1935,12 +1935,14 @@ function NumberInput({
         <Input
           value={text}
           inputMode="numeric"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={suggestionsOpen && visibleSuggestions.length > 0}
-          aria-controls={`number-suggestions-${pathId(path ?? [])}`}
+          role={autocomplete ? 'combobox' : undefined}
+          aria-autocomplete={autocomplete ? 'list' : undefined}
+          aria-expanded={autocomplete ? suggestionsOpen && visibleSuggestions.length > 0 : undefined}
+          aria-controls={autocomplete ? `number-suggestions-${pathId(path ?? [])}` : undefined}
           aria-activedescendant={
-            activeIndex === null ? undefined : `number-suggestions-${pathId(path ?? [])}-option-${activeIndex}`
+            autocomplete && activeIndex !== null
+              ? `number-suggestions-${pathId(path ?? [])}-option-${activeIndex}`
+              : undefined
           }
           autoFocus={autoFocus}
           onFocus={() => {
@@ -2102,12 +2104,12 @@ function CommitOnBlurInput({
         value={text}
         placeholder={placeholder}
         className={className}
-        role={suggestionKind ? 'combobox' : undefined}
-        aria-autocomplete={suggestionKind ? 'list' : undefined}
-        aria-expanded={suggestionKind ? suggestionsOpen && visibleSuggestions.length > 0 : undefined}
-        aria-controls={suggestionKind ? `text-suggestions-${pathId(suggestionPath ?? [])}` : undefined}
+        role={autocomplete && suggestionKind ? 'combobox' : undefined}
+        aria-autocomplete={autocomplete && suggestionKind ? 'list' : undefined}
+        aria-expanded={autocomplete && suggestionKind ? suggestionsOpen && visibleSuggestions.length > 0 : undefined}
+        aria-controls={autocomplete && suggestionKind ? `text-suggestions-${pathId(suggestionPath ?? [])}` : undefined}
         aria-activedescendant={
-          suggestionKind && activeIndex !== null
+          autocomplete && suggestionKind && activeIndex !== null
             ? `text-suggestions-${pathId(suggestionPath ?? [])}-option-${activeIndex}`
             : undefined
         }
@@ -2557,6 +2559,7 @@ function FieldDialog({
 
   const chooseSuggestion = (suggestion: AttributeNameSuggestion) => {
     setName(suggestion.name)
+    onKeyTextChange?.(suggestion.name)
     const inferred = suggestion.kinds[0]?.kind
     if (inferred && options.includes(inferred)) setType(inferred)
     setSuggestionsOpen(false)
@@ -2645,12 +2648,12 @@ function FieldDialog({
               <div className="relative">
                 <Input
                   id="field-dialog-name"
-                  role="combobox"
-                  aria-autocomplete="list"
-                  aria-expanded={suggestionsOpen && nameSuggestions.items.length > 0}
-                  aria-controls="field-name-suggestions"
+                  role={autocomplete ? 'combobox' : undefined}
+                  aria-autocomplete={autocomplete ? 'list' : undefined}
+                  aria-expanded={autocomplete ? suggestionsOpen && nameSuggestions.items.length > 0 : undefined}
+                  aria-controls={autocomplete ? 'field-name-suggestions' : undefined}
                   aria-activedescendant={
-                    activeIndex === null ? undefined : `field-name-suggestions-option-${activeIndex}`
+                    autocomplete && activeIndex !== null ? `field-name-suggestions-option-${activeIndex}` : undefined
                   }
                   value={name}
                   placeholder="Field name"
@@ -2670,6 +2673,7 @@ function FieldDialog({
                     setSuggestionsOpen(true)
                     setActiveIndex(null)
                     setError(null)
+                    onKeyTextChange?.(e.target.value)
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
