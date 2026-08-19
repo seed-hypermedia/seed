@@ -5,6 +5,8 @@ import {getAgentsPlatform} from './platform'
 
 /** Definition used when creating a server-hosted Seed agent. */
 export type AgentDefinition = AgentsProtocol.AgentDefinition
+/** One saved quick-switch choice: a model on a specific configured provider. */
+export type AgentModelRef = AgentsProtocol.AgentModelRef
 /** Rich block tree preserved for displaying user-authored session messages. */
 export type AgentMessageBlock = AgentsProtocol.AgentMessageBlock
 /** Message content part submitted to a session. */

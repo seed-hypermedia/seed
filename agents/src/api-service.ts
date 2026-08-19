@@ -104,6 +104,7 @@ import * as path from 'node:path'
 const MAX_NAME_BYTES = 256
 const MAX_PROMPT_BYTES = 64 * 1024
 const MAX_MODEL_BYTES = 256
+const MAX_ENABLED_MODEL_COUNT = 32
 const MAX_METADATA_CBOR_BYTES = 16 * 1024
 const MAX_TOOL_COUNT = 32
 const MAX_TOOL_NAME_BYTES = 128
@@ -7111,6 +7112,27 @@ function normalizeDefinition(raw: api.AgentDefinition): api.AgentDefinition {
   if (raw.reasoningLevel !== undefined) {
     if (!isReasoningLevel(raw.reasoningLevel)) throw new APIError(400, 'Reasoning level is invalid')
     definition.reasoningLevel = raw.reasoningLevel
+  }
+
+  if (raw.enabledModels !== undefined) {
+    if (!Array.isArray(raw.enabledModels)) throw new APIError(400, 'Enabled models must be an array')
+    if (raw.enabledModels.length > MAX_ENABLED_MODEL_COUNT) throw new APIError(400, 'Too many enabled models')
+    // Entries are validated structurally only: a provider name here is not required to exist,
+    // so a definition can move between servers and be pruned client-side instead of rejected.
+    const seen = new Set<string>()
+    const enabledModels: api.AgentModelRef[] = []
+    for (const entry of raw.enabledModels) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        throw new APIError(400, 'Enabled models must be provider/model objects')
+      }
+      const provider = normalizeBoundedString(entry.provider, 'Enabled model provider', MAX_NAME_BYTES)
+      const model = normalizeBoundedString(entry.model, 'Enabled model', MAX_MODEL_BYTES)
+      const key = JSON.stringify([provider, model])
+      if (seen.has(key)) continue
+      seen.add(key)
+      enabledModels.push({provider, model})
+    }
+    if (enabledModels.length) definition.enabledModels = enabledModels
   }
 
   if (raw.signingKey !== undefined) {

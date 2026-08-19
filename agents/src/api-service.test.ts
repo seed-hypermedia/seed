@@ -988,6 +988,61 @@ describe('api service', () => {
     }
   })
 
+  test('stores deduped enabled quick-switch models and bounds the list', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const create = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Switcher Agent',
+              systemPrompt: 'ok',
+              modelProvider: 'openai',
+              model: 'gpt-4.1',
+              enabledModels: [
+                {provider: ' openai ', model: ' gpt-4.1 '},
+                {provider: 'openai', model: 'gpt-4.1'},
+                {provider: 'anthropic', model: 'claude-fable-5'},
+              ],
+            },
+          },
+        }),
+      )
+      if (create._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      const list = await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}}))
+      if (list._ !== 'ListAgentsResponse') throw new Error('unexpected response')
+      expect(list.agents[0]?.definition.enabledModels).toEqual([
+        {provider: 'openai', model: 'gpt-4.1'},
+        {provider: 'anthropic', model: 'claude-fable-5'},
+      ])
+
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'CreateAgent',
+              definition: {
+                name: 'Too Many Models',
+                systemPrompt: 'ok',
+                modelProvider: 'openai',
+                model: 'gpt-4.1',
+                enabledModels: Array.from({length: 33}, (_, index) => ({provider: 'openai', model: `model-${index}`})),
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow('Too many enabled models')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('lists remote models for a configured provider', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

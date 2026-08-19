@@ -11,13 +11,17 @@ import {curateProviderModels, modelLabel} from './model-utils'
  * Searchable model picker shared by every agent model dropdown. Shows a short
  * curated list by default (embeddings/audio/image models removed, dated
  * snapshots collapsed) with a "show all" affordance and free-text search to
- * reach the full provider list.
+ * reach the full provider list. When `onToggleModel` is provided, each row also
+ * carries a checkbox that marks the model as a quick-switch choice without
+ * changing the active model.
  */
 export function ModelSelect({
   models,
   providerType,
   value,
   onChange,
+  enabledModels,
+  onToggleModel,
   isLoading,
   isError,
   error,
@@ -27,6 +31,10 @@ export function ModelSelect({
   providerType: string | undefined
   value: string
   onChange: (id: string) => void
+  /** Model ids checked as quick-switch choices; the active model counts as checked implicitly. */
+  enabledModels?: string[]
+  /** Enables the per-row checkboxes when provided. */
+  onToggleModel?: (id: string, enabled: boolean) => void
   isLoading?: boolean
   isError?: boolean
   error?: unknown
@@ -106,23 +114,54 @@ export function ModelSelect({
               </SizableText>
             </div>
           ) : (
-            visibleModels.map((model) => (
-              <button
-                key={model.id}
-                type="button"
-                className={cn(
-                  'hover:bg-muted flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm',
-                  model.id === value && 'bg-muted',
-                )}
-                onClick={() => {
-                  onChange(model.id)
-                  setOpen(false)
-                }}
-              >
-                <span className="min-w-0 truncate">{modelLabel(model)}</span>
-                {model.id === value ? <Check className="size-4 shrink-0" /> : null}
-              </button>
-            ))
+            visibleModels.map((model) => {
+              const isActive = model.id === value
+              const isEnabled = isActive || !!enabledModels?.includes(model.id)
+              return (
+                <div
+                  key={model.id}
+                  className={cn('hover:bg-muted flex w-full items-center gap-1 rounded-sm', isActive && 'bg-muted')}
+                >
+                  {onToggleModel ? (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={isEnabled}
+                      aria-label={`${isEnabled ? 'Disable' : 'Enable'} ${modelLabel(model)} for quick switching`}
+                      title={
+                        isActive
+                          ? 'The current model is always available'
+                          : isEnabled
+                            ? 'Remove from the model switcher'
+                            : 'Add to the model switcher'
+                      }
+                      disabled={isActive}
+                      className={cn(
+                        'ml-2 flex size-4 shrink-0 items-center justify-center rounded-xs border',
+                        isEnabled
+                          ? 'bg-primary border-primary text-primary-foreground'
+                          : 'border-border bg-transparent',
+                        isActive && 'opacity-50',
+                      )}
+                      onClick={() => onToggleModel(model.id, !isEnabled)}
+                    >
+                      {isEnabled ? <Check className="size-3" /> : null}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center justify-between gap-2 px-2 py-1.5 text-left text-sm"
+                    onClick={() => {
+                      onChange(model.id)
+                      setOpen(false)
+                    }}
+                  >
+                    <span className="min-w-0 truncate">{modelLabel(model)}</span>
+                    {isActive ? <Check className="size-4 shrink-0" /> : null}
+                  </button>
+                </div>
+              )
+            })
           )}
         </div>
         {!trimmedQuery && curated.hasMore ? (

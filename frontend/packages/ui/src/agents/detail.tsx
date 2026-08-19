@@ -2,6 +2,7 @@ import {
   type AgentCollaboratorInfo,
   type AgentCollaboratorRole,
   type AgentDefinition,
+  type AgentModelRef,
   type AgentToolInfo,
   type AgentToolInput,
   type AgentTriggerInfo,
@@ -151,6 +152,7 @@ function AgentDetailPage({
   const [modelProvider, setModelProvider] = useState('')
   const [model, setModel] = useState('')
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
+  const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
   const providerModels = useProviderModels(serverUrl, selectedAccountId, modelProvider, agentId)
   const selectedProviderType = modelProviders.data?.find((provider) => provider.name === modelProvider)?.type
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>([])
@@ -170,6 +172,7 @@ function AgentDetailPage({
       setModel(agent.data.agent.definition.model)
       setModelProvider(agent.data.agent.definition.modelProvider)
       setReasoningLevel(agent.data.agent.definition.reasoningLevel)
+      setEnabledModels(agent.data.agent.definition.enabledModels ?? [])
     }
     if (!promptDirty) {
       const nextPromptKey = agentPromptStableKey(agent.data.agent.definition.systemPrompt)
@@ -194,8 +197,33 @@ function AgentDetailPage({
     setModelProvider(nextProvider)
     setModel('') // belongs to the previous provider; the effect above picks a new default
     setReasoningLevel(undefined)
+    // Checked quick-switch models survive provider switches: they carry their own provider.
     setNameModelDirty(true)
   }
+
+  // A provider that disappears (deleted, or the account's provider list changed) must not linger:
+  // if it was the active provider, fall back to the empty state — no provider, no model — until
+  // the user picks a provider again, and prune checked quick-switch entries that referenced it.
+  // Marking the draft dirty keeps background refetches of the stale definition from resurrecting
+  // the deleted name, and the autosave effect never submits a draft without a provider and model,
+  // so nothing is saved until a real provider is chosen.
+  useEffect(() => {
+    // While a refetch is in flight the list may be stale — e.g. right after adding a provider that
+    // was just auto-selected — so only a settled list is trusted to declare a provider gone.
+    // Read-only viewers keep the stale display: they cannot save the cleanup anyway.
+    if (!modelProviders.data || modelProviders.isFetching || !canWrite) return
+    const providerNames = new Set(modelProviders.data.map((provider) => provider.name))
+    const prunedEnabled = enabledModels.filter((entry) => providerNames.has(entry.provider))
+    const activeGone = !!modelProvider && !providerNames.has(modelProvider)
+    if (!activeGone && prunedEnabled.length === enabledModels.length) return
+    if (activeGone) {
+      setModelProvider('')
+      setModel('')
+      setReasoningLevel(undefined)
+    }
+    if (prunedEnabled.length !== enabledModels.length) setEnabledModels(prunedEnabled)
+    setNameModelDirty(true)
+  }, [modelProvider, enabledModels, modelProviders.data, modelProviders.isFetching, canWrite])
 
   // The agent's primary signing account, and whether other agents also use it.
   const agentSigningKey =
@@ -254,7 +282,8 @@ function AgentDetailPage({
       draftName === persistedName &&
       model === persistedModel &&
       modelProvider === persistedProvider &&
-      draftReasoningLevel === currentDefinition.reasoningLevel
+      draftReasoningLevel === currentDefinition.reasoningLevel &&
+      sameModelRefs(enabledModels, currentDefinition.enabledModels ?? [])
     ) {
       setSettingsSaveState('idle')
       return
@@ -269,6 +298,8 @@ function AgentDetailPage({
         // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
         if (draftReasoningLevel) nextDefinition.reasoningLevel = draftReasoningLevel
         else delete nextDefinition.reasoningLevel
+        if (enabledModels.length) nextDefinition.enabledModels = enabledModels
+        else delete nextDefinition.enabledModels
         void updateAgent
           .mutateAsync({
             agentId,
@@ -281,6 +312,7 @@ function AgentDetailPage({
             setModel(result.agent.definition.model)
             setModelProvider(result.agent.definition.modelProvider)
             setReasoningLevel(result.agent.definition.reasoningLevel)
+            setEnabledModels(result.agent.definition.enabledModels ?? [])
             if (!promptDirty) {
               loadedPromptKeyRef.current = agentPromptStableKey(result.agent.definition.systemPrompt)
               setSystemPrompt(agentPromptToBlocks(result.agent.definition.systemPrompt))
@@ -308,6 +340,7 @@ function AgentDetailPage({
     modelProvider,
     name,
     reasoningLevel,
+    enabledModels,
     selectedProviderType,
     promptDirty,
     updateAgent.mutateAsync,
@@ -634,6 +667,16 @@ function AgentDetailPage({
                           setReasoningLevel((level) => coerceReasoningLevel(selectedProviderType, nextModel, level))
                           setNameModelDirty(true)
                         }}
+                        enabledModels={enabledModels
+                          .filter((entry) => entry.provider === modelProvider)
+                          .map((entry) => entry.model)}
+                        onToggleModel={(id, enabled) => {
+                          setEnabledModels((current) => [
+                            ...current.filter((entry) => !(entry.provider === modelProvider && entry.model === id)),
+                            ...(enabled ? [{provider: modelProvider, model: id}] : []),
+                          ])
+                          setNameModelDirty(true)
+                        }}
                         isLoading={providerModels.isLoading}
                         isError={providerModels.isError}
                         error={providerModels.error}
@@ -690,6 +733,13 @@ function AgentDetailPage({
         />
       ) : null}
     </PanelContainer>
+  )
+}
+
+function sameModelRefs(a: AgentModelRef[], b: AgentModelRef[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((entry, index) => entry.provider === b[index]?.provider && entry.model === b[index]?.model)
   )
 }
 

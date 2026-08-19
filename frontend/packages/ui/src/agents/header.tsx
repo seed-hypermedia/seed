@@ -1,17 +1,29 @@
-import {type AgentDefinition} from './client'
-import {describeAgentServer, useLocalAgentServerUrl} from './models'
+import {type AgentDefinition, type AgentModelRef} from './client'
+import {
+  describeAgentServer,
+  useLocalAgentServerUrl,
+  useModelProviders,
+  useProviderModels,
+  useUpdateAgent,
+} from './models'
+import {modelLabel} from './model-utils'
+import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {toast} from '@shm/ui/toast'
 import type {NavRoute} from '@shm/shared/routes'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Button} from '@shm/ui/button'
 import {Badge} from '@shm/ui/components/badge'
 import {OptionsDropdown, type MenuItemType} from '@shm/ui/options-dropdown'
 import {PageTab} from '@shm/ui/page-tabs'
-import {ReasoningBadge} from './reasoning-select'
+import {coerceReasoningLevel, ReasoningBadge} from './reasoning-select'
 import {SizableText} from '@shm/ui/text'
 import {
   ArrowLeft,
   Brain,
+  Check,
+  ChevronsUpDown,
   GitBranch,
   MessageSquarePlus,
   MessagesSquare,
@@ -28,6 +40,8 @@ export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'promp
 export type AgentHeaderInfo = {
   definition: AgentDefinition
   status: string
+  /** Viewer's role on the agent; model switching from the header needs write access. */
+  accessRole?: string
 }
 
 type AgentBreadcrumbItem = {label: string; route?: NavRoute}
@@ -301,11 +315,7 @@ export function AgentHeader({
             ) : null}
           </div>
           <div className="flex flex-none items-center gap-2">
-            {agent ? (
-              <Badge variant="secondary" className="flex-none">
-                {agent.definition.model}
-              </Badge>
-            ) : null}
+            {agent ? <AgentModelBadge agent={agent} agentId={agentId} serverUrl={serverUrl} /> : null}
             {agent ? <ReasoningBadge level={agent.definition.reasoningLevel} /> : null}
             {activeTab === 'sessions' && onCreateSession ? (
               <Button className="max-sm:min-h-10" onClick={onCreateSession} disabled={creatingSession}>
@@ -374,5 +384,102 @@ export function AgentHeader({
         ) : null}
       </section>
     </>
+  )
+}
+
+/**
+ * The header's current-model tag. For writers it opens a dropdown of the
+ * models checked in the agent's settings — which may span multiple providers —
+ * and switches the agent's active provider/model pair in place; read-only
+ * viewers and single-model agents get the plain badge.
+ */
+function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; agentId?: string; serverUrl: string}) {
+  const accountUid = useSelectedAccountId()
+  const updateAgent = useUpdateAgent(serverUrl, accountUid)
+  const definition = agent.definition
+  const canWrite = !agent.accessRole || agent.accessRole === 'owner' || agent.accessRole === 'writer'
+  const providers = useModelProviders(serverUrl, accountUid, canWrite ? agentId : undefined)
+  const providerModels = useProviderModels(
+    serverUrl,
+    accountUid,
+    canWrite && agentId ? definition.modelProvider : undefined,
+    agentId,
+  )
+  const [open, setOpen] = useState(false)
+
+  // The switchable set: the active pair plus every checked entry whose provider still
+  // exists. Entries on the active provider are additionally filtered against its live
+  // catalog; other providers' catalogs are not fetched here, so their entries pass
+  // as-is. An unloaded provider list or catalog filters nothing, so a transient fetch
+  // problem never hides choices.
+  const catalog = providerModels.data
+  const providerNames = providers.data ? new Set(providers.data.map((provider) => provider.name)) : undefined
+  const options: AgentModelRef[] = [
+    {provider: definition.modelProvider, model: definition.model},
+    ...(definition.enabledModels ?? []).filter((entry) => {
+      if (entry.provider === definition.modelProvider && entry.model === definition.model) return false
+      if (providerNames && !providerNames.has(entry.provider)) return false
+      if (entry.provider === definition.modelProvider && catalog?.length) {
+        return catalog.some((model) => model.id === entry.model)
+      }
+      return true
+    }),
+  ]
+  const spansProviders = options.some((entry) => entry.provider !== definition.modelProvider)
+
+  if (!canWrite || !agentId || options.length <= 1) {
+    return (
+      <Badge variant="secondary" className="flex-none">
+        {definition.model}
+      </Badge>
+    )
+  }
+
+  function handleSelect(entry: AgentModelRef) {
+    setOpen(false)
+    if (entry.provider === definition.modelProvider && entry.model === definition.model) return
+    const providerType = providers.data?.find((provider) => provider.name === entry.provider)?.type
+    const nextDefinition = {...definition, modelProvider: entry.provider, model: entry.model}
+    const nextLevel = coerceReasoningLevel(providerType, entry.model, definition.reasoningLevel)
+    // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
+    if (nextLevel) nextDefinition.reasoningLevel = nextLevel
+    else delete nextDefinition.reasoningLevel
+    updateAgent.mutate(
+      {agentId: agentId!, definition: nextDefinition},
+      {onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not switch model')},
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        type="button"
+        aria-label="Switch model"
+        disabled={updateAgent.isLoading}
+        className="bg-secondary text-secondary-foreground hover:bg-secondary/80 flex flex-none items-center gap-1 rounded-md border border-transparent px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
+      >
+        <span className="max-w-48 truncate">{definition.model}</span>
+        <ChevronsUpDown className="size-3 shrink-0 opacity-70" />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-1">
+        {options.map((entry) => {
+          const isActive = entry.provider === definition.modelProvider && entry.model === definition.model
+          const info =
+            entry.provider === definition.modelProvider ? catalog?.find((model) => model.id === entry.model) : undefined
+          return (
+            <button
+              key={`${entry.provider}:${entry.model}`}
+              type="button"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+              onClick={() => handleSelect(entry)}
+            >
+              <span className="min-w-0 flex-1 truncate">{info ? modelLabel(info) : entry.model}</span>
+              {spansProviders ? <span className="text-muted-foreground shrink-0 text-xs">{entry.provider}</span> : null}
+              {isActive ? <Check className="size-4 shrink-0" /> : null}
+            </button>
+          )
+        })}
+      </PopoverContent>
+    </Popover>
   )
 }

@@ -46,10 +46,24 @@ export type AgentDefinition = {
    * provider default when reasoning cannot be disabled).
    */
   reasoningLevel?: ReasoningLevel
+  /**
+   * Quick-switch model choices the user checked for this agent. Entries may
+   * span multiple providers; selecting one switches `modelProvider` and
+   * `model` together. The active pair stays selectable whether or not listed.
+   */
+  enabledModels?: AgentModelRef[]
   tools?: string[]
   signingKey?: string
   signingKeys?: string[]
   metadata?: Record<string, unknown>
+}
+
+/** One saved quick-switch choice: a model on a specific configured provider. */
+export type AgentModelRef = {
+  /** Configured provider name (matches a `SetModelProvider` name). */
+  provider: string
+  /** Model id as the provider reports it. */
+  model: string
 }
 
 /** Seed block tree node used for rich agent prompts. */

@@ -1,4 +1,4 @@
-import {type AgentDefinition, type ModelProviderType, type SigningIdentity} from './client'
+import {type AgentDefinition, type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'
 import {
   getDefaultAgentServerUrl,
   isLocalAgentServer,
@@ -192,6 +192,7 @@ function AddModelProviderForm({
 }: {
   serverUrl: string
   selectedAccountId: string | null | undefined
+  /** Called with the saved provider's name (as stored, i.e. trimmed). */
   onSaved?: (providerName: string) => void
   onCancel?: () => void
   submitLabel?: string
@@ -899,6 +900,7 @@ export function CreateAgentDialog({
   const [name, setName] = useState(generateAgentName)
   const [model, setModel] = useState('')
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
+  const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(() =>
     markdownBlockNodesToHMBlockNodes(parseMarkdown('You are a helpful agent.').tree),
   )
@@ -908,10 +910,18 @@ export function CreateAgentDialog({
     setSelectedServerUrl(input.serverUrls[0] || getDefaultAgentServerUrl() || '')
   }, [input.serverUrls])
 
+  // Checked quick-switch entries name providers on one server; a server switch drops them.
   useEffect(() => {
+    setEnabledModels([])
+  }, [selectedServerUrl])
+
+  useEffect(() => {
+    // A refetching list may be stale (e.g. right after adding a provider that was just
+    // auto-selected), so only a settled list may override the current selection.
+    if (providers.isFetching) return
     const firstProvider = providers.data?.[0]?.name || ''
     if (!providers.data?.some((provider) => provider.name === providerName)) setProviderName(firstProvider)
-  }, [providerName, providers.data])
+  }, [providerName, providers.data, providers.isFetching])
 
   useEffect(() => {
     const defaultModel = pickDefaultProviderModel(providerModels.data, selectedProviderType)?.id || ''
@@ -945,6 +955,7 @@ export function CreateAgentDialog({
         modelProvider: providerName,
         model,
         reasoningLevel: coerceReasoningLevel(selectedProviderType, model, reasoningLevel),
+        ...(enabledModels.length ? {enabledModels} : {}),
         tools: DEFAULT_AGENT_TOOLS,
         signingKey: signingKeyName,
         signingKeys: [signingKeyName],
@@ -1002,6 +1013,7 @@ export function CreateAgentDialog({
             selectedAccountId={input.selectedAccountId}
             onSaved={setProviderName}
             submitLabel="Add provider"
+            onSaved={setProviderName}
           />
         </div>
       </div>
@@ -1054,6 +1066,13 @@ export function CreateAgentDialog({
               setModel(nextModel)
               setReasoningLevel((level) => coerceReasoningLevel(selectedProviderType, nextModel, level))
             }}
+            enabledModels={enabledModels.filter((entry) => entry.provider === providerName).map((entry) => entry.model)}
+            onToggleModel={(id, enabled) =>
+              setEnabledModels((current) => [
+                ...current.filter((entry) => !(entry.provider === providerName && entry.model === id)),
+                ...(enabled ? [{provider: providerName, model: id}] : []),
+              ])
+            }
             isLoading={providerModels.isLoading}
             isError={providerModels.isError}
             error={providerModels.error}
