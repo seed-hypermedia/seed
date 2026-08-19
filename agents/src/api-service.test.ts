@@ -321,6 +321,109 @@ describe('api service', () => {
     }
   })
 
+  test('keeps the owner signing identities private and the grant set owner-only for collaborators', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      globalThis.fetch = mock(async () => Response.json(serialize({cids: ['profile-cid']}))) as never
+      const owner = blobs.generateNobleKeyPair()
+      const writer = blobs.generateNobleKeyPair()
+      const writerAccountId = blobs.principalToString(writer.principal)
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await setDefaultProvider(svc, owner)
+
+      const granted = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Granted publisher', clientRequestId: 'granted-key'},
+        }),
+      )
+      if (granted._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      const secret = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Private key', clientRequestId: 'private-key'},
+        }),
+      )
+      if (secret._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+
+      const definition = {
+        name: 'Shared Agent',
+        systemPrompt: 'Share carefully.',
+        modelProvider: 'openai',
+        model: 'gpt',
+        signingKeys: [granted.identity.name],
+      }
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'CreateAgent', definition}}),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = created.agentId
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'InviteAgentCollaborator', agentId, accountId: writerAccountId, role: 'writer'},
+        }),
+      )
+      await svc.message(await apisvc.createSignedEnvelope(writer, {action: {_: 'AcceptAgentInvite', agentId}}))
+
+      // The owner sees every key; the writer only sees what is granted to this agent.
+      const ownerList = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'ListSigningIdentities', agentId}}),
+      )
+      if (ownerList._ !== 'ListSigningIdentitiesResponse') throw new Error('unexpected response')
+      expect(ownerList.identities).toHaveLength(2)
+      const writerList = await svc.message(
+        await apisvc.createSignedEnvelope(writer, {action: {_: 'ListSigningIdentities', agentId}}),
+      )
+      if (writerList._ !== 'ListSigningIdentitiesResponse') throw new Error('unexpected response')
+      expect(writerList.identities.map((identity) => identity.name)).toEqual([granted.identity.name])
+      expect(JSON.stringify(writerList)).not.toContain('Private key')
+      // Without an agentId the writer's own (empty) account is listed, never the owner's.
+      const writerOwnList = await svc.message(
+        await apisvc.createSignedEnvelope(writer, {action: {_: 'ListSigningIdentities'}}),
+      )
+      expect(writerOwnList).toMatchObject({_: 'ListSigningIdentitiesResponse', identities: []})
+
+      // A writer may edit the agent but never the grant set — in either direction.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(writer, {
+            action: {
+              _: 'UpdateAgent',
+              agentId,
+              definition: {...definition, signingKeys: [granted.identity.name, secret.identity.name]},
+            },
+          }),
+        ),
+      ).rejects.toThrow('Only the agent owner can change signing accounts')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(writer, {
+            action: {_: 'UpdateAgent', agentId, definition: {...definition, signingKeys: []}},
+          }),
+        ),
+      ).rejects.toThrow('Only the agent owner can change signing accounts')
+      const renamed = await svc.message(
+        await apisvc.createSignedEnvelope(writer, {
+          action: {_: 'UpdateAgent', agentId, definition: {...definition, name: 'Renamed by writer'}},
+        }),
+      )
+      expect(renamed).toMatchObject({_: 'GetAgentResponse', agent: {definition: {name: 'Renamed by writer'}}})
+      const regranted = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'UpdateAgent',
+            agentId,
+            definition: {...definition, signingKeys: [granted.identity.name, secret.identity.name]},
+          },
+        }),
+      )
+      expect(regranted).toMatchObject({_: 'GetAgentResponse'})
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('persists each concurrent collaborator message with its account and exact signer', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

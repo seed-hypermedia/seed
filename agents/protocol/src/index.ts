@@ -286,7 +286,8 @@ export type ListProviderModels = {
 /** Lists uploaded Seed account keys available to the signed account. */
 export type ListSigningIdentities = {
   _: 'ListSigningIdentities'
-  /** Lists the owning account's redacted identities when viewing a shared agent. */
+  /** Resolves against the owning account of a shared agent. Non-owner collaborators only see
+   * the identities granted to that agent; the owner's other keys stay private. */
   agentId?: string
 }
 

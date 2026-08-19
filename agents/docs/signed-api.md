@@ -246,6 +246,7 @@ Request:
 ```ts
 {
   _: 'ListSigningIdentities'
+  agentId?: string
 }
 ```
 
@@ -256,7 +257,11 @@ Response:
 ```
 
 Lists account-scoped secrets whose metadata has `kind: 'hm-account-key'`. Plain secret material is never returned, and
-only keys uploaded by the signed account are visible.
+only keys uploaded by the signed account are visible. With `agentId`, the request resolves against the owning account of
+a shared agent: the owner sees every identity, while collaborators (reader or writer) only see the identities granted to
+that agent — the owner's other keys are private to the owner. Changing the granted set itself (`definition.signingKeys`
+via `UpdateAgent`) is owner-only; a writer's `UpdateAgent` must carry the grant set unchanged or it is rejected
+with 403.
 
 ### `CreateSigningIdentity`
 

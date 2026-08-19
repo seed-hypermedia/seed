@@ -187,6 +187,11 @@ that appears on hover, followed by small **Grant** and **New Account** buttons. 
 to this agent; New Account opens the workflow that generates a server-side key, publishes its profile, and creates an
 account home document stating that it is an agentic account.
 
+Identity management is owner-only: writers can toggle tools, but the Grant dropdown, the ✕ remove, New Account, and
+account renaming are hidden for them, and the server enforces the same rule — `ListSigningIdentities {agentId}` returns
+only the granted identities to non-owners (the owner's other keys are private), and a non-owner `UpdateAgent` that
+changes `signingKeys` is rejected.
+
 Custom tools — lambda documents from `ListAgentTools` — continue the same list: one row per tool with its name, runtime
 badge, and truncated summary, with hover-revealed edit/delete buttons. When there are none, a short "No custom tools
 yet" line sits at the bottom of the list next to the **Add tool** button. Writers can add a tool or open the same

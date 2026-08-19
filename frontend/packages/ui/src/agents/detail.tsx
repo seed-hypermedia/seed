@@ -577,7 +577,7 @@ function AgentDetailPage({
                   onCreateIdentity={(label) => createSigningIdentity.mutateAsync(label)}
                   saving={updateAgent.isLoading || createSigningIdentity.isLoading}
                   readOnly={!canWrite}
-                  canCreateIdentity={isOwner}
+                  canManageIdentities={isOwner}
                 />
               ) : null}
 
@@ -1311,7 +1311,7 @@ function AgentToolsTab({
   onCreateIdentity,
   saving,
   readOnly = false,
-  canCreateIdentity = false,
+  canManageIdentities = false,
 }: {
   serverUrl: string | undefined
   accountUid: string | null
@@ -1324,7 +1324,9 @@ function AgentToolsTab({
   onCreateIdentity: (label: string) => Promise<unknown>
   saving: boolean
   readOnly?: boolean
-  canCreateIdentity?: boolean
+  /** Owner-only: granting/removing signing accounts and creating new ones. Writers can toggle
+   * tools but must never see or manage the owner's identity list. */
+  canManageIdentities?: boolean
 }) {
   const toolInfoDialog = useAppDialog(ToolInfoDialog)
   const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
@@ -1481,7 +1483,7 @@ function AgentToolsTab({
                             <button
                               type="button"
                               className="hover:bg-accent/40 flex min-w-0 cursor-pointer items-center gap-1.5 rounded-full py-0.5 pr-2 pl-0.5 disabled:cursor-default disabled:hover:bg-transparent"
-                              disabled={readOnly}
+                              disabled={!canManageIdentities}
                               aria-label={`Edit ${displayName}`}
                               onClick={() =>
                                 editAccountDialog.open({serverUrl, selectedAccountId: accountUid, identity})
@@ -1501,7 +1503,7 @@ function AgentToolsTab({
                                 {displayName}
                               </SizableText>
                             </button>
-                            {!readOnly ? (
+                            {canManageIdentities ? (
                               <Button
                                 variant="ghost"
                                 size="iconSm"
@@ -1527,7 +1529,7 @@ function AgentToolsTab({
                         </SizableText>
                       ) : null}
                     </div>
-                    {!readOnly ? (
+                    {canManageIdentities ? (
                       <div className="flex shrink-0 items-center gap-1">
                         {ungrantedIdentities.length > 0 ? (
                           <OptionsDropdown
@@ -1555,7 +1557,7 @@ function AgentToolsTab({
                             }))}
                           />
                         ) : null}
-                        {canCreateIdentity && !showNewIdentityPanel && identities.length > 0 ? (
+                        {!showNewIdentityPanel && identities.length > 0 ? (
                           <Button
                             variant="ghost"
                             size="xs"
@@ -1569,7 +1571,7 @@ function AgentToolsTab({
                       </div>
                     ) : null}
                   </div>
-                  {!readOnly && canCreateIdentity && !identitiesLoading && identities.length === 0 ? (
+                  {canManageIdentities && !identitiesLoading && identities.length === 0 ? (
                     <div className="border-border bg-background flex flex-col gap-3 rounded-lg border border-dashed p-3">
                       <SizableText size="sm" color="muted">
                         No agent accounts are available on this server yet. Create a new server-side HM account key,
@@ -1582,7 +1584,7 @@ function AgentToolsTab({
                         disabled={saving}
                       />
                     </div>
-                  ) : !readOnly && canCreateIdentity && showNewIdentityPanel ? (
+                  ) : canManageIdentities && showNewIdentityPanel ? (
                     <NewAgentAccountPanel
                       name={newIdentityName}
                       onNameChange={setNewIdentityName}

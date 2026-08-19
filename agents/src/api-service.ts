@@ -756,8 +756,14 @@ export class Service {
         return this.#listModelProviders(accountId)
       case 'ListProviderModels':
         return this.#listProviderModels(accountId, envelope.action.provider)
-      case 'ListSigningIdentities':
-        return this.#listSigningIdentities(accountId)
+      case 'ListSigningIdentities': {
+        // Collaborators on a shared agent may render the granted "Author as" accounts, but the
+        // owner's remaining keys are private to the owner — non-owners only see the granted set.
+        const listAgentId = envelope.action.agentId
+        const grantedOnly =
+          listAgentId && this.#requireAgentAccess(verified.accountId, listAgentId, 'reader').role !== 'owner'
+        return this.#listSigningIdentities(accountId, grantedOnly ? listAgentId : undefined)
+      }
       case 'CreateSigningIdentity':
         return this.#createSigningIdentity(verified.accountId, envelope.action.label, envelope.action.clientRequestId)
       case 'ImportSigningIdentity':
@@ -1438,7 +1444,15 @@ export class Service {
     return {_: 'ListProviderModelsResponse', models: await fetchProviderModels(provider.type, baseUrl, apiKey)}
   }
 
-  #listSigningIdentities(accountId: string): api.ListSigningIdentitiesResponse {
+  #listSigningIdentities(accountId: string, grantedToAgentId?: string): api.ListSigningIdentitiesResponse {
+    // When set, only identities granted to this agent are listed (collaborator view).
+    let grantedNames: Set<string> | undefined
+    if (grantedToAgentId) {
+      const agent = this.#getAgentInfo(accountId, grantedToAgentId)
+      if (!agent) throw new APIError(404, 'Agent not found')
+      const {signingKeys, signingKey} = agent.definition
+      grantedNames = new Set(signingKeys ?? (signingKey ? [signingKey] : []))
+    }
     const rows = this.#db
       .query<
         {id: string; name: string; metadata_cbor: Uint8Array | null; created_at: number; updated_at: number},
@@ -1452,6 +1466,7 @@ export class Service {
       _: 'ListSigningIdentitiesResponse',
       identities: rows.flatMap((row) => {
         if (!row.metadata_cbor) return []
+        if (grantedNames && !grantedNames.has(row.name)) return []
         const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
         if (metadata.kind !== 'hm-account-key') return []
         return [
@@ -2060,9 +2075,21 @@ export class Service {
   ): api.GetAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
     const existing = this.#db
-      .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
+      .query<{id: string; definition_cbor: Uint8Array}, [string, string]>(
+        `SELECT id, definition_cbor FROM agents WHERE account_id = ? AND id = ?`,
+      )
       .get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
+    if (viewerAccountId !== accountId) {
+      // Writers may edit the agent, but granting signing accounts stays with the owner: the keys
+      // live on the owner's account and the grant set decides what the agent can publish as.
+      const prior = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
+      const grantSet = (d: api.AgentDefinition) =>
+        JSON.stringify([...new Set(d.signingKeys ?? (d.signingKey ? [d.signingKey] : []))].sort())
+      if (grantSet(prior) !== grantSet(definition)) {
+        throw new APIError(403, 'Only the agent owner can change signing accounts')
+      }
+    }
     const provider = this.#db
       .query<{name: string; type: string}, [string, string]>(
         `SELECT name, type FROM model_providers WHERE account_id = ? AND name = ?`,
