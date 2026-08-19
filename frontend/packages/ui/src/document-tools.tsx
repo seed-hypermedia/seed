@@ -337,7 +337,6 @@ export function DocumentTools({
               className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
             >
               {tabButtons}
-              {rightAction ? <div className="flex shrink-0 items-center gap-1">{rightAction}</div> : null}
             </div>
             <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto !p-0')} />
           </div>
@@ -355,7 +354,6 @@ export function DocumentTools({
             className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
           >
             {tabButtons}
-            {rightAction ? <div className="flex shrink-0 items-center gap-1">{rightAction}</div> : null}
           </div>
         </div>
       </div>
