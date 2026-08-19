@@ -44,8 +44,16 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
     settingsTab,
   } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
-  const id = unpackHmId(cleanUrl)
+  let id = unpackHmId(cleanUrl)
   if (!id) return null
+
+  // On comment permalink URLs (/:comments/UID/TSID?v=CID), ?v is the comment
+  // version, not the target document version — keep it off the document id.
+  let commentVersion: string | null = null
+  if (commentId && id.version) {
+    commentVersion = id.version
+    id = {...id, version: null, latest: true}
+  }
 
   const query = parseCustomURL(cleanUrl)?.query
   if (routeKey === 'explore') {
@@ -72,7 +80,7 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   }
 
   if (routeKey || panelParam || commentId || accountUid) {
-    const route = createDocumentNavRoute(id, routeKey, effectivePanelParam, commentId, accountUid)
+    const route = createDocumentNavRoute(id, routeKey, effectivePanelParam, commentId, accountUid, commentVersion)
     if (route.key === 'activity' && activityFilter) {
       return {
         ...route,

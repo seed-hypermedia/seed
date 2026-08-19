@@ -35,6 +35,7 @@ import {
 } from '@shm/shared/models/entity'
 import {
   queryAccount,
+  queryCommentVersions,
   queryDirectory,
   queryDocumentCollaborators,
   queryQueryBlock,
@@ -717,6 +718,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     viewTerm?: string | null
     accountUid?: string | null
     openComment?: string | null
+    commentVersion?: string | null
   },
 ): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
@@ -761,9 +763,12 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     let comment = resourceContent.comment
     let commentAuthorTitle: string | undefined
     const openCommentId = extraData?.openComment || undefined
+    const openCommentVersion = extraData?.commentVersion || undefined
     if (!comment && openCommentId) {
       try {
-        comment = (await getComment(openCommentId)) ?? undefined
+        // ?v on comment permalinks is the comment version CID. The comments
+        // API accepts either the stable comment id or a version CID.
+        comment = (await getComment(openCommentVersion || openCommentId)) ?? undefined
         if (comment?.author) {
           try {
             const authorResource = await resolveResource(hmId(comment.author))
@@ -779,6 +784,22 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     // doesn't enter the "discovering" state (web has no discovery service).
     const accountUid = extraData?.accountUid || undefined
     let mergedDehydratedState = resourceContent.dehydratedState
+    // When a comment permalink pins an old comment version, prefetch the edit
+    // history so the client renders that version without a flash of the
+    // current content.
+    if (openCommentId && openCommentVersion) {
+      try {
+        const versionsPrefetchCtx = createPrefetchContext()
+        await versionsPrefetchCtx.queryClient.prefetchQuery(queryCommentVersions(serverUniversalClient, openCommentId))
+        const versionsDehydrated = dehydratePrefetchContext(versionsPrefetchCtx)
+        mergedDehydratedState = mergedDehydratedState
+          ? {
+              mutations: [...mergedDehydratedState.mutations, ...versionsDehydrated.mutations],
+              queries: [...mergedDehydratedState.queries, ...versionsDehydrated.queries],
+            }
+          : versionsDehydrated
+      } catch (e) {}
+    }
     if (accountUid) {
       const profilePrefetchCtx = createPrefetchContext()
       const client = serverUniversalClient

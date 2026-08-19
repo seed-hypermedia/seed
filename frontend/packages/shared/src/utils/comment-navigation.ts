@@ -46,7 +46,13 @@ export function useCommentNavigation({
           },
         } as any)
       } else if (route.key === 'comments') {
-        replaceRoute({...route, openComment: replyComment.id, isReplying: true, ...replyVersionData} as any)
+        replaceRoute({
+          ...route,
+          openComment: replyComment.id,
+          openCommentVersion: undefined,
+          isReplying: true,
+          ...replyVersionData,
+        } as any)
       } else {
         replaceRoute({
           ...route,
@@ -84,6 +90,7 @@ export function useCommentNavigation({
         replaceRoute({
           ...route,
           openComment: replyComment.id,
+          openCommentVersion: undefined,
           isReplying: undefined,
           replyCommentVersion: undefined,
           rootReplyCommentVersion: undefined,

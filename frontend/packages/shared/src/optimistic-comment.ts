@@ -188,6 +188,7 @@ export function navigateToComment(
     navigate({
       ...route,
       openComment: recordId,
+      openCommentVersion: undefined,
       targetBlockId: undefined,
       isReplying: undefined,
       replyCommentVersion: undefined,

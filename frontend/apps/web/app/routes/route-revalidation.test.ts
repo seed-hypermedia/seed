@@ -28,6 +28,23 @@ describe('document route revalidation', () => {
     ).toBe(false)
   })
 
+  it('does not revalidate when only the comment version changes on a comment permalink', () => {
+    expect(
+      shouldRevalidateDocumentRoute({
+        currentUrl: url('/doc/:comments/author/tsid'),
+        nextUrl: url('/doc/:comments/author/tsid?v=comment-version-cid'),
+        defaultShouldRevalidate: true,
+      }),
+    ).toBe(false)
+    expect(
+      shouldRevalidateDocumentRoute({
+        currentUrl: url('/doc/:comments/author/tsid?v=comment-version-cid'),
+        nextUrl: url('/doc/:comments/author/tsid'),
+        defaultShouldRevalidate: true,
+      }),
+    ).toBe(false)
+  })
+
   it('revalidates when moving from an activity URL to a versioned document URL', () => {
     expect(
       shouldRevalidateDocumentRoute({

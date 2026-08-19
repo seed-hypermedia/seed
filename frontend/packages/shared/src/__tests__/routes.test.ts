@@ -949,3 +949,97 @@ describe('explore routes', () => {
     })
   })
 })
+
+describe('comment permalink version (?v pins the comment version)', () => {
+  test('commentsRouteSchema accepts openCommentVersion', () => {
+    const parsed = commentsRouteSchema.parse({
+      key: 'comments',
+      id: testDocId,
+      openComment: 'z6Mk/z6FC',
+      openCommentVersion: 'bafyCommentVersion',
+    })
+    expect(parsed.openCommentVersion).toBe('bafyCommentVersion')
+  })
+
+  test('createDocumentNavRoute puts openCommentVersion on the comments route', () => {
+    const route = createDocumentNavRoute(testDocId, 'comments', null, 'z6Mk/z6FC', null, 'bafyCommentVersion')
+    expect(route).toMatchObject({
+      key: 'comments',
+      openComment: 'z6Mk/z6FC',
+      openCommentVersion: 'bafyCommentVersion',
+    })
+  })
+
+  test('routeToHref serializes openCommentVersion as ?v', () => {
+    const href = routeToHref(
+      {key: 'comments', id: hmId('uid1'), openComment: 'z6Mk/z6FC', openCommentVersion: 'bafyCommentVersion'},
+      {originHomeId: hmId('uid1')},
+    )
+    expect(href).toBe('/:comments/z6Mk/z6FC?v=bafyCommentVersion')
+  })
+
+  test('routeToHref omits ?v when no openCommentVersion', () => {
+    const href = routeToHref(
+      {key: 'comments', id: hmId('uid1'), openComment: 'z6Mk/z6FC'},
+      {originHomeId: hmId('uid1')},
+    )
+    expect(href).toBe('/:comments/z6Mk/z6FC')
+  })
+
+  test('routeToUrl uses the comment version for ?v, not the document version', () => {
+    const url = routeToUrl(
+      {
+        key: 'comments',
+        id: hmId('uid1', {version: 'bafyDocVersion', latest: false}),
+        openComment: 'z6Mk/z6FC',
+        openCommentVersion: 'bafyCommentVersion',
+      },
+      {hostname: null, originHomeId: hmId('uid1')},
+    )
+    expect(url).toBe('/:comments/z6Mk/z6FC?v=bafyCommentVersion')
+  })
+
+  test('routeToUrl drops the document version on comment permalinks without a comment version', () => {
+    const url = routeToUrl(
+      {key: 'comments', id: hmId('uid1', {version: 'bafyDocVersion', latest: false}), openComment: 'z6Mk/z6FC'},
+      {hostname: null, originHomeId: hmId('uid1')},
+    )
+    expect(url).toBe('/:comments/z6Mk/z6FC')
+  })
+
+  test('hypermediaUrlToRoute treats ?v on a comment permalink as the comment version', () => {
+    const route = hypermediaUrlToRoute('https://example.com/hm/uid1/docs/:comments/z6Mk/z6FC?v=bafyCommentVersion')
+    expect(route).toMatchObject({
+      key: 'comments',
+      id: {uid: 'uid1', path: ['docs'], version: null, latest: true},
+      openComment: 'z6Mk/z6FC',
+      openCommentVersion: 'bafyCommentVersion',
+    })
+  })
+
+  test('hypermediaUrlToRoute keeps ?v on the document for non-permalink URLs', () => {
+    const route = hypermediaUrlToRoute('https://example.com/hm/uid1/docs/:comments?v=bafyDocVersion')
+    expect(route).toMatchObject({
+      key: 'comments',
+      id: {uid: 'uid1', path: ['docs'], version: 'bafyDocVersion'},
+    })
+    expect((route as any).openCommentVersion).toBeUndefined()
+  })
+
+  test('comment permalink with version round-trips through routeToHref and hypermediaUrlToRoute', () => {
+    const route: NavRoute = {
+      key: 'comments',
+      id: hmId('uid1', {path: ['docs'], version: null, latest: true}),
+      openComment: 'z6Mk/z6FC',
+      openCommentVersion: 'bafyCommentVersion',
+    }
+    const href = routeToHref(route, {originHomeId: hmId('home')})
+    expect(href).toBe('/hm/uid1/docs/:comments/z6Mk/z6FC?v=bafyCommentVersion')
+    const parsed = hypermediaUrlToRoute(`https://example.com${href}`)
+    expect(parsed).toMatchObject({
+      key: 'comments',
+      openComment: 'z6Mk/z6FC',
+      openCommentVersion: 'bafyCommentVersion',
+    })
+  })
+})
