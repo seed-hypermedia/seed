@@ -229,12 +229,23 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		linkTypesJSON += "]"
 		filtersStr += ") AND "
 	}
+	// mainEventsArgs are the positional bind values for the main events query, in the order the
+	// named parameters first appear in the SQL. When a resource filter is present, :iris_json comes
+	// first (inside filtersStr), before :idx and :page_size in the page token.
+	var mainEventsArgs []interface{}
 	if !noResourceFilter {
 		if len(initialEidsUpdated) == 0 {
 			return &activity.ListEventsResponse{}, nil
 		}
-		filtersStr += storage.ResourcesIRI.String() + " IN ('" + strings.Join(initialEidsUpdated, "', '") + "')"
+		// Bind the resource IRIs as a JSON array parameter rather than hand-quoting them into the
+		// SQL: IRIs embed user-authored document paths, so interpolation would be an injection risk.
+		irisJSON, err := json.Marshal(initialEidsUpdated)
+		if err != nil {
+			return nil, err
+		}
+		filtersStr += storage.ResourcesIRI.String() + " IN (SELECT value FROM json_each(:iris_json))"
 		filtersStr += " AND "
+		mainEventsArgs = append(mainEventsArgs, string(irisJSON))
 	}
 	var (
 		selectStr            = "SELECT distinct " + storage.BlobsID + ", " + storage.StructuralBlobsType + ", " + storage.PublicKeysPrincipal + ", " + storage.ResourcesIRI + ", " + storage.StructuralBlobsTs + ", " + storage.BlobsInsertTime + ", " + storage.BlobsMultihash + ", " + storage.BlobsCodec + ", " + "structural_blobs.extra_attrs->>'tsid' AS tsid" + ", " + "structural_blobs.extra_attrs" + ", " + storage.StructuralBlobsGenesisBlob
@@ -252,6 +263,9 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	if req.PageSize <= 0 {
 		req.PageSize = 30
 	}
+	// Append the page-token binds after :iris_json (which, when present, appears first in the SQL)
+	// and after PageSize has been defaulted, so :idx and :page_size bind to the correct values.
+	mainEventsArgs = append(mainEventsArgs, cursorValue, req.PageSize)
 	var getEventsStr = strings.TrimSpace(fmt.Sprintf(`
 		%s
 		%s
@@ -330,7 +344,7 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			})
 			genesisBlobIDs = append(genesisBlobIDs, strconv.FormatInt(stmt.ColumnInt64(10), 10))
 			return nil
-		}, cursorValue, req.PageSize)
+		}, mainEventsArgs...)
 		if err != nil {
 			return fmt.Errorf("Problem collecting activity feed, Probably token out of range or no feed at all: %w", err)
 		}
@@ -429,7 +443,13 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 			args = []interface{}{cursorValue}
 		} else {
 			var eids []string
-			irisJSON := "['" + strings.Join(initialEidsUpdated, "', '") + "']"
+			// Marshal to a proper JSON array rather than hand-quoting: resource IRIs embed
+			// user-authored paths, and this value is bound into json_each(:iris_json).
+			irisJSONBytes, marshalErr := json.Marshal(initialEidsUpdated)
+			if marshalErr != nil {
+				return marshalErr
+			}
+			irisJSON := string(irisJSONBytes)
 			if err := sqlitex.ExecTransient(conn, qGetIdsFromIris(), func(stmt *sqlite.Stmt) error {
 				eid := stmt.ColumnInt64(0)
 				if eid == 0 {

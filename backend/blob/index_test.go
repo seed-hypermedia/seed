@@ -399,3 +399,20 @@ func TestWriterCheck_CacheConsultedAndInvalidated(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, got)
 }
+
+func TestNewIRIRejectsForbiddenCharacters(t *testing.T) {
+	acc := coretest.NewTester("alice").Account.Principal()
+
+	// Normal paths remain valid.
+	for _, path := range []string{"", "/doc", "/nested/path", "/with-dash_and.dot"} {
+		_, err := NewIRI(acc, path)
+		require.NoError(t, err, "path %q should be valid", path)
+	}
+
+	// Quote and control characters are rejected: IRIs embed the path and are used to build SQL and
+	// JSON downstream, so these must never enter the system.
+	for _, path := range []string{"/x'--", "/x\"y", "/x\\y", "/x\ny", "/x\ry", "/x\ty", "/x\x00y"} {
+		_, err := NewIRI(acc, path)
+		require.Error(t, err, "path %q should be rejected", path)
+	}
+}

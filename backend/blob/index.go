@@ -48,6 +48,13 @@ func NewIRI(account core.Principal, path string) (IRI, error) {
 		if path[len(path)-1] == '/' {
 			return "", fmt.Errorf("path must not end with a slash: %s", path)
 		}
+
+		// Reject quote and control characters. IRIs embed the path and are used to build
+		// SQL and JSON elsewhere; forbidding these at the boundary removes an entire class
+		// of injection/escaping hazards regardless of how downstream queries are written.
+		if strings.ContainsAny(path, "'\"\\\x00\n\r\t") {
+			return "", fmt.Errorf("path contains forbidden characters: %q", path)
+		}
 	}
 
 	return IRI("hm://" + account.String() + path), nil
