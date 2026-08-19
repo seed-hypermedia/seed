@@ -8,9 +8,26 @@ function wrapBlockContentInContainer(blockContentNode: any, schema: any): any {
 }
 
 /**
- * Wraps a blockChildren node in a blockNode with an empty paragraph.
- * If a previous blockNode exists and doesn't have a child blockChildren,
- * merges the blockChildren into it instead of creating a new container.
+ * The block content that fronts a blockNode wrapping an orphan blockChildren.
+ * A list or blockquote uses an invisible Slot to hold its childrenType.
+ * A plain Group falls back to an empty paragraph.
+ */
+function orphanGroupPlaceholder(blockGroupNode: any, schema: any): any {
+  const listType = blockGroupNode?.attrs?.listType
+  if (listType && listType !== 'Group' && schema.nodes['slot']) {
+    return schema.nodes['slot'].create({
+      childrenType: listType,
+      listLevel: blockGroupNode.attrs?.listLevel ?? '1',
+    })
+  }
+  return schema.nodes['paragraph']!.create()
+}
+
+/**
+ * Wraps a blockChildren node in a blockNode. A list/blockquote is fronted by an
+ * invisible Slot; a plain Group by an empty paragraph. If a previous blockNode
+ * exists and doesn't have a child blockChildren, merges the blockChildren into
+ * it instead of creating a new container.
  */
 function wrapBlockGroupInContainer(blockGroupNode: any, schema: any, previousNode: any): any {
   if (
@@ -22,8 +39,7 @@ function wrapBlockGroupInContainer(blockGroupNode: any, schema: any, previousNod
     return schema.nodes['blockNode']!.create(previousNode.attrs, [previousNode.firstChild, blockGroupNode])
   }
 
-  const placeholderParagraph = schema.nodes['paragraph']!.create()
-  return schema.nodes['blockNode']!.create(null, [placeholderParagraph, blockGroupNode])
+  return schema.nodes['blockNode']!.create(null, [orphanGroupPlaceholder(blockGroupNode, schema), blockGroupNode])
 }
 
 /**
@@ -173,9 +189,10 @@ export function normalizeBlockContainer(node: any, schema?: any) {
     }
   })
 
-  // Add an empty paragraph if the blockChildren is the only child (invalid structure)
+  // A blockNode with only a blockChildren is invalid structure. Front it with a
+  // Slot (for a list/blockquote) or an empty paragraph (for a plain Group).
   if (children.length === 1 && children[0].type.name === 'blockChildren' && schema) {
-    children.unshift(schema.nodes.paragraph.createAndFill() ?? schema.nodes.paragraph.create())
+    children.unshift(orphanGroupPlaceholder(children[0], schema))
   }
 
   return node.type.create(node.attrs, children)

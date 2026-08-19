@@ -176,7 +176,8 @@ describe('normalizeFragment — paste normalization', () => {
       expect(result.child(0).firstChild!.textContent).toBe('Hello')
     })
 
-    // Orphan list blockChildren → wrapped in blockNode with empty paragraph
+    // Orphan list blockChildren → wrapped in a blockNode fronted by an invisible
+    // Slot.
     //
     //   Fragment:
     //     blockChildren (Unordered)
@@ -184,18 +185,17 @@ describe('normalizeFragment — paste normalization', () => {
     //   →
     //   Fragment:
     //     blockNode
-    //       paragraph ""
+    //       slot (childrenType Unordered)
     //       blockChildren (Unordered)
     //         blockNode (paragraph "Item")
     //
-    it('wraps orphan list blockChildren in blockNode with empty paragraph', () => {
+    it('wraps orphan list blockChildren in a blockNode fronted by a Slot', () => {
       const fragment = Fragment.from([ulist([bn({id: null}, para('Item'))])])
       const result = normalizeFragment(fragment, schema)
       expect(result.childCount).toBe(1)
       const wrapper = result.child(0)
       expect(wrapper.type.name).toBe('blockNode')
-      expect(wrapper.firstChild!.type.name).toBe('paragraph')
-      expect(wrapper.firstChild!.textContent).toBe('')
+      expect(wrapper.firstChild!.type.name).toBe('slot')
       expect(wrapper.lastChild!.type.name).toBe('blockChildren')
       expect(wrapper.lastChild!.attrs.listType).toBe('Unordered')
     })
@@ -229,7 +229,7 @@ describe('normalizeFragment — paste normalization', () => {
 
   describe('unwrap empty wrapper', () => {
     // blockChildren(Group) > blockNode(emptyPara + blockChildren(Unordered))
-    // → inner blockChildren unwrapped and re-wrapped in new blockNode
+    // → inner blockChildren unwrapped and re-wrapped in a Slot fronted blockNode
     //
     //   Fragment:
     //     blockChildren (Group)
@@ -240,7 +240,7 @@ describe('normalizeFragment — paste normalization', () => {
     //   →
     //   Fragment:
     //     blockNode
-    //       paragraph ""
+    //       slot (childrenType Unordered)
     //       blockChildren (Unordered)
     //         blockNode (paragraph "Item")
     //
@@ -253,8 +253,7 @@ describe('normalizeFragment — paste normalization', () => {
       expect(result.childCount).toBe(1)
       const node = result.child(0)
       expect(node.type.name).toBe('blockNode')
-      expect(node.firstChild!.type.name).toBe('paragraph')
-      expect(node.firstChild!.textContent).toBe('')
+      expect(node.firstChild!.type.name).toBe('slot')
       expect(node.lastChild!.type.name).toBe('blockChildren')
       expect(node.lastChild!.attrs.listType).toBe('Unordered')
     })

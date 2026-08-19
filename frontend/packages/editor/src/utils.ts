@@ -1,10 +1,10 @@
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {HMBlockChildrenTypeSchema} from '@seed-hypermedia/client/hm-types'
 import type {BlockSchema} from '@shm/editor/blocknote'
 import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
-import {HMBlockChildrenTypeSchema} from '@seed-hypermedia/client/hm-types'
-import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
-import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {Block, BlockNode} from '@shm/shared/client/grpc-types'
-import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {toast} from '@shm/ui/toast'
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
@@ -60,6 +60,20 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<BNBlock<Bloc
         node.descendants((child: TipTapNode, childPos: number) => {
           if (child.type.name === 'blockChildren') {
             setTimeout(() => {
+              const targetPos = pos + childPos + 1
+              const currentNode = tiptap.state.doc.nodeAt(targetPos)
+              // Skip the dispatch when the group is already correct.
+              // Each dispatch is a separate undo step, so skipping keeps paste
+              // undoable in CMD + Z one press.
+              const isCorrectGroupType =
+                currentNode?.type.name === 'blockChildren' &&
+                currentNode.attrs.listType === block.props?.childrenType &&
+                String(currentNode.attrs.listLevel ?? '') === String(block.props?.listLevel ?? '') &&
+                !block.props?.start &&
+                block.props?.childrenType !== 'Grid'
+              if (isCorrectGroupType) {
+                return
+              }
               let tr = tiptap.state.tr
               const attrs: Record<string, any> = {
                 listType: block.props?.childrenType,
@@ -71,7 +85,7 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<BNBlock<Bloc
               if (block.props?.childrenType === 'Grid' && (block.props as any)?.columnCount) {
                 attrs.columnCount = (block.props as any).columnCount
               }
-              tr = tr.setNodeMarkup(pos + childPos + 1, null, attrs)
+              tr = tr.setNodeMarkup(targetPos, null, attrs)
               tiptap.view.dispatch(tr)
             })
             return false

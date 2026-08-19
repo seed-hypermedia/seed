@@ -166,7 +166,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       BlockManipulationExtension.configure({
         openUrl: opts.linkExtensionOptions?.openUrl,
       }),
-      SlotNormalizationExtension,
+      SlotNormalizationExtension.configure({editor: opts.editor as any}),
       KeyboardShortcutsExtension.configure({editor: opts.editor}),
 
       LocalMediaPastePlugin.configure({
