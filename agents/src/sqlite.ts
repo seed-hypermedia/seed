@@ -13,6 +13,9 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Per-session model override (CBOR SessionModelOverride): a session can pin its own
+  // provider/model/reasoning instead of always running the agent definition's model.
+  `ALTER TABLE sessions ADD COLUMN model_override_cbor BLOB;`,
   // Agent-level invitations and accepted read/write collaborators. The invited account is a real
   // Seed principal and gets an accounts row before this membership row is inserted.
   `CREATE TABLE agent_collaborators (

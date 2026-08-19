@@ -866,7 +866,12 @@ export class Service {
           envelope.action.includeChildren,
         )
       case 'UpdateSession':
-        return this.#updateSession(accountId, envelope.action.sessionId, envelope.action.title)
+        return this.#updateSession(
+          accountId,
+          envelope.action.sessionId,
+          envelope.action.title,
+          envelope.action.modelOverride,
+        )
       case 'DeleteSession':
         return this.#deleteSession(accountId, envelope.action.sessionId)
       case 'GetSession':
@@ -1951,7 +1956,7 @@ export class Service {
 
     const sessions = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
@@ -2023,7 +2028,7 @@ export class Service {
 
     const rows = this.#db
       .query<SessionRow, (string | number)[]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
@@ -2522,20 +2527,92 @@ export class Service {
     return {_: 'CreateSessionResponse', sessionId}
   }
 
-  #updateSession(accountId: string, sessionId: string, rawTitle: string): api.UpdateSessionResponse {
+  #updateSession(
+    accountId: string,
+    sessionId: string,
+    rawTitle: string | undefined,
+    rawModelOverride: api.SessionModelOverride | null | undefined,
+  ): api.UpdateSessionResponse {
     const existing = this.#getSessionInfo(accountId, sessionId)
     if (!existing) throw new APIError(404, 'Session not found')
-    const title = normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
+    if (rawTitle === undefined && rawModelOverride === undefined) {
+      throw new APIError(400, 'Nothing to update: provide a title or a model override')
+    }
     const now = Date.now()
-    this.#db.run(
-      `UPDATE sessions SET title = ?, title_source = 'user', updated_at = ? WHERE account_id = ? AND id = ?`,
-      [title, now, accountId, sessionId],
-    )
+    if (rawTitle !== undefined) {
+      const title = normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
+      this.#db.run(
+        `UPDATE sessions SET title = ?, title_source = 'user', updated_at = ? WHERE account_id = ? AND id = ?`,
+        [title, now, accountId, sessionId],
+      )
+    }
+    if (rawModelOverride !== undefined) {
+      const override = this.#normalizeSessionModelOverride(accountId, rawModelOverride)
+      this.#db.run(`UPDATE sessions SET model_override_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+        override ? cbor.encode(override) : null,
+        now,
+        accountId,
+        sessionId,
+      ])
+    }
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
     this.#emit({type: 'session-change', accountId, session})
     this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
     return {_: 'UpdateSessionResponse', session}
+  }
+
+  /**
+   * Validates a session model override: the provider must exist for the
+   * account, strings are bounded, and a reasoning level must be one the
+   * provider/model pair accepts. `null` clears the override.
+   */
+  #normalizeSessionModelOverride(
+    accountId: string,
+    raw: api.SessionModelOverride | null,
+  ): api.SessionModelOverride | null {
+    if (raw === null) return null
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new APIError(400, 'Model override must be a provider/model object or null')
+    }
+    const provider = normalizeBoundedString(raw.provider, 'Model provider', MAX_NAME_BYTES)
+    const model = normalizeBoundedString(raw.model, 'Model', MAX_MODEL_BYTES)
+    const providerRow = this.#db
+      .query<{type: string}, [string, string]>(`SELECT type FROM model_providers WHERE account_id = ? AND name = ?`)
+      .get(accountId, provider)
+    if (!providerRow) throw new APIError(400, 'Model provider not found')
+    const override: api.SessionModelOverride = {provider, model}
+    if (raw.reasoningLevel !== undefined) {
+      if (!isReasoningLevel(raw.reasoningLevel)) throw new APIError(400, 'Reasoning level is invalid')
+      const support = modelReasoningSupport(providerRow.type, model)
+      if (!support || !support.levels.includes(raw.reasoningLevel)) {
+        throw new APIError(400, `Model ${model} does not support reasoning level '${raw.reasoningLevel}'`)
+      }
+      override.reasoningLevel = raw.reasoningLevel
+    }
+    return override
+  }
+
+  /**
+   * Applies a session's model override to the agent definition for a run. If
+   * the override's provider no longer exists, the agent's own model runs
+   * instead of failing the session.
+   */
+  #definitionForSession(
+    accountId: string,
+    definition: api.AgentDefinition,
+    session: api.SessionInfo,
+  ): api.AgentDefinition {
+    const override = session.modelOverride
+    if (!override) return definition
+    const providerRow = this.#db
+      .query<{name: string}, [string, string]>(`SELECT name FROM model_providers WHERE account_id = ? AND name = ?`)
+      .get(accountId, override.provider)
+    if (!providerRow) return definition
+    const merged: api.AgentDefinition = {...definition, modelProvider: override.provider, model: override.model}
+    if (override.reasoningLevel) merged.reasoningLevel = override.reasoningLevel
+    else delete merged.reasoningLevel
+    return merged
   }
 
   #deleteSession(accountId: string, sessionId: string): api.DeleteSessionResponse {
@@ -3144,7 +3221,7 @@ export class Service {
     const messages = normalizeMessageContent(rawContent)
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -5055,6 +5132,8 @@ export class Service {
   ): Promise<api.SessionEvent> {
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
+    // A session-level model override replaces the definition's model settings for this whole run.
+    definition = this.#definitionForSession(accountId, definition, session)
     const subSessionOutputSchema = run ? this.#spawnContextForRun(run).spec?.output : undefined
     const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
 
@@ -5874,7 +5953,7 @@ export class Service {
     }
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -6031,7 +6110,7 @@ export class Service {
   #getSessionInfo(accountId: string, sessionId: string): api.SessionInfo | null {
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -6609,6 +6688,7 @@ type SessionRow = {
   parent_session_id: string | null
   run_id: string | null
   plan_cbor: Uint8Array | null
+  model_override_cbor: Uint8Array | null
   child_count: number
   created_at: number
   updated_at: number
@@ -6923,6 +7003,7 @@ function sessionRowToInfo(row: SessionRow, triggerContext?: api.AgentSessionTrig
     ...(row.parent_session_id ? {parentSessionId: row.parent_session_id} : {}),
     ...(row.run_id ? {runId: row.run_id} : {}),
     ...(row.plan_cbor ? {plan: cbor.decode<api.RunPlan>(row.plan_cbor)} : {}),
+    ...(row.model_override_cbor ? {modelOverride: cbor.decode<api.SessionModelOverride>(row.model_override_cbor)} : {}),
     ...(row.child_count > 0 ? {childSessionCount: row.child_count} : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,

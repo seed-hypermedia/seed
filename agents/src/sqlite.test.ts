@@ -20,6 +20,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'run_journal')).toBe(true)
       expect(tableExists(db, 'tool_documents')).toBe(true)
       expect(columnExists(db, 'sessions', 'title_source')).toBe(true)
+      expect(columnExists(db, 'sessions', 'model_override_cbor')).toBe(true)
       expect(columnExists(db, 'sessions', 'parent_session_id')).toBe(true)
       // A fresh database is built from the baseline file alone, so every column a migration adds
       // must also be in that file — this is the assertion that catches the two drifting apart.
@@ -52,6 +53,7 @@ describe('sqlite', () => {
       db.run(
         sqlite.schema
           .replace(/    title_source TEXT NOT NULL DEFAULT 'system',\n/u, '')
+          .replace(/    model_override_cbor BLOB,\n/u, '')
           .replace(
             /    parent_session_id TEXT REFERENCES sessions \(id\),\n    run_id TEXT,\n    plan_cbor BLOB,\n/u,
             '',
@@ -88,6 +90,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'tool_documents')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'cooldown_ms')).toBe(true)
       expect(columnExists(db, 'sessions', 'title_source')).toBe(true)
+      expect(columnExists(db, 'sessions', 'model_override_cbor')).toBe(true)
       expect(columnExists(db, 'sessions', 'parent_session_id')).toBe(true)
       expect(columnExists(db, 'sessions', 'run_id')).toBe(true)
       expect(columnExists(db, 'sessions', 'plan_cbor')).toBe(true)

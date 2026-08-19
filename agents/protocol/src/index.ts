@@ -717,7 +717,25 @@ export type SessionListCursor = {
 export type UpdateSession = {
   _: 'UpdateSession'
   sessionId: string
-  title: string
+  title?: string
+  /**
+   * Sets or clears the session's model override: an object pins this session
+   * to that provider/model (and reasoning level), `null` returns the session
+   * to the agent's own model. Omit to leave the override unchanged.
+   */
+  modelOverride?: SessionModelOverride | null
+}
+
+/**
+ * Per-session model configuration. When present, runs in this session use this
+ * provider/model pair (and reasoning level — absent means off) instead of the
+ * agent definition's. If the named provider no longer exists, the agent's own
+ * model runs.
+ */
+export type SessionModelOverride = {
+  provider: string
+  model: string
+  reasoningLevel?: ReasoningLevel
 }
 
 /** Deletes an existing session and its durable events. */
@@ -935,6 +953,8 @@ export type SessionInfo = {
   plan?: RunPlan
   /** Number of sessions spawned under this one (rendered as the sub-session disclosure). */
   childSessionCount?: number
+  /** Per-session model configuration; absent means the agent's own model runs. */
+  modelOverride?: SessionModelOverride
 }
 
 /** Lifecycle status of a durable run. */

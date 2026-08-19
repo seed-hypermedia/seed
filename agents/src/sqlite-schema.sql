@@ -90,6 +90,7 @@ CREATE TABLE sessions (
     parent_session_id TEXT REFERENCES sessions (id),
     run_id TEXT,
     plan_cbor BLOB,
+    model_override_cbor BLOB,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;

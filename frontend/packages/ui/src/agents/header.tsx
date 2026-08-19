@@ -1,10 +1,11 @@
-import {type AgentDefinition, type AgentModelRef} from './client'
+import {type AgentDefinition, type AgentModelRef, type SessionModelOverride} from './client'
 import {
   describeAgentServer,
   useLocalAgentServerUrl,
   useModelProviders,
   useProviderModelCatalogs,
   useUpdateAgent,
+  useUpdateAgentSession,
 } from './models'
 import {modelLabel} from './model-utils'
 import {useSelectedAccountId} from './account'
@@ -539,6 +540,197 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
               Check more models in Settings to switch between them here.
             </SizableText>
           ) : null}
+          <button
+            type="button"
+            className="hover:bg-muted text-muted-foreground w-full rounded-sm px-2 py-1.5 text-left text-xs"
+            onClick={() => {
+              setOpen(false)
+              navigate({key: 'agent', agentId: agentId!, serverUrl, tab: 'settings'})
+            }}
+          >
+            Choose models in Settings…
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * Session-header model tag: shows the model this session actually runs — its
+ * override when set, otherwise the agent's model — and lets writers pick a
+ * different provider/model pair (from the agent's checked list) or reasoning
+ * level for this session only. Selecting the agent's own pair clears the
+ * override, so the session follows the agent again.
+ */
+export function SessionModelBadge({
+  agent,
+  agentId,
+  serverUrl,
+  sessionId,
+  modelOverride,
+  canWrite,
+}: {
+  agent: AgentHeaderInfo | undefined
+  agentId: string | undefined
+  serverUrl: string
+  sessionId: string
+  modelOverride: SessionModelOverride | undefined
+  canWrite: boolean
+}) {
+  const accountUid = useSelectedAccountId()
+  const updateSession = useUpdateAgentSession(serverUrl, accountUid)
+  const providers = useModelProviders(serverUrl, accountUid, canWrite ? agentId : undefined)
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const definition = agent?.definition
+  const agentPair: AgentModelRef | null = definition
+    ? {provider: definition.modelProvider, model: definition.model}
+    : null
+  const effective: AgentModelRef | null = modelOverride ?? agentPair
+  const effectiveReasoning = modelOverride ? modelOverride.reasoningLevel : definition?.reasoningLevel
+
+  const catalogProviders = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            effective?.provider,
+            agentPair?.provider,
+            ...(definition?.enabledModels ?? []).map((entry) => entry.provider),
+          ].filter((name): name is string => !!name),
+        ),
+      ),
+    [effective?.provider, agentPair?.provider, definition?.enabledModels],
+  )
+  const catalogs = useProviderModelCatalogs(serverUrl, accountUid, canWrite && agentId ? catalogProviders : [], agentId)
+
+  const [pendingLevel, setPendingLevel] = useState<{level: ReasoningLevel | undefined} | null>(null)
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (commitTimer.current) clearTimeout(commitTimer.current)
+    },
+    [],
+  )
+
+  if (!definition || !agentPair || !effective) return null
+
+  // Same switchable set as the agent header, seeded with the session's effective
+  // pair and the agent default; entries are validated against live catalogs.
+  const providerNames = providers.data ? new Set(providers.data.map((provider) => provider.name)) : undefined
+  const samePair = (a: AgentModelRef, b: AgentModelRef) => a.provider === b.provider && a.model === b.model
+  const options: AgentModelRef[] = [effective]
+  for (const entry of [agentPair, ...(definition.enabledModels ?? [])]) {
+    if (options.some((item) => samePair(item, entry))) continue
+    if (providerNames && !providerNames.has(entry.provider)) continue
+    const catalog = catalogs[entry.provider]
+    if (catalog?.length && !catalog.some((model) => model.id === entry.model)) continue
+    options.push(entry)
+  }
+  const spansProviders = options.some((entry) => entry.provider !== effective.provider)
+
+  if (!canWrite || !agentId) {
+    return (
+      <Badge variant="secondary" className="max-w-56 flex-none gap-1.5">
+        <span className="truncate">{effective.model}</span>
+        {effectiveReasoning ? <ReasoningPie level={effectiveReasoning} /> : null}
+      </Badge>
+    )
+  }
+
+  const effectiveProviderType = providers.data?.find((provider) => provider.name === effective.provider)?.type
+  const reasoningSupported = effectiveProviderType
+    ? modelReasoningSupport(effectiveProviderType, effective.model)
+    : null
+
+  function commitOverride(override: SessionModelOverride | null) {
+    updateSession.mutate(
+      {sessionId, modelOverride: override},
+      {
+        onSettled: () => setPendingLevel(null),
+        onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not set the session model'),
+      },
+    )
+  }
+
+  function handleSelect(entry: AgentModelRef) {
+    setOpen(false)
+    if (samePair(entry, effective!)) return
+    // The agent's own pair is not pinned: clearing the override keeps the
+    // session following the agent when its model changes later.
+    if (samePair(entry, agentPair!)) {
+      commitOverride(null)
+      return
+    }
+    const providerType = providers.data?.find((provider) => provider.name === entry.provider)?.type
+    const level = coerceReasoningLevel(providerType, entry.model, effectiveReasoning)
+    commitOverride({provider: entry.provider, model: entry.model, ...(level ? {reasoningLevel: level} : {})})
+  }
+
+  function handleReasoningChange(level: ReasoningLevel | undefined) {
+    setPendingLevel({level})
+    if (commitTimer.current) clearTimeout(commitTimer.current)
+    commitTimer.current = setTimeout(() => {
+      // Same pair and same level as the agent means no override is needed at all.
+      if (samePair(effective!, agentPair!) && level === definition!.reasoningLevel) {
+        commitOverride(null)
+        return
+      }
+      commitOverride({
+        provider: effective!.provider,
+        model: effective!.model,
+        ...(level ? {reasoningLevel: level} : {}),
+      })
+    }, 500)
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        type="button"
+        aria-label="Set the model for this session"
+        disabled={updateSession.isLoading}
+        className="bg-secondary text-secondary-foreground hover:bg-secondary/80 flex flex-none items-center gap-1 rounded-md border border-transparent px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
+      >
+        <span className="max-w-40 truncate">{effective.model}</span>
+        {reasoningSupported || effectiveReasoning ? (
+          <ReasoningPie level={pendingLevel ? pendingLevel.level : effectiveReasoning} />
+        ) : null}
+        <ChevronsUpDown className="size-3 shrink-0 opacity-70" />
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-72 p-1">
+        {options.map((entry) => {
+          const isActive = samePair(entry, effective)
+          const isAgentDefault = samePair(entry, agentPair)
+          const info = catalogs[entry.provider]?.find((model) => model.id === entry.model)
+          return (
+            <button
+              key={`${entry.provider}:${entry.model}`}
+              type="button"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
+              onClick={() => handleSelect(entry)}
+            >
+              <span className="min-w-0 flex-1 truncate">{info ? modelLabel(info) : entry.model}</span>
+              {isAgentDefault ? <span className="text-muted-foreground shrink-0 text-xs">agent default</span> : null}
+              {spansProviders && !isAgentDefault ? (
+                <span className="text-muted-foreground shrink-0 text-xs">{entry.provider}</span>
+              ) : null}
+              {isActive ? <Check className="size-4 shrink-0" /> : null}
+            </button>
+          )
+        })}
+        {reasoningSupported ? (
+          <div className="border-border mt-1 border-t px-2 pt-2 pb-1">
+            <ReasoningSlider
+              providerType={effectiveProviderType}
+              model={effective.model}
+              value={pendingLevel ? pendingLevel.level : effectiveReasoning}
+              onChange={handleReasoningChange}
+            />
+          </div>
+        ) : null}
+        <div className="border-border mt-1 border-t p-1">
           <button
             type="button"
             className="hover:bg-muted text-muted-foreground w-full rounded-sm px-2 py-1.5 text-left text-xs"

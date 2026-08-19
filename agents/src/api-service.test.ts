@@ -1043,6 +1043,66 @@ describe('api service', () => {
     }
   })
 
+  test('sets, returns, and clears a per-session model override', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSession', agentId: createdAgent.agentId, title: 'Chat'},
+        }),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const withOverride = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'UpdateSession',
+            sessionId: createdSession.sessionId,
+            modelOverride: {provider: 'openai', model: 'gpt-4.1'},
+          },
+        }),
+      )
+      if (withOverride._ !== 'UpdateSessionResponse') throw new Error('unexpected response')
+      expect(withOverride.session.modelOverride).toEqual({provider: 'openai', model: 'gpt-4.1'})
+      expect(withOverride.session.title).toBe('Chat')
+
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'UpdateSession',
+              sessionId: createdSession.sessionId,
+              modelOverride: {provider: 'nonexistent', model: 'gpt-4.1'},
+            },
+          }),
+        ),
+      ).rejects.toThrow('Model provider not found')
+
+      const cleared = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'UpdateSession', sessionId: createdSession.sessionId, modelOverride: null},
+        }),
+      )
+      if (cleared._ !== 'UpdateSessionResponse') throw new Error('unexpected response')
+      expect(cleared.session.modelOverride).toBeUndefined()
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('lists remote models for a configured provider', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

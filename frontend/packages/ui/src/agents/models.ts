@@ -27,6 +27,7 @@ import {
   type RunStatus,
   type SessionAttachmentInfo,
   type SessionInfo,
+  type SessionModelOverride,
   type SigningIdentity,
   type SigningIdentityIcon,
 } from './client'
@@ -2360,9 +2361,27 @@ export function useCreateAgentSessionOnServer(accountUid: string | null | undefi
 /** Updates editable session metadata from the desktop GUI. */
 export function useUpdateAgentSession(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({sessionId, title}: {sessionId: string; title: string}) => {
+    mutationFn: async ({
+      sessionId,
+      title,
+      modelOverride,
+    }: {
+      sessionId: string
+      title?: string
+      /** Pins the session to a provider/model pair; null returns it to the agent's own model. */
+      modelOverride?: SessionModelOverride | null
+    }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
-      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateSession', sessionId, title}})
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {
+          _: 'UpdateSession',
+          sessionId,
+          ...(title !== undefined ? {title} : {}),
+          ...(modelOverride !== undefined ? {modelOverride} : {}),
+        },
+      })
       if (res._ !== 'UpdateSessionResponse') throw new Error('Unexpected UpdateSession response')
       return res.session
     },

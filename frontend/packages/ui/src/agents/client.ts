@@ -21,6 +21,8 @@ export type AgentCollaboratorInfo = AgentsProtocol.AgentCollaboratorInfo
 export type AgentInviteInfo = AgentsProtocol.AgentInviteInfo
 /** Public metadata returned for a session. */
 export type SessionInfo = AgentsProtocol.SessionInfo
+/** Per-session model configuration overriding the agent definition's model. */
+export type SessionModelOverride = AgentsProtocol.SessionModelOverride
 /** Compact trigger attribution attached to sessions created by triggers. */
 export type AgentSessionTriggerSummary = AgentsProtocol.AgentSessionTriggerSummary
 /** Full trigger context passed into a trigger-created session. */

@@ -50,7 +50,7 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Trash2} from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {AgentHeader, AgentSubpageHeader} from './header'
+import {AgentHeader, AgentSubpageHeader, SessionModelBadge} from './header'
 import {RunRecordCard, SessionRunCard} from './run-card'
 import {AgentRichMessageComposer, SUB_SESSION_DRIVEN_MESSAGE, TERMINAL_RUN_STATUSES} from './rich-message-composer'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
@@ -380,6 +380,14 @@ function AgentSessionPage({
           <>
             {deleteSessionDialog.content}
             {systemPromptDialog.content}
+            <SessionModelBadge
+              agent={agent.data?.agent}
+              agentId={session.data?.session.agentId ?? agentId}
+              serverUrl={serverUrl}
+              sessionId={sessionId}
+              modelOverride={session.data?.session.modelOverride}
+              canWrite={canWrite}
+            />
             <Button
               variant="ghost"
               size="icon"
