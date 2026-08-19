@@ -4,7 +4,6 @@ import {
   useLocalAgentServerUrl,
   useModelProviders,
   useProviderModelCatalogs,
-  useUpdateAgent,
   useUpdateAgentSession,
 } from './models'
 import {modelLabel} from './model-utils'
@@ -317,7 +316,7 @@ export function AgentHeader({
             ) : null}
           </div>
           <div className="flex flex-none items-center gap-2">
-            {agent ? <AgentModelBadge agent={agent} agentId={agentId} serverUrl={serverUrl} /> : null}
+            {agent ? <AgentModelBadge agent={agent} /> : null}
             {activeTab === 'sessions' && onCreateSession ? (
               <Button className="max-sm:min-h-10" onClick={onCreateSession} disabled={creatingSession}>
                 <MessageSquarePlus className="mr-2 size-4" /> New session
@@ -389,170 +388,16 @@ export function AgentHeader({
 }
 
 /**
- * The header's current-model tag. For writers it opens a dropdown of the
- * models checked in the agent's settings — which may span multiple providers —
- * and switches the agent's active provider/model pair in place; read-only
- * viewers and single-model agents get the plain badge.
+ * Read-only model tag in the agent header: the agent's default model plus the
+ * reasoning pie. Model switching happens per session (see SessionModelBadge)
+ * or in the settings tab, so this tag is informational only.
  */
-function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; agentId?: string; serverUrl: string}) {
-  const accountUid = useSelectedAccountId()
-  const updateAgent = useUpdateAgent(serverUrl, accountUid)
-  const definition = agent.definition
-  const canWrite = !agent.accessRole || agent.accessRole === 'owner' || agent.accessRole === 'writer'
-  const providers = useModelProviders(serverUrl, accountUid, canWrite ? agentId : undefined)
-  const catalogProviders = useMemo(
-    () =>
-      Array.from(
-        new Set([definition.modelProvider, ...(definition.enabledModels ?? []).map((entry) => entry.provider)]),
-      ),
-    [definition.modelProvider, definition.enabledModels],
-  )
-  const catalogs = useProviderModelCatalogs(serverUrl, accountUid, canWrite && agentId ? catalogProviders : [], agentId)
-  const [open, setOpen] = useState(false)
-  const navigate = useNavigate()
-
-  // The switchable set: the active pair plus every checked entry whose provider still
-  // exists AND whose provider's live catalog actually lists the model — a model a
-  // provider does not serve must never be offered under it. An unloaded provider list
-  // or catalog filters nothing, so a transient fetch problem never hides choices.
-  const providerNames = providers.data ? new Set(providers.data.map((provider) => provider.name)) : undefined
-  const options: AgentModelRef[] = [
-    {provider: definition.modelProvider, model: definition.model},
-    ...(definition.enabledModels ?? []).filter((entry) => {
-      if (entry.provider === definition.modelProvider && entry.model === definition.model) return false
-      if (providerNames && !providerNames.has(entry.provider)) return false
-      const catalog = catalogs[entry.provider]
-      if (catalog?.length) return catalog.some((model) => model.id === entry.model)
-      return true
-    }),
-  ]
-  const spansProviders = options.some((entry) => entry.provider !== definition.modelProvider)
-
-  // Reasoning slider state: slider drags fire per step, so the level is held
-  // locally and committed after a short pause instead of one request per step.
-  const activeProviderType = providers.data?.find((provider) => provider.name === definition.modelProvider)?.type
-  const reasoningSupported = activeProviderType ? modelReasoningSupport(activeProviderType, definition.model) : null
-  const [pendingLevel, setPendingLevel] = useState<{level: ReasoningLevel | undefined} | null>(null)
-  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(
-    () => () => {
-      if (commitTimer.current) clearTimeout(commitTimer.current)
-    },
-    [],
-  )
-
-  if (!canWrite || !agentId) {
-    return (
-      <Badge variant="secondary" className="flex-none gap-1.5">
-        {definition.model}
-        {definition.reasoningLevel ? <ReasoningPie level={definition.reasoningLevel} /> : null}
-      </Badge>
-    )
-  }
-
-  function handleSelect(entry: AgentModelRef) {
-    setOpen(false)
-    if (entry.provider === definition.modelProvider && entry.model === definition.model) return
-    const providerType = providers.data?.find((provider) => provider.name === entry.provider)?.type
-    const nextDefinition = {...definition, modelProvider: entry.provider, model: entry.model}
-    // Every model the agent has used stays switchable: keep both the outgoing
-    // pair and the new one in the checked list (uncheck in settings to drop them).
-    const enabledModels = [...(definition.enabledModels ?? [])]
-    for (const pair of [{provider: definition.modelProvider, model: definition.model}, entry]) {
-      if (!pair.provider || !pair.model) continue
-      if (!enabledModels.some((item) => item.provider === pair.provider && item.model === pair.model)) {
-        enabledModels.push(pair)
-      }
-    }
-    if (enabledModels.length) nextDefinition.enabledModels = enabledModels
-    const nextLevel = coerceReasoningLevel(providerType, entry.model, definition.reasoningLevel)
-    // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
-    if (nextLevel) nextDefinition.reasoningLevel = nextLevel
-    else delete nextDefinition.reasoningLevel
-    updateAgent.mutate(
-      {agentId: agentId!, definition: nextDefinition},
-      {onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not switch model')},
-    )
-  }
-
-  function handleReasoningChange(level: ReasoningLevel | undefined) {
-    setPendingLevel({level})
-    if (commitTimer.current) clearTimeout(commitTimer.current)
-    commitTimer.current = setTimeout(() => {
-      const nextDefinition = {...definition}
-      // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
-      if (level) nextDefinition.reasoningLevel = level
-      else delete nextDefinition.reasoningLevel
-      updateAgent.mutate(
-        {agentId: agentId!, definition: nextDefinition},
-        {
-          onSettled: () => setPendingLevel(null),
-          onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not change reasoning level'),
-        },
-      )
-    }, 500)
-  }
-
+function AgentModelBadge({agent}: {agent: AgentHeaderInfo}) {
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        type="button"
-        aria-label="Switch model"
-        disabled={updateAgent.isLoading}
-        className="bg-secondary text-secondary-foreground hover:bg-secondary/80 flex flex-none items-center gap-1 rounded-md border border-transparent px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
-      >
-        <span className="max-w-48 truncate">{definition.model}</span>
-        {reasoningSupported || definition.reasoningLevel ? (
-          <ReasoningPie level={pendingLevel ? pendingLevel.level : definition.reasoningLevel} />
-        ) : null}
-        <ChevronsUpDown className="size-3 shrink-0 opacity-70" />
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-1">
-        {options.map((entry) => {
-          const isActive = entry.provider === definition.modelProvider && entry.model === definition.model
-          const info = catalogs[entry.provider]?.find((model) => model.id === entry.model)
-          return (
-            <button
-              key={`${entry.provider}:${entry.model}`}
-              type="button"
-              className="hover:bg-muted flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm"
-              onClick={() => handleSelect(entry)}
-            >
-              <span className="min-w-0 flex-1 truncate">{info ? modelLabel(info) : entry.model}</span>
-              {spansProviders ? <span className="text-muted-foreground shrink-0 text-xs">{entry.provider}</span> : null}
-              {isActive ? <Check className="size-4 shrink-0" /> : null}
-            </button>
-          )
-        })}
-        {reasoningSupported ? (
-          <div className="border-border mt-1 border-t px-2 pt-2 pb-1">
-            <ReasoningSlider
-              providerType={activeProviderType}
-              model={definition.model}
-              value={pendingLevel ? pendingLevel.level : definition.reasoningLevel}
-              onChange={handleReasoningChange}
-            />
-          </div>
-        ) : null}
-        <div className="border-border mt-1 border-t pt-1">
-          {options.length <= 1 ? (
-            <SizableText size="xs" color="muted" className="block px-2 pt-1 pb-0.5">
-              Check more models in Settings to switch between them here.
-            </SizableText>
-          ) : null}
-          <button
-            type="button"
-            className="hover:bg-muted text-muted-foreground w-full rounded-sm px-2 py-1.5 text-left text-xs"
-            onClick={() => {
-              setOpen(false)
-              navigate({key: 'agent', agentId: agentId!, serverUrl, tab: 'settings'})
-            }}
-          >
-            Choose models in Settings…
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <Badge variant="secondary" className="max-w-56 flex-none gap-1.5">
+      <span className="truncate">{agent.definition.model}</span>
+      {agent.definition.reasoningLevel ? <ReasoningPie level={agent.definition.reasoningLevel} /> : null}
+    </Badge>
   )
 }
 
