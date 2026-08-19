@@ -7,7 +7,8 @@ import {nestBlock, unnestBlock} from '../../api/blockManipulation/commands/nestB
 import {getCarryableStoredMarks, splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
 import {
-  nestFirstRootSlotItemCommand,
+  liftFirstSlotItemCommand,
+  nestFirstSlotItemCommand,
   updateGroupChildrenCommand,
   updateGroupCommand,
 } from '../../api/blockManipulation/commands/updateGroup'
@@ -35,6 +36,9 @@ export const KeyboardShortcutsExtension = Extension.create<{
         () => commands.deleteSelection(),
         // Undoes an input rule if one was triggered in the last editor state change.
         () => commands.undoInputRule(),
+        // At the start of the first item of a root-level Slot list, lift just that
+        // item out to the root (keeping the rest grouped) — same as Shift-Tab.
+        () => commands.command(liftFirstSlotItemCommand({requireAtStart: true})),
         // Moves a first child block of a heading to be a part of the heading.
         () =>
           commands.command(({state, dispatch}) => {
@@ -564,7 +568,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
       return this.editor.commands.first(({commands}) => [
         // Tab on the first item of a root-level Slot's list nests the whole list
         // under the previous root block and removes the slot.
-        () => commands.command(nestFirstRootSlotItemCommand()),
+        () => commands.command(nestFirstSlotItemCommand()),
         // If the current block's previous sibling is a table, create an empty paragraph
         // blockNode, and indent a group under it.
         () =>
@@ -685,14 +689,14 @@ export const KeyboardShortcutsExtension = Extension.create<{
       Enter: handleEnter,
       Tab: handleTab,
       'Shift-Tab': () => {
-        console.log('[CTF] Shift-Tab handler entered')
         // Prevent outdent of grid children
         if (isInGridContainer(this.editor.state, this.editor.state.selection.from)) {
-          console.log('[CTF] Shift-Tab | SKIPPED: in grid container')
+          return true
+        }
+        if (this.editor.commands.command(liftFirstSlotItemCommand())) {
           return true
         }
         const {block} = getBlockInfoFromSelection(this.editor.state)
-        console.log('[CTF] Shift-Tab | calling unnestBlock at pos:', block.beforePos + 1)
         return unnestBlock(this.editor, block.beforePos + 1)
       },
       // "Shift-Mod-ArrowUp": () => {

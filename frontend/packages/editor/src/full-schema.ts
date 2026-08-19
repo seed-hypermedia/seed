@@ -9,6 +9,7 @@ import {ImageBlock} from './image'
 import {MathBlock} from './math'
 import {NostrBlock} from './nostr'
 // import {QueryBlock} from "./query-block";
+import {SlotBlock} from './slot-block'
 import CodeBlockLowlight from './tiptap-extension-code-block'
 import {VideoBlock} from './video'
 import {WebEmbed} from './web-embed'
@@ -45,6 +46,7 @@ export const hmBlockSchema: BlockSchema = {
   ['web-embed']: WebEmbed,
   math: MathBlock('math'),
   // query: QueryBlock,
+  slot: SlotBlock,
 }
 
 export type HMBlockSchema = TypesMatch<typeof hmBlockSchema>

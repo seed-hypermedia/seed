@@ -40,6 +40,10 @@ export function createMinimalSchema(): Schema {
           columnCount: {default: ''},
         },
       },
+      table: {
+        content: 'text*',
+        group: 'block',
+      },
       text: {
         group: 'inline',
       },

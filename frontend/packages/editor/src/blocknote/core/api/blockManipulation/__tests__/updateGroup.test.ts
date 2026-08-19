@@ -2,7 +2,7 @@ import {Schema} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {getGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
-import {nestFirstRootSlotItemCommand, updateGroupCommand} from '../commands/updateGroup'
+import {liftFirstSlotItemCommand, nestFirstSlotItemCommand, updateGroupCommand} from '../commands/updateGroup'
 import {buildDoc, createMinimalSchema, createMockEditor, findPosInBlock} from './test-helpers-prosemirror'
 
 describe('updateGroup command', () => {
@@ -241,6 +241,100 @@ describe('updateGroup command', () => {
     expect(containerId).toBe('item-1')
   })
 
+  // Shift-Tab / Backspace on the first item of a root Slot list lifts only that
+  // item to the root. The remaining items stay grouped in the Slot.
+  describe('lift first root Slot item', () => {
+    function rootSlotDoc(itemTexts: string[]) {
+      return schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', listLevel: '1', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', listLevel: '1', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', listLevel: '1', columnCount: null},
+                    content: itemTexts.map((text, i) => ({
+                      type: 'blockNode',
+                      attrs: {id: `item-${i + 1}`},
+                      content: [{type: 'paragraph', content: [{type: 'text', text}]}],
+                    })),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+    }
+
+    it('lifts the first item to root and keeps the rest grouped', () => {
+      const doc = rootSlotDoc(['one', 'two', 'three'])
+      const pos = findPosInBlock(doc, 'item-1')
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftFirstSlotItemCommand())!
+
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(2)
+
+      // First child: the lifted item, now a plain root block.
+      const lifted = rootGroup.firstChild!
+      expect(lifted.type.name).toBe('blockNode')
+      expect(lifted.attrs.id).toBe('item-1')
+      expect(lifted.firstChild!.type.name).toBe('paragraph')
+      expect(lifted.firstChild!.textContent).toBe('one')
+
+      // Second child: the Slot with the remaining items still grouped.
+      const slotWrap = rootGroup.lastChild!
+      expect(slotWrap.firstChild!.type.name).toBe('slot')
+      const innerGroup = slotWrap.lastChild!
+      expect(innerGroup.attrs.listType).toBe('Unordered')
+      expect(innerGroup.childCount).toBe(2)
+      expect(innerGroup.child(0).attrs.id).toBe('item-2')
+      expect(innerGroup.child(1).attrs.id).toBe('item-3')
+    })
+
+    it('unwraps the Slot entirely when it holds a single item', () => {
+      const doc = rootSlotDoc(['only'])
+      const pos = findPosInBlock(doc, 'item-1')
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftFirstSlotItemCommand())!
+
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(1)
+      expect(rootGroup.firstChild!.attrs.id).toBe('item-1')
+      expect(rootGroup.firstChild!.firstChild!.textContent).toBe('only')
+
+      let hasSlot = false
+      newState.doc.descendants((node) => {
+        if (node.type.name === 'slot') hasSlot = true
+      })
+      expect(hasSlot).toBe(false)
+    })
+
+    it('does nothing when the cursor is not at the item start', () => {
+      const doc = rootSlotDoc(['one', 'two'])
+      // Place the cursor after the first character of item-1.
+      const pos = findPosInBlock(doc, 'item-1') + 1
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftFirstSlotItemCommand({requireAtStart: true}))
+      // Command returns false so no dispatch.
+      expect(newState).toBeUndefined()
+    })
+  })
+
   // Tab on the first item of a root-level slot list nests the whole list under
   // the previous root block and drops the slot.
   it('nests a root Slot list under its previous sibling on Tab', () => {
@@ -282,7 +376,7 @@ describe('updateGroup command', () => {
     const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
     const editor = createMockEditor(state)
 
-    const newState = runCommand(state, editor, nestFirstRootSlotItemCommand())!
+    const newState = runCommand(state, editor, nestFirstSlotItemCommand())!
 
     // Root now has one child: the previous block, with the list nested under it.
     const rootGroup = newState.doc.firstChild!
