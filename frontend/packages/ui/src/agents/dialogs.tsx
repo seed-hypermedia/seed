@@ -1046,6 +1046,13 @@ export function CreateAgentDialog({
             onChange={(entry) => {
               setProviderName(entry.provider)
               setModel(entry.model)
+              // Selecting implicitly checks the model, so anything the agent has used
+              // stays in the header switcher until explicitly unchecked.
+              setEnabledModels((current) =>
+                current.some((item) => item.provider === entry.provider && item.model === entry.model)
+                  ? current
+                  : [...current, entry],
+              )
               const nextType = providers.data?.find((provider) => provider.name === entry.provider)?.type
               setReasoningLevel((level) => coerceReasoningLevel(nextType, entry.model, level))
             }}

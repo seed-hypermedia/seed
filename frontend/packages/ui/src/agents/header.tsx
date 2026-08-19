@@ -454,6 +454,16 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
     if (entry.provider === definition.modelProvider && entry.model === definition.model) return
     const providerType = providers.data?.find((provider) => provider.name === entry.provider)?.type
     const nextDefinition = {...definition, modelProvider: entry.provider, model: entry.model}
+    // Every model the agent has used stays switchable: keep both the outgoing
+    // pair and the new one in the checked list (uncheck in settings to drop them).
+    const enabledModels = [...(definition.enabledModels ?? [])]
+    for (const pair of [{provider: definition.modelProvider, model: definition.model}, entry]) {
+      if (!pair.provider || !pair.model) continue
+      if (!enabledModels.some((item) => item.provider === pair.provider && item.model === pair.model)) {
+        enabledModels.push(pair)
+      }
+    }
+    if (enabledModels.length) nextDefinition.enabledModels = enabledModels
     const nextLevel = coerceReasoningLevel(providerType, entry.model, definition.reasoningLevel)
     // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
     if (nextLevel) nextDefinition.reasoningLevel = nextLevel
