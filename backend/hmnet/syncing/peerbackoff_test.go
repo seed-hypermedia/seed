@@ -213,6 +213,112 @@ func TestScopeQuietRespectsCap(t *testing.T) {
 	require.Len(t, s.quiet, maxQuietScopes)
 }
 
+// TestScopeQuietAnyShapeYieldResets: only recursive waves accumulate quiet, but
+// ANY wave shape that downloads blobs for the IRI proves the scope is not
+// settled. Before the fix a one-shot's yield was ignored while scopeIsQuiet was
+// consulted for every shape — a narrowed subscription could stay narrowed
+// through direct evidence of new content.
+func TestScopeQuietAnyShapeYieldResets(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkYield")
+	s := &Service{}
+
+	s.recordWaveYield(scope, true, 0)
+	s.recordWaveYield(scope, true, 0)
+	require.True(t, s.scopeIsQuiet(scope))
+
+	s.recordWaveYield(scope, false, 3)
+	require.False(t, s.scopeIsQuiet(scope),
+		"a non-recursive wave that fetched blobs must un-quiet the scope")
+}
+
+// TestExhaustiveWaveSeedsQuietly: a fresh recursive scope's first waves are
+// naturally full-width (nothing has narrowed yet), so the first
+// shouldRunExhaustive call only seeds the clock instead of double-probing.
+func TestExhaustiveWaveSeedsQuietly(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkSeed")
+	s := &Service{}
+	now := time.Now()
+
+	require.Empty(t, s.shouldRunExhaustive(scope, true, now))
+	require.Contains(t, s.lastExhaustive, scope, "first call must arm the periodic clock")
+}
+
+// TestExhaustiveWavePeriodicFires: once the interval elapses the scope earns
+// exactly one exhaustive wave, and the clock re-arms.
+func TestExhaustiveWavePeriodicFires(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkPeriodic")
+	s := &Service{}
+	now := time.Now()
+
+	require.Empty(t, s.shouldRunExhaustive(scope, true, now))
+	s.lastExhaustive[scope] = now.Add(-defaultExhaustiveWaveInterval - time.Second)
+
+	require.Equal(t, "periodic", s.shouldRunExhaustive(scope, true, now))
+	require.Empty(t, s.shouldRunExhaustive(scope, true, now),
+		"the probe must consume the interval, not fire on every wave")
+}
+
+// TestExhaustiveWaveHonorsConfiguredInterval: the config knob must actually
+// drive the cadence (the e2e tests shrink it to seconds).
+func TestExhaustiveWaveHonorsConfiguredInterval(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkTuned")
+	s := &Service{exhaustiveEvery: time.Minute}
+	now := time.Now()
+
+	require.Empty(t, s.shouldRunExhaustive(scope, true, now))
+	s.lastExhaustive[scope] = now.Add(-2 * time.Minute)
+	require.Equal(t, "periodic", s.shouldRunExhaustive(scope, true, now))
+}
+
+// TestExhaustiveIgnoresOneShots: a non-recursive discovery never runs a second
+// wave, so the periodic probe has nothing to inform there.
+func TestExhaustiveIgnoresOneShots(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkOnce")
+	s := &Service{}
+	now := time.Now()
+
+	require.Empty(t, s.shouldRunExhaustive(scope, false, now))
+	require.Empty(t, s.lastExhaustive)
+
+	// But a forced probe fires regardless of shape: user interest may arrive
+	// as a one-shot hot task.
+	s.noteUserInterest(scope, now)
+	require.Equal(t, "forced", s.shouldRunExhaustive(scope, false, now))
+}
+
+// TestUserInterestForcesOnceAndRateLimits: one touch arms exactly one probe,
+// and re-touching inside the rate window must not re-arm — the hot-task
+// heartbeat calls this every few seconds while a view is open.
+func TestUserInterestForcesOnceAndRateLimits(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkForced")
+	s := &Service{}
+	now := time.Now()
+
+	s.noteUserInterest(scope, now)
+	require.Equal(t, "forced", s.shouldRunExhaustive(scope, true, now))
+	require.Empty(t, s.shouldRunExhaustive(scope, true, now), "the forced bit is consumed by one wave")
+
+	s.noteUserInterest(scope, now.Add(userProbeMinInterval/2))
+	require.Empty(t, s.shouldRunExhaustive(scope, true, now.Add(userProbeMinInterval/2)),
+		"a touch inside the rate window must not re-arm")
+
+	s.noteUserInterest(scope, now.Add(userProbeMinInterval+time.Second))
+	require.Equal(t, "forced", s.shouldRunExhaustive(scope, true, now.Add(userProbeMinInterval+time.Second)))
+}
+
+// TestExhaustiveRespectsCap keeps both probe maps bounded, mirroring the quiet
+// tracker's cap.
+func TestExhaustiveRespectsCap(t *testing.T) {
+	s := &Service{}
+	now := time.Now()
+	for i := range maxQuietScopes + 50 {
+		s.shouldRunExhaustive(blob.IRI(fmt.Sprintf("hm://p%d", i)), true, now)
+		s.noteUserInterest(blob.IRI(fmt.Sprintf("hm://f%d", i)), now)
+	}
+	require.LessOrEqual(t, len(s.lastExhaustive), maxQuietScopes)
+	require.LessOrEqual(t, len(s.forcedExhaustive), maxQuietScopes)
+}
+
 // TestSamplePeersSkipsIneligible: benched peers must not be drawn, or backoff
 // accomplishes nothing.
 func TestSamplePeersSkipsIneligible(t *testing.T) {

@@ -171,8 +171,9 @@ const indexedHookBatchSize = 100
 //
 // The hook maintains derived state only (the RBSR index), so it runs off the
 // foreground write path on purpose: a slow or failing hook must never delay or
-// roll back the blobs themselves. Failures are logged and dropped; the
-// shadow-verify trickle repairs any resulting drift.
+// roll back the blobs themselves. Failed chunks are retried, and a chunk that
+// keeps failing demotes the materialized scopes so they rebuild lazily from
+// the ground truth — see applyIndexedHook.
 func (idx *Index) SetIndexedHook(fn func(*sqlite.Conn, []int64) error) {
 	idx.hookMu.Lock()
 	idx.indexedHook = fn
@@ -232,11 +233,19 @@ func (idx *Index) indexedHookWorker() {
 	}
 }
 
+// indexedHookMaxAttempts bounds the synchronous retries of one failed hook
+// chunk. Hook writes are idempotent (INSERT OR IGNORE, per-scope repairs), so
+// a retry is safe; failures are expected to be transient (writer contention,
+// disk pressure), so a couple of attempts recover most of them.
+const indexedHookMaxAttempts = 3
+
 // applyIndexedHook runs the registered hook over ids in chunked standalone
-// write transactions. A failed chunk is logged and dropped: the hook only
-// maintains the derived RBSR index, which the shadow-verify trickle repairs on
-// drift, and its writes are idempotent (INSERT OR IGNORE, per-scope repairs),
-// so retrying or aborting here would only add writer pressure.
+// write transactions. A failed chunk is retried a few times; a chunk that
+// still fails cannot simply be dropped — rbsr_item is persistent, so a lost
+// chunk would be a permanent hole in every already-materialized scope's
+// advertised set (the sweep only heals warm scopes, on a slow rotation). The
+// fallback demotes every materialized scope so each lazily re-materializes
+// from the ground truth on its next serve.
 func (idx *Index) applyIndexedHook(ids []int64) {
 	idx.hookMu.RLock()
 	fn := idx.indexedHook
@@ -246,14 +255,32 @@ func (idx *Index) applyIndexedHook(ids []int64) {
 	}
 
 	for chunk := range slices.Chunk(ids, indexedHookBatchSize) {
-		err := idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
-			return fn(conn, chunk)
-		})
-		if err != nil {
+		var err error
+		for attempt := 1; attempt <= indexedHookMaxAttempts; attempt++ {
+			err = idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+				return fn(conn, chunk)
+			})
+			if err == nil {
+				break
+			}
 			if errors.Is(err, sqlitex.ErrPoolClosed) {
 				return
 			}
+			// Retries stay synchronous so hookInFlight remains true and
+			// WaitIndexedHook keeps its "caught up" meaning for tests.
+			time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+		}
+		if err != nil {
 			idx.log.Error("IndexedHookFailed", zap.Int64s("blobs", chunk), zap.Error(err))
+			// Plain SQL rather than a syncing-package helper: blob must not
+			// import syncing. rbsr_scope is part of the shared schema; the
+			// serve path (see rbsr_index.go) treats materialized = 0 as cold
+			// and rebuilds the scope from collectBlobs.
+			if merr := idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+				return sqlitex.Exec(conn, `UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;`, nil)
+			}); merr != nil && !errors.Is(merr, sqlitex.ErrPoolClosed) {
+				idx.log.Error("IndexedHookStaleMarkFailed", zap.Error(merr))
+			}
 		}
 	}
 }

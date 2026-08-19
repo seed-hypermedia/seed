@@ -63,6 +63,20 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Stale-mark every maintained RBSR scope so it re-materializes lazily on
+	// its next serve: earlier builds could leave permanent holes in rbsr_item
+	// (Capability/Contact blobs missing from the advertised set — the oracle's
+	// incompleteness flag was discarded, failed hook chunks were dropped, and
+	// the cold-skip sweep never healed actively-served scopes whose
+	// last_access had gone stale). Idempotent, and cheap: materialization is
+	// lazy by design, so this only costs one collectBlobs per scope on first
+	// touch after the upgrade.
+	{Version: "2026-08-19.120000", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;
+		`))
+	}},
+
 	// Move resolved document attributes out of the generation JSON envelope. A
 	// kind tag preserves Seed's bool/int64 distinction, which SQLite's dynamic
 	// INTEGER storage class cannot represent by itself. Reindex from blobs rather

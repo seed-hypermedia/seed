@@ -136,6 +136,26 @@ var (
 		Help: "Peer tiers a discovery wave actually had to run.",
 	}, []string{"tier"})
 
+	// MRBSRIndexStaleMarks counts blobs whose membership edges the incremental
+	// oracle could not mirror, forcing a coarse stale-mark of every maintained
+	// scope. Expected to sit at zero; any increment means MaintainRBSRIndex and
+	// collectBlobs have drifted apart and re-materialization is carrying the
+	// difference.
+	MRBSRIndexStaleMarks = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "seed_rbsr_index_stale_marks_total",
+		Help: "Incrementally indexed blobs that forced a full scope stale-mark.",
+	})
+
+	// MDiscoverExhaustiveWaves counts the rate-limited full-width probes that
+	// bypass quiet-narrowing and the tier short-circuit. Expected steady state:
+	// subscriptions/interval for "periodic" plus a trickle of "forced"; a spike
+	// means the rate limiting broke and the search load narrowing removed is
+	// back.
+	MDiscoverExhaustiveWaves = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "seed_discover_exhaustive_waves_total",
+		Help: "Full-width, all-tier discovery waves, by trigger.",
+	}, []string{"trigger"})
+
 	// MDiscoverPeersSource splits the wave's peer set by where each peer came
 	// from. MDiscoverPeersSampled alone can't answer whether the always-include
 	// path fires: it saturates at the ceiling either way, so "ceiling reached
@@ -494,8 +514,16 @@ type Service struct {
 
 	// quiet counts consecutive empty waves per recursive scope, so a settled
 	// subscription stops paying for a speculative search. See scopeIsQuiet.
-	quietMu sync.Mutex
-	quiet   map[blob.IRI]int
+	// lastExhaustive and forcedExhaustive drive the rate-limited escape hatch
+	// from that narrowing; see shouldRunExhaustive. All three share quietMu.
+	quietMu          sync.Mutex
+	quiet            map[blob.IRI]int
+	lastExhaustive   map[blob.IRI]time.Time
+	forcedExhaustive map[blob.IRI]struct{}
+
+	// exhaustiveEvery is how often a settled scope still runs one full-width,
+	// all-tier wave. Zero means defaultExhaustiveWaveInterval.
+	exhaustiveEvery time.Duration
 
 	scheduler *scheduler
 
@@ -552,6 +580,8 @@ func NewService(cfg config.Syncing, log *zap.Logger, db *sqlitex.Pool, indexer I
 		isConnCached: net.IsConnCached,
 		keyStore:     keyStore,
 		peerBackoff:  newPeerBackoff(),
+
+		exhaustiveEvery: cfg.ExhaustiveWaveInterval,
 	}
 	svc.pc = protocolChecker{
 		checker: net.CheckHyperMediaProtocolVersion,
@@ -729,6 +759,14 @@ func (s *Service) listSubscriptionsFromDB(ctx context.Context) ([]Subscription, 
 // recursion or blobTypes settings are tracked independently, so each is part
 // of the task identity.
 func (s *Service) TouchHotTask(iri blob.IRI, version blob.Version, recursive bool, depthOne bool, blobTypes []string) TaskInfo {
+	// A user is looking at this resource right now: arm one forced exhaustive
+	// wave so content the narrowed steady-state can no longer reach (an
+	// under-advertising authority, a holder outside the authority set) is
+	// recovered on demand instead of waiting out the periodic probe.
+	// noteUserInterest self-rate-limits, so the heartbeat re-touching the task
+	// every few seconds is safe.
+	s.noteUserInterest(iri, time.Now())
+
 	key := DiscoveryKey{
 		IRI:       iri,
 		Version:   version,
@@ -950,6 +988,23 @@ func isHotDiscovery(ctx context.Context) bool {
 	return on
 }
 
+// exhaustiveWaveCtxKey marks a discovery context as an exhaustive wave: the
+// rate-limited full-width probe that must ask every peer tier instead of
+// stopping at a satisfied authority. Set in DiscoverObjectWithProgress when
+// shouldRunExhaustive fires; read by syncWithManyPeers.
+type exhaustiveWaveCtxKey struct{}
+
+// contextWithExhaustiveWave tags ctx as an exhaustive-wave discovery run.
+func contextWithExhaustiveWave(ctx context.Context) context.Context {
+	return context.WithValue(ctx, exhaustiveWaveCtxKey{}, true)
+}
+
+// isExhaustiveWave reports whether ctx belongs to an exhaustive-wave run.
+func isExhaustiveWave(ctx context.Context) bool {
+	on, _ := ctx.Value(exhaustiveWaveCtxKey{}).(bool)
+	return on
+}
+
 // shouldCutHotWave reports whether an interactive (hot-task) wave should cancel
 // its remaining peers ahead of the completion quorum. Hot waves back a document
 // on screen and re-run on the ~10s cooldown, so they trade tail-thoroughness
@@ -1161,7 +1216,13 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 		}
 	}
 
-	hot := isHotDiscovery(ctx)
+	// An exhaustive wave exists to reach peers the normal policy skips, so it
+	// opts out of both early exits: the hot-wave cut (which would cancel the
+	// connected tier before a slower non-authority holder finishes its
+	// reconcile) and the tier short-circuit below. It is rare and rate-limited,
+	// so the standard straggler policy bounds its cost.
+	exhaustive := isExhaustiveWave(ctx)
+	hot := isHotDiscovery(ctx) && !exhaustive
 
 	// runTier syncs one tier to completion. Each tier gets its own cancellable
 	// context and its own straggler watcher, so cutting a tier's slow tail
@@ -1271,7 +1332,7 @@ func (s *Service) syncWithManyPeers(ctx context.Context, subsMap subscriptionMap
 		}
 		runTier(peers)
 		MSyncTierRun.WithLabelValues(peerTierNames[t]).Inc()
-		if tierSatisfied(&res, prog) {
+		if !exhaustive && tierSatisfied(&res, prog) {
 			// The good peers answered. Opening connections to strangers now
 			// cannot produce anything, and would hold worker slots for seconds
 			// doing it.
