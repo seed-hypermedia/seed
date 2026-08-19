@@ -39,7 +39,9 @@ export function AgentsPage() {
       dehydratedState={dehydratedState}
       initialRoute={initialRoute}
     >
-      <GeneralPageSurface className="min-h-screen items-center">
+      {/* The agents pages are full-height panels (PanelContainer uses h-full and scrolls
+          internally), so the surface must be a definite viewport height, not min-h-screen. */}
+      <GeneralPageSurface className="h-dvh min-h-0 items-center">
         <WebSiteHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
@@ -48,7 +50,7 @@ export function AgentsPage() {
           origin={origin}
           rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
         />
-        <NavigationLoadingContent className="flex w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
+        <NavigationLoadingContent className="flex min-h-0 w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
           <ClientOnly>
             <Suspense fallback={<Spinner />}>
               <WebAgentsContent />
