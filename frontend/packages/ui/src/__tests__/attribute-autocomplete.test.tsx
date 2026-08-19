@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {DocumentMetadataView} from '@shm/ui/document-metadata-view'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from '@shm/ui/value-editor'
@@ -40,13 +41,17 @@ function pressKey(input: HTMLInputElement, key: string) {
 }
 
 function render(metadata: Record<string, unknown>, autocomplete: AttributeAutocomplete, onMetadata = vi.fn()) {
+  // The metadata view resolves onyx schema references via react-query.
+  const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
   act(() => {
     root.render(
-      <TooltipProvider>
-        <AttributeAutocompleteProvider value={autocomplete}>
-          <DocumentMetadataView metadata={metadata} canEdit onMetadata={onMetadata} />
-        </AttributeAutocompleteProvider>
-      </TooltipProvider>,
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <AttributeAutocompleteProvider value={autocomplete}>
+            <DocumentMetadataView metadata={metadata} canEdit onMetadata={onMetadata} />
+          </AttributeAutocompleteProvider>
+        </TooltipProvider>
+      </QueryClientProvider>,
     )
   })
   return onMetadata
