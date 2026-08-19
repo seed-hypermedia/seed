@@ -6,6 +6,7 @@ import {
   type AgentTriggerInput,
 } from './client'
 import {modelReasoningSupport} from '@seed-hypermedia/agents-protocol'
+import {pickDefaultProviderModel} from './model-utils'
 
 /**
  * Client-orchestrated move of one agent between agent servers.
@@ -106,7 +107,35 @@ export async function moveAgentToServer(options: MoveAgentOptions): Promise<Move
   // the private keys behind them cannot move, so the copy starts without a publishing account.
   const {signingKey: _signingKey, signingKeys: _signingKeys, ...portable} = definition
   const targetDefinition: AgentDefinition = {...portable}
-  if (options.targetModelProvider) targetDefinition.modelProvider = options.targetModelProvider
+  if (options.targetModelProvider) {
+    targetDefinition.modelProvider = options.targetModelProvider
+    // A substitute provider rarely serves the source model: an agent must never
+    // reference a model its provider does not list. Swap to a model the target
+    // provider actually offers, and keep only quick-switch entries it serves.
+    try {
+      const modelsRes = await send({
+        serverUrl: targetServerUrl,
+        accountUid,
+        action: {_: 'ListProviderModels', provider: options.targetModelProvider},
+      })
+      if (modelsRes._ === 'ListProviderModelsResponse' && modelsRes.models.length) {
+        const catalog = modelsRes.models
+        if (!catalog.some((model) => model.id === targetDefinition.model)) {
+          const fallback = pickDefaultProviderModel(catalog, options.targetProviderType)
+          if (fallback) targetDefinition.model = fallback.id
+        }
+        const enabledModels = (targetDefinition.enabledModels ?? []).filter(
+          (entry) =>
+            entry.provider === options.targetModelProvider && catalog.some((model) => model.id === entry.model),
+        )
+        if (enabledModels.length) targetDefinition.enabledModels = enabledModels
+        else delete targetDefinition.enabledModels
+      }
+    } catch {
+      // The catalog is unavailable right now; proceed with the source model rather than
+      // blocking the move. The client-side pruning in agent settings cleans up later.
+    }
+  }
   if (targetDefinition.reasoningLevel && options.targetProviderType) {
     const support = modelReasoningSupport(options.targetProviderType, targetDefinition.model)
     if (!support || !support.levels.includes(targetDefinition.reasoningLevel)) {

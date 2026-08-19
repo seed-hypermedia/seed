@@ -3,7 +3,7 @@ import {
   describeAgentServer,
   useLocalAgentServerUrl,
   useModelProviders,
-  useProviderModels,
+  useProviderModelCatalogs,
   useUpdateAgent,
 } from './models'
 import {modelLabel} from './model-utils'
@@ -17,7 +17,8 @@ import {Button} from '@shm/ui/button'
 import {Badge} from '@shm/ui/components/badge'
 import {OptionsDropdown, type MenuItemType} from '@shm/ui/options-dropdown'
 import {PageTab} from '@shm/ui/page-tabs'
-import {coerceReasoningLevel, ReasoningBadge} from './reasoning-select'
+import {coerceReasoningLevel, ReasoningBadge, ReasoningSlider} from './reasoning-select'
+import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {SizableText} from '@shm/ui/text'
 import {
   ArrowLeft,
@@ -33,7 +34,7 @@ import {
   Users,
   Wrench,
 } from 'lucide-react'
-import {Fragment, type ReactNode, useRef, useState} from 'react'
+import {Fragment, type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 
 export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
 
@@ -399,34 +400,46 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
   const definition = agent.definition
   const canWrite = !agent.accessRole || agent.accessRole === 'owner' || agent.accessRole === 'writer'
   const providers = useModelProviders(serverUrl, accountUid, canWrite ? agentId : undefined)
-  const providerModels = useProviderModels(
-    serverUrl,
-    accountUid,
-    canWrite && agentId ? definition.modelProvider : undefined,
-    agentId,
+  const catalogProviders = useMemo(
+    () =>
+      Array.from(
+        new Set([definition.modelProvider, ...(definition.enabledModels ?? []).map((entry) => entry.provider)]),
+      ),
+    [definition.modelProvider, definition.enabledModels],
   )
+  const catalogs = useProviderModelCatalogs(serverUrl, accountUid, canWrite && agentId ? catalogProviders : [], agentId)
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
 
   // The switchable set: the active pair plus every checked entry whose provider still
-  // exists. Entries on the active provider are additionally filtered against its live
-  // catalog; other providers' catalogs are not fetched here, so their entries pass
-  // as-is. An unloaded provider list or catalog filters nothing, so a transient fetch
-  // problem never hides choices.
-  const catalog = providerModels.data
+  // exists AND whose provider's live catalog actually lists the model — a model a
+  // provider does not serve must never be offered under it. An unloaded provider list
+  // or catalog filters nothing, so a transient fetch problem never hides choices.
   const providerNames = providers.data ? new Set(providers.data.map((provider) => provider.name)) : undefined
   const options: AgentModelRef[] = [
     {provider: definition.modelProvider, model: definition.model},
     ...(definition.enabledModels ?? []).filter((entry) => {
       if (entry.provider === definition.modelProvider && entry.model === definition.model) return false
       if (providerNames && !providerNames.has(entry.provider)) return false
-      if (entry.provider === definition.modelProvider && catalog?.length) {
-        return catalog.some((model) => model.id === entry.model)
-      }
+      const catalog = catalogs[entry.provider]
+      if (catalog?.length) return catalog.some((model) => model.id === entry.model)
       return true
     }),
   ]
   const spansProviders = options.some((entry) => entry.provider !== definition.modelProvider)
+
+  // Reasoning slider state: slider drags fire per step, so the level is held
+  // locally and committed after a short pause instead of one request per step.
+  const activeProviderType = providers.data?.find((provider) => provider.name === definition.modelProvider)?.type
+  const reasoningSupported = activeProviderType ? modelReasoningSupport(activeProviderType, definition.model) : null
+  const [pendingLevel, setPendingLevel] = useState<{level: ReasoningLevel | undefined} | null>(null)
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(
+    () => () => {
+      if (commitTimer.current) clearTimeout(commitTimer.current)
+    },
+    [],
+  )
 
   if (!canWrite || !agentId) {
     return (
@@ -451,6 +464,24 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
     )
   }
 
+  function handleReasoningChange(level: ReasoningLevel | undefined) {
+    setPendingLevel({level})
+    if (commitTimer.current) clearTimeout(commitTimer.current)
+    commitTimer.current = setTimeout(() => {
+      const nextDefinition = {...definition}
+      // Avoid an explicit-undefined key: CBOR-encoding it would not equal an absent field.
+      if (level) nextDefinition.reasoningLevel = level
+      else delete nextDefinition.reasoningLevel
+      updateAgent.mutate(
+        {agentId: agentId!, definition: nextDefinition},
+        {
+          onSettled: () => setPendingLevel(null),
+          onError: (error) => toast.error(error instanceof Error ? error.message : 'Could not change reasoning level'),
+        },
+      )
+    }, 500)
+  }
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
@@ -465,8 +496,7 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
       <PopoverContent align="end" className="w-72 p-1">
         {options.map((entry) => {
           const isActive = entry.provider === definition.modelProvider && entry.model === definition.model
-          const info =
-            entry.provider === definition.modelProvider ? catalog?.find((model) => model.id === entry.model) : undefined
+          const info = catalogs[entry.provider]?.find((model) => model.id === entry.model)
           return (
             <button
               key={`${entry.provider}:${entry.model}`}
@@ -480,6 +510,16 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
             </button>
           )
         })}
+        {reasoningSupported ? (
+          <div className="border-border mt-1 border-t px-2 pt-2 pb-1">
+            <ReasoningSlider
+              providerType={activeProviderType}
+              model={definition.model}
+              value={pendingLevel ? pendingLevel.level : definition.reasoningLevel}
+              onChange={handleReasoningChange}
+            />
+          </div>
+        ) : null}
         <div className="border-border mt-1 border-t pt-1">
           {options.length <= 1 ? (
             <SizableText size="xs" color="muted" className="block px-2 pt-1 pb-0.5">

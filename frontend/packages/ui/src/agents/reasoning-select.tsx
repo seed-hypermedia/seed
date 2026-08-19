@@ -6,19 +6,18 @@ import {
   type ReasoningLevel,
 } from '@seed-hypermedia/agents-protocol'
 import {Badge} from '@shm/ui/components/badge'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Brain} from 'lucide-react'
 
 const OFF_VALUE = '__off__'
 
 /**
- * Reasoning-level dropdown paired with every model selector. Rendered only for
- * reasoning-capable models (`modelReasoningSupport` decides), listing just the
- * levels that model accepts. "Off" means no reasoning — or the provider default
- * when the model cannot disable it.
+ * Discrete reasoning-level slider: leftmost is off (or the provider default
+ * when reasoning cannot be disabled), then each level the model accepts.
+ * Renders nothing for models without reasoning support. `onChange` fires per
+ * step while dragging, so callers that persist should debounce.
  */
-export function ReasoningSelect({
+export function ReasoningSlider({
   providerType,
   model,
   value,
@@ -34,36 +33,45 @@ export function ReasoningSelect({
   const support = providerType ? modelReasoningSupport(providerType, model) : null
   if (!support) return null
   const offLabel = support.offBehavior === 'default' ? 'Default' : 'Off'
+  const steps: (ReasoningLevel | undefined)[] = [undefined, ...support.levels]
+  const index = value && support.levels.includes(value) ? steps.indexOf(value) : 0
+  const current = steps[index]
   return (
-    <Select
-      value={value ?? OFF_VALUE}
-      onValueChange={(next) => onChange(isReasoningLevel(next) ? next : undefined)}
-      disabled={disabled}
-    >
-      <SelectTrigger>
-        <SelectValue placeholder={offLabel} />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value={OFF_VALUE}>
-          <span className="flex flex-col items-start">
-            <span>{offLabel}</span>
-            <span className="text-muted-foreground text-xs">
-              {support.offBehavior === 'default'
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-muted-foreground flex items-center gap-1 text-xs">
+          <Brain className="size-3" />
+          Reasoning
+        </span>
+        <Tooltip
+          content={
+            current
+              ? REASONING_LEVEL_DESCRIPTIONS[current]
+              : support.offBehavior === 'default'
                 ? 'The provider decides how much this model reasons.'
-                : 'The model answers directly without extra reasoning.'}
-            </span>
-          </span>
-        </SelectItem>
-        {support.levels.map((level) => (
-          <SelectItem key={level} value={level}>
-            <span className="flex flex-col items-start">
-              <span>{REASONING_LEVEL_LABELS[level]}</span>
-              <span className="text-muted-foreground text-xs">{REASONING_LEVEL_DESCRIPTIONS[level]}</span>
-            </span>
-          </SelectItem>
+                : 'The model answers directly without extra reasoning.'
+          }
+        >
+          <span className="text-xs font-medium">{current ? REASONING_LEVEL_LABELS[current] : offLabel}</span>
+        </Tooltip>
+      </div>
+      <input
+        type="range"
+        aria-label="Reasoning level"
+        min={0}
+        max={steps.length - 1}
+        step={1}
+        value={index}
+        disabled={disabled}
+        onChange={(event) => onChange(steps[Number(event.currentTarget.value)])}
+        className="accent-primary h-4 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+      />
+      <div className="text-muted-foreground flex justify-between text-[10px]">
+        {steps.map((step) => (
+          <span key={step ?? OFF_VALUE}>{step ? REASONING_LEVEL_LABELS[step] : offLabel}</span>
         ))}
-      </SelectContent>
-    </Select>
+      </div>
+    </div>
   )
 }
 

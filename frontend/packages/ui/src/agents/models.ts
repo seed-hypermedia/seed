@@ -18,6 +18,7 @@ import {
   type MessageSessionContentPart,
   type ModelProviderConfig,
   type ModelProviderInfo,
+  type ProviderModelInfo,
   type AgentMemoryEntry,
   type FileUploadTarget,
   type ModelProviderType,
@@ -549,6 +550,45 @@ export function useProviderModels(
     retry: false,
     useErrorBoundary: false,
   })
+}
+
+/**
+ * Fetches the model catalogs of several providers at once, keyed by provider
+ * name. Shares query keys (and therefore cache) with {@link useProviderModels}.
+ * A provider whose catalog has not loaded (or failed) maps to undefined so
+ * callers can treat it as "unknown" rather than "empty".
+ */
+export function useProviderModelCatalogs(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  providerNames: string[],
+  agentId?: string,
+): Record<string, ProviderModelInfo[] | undefined> {
+  const results = useQueries({
+    queries: providerNames.map((provider) => ({
+      queryKey: ['agents', 'provider-models', serverUrl, accountUid, provider, agentId],
+      queryFn: async (): Promise<ProviderModelInfo[]> => {
+        if (!serverUrl || !accountUid || !provider) return []
+        const res = await sendAgentAction({
+          serverUrl,
+          accountUid,
+          action: {_: 'ListProviderModels', provider, ...(agentId ? {agentId} : {})},
+        })
+        if (res._ !== 'ListProviderModelsResponse') throw new Error('Unexpected ListProviderModels response')
+        return res.models
+      },
+      enabled: !!serverUrl && !!accountUid && !!provider,
+      staleTime: 60 * 60 * 1000,
+      cacheTime: 24 * 60 * 60 * 1000,
+      retry: false,
+      useErrorBoundary: false,
+    })),
+  })
+  const catalogs: Record<string, ProviderModelInfo[] | undefined> = {}
+  providerNames.forEach((name, index) => {
+    catalogs[name] = results[index]?.data
+  })
+  return catalogs
 }
 
 /** Lists uploaded HM account keys for the selected account or a shared agent's owner. */

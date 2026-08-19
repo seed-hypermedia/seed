@@ -95,12 +95,11 @@ import {
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {MoveAgentDialog} from './move-agent-dialog'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
-import {ModelSelect} from './model-select'
-import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
+import {ProviderModelSelect} from './provider-model-select'
+import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
-import {ProviderSelect} from './provider-select'
 
 function AgentDetailPage({
   agentId,
@@ -638,13 +637,32 @@ function AgentDetailPage({
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex flex-col gap-1">
                       <SizableText size="sm" weight="bold">
-                        Provider
+                        Model
                       </SizableText>
-                      <ProviderSelect
-                        providers={modelProviders.data}
+                      <ProviderModelSelect
+                        serverUrl={serverUrl}
+                        accountUid={selectedAccountId}
+                        agentId={agentId}
                         disabled={!canWrite}
-                        value={modelProvider}
-                        onChange={handleProviderChange}
+                        value={{provider: modelProvider, model}}
+                        onChange={(entry) => {
+                          setModelProvider(entry.provider)
+                          setModel(entry.model)
+                          const nextType = modelProviders.data?.find((provider) => provider.name === entry.provider)
+                            ?.type
+                          setReasoningLevel((level) => coerceReasoningLevel(nextType, entry.model, level))
+                          setNameModelDirty(true)
+                        }}
+                        enabledModels={enabledModels}
+                        onToggleModel={(entry, enabled) => {
+                          setEnabledModels((current) => [
+                            ...current.filter(
+                              (item) => !(item.provider === entry.provider && item.model === entry.model),
+                            ),
+                            ...(enabled ? [entry] : []),
+                          ])
+                          setNameModelDirty(true)
+                        }}
                         onAddProvider={
                           isOwner
                             ? () =>
@@ -653,41 +671,9 @@ function AgentDetailPage({
                         }
                       />
                     </label>
-                    <label className="flex flex-col gap-1">
-                      <SizableText size="sm" weight="bold">
-                        Model
-                      </SizableText>
-                      <ModelSelect
-                        models={providerModels.data}
-                        disabled={!canWrite}
-                        providerType={selectedProviderType}
-                        value={model}
-                        onChange={(nextModel) => {
-                          setModel(nextModel)
-                          setReasoningLevel((level) => coerceReasoningLevel(selectedProviderType, nextModel, level))
-                          setNameModelDirty(true)
-                        }}
-                        enabledModels={enabledModels
-                          .filter((entry) => entry.provider === modelProvider)
-                          .map((entry) => entry.model)}
-                        onToggleModel={(id, enabled) => {
-                          setEnabledModels((current) => [
-                            ...current.filter((entry) => !(entry.provider === modelProvider && entry.model === id)),
-                            ...(enabled ? [{provider: modelProvider, model: id}] : []),
-                          ])
-                          setNameModelDirty(true)
-                        }}
-                        isLoading={providerModels.isLoading}
-                        isError={providerModels.isError}
-                        error={providerModels.error}
-                      />
-                    </label>
                     {selectedProviderType && model && modelReasoningSupport(selectedProviderType, model) ? (
-                      <label className="flex flex-col gap-1">
-                        <SizableText size="sm" weight="bold">
-                          Reasoning
-                        </SizableText>
-                        <ReasoningSelect
+                      <div className="flex flex-col justify-end gap-1">
+                        <ReasoningSlider
                           providerType={selectedProviderType}
                           disabled={!canWrite}
                           model={model}
@@ -697,7 +683,7 @@ function AgentDetailPage({
                             setNameModelDirty(true)
                           }}
                         />
-                      </label>
+                      </div>
                     ) : null}
                   </div>
                   <div className="flex flex-col gap-2">

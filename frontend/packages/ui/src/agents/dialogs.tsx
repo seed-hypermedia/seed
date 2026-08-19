@@ -46,14 +46,13 @@ import {useEffect, useRef, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
-import {ModelSelect} from './model-select'
-import {coerceReasoningLevel, ReasoningSelect} from './reasoning-select'
+import {ProviderModelSelect} from './provider-model-select'
+import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
 import {SubscriptionSignIn} from './provider-oauth'
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
-import {ProviderSelect} from './provider-select'
 
 export function ModelProvidersDialog({
   input,
@@ -1038,12 +1037,25 @@ export function CreateAgentDialog({
       <div className="grid gap-3 md:grid-cols-2">
         <label className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
-            Model provider
+            Model
           </SizableText>
-          <ProviderSelect
-            providers={providers.data}
-            value={providerName}
-            onChange={setProviderName}
+          <ProviderModelSelect
+            serverUrl={selectedServerUrl}
+            accountUid={input.selectedAccountId}
+            value={{provider: providerName, model}}
+            onChange={(entry) => {
+              setProviderName(entry.provider)
+              setModel(entry.model)
+              const nextType = providers.data?.find((provider) => provider.name === entry.provider)?.type
+              setReasoningLevel((level) => coerceReasoningLevel(nextType, entry.model, level))
+            }}
+            enabledModels={enabledModels}
+            onToggleModel={(entry, enabled) =>
+              setEnabledModels((current) => [
+                ...current.filter((item) => !(item.provider === entry.provider && item.model === entry.model)),
+                ...(enabled ? [entry] : []),
+              ])
+            }
             onAddProvider={() =>
               addProviderDialog.open({
                 serverUrl: selectedServerUrl,
@@ -1053,43 +1065,15 @@ export function CreateAgentDialog({
             }
           />
         </label>
-        <label className="flex flex-col gap-1">
-          <SizableText size="sm" weight="bold">
-            Model
-          </SizableText>
-          <ModelSelect
-            models={providerModels.data}
-            providerType={selectedProviderType}
-            value={model}
-            onChange={(nextModel) => {
-              setModel(nextModel)
-              setReasoningLevel((level) => coerceReasoningLevel(selectedProviderType, nextModel, level))
-            }}
-            enabledModels={enabledModels.filter((entry) => entry.provider === providerName).map((entry) => entry.model)}
-            onToggleModel={(id, enabled) =>
-              setEnabledModels((current) => [
-                ...current.filter((entry) => !(entry.provider === providerName && entry.model === id)),
-                ...(enabled ? [{provider: providerName, model: id}] : []),
-              ])
-            }
-            isLoading={providerModels.isLoading}
-            isError={providerModels.isError}
-            error={providerModels.error}
-            disabled={!providerName}
-          />
-        </label>
         {selectedProviderType && model && modelReasoningSupport(selectedProviderType, model) ? (
-          <label className="flex flex-col gap-1">
-            <SizableText size="sm" weight="bold">
-              Reasoning
-            </SizableText>
-            <ReasoningSelect
+          <div className="flex flex-col justify-end gap-1">
+            <ReasoningSlider
               providerType={selectedProviderType}
               model={model}
               value={reasoningLevel}
               onChange={setReasoningLevel}
             />
-          </label>
+          </div>
         ) : null}
       </div>
       {addProviderDialog.content}
