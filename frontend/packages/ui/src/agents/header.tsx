@@ -406,6 +406,7 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
     agentId,
   )
   const [open, setOpen] = useState(false)
+  const navigate = useNavigate()
 
   // The switchable set: the active pair plus every checked entry whose provider still
   // exists. Entries on the active provider are additionally filtered against its live
@@ -427,7 +428,7 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
   ]
   const spansProviders = options.some((entry) => entry.provider !== definition.modelProvider)
 
-  if (!canWrite || !agentId || options.length <= 1) {
+  if (!canWrite || !agentId) {
     return (
       <Badge variant="secondary" className="flex-none">
         {definition.model}
@@ -479,6 +480,23 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
             </button>
           )
         })}
+        <div className="border-border mt-1 border-t pt-1">
+          {options.length <= 1 ? (
+            <SizableText size="xs" color="muted" className="block px-2 pt-1 pb-0.5">
+              Check more models in Settings to switch between them here.
+            </SizableText>
+          ) : null}
+          <button
+            type="button"
+            className="hover:bg-muted text-muted-foreground w-full rounded-sm px-2 py-1.5 text-left text-xs"
+            onClick={() => {
+              setOpen(false)
+              navigate({key: 'agent', agentId: agentId!, serverUrl, tab: 'settings'})
+            }}
+          >
+            Choose models in Settings…
+          </button>
+        </div>
       </PopoverContent>
     </Popover>
   )

@@ -1013,7 +1013,6 @@ export function CreateAgentDialog({
             selectedAccountId={input.selectedAccountId}
             onSaved={setProviderName}
             submitLabel="Add provider"
-            onSaved={setProviderName}
           />
         </div>
       </div>
