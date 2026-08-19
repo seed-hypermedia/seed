@@ -32,7 +32,9 @@ export function AgentPromptEditor({
 }) {
   const {CommentEditor} = getAgentsPlatform()
   return (
-    <div className="border-border bg-background min-h-80 rounded-md border p-3">
+    // The editor draws its own rounded border; this wrapper only stretches the editing area so a
+    // prompt gets a roomy click target without adding a second frame around the editor's own.
+    <div className="[&_.comment-editor]:min-h-80">
       <CommentEditor
         focusOnMount={focusOnMount}
         hideAvatar
