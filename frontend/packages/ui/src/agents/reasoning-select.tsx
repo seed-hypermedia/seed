@@ -1,11 +1,11 @@
 import {
   isReasoningLevel,
   modelReasoningSupport,
+  REASONING_LEVELS,
   REASONING_LEVEL_DESCRIPTIONS,
   REASONING_LEVEL_LABELS,
   type ReasoningLevel,
 } from '@seed-hypermedia/agents-protocol'
-import {Badge} from '@shm/ui/components/badge'
 import {Tooltip} from '@shm/ui/tooltip'
 import {Brain} from 'lucide-react'
 
@@ -76,19 +76,40 @@ export function ReasoningSlider({
 }
 
 /**
- * Compact reasoning-level tag shown beside model tags, with a tooltip that
- * explains what the level means. Renders nothing when the agent has no
- * reasoning level configured.
+ * Tiny pie-chart glyph encoding the reasoning level as the filled fraction of
+ * a circle on the global level scale: off is an empty ring, `xhigh` a full
+ * disc. Rendered inline inside the model tag; wrap in a Tooltip where hover
+ * help is wanted.
  */
-export function ReasoningBadge({level}: {level: ReasoningLevel | undefined}) {
-  if (!level || !isReasoningLevel(level)) return null
+export function ReasoningPie({level, className}: {level: ReasoningLevel | undefined; className?: string}) {
+  const rank = level && isReasoningLevel(level) ? REASONING_LEVELS.indexOf(level) + 1 : 0
+  const fraction = rank / REASONING_LEVELS.length
+  const label = level && isReasoningLevel(level) ? `Reasoning ${REASONING_LEVEL_LABELS[level]}` : 'Reasoning off'
+  const c = 7
+  const r = 5.5
+  let wedge: string | null = null
+  if (fraction > 0 && fraction < 1) {
+    const angle = 2 * Math.PI * fraction
+    const x = c + r * Math.sin(angle)
+    const y = c - r * Math.cos(angle)
+    wedge = `M ${c} ${c} L ${c} ${c - r} A ${r} ${r} 0 ${fraction > 0.5 ? 1 : 0} 1 ${x.toFixed(3)} ${y.toFixed(3)} Z`
+  }
   return (
-    <Tooltip content={`Reasoning ${REASONING_LEVEL_LABELS[level]}: ${REASONING_LEVEL_DESCRIPTIONS[level]}`} asChild>
-      <Badge variant="outline" className="flex-none gap-1">
-        <Brain className="size-3" />
-        {REASONING_LEVEL_LABELS[level]}
-      </Badge>
-    </Tooltip>
+    <svg
+      viewBox="0 0 14 14"
+      width={12}
+      height={12}
+      role="img"
+      aria-label={label}
+      className={`shrink-0 ${className ?? ''}`}
+    >
+      <circle cx={c} cy={c} r={r} fill="none" stroke="currentColor" strokeWidth={1.25} opacity={0.45} />
+      {fraction >= 1 ? (
+        <circle cx={c} cy={c} r={r} fill="currentColor" />
+      ) : wedge ? (
+        <path d={wedge} fill="currentColor" />
+      ) : null}
+    </svg>
   )
 }
 

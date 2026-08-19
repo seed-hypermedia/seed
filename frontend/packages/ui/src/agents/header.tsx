@@ -17,7 +17,7 @@ import {Button} from '@shm/ui/button'
 import {Badge} from '@shm/ui/components/badge'
 import {OptionsDropdown, type MenuItemType} from '@shm/ui/options-dropdown'
 import {PageTab} from '@shm/ui/page-tabs'
-import {coerceReasoningLevel, ReasoningBadge, ReasoningSlider} from './reasoning-select'
+import {coerceReasoningLevel, ReasoningPie, ReasoningSlider} from './reasoning-select'
 import {modelReasoningSupport, type ReasoningLevel} from '@seed-hypermedia/agents-protocol'
 import {SizableText} from '@shm/ui/text'
 import {
@@ -317,7 +317,6 @@ export function AgentHeader({
           </div>
           <div className="flex flex-none items-center gap-2">
             {agent ? <AgentModelBadge agent={agent} agentId={agentId} serverUrl={serverUrl} /> : null}
-            {agent ? <ReasoningBadge level={agent.definition.reasoningLevel} /> : null}
             {activeTab === 'sessions' && onCreateSession ? (
               <Button className="max-sm:min-h-10" onClick={onCreateSession} disabled={creatingSession}>
                 <MessageSquarePlus className="mr-2 size-4" /> New session
@@ -443,8 +442,9 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
 
   if (!canWrite || !agentId) {
     return (
-      <Badge variant="secondary" className="flex-none">
+      <Badge variant="secondary" className="flex-none gap-1.5">
         {definition.model}
+        {definition.reasoningLevel ? <ReasoningPie level={definition.reasoningLevel} /> : null}
       </Badge>
     )
   }
@@ -491,6 +491,9 @@ function AgentModelBadge({agent, agentId, serverUrl}: {agent: AgentHeaderInfo; a
         className="bg-secondary text-secondary-foreground hover:bg-secondary/80 flex flex-none items-center gap-1 rounded-md border border-transparent px-2 py-0.5 text-xs font-medium transition-colors disabled:opacity-50"
       >
         <span className="max-w-48 truncate">{definition.model}</span>
+        {reasoningSupported || definition.reasoningLevel ? (
+          <ReasoningPie level={pendingLevel ? pendingLevel.level : definition.reasoningLevel} />
+        ) : null}
         <ChevronsUpDown className="size-3 shrink-0 opacity-70" />
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-1">
