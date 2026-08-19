@@ -61,6 +61,7 @@ type ExtendedSitePayload = SiteDocumentPayload & {
   exploreSort?: 'relevance' | 'recently_updated' | 'newest' | 'oldest' | 'title' | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   openComment?: string | null
+  commentVersion?: string | null
   accountUid?: string | null
   inspectTab?: InspectTab | null
 }
@@ -360,6 +361,10 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   // Merge activity filter slug from path into panelParam for createDocumentNavRoute
   let effectivePanelParam = panelParam
   let openComment: string | null = null
+  // On comment permalink routes, ?v refers to the comment version CID, not
+  // the target document version. Keep it off the document lookup or the
+  // target document resolves as not found.
+  let isCommentPermalink = false
   let accountUid: string | null = null
 
   // Determine document type based on URL pattern
@@ -385,12 +390,13 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
+      isCommentPermalink = true
     }
     accountUid = extracted.accountUid || null
     documentId = hmId(docUid, {
       path: extracted.path,
-      version,
-      latest,
+      version: isCommentPermalink ? null : version,
+      latest: isCommentPermalink ? true : latest,
     })
   } else {
     // Site document (regular path) or inspector document (/inspect/path...)
@@ -404,12 +410,13 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
+      isCommentPermalink = true
     }
     accountUid = extracted.accountUid || null
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,
-      version,
-      latest,
+      version: isCommentPermalink ? null : version,
+      latest: isCommentPermalink ? true : latest,
     })
   }
 
@@ -420,6 +427,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     exploreSort,
     panelParam: effectivePanelParam,
     openComment,
+    commentVersion: isCommentPermalink ? version : null,
     accountUid,
     isInspect,
     inspectTab: isInspect ? getInspectTab(inspectTab) : null,
@@ -499,6 +507,7 @@ export default function UnifiedDocumentPage() {
     siteData.panelParam,
     siteData.openComment,
     siteData.accountUid,
+    siteData.commentVersion,
   )
   const initialRouteWithExploreParams =
     initialRoute.key === 'explore'

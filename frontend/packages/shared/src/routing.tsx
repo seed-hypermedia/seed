@@ -339,6 +339,10 @@ export function routeToHref(
       viewTerm += `/${route.openComment}`
     }
     let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    // On comment permalinks, ?v pins the comment version (not the document version)
+    if (route.key === 'comments' && route.openComment && route.openCommentVersion) {
+      href += `?v=${route.openCommentVersion}`
+    }
     // Append panel query param if present
     const panelParam = getRoutePanelParam(route)
     if (panelParam) {

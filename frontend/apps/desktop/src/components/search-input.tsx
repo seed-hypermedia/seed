@@ -475,7 +475,13 @@ function applyViewTermToRoute(
   }
   if (!routeKey) return route
   if (routeKey === 'comments' && commentId) {
-    return {key: 'comments', id: route.id, openComment: commentId}
+    // On comment permalinks, ?v pins the comment version, not the document version
+    return {
+      key: 'comments',
+      id: {...route.id, version: null, latest: true},
+      openComment: commentId,
+      openCommentVersion: route.id.version || undefined,
+    }
   }
   if (isSiteProfileTab(routeKey)) {
     return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}

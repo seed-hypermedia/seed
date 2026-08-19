@@ -12,6 +12,13 @@ export function shouldRevalidateDocumentRoute({
     return true
   }
 
+  // On comment permalinks (/:comments/UID/TSID), ?v pins the comment version.
+  // The client renders old comment versions from the edit-history query, so a
+  // version switch doesn't need fresh loader data.
+  if (/\/:(comments?|discussions)\//.test(decodeURIComponent(currentUrl.pathname))) {
+    return false
+  }
+
   const currentV = currentUrl.searchParams.get('v')
   const nextV = nextUrl.searchParams.get('v')
   const currentL = currentUrl.searchParams.get('l')

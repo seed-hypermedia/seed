@@ -626,6 +626,33 @@ export const Comment = memo(function Comment({
     }
   }, [defaultExpandReplies])
   const navigate = useNavigate('replace')
+
+  // When this comment is the focused permalink comment (/:comments/UID/TSID),
+  // the viewed version lives on the route (?v=) so it survives copy/paste and
+  // reload. Other comments keep the version preview as local state.
+  const isRouteControlledVersion = currentRoute.key === 'comments' && currentRoute.openComment === comment.id
+  const routeCommentVersion =
+    currentRoute.key === 'comments' && currentRoute.openComment === comment.id
+      ? currentRoute.openCommentVersion
+      : undefined
+  const routeVersionToView =
+    routeCommentVersion && routeCommentVersion !== comment.version ? routeCommentVersion : undefined
+  const commentVersions = useCommentVersions(routeVersionToView ? comment.id : null)
+  const routeViewingVersion = routeVersionToView
+    ? commentVersions.data?.versions?.find((version) => version.version === routeVersionToView) ?? null
+    : null
+  const activeViewingVersion = isRouteControlledVersion ? routeViewingVersion : viewingVersion
+  const selectViewingVersion = (version: HMComment | null) => {
+    if (currentRoute.key === 'comments' && currentRoute.openComment === comment.id) {
+      navigate({
+        ...currentRoute,
+        openCommentVersion: (version && version.version !== comment.version && version.version) || undefined,
+      })
+    } else {
+      setViewingVersion(version)
+    }
+  }
+
   const options: MenuItemType[] = []
   if (isAuthor) {
     options.push({
@@ -655,7 +682,7 @@ export const Comment = memo(function Comment({
                 onSuccess: () => {
                   if (!isFocusedComment) return
                   if (currentRoute.key === 'comments' && currentRoute.openComment) {
-                    navigate({...currentRoute, openComment: undefined})
+                    navigate({...currentRoute, openComment: undefined, openCommentVersion: undefined})
                   } else if ('panel' in currentRoute && routePanel?.key === 'comments' && routePanel.openComment) {
                     navigate({...currentRoute, panel: {...routePanel, openComment: undefined}} as NavRoute)
                   }
@@ -724,7 +751,7 @@ export const Comment = memo(function Comment({
                 ) : null}
                 <CommentDate comment={comment} />
                 {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
-                  <EditedIndicator commentId={comment.id} onSelectVersion={setViewingVersion} />
+                  <EditedIndicator commentId={comment.id} onSelectVersion={selectViewingVersion} />
                 ) : null}
               </InlineDescriptor>
             )}
@@ -783,8 +810,8 @@ export const Comment = memo(function Comment({
               }}
               isSaving={updateCommentMutation.isPending}
             />
-          ) : viewingVersion ? (
-            <VersionPreview version={viewingVersion} onDismiss={() => setViewingVersion(null)} />
+          ) : activeViewingVersion ? (
+            <VersionPreview version={activeViewingVersion} onDismiss={() => selectViewingVersion(null)} />
           ) : (
             <CommentContent comment={comment} selection={selection} />
           )}
@@ -1016,8 +1043,8 @@ function EditedIndicator({
   )
 }
 
-/** Popover list of comment versions. Clicking a past version triggers onSelect. */
-function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect: (version: HMComment) => void}) {
+/** Popover list of comment versions. Clicking a version triggers onSelect (null for the current version). */
+function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect: (version: HMComment | null) => void}) {
   const {data, isLoading, error} = useCommentVersions(commentId)
 
   if (isLoading) {
@@ -1053,9 +1080,10 @@ function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect:
           const isCurrent = index === 0
           if (isCurrent) {
             return (
-              <div
+              <button
                 key={version.version || index}
-                className="border-border flex w-full items-center justify-between border-b px-3 py-2 last:border-b-0"
+                className="hover:bg-accent border-border flex w-full items-center justify-between border-b px-3 py-2 text-left last:border-b-0"
+                onClick={() => onSelect(null)}
               >
                 <div className="flex items-center gap-2">
                   <SizableText size="xs">Version {versionNumber}</SizableText>
@@ -1066,7 +1094,7 @@ function CommentVersionList({commentId, onSelect}: {commentId: string; onSelect:
                 <SizableText size="xs" color="muted">
                   {version.updateTime ? formattedDateShort(version.updateTime) : ''}
                 </SizableText>
-              </div>
+              </button>
             )
           }
           return (

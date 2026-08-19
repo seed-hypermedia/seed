@@ -187,6 +187,8 @@ export const commentsRouteSchema = z.object({
   id: unpackedHmIdSchema,
   width: z.number().optional(),
   openComment: z.string().optional(),
+  /** Version CID of the opened comment to view (an old version from its edit history). */
+  openCommentVersion: z.string().optional(),
   targetBlockId: z.string().optional(),
   blockId: z.string().optional(),
   blockRange: BlockRangeSchema.nullable().optional(),
@@ -610,6 +612,7 @@ export function createDocumentNavRoute(
   panelParam?: string | null,
   openComment?: string | null,
   accountUid?: string | null,
+  openCommentVersion?: string | null,
 ): NavRoute {
   // Create properly typed panel route if panelParam provided.
   // Cast needed: each route schema has a narrow panel union (excluding itself),
@@ -644,7 +647,7 @@ export function createDocumentNavRoute(
       }
       // /:comments/UID/TSID → comments main with openComment
       if (openComment) {
-        return {key: 'comments', id: docId, openComment, panel}
+        return {key: 'comments', id: docId, openComment, openCommentVersion: openCommentVersion || undefined, panel}
       }
       // Preserve non-comments panel (e.g. activity, collaborators)
       return {key: 'comments', id: docId, panel}

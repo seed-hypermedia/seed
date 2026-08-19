@@ -622,13 +622,17 @@ export function routeToUrl(
         viewTermPath = `:activity/${filterSlug}`
       }
     }
-    // For comments with openComment, put commentId in view term path
+    // For comments with openComment, put commentId in view term path.
+    // On comment permalinks, ?v pins the comment version (not the document version).
+    let commentPermalinkVersion: {version: string | null; latest: null} | undefined
     if (route.key === 'comments' && route.openComment) {
       viewTermPath = `:comments/${route.openComment}`
+      commentPermalinkVersion = {version: route.openCommentVersion || null, latest: null}
     }
     const effectivePanelParam = route.key === 'all-documents' ? null : panelParam
     return createWebHMUrl(route.id.uid, {
       ...route.id,
+      ...commentPermalinkVersion,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
@@ -712,15 +716,20 @@ export function routeToHmUrl(route: NavRoute): string | null {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTermPath = `:activity/${filterSlug}`
     }
+    // On comment permalinks, ?v pins the comment version (not the document version).
+    let versionQuery: {version?: string | null; latest?: boolean | null} = {
+      version: route.id.version,
+      latest: route.id.latest,
+    }
     if (route.key === 'comments' && route.openComment) {
       viewTermPath = `:comments/${route.openComment}`
+      versionQuery = {version: route.openCommentVersion || null}
     }
 
     let url = packBaseId(route.id.uid, route.id.path)
     url += `/${viewTermPath}`
     url += getHMQueryString({
-      version: route.id.version,
-      latest: route.id.latest,
+      ...versionQuery,
       panel: panelParam,
     })
     if (route.id.blockRef) {
