@@ -93,17 +93,32 @@ must state the port and whether a token was attached.**
 cat docs/security/audit-log.md; cat .ai/security/queue.md 2>/dev/null; git rev-parse --short HEAD
 ```
 
-| Request                                               | Enter                                                             |
-| ----------------------------------------------------- | ----------------------------------------------------------------- |
-| "audit" / "security review" / no target               | Phase 1: P0 and P1, then P2-P6                                    |
-| Names a surface, file, route, or RPC                  | Phase 1 restricted to the covering pass, after P0                 |
-| Names a queue slug, or "reproduce"/"exploit"/"verify" | Phase 2 for that finding                                          |
-| "fix"                                                 | **GATE:** must be `confirmed`. If not, run Phase 2 first, say why |
+| Request                                               | Enter                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- |
+| "audit" / "security review" / no target               | Phase 1: P0 and P1, then P2-P6                                            |
+| Names a surface, file, route, or RPC                  | Phase 1 restricted to the covering pass, after P0                         |
+| Names a queue slug, or "reproduce"/"exploit"/"verify" | Phase 2 for that finding                                                  |
+| "fix"                                                 | **GATE:** a test must already fail on unfixed code. If not, Phase 2 first |
 
-- **Gate 1→2:** severity ≥ MEDIUM, a named external entry point, and a written repro command. Otherwise it stays
-  `candidate` and you say so.
-- **Gate 2→3:** `confirmed`, or a recorded user waiver. Fixing an unreproduced finding bakes a false invariant into a
-  permanent test, which is worse than the bug because it looks like coverage.
+### The order of work, and it does not vary
+
+```
+read the code -> list candidate vulnerabilities -> reproduce each as a failing test
+-> discard the ones that cannot be reproduced -> rank severity on what is proven
+-> write a fix plan -> HUMAN APPROVAL -> implement -> the same test goes green -> commit
+```
+
+Two properties of that sequence carry most of the value. **The reproduction and the regression test are one artifact**,
+not a probe now and a test later: the test that proves the hole exists is the test that stays in the tree forever to
+catch its return. And **severity is ranked after reproduction, not at discovery** — you rank what you proved, not what
+you suspected.
+
+- **Gate 1→2:** a named external entry point and a candidate test you can describe. Provisional severity ≥ MEDIUM orders
+  the queue but does not gate: a LOW-looking candidate that is trivial to test should still be tested.
+- **Gate 2→3:** a test that **fails on unfixed code**. No exceptions and no waiver, because the red run _is_ the
+  reproduction. Fixing something with no failing test bakes a false invariant into the tree, which is worse than the bug
+  because it looks like coverage.
+- **Gate 3→implement:** explicit human approval of the fix plan. Never edit product code before it.
 
 Announce your pass list before starting; repeat it in the handoff (§8.3).
 
@@ -175,6 +190,10 @@ Calibration: "SQLite read-pool exhaustion is possible" is **LOW** (H1 fails, no 
 to a named route with a measured p95 is **HIGH**.
 
 ### 5.3 Severity
+
+Assign a **provisional** severity here to order the queue. The **recorded** severity is set in Phase 2 once the test is
+red, using this same rubric against what the test actually demonstrated. If it moves, note the change and why —
+reproduction routinely reveals that the reachable impact is narrower, or wider, than the code read suggested.
 
 | Level        | Covers                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -277,7 +296,35 @@ incident docs. Key present → do not report. Same symbol, different threat clas
 
 ---
 
-## 6. Phase 2 — local reproduction
+## 6. Phase 2 — reproduce as a test
+
+**Every finding is reproduced as an automated test that stays in the tree.** Not a transcript, not a probe you ran once
+— a test committed alongside the fix, so the hole cannot come back unnoticed. Write it before the fix exists, and it
+must **fail on unfixed code**.
+
+That gives you a mechanical discard criterion, which is the point of this phase:
+
+| Test result on **unfixed** code | Meaning                                                                                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Fails                           | The vulnerability is real. Record `confirmed`, set the recorded severity (§5.3), proceed to Phase 3                                                          |
+| Passes                          | **Either the hole does not exist or your test does not capture it.** Decide which, in writing, then `refuted` or rewrite the test — never leave it ambiguous |
+| Will not compile or run         | Not a result. Fix the test, or record `blocked` naming what stopped you                                                                                      |
+
+Since rule 2 forbids running Go tests locally, red/green is established through CI (§7.3). Batch candidates: write all
+the tests, run agent-ci once, and read which failed. **Never write a test that only logs** — see the VULN-5 blockquote
+in §7.1, which is exactly this failure preserved in the tree.
+
+Placement and naming are in §7.2. Two carve-outs:
+
+- **Amplification cannot be a unit test** — cost depends on data volume and machine, so an absolute assertion is flaky
+  or vacuous. Reproduce it by measurement (§6.3) _and_ write the test against the **guard** rather than the cost: "does
+  this RPC clamp `page_size`", "does this handler carry a deadline". The measurement proves the finding; the guard test
+  is the permanent regression check. Both are required for HIGH and CRITICAL (§7.5).
+- **Surfaces a unit test cannot reach** — web SSR, CORS, cross-peer bitswap, loopback gating — are reproduced with the
+  live probes in §6.4-§6.5, and still need the nearest CI-covered test that asserts the same invariant one layer down.
+
+The rest of this section is the running-system harness: for measurement, for the surfaces tests cannot reach, and for
+confirming that a test's premise matches reality.
 
 ### 6.1 Preflight
 
@@ -427,22 +474,31 @@ and minutes spent, and **severity and confidence stay unchanged**: you may not c
 unreproducible. If twenty minutes pass with no new _observation_ (hypotheses do not count), stop and write down what
 changed in your understanding.
 
-**Outcomes:** `confirmed`; `refuted` (shown wrong, with the code-level reason → Ruled out table); `unreproduced`
-(attempt recorded, stays queued — **not** the same as refuted); `blocked` (a named missing dependency).
+**Outcomes:** `confirmed` (a test fails on unfixed code); `refuted` (the test passes and you established that the hole
+does not exist rather than that the test missed it → Ruled out table); `unreproduced` (attempt recorded, stays queued —
+**not** the same as refuted, and severity unchanged); `blocked` (a named missing dependency).
 
 ---
 
-## 7. Phase 3 — fix and regression test
+## 7. Phase 3 — plan, get approval, fix, go green, commit
 
-### 7.1 Write the failing test first
+### 7.1 The plan and the approval gate
 
-The only way to argue a Go fix works when you cannot compile locally: the diff plus a red-then-green CI transition
-**is** the argument.
+You arrive here holding a red test. Write the fix plan first: the guard to add and where, why that layer and not
+another, which call sites it covers and which it does not, and the blast radius. Then **stop and get explicit human
+approval.** Do not touch product code before it. A security fix changes an authorization or resource boundary, so the
+wrong layer either misses siblings or breaks legitimate callers — and that judgement is the user's.
+
+The red-then-green CI transition **is** the argument that the fix works, since rule 2 means you never compiled it
+locally. Which is why the test comes first and why it must genuinely fail:
 
 > A regression test must **fail before the fix and pass after**. Never write a test that only logs the vulnerability.
 > `TestPrivateDocSecurity_CreateRefIgnoresVisibility` in `private_docs_test.go` ends in a `t.Log` and asserts nothing —
 > VULN-5 is still exploitable and CI has been green the whole time. If you cannot make a test fail before the fix, you
 > have not reproduced the finding. Go back to Phase 2.
+
+The test stays after the fix ships. That is the whole point: it is the regression check for a hole someone already
+walked through once.
 
 ### 7.2 Where the test goes
 
@@ -473,13 +529,14 @@ npx @redwoodjs/agent-ci retry --name <runner-name>                  # fix in pla
 ```
 
 That is strictly **more** signal than a local run, because the workflow also runs the race detector. Frontend fixes
-verify locally: `pnpm --filter @shm/web test`, `pnpm typecheck`. Run the pair deliberately — a branch with **only the
-test** must fail and you capture that output, then the fix makes it pass; both runs are evidence, and that ordering is
-what separates a detector from a description. Every touched file must be Prettier-clean or the `Lint` job fails. If
+verify locally: `pnpm --filter @shm/web test`, `pnpm typecheck`.
+
+You already have the red run from Phase 2 — this is the green half. **Both runs are recorded**, and the pair is what
+separates a detector from a description. Every touched file must be Prettier-clean or the `Lint` job fails. If
 `agent-ci` is unavailable the finding stays `fix-proposed` with a handoff naming the branch, what to run, and the
 expected result — **a fix nobody has compiled is a proposal.**
 
-### 7.4 Prove the hole is closed, then disclose
+### 7.4 Prove the hole is closed, commit, then disclose
 
 The test proves the code behaves as the test expects; only re-running the attacker path proves the hole is closed. A fix
 can satisfy the first and fail the second. So: **(1)** re-run the **verbatim** confirmation commands against a build
@@ -488,24 +545,30 @@ different IRI shape, a sibling RPC, the anonymous port as well as the token'd on
 "closed the hole" versus "changed the behavior"; **(3)** for amplification, sustain load ten minutes at the
 previously-breaking concurrency, not a burst, and record the post-fix delta.
 
-Only then, and only with the user's approval: **file a GitHub issue describing the now-fixed vulnerability and close it
-with the fix commit.** That is the disclosure event, safe precisely because the hole is already closed. Move the finding
-out of the queue and point the audit log at the issue.
+Then **commit the fix and its test together** — never the fix alone, or the tree gains a silent behaviour change with
+nothing guarding it. The commit message says why the boundary moved, not what the diff does.
 
-### 7.5 Findings with no automated test
+Only after that, and only with the user's approval: **file a GitHub issue describing the now-fixed vulnerability and
+close it with the fix commit.** That is the disclosure event, safe precisely because the hole is already closed. Move
+the finding out of the queue and point the audit log at the issue.
 
-Amplification cannot be a unit test — cost depends on data volume and machine, so an absolute assertion is flaky or
-vacuous. Write `docs/security/probes/<slug>.probe.sh`: header comment with the issue number, measured pre-fix numbers
-and threshold justification; calls `preflight.sh` and refuses to run if the network assertion fails; **hard-fails on any
-non-loopback target** (rule 1 enforced in code, not a comment); `--dry-run` generates **zero** load; assertions are
-**relative ratios measured within the same run**, never absolute milliseconds; exits `0` pass / `1` regression / `2`
-could-not-measure, because "could not measure" must never read as "passed"; and prints one parseable line
+### 7.5 Amplification: the probe measures, the guard test regresses
+
+The cost itself cannot be a unit test — it depends on data volume and machine, so an absolute assertion is flaky or
+vacuous. So amplification gets **two** artifacts, not an exemption from having one. Write
+`docs/security/probes/<slug>.probe.sh`: header comment with the issue number, measured pre-fix numbers and threshold
+justification; calls `preflight.sh` and refuses to run if the network assertion fails; **hard-fails on any non-loopback
+target** (rule 1 enforced in code, not a comment); `--dry-run` generates **zero** load; assertions are **relative ratios
+measured within the same run**, never absolute milliseconds; exits `0` pass / `1` regression / `2` could-not-measure,
+because "could not measure" must never read as "passed"; and prints one parseable line
 `VERDICT=pass cost=0.041 ref=0.0061 A_cpu=6.7 rps_to_saturate=410 control_ratio=1.7`.
 
-**The CI gap:** `test-go.yml` triggers only on `backend/**` and `go.mod`, the frontend workflow on frontend paths — so
-**a probe under `docs/security/probes/` runs in no workflow.** A probe may be the sole regression test only for MEDIUM
-and below. HIGH and CRITICAL need **also** a CI-covered test, even asserting a weaker property (a page-size boundary
-test in `documents_test.go` alongside the load probe). Say which is which.
+**The CI gap makes the second artifact mandatory:** `test-go.yml` triggers only on `backend/**` and `go.mod`, the
+frontend workflow on frontend paths — so **a probe under `docs/security/probes/` runs in no workflow**, and a probe
+alone is a regression check nobody executes. Pair it with a CI-covered test asserting the **guard** the fix added — the
+page-size clamp, the deadline, the in-flight cap — even though that is a weaker property than the cost. The probe proves
+the finding; the guard test is what actually catches the regression. Say which is which. A probe may stand alone only
+for MEDIUM and below.
 
 ---
 
