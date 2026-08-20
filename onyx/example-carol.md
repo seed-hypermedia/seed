@@ -1,9 +1,9 @@
 ---
-name: "example-carol"
+name: "Example: Carol"
 summary: "example-carol — instance."
 ---
 
-# example-carol
+# Example: Carol
 
 
 ## Shape

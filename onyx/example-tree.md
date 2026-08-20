@@ -1,9 +1,9 @@
 ---
-name: "Tree"
+name: "Example: Tree"
 summary: "A node holding an integer value and links to child nodes."
 ---
 
-# Tree
+# Example: Tree
 
 A node holding an integer value and links to child nodes.
 

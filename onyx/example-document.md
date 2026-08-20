@@ -1,9 +1,9 @@
 ---
-name: "example-document"
+name: "Example: Document"
 summary: "example-document — an example schema."
 ---
 
-# example-document
+# Example: Document
 
 
 This document describes the **example-document** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.

@@ -23,6 +23,37 @@
 import {existsSync, readFileSync, readdirSync} from 'node:fs'
 import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {gunzipSync, inflateSync, inflateRawSync} from 'node:zlib'
+
+// Bun (as of 1.2.x) lacks the web DecompressionStream, which the vault reader
+// uses to decompress vault.json. Polyfill it with node:zlib.
+if (typeof (globalThis as any).DecompressionStream === 'undefined') {
+  ;(globalThis as any).DecompressionStream = class {
+    readable: ReadableStream<Uint8Array>
+    writable: WritableStream<Uint8Array>
+    constructor(format: 'gzip' | 'deflate' | 'deflate-raw') {
+      const chunks: Buffer[] = []
+      let finish!: (data: Uint8Array) => void
+      const done = new Promise<Uint8Array>((r) => (finish = r))
+      this.writable = new WritableStream<Uint8Array>({
+        write(chunk) {
+          chunks.push(Buffer.from(chunk))
+        },
+        close() {
+          const buf = Buffer.concat(chunks)
+          const out = format === 'gzip' ? gunzipSync(buf) : format === 'deflate' ? inflateSync(buf) : inflateRawSync(buf)
+          finish(new Uint8Array(out))
+        },
+      })
+      this.readable = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          controller.enqueue(await done)
+          controller.close()
+        },
+      })
+    }
+  }
+}
 import * as dagCbor from '@ipld/dag-cbor'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
@@ -39,7 +70,7 @@ import {
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {resolveFileLinks} from './utils/file-links'
 import {hmBlockNodeToBlockNode} from './utils/block-diff'
-import {resolveKey} from './utils/keyring'
+import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
@@ -68,36 +99,6 @@ function basenameToLockUrl(basename: string): string {
 // ── Markdown pre-processor (port of scratchpad/prep.py) ────────────────────────
 
 const LIST_RE = /^\s*([-*+]|\d+[.)])\s+/
-
-/** Align a run of GFM table rows into padded monospace columns. */
-function alignTable(rows: string[]): string[] {
-  const cells = rows.map((r) =>
-    r
-      .trim()
-      .replace(/^\|/, '')
-      .replace(/\|$/, '')
-      .split('|')
-      .map((c) => c.trim()),
-  )
-  const ncol = Math.max(...cells.map((r) => r.length))
-  for (const r of cells) while (r.length < ncol) r.push('')
-
-  const isSep = (r: string[]) =>
-    r.some((c) => c.includes('-')) && r.every((c) => c === '' || (/-/.test(c) && /^[-:\s]*$/.test(c)))
-
-  const widths = new Array(ncol).fill(0)
-  for (const r of cells) {
-    if (isSep(r)) continue
-    r.forEach((c, i) => {
-      widths[i] = Math.max(widths[i], c.length)
-    })
-  }
-
-  return cells.map((r) => {
-    if (isSep(r)) return '| ' + widths.map((w) => '-'.repeat(w)).join(' | ') + ' |'
-    return '| ' + r.map((c, i) => c.padEnd(widths[i])).join(' | ') + ' |'
-  })
-}
 
 /** Prepare Onyx markdown for the (lossy) Seed markdown importer. */
 function prepMarkdown(text: string): string {
@@ -154,14 +155,14 @@ function prepMarkdown(text: string): string {
       continue
     }
 
-    // table: current line has '|' and the next line is a separator row
+    // table: current line has '|' and the next line is a separator row.
+    // Pass GFM rows through untouched — the markdown importer parses them
+    // into native HM Table blocks (ids are generated).
     if (line.includes('|') && i + 1 < n && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1])) {
-      const rows: string[] = []
       while (i < n && lines[i].includes('|') && lines[i].trim() !== '') {
-        rows.push(lines[i])
+        out.push(lines[i])
         i++
       }
-      out.push(...alignTable(rows))
       continue
     }
 
@@ -213,18 +214,47 @@ function prepMarkdown(text: string): string {
  * this emits EVERY key (including schemaDefinition and other unknown keys).
  */
 function metadataToSetAttributes(metadata: Record<string, unknown>): DocumentOperation | null {
-  const attrs: Array<{key: string[]; value: unknown}> = []
+  const attrs: Array<{key: string[]; value: string | number | boolean | null}> = []
   for (const [key, value] of Object.entries(metadata)) {
-    if (value !== undefined) attrs.push({key: [key], value})
+    if (value !== undefined) attrs.push({key: [key], value: value as string | number | boolean | null})
   }
   if (attrs.length === 0) return null
   return {type: 'SetAttributes', attrs}
 }
 
+/**
+ * The doc sources repeat the frontmatter name as a leading `# H1` and the
+ * summary as the first paragraph (so the plain .md reads standalone). The web
+ * page already renders metadata name + summary in its header, so publishing
+ * them again duplicates the title and indents the whole page under the H1.
+ * Drop them: promote the H1's children, then drop a summary-equal paragraph.
+ */
+function stripTitleBlocks<T extends {block: {type: string; text?: string}; children?: T[]}>(
+  tree: T[],
+  metadata: HMMetadata,
+): T[] {
+  const norm = (s?: string) => (s || '').replace(/\s+/g, ' ').trim()
+  let nodes = tree
+  const first = nodes[0]
+  if (first && first.block.type === 'Heading' && metadata.name && norm(first.block.text) === norm(metadata.name)) {
+    nodes = [...(first.children || []), ...nodes.slice(1)]
+  }
+  const second = nodes[0]
+  if (
+    second &&
+    second.block.type === 'Paragraph' &&
+    metadata.summary &&
+    norm(second.block.text) === norm(metadata.summary)
+  ) {
+    nodes = nodes.slice(1)
+  }
+  return nodes
+}
+
 /** Parse markdown into content ops (mirrors document.ts readInput markdown path). */
 async function markdownToOps(content: string): Promise<{ops: DocumentOperation[]; metadata: HMMetadata}> {
   const {tree, metadata} = parseMarkdown(content)
-  const hmNodes = markdownBlockNodesToHMBlockNodes(tree)
+  const hmNodes = markdownBlockNodesToHMBlockNodes(stripTitleBlocks(tree, metadata))
   const resolved = await resolveFileLinks(hmNodes)
   const resolvedTree = resolved.nodes.map(hmBlockNodeToBlockNode)
   const ops = flattenToOperations(resolvedTree)
@@ -239,8 +269,8 @@ async function main() {
   const serverIdx = args.indexOf('--server')
   const serverUrl = serverIdx >= 0 ? args[serverIdx + 1] : 'https://hyper.media'
 
-  // Resolve signing key / account
-  const key = resolveKey('main', false)
+  // Resolve signing key / account (vault first, then OS keyring)
+  const key = await resolveSigningKey('main', {dev: false})
   const account = key.accountId
   const signer = createSignerFromKey(key)
   console.log(`Account: ${account}`)
