@@ -15,16 +15,16 @@
  */
 
 import type {SeedClient} from './client'
-import {unpackHmId} from './hm-types'
 import type {
-  HMBlockNode,
-  HMBlock,
   HMAnnotation,
+  HMBlock,
+  HMBlockNode,
   HMComment,
   HMDocument,
   HMMetadata,
   UnpackedHypermediaId,
 } from './hm-types'
+import {unpackHmId} from './hm-types'
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
@@ -166,9 +166,10 @@ function blockNodeToMarkdown(node: HMBlockNode, depth: number, opts: Required<Bl
 
   const childrenType = (block as {attributes?: {childrenType?: string}}).attributes?.childrenType
 
-  // Check if this is an invisible list container (empty paragraph with childrenType)
+  // Check if this is an invisible list container: an empty paragraph, or a
+  // Slot block.
   const isListContainer =
-    block.type === 'Paragraph' &&
+    (block.type === 'Paragraph' || block.type === 'Slot') &&
     !block.text &&
     (childrenType === 'Ordered' || childrenType === 'Unordered' || childrenType === 'Blockquote')
 
