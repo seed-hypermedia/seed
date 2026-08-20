@@ -133,7 +133,8 @@ describe('normalizeFragment — paste normalization', () => {
       expect(result.child(1).firstChild!.textContent).toBe('B')
     })
 
-    // Group with nested lists → NOT flattened, wrapped in blockNode
+    // A top-level group flattens to its children even when some carry nested
+    // lists. Each child keeps its own nested group.
     //
     //   Fragment:
     //     blockChildren (Group)
@@ -143,18 +144,18 @@ describe('normalizeFragment — paste normalization', () => {
     //       blockNode (B)
     //   →
     //   Fragment:
-    //     blockNode
-    //       paragraph ""
-    //       blockChildren (Group)
-    //         ...
+    //     blockNode (A)  [+ nested Group[C]]
+    //     blockNode (B)
     //
-    it('does NOT flatten Group with nested lists', () => {
+    it('flattens a top-level group even when children have nested lists', () => {
       const fragment = Fragment.from([
         group([bn({id: 'a'}, para('A'), group([bn({id: 'c'}, para('C'))])), bn({id: 'b'}, para('B'))]),
       ])
       const result = normalizeFragment(fragment, schema)
-      expect(result.childCount).toBe(1)
-      expect(result.child(0).type.name).toBe('blockNode')
+      expect(result.childCount).toBe(2)
+      expect(result.child(0).firstChild!.textContent).toBe('A')
+      expect(result.child(0).lastChild!.type.name).toBe('blockChildren') // A's nested group preserved
+      expect(result.child(1).firstChild!.textContent).toBe('B')
     })
   })
 
@@ -224,6 +225,28 @@ describe('normalizeFragment — paste normalization', () => {
       expect(merged.firstChild!.textContent).toBe('A')
       expect(merged.lastChild!.type.name).toBe('blockChildren')
       expect(merged.lastChild!.attrs.listType).toBe('Unordered')
+    })
+
+    // Pasting two adjacent lists must keep both. The second must
+    // not overwrite the first.
+    it('keeps both lists when two lists are pasted adjacently', () => {
+      const olist = (children: any[]) => bc({listType: 'Ordered', listLevel: '1'}, children)
+      const fragment = Fragment.from([
+        ulist([bn({id: null}, para('a')), bn({id: null}, para('b'))]),
+        olist([bn({id: null}, para('c')), bn({id: null}, para('d'))]),
+      ])
+      const result = normalizeFragment(fragment, schema)
+      expect(result.childCount).toBe(2)
+
+      const first = result.child(0)
+      expect(first.firstChild!.type.name).toBe('slot')
+      expect(first.lastChild!.attrs.listType).toBe('Unordered')
+      expect(first.lastChild!.childCount).toBe(2)
+
+      const second = result.child(1)
+      expect(second.firstChild!.type.name).toBe('slot')
+      expect(second.lastChild!.attrs.listType).toBe('Ordered')
+      expect(second.lastChild!.childCount).toBe(2)
     })
   })
 
