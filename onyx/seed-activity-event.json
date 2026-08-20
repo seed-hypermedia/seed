@@ -1,0 +1,8 @@
+{
+  "name": "Activity event",
+  "description": "One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map \u2014 tightening it is tracked follow-up work. A derived read model computed by the Seed daemon/API for clients \u2014 not a signed network blob.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "values": {
+    "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"
+  }
+}
