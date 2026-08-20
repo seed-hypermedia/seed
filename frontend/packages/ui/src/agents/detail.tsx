@@ -17,6 +17,7 @@ import {
   useAgentCollaborators,
   useAgentDetail,
   useAgentList,
+  useAgentAccountsSync,
   useAgentServerHealth,
   useAgentServerUrl,
   useLocalAgentServerUrl,
@@ -2321,6 +2322,9 @@ function SessionListItem({
 export default function AgentDetailRoutePage() {
   const route = useNavRoute()
   const selectedAccountId = useSelectedAccountId()
+  // Keep every account this account's agents can author as synced locally, so they are
+  // immediately mentionable and openable elsewhere in the app.
+  useAgentAccountsSync()
   if (route.key !== 'agent') return null
   // Agent servers reject unauthenticated requests, so without an active account this page cannot
   // load the agent — gate it entirely (the back stack can land here after a sign-out).

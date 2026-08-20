@@ -1,4 +1,10 @@
-import {getDefaultAgentServerUrl, useAgentList, useAgentServerUrl, useAgentWebSocketSubscription} from './models'
+import {
+  getDefaultAgentServerUrl,
+  useAgentAccountsSync,
+  useAgentList,
+  useAgentServerUrl,
+  useAgentWebSocketSubscription,
+} from './models'
 import {useSelectedAccountId} from './account'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -23,6 +29,9 @@ export default function AgentServerPage() {
 }
 
 function AgentServerContent({routeServerUrl, selectedAccountId}: {routeServerUrl: string; selectedAccountId: string}) {
+  // Keep every account these agents can author as synced locally, so they are immediately
+  // mentionable and openable elsewhere in the app.
+  useAgentAccountsSync()
   const serverUrlQuery = useAgentServerUrl()
   const serverUrl = routeServerUrl || serverUrlQuery.data || getDefaultAgentServerUrl() || ''
   const agents = useAgentList(serverUrl, selectedAccountId)

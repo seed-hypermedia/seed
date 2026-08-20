@@ -2,6 +2,7 @@ import {
   isLocalAgentServer,
   LOCAL_AGENT_SERVER_LABEL,
   useAcceptAgentInvite,
+  useAgentAccountsSync,
   useAgentInviteLists,
   useAgentLists,
   useAgentServerHealths,
@@ -36,6 +37,9 @@ function AgentsListPage() {
 }
 
 function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
+  // Keep every account these agents can author as synced locally, so they are immediately
+  // mentionable and openable elsewhere in the app.
+  useAgentAccountsSync()
   const navigate = useNavigate()
   const serverUrlsQuery = useAgentServerUrls()
   const serverUrls = serverUrlsQuery.data || []

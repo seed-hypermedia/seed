@@ -6,6 +6,7 @@ import {
   addOptimisticSessionMessage,
   type AgentSessionDraftMessage,
   getDefaultAgentServerUrl,
+  useAgentAccountsSync,
   useAgentDetail,
   useAgentServerUrl,
   useAgentSession,
@@ -726,6 +727,9 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
 
 export default function AgentSessionRoutePage() {
   const route = useNavRoute()
+  // Keep every account this account's agents can author as synced locally, so they are
+  // immediately mentionable and openable elsewhere in the app.
+  useAgentAccountsSync()
   if (route.key !== 'agent-session') return null
   return <AgentSessionPage sessionId={route.sessionId} routeServerUrl={route.serverUrl} routeAgentId={route.agentId} />
 }

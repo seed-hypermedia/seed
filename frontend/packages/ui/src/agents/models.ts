@@ -388,6 +388,192 @@ export async function syncAgentAccountToLocalNode(serverUrl: string | undefined,
   }
 }
 
+/**
+ * Peers the local node with every configured server's HM node — the multi-server counterpart of
+ * {@link useConnectLocalNodeToAgentHmServer}, sharing its query keys so the two never double-connect.
+ */
+function useConnectLocalNodeToAgentHmServers(serverUrls: string[] | undefined) {
+  const healthQueries = useAgentServerHealths(serverUrls)
+  const canConnect = !!getAgentsPlatform().connectToHmServer
+  const hmServerUrls = useMemo(() => {
+    const urls = new Set<string>()
+    for (const query of healthQueries) {
+      const hmServerUrl = query.data?.hmServerUrl
+      if (hmServerUrl) urls.add(hmServerUrl)
+    }
+    return Array.from(urls).sort()
+  }, [healthQueries])
+  return useQueries({
+    queries: hmServerUrls.map((hmServerUrl) => ({
+      queryKey: ['agents', 'hm-server-connect', hmServerUrl],
+      enabled: canConnect,
+      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
+      retry: false,
+      useErrorBoundary: false,
+      queryFn: async () => connectLocalNodeToAgentHmServer(hmServerUrl),
+    })),
+  })
+}
+
+/**
+ * Lists the signed-in account's uploaded HM account keys on each configured server — the
+ * multi-server counterpart of {@link useSigningIdentities}, sharing its query keys.
+ */
+function useSigningIdentityLists(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
+  return useQueries({
+    queries: (serverUrls || []).map((serverUrl) => ({
+      queryKey: ['agents', 'signing-identities', serverUrl, accountUid, undefined],
+      queryFn: async (): Promise<SigningIdentity[]> => {
+        if (!accountUid) return []
+        const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSigningIdentities'}})
+        if (res._ !== 'ListSigningIdentitiesResponse') throw new Error('Unexpected ListSigningIdentities response')
+        return res.identities
+      },
+      enabled: !!accountUid,
+      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
+      retry: false,
+      useErrorBoundary: false,
+    })),
+  })
+}
+
+/**
+ * Keeps every account the agents surface can author as synced on the local HM node for as long as
+ * an agents page is on screen.
+ *
+ * Mentions and hm:// navigation elsewhere in the app only resolve accounts the local node has
+ * synced, but agent signing accounts live on the agent server's HM node (or a shared agent owner's
+ * node) — so without this, the user could watch an agent publish as an account and still be unable
+ * to @mention it or open its site. This extends the existing screen-driven sync used for session
+ * references ({@link subscribeToAgentReferences}) and resource pages: `platform.subscribeToEntity`
+ * holds a live discovery subscription while the page stays mounted, and the daemon's hot-task TTL
+ * retires it after navigation. A one-shot discover ({@link syncAgentAccountToLocalNode}) is not
+ * enough here — it can race the HM-server peering or settle before new content is published.
+ *
+ * Three account sets, gathered across every configured server:
+ * - the signed-in account's own signing identities (the "Agent Server Accounts" dialog set),
+ *   subscribed recursively so their sites arrive whole;
+ * - the granted signing identities of agents shared with this account (`ListSigningIdentities`
+ *   scoped by agentId returns exactly the granted set for collaborators), also recursive;
+ * - the owner accounts behind shared agents and pending invites, non-recursive — enough for their
+ *   names and avatars to render.
+ *
+ * Only a platform with a local HM node participates; on the web every query stays disabled and
+ * nothing subscribes.
+ */
+export function useAgentAccountsSync() {
+  const platform = getAgentsPlatform()
+  const canSync = !!platform.subscribeToEntity
+  const accountUid = platform.useAccountUid()
+  const serverUrlsQuery = useAgentServerUrls()
+  const serverUrls = useMemo(() => (canSync ? serverUrlsQuery.data || [] : []), [canSync, serverUrlsQuery.data])
+
+  // Discovery only fetches from connected peers, so keep the local node peered with every
+  // configured server's HM node — not just the one an open session already peers with.
+  useConnectLocalNodeToAgentHmServers(serverUrls)
+
+  const agentQueries = useAgentLists(serverUrls, accountUid)
+  const inviteQueries = useAgentInviteLists(serverUrls, accountUid)
+  const ownIdentityQueries = useSigningIdentityLists(serverUrls, accountUid)
+
+  // Owned agents can only be granted the account's own keys, which the unscoped lists already
+  // cover — only shared agents need the per-agent granted set fetched.
+  const sharedAgents = useMemo(
+    () =>
+      serverUrls.flatMap((serverUrl, index) =>
+        (agentQueries[index]?.data || [])
+          .filter((agent) => agent.accessRole && agent.accessRole !== 'owner')
+          .map((agent) => ({serverUrl, agentId: agent.id, ownerAccountId: agent.account})),
+      ),
+    [agentQueries, serverUrls],
+  )
+
+  const sharedIdentityQueries = useQueries({
+    queries: sharedAgents.map(({serverUrl, agentId}) => ({
+      queryKey: ['agents', 'signing-identities', serverUrl, accountUid, agentId],
+      queryFn: async (): Promise<SigningIdentity[]> => {
+        if (!accountUid) return []
+        const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListSigningIdentities', agentId}})
+        if (res._ !== 'ListSigningIdentitiesResponse') throw new Error('Unexpected ListSigningIdentities response')
+        return res.identities
+      },
+      enabled: !!accountUid,
+      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
+      retry: false,
+      useErrorBoundary: false,
+    })),
+  })
+
+  const {authorUids, profileUids} = useMemo(() => {
+    const authors = new Set<string>()
+    for (const query of [...ownIdentityQueries, ...sharedIdentityQueries]) {
+      for (const identity of query.data || []) {
+        // Never derive a principal from identity.name — secret names only coincidentally embed a
+        // uid prefix. accountId is the principal; identities without one cannot be synced.
+        if (identity.accountId) authors.add(identity.accountId)
+      }
+    }
+    const profiles = new Set<string>()
+    for (const {ownerAccountId} of sharedAgents) {
+      if (ownerAccountId) profiles.add(ownerAccountId)
+    }
+    for (const query of inviteQueries) {
+      for (const invite of query.data || []) {
+        if (invite.ownerAccountId) profiles.add(invite.ownerAccountId)
+      }
+    }
+    for (const uid of authors) profiles.delete(uid)
+    return {authorUids: Array.from(authors).sort(), profileUids: Array.from(profiles).sort()}
+  }, [ownIdentityQueries, sharedIdentityQueries, sharedAgents, inviteQueries])
+
+  // Re-subscribe only when the account sets actually change, not on every poll-driven render.
+  const subscriptionsKey = `${authorUids.join(',')}|${profileUids.join(',')}`
+  const targetsRef = useRef<{uid: string; recursive: boolean}[]>([])
+  targetsRef.current = [
+    ...authorUids.map((uid) => ({uid, recursive: true})),
+    ...profileUids.map((uid) => ({uid, recursive: false})),
+  ]
+
+  useEffect(() => {
+    const subscribeToEntity = getAgentsPlatform().subscribeToEntity
+    if (!subscribeToEntity) return
+    const targets = targetsRef.current
+    if (targets.length === 0) return
+    console.info('[agents-discovery] agents UI on screen — syncing signable accounts to local node', {
+      authorAccounts: targets.filter(({recursive}) => recursive).map(({uid}) => uid),
+      profileAccounts: targets.filter(({recursive}) => !recursive).map(({uid}) => uid),
+    })
+    const subscriptions = targets.flatMap(({uid, recursive}) => {
+      const id = unpackHmId(`hm://${uid}`)
+      if (!id) return []
+      const discoveryId = `hm://${uid}${recursive ? '/**' : ''}`
+      console.info('[agents-discovery] keeping agent account synced on local node', {id: discoveryId})
+      return [
+        subscribeToEntity(
+          {id, recursive},
+          {
+            onError: (error) => {
+              console.warn('[agents-discovery] agent account sync failed', {
+                id: discoveryId,
+                error: error instanceof Error ? error.message : String(error),
+              })
+            },
+          },
+        ),
+      ]
+    })
+    return () => {
+      console.info('[agents-discovery] agents UI left screen — releasing agent account subscriptions', {
+        count: subscriptions.length,
+      })
+      subscriptions.forEach((subscription) => subscription.unsubscribe())
+    }
+  }, [subscriptionsKey])
+}
+
 /** Lists agents for the selected account on the configured server. */
 export function useAgentList(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useQuery({
