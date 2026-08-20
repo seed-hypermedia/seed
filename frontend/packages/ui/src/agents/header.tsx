@@ -316,7 +316,6 @@ export function AgentHeader({
             ) : null}
           </div>
           <div className="flex flex-none items-center gap-2">
-            {agent ? <AgentModelBadge agent={agent} /> : null}
             {activeTab === 'sessions' && onCreateSession ? (
               <Button className="max-sm:min-h-10" onClick={onCreateSession} disabled={creatingSession}>
                 <MessageSquarePlus className="mr-2 size-4" /> New session
@@ -384,20 +383,6 @@ export function AgentHeader({
         ) : null}
       </section>
     </>
-  )
-}
-
-/**
- * Read-only model tag in the agent header: the agent's default model plus the
- * reasoning pie. Model switching happens per session (see SessionModelBadge)
- * or in the settings tab, so this tag is informational only.
- */
-function AgentModelBadge({agent}: {agent: AgentHeaderInfo}) {
-  return (
-    <Badge variant="secondary" className="max-w-56 flex-none gap-1.5">
-      <span className="truncate">{agent.definition.model}</span>
-      {agent.definition.reasoningLevel ? <ReasoningPie level={agent.definition.reasoningLevel} /> : null}
-    </Badge>
   )
 }
 
