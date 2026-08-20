@@ -18,7 +18,11 @@ beforeAll(async () => {
 
 describe('inspectorBlobActions', () => {
   test('an Onyx schema blob offers Edit + New Instance and reads as a schema', () => {
-    const value = {type: 'hm://hyper.media/map', properties: {}, name: 'Thing'} // a valid Onyx schema
+    const value = {
+      type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map',
+      properties: {},
+      name: 'Thing',
+    } // a valid Onyx schema (kinds are pinned to the onyx account's published URLs)
     expect(inspectorBlobActions(CBOR_CID, value, true)).toEqual({
       canEdit: true,
       valueIsSchema: true,
