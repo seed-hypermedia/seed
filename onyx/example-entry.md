@@ -1,9 +1,9 @@
 ---
-name: "Filesystem entry"
+name: "Example: Filesystem entry"
 summary: "Either a folder or a file (a union)."
 ---
 
-# Filesystem entry
+# Example: Filesystem entry
 
 Either a folder or a file (a union).
 

@@ -1,9 +1,9 @@
 ---
-name: "Person document"
+name: "Example: Person document"
 summary: "A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema e"
 ---
 
-# Person document
+# Example: Person document
 
 A document that describes a person — the base document, refined so its metadata requires a `surname`. Illustrates the corrected model: a typed document schema extends hm://seed.hyper.media/document and constrains `metadata`. Referenced by other documents via `schema`, and by a directory via `childrenSchema`.
 

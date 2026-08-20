@@ -1,9 +1,9 @@
 ---
-name: "Admin"
+name: "Example: Admin"
 summary: "An employee, extended with a list of permissions."
 ---
 
-# Admin
+# Example: Admin
 
 An employee, extended with a list of permissions.
 

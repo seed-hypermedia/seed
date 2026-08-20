@@ -1,9 +1,9 @@
 ---
-name: "Registry"
+name: "Example: Registry"
 summary: "A map from ids to person links — Map<Link<Person>>."
 ---
 
-# Registry
+# Example: Registry
 
 A map from ids to person links — Map<Link<Person>>.
 

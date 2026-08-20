@@ -1,9 +1,9 @@
 ---
-name: "Person"
+name: "Example: Person"
 summary: "A person with a name, age, active flag, home address, and nicknames."
 ---
 
-# Person
+# Example: Person
 
 A person with a name, age, active flag, home address, and nicknames.
 

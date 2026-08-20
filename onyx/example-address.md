@@ -1,9 +1,9 @@
 ---
-name: "Address"
+name: "Example: Address"
 summary: "A postal address: street and city (required) plus an optional postal code."
 ---
 
-# Address
+# Example: Address
 
 A postal address: street and city (required) plus an optional postal code.
 
