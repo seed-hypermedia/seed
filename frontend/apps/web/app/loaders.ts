@@ -13,7 +13,6 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   commentIdToHmId,
-  createWebHMUrl,
   extractQueryBlocks,
   extractRefs,
   getBreadcrumbDocumentIds,
@@ -22,6 +21,7 @@ import {
   hmIdPathToEntityQueryPath,
   hypermediaUrlToHref,
   packHmId,
+  RedirectErrorDetails,
 } from '@shm/shared'
 import {DAEMON_FILE_URL, SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMDocument} from '@shm/shared/document-utils'
@@ -48,6 +48,7 @@ import {instrument, InstrumentationContext} from './instrumentation.server'
 import {getOptimizedImageUrl} from './providers'
 import {createPrefetchContext, dehydratePrefetchContext, PrefetchContext} from './queries.server'
 import {ParsedRequest} from './request'
+import {createResourceRedirectUrl, RedirectRouteContext} from './resource-redirect'
 import {serverUniversalClient} from './server-universal-client'
 import {getConfig} from './site-config.server'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
@@ -526,21 +527,15 @@ export async function loadResource(
 
   const resource = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () => fetchResource(id))
   if (resource.type === 'redirect') {
-    const destRedirectUrl = createWebHMUrl(resource.redirectTarget.uid, {
-      path: resource.redirectTarget.path,
-      version: resource.redirectTarget.version,
-      latest: resource.redirectTarget.latest,
-      blockRef: resource.redirectTarget.blockRef,
-      blockRange: resource.redirectTarget.blockRange,
-      originHomeId: options?.originHomeId,
-      hostname: null,
-    })
-    console.log('[web-loader] redirecting resource route', {
-      from: id,
-      to: resource.redirectTarget,
-      destRedirectUrl,
-    })
-    throw redirect(destRedirectUrl)
+    // The destination URL is built in loadSiteResource, which has the route
+    // context (view term, open comment, panel) that must survive the redirect.
+    throw new HMRedirectError(
+      new RedirectErrorDetails({
+        targetAccount: resource.redirectTarget.uid,
+        targetPath: hmIdPathToEntityQueryPath(resource.redirectTarget.path),
+        republish: resource.republish,
+      }),
+    )
   }
   if (resource.type === 'not-found') {
     throw new HMNotFoundError()
@@ -863,19 +858,20 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         {status: 404, headers: {'Cache-Control': 'no-store'}},
       )
     }
-    console.error('Error Loading Site Document', id, e)
     if (e instanceof HMRedirectError) {
-      const destRedirectUrl = createWebHMUrl(e.target.uid, {
-        path: e.target.path,
-        version: e.target.version,
-        latest: e.target.latest,
-        blockRef: e.target.blockRef,
-        blockRange: e.target.blockRange,
+      const destRedirectUrl = createResourceRedirectUrl(
+        e.target,
+        (extraData || {}) as RedirectRouteContext,
         originHomeId,
-        hostname: null,
+      )
+      console.log('[web-loader] redirecting resource route', {
+        from: id,
+        to: e.target,
+        destRedirectUrl,
       })
       return redirect(destRedirectUrl)
     }
+    console.error('Error Loading Site Document', id, e)
 
     let daemonError: GRPCError | undefined = undefined
     if (e instanceof ConnectError) {
