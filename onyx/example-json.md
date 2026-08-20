@@ -1,9 +1,9 @@
 ---
-name: "JSON value"
+name: "Example: JSON value"
 summary: "A recursive JSON value: null, boolean, number, string, list, or map. References itself."
 ---
 
-# JSON value
+# Example: JSON value
 
 A recursive JSON value: null, boolean, number, string, list, or map. References itself.
 

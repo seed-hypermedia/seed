@@ -1,9 +1,9 @@
 ---
-name: "example-root"
+name: "Example: Root"
 summary: "example-root — instance."
 ---
 
-# example-root
+# Example: Root
 
 
 ## Shape

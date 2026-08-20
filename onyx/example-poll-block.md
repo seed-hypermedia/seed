@@ -1,9 +1,9 @@
 ---
-name: "Poll block (custom)"
+name: "Example: Poll block (custom)"
 summary: "An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block."
 ---
 
-# Poll block (custom)
+# Example: Poll block (custom)
 
 An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block.
 
