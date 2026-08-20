@@ -1,0 +1,10 @@
+{
+  "name": "Query style",
+  "description": "How a Query block presents its results: a card grid, a compact list, or a table.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+  "enum": [
+    "Card",
+    "List",
+    "Table"
+  ]
+}
