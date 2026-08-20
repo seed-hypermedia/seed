@@ -525,7 +525,7 @@ export function useAgentAccountsSync() {
         if (invite.ownerAccountId) profiles.add(invite.ownerAccountId)
       }
     }
-    for (const uid of authors) profiles.delete(uid)
+    for (const uid of Array.from(authors)) profiles.delete(uid)
     return {authorUids: Array.from(authors).sort(), profileUids: Array.from(profiles).sort()}
   }, [ownIdentityQueries, sharedIdentityQueries, sharedAgents, inviteQueries])
 
