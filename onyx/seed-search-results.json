@@ -1,0 +1,24 @@
+{
+  "name": "Search results",
+  "description": "A page of search results with the query echoed back and a pagination token. A derived read model computed by the Seed daemon/API for clients \u2014 not a signed network blob.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": [
+    "entities",
+    "searchQuery",
+    "nextPageToken"
+  ],
+  "properties": {
+    "entities": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+      "items": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-search-result-item"
+      }
+    },
+    "searchQuery": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "nextPageToken": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    }
+  }
+}
