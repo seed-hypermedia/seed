@@ -1,0 +1,43 @@
+{
+  "name": "RPC: ListCommentVersions",
+  "description": "Lists the edit history (all versions) of a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "properties": {
+    "key": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": [
+        "ListCommentVersions"
+      ]
+    },
+    "input": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "properties": {
+        "id": {
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "output": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "properties": {
+        "versions": {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+          "items": {
+            "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment"
+          }
+        }
+      },
+      "required": [
+        "versions"
+      ]
+    }
+  },
+  "required": [
+    "key",
+    "input",
+    "output"
+  ]
+}
