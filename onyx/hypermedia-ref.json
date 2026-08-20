@@ -1,0 +1,43 @@
+{
+  "name": "Ref",
+  "description": "A signed pointer (like a Git ref) claiming that a path in a space points at the current head Changes of a document.",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob",
+  "required": [
+    "heads"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": [
+        "Ref"
+      ]
+    },
+    "space": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal"
+    },
+    "path": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "genesisBlob": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
+    },
+    "capability": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
+    },
+    "heads": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+      "items": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
+      }
+    },
+    "redirect": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-redirect-target"
+    },
+    "generation": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+    },
+    "visibility": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility"
+    }
+  }
+}

@@ -11,6 +11,7 @@ import {
   CopyPlus,
   Download,
   ExternalLink,
+  FileCode2,
   FilePlus,
   FileText,
   FileUp,
@@ -35,6 +36,19 @@ import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+import {seedValue} from './onyx/onyx-data-editor'
+import {onyxSubschema, useOnyxSchema, useSubschema} from './onyx/onyx-schema-context'
+import {HMEntityField, HMEntityLink} from './hm-entity-field'
+import {
+  EnumValueSelect,
+  literalEnumOptions,
+  SchemaFieldChips,
+  SchemaWarningBadge,
+  suggestedFieldType,
+  useSchemaFieldSuggestions,
+  useSchemaKeyLabel,
+  type LiteralOption,
+} from './onyx/onyx-value-editor-schema'
 
 /**
  * Behavior rules for the recursive value editor, so it can serve both the
@@ -202,8 +216,6 @@ export function findInvalidValue(value: unknown, rules: ValueEditorRules, path: 
 // No text-transform: keys are case-sensitive data, so they display verbatim.
 export const FIELD_LABEL_CLASS = 'text-muted-foreground text-xs font-medium'
 const NESTED_GROUP_CLASS = 'border-border ml-1 flex flex-col gap-1 border-l-2 pl-3'
-// Expanded objects get a boxed treatment (border + slight fill) so their extent is clear.
-const NESTED_OBJECT_CLASS = 'border-border bg-muted/40 flex flex-col gap-1 rounded-md border px-3 py-2'
 
 // ---------------------------------------------------------------------------
 // Undo history
@@ -383,18 +395,10 @@ async function pasteFromClipboard(handlers: SelectionHandlers) {
 }
 
 /**
- * Keyboard-navigable tree of value editors. Rows form one focus group with a
- * roving tab-stop: Tab enters the tree, then:
- *   ↑/↓        move between visible rows
- *   ←          collapse an expanded container, else move to the parent row
- *   →          expand a collapsed container, else move to the first child
- *   Home/End   first / last visible row
- *   Enter      toggle a container, else focus the row's value editor
- *   Escape     deselect (or close the context menu)
- *   Cmd/Ctrl+C / V   copy / paste the focused value (validated)
- *   Delete/Backspace remove the focused row
- *   Cmd/Ctrl+Z / Shift+…  undo / redo
- * Selection follows DOM focus, so it stays consistent as the tree changes.
+ * Enables row selection, clipboard, context menus, and undo shortcuts for all
+ * value editors below it. Click a row to select it: Cmd/Ctrl+C copies the
+ * value as JSON, Cmd/Ctrl+V pastes over it (validated), Delete removes it,
+ * Escape deselects. Cmd/Ctrl+Z / Shift+Cmd/Ctrl+Z call onUndo/onRedo.
  */
 export function ValueEditorProvider({
   children,
@@ -797,40 +801,21 @@ function CollapseToggle({collapsed, onToggle}: {collapsed: boolean; onToggle: ()
   )
 }
 
-/** A compact, single-line rendering of a value's actual data (for collapsed rows). */
-function compactValuePreview(value: unknown, rules: ValueEditorRules): string {
-  if (value === null) return 'null'
-  if (typeof value === 'string') return JSON.stringify(value)
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
-  if (isDagJsonLink(value)) return `→ ${value['/']}`
-  if (isDagJsonBytes(value)) {
-    try {
-      return `${formatByteSize(base64ToBytes(value['/'].bytes).length)} binary`
-    } catch {
-      return 'binary'
-    }
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => compactValuePreview(item, rules)).join(' ')}]`
-  }
-  if (isPlainObject(value)) {
-    const entries = canonicalEntries(value, {hideNull: rules.hideNullEntries})
-    return entries.map(([key, child]) => `${key}: ${compactValuePreview(child, rules)}`).join('   ')
-  }
-  return String(value)
-}
-
-/** Collapsed container: a one-line preview of the actual data; click to expand. */
-function CollapsedSummary({value, rules, onExpand}: {value: unknown; rules: ValueEditorRules; onExpand: () => void}) {
-  const preview = compactValuePreview(value, rules)
+/** Summary line shown in place of a collapsed container's editor. */
+function CollapsedSummary({value, onExpand}: {value: unknown; onExpand: () => void}) {
+  const summary = Array.isArray(value)
+    ? `List · ${value.length} ${value.length === 1 ? 'item' : 'items'}`
+    : (() => {
+        const count = canonicalEntries(value as Record<string, unknown>).length
+        return `Object · ${count} ${count === 1 ? 'field' : 'fields'}`
+      })()
   return (
     <button
       type="button"
-      title={preview}
-      className="text-muted-foreground hover:text-foreground block max-w-full overflow-hidden text-left font-mono text-xs text-ellipsis whitespace-pre transition-colors"
+      className="text-muted-foreground hover:text-foreground w-fit text-sm transition-colors"
       onClick={onExpand}
     >
-      {preview}
+      {summary}
     </button>
   )
 }
@@ -891,6 +876,7 @@ export function FieldRow({
   rules,
   path,
   className,
+  canRemove = true,
 }: {
   fieldKey: string
   value: unknown
@@ -906,12 +892,29 @@ export function FieldRow({
   rules: ValueEditorRules
   path: ValuePath
   className?: string
+  /**
+   * Whether the field may be removed. `false` (e.g. a schema-required field)
+   * hides the Remove action and disables the selection/keyboard delete.
+   */
+  canRemove?: boolean
 }) {
   const isContainer = isEditableContainer(value)
   const [collapsed, setCollapsed] = useState(false)
   const [editing, setEditing] = useState(false)
-  const {onCreateBlob} = useContext(SelectionStateContext)
-  const handlers: SelectionHandlers = {getValue: () => value, setValue: onValue, remove: onRemove, rules}
+  const onCreateBlob = useContext(SelectionStateContext).onCreateBlob
+  // A non-removable field ignores the selection/keyboard delete path too.
+  const handlers: SelectionHandlers = {
+    getValue: () => value,
+    setValue: onValue,
+    remove: canRemove ? onRemove : () => {},
+    rules,
+  }
+  // A schema-keyed field (key = the schema's ipfs:// URL) labels itself with
+  // the schema's title; the raw key stays available in a tooltip.
+  const schemaKeyLabel = useSchemaKeyLabel(fieldKey)
+  // Schema-keyed fields are structural — their name/type are dictated by the
+  // attached schema, so the name/type edit dialog doesn't apply to them.
+  const canEditField = !schemaKeyLabel
   const getMenuActions = () => [
     ...baseMenuActions({value, handlers, isContainer, collapsed, setCollapsed}),
     // Text fields can spawn a new IPFS object (blob) to reference here.
@@ -925,19 +928,27 @@ export function FieldRow({
           },
         ]
       : []),
-    {
-      key: 'edit',
-      label: 'Edit field',
-      icon: <Pencil className="size-4" />,
-      onClick: () => setEditing(true),
-    },
-    {
-      key: 'remove',
-      label: `Remove ${fieldKey}`,
-      icon: <X className="size-4" />,
-      destructive: true,
-      onClick: onRemove,
-    },
+    ...(canEditField
+      ? [
+          {
+            key: 'edit',
+            label: 'Edit field',
+            icon: <Pencil className="size-4" />,
+            onClick: () => setEditing(true),
+          },
+        ]
+      : []),
+    ...(canRemove
+      ? [
+          {
+            key: 'remove',
+            label: `Remove ${fieldKey}`,
+            icon: <X className="size-4" />,
+            destructive: true,
+            onClick: onRemove,
+          },
+        ]
+      : []),
   ]
   const {isSelected, rowProps} = useRowSelection(pathId(path), {
     path,
@@ -959,17 +970,27 @@ export function FieldRow({
       )}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {/* Field name first so names align regardless of type; the collapse
-            chevron sits after the name for containers. */}
+        {/* Field name first (so the row's first span is the label and names
+            align regardless of type); the collapse chevron sits after it. */}
         <div className="flex items-center gap-1">
-          <span className={cn(FIELD_LABEL_CLASS, 'truncate')} title={fieldKey}>
-            {fieldKey}
-          </span>
+          {schemaKeyLabel ? (
+            <Tooltip content={fieldKey}>
+              <span className={cn(FIELD_LABEL_CLASS, 'flex items-center gap-1 truncate')}>
+                <FileCode2 className="size-3 shrink-0" />
+                {schemaKeyLabel}
+              </span>
+            </Tooltip>
+          ) : (
+            <span className={cn(FIELD_LABEL_CLASS, 'truncate')} title={fieldKey}>
+              {fieldKey}
+            </span>
+          )}
           {isContainer && <CollapseToggle collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />}
+          <SchemaWarningBadge path={path} />
         </div>
-        <div>
+        <div className="pl-5">
           {isContainer && collapsed ? (
-            <CollapsedSummary value={value} rules={rules} onExpand={() => setCollapsed(false)} />
+            <CollapsedSummary value={value} onExpand={() => setCollapsed(false)} />
           ) : (
             <ValueEditor value={value} onValue={onValue} rules={rules} path={path} />
           )}
@@ -985,20 +1006,23 @@ export function FieldRow({
           className={cn(isSelected && 'opacity-100')}
         />
       </div>
-      <FieldDialog
-        open={editing}
-        onOpenChange={setEditing}
-        mode="edit"
-        rules={rules}
-        existingKeys={siblingKeys}
-        initialName={fieldKey}
-        initialType={valueToFieldType(value)}
-        parentPath={path.slice(0, -1).filter((segment): segment is string => typeof segment === 'string')}
-        onSubmit={(newKey, newType) => {
-          const newValue = newType === valueToFieldType(value) ? value : coerceFieldValue(value, newType, rules)
-          onEditField(newKey, newValue)
-        }}
-      />
+      {canEditField && (
+        <FieldDialog
+          open={editing}
+          onOpenChange={setEditing}
+          mode="edit"
+          rules={rules}
+          path={path.slice(0, -1)}
+          existingKeys={siblingKeys}
+          initialName={fieldKey}
+          initialType={valueToFieldType(value)}
+          parentPath={path.slice(0, -1).filter((segment): segment is string => typeof segment === 'string')}
+          onSubmit={(newKey, newType) => {
+            const newValue = newType === valueToFieldType(value) ? value : coerceFieldValue(value, newType, rules)
+            onEditField(newKey, newValue)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -1009,20 +1033,15 @@ export function FieldRow({
 
 /** Read-only recursive rendering of a value. */
 export function ValueDisplay({value, rules = CBOR_VALUE_RULES}: {value: unknown; rules?: ValueEditorRules}) {
-  const {openFile, openUrl} = useContext(SelectionStateContext)
+  const sel = useContext(SelectionStateContext)
+  const openFile = sel?.openFile
+  const openUrl = sel?.openUrl
   if (typeof value === 'string') {
     const cid = findIpfsUrlCid(value)
     if (cid) return <IpfsFileTag cid={cid} onOpen={openFile} />
-    if (value.startsWith('hm://') && openUrl) {
-      return (
-        <button
-          type="button"
-          className="text-primary font-mono text-sm break-all hover:underline"
-          onClick={() => openUrl(value)}
-        >
-          {value}
-        </button>
-      )
+    // A hypermedia reference shows the target's title as a clickable pill.
+    if (value.startsWith('hm://')) {
+      return <HMEntityLink url={value} onOpen={openUrl} />
     }
   }
   // A native IPLD link renders as the same tag as an ipfs:// reference.
@@ -1093,14 +1112,62 @@ export function ValueEditor({
   rules: ValueEditorRules
   path?: ValuePath
 }) {
+  // Advisory schema hint for this node (undefined when editing schemaless).
+  const subschema = useSubschema(path)
+  const resolvedSchema = subschema && subschema !== 'unresolved' ? subschema : undefined
+  // A scalar that is a member of the schema's literal union renders as a
+  // dropdown of the options (mixed types supported).
+  const allLiteralOptions = resolvedSchema ? literalEnumOptions(resolvedSchema) : null
+  const literalOptions =
+    allLiteralOptions && allLiteralOptions.some((option) => option.value === value) ? allLiteralOptions : undefined
   if (typeof value === 'boolean') {
-    return <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />
+    return (
+      <ScalarLeafEditor
+        value={value}
+        literalOptions={literalOptions}
+        onValue={onValue}
+        renderFallback={() => <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />}
+      />
+    )
   }
   if (typeof value === 'number') {
-    return <NumberInput value={value} onValue={onValue} rules={rules} path={path} />
+    return (
+      <ScalarLeafEditor
+        value={value}
+        literalOptions={literalOptions}
+        onValue={onValue}
+        renderFallback={(onFocusChange, autoFocus) => (
+          <NumberInput
+            value={value}
+            onValue={onValue}
+            rules={rules}
+            path={path}
+            autoFocus={autoFocus}
+            onFocusChange={onFocusChange}
+          />
+        )}
+      />
+    )
   }
   if (typeof value === 'string') {
-    return <StringLeafEditor value={value} onValue={onValue} rules={rules} path={path} />
+    const hmMode =
+      resolvedSchema?.format === 'hm-profile'
+        ? ('profile' as const)
+        : resolvedSchema?.format === 'hm-url'
+          ? ('document' as const)
+          : undefined
+    const ipfsMode = resolvedSchema?.format === 'ipfs'
+    return (
+      <StringLeafEditor
+        value={value}
+        literalOptions={literalOptions}
+        hmMode={hmMode}
+        ipfsMode={ipfsMode}
+        onValue={onValue}
+        rules={rules}
+        path={path}
+      />
+    )
   }
   if (isDagJsonLink(value)) {
     return <LinkValueEditor value={value} onValue={onValue} />
@@ -1115,6 +1182,44 @@ export function ValueEditor({
     return <ObjectEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
   return <span className="text-muted-foreground font-mono text-sm">{String(value)}</span>
+}
+
+/**
+ * Non-string scalar leaf (number/boolean): the plain editor, or a literal
+ * dropdown when the value is a member of the schema's literal union.
+ * "Custom value…" temporarily reveals the plain editor (until the next
+ * commit), and an actively-focused editor is never unmounted by a
+ * late-arriving schema. The union never removes the ability to enter an
+ * arbitrary value.
+ */
+function ScalarLeafEditor({
+  value,
+  literalOptions,
+  onValue,
+  renderFallback,
+}: {
+  value: unknown
+  literalOptions: LiteralOption[] | undefined
+  onValue: (value: unknown) => void
+  renderFallback: (onFocusChange: (focused: boolean) => void, autoFocus: boolean) => React.ReactNode
+}) {
+  const [editingCustom, setEditingCustom] = useState(false)
+  const [focused, setFocused] = useState(false)
+  useEffect(() => {
+    // A commit landed; a conforming value returns to the select.
+    setEditingCustom(false)
+  }, [value])
+  if (literalOptions && !editingCustom && !focused) {
+    return (
+      <EnumValueSelect
+        value={value}
+        options={literalOptions}
+        onValue={onValue}
+        onEditAsText={() => setEditingCustom(true)}
+      />
+    )
+  }
+  return <>{renderFallback(setFocused, editingCustom)}</>
 }
 
 /** Extract a bare CID from a raw CID, an `ipfs://` URL, or a gateway `/ipfs/` URL. */
@@ -1134,32 +1239,47 @@ function isIpfsUrlText(text: string): boolean {
 }
 
 /**
- * String leaf: free-text input committing on blur/Enter, that also accepts a
- * dropped file (uploads it to IPFS and stores an `ipfs://<cid>` reference). An
- * `ipfs://` value renders as a file tag that opens the file in its own viewer.
- * In IPLD mode (raw DAG-CBOR blobs), pasting an IPFS URL creates a native link.
+ * String leaf: a text field with schema-aware and IPFS behaviors layered on:
+ * - hm-url/hm-profile schema formats → a search-assisted hypermedia reference.
+ * - a literal union → a select with "Custom value…" back to free text; the
+ *   select never unmounts a focused input (blur, which commits, must fire, so a
+ *   late-arriving schema can't silently drop the draft).
+ * - a dropped file → uploaded to IPFS, stored as an `ipfs://<cid>` reference and
+ *   rendered as a file tag that opens the file in its own viewer.
+ * - in IPLD mode (raw DAG-CBOR blobs), pasting an IPFS URL creates a native link.
  */
 function StringLeafEditor({
   value,
+  literalOptions,
+  hmMode,
+  ipfsMode,
   onValue,
   rules,
   path,
 }: {
   value: string
+  literalOptions: LiteralOption[] | undefined
+  /** Schema format hm-url/hm-profile: search-assisted hypermedia reference input. */
+  hmMode?: 'document' | 'profile'
+  /** Schema format ipfs: the value is an `ipfs://<cid>` file reference — offer a
+   * file picker (+ paste) when empty, and the file pill once set. */
+  ipfsMode?: boolean
   onValue: (value: unknown) => void
   rules: ValueEditorRules
   path: ValuePath
 }) {
-  const {fileUpload, openFile} = useContext(SelectionStateContext)
+  const sel = useContext(SelectionStateContext)
+  const fileUpload = sel?.fileUpload
+  const openFile = sel?.openFile
+  const openUrl = sel?.openUrl
+  const ipfsFileInputRef = useRef<HTMLInputElement>(null)
+  const [editingText, setEditingText] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const canDrop = !!fileUpload && !uploading
   const cid = findIpfsUrlCid(value)
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files?.[0]
+  const uploadAndSet = async (file: File | undefined | null) => {
     if (!file || !fileUpload) return
     setUploading(true)
     try {
@@ -1170,6 +1290,28 @@ function StringLeafEditor({
     } finally {
       setUploading(false)
     }
+  }
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOver(false)
+    await uploadAndSet(e.dataTransfer.files?.[0])
+  }
+
+  // Schema-driven presentations take over only when the field isn't actively
+  // being edited as free text (a late-arriving schema must not unmount a
+  // focused input — blur wouldn't fire and the draft would be lost).
+  if (hmMode && !editingText) {
+    return <HMEntityField value={value} mode={hmMode} onValue={onValue} onOpen={openUrl} />
+  }
+  if (literalOptions && !editingText) {
+    return (
+      <EnumValueSelect
+        value={value}
+        options={literalOptions}
+        onValue={onValue}
+        onEditAsText={() => setEditingText(true)}
+      />
+    )
   }
 
   return (
@@ -1199,28 +1341,61 @@ function StringLeafEditor({
       {cid ? (
         <IpfsFileTag cid={cid} onOpen={openFile} onClear={() => onValue('')} />
       ) : (
-        <CommitOnBlurInput
-          initialValue={value}
-          placeholder={'Empty Text'}
-          // Save while typing (debounced) so edits persist without blurring.
-          autosave
-          suggestionPath={path.filter((segment): segment is string => typeof segment === 'string')}
-          suggestionKind="text"
-          // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
-          normalize={gatewayUrlToIpfs}
-          onCommit={(text) => {
-            // In a raw DAG-CBOR blob, an IPFS URL becomes a native IPLD link
-            // ({"/": cid}); in metadata it stays an ipfs:// string reference.
-            if (rules.ipld && isIpfsUrlText(text)) {
-              const linkCid = linkCidFromText(text)
-              if (linkCid) {
-                onValue({'/': linkCid})
-                return
+        <div className="flex items-center gap-1">
+          <CommitOnBlurInput
+            initialValue={value}
+            autoFocus={editingText}
+            placeholder={ipfsMode ? 'ipfs:// URL or CID' : 'Empty Text'}
+            // Save while typing (debounced) so edits persist without blurring.
+            autosave
+            suggestionPath={path.filter((segment): segment is string => typeof segment === 'string')}
+            suggestionKind="text"
+            // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
+            normalize={gatewayUrlToIpfs}
+            onFocusChange={(focused) => {
+              // Focus latches free-text mode; blur (which commits) releases it so a
+              // conforming committed value can render as the select again.
+              setEditingText(focused)
+            }}
+            onCommit={(text) => {
+              // In a raw DAG-CBOR blob, an IPFS URL becomes a native IPLD link
+              // ({"/": cid}); in metadata it stays an ipfs:// string reference.
+              if (rules.ipld && isIpfsUrlText(text)) {
+                const linkCid = linkCidFromText(text)
+                if (linkCid) {
+                  onValue({'/': linkCid})
+                  return
+                }
               }
-            }
-            onValue(text)
-          }}
-        />
+              onValue(text)
+            }}
+          />
+          {/* An ipfs-typed field offers an explicit file picker (drop also works). */}
+          {ipfsMode && fileUpload && (
+            <>
+              <input
+                ref={ipfsFileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  void uploadAndSet(file)
+                }}
+              />
+              <Tooltip content="Upload a file to IPFS">
+                <Button
+                  variant="outline"
+                  size="iconSm"
+                  aria-label="Upload file to IPFS"
+                  onClick={() => ipfsFileInputRef.current?.click()}
+                >
+                  <FileUp className="size-4" />
+                </Button>
+              </Tooltip>
+            </>
+          )}
+        </div>
       )}
       {uploading && (
         <div className="bg-background/70 absolute inset-0 flex items-center justify-center gap-2 rounded-md">
@@ -1291,7 +1466,9 @@ function IpfsFileTag({
  * CID or IPFS URL.
  */
 function LinkValueEditor({value, onValue}: {value: {'/': string}; onValue: (value: unknown) => void}) {
-  const {openUrl, openFile} = useContext(SelectionStateContext)
+  const sel = useContext(SelectionStateContext)
+  const openUrl = sel?.openUrl
+  const openFile = sel?.openFile
   const cid = value['/']
   const isValid = !!parseCidString(cid)
   // Prefer openFile (opens the linked blob in its own window); fall back to openUrl.
@@ -1438,7 +1615,7 @@ export function ObjectEditor({
     }
   }
   return (
-    <div className={NESTED_OBJECT_CLASS}>
+    <div className={NESTED_GROUP_CLASS}>
       {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields</p>}
       {entries.map(([key, child]) => (
         <FieldRow
@@ -1453,10 +1630,16 @@ export function ObjectEditor({
           path={[...path, key]}
         />
       ))}
+      <SchemaFieldChips
+        path={path}
+        existingKeys={Object.keys(value)}
+        rules={rules}
+        onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
+      />
       <AddFieldForm
         compact
         rules={rules}
-        path={path.filter((segment): segment is string => typeof segment === 'string')}
+        path={path}
         existingKeys={entries.map(([key]) => key)}
         onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
       />
@@ -1523,7 +1706,7 @@ export function ListEditor({
           }}
         />
       ))}
-      <AddFieldForm compact itemMode rules={rules} onAdd={(_key, item) => onValue([...value, item])} />
+      <AddFieldForm compact itemMode rules={rules} path={path} onAdd={(_key, item) => onValue([...value, item])} />
     </div>
   )
 }
@@ -1662,11 +1845,12 @@ function ListItemRow({
           <span className="size-4 shrink-0" />
         )}
         <span className="text-muted-foreground font-mono text-xs">{index + 1}.</span>
+        <SchemaWarningBadge path={path} />
       </div>
       <div className="min-w-0 flex-1">
         {isContainer && collapsed ? (
           <div className="pt-1">
-            <CollapsedSummary value={item} rules={rules} onExpand={() => setCollapsed(false)} />
+            <CollapsedSummary value={item} onExpand={() => setCollapsed(false)} />
           </div>
         ) : (
           <ValueEditor value={item} onValue={onItem} rules={rules} path={path} />
@@ -1677,8 +1861,10 @@ function ListItemRow({
         <RowActionsMenu
           label={`Actions for item ${index + 1}`}
           getActions={getMenuActions}
-          // Only the selected item shows its actions (selection follows focus).
-          className={cn(isSelected && 'opacity-100')}
+          className={cn(
+            'group-focus-within/item:opacity-100 group-hover/item:opacity-100',
+            isSelected && 'opacity-100',
+          )}
         />
       </div>
       <FieldDialog
@@ -1687,6 +1873,7 @@ function ListItemRow({
         mode="edit"
         itemMode
         rules={rules}
+        path={path.slice(0, -1)}
         initialType={valueToFieldType(item)}
         onSubmit={(_name, newType) => {
           if (newType !== valueToFieldType(item)) onItem(coerceFieldValue(item, newType, rules))
@@ -1748,12 +1935,14 @@ function NumberInput({
         <Input
           value={text}
           inputMode="numeric"
-          role="combobox"
-          aria-autocomplete="list"
-          aria-expanded={suggestionsOpen && visibleSuggestions.length > 0}
-          aria-controls={`number-suggestions-${pathId(path ?? [])}`}
+          role={autocomplete ? 'combobox' : undefined}
+          aria-autocomplete={autocomplete ? 'list' : undefined}
+          aria-expanded={autocomplete ? suggestionsOpen && visibleSuggestions.length > 0 : undefined}
+          aria-controls={autocomplete ? `number-suggestions-${pathId(path ?? [])}` : undefined}
           aria-activedescendant={
-            activeIndex === null ? undefined : `number-suggestions-${pathId(path ?? [])}-option-${activeIndex}`
+            autocomplete && activeIndex !== null
+              ? `number-suggestions-${pathId(path ?? [])}-option-${activeIndex}`
+              : undefined
           }
           autoFocus={autoFocus}
           onFocus={() => {
@@ -1915,12 +2104,12 @@ function CommitOnBlurInput({
         value={text}
         placeholder={placeholder}
         className={className}
-        role={suggestionKind ? 'combobox' : undefined}
-        aria-autocomplete={suggestionKind ? 'list' : undefined}
-        aria-expanded={suggestionKind ? suggestionsOpen && visibleSuggestions.length > 0 : undefined}
-        aria-controls={suggestionKind ? `text-suggestions-${pathId(suggestionPath ?? [])}` : undefined}
+        role={autocomplete && suggestionKind ? 'combobox' : undefined}
+        aria-autocomplete={autocomplete && suggestionKind ? 'list' : undefined}
+        aria-expanded={autocomplete && suggestionKind ? suggestionsOpen && visibleSuggestions.length > 0 : undefined}
+        aria-controls={autocomplete && suggestionKind ? `text-suggestions-${pathId(suggestionPath ?? [])}` : undefined}
         aria-activedescendant={
-          suggestionKind && activeIndex !== null
+          autocomplete && suggestionKind && activeIndex !== null
             ? `text-suggestions-${pathId(suggestionPath ?? [])}-option-${activeIndex}`
             : undefined
         }
@@ -2269,6 +2458,30 @@ function SuggestionPopover<T>({
 }
 
 /**
+ * Builds the value for a newly-added field/item: a schema-instantiated starter
+ * when the target path declares one and it matches the chosen type (so an enum
+ * lands on a member, a required-nested object comes pre-populated), else the
+ * plain default for the type. Respects an explicit type override — if the user
+ * picked a type the schema starter doesn't match, the default wins.
+ */
+function useCreateFieldValue() {
+  const ctx = useOnyxSchema()
+  return useCallback(
+    (targetPath: ValuePath, type: NewFieldType, rules: ValueEditorRules): unknown => {
+      if (ctx) {
+        const sub = onyxSubschema(ctx.rootSchema, targetPath, ctx.registry)
+        const starter = sub && sub !== 'unresolved' ? seedValue(sub, ctx.registry) : undefined
+        if (starter !== undefined && valueToFieldType(starter) === type && findInvalidValue(starter, rules) === null) {
+          return starter
+        }
+      }
+      return defaultValueForType(type)
+    },
+    [ctx],
+  )
+}
+
+/**
  * Modal that captures a field's NAME and TYPE only — used both to add a new
  * field and to edit an existing field's name/type. The value itself is edited
  * inline in the row afterward, so name/type stay locked until reopened here.
@@ -2280,10 +2493,12 @@ function FieldDialog({
   mode,
   itemMode = false,
   rules,
+  path,
   existingKeys = [],
   initialName = '',
   initialType,
   parentPath = [],
+  onKeyTextChange,
   onSubmit,
 }: {
   open: boolean
@@ -2291,11 +2506,16 @@ function FieldDialog({
   mode: 'add' | 'edit'
   itemMode?: boolean
   rules: ValueEditorRules
+  /** Path of the container the field lives in; enables schema field suggestions. */
+  path?: ValuePath
   /** Sibling keys used for collision checks (excludes the field's own key in edit mode). */
   existingKeys?: string[]
   initialName?: string
   initialType: NewFieldType
+  /** Parent path as string keys; enables platform name/value autocomplete. */
   parentPath?: string[]
+  /** Reports the field-name text as it's typed (e.g. to prefetch schema-URL keys). */
+  onKeyTextChange?: (keyText: string) => void
   onSubmit: (name: string, type: NewFieldType) => void
 }) {
   const [name, setName] = useState(initialName)
@@ -2323,7 +2543,9 @@ function FieldDialog({
     if (activeIndex !== null && activeIndex >= nameSuggestions.items.length) setActiveIndex(null)
   }, [activeIndex, nameSuggestions.items.length])
 
-  // Seed the fields from the target field each time the dialog opens.
+  // Seed the fields from the target field each time the dialog opens; ignore
+  // later prop changes so a late-resolving schema can't clobber an in-progress
+  // choice.
   useEffect(() => {
     if (!open) return
     setName(initialName)
@@ -2331,10 +2553,13 @@ function FieldDialog({
     setError(null)
   }, [open])
 
+  const suggestions = useSchemaFieldSuggestions(path ?? [], existingKeys)
+  const showSuggestions = !itemMode && !!path && suggestions.length > 0
   const options = fieldTypeOptions(rules)
 
   const chooseSuggestion = (suggestion: AttributeNameSuggestion) => {
     setName(suggestion.name)
+    onKeyTextChange?.(suggestion.name)
     const inferred = suggestion.kinds[0]?.kind
     if (inferred && options.includes(inferred)) setType(inferred)
     setSuggestionsOpen(false)
@@ -2391,6 +2616,30 @@ function FieldDialog({
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-5">
+          {showSuggestions && (
+            <div className="flex flex-col gap-1">
+              <span className="text-muted-foreground text-xs">Schema fields</span>
+              <div className="flex flex-wrap items-center gap-1">
+                {suggestions.map((suggestion) => (
+                  <Button
+                    key={suggestion.key}
+                    variant="outline"
+                    size="sm"
+                    className="h-6 px-2 font-mono text-xs"
+                    onClick={() => {
+                      setName(suggestion.key)
+                      setError(null)
+                      onKeyTextChange?.(suggestion.key)
+                      if (suggestion.type && options.includes(suggestion.type)) setType(suggestion.type)
+                    }}
+                  >
+                    {suggestion.key}
+                    {suggestion.required ? ' *' : ''}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
           {!itemMode && (
             <div className="flex flex-col gap-1">
               <label htmlFor="field-dialog-name" className="text-muted-foreground text-xs">
@@ -2399,12 +2648,12 @@ function FieldDialog({
               <div className="relative">
                 <Input
                   id="field-dialog-name"
-                  role="combobox"
-                  aria-autocomplete="list"
-                  aria-expanded={suggestionsOpen && nameSuggestions.items.length > 0}
-                  aria-controls="field-name-suggestions"
+                  role={autocomplete ? 'combobox' : undefined}
+                  aria-autocomplete={autocomplete ? 'list' : undefined}
+                  aria-expanded={autocomplete ? suggestionsOpen && nameSuggestions.items.length > 0 : undefined}
+                  aria-controls={autocomplete ? 'field-name-suggestions' : undefined}
                   aria-activedescendant={
-                    activeIndex === null ? undefined : `field-name-suggestions-option-${activeIndex}`
+                    autocomplete && activeIndex !== null ? `field-name-suggestions-option-${activeIndex}` : undefined
                   }
                   value={name}
                   placeholder="Field name"
@@ -2424,6 +2673,7 @@ function FieldDialog({
                     setSuggestionsOpen(true)
                     setActiveIndex(null)
                     setError(null)
+                    onKeyTextChange?.(e.target.value)
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -2480,6 +2730,11 @@ function FieldDialog({
               </SelectContent>
             </Select>
           </div>
+          {mode === 'edit' && (
+            <p className="text-muted-foreground text-xs">
+              Changing the type keeps the current value when compatible, otherwise resets it.
+            </p>
+          )}
           {error && <p className="text-destructive text-xs">{error}</p>}
         </div>
         <DialogFooter className={!itemMode ? 'mt-auto' : undefined}>
@@ -2498,25 +2753,38 @@ function FieldDialog({
 
 /**
  * "+ Add field" affordance that opens the {@link FieldDialog} to pick a name +
- * type; the field is created with that type's default value and its value is
- * then edited inline. `itemMode` drops the name for appending list items.
+ * type; the field is created with that type's starter value (schema-seeded
+ * when the path declares one) and its value is then edited inline. `itemMode`
+ * drops the name for appending list items.
  */
 export function AddFieldForm({
   existingKeys = [],
   itemMode = false,
   compact = false,
   rules,
-  path = [],
+  path,
+  onKeyTextChange,
   onAdd,
 }: {
   existingKeys?: string[]
   itemMode?: boolean
   compact?: boolean
   rules: ValueEditorRules
-  path?: string[]
+  /** Path of the container being added to; enables schema suggestions. */
+  path?: ValuePath
+  /** Reports the field-name text as it's typed (e.g. to prefetch schema-URL keys). */
+  onKeyTextChange?: (keyText: string) => void
   onAdd: (key: string, value: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
+  const createValue = useCreateFieldValue()
+  // Pre-select the type a list's items schema calls for.
+  const itemsSubschema = useSubschema(itemMode && path ? [...path, 0] : [])
+  let initialType: NewFieldType = 'text'
+  if (itemMode && itemsSubschema && itemsSubschema !== 'unresolved') {
+    const suggested = suggestedFieldType(itemsSubschema)
+    if (suggested && fieldTypeOptions(rules).includes(suggested)) initialType = suggested
+  }
 
   return (
     <div>
@@ -2531,15 +2799,24 @@ export function AddFieldForm({
       </Button>
       <FieldDialog
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={(next) => {
+          setOpen(next)
+          if (!next) onKeyTextChange?.('')
+        }}
         mode="add"
         itemMode={itemMode}
         rules={rules}
+        path={path}
         existingKeys={existingKeys}
         initialName=""
-        initialType="text"
-        parentPath={path}
-        onSubmit={(name, type) => onAdd(name, defaultValueForType(type))}
+        initialType={initialType}
+        parentPath={(path ?? []).filter((segment): segment is string => typeof segment === 'string')}
+        onKeyTextChange={onKeyTextChange}
+        onSubmit={(name, type) => {
+          const targetPath = itemMode ? [...(path ?? []), 0] : [...(path ?? []), name]
+          onAdd(name, createValue(targetPath, type, rules))
+          onKeyTextChange?.('')
+        }}
       />
     </div>
   )

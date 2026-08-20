@@ -1,0 +1,31 @@
+{
+  "name": "Operation",
+  "description": "A single CRDT operation inside a Change body — a discriminated union tagged on type.",
+  "anyOf": [
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-attributes"
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-move-blocks"
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-replace-block",
+      "args": {
+        "Block": {
+          "var": "Block"
+        }
+      }
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-delete-blocks"
+    },
+    {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-key"
+    }
+  ],
+  "params": {
+    "Block": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block"
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "Scalar schema",
+  "description": "The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum, or given a semantic `format` (hm-url, hm-profile, ipfs) that a UI renders as a richer reference input.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": [
+    "type"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": [
+        "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null",
+        "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean",
+        "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer",
+        "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float",
+        "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+        "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes"
+      ]
+    },
+    "enum": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list"
+    },
+    "minLength": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+    },
+    "maxLength": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+    },
+    "pattern": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "format": {
+      "description": "A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> file reference).",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "minimum": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+    },
+    "maximum": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"
+    },
+    "name": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "description": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "params": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "values": {
+        "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema"
+      }
+    }
+  }
+}
