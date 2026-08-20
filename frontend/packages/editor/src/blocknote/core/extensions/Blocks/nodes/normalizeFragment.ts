@@ -25,21 +25,28 @@ function orphanGroupPlaceholder(blockGroupNode: any, schema: any): any {
 
 /**
  * Wraps a blockChildren node in a blockNode. A list/blockquote is fronted by an
- * invisible Slot; a plain Group by an empty paragraph. If a previous blockNode
- * exists and doesn't have a child blockChildren, merges the blockChildren into
- * it instead of creating a new container.
+ * invisible Slot; a plain Group by an empty paragraph. If the previous blockNode
+ * is a plain block with no children of its own, the blockChildren is merged into
+ * it. the caller should then replace that previous node. Otherwise a fresh container
+ * is returned and the caller must push it, so an existing node is not overwritten.
  */
-function wrapBlockGroupInContainer(blockGroupNode: any, schema: any, previousNode: any): any {
+function wrapBlockGroupInContainer(blockGroupNode: any, schema: any, previousNode: any): {node: any; merged: boolean} {
   if (
     previousNode &&
     previousNode.type.name === 'blockNode' &&
     previousNode.childCount === 1 &&
     previousNode.firstChild?.type.spec?.group === 'block'
   ) {
-    return schema.nodes['blockNode']!.create(previousNode.attrs, [previousNode.firstChild, blockGroupNode])
+    return {
+      node: schema.nodes['blockNode']!.create(previousNode.attrs, [previousNode.firstChild, blockGroupNode]),
+      merged: true,
+    }
   }
 
-  return schema.nodes['blockNode']!.create(null, [orphanGroupPlaceholder(blockGroupNode, schema), blockGroupNode])
+  return {
+    node: schema.nodes['blockNode']!.create(null, [orphanGroupPlaceholder(blockGroupNode, schema), blockGroupNode]),
+    merged: false,
+  }
 }
 
 /**
@@ -122,27 +129,20 @@ export function normalizeFragment(fragment: Fragment, schema?: any): Fragment {
       }
 
       if (groupNode.attrs?.listType === 'Group') {
-        let hasNestedLists = false
-        groupContent.forEach((child: any) => {
-          if (child.type?.name === 'blockNode' && child.lastChild?.type?.name === 'blockChildren') {
-            hasNestedLists = true
-          }
+        groupContent.forEach((childNode: any) => {
+          nodes.push(childNode)
         })
-
-        if (!hasNestedLists) {
-          groupContent.forEach((childNode: any) => {
-            nodes.push(childNode)
-          })
-          return
-        }
+        return
       }
 
       const normalizedGroup = groupNode.type.create(groupNode.attrs, groupContent)
 
       if (schema) {
         const prevNode = nodes[nodes.length - 1]
-        const wrappedContainer = wrapBlockGroupInContainer(normalizedGroup, schema, prevNode)
-        if (prevNode && wrappedContainer !== normalizedGroup) {
+        const {node: wrappedContainer, merged} = wrapBlockGroupInContainer(normalizedGroup, schema, prevNode)
+        // Replace the previous node only when the group was actually merged into
+        // it. Otherwise push, so a preceding block (e.g. another list) survives.
+        if (merged) {
           nodes[nodes.length - 1] = wrappedContainer
         } else {
           nodes.push(wrappedContainer)
