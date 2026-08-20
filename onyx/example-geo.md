@@ -1,9 +1,9 @@
 ---
-name: "Geo point"
+name: "Example: Geo point"
 summary: "A latitude/longitude coordinate with an optional altitude."
 ---
 
-# Geo point
+# Example: Geo point
 
 A latitude/longitude coordinate with an optional altitude.
 

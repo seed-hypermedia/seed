@@ -1,9 +1,9 @@
 ---
-name: "Value"
+name: "Example: Value"
 summary: "A primitive value: string, integer, boolean, or null."
 ---
 
-# Value
+# Example: Value
 
 A primitive value: string, integer, boolean, or null.
 
