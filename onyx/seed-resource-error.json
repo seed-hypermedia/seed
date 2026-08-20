@@ -1,0 +1,24 @@
+{
+  "name": "Resource: error",
+  "description": "A resource that failed to load, with the error message. A derived read model computed by the Seed daemon/API for clients \u2014 not a signed network blob.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": [
+    "type",
+    "id",
+    "message"
+  ],
+  "properties": {
+    "type": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": [
+        "error"
+      ]
+    },
+    "id": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id"
+    },
+    "message": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    }
+  }
+}

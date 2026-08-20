@@ -18,7 +18,7 @@ const BASE = 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 const AUTHORITY = [
   ['onyx-', 'hyper.media'],
   ['hypermedia-', 'seed.hyper.media'],
-  ['example-', 'example.com'],
+  ['seed-', 'seed.hyper.media'], ['example-', 'example.com'],
 ]
 const SRC = 'onyx'
 const OUT = 'onyx'
@@ -97,6 +97,7 @@ function category(name, s) {
   if (isMeta(name)) return 'a meta-schema variant'
   if (isPrimitive(name)) return 'a primitive'
   if (name.startsWith('hypermedia-')) return 'a Hypermedia Network blob schema'
+  if (name.startsWith('seed-')) return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
   if (name.startsWith('example-')) return 'an example schema'
   return 'a schema'
 }
