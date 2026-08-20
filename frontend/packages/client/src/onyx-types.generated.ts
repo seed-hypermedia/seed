@@ -1058,6 +1058,51 @@ export type OnyxVarSchema = {
 }
 
 /**
+ * Account result
+ * The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-account-result
+ */
+export type SeedAccountResult = {
+  type: "account"
+  id: SeedId
+  metadata: HMMetadata | null
+  hasSite?: boolean
+} | {
+  type: "account-not-found"
+  uid: string
+}
+
+/**
+ * Accounts metadata
+ * Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-accounts-metadata
+ */
+export type SeedAccountsMetadata = Record<string, SeedMetadataPayload>
+
+/**
+ * Activity event
+ * One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-activity-event
+ */
+export type SeedActivityEvent = Record<string, unknown>
+
+/**
+ * Activity summary
+ * Latest-activity digest carried on document listings: newest comment/change and unread state. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-activity-summary
+ */
+export type SeedActivitySummary = {
+  latestCommentTime?: HMTimestamp
+  latestCommentId: string
+  /** minimum: 0 */
+  commentCount: number
+  latestChangeTime: HMTimestamp
+  isUnread: boolean
+  /** minimum: 0 */
+  childrenCount?: number
+}
+
+/**
  * Block range
  * A selection within a block: either character offsets (start/end) or the whole block expanded. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-block-range
@@ -1068,6 +1113,32 @@ export type SeedBlockRange = {
   /** minimum: 0 */
   end?: number
   expanded?: boolean
+}
+
+/**
+ * Breadcrumb
+ * One ancestor entry of a document's path, resolved to a display name. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-breadcrumb
+ */
+export type SeedBreadcrumb = {
+  name: string
+  path: string
+  isMissing?: boolean
+}
+
+/**
+ * Capability (payload)
+ * A capability as the API returns it: who was granted which role on which grant id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-capability
+ */
+export type SeedCapability = {
+  id: string
+  accountUid: string
+  role: HMRole
+  capabilityId?: string
+  grantId: SeedId
+  label?: string
+  createTime: HMTimestamp
 }
 
 /**
@@ -1093,6 +1164,20 @@ export type SeedCitation = {
 }
 
 /**
+ * Collaborators payload
+ * A document's collaboration picture: the publisher, inherited and directly granted capabilities, effective members, and their metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-collaborators-payload
+ */
+export type SeedCollaboratorsPayload = {
+  publisherUid: string
+  parentCapabilities: SeedCapability[]
+  grantedCapabilities: SeedCapability[]
+  grantedMembers: SeedSiteMember[]
+  members: SeedSiteMember[]
+  accounts: SeedAccountsMetadata
+}
+
+/**
  * Comment (payload)
  * A comment as the API returns it to clients: the signed comment's content plus derived fields (stable id, version CID, thread links, timestamps, visibility). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment
@@ -1113,6 +1198,29 @@ export type SeedComment = {
   createTime: HMTimestamp
   updateTime: HMTimestamp
   visibility: HMVisibility
+}
+
+/**
+ * Comment group
+ * A thread of comments grouped for display, with a count of elided replies. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment-group
+ */
+export type SeedCommentGroup = {
+  comments: SeedComment[]
+  /** minimum: 0 */
+  moreCommentsCount: number
+  id: string
+  type: "commentGroup"
+}
+
+/**
+ * Comment list
+ * A list of comments plus the metadata payloads of every author involved. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-comment-list
+ */
+export type SeedCommentList = {
+  comments: SeedComment[]
+  authors: Record<string, SeedMetadataPayload>
 }
 
 /**
@@ -1166,6 +1274,64 @@ export type SeedDocument = {
 }
 
 /**
+ * Document info
+ * One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary — without the full content. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-document-info
+ */
+export type SeedDocumentInfo = {
+  type: "document"
+  id: SeedId
+  path: string[]
+  authors: string[]
+  createTime: HMTimestamp
+  updateTime: HMTimestamp
+  /** Serialized date used for ordering. */
+  sortTime: string
+  genesis: string
+  version: string
+  breadcrumbs: SeedBreadcrumb[]
+  activitySummary: SeedActivitySummary
+  generationInfo: {
+    genesis: string
+    generation: number
+  }
+  redirectInfo?: SeedRedirectInfo
+  metadata: HMMetadata
+  firstImageInContent?: string
+  visibility: HMVisibility
+}
+
+/**
+ * Domain info
+ * The daemon's view of a site domain: registration, gateway status, and health-check results. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-domain-info
+ */
+export type SeedDomainInfo = {
+  domain: string
+  lastCheck: string | null
+  status: string
+  lastSuccess: string | null
+  registeredAccountUid: string | null
+  peerId: string | null
+  isGateway: boolean
+  lastError: string | null
+}
+
+/**
+ * External comment group
+ * A comment thread from ANOTHER document that cites this one, with its target's metadata payload. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-external-comment-group
+ */
+export type SeedExternalCommentGroup = {
+  comments: SeedComment[]
+  /** minimum: 0 */
+  moreCommentsCount: number
+  id: string
+  target: SeedMetadataPayload
+  type: "externalCommentGroup"
+}
+
+/**
  * Hypermedia ID (parsed)
  * A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carry are null. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id
@@ -1206,12 +1372,125 @@ export type SeedInteractionSummary = {
 }
 
 /**
+ * Metadata payload
+ * A resource id with its resolved metadata (null when the document has none). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-metadata-payload
+ */
+export type SeedMetadataPayload = {
+  id: SeedId
+  metadata: HMMetadata | null
+  hasSite?: boolean
+}
+
+/**
  * Parsed fragment
  * A parsed URL fragment addressing a block (and optionally a range inside it). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-parsed-fragment
  */
 export type SeedParsedFragment = SeedBlockRange & {
   blockId: string
+}
+
+/**
+ * Query block item summary
+ * Per-result interaction counts a Query block shows on its cards. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-query-block-item-summary
+ */
+export type SeedQueryBlockItemSummary = {
+  /** minimum: 0 */
+  comments: number
+  /** minimum: 0 */
+  children?: number
+  authorUids?: string[]
+}
+
+/**
+ * Query block payload
+ * Everything a rendered Query block needs: the results plus per-item interaction summaries and author metadata. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-query-block-payload
+ */
+export type SeedQueryBlockPayload = {
+  queryTargetName: string
+  in: SeedId
+  results: SeedDocumentInfo[]
+  mode?: "Children" | "AllDescendants"
+  interactionSummaries: Record<string, SeedQueryBlockItemSummary>
+  accountsMetadata: SeedAccountsMetadata
+}
+
+/**
+ * Query result
+ * The documents a query matched, listed under the queried id. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-query-result
+ */
+export type SeedQueryResult = {
+  in: SeedId
+  results: SeedDocumentInfo[]
+  mode?: "Children" | "AllDescendants"
+}
+
+/**
+ * Raw capability
+ * A capability as indexed, in raw wire form (all fields optional strings). A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-raw-capability
+ */
+export type SeedRawCapability = {
+  id?: string
+  issuer?: string
+  delegate?: string
+  account?: string
+  path?: string
+  role?: string
+  noRecursive?: boolean
+  label?: string
+  createTime?: string
+}
+
+/**
+ * Raw citation
+ * A citation in raw indexed form, before client-side resolution into a seed-citation. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-raw-citation
+ */
+export type SeedRawCitation = {
+  source: string
+  sourceType?: string
+  sourceContext?: string
+  sourceBlob?: {
+    cid?: string
+    author?: string
+    createTime?: HMTimestamp
+  }
+  sourceDocument?: string
+  target?: string
+  targetVersion?: string
+  targetFragment?: string
+  isExactVersion?: boolean
+  targetBlockRevision?: string
+  mentionType?: string
+  isExact?: boolean
+}
+
+/**
+ * Raw document change
+ * One change of a document's history in raw listing form: CID, author, dependency edges, time. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-raw-document-change
+ */
+export type SeedRawDocumentChange = {
+  id?: string
+  author?: string
+  deps?: string[]
+  createTime?: string
+}
+
+/**
+ * Redirect info
+ * Marks a listed document as a redirect to another target. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-redirect-info
+ */
+export type SeedRedirectInfo = {
+  type: "redirect"
+  target: string
+  republish?: boolean
 }
 
 /**
@@ -1284,6 +1563,385 @@ export type SeedResourceRedirect = {
 export type SeedResourceTombstone = {
   type: "tombstone"
   id: SeedId
+}
+
+/**
+ * RPC
+ * The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catalog the in-app API console is driven by.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc
+ */
+export type SeedRpc = SeedRpcAccount | SeedRpcAccountContacts | SeedRpcComment | SeedRpcDiscoveryStatus | SeedRpcGetCid | SeedRpcGetCommentReplyCount | SeedRpcGetDomain | SeedRpcInteractionSummary | SeedRpcListAccounts | SeedRpcListCapabilities | SeedRpcListChanges | SeedRpcListCitations | SeedRpcListCommentVersions | SeedRpcListComments | SeedRpcListCommentsByAuthor | SeedRpcListCommentsByReference | SeedRpcListDiscussions | SeedRpcListDocumentCollaborators | SeedRpcListDomains | SeedRpcListEvents | SeedRpcQuery | SeedRpcQueryBlock | SeedRpcResource | SeedRpcResourceMetadata | SeedRpcSearch | SeedRpcSubjectContacts
+
+/**
+ * RPC: Account
+ * Resolves an account by uid. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-account
+ */
+export type SeedRpcAccount = {
+  key: "Account"
+  /** The account uid. */
+  input: string
+  output: SeedAccountResult
+}
+
+/**
+ * RPC: AccountContacts
+ * Lists the contacts an account has named. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-account-contacts
+ */
+export type SeedRpcAccountContacts = {
+  key: "AccountContacts"
+  /** The account uid. */
+  input: string
+  output: SeedContactRecord[]
+}
+
+/**
+ * RPC: Comment
+ * Fetches one comment by id or version CID. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-comment
+ */
+export type SeedRpcComment = {
+  key: "Comment"
+  /** Comment id (uid/tsid) or version CID. */
+  input: string
+  output: SeedComment
+}
+
+/**
+ * RPC: DiscoveryStatus
+ * Reports the state of a background discovery task. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-discovery-status
+ */
+export type SeedRpcDiscoveryStatus = {
+  key: "DiscoveryStatus"
+  input: {
+    uid: string
+    path: string[]
+    version?: string
+    latest?: boolean
+  }
+  output: SeedDiscoveryStatus
+}
+
+/**
+ * RPC: GetCID
+ * Fetches a raw IPFS block by CID and decodes it. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-get-cid
+ */
+export type SeedRpcGetCid = {
+  key: "GetCID"
+  input: {
+    cid: string
+  }
+  output: {
+    value: unknown
+  }
+}
+
+/**
+ * RPC: GetCommentReplyCount
+ * Counts the replies under a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-get-comment-reply-count
+ */
+export type SeedRpcGetCommentReplyCount = {
+  key: "GetCommentReplyCount"
+  input: {
+    id: string
+  }
+  /** minimum: 0 */
+  output: number
+}
+
+/**
+ * RPC: GetDomain
+ * Checks a site domain's registration and health. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-get-domain
+ */
+export type SeedRpcGetDomain = {
+  key: "GetDomain"
+  input: {
+    domain: string
+    forceCheck?: boolean
+  }
+  output: SeedDomainInfo
+}
+
+/**
+ * RPC: InteractionSummary
+ * Aggregates interaction counts for a document, per block included. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-interaction-summary
+ */
+export type SeedRpcInteractionSummary = {
+  key: "InteractionSummary"
+  input: {
+    id: SeedId
+  }
+  output: SeedInteractionSummary
+}
+
+/**
+ * RPC: ListAccounts
+ * Lists all known accounts as metadata payloads. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-accounts
+ */
+export type SeedRpcListAccounts = {
+  key: "ListAccounts"
+  input: Record<string, never> | null
+  output: {
+    accounts: SeedMetadataPayload[]
+  }
+}
+
+/**
+ * RPC: ListCapabilities
+ * Lists raw capabilities granted on a target. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-capabilities
+ */
+export type SeedRpcListCapabilities = {
+  key: "ListCapabilities"
+  input: {
+    targetId: SeedId
+  }
+  output: {
+    capabilities: SeedRawCapability[]
+  }
+}
+
+/**
+ * RPC: ListChanges
+ * Lists a document's change history. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-changes
+ */
+export type SeedRpcListChanges = {
+  key: "ListChanges"
+  input: {
+    targetId: SeedId
+  }
+  output: {
+    changes: SeedRawDocumentChange[]
+    latestVersion?: string
+  }
+}
+
+/**
+ * RPC: ListCitations
+ * Lists raw citations of a target resource. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-citations
+ */
+export type SeedRpcListCitations = {
+  key: "ListCitations"
+  input: {
+    targetId: SeedId
+  }
+  output: {
+    citations: SeedRawCitation[]
+  }
+}
+
+/**
+ * RPC: ListCommentVersions
+ * Lists the edit history (all versions) of a comment. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comment-versions
+ */
+export type SeedRpcListCommentVersions = {
+  key: "ListCommentVersions"
+  input: {
+    id: string
+  }
+  output: {
+    versions: SeedComment[]
+  }
+}
+
+/**
+ * RPC: ListComments
+ * Lists all comments on a target document. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comments
+ */
+export type SeedRpcListComments = {
+  key: "ListComments"
+  input: {
+    targetId: SeedId
+  }
+  output: SeedCommentList
+}
+
+/**
+ * RPC: ListCommentsByAuthor
+ * Lists the comments an author has written. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comments-by-author
+ */
+export type SeedRpcListCommentsByAuthor = {
+  key: "ListCommentsByAuthor"
+  input: {
+    authorId: SeedId
+  }
+  output: SeedCommentList
+}
+
+/**
+ * RPC: ListCommentsByReference
+ * Lists comments that reference a specific block (the target id carries the blockRef). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comments-by-reference
+ */
+export type SeedRpcListCommentsByReference = {
+  key: "ListCommentsByReference"
+  input: {
+    targetId: SeedId
+  }
+  output: SeedCommentList
+}
+
+/**
+ * RPC: ListDiscussions
+ * Lists threaded discussions on a document (optionally focused on one comment), plus citing discussions from other documents. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-discussions
+ */
+export type SeedRpcListDiscussions = {
+  key: "ListDiscussions"
+  input: {
+    targetId: SeedId
+    commentId?: string
+  }
+  output: {
+    discussions: SeedCommentGroup[]
+    authors: Record<string, SeedMetadataPayload>
+    citingDiscussions: SeedExternalCommentGroup[]
+  }
+}
+
+/**
+ * RPC: ListDocumentCollaborators
+ * Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-document-collaborators
+ */
+export type SeedRpcListDocumentCollaborators = {
+  key: "ListDocumentCollaborators"
+  input: {
+    targetId: SeedId
+  }
+  output: SeedCollaboratorsPayload
+}
+
+/**
+ * RPC: ListDomains
+ * Lists all site domains the daemon knows about. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-domains
+ */
+export type SeedRpcListDomains = {
+  key: "ListDomains"
+  input: Record<string, never>
+  output: {
+    domains: SeedDomainInfo[]
+  }
+}
+
+/**
+ * RPC: ListEvents
+ * Pages through the activity feed, with author/type/resource filters. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-events
+ */
+export type SeedRpcListEvents = {
+  key: "ListEvents"
+  input: {
+    /** minimum: 0 */
+    pageSize?: number
+    pageToken?: string
+    trustedOnly?: boolean
+    filterAuthors?: string[]
+    filterEventType?: string[]
+    filterResource?: string
+    currentAccount?: string
+    order?: "claimed" | "observed"
+  }
+  output: {
+    events: SeedActivityEvent[]
+    nextPageToken: string
+  }
+}
+
+/**
+ * RPC: Query
+ * Runs a document query (the same shape a Query block embeds). One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-query
+ */
+export type SeedRpcQuery = {
+  key: "Query"
+  input: HMQuery
+  output: SeedQueryResult | null
+}
+
+/**
+ * RPC: QueryBlock
+ * Runs a Query block's query and returns everything its rendering needs. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-query-block
+ */
+export type SeedRpcQueryBlock = {
+  key: "QueryBlock"
+  input: {
+    query: HMQuery
+  }
+  output: SeedQueryBlockPayload | null
+}
+
+/**
+ * RPC: Resource
+ * Fetches a resource (document, comment, redirect, …) by parsed id. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-resource
+ */
+export type SeedRpcResource = {
+  key: "Resource"
+  input: SeedId
+  output: SeedResource
+}
+
+/**
+ * RPC: ResourceMetadata
+ * Fetches only a resource's metadata payload. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-resource-metadata
+ */
+export type SeedRpcResourceMetadata = {
+  key: "ResourceMetadata"
+  input: SeedId
+  output: SeedMetadataPayload
+}
+
+/**
+ * RPC: Search
+ * Searches the network for documents, contacts, and comments. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-search
+ */
+export type SeedRpcSearch = {
+  key: "Search"
+  input: {
+    query: string
+    accountUid?: string
+    includeBody?: boolean
+    /** minimum: 0 */
+    contextSize?: number
+    perspectiveAccountUid?: string
+    searchType?: number
+    /** minimum: 0 */
+    pageSize?: number
+    pageToken?: string
+    iriFilter?: string
+    contentTypeFilter?: number[]
+    entityKindFilter?: number[]
+  }
+  output: SeedSearchResults
+}
+
+/**
+ * RPC: SubjectContacts
+ * Lists the contact records that name a subject. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-subject-contacts
+ */
+export type SeedRpcSubjectContacts = {
+  key: "SubjectContacts"
+  /** The subject account uid. */
+  input: string
+  output: SeedContactRecord[]
 }
 
 /**
