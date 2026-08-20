@@ -1,9 +1,9 @@
 ---
-name: "Article"
+name: "Example: Article"
 summary: "A published article: status, author, tags, a bytes body, cover image, comments, and metadata."
 ---
 
-# Article
+# Example: Article
 
 A published article: status, author, tags, a bytes body, cover image, comments, and metadata.
 

@@ -1,9 +1,9 @@
 ---
-name: "Metadata"
+name: "Example: Metadata"
 summary: "Arbitrary string-to-string metadata — Map<String>."
 ---
 
-# Metadata
+# Example: Metadata
 
 Arbitrary string-to-string metadata — Map<String>.
 
