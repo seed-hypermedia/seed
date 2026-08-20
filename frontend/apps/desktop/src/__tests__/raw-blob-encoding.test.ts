@@ -44,7 +44,7 @@ describe('schema publish path', () => {
     const starter = seedValue(ONYX_SCHEMAS['onyx-schema'])
     const data = cbor.encode(dagJsonToIpld(starter))
     const digest = await sha256.digest(data)
-    expect(CID.createV1(0x71, digest).toString()).toBe('bafyreihxitwxlabd35a3mxq3ipelelo7oxuztbdfyyy6crhjmxz3gjcqcq')
+    expect(CID.createV1(0x71, digest).toString()).toBe('bafyreihx27axfprby465bchmgv7g4kwoyiclofqnja3ylemya53rm4vsty')
   })
 
   it('a new-schema starter value is itself recognized as an Onyx schema', () => {

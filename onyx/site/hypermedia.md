@@ -70,8 +70,8 @@ per workflow:
 | sync / storage (forward-compat) | never reject unknown | `hypermedia-block` |
 | codegen | the enumerable set | `hypermedia-block-core` |
 
-- The eleven **concrete blocks** — `hypermedia-block-paragraph`, `hypermedia-block-heading`, `hypermedia-block-code`, `hypermedia-block-math`, `hypermedia-block-image`, `hypermedia-block-video`, `hypermedia-block-file`, `hypermedia-block-button`, `hypermedia-block-embed`, `hypermedia-block-web-embed`, `hypermedia-block-nostr` — each **extends** `hypermedia-block-base`, closed, with a `type` enum and typed attributes.
-- `hypermedia-block-core` — the **core union** we define (the eleven). Strict: rejects anything else.
+- The fifteen **concrete blocks** — `hypermedia-block-paragraph`, `hypermedia-block-heading`, `hypermedia-block-code`, `hypermedia-block-math`, `hypermedia-block-image`, `hypermedia-block-video`, `hypermedia-block-file`, `hypermedia-block-button`, `hypermedia-block-embed`, `hypermedia-block-web-embed`, `hypermedia-block-nostr`, `hypermedia-block-table`, `hypermedia-block-table-row`, `hypermedia-block-table-column`, `hypermedia-block-query` — each **extends** `hypermedia-block-base`, closed, with a `type` enum and typed attributes.
+- `hypermedia-block-core` — the **core union** we define (the fifteen). Strict: rejects anything else.
 - `hypermedia-block` — the **open** block: `id` + `type` + arbitrary fields (via `onyx-any`). The forward-compatible wire type — a block type this client has *no schema for* (future or third-party) is still a valid Block, so a document is never rejected over it. This is *not* "your custom block type" (that's just extension + union, below); it's the open fallback for the *unknown*.
 
 ### Adding a block type
@@ -119,3 +119,16 @@ Every one of these schemas is validated in `validate.mjs` — as a
 well-formed schema, and against real blob-shaped data (a Ref, a Capability, a
 Change with ops, the union, and metadata), with negative cases for wrong `type`
 tags, missing required fields, and unknown keys.
+
+## Seed API read models
+
+Beyond the signed blobs, the `seed-*` schemas type the **derived data the Seed
+daemon computes for clients** — not signed network data, but the read models the
+apps consume: `seed-resource` (the union of every state a fetched resource can
+be in: document, comment, redirect, not-found, tombstone, error), `seed-document`
+and `seed-comment` (the API payload forms, with resolved versions, authors and
+timestamps), `seed-citation`, `seed-interaction-summary`, `seed-search-results`,
+`seed-site-member`, `seed-contact-record`, and `seed-discovery-status`, built on
+`seed-id` (the parsed form of an `hm://` identifier). Typing these closes the
+loop: the same ontology describes what is signed on the wire AND what the API
+serves back.
