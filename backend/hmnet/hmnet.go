@@ -17,6 +17,7 @@ import (
 	"seed/backend/util/bwcounter"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/grpcprom"
+	"seed/backend/util/grpcrecovery"
 	"seed/backend/util/libp2px"
 	"seed/backend/util/must"
 	"seed/backend/util/sqlite"
@@ -208,11 +209,16 @@ func New(cfg config.P2P, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Poo
 		httpClientBW: httpClientBW,
 		grpc: grpc.NewServer(
 			grpc.StatsHandler(rpcServerMetrics),
+			// Recovery goes last in each chain, closest to the handler, so the
+			// metrics interceptor above records the resulting Internal error
+			// instead of being unwound through by the panic.
 			grpc.ChainUnaryInterceptor(
 				rpcServerMetrics.UnaryServerInterceptor(),
+				grpcrecovery.UnaryServerInterceptor(log),
 			),
 			grpc.ChainStreamInterceptor(
 				rpcServerMetrics.StreamServerInterceptor(),
+				grpcrecovery.StreamServerInterceptor(log),
 			),
 			// Match the client's extended message size so peer-exchange responses
 			// from nodes with thousands of peers don't hit the default 4 MiB cap.
