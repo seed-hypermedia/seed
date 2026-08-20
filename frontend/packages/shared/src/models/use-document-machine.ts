@@ -644,11 +644,18 @@ export function selectShouldFocusDraftTitle(snapshot: DocumentMachineSnapshot): 
   )
 }
 
+/**
+ * Shared empty result so the selector stays referentially stable when there is
+ * no content. `useSelector` compares with `Object.is`, so a fresh `[]` here made
+ * every machine emission look like new blocks — which rebuilt the whole editor.
+ */
+const NO_BLOCKS: HMBlockNode[] = []
+
 /** The blocks the editor should render from the document machine's current source of truth. */
 export function selectRenderableBlocks(snapshot: DocumentMachineSnapshot): HMBlockNode[] {
   const ctx = snapshot.context
-  if (selectShouldUseDraftOverlay(snapshot)) return ctx.draftContent ?? []
-  return ctx.document?.content ?? []
+  if (selectShouldUseDraftOverlay(snapshot)) return ctx.draftContent ?? NO_BLOCKS
+  return ctx.document?.content ?? NO_BLOCKS
 }
 
 /** The blocks the editor should render: draft content (if available) or published document content. */
