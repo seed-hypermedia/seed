@@ -115,6 +115,18 @@ const MAX_MESSAGE_TEXT_BYTES = 64 * 1024
 const MAX_SESSION_SPAWN_DEPTH = 3
 /** Most sessions one session may start with start_session, a backstop against runaway spawning. */
 const MAX_SESSION_SPAWNS_PER_SESSION = 10
+/** Bound on the agent-maintained session description (status verb). */
+const MAX_SESSION_DESCRIPTION_BYTES = 1024
+
+/** Dedicated title-generation model calls a session gets per process before the runtime stops trying. */
+const MAX_TITLE_GENERATION_ATTEMPTS = 3
+
+/** Client display placeholders that have been sent as literal session titles; they mean "no title". */
+function isPlaceholderSessionTitle(title: string): boolean {
+  const normalized = title.trim().toLowerCase()
+  return normalized === 'untitled session' || normalized === 'untitled sub-session' || normalized === 'new chat'
+}
+
 /** Failed return_result validation attempts before a typed sub-session fails `output-schema`. */
 const MAX_RETURN_RESULT_RETRIES = 3
 /**
@@ -594,6 +606,8 @@ export class Service {
   readonly #titleGenerationEnabled: boolean
   /** Sessions with a title generation in flight, so parks + finalizes do not double-spend. */
   readonly #namingSessions = new Set<string>()
+  /** Title generation attempts per session this process, so a failing provider is not re-asked forever. */
+  readonly #titleAttempts = new Map<string, number>()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -1971,7 +1985,7 @@ export class Service {
 
     const sessions = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC`,
@@ -2043,7 +2057,7 @@ export class Service {
 
     const rows = this.#db
       .query<SessionRow, (string | number)[]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC, id DESC LIMIT ?`,
@@ -2515,7 +2529,7 @@ export class Service {
     accountId: string,
     agentId: string,
     rawTitle?: string,
-    opts: {parentSessionId?: string; runId?: string} = {},
+    opts: {parentSessionId?: string; runId?: string; titleSource?: 'system' | 'agent'} = {},
   ): api.CreateSessionResponse {
     const agent = this.#db
       .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
@@ -2524,12 +2538,14 @@ export class Service {
 
     const now = Date.now()
     const sessionId = crypto.randomUUID()
-    // Clients historically sent the UI display placeholder as a literal title, which made every
-    // session look titled and defeated both naming paths. The placeholder means "no title".
+    // A title sent at creation is provisional, never the session's name: clients have sent their
+    // display placeholders ("Untitled session", "New chat") as literal titles, and a server that
+    // trusted them left those sessions unnamed forever. Any creation title is stored with
+    // title_source 'system' so the agent's naming still runs, regardless of which client created
+    // the session; the literal placeholder is not even worth storing.
     const normalizedTitle =
       rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
-    const title =
-      normalizedTitle && normalizedTitle.trim().toLowerCase() === 'untitled session' ? null : normalizedTitle
+    const title = normalizedTitle && isPlaceholderSessionTitle(normalizedTitle) ? null : normalizedTitle
     this.#db.run(
       `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -2538,7 +2554,7 @@ export class Service {
         accountId,
         agentId,
         title,
-        'system',
+        opts.titleSource ?? 'system',
         'idle',
         opts.parentSessionId ?? null,
         opts.runId ?? null,
@@ -2818,7 +2834,7 @@ export class Service {
     return {_: 'AbortFileUploadResponse', uploadId}
   }
 
-  /** update_plan tool: stores the session's todo snapshot, rendered by the pinned progress card. */
+  /** plan verb: stores the session's todo snapshot, rendered by the pinned progress card. */
   #setSessionPlanFromAgent(accountId: string, sessionId: string, raw: unknown, ownerRunId?: string): api.SessionInfo {
     // `normalizeRunPlan` reads only what the model may say, which is why `resolvedBy` and
     // `ownerRunId` cannot be forged: both runtime marks are stamped or carried below.
@@ -2957,29 +2973,49 @@ export class Service {
     return {...plan, settledAt: previousSettledAt ?? Date.now()}
   }
 
-  #setSessionTitleFromAgent(accountId: string, sessionId: string, rawTitle: string): api.SessionInfo {
-    const title = normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
-    const existing = this.#db
-      .query<{title_source: string}, [string, string]>(
-        `SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`,
-      )
-      .get(accountId, sessionId)
-    if (!existing) throw new APIError(404, 'Session not found')
-
+  /**
+   * status verb: the agent's own account of its session. The title names it (and flips
+   * title_source to 'agent', which also retires the fallback namer); the description is the
+   * one-or-two-sentence summary session lists and parent sessions read. A title the user typed
+   * always wins; the description is the agent's alone and is always accepted.
+   */
+  #setSessionStatusFromAgent(accountId: string, sessionId: string, raw: unknown): api.SessionInfo {
+    const input = isPlainRecord(raw) ? raw : {}
+    const title =
+      input.title === undefined || input.title === null
+        ? undefined
+        : normalizeBoundedString(input.title, 'Session title', MAX_NAME_BYTES)
+    const description =
+      input.description === undefined || input.description === null
+        ? undefined
+        : normalizeBoundedString(input.description, 'Session description', MAX_SESSION_DESCRIPTION_BYTES)
+    if (title === undefined && description === undefined) {
+      throw new APIError(400, 'status needs a title, a description, or both')
+    }
     const now = Date.now()
-    const changes = this.#db.run(
-      `UPDATE sessions
-          SET title = ?, title_source = 'agent', updated_at = ?
-        WHERE account_id = ? AND id = ? AND title_source <> 'user'`,
-      [title, now, accountId, sessionId],
-    ).changes
+    let titleChanges = 0
+    if (title !== undefined) {
+      titleChanges = this.#db.run(
+        `UPDATE sessions
+            SET title = ?, title_source = 'agent', updated_at = ?
+          WHERE account_id = ? AND id = ? AND title_source <> 'user'`,
+        [title, now, accountId, sessionId],
+      ).changes
+    }
+    let descriptionChanges = 0
+    if (description !== undefined) {
+      descriptionChanges = this.#db.run(
+        `UPDATE sessions SET description = ?, updated_at = ? WHERE account_id = ? AND id = ?`,
+        [description, now, accountId, sessionId],
+      ).changes
+    }
     const session = this.#getSessionInfo(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
-    if (changes > 0) {
-      console.info('[agents/runtime] agent updated session title', {sessionId, agentId: session.agentId})
+    if (titleChanges > 0 || descriptionChanges > 0) {
       this.#emit({type: 'session-change', accountId, session})
       this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agentId, sessionId})
-    } else {
+    }
+    if (title !== undefined && titleChanges === 0) {
       console.info('[agents/runtime] ignored agent session title update', {
         sessionId,
         agentId: session.agentId,
@@ -3027,7 +3063,10 @@ export class Service {
       input.title === undefined || input.title === null || input.title === ''
         ? sessionTitleFromPrompt(prompt)
         : normalizeBoundedString(input.title, 'Session title', MAX_NAME_BYTES)
-    const session = this.#createSessionOnce(accountId, agentId, title, {parentSessionId})
+    // A title the parent chose is the agent naming the session; a truncated prompt is provisional
+    // and the child names itself (status verb or the fallback namer) once it is running.
+    const titleSource = input.title ? ('agent' as const) : ('system' as const)
+    const session = this.#createSessionOnce(accountId, agentId, title, {parentSessionId, titleSource})
     console.info('[agents/runtime] agent started session', {
       accountId,
       parentSessionId,
@@ -3248,7 +3287,7 @@ export class Service {
     const messages = normalizeMessageContent(rawContent)
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -3660,31 +3699,31 @@ export class Service {
   }
 
   /**
-   * Server-side fallback naming: sessions must never stay "Untitled" just because no model called
-   * set_session_title (a parked first turn, an API-created session, a model that skipped the
-   * housekeeping). Derives a bounded title from the first user message; keeps title_source
-   * 'system' so both the agent and the user can still rename it.
-   */
-  /**
    * The agent names its own sessions — that is the feature, not a derived echo of the user's
-   * words. The in-turn path is the set_session_title tool; this is the guarantee behind it: when a
-   * turn parks or finalizes leaving the session untitled (parked first turns skip the model's
-   * titling moment entirely), a dedicated minimal model call generates the title. Detached from
-   * the run, tracked for drain determinism, in-flight-deduped per session, and disabled unless the
-   * server opted in (`titleGeneration`) so mocked test providers never see surprise requests.
+   * words. The in-turn path is the `status` verb; this is the guarantee behind it: when a turn
+   * starts, parks or finalizes with the session still provisionally titled (title_source
+   * 'system' — whatever a client or the runtime stored at creation), a dedicated minimal model
+   * call generates the title. Detached from the run, tracked for drain determinism,
+   * in-flight-deduped and attempt-capped per session, and disabled unless the server opted in
+   * (`titleGeneration`) so mocked test providers never see surprise requests.
    */
   #ensureSessionTitled(accountId: string, sessionId: string): void {
     if (!this.#titleGenerationEnabled) return
     if (this.#namingSessions.has(sessionId)) return
+    // Every run-change while a turn streams re-enters here; a provider that keeps failing must not
+    // be re-asked on each one. The cap is per process — a restart gets a fresh chance.
+    if ((this.#titleAttempts.get(sessionId) ?? 0) >= MAX_TITLE_GENERATION_ATTEMPTS) return
     const row = this.#db
-      .query<{title: string | null; title_source: string}, [string, string]>(
-        `SELECT title, title_source FROM sessions WHERE account_id = ? AND id = ?`,
+      .query<{title_source: string}, [string, string]>(
+        `SELECT title_source FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
+    // Only the SOURCE decides: a 'system' title is whatever a client or the runtime provisionally
+    // stored (a placeholder, a truncated prompt), and the agent has not named this session yet.
+    // Once the model or the user names it, the source says so and naming never runs again.
     if (!row || row.title_source !== 'system') return
-    // A stored literal placeholder counts as untitled (pre-normalization rows heal here).
-    if (row.title && row.title.trim().toLowerCase() !== 'untitled session') return
     this.#namingSessions.add(sessionId)
+    this.#titleAttempts.set(sessionId, (this.#titleAttempts.get(sessionId) ?? 0) + 1)
     const pending = this.#nameSessionWithModel(accountId, sessionId)
       .catch((error) => {
         console.warn('[agents/runtime] session title generation failed', {
@@ -3728,29 +3767,43 @@ export class Service {
       else if (value.role === 'assistant') lines.push(`Assistant: ${value.content.slice(0, 600)}`)
     }
     if (lines.length === 0) return
-    const title = await this.#generateSessionTitle(accountId, definition, lines.join('\n\n').slice(0, 4000))
-    if (!title) return
-    // Guarded exactly like the tool path: never overwrite a user title or a title that landed
-    // meanwhile (the model may have called set_session_title on a resumed turn).
+    const generated = await this.#generateSessionTitle(accountId, definition, lines.join('\n\n').slice(0, 4000))
+    if (!generated) return
+    const {title, description} = generated
+    // Guarded exactly like the tool path: never overwrite a title the user typed or one the agent
+    // set meanwhile through the status verb on a resumed turn. The source flips to 'agent' so this
+    // is the last time naming runs for the session. The description only fills an empty slot: a
+    // description the agent wrote itself is always the better one.
     this.#db.run(
-      `UPDATE sessions SET title = ?, updated_at = ? WHERE account_id = ? AND id = ?
-         AND (title IS NULL OR title = '' OR LOWER(TRIM(title)) = 'untitled session') AND title_source = 'system'`,
+      `UPDATE sessions SET title = ?, title_source = 'agent', updated_at = ? WHERE account_id = ? AND id = ?
+         AND title_source = 'system'`,
       [title, Date.now(), accountId, sessionId],
     )
+    if (description) {
+      this.#db.run(
+        `UPDATE sessions SET description = ?, updated_at = ? WHERE account_id = ? AND id = ?
+           AND (description IS NULL OR description = '')`,
+        [description, Date.now(), accountId, sessionId],
+      )
+    }
     const info = this.#getSessionInfo(accountId, sessionId)
     if (info?.title === title) {
+      this.#titleAttempts.delete(sessionId)
       console.info('[agents/runtime] session titled by model', {sessionId, title})
       this.#emit({type: 'session-change', accountId, session: info})
       this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId: session.agent_id, sessionId})
     }
   }
 
-  /** One minimal, tool-less model call: the conversation digest in, one line out. */
+  /**
+   * One minimal, tool-less model call: the conversation digest in, a title line and an optional
+   * description paragraph out.
+   */
   async #generateSessionTitle(
     accountId: string,
     definition: api.AgentDefinition,
     digest: string,
-  ): Promise<string | null> {
+  ): Promise<{title: string; description?: string} | null> {
     // The shared provider runtime, NOT an inline resolution: titling must honor the provider's
     // auth mode (subscription OAuth has no apiKey secret — the old inline path silently bailed
     // and left every subscription-provider session untitled).
@@ -3769,7 +3822,7 @@ export class Service {
       authStorage,
       modelRegistry,
       resourceLoader: createSeedPiResourceLoader(
-        'You are a session-titling assistant. Reply with ONLY a concise one-line title (at most eight words) naming the purpose of the conversation you are shown. No quotes, no trailing punctuation, no explanation.',
+        'You are a session-titling assistant. Reply with exactly two lines and nothing else. Line 1: a concise title (at most eight words) naming the specific purpose of the conversation you are shown — no quotes, no trailing punctuation. Line 2: one or two plain sentences describing what the conversation is about and what is being done, written for someone scanning a list of sessions. No labels, no explanation.',
       ),
       customTools: [],
       tools: [],
@@ -3792,17 +3845,42 @@ export class Service {
       })
       await piSession.agent.continue()
       unsubscribe()
-      const firstLine = text.split('\n')[0]?.trim() ?? ''
+      const [firstLine = '', ...rest] = text
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
       const stripped = firstLine
+        .replace(/^(title|description)\s*:\s*/i, '')
         .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
         .replace(/[.]+$/, '')
         .trim()
       if (!stripped) return null
+      const descriptionText = rest
+        .join(' ')
+        .replace(/^(description)\s*:\s*/i, '')
+        .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
+        .trim()
+      let title: string
       try {
-        return normalizeBoundedString(stripped, 'Session title', MAX_NAME_BYTES)
+        title = normalizeBoundedString(stripped, 'Session title', MAX_NAME_BYTES)
       } catch {
         return null
       }
+      let description: string | undefined
+      if (descriptionText) {
+        try {
+          description = normalizeBoundedString(
+            descriptionText.length > MAX_SESSION_DESCRIPTION_BYTES
+              ? descriptionText.slice(0, MAX_SESSION_DESCRIPTION_BYTES - 1)
+              : descriptionText,
+            'Session description',
+            MAX_SESSION_DESCRIPTION_BYTES,
+          )
+        } catch {
+          description = undefined
+        }
+      }
+      return {title, ...(description ? {description} : {})}
     } finally {
       piSession.dispose()
     }
@@ -4237,6 +4315,7 @@ export class Service {
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
       parentSessionId,
       runId: childRunId,
+      titleSource: spec.title ? 'agent' : 'system',
     })
     const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
@@ -4534,6 +4613,7 @@ export class Service {
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
       ...(ancestorSessionId ? {parentSessionId: ancestorSessionId} : {}),
       runId: childRunId,
+      titleSource: spec.title ? 'agent' : 'system',
     })
     const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
@@ -5226,6 +5306,7 @@ export class Service {
             },
           }),
         setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan, run?.id),
+        setSessionStatus: (status) => this.#setSessionStatusFromAgent(accountId, sessionId, status),
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
         callableTools: enabledCallables,
         publishEnabled: publishGrantEnabled(definition),
@@ -5248,6 +5329,7 @@ export class Service {
         // Delegation needs a run to park on; the rare runless invocation simply omits it.
         ...(run !== undefined ? [seedVerbRegistry.delegate.name] : []),
         seedVerbRegistry.plan.name,
+        seedVerbRegistry.status.name,
         // Typed delegate children must deliver their result through this tool.
         ...(subSessionOutputSchema ? [seedVerbRegistry.return_result.name] : []),
       ],
@@ -5980,7 +6062,7 @@ export class Service {
     }
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -6137,7 +6219,7 @@ export class Service {
   #getSessionInfo(accountId: string, sessionId: string): api.SessionInfo | null {
     const session = this.#db
       .query<SessionRow, [string, string]>(
-        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor,
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
                 (SELECT COUNT(*) FROM sessions c WHERE c.parent_session_id = sessions.id) AS child_count,
                 created_at, updated_at
          FROM sessions WHERE account_id = ? AND id = ?`,
@@ -6716,6 +6798,7 @@ type SessionRow = {
   run_id: string | null
   plan_cbor: Uint8Array | null
   model_override_cbor: Uint8Array | null
+  description: string | null
   child_count: number
   created_at: number
   updated_at: number
@@ -7031,6 +7114,7 @@ function sessionRowToInfo(row: SessionRow, triggerContext?: api.AgentSessionTrig
     ...(row.run_id ? {runId: row.run_id} : {}),
     ...(row.plan_cbor ? {plan: cbor.decode<api.RunPlan>(row.plan_cbor)} : {}),
     ...(row.model_override_cbor ? {modelOverride: cbor.decode<api.SessionModelOverride>(row.model_override_cbor)} : {}),
+    ...(row.description ? {description: row.description} : {}),
     ...(row.child_count > 0 ? {childSessionCount: row.child_count} : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -7874,6 +7958,8 @@ export type AgentServicePiToolContext = WriteToolContext & {
   startSession: (input: unknown) => {sessionId: string; title: string}
   /** plan verb: stores the session's live checklist snapshot. Absent in session-less (script) contexts. */
   setSessionPlan?: (plan: unknown) => api.SessionInfo
+  /** status verb: sets the session's agent-maintained title and/or description. Absent in session-less contexts. */
+  setSessionStatus?: (status: unknown) => api.SessionInfo
   /** delegate (model child): spawns an awaited child run + session and parks the calling turn on it. */
   spawnSubSession?: (toolCallId: string, input: unknown) => unknown
   /** delegate {script}: lints + spawns a script child run and parks the calling turn on it. */
@@ -8145,8 +8231,8 @@ function readAttachmentAddress(context: AgentServicePiToolContext, attachmentId:
 /** Reads a thread address: a compact transcript of one of this account's sessions. */
 function readThreadAddress(context: AgentServicePiToolContext, sessionId: string): Record<string, unknown> {
   const session = context.db
-    .query<{id: string; title: string | null; agent_id: string}, [string, string]>(
-      `SELECT id, title, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+    .query<{id: string; title: string | null; description: string | null; agent_id: string}, [string, string]>(
+      `SELECT id, title, description, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
     )
     .get(context.accountId, sessionId)
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
@@ -8177,6 +8263,7 @@ function readThreadAddress(context: AgentServicePiToolContext, sessionId: string
     summary: `Thread "${session.title ?? sessionId}": ${rows.length} recent events.`,
     sessionId,
     title: session.title,
+    ...(session.description ? {description: session.description} : {}),
     markdown: bounded,
   }
 }
@@ -8512,6 +8599,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
     id: string
     agent_id: string
     title: string | null
+    description: string | null
     status: string
     parent_session_id: string | null
     created_at: number
@@ -8546,7 +8634,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
     params.push(ids ? ids.length : limit)
     return context.db
       .query<ThreadRow, (string | number)[]>(
-        `SELECT id, agent_id, title, status, parent_session_id, created_at, updated_at
+        `SELECT id, agent_id, title, description, status, parent_session_id, created_at, updated_at
          FROM sessions WHERE ${conditions.join(' AND ')} ORDER BY updated_at DESC LIMIT ?`,
       )
       .all(...params)
@@ -8554,6 +8642,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   const entry = (row: ThreadRow, snippet?: string): Record<string, unknown> => ({
     thread: `thread:${row.id}`,
     ...(row.title ? {title: row.title} : {}),
+    ...(row.description ? {description: row.description} : {}),
     agent: agentNames.get(row.agent_id) ?? row.agent_id,
     agentId: row.agent_id,
     status: row.status,
@@ -8575,11 +8664,11 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   // Title matches: scan the most recent 400 sessions in JS (no LIKE-escaping pitfalls).
   const titleMatches = context.db
     .query<ThreadRow, (string | number)[]>(
-      `SELECT id, agent_id, title, status, parent_session_id, created_at, updated_at
+      `SELECT id, agent_id, title, description, status, parent_session_id, created_at, updated_at
        FROM sessions WHERE account_id = ?${agentId ? ' AND agent_id = ?' : ''} ORDER BY updated_at DESC LIMIT 400`,
     )
     .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
-    .filter((row) => (row.title ?? '').toLowerCase().includes(query))
+    .filter((row) => `${row.title ?? ''}\n${row.description ?? ''}`.toLowerCase().includes(query))
   // Content matches: a bounded scan over the most recent message events, one snippet per thread.
   const snippets = new Map<string, string>()
   const eventRows = context.db
@@ -8611,7 +8700,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   return {
     summary: `${rows.length} conversation${
       rows.length === 1 ? '' : 's'
-    } matching "${query}" (titles and recent messages). Read one with thread:<id>.`,
+    } matching "${query}" (titles, descriptions and recent messages). Read one with thread:<id>.`,
     threads: rows.map((row) => entry(row, snippets.get(row.id))),
   }
 }
@@ -9429,6 +9518,15 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
       if (!context.setSessionPlan) throw new APIError(400, 'plan is not available in this context')
       const session = context.setSessionPlan(params)
       return {ok: true, steps: session.plan?.steps.length ?? 0}
+    }),
+    defineSeedPiTool(seedVerbRegistry.status, (params) => {
+      if (!context.setSessionStatus) throw new APIError(400, 'status is not available in this context')
+      const session = context.setSessionStatus(params)
+      return {
+        ok: true,
+        ...(session.title ? {title: session.title} : {}),
+        ...(session.description ? {description: session.description} : {}),
+      }
     }),
     defineSeedPiTool(
       context.returnResultSchema

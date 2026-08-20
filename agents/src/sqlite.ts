@@ -13,6 +13,9 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Agent-maintained status line: the `status` verb lets a session describe what it is doing so
+  // session lists and parent sessions can see inside without opening the transcript.
+  `ALTER TABLE sessions ADD COLUMN description TEXT;`,
   // Per-session model override (CBOR SessionModelOverride): a session can pin its own
   // provider/model/reasoning instead of always running the agent definition's model.
   `ALTER TABLE sessions ADD COLUMN model_override_cbor BLOB;`,

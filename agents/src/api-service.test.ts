@@ -3281,6 +3281,7 @@ describe('api service', () => {
             'call',
             'delegate',
             'plan',
+            'status',
           ])
           return openAIStreamResponse([
             {id: 'chat-1', choices: [{delta: {content: "I'll read it first.\n"}}]},
@@ -3518,10 +3519,10 @@ describe('api service', () => {
       expect(searxngCalls).toBe(1)
       expect(searxngHref).toContain('format=json')
       expect(openAICallCount).toBeGreaterThanOrEqual(2)
-      // First provider request advertises exactly the five-verb surface (delegate is run-backed).
+      // First provider request advertises exactly the verb surface (delegate is run-backed).
       expect(
         (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
-      ).toEqual(['read', 'write', 'call', 'delegate', 'plan'])
+      ).toEqual(['read', 'write', 'call', 'delegate', 'plan', 'status'])
       // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
       const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
       expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
@@ -3618,6 +3619,7 @@ describe('api service', () => {
             'call',
             'delegate',
             'plan',
+            'status',
           ])
           expect(JSON.stringify(body.tools)).toContain('hm://<account>/<path>')
           expect(JSON.stringify(body.messages)).toContain('Writer Bot')
@@ -6712,6 +6714,191 @@ describe('api service', () => {
       )
       if (kept._ !== 'GetSessionResponse') throw new Error('unexpected response')
       expect(kept.session.title).toBe('My week')
+    } finally {
+      globalThis.fetch = originalFetch
+      svc?.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('status verb names and describes the session; any client creation title stays provisional', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    let svc: apisvc.Service | undefined
+    try {
+      const account = blobs.generateNobleKeyPair()
+      svc = new apisvc.Service(db, dataDir, {titleGeneration: true})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Namer', systemPrompt: 'be terse', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      const toolReply = (id: string, name: string, args: unknown) =>
+        openAIStreamResponse([
+          {
+            id,
+            choices: [
+              {
+                delta: {
+                  tool_calls: [{index: 0, id, type: 'function', function: {name, arguments: JSON.stringify(args)}}],
+                },
+              },
+            ],
+          },
+          {id, choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      const textReply = (id: string, content: string) =>
+        openAIStreamResponse([
+          {id, choices: [{delta: {content}}]},
+          {id, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+
+      let titleRequests = 0
+      let mode: 'status' | 'plain' = 'status'
+      let chatRequest = 0
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const system = String((body.messages?.[0] as {content?: string} | undefined)?.content ?? '')
+        if (system.includes('session-titling assistant')) {
+          titleRequests += 1
+          return textReply('title', 'Fallback Title\nA greeting with nothing asked yet.')
+        }
+        if (mode === 'plain') return textReply('chat', 'Sure.')
+        chatRequest += 1
+        if (chatRequest === 1) {
+          return toolReply('status-1', 'status', {
+            title: 'Postgres Cron Migration',
+            description: 'Moving the billing cron from Redis to Postgres; schema written, backfill next.',
+          })
+        }
+        return textReply('chat', 'Schema is in place; starting the backfill.')
+      }) as unknown as typeof fetch
+
+      // The desktop sidebar sends "New chat" as the creation title. That is a placeholder: the
+      // session is stored untitled and naming still runs regardless of which client created it.
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSession', agentId: createdAgent.agentId, title: 'New chat'},
+        }),
+      )
+      if (created._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const stored = db
+        .query<{title: string | null; title_source: string}, [string]>(
+          `SELECT title, title_source FROM sessions WHERE id = ?`,
+        )
+        .get(created.sessionId)
+      expect(stored).toEqual({title: null, title_source: 'system'})
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: created.sessionId,
+            content: [{type: 'text', text: 'move the billing cron to postgres'}],
+          },
+        }),
+      )
+      await svc.awaitQueueIdle()
+      const afterStatus = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: created.sessionId}}),
+      )
+      if (afterStatus._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      // The status verb's title wins over whatever the fallback namer produced, and the description
+      // rides along on the session record for lists and parents.
+      expect(afterStatus.session.title).toBe('Postgres Cron Migration')
+      expect(afterStatus.session.description).toBe(
+        'Moving the billing cron from Redis to Postgres; schema written, backfill next.',
+      )
+      expect(
+        db
+          .query<{title_source: string}, [string]>(`SELECT title_source FROM sessions WHERE id = ?`)
+          .get(created.sessionId)?.title_source,
+      ).toBe('agent')
+      const listed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListSessions', agentId: createdAgent.agentId}}),
+      )
+      if (listed._ !== 'ListSessionsResponse') throw new Error('unexpected response')
+      expect(listed.sessions.find((session) => session.id === created.sessionId)?.description).toBe(
+        'Moving the billing cron from Redis to Postgres; schema written, backfill next.',
+      )
+
+      // Once the agent has named the session, the fallback namer never runs again for it.
+      const titleRequestsAfterNaming = titleRequests
+      mode = 'plain'
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId: created.sessionId, content: [{type: 'text', text: 'go on'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+      expect(titleRequests).toBe(titleRequestsAfterNaming)
+
+      // A user-typed title is never overwritten by the status verb; the description still updates.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'UpdateSession', sessionId: created.sessionId, title: 'Billing cron'},
+        }),
+      )
+      mode = 'status'
+      chatRequest = 0
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId: created.sessionId, content: [{type: 'text', text: 'status?'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+      const kept = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: created.sessionId}}),
+      )
+      if (kept._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(kept.session.title).toBe('Billing cron')
+      expect(kept.session.description).toBe(
+        'Moving the billing cron from Redis to Postgres; schema written, backfill next.',
+      )
+
+      // A session created with a placeholder by a client that never sees the status verb is still
+      // named by the fallback.
+      mode = 'plain'
+      const plain = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSession', agentId: createdAgent.agentId, title: 'New chat'},
+        }),
+      )
+      if (plain._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId: plain.sessionId, content: [{type: 'text', text: 'hello there'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+      const named = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: plain.sessionId}}),
+      )
+      if (named._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(named.session.title).toBe('Fallback Title')
+      // The namer's second line is the description, so every session carries a summary even when
+      // the model never calls status.
+      expect(named.session.description).toBe('A greeting with nothing asked yet.')
     } finally {
       globalThis.fetch = originalFetch
       svc?.stopRunQueue()

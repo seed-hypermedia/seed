@@ -2530,12 +2530,12 @@ export function useCreateAgentSession(serverUrl: string | undefined, accountUid:
 /** Creates a session on the server associated with a listed agent. */
 export function useCreateAgentSessionOnServer(accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({serverUrl, agentId, title}: {serverUrl: string; agentId: string; title: string}) => {
+    mutationFn: async ({serverUrl, agentId, title}: {serverUrl: string; agentId: string; title?: string}) => {
       if (!accountUid) throw new Error('Select an account first')
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSession', agentId, title, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
       })
     },
     onSuccess() {

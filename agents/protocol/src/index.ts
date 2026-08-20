@@ -956,6 +956,12 @@ export type SessionInfo = {
   childSessionCount?: number
   /** Per-session model configuration; absent means the agent's own model runs. */
   modelOverride?: SessionModelOverride
+  /**
+   * The agent's own one-or-two-sentence account of what this session is doing, maintained via
+   * the `status` verb. Shown beside the title in session lists so a reader (or a parent session)
+   * can see inside without opening the transcript.
+   */
+  description?: string
 }
 
 /** Lifecycle status of a durable run. */

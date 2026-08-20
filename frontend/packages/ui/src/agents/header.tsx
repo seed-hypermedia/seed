@@ -130,10 +130,13 @@ export function AgentSubpageHeader({
   onBack,
   actions,
   children,
+  subtitle,
 }: {
   title: string
   placeholder: string
   onTitleChange: (title: string) => void
+  /** One-line status under the title (e.g. the agent's own session description). */
+  subtitle?: string
   saveState?: AgentTitleSaveState
   disabled?: boolean
   backLabel: string
@@ -174,6 +177,13 @@ export function AgentSubpageHeader({
         {actions}
         {children}
       </div>
+      {subtitle ? (
+        <div className="mx-auto w-full max-w-4xl px-4 pb-2 pl-[3.75rem]">
+          <p className="text-muted-foreground truncate text-sm" title={subtitle}>
+            {subtitle}
+          </p>
+        </div>
+      ) : null}
     </header>
   )
 }

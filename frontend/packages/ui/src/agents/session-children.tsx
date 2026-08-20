@@ -4,6 +4,34 @@ import {ChevronDown, ChevronRight} from 'lucide-react'
 import React, {useState} from 'react'
 
 /** Status dot shown beside a session title in every session list. */
+/**
+ * The agent's own summary of a session (status verb, or the server's namer), pinned above the
+ * chat so a reader knows what the session is doing without scrolling the transcript.
+ */
+export function SessionSummaryBanner({
+  description,
+  compact,
+  className = '',
+}: {
+  description: string | undefined
+  compact?: boolean
+  className?: string
+}) {
+  if (!description) return null
+  return (
+    <div
+      className={`border-border bg-card/95 supports-[backdrop-filter]:bg-card/80 flex-none border-b backdrop-blur ${
+        compact ? 'px-3 py-1.5' : 'px-1 py-2'
+      } ${className}`}
+      aria-label="Session summary"
+    >
+      <p className={`text-muted-foreground line-clamp-3 ${compact ? 'text-xs' : 'text-sm'}`} title={description}>
+        {description}
+      </p>
+    </div>
+  )
+}
+
 export function SessionStatusDot({status, className}: {status: SessionInfo['status']; className?: string}) {
   const statusClass =
     status === 'error'
@@ -97,7 +125,7 @@ export function SubSessionsDisclosure({
             <button
               key={child.id}
               type="button"
-              className={`hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1 text-left ${textClass} ${
+              className={`hover:bg-muted flex w-full flex-col gap-0.5 rounded px-2 py-1 text-left ${textClass} ${
                 child.id === selectedSessionId ? 'bg-muted' : ''
               }`}
               onClick={(event) => {
@@ -105,8 +133,13 @@ export function SubSessionsDisclosure({
                 onOpenSession(child, event)
               }}
             >
-              <SessionStatusDot status={child.status} className="size-2" />
-              <span className="min-w-0 flex-1 truncate">{child.title || 'Untitled sub-session'}</span>
+              <span className="flex w-full items-center gap-2">
+                <SessionStatusDot status={child.status} className="size-2" />
+                <span className="min-w-0 flex-1 truncate">{child.title || 'Untitled sub-session'}</span>
+              </span>
+              {child.description ? (
+                <span className="text-muted-foreground line-clamp-3 w-full pl-4 text-xs">{child.description}</span>
+              ) : null}
             </button>
           ))}
         </div>

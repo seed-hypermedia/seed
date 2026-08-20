@@ -397,6 +397,26 @@ const planVerb = {
   runtimes: ['agent-service'],
 } satisfies SeedToolMetadata
 
+const statusVerb = {
+  name: 'status',
+  label: 'Status',
+  description:
+    'Update this session\'s title and description — the one-line label and one-or-two-sentence summary shown in session lists and read by any parent session or teammate checking on your work. Call it once early, as soon as you know what the conversation is about (a specific title beats a generic one: "Migrate billing cron to Postgres", not "Help with code"), and again whenever the focus shifts or a milestone is reached so the description reflects what is going on right now and what is left. Keep the description to what an outside reader needs: current objective, progress, blockers. Omit a field to leave it unchanged. A title the user typed themselves is never overwritten.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      title: {type: 'string', minLength: 1, description: 'Short session title, at most eight words.'},
+      description: {
+        type: 'string',
+        description: 'One or two sentences: what the session is doing right now and how far along it is.',
+      },
+    },
+  },
+  render: {kind: 'hidden', label: 'Status', color: 'hidden', summaryArg: 'title'},
+  runtimes: ['agent-service'],
+} satisfies SeedToolMetadata
+
 const returnResultTool = {
   name: 'return_result',
   label: 'Return Result',
@@ -420,6 +440,7 @@ export const seedVerbRegistry = {
   call: callVerb,
   delegate: delegateVerb,
   plan: planVerb,
+  status: statusVerb,
   return_result: returnResultTool,
 } as const
 

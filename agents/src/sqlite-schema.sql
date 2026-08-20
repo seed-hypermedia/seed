@@ -91,6 +91,7 @@ CREATE TABLE sessions (
     run_id TEXT,
     plan_cbor BLOB,
     model_override_cbor BLOB,
+    description TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;

@@ -1,5 +1,6 @@
 import {type AgentRunActivity, type AgentSessionTriggerContext} from './client'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
+import {SessionSummaryBanner} from './session-children'
 import {useChatAutoScroll} from './chat-autoscroll'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
 import {
@@ -485,6 +486,7 @@ function AgentSessionPage({
                 }
               />
             ) : null}
+            <SessionSummaryBanner description={session.data.session.description} />
             <div
               ref={autoScroll.containerRef}
               onScroll={autoScroll.handleScroll}

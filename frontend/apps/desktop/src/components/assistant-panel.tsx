@@ -74,7 +74,8 @@ import {
 } from '@shm/ui/agents/rich-message-composer'
 import type {CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {RunRecordCard, SessionRunCard} from '@shm/ui/agents/run-card'
-import {SessionStatusDot, SubSessionsDisclosure} from '@shm/ui/agents/session-children'
+import {SessionModelBadge} from '@shm/ui/agents/header'
+import {SessionStatusDot, SessionSummaryBanner, SubSessionsDisclosure} from '@shm/ui/agents/session-children'
 import {QueuedChatMessages, useQueuedChatMessages} from '@shm/ui/agents/chat-message-queue'
 
 /**
@@ -504,7 +505,12 @@ function AssistantSessionPicker({
                   }}
                 >
                   <SessionStatusDot status={entry.session.status} className="size-2" />
-                  <span className="min-w-0 flex-1 truncate text-xs">{entry.session.title || 'Untitled session'}</span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-xs">{entry.session.title || 'Untitled session'}</span>
+                    {entry.session.description ? (
+                      <span className="text-muted-foreground line-clamp-3 text-xs">{entry.session.description}</span>
+                    ) : null}
+                  </span>
                 </button>
                 {entry.session.childSessionCount ? (
                   <div className="pl-4">
@@ -571,7 +577,9 @@ function AssistantDraftChat({
     setError(null)
     isSendingRef.current = true
     try {
-      const result = await createSession.mutateAsync({serverUrl, agentId, title: 'New chat'})
+      // No title at creation: the agent names the session (status verb, with the server's fallback
+      // namer behind it). 'New chat' is only the optimistic row's display label below.
+      const result = await createSession.mutateAsync({serverUrl, agentId})
       if (result._ !== 'CreateSessionResponse') throw new Error('Unexpected CreateSession response')
       // Seed the caches before selecting: the selection resolver can only keep the new session if
       // it can attribute it to this agent, and the list refetch has not landed yet.
@@ -728,6 +736,7 @@ function AssistantSessionChat({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      <SessionSummaryBanner compact description={session.data?.session.description} />
       <div
         ref={autoScroll.containerRef}
         onScroll={autoScroll.handleScroll}
@@ -836,6 +845,20 @@ function AssistantSessionChat({
         onSend={handleSend}
         onStop={() => void handleStop()}
       />
+      {/* The active model for THIS session: the same per-session override switcher as the full
+          session page, so changing it here never touches the agent's default. */}
+      {session.data ? (
+        <div className="flex flex-none items-center justify-end px-3 pb-2">
+          <SessionModelBadge
+            agent={agentDetail.data?.agent}
+            agentId={session.data.session.agentId}
+            serverUrl={serverUrl}
+            sessionId={sessionId}
+            modelOverride={session.data.session.modelOverride}
+            canWrite={!readOnly && !!agentDetail.data}
+          />
+        </div>
+      ) : null}
     </div>
   )
 }
