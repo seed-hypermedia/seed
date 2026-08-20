@@ -37,10 +37,11 @@ function catalogSections(): Section[] {
   const meta = names.filter((n) => n === 'onyx-schema' || isMetaVariant(n))
   const prims = names.filter(isPrimitive)
   const hyper = names.filter((n) => n.startsWith('hypermedia-'))
-  const seedApi = names.filter((n) => n.startsWith('seed-'))
+  const rpc = names.filter((n) => n === 'seed-rpc' || n.startsWith('seed-rpc-'))
+  const seedApi = names.filter((n) => n.startsWith('seed-') && !rpc.includes(n))
   const examples = names.filter((n) => n.startsWith('example-') && !isInstance(ONYX_SCHEMAS[n]))
   const instances = names.filter((n) => isInstance(ONYX_SCHEMAS[n]))
-  const known = new Set([...meta, ...prims, ...hyper, ...seedApi, ...examples, ...instances])
+  const known = new Set([...meta, ...prims, ...hyper, ...rpc, ...seedApi, ...examples, ...instances])
   const other = names.filter((n) => !known.has(n))
   return [
     {
@@ -53,6 +54,7 @@ function catalogSections(): Section[] {
     ...(other.length ? [{title: 'Library', hint: 'other schemas', names: other}] : []),
     {title: 'Hypermedia blobs', hint: "the network's real DAG-CBOR blob schemas", names: hyper},
     {title: 'Seed API read models', hint: 'derived data the daemon computes for clients', names: seedApi},
+    {title: 'RPC methods', hint: 'the universal-client API — every page has a live call console', names: ['seed-rpc', ...rpc.filter((n) => n !== 'seed-rpc')]},
     {title: 'Instances', hint: 'data typed by a schema', names: instances},
   ].filter((s) => s.names.length)
 }
