@@ -1,9 +1,9 @@
 ---
-name: "example-dave"
+name: "Example: Dave"
 summary: "example-dave — instance."
 ---
 
-# example-dave
+# Example: Dave
 
 
 ## Shape

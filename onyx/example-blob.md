@@ -1,9 +1,9 @@
 ---
-name: "Blob"
+name: "Example: Blob"
 summary: "A binary payload tagged with a MIME type and optional size."
 ---
 
-# Blob
+# Example: Blob
 
 A binary payload tagged with a MIME type and optional size.
 
