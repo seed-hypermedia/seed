@@ -1,0 +1,32 @@
+{
+  "name": "RPC: ListDocumentCollaborators",
+  "description": "Resolves a document's full collaboration picture. One method of the Seed universal-client API: `request(key, input) -> output`. The `input` field types what you pass; `output` types what comes back.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "properties": {
+    "key": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": [
+        "ListDocumentCollaborators"
+      ]
+    },
+    "input": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "properties": {
+        "targetId": {
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-id"
+        }
+      },
+      "required": [
+        "targetId"
+      ]
+    },
+    "output": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-collaborators-payload"
+    }
+  },
+  "required": [
+    "key",
+    "input",
+    "output"
+  ]
+}
