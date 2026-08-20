@@ -1,9 +1,9 @@
 ---
-name: "Status"
+name: "Example: Status"
 summary: "A publication status: draft, published, or archived."
 ---
 
-# Status
+# Example: Status
 
 A publication status: draft, published, or archived.
 

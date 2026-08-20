@@ -1,9 +1,9 @@
 ---
-name: "example-file"
+name: "Example: File"
 summary: "example-file — an example schema."
 ---
 
-# example-file
+# Example: File
 
 
 This document describes the **example-file** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.

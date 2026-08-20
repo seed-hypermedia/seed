@@ -1,9 +1,9 @@
 ---
-name: "Employee"
+name: "Example: Employee"
 summary: "A person, extended with an employee id and department."
 ---
 
-# Employee
+# Example: Employee
 
 A person, extended with an employee id and department.
 

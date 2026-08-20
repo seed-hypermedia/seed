@@ -1,9 +1,9 @@
 ---
-name: "MyApp change"
+name: "Example: MyApp change"
 summary: "A Change instantiated with this app's block type — Change<example-app-block>. Because Block is bound, its ReplaceBlock ops are validated strictly against the ap"
 ---
 
-# MyApp change
+# Example: MyApp change
 
 A Change instantiated with this app's block type — Change<example-app-block>. Because Block is bound, its ReplaceBlock ops are validated strictly against the app's blocks (core + Poll), deep inside the op stack — a block type the app doesn't know is rejected, unlike the open default Change.
 
