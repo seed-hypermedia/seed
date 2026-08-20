@@ -51,6 +51,7 @@ import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {useAccount} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useRouteLink} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '../copy-to-clipboard'
 import {
@@ -70,7 +71,7 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowRight, ArrowRightLeft, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
+import {ArrowRight, ArrowRightLeft, ExternalLink, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
 import {HMIcon} from '@shm/ui/hm-icon'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '@seed-hypermedia/agents-protocol'
@@ -1300,6 +1301,78 @@ const AGENT_TOOL_OPTIONS: {names: string[]; title: string; infoTool?: string}[] 
   {names: [AGENT_PUBLISH_GRANT], title: 'Publish Seed content', infoTool: 'write'},
 ]
 
+const AUTHOR_CHIP_CLASS =
+  'hover:bg-accent/40 flex min-w-0 cursor-pointer items-center gap-1.5 rounded-full py-0.5 pr-2 pl-0.5 disabled:cursor-default disabled:hover:bg-transparent'
+
+/** One "Author as" identity chip. Owners get a dropdown (open / edit profile); everyone else gets a
+ * plain profile link. Key-only identities with no account have no profile to open. */
+function AuthorIdentityChip({
+  identity,
+  displayName,
+  canEdit,
+  onEdit,
+}: {
+  identity: SigningIdentity
+  displayName: string
+  canEdit: boolean
+  onEdit: () => void
+}) {
+  const profileRoute = identity.accountId
+    ? ({key: 'site-profile', id: hmId(identity.accountId), tab: 'profile'} as const)
+    : null
+  const linkProps = useRouteLink(profileRoute)
+  const content = (
+    <>
+      {identity.accountId ? (
+        <HMIcon id={hmId(identity.accountId)} name={displayName} icon={identity.icon} size={24} />
+      ) : (
+        <KeyRound className="text-muted-foreground size-4" />
+      )}
+      <SizableText size="sm" weight="bold" className="truncate">
+        {displayName}
+      </SizableText>
+    </>
+  )
+
+  if (canEdit) {
+    return (
+      <OptionsDropdown
+        ariaLabel={`Options for ${displayName}`}
+        button={
+          <button type="button" className={AUTHOR_CHIP_CLASS}>
+            {content}
+          </button>
+        }
+        menuItems={[
+          profileRoute
+            ? {
+                key: 'open',
+                label: 'Open profile',
+                icon: <ExternalLink className="size-4" />,
+                onClick: (e) => linkProps.onClick?.(e),
+              }
+            : null,
+          {key: 'edit', label: 'Edit profile', icon: <Pencil className="size-4" />, onClick: onEdit},
+        ]}
+      />
+    )
+  }
+
+  if (!profileRoute) {
+    return (
+      <div className="flex min-w-0 items-center gap-1.5 py-0.5 pr-2 pl-0.5" title={displayName}>
+        {content}
+      </div>
+    )
+  }
+
+  return (
+    <a {...linkProps} className={AUTHOR_CHIP_CLASS} aria-label={`Open ${displayName}'s profile`}>
+      {content}
+    </a>
+  )
+}
+
 function AgentToolsTab({
   serverUrl,
   accountUid,
@@ -1481,29 +1554,14 @@ function AgentToolsTab({
                         const displayName = identity.label || identity.accountId || identity.name
                         return (
                           <div key={identity.id} className="group/identity flex min-w-0 items-center gap-1.5">
-                            <button
-                              type="button"
-                              className="hover:bg-accent/40 flex min-w-0 cursor-pointer items-center gap-1.5 rounded-full py-0.5 pr-2 pl-0.5 disabled:cursor-default disabled:hover:bg-transparent"
-                              disabled={!canManageIdentities}
-                              aria-label={`Edit ${displayName}`}
-                              onClick={() =>
+                            <AuthorIdentityChip
+                              identity={identity}
+                              displayName={displayName}
+                              canEdit={canManageIdentities}
+                              onEdit={() =>
                                 editAccountDialog.open({serverUrl, selectedAccountId: accountUid, identity})
                               }
-                            >
-                              {identity.accountId ? (
-                                <HMIcon
-                                  id={hmId(identity.accountId)}
-                                  name={displayName}
-                                  icon={identity.icon}
-                                  size={24}
-                                />
-                              ) : (
-                                <KeyRound className="text-muted-foreground size-4" />
-                              )}
-                              <SizableText size="sm" weight="bold" className="truncate">
-                                {displayName}
-                              </SizableText>
-                            </button>
+                            />
                             {canManageIdentities ? (
                               <Button
                                 variant="ghost"
