@@ -1,9 +1,9 @@
 ---
-name: "example-counts"
+name: "Example: Counts"
 summary: "example-counts — an example schema."
 ---
 
-# example-counts
+# Example: Counts
 
 
 This document describes the **example-counts** type — an example schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.

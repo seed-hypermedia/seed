@@ -1,9 +1,9 @@
 ---
-name: "Tags"
+name: "Example: Tags"
 summary: "A list of string tags — List<String>."
 ---
 
-# Tags
+# Example: Tags
 
 A list of string tags — List<String>.
 

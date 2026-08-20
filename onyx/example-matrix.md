@@ -1,9 +1,9 @@
 ---
-name: "Matrix"
+name: "Example: Matrix"
 summary: "A list of lists of integers — List<List<Integer>>."
 ---
 
-# Matrix
+# Example: Matrix
 
 A list of lists of integers — List<List<Integer>>.
 
