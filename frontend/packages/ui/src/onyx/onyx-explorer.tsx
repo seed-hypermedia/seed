@@ -37,9 +37,10 @@ function catalogSections(): Section[] {
   const meta = names.filter((n) => n === 'onyx-schema' || isMetaVariant(n))
   const prims = names.filter(isPrimitive)
   const hyper = names.filter((n) => n.startsWith('hypermedia-'))
+  const seedApi = names.filter((n) => n.startsWith('seed-'))
   const examples = names.filter((n) => n.startsWith('example-') && !isInstance(ONYX_SCHEMAS[n]))
   const instances = names.filter((n) => isInstance(ONYX_SCHEMAS[n]))
-  const known = new Set([...meta, ...prims, ...hyper, ...examples, ...instances])
+  const known = new Set([...meta, ...prims, ...hyper, ...seedApi, ...examples, ...instances])
   const other = names.filter((n) => !known.has(n))
   return [
     {
@@ -51,6 +52,7 @@ function catalogSections(): Section[] {
     {title: 'Examples', hint: 'feature demos', names: examples},
     ...(other.length ? [{title: 'Library', hint: 'other schemas', names: other}] : []),
     {title: 'Hypermedia blobs', hint: "the network's real DAG-CBOR blob schemas", names: hyper},
+    {title: 'Seed API read models', hint: 'derived data the daemon computes for clients', names: seedApi},
     {title: 'Instances', hint: 'data typed by a schema', names: instances},
   ].filter((s) => s.names.length)
 }
