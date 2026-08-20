@@ -1,9 +1,9 @@
 ---
-name: "Comment"
+name: "Example: Comment"
 summary: "A comment with an author and replies, which are themselves comments."
 ---
 
-# Comment
+# Example: Comment
 
 A comment with an author and replies, which are themselves comments.
 

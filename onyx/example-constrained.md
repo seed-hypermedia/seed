@@ -1,9 +1,9 @@
 ---
-name: "Constrained record"
+name: "Example: Constrained record"
 summary: "Exercises the value constraints: string length + pattern, numeric bounds, and list size."
 ---
 
-# Constrained record
+# Example: Constrained record
 
 Exercises the value constraints: string length + pattern, numeric bounds, and list size.
 
