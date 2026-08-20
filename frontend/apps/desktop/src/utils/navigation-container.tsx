@@ -151,6 +151,9 @@ export function NavigationContainer({children}: {children: ReactNode}) {
       onPushReference={(id: UnpackedHypermediaId) => {
         pushAfterActionRef.current?.({id, trigger: 'copy', onlyPushToHost: gwUrl})
       }}
+      onPushPublished={(id: UnpackedHypermediaId) => {
+        pushAfterActionRef.current?.({id, trigger: 'publish'})
+      }}
     >
       <NavContextProvider value={navigation}>
         <PushAfterActionSetter pushAfterActionRef={pushAfterActionRef} />

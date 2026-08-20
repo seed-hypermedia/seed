@@ -55,6 +55,12 @@ type UniversalAppContextValue = {
    * pushOnCopy-gated push flow with toast feedback. Web/mobile may leave it
    * undefined. */
   onPushReference?: (hmId: UnpackedHypermediaId) => void
+  /** Optional platform-specific push trigger fired after locally publishing a
+   * blob that must reach the document's site fast (e.g. a capability grant —
+   * same need as comments). On desktop this delegates to the
+   * pushOnPublish-gated push flow with toast feedback; web/mobile may leave it
+   * undefined because they already publish through the site. */
+  onPushPublished?: (hmId: UnpackedHypermediaId) => void
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
   // you must be confused at this point, because I wrote this and I got confused! Here's why we do it:
@@ -117,6 +123,7 @@ export function UniversalAppProvider(props: {
   openRouteNewWindow?: null | ((route: NavRoute) => void)
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
   onPushReference?: (hmId: UnpackedHypermediaId) => void
+  onPushPublished?: (hmId: UnpackedHypermediaId) => void
   hmUrlHref?: boolean
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
@@ -140,6 +147,7 @@ export function UniversalAppProvider(props: {
         openRouteNewWindow: props.openRouteNewWindow,
         onCopyReference: props.onCopyReference,
         onPushReference: props.onPushReference,
+        onPushPublished: props.onPushPublished,
         hmUrlHref: props.hmUrlHref,
         languagePack: props.languagePack,
         selectedIdentity: props.selectedIdentity,

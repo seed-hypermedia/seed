@@ -35,6 +35,7 @@ const EMPTY_TIMESTAMP = {
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
   const client = useUniversalClient()
+  const {onPushPublished} = useUniversalAppContext()
   return useMutation({
     mutationFn: async ({
       myCapability,
@@ -63,6 +64,10 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
       )
     },
     onSuccess: () => {
+      // A grant published locally must reach the document's site as fast as a
+      // comment does: push it instead of waiting for the site's next sync
+      // wave to pull it. No-op on platforms that publish through the site.
+      onPushPublished?.(id)
       invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
       invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, id.uid, ...(id.path || [])])
     },
