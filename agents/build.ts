@@ -1,5 +1,4 @@
 import {rm} from 'node:fs/promises'
-import tailwind from 'bun-plugin-tailwind'
 import * as path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import process from 'node:process'
@@ -21,9 +20,7 @@ const result = await Bun.build({
     chunk: '[dir]/[name].[hash].[ext]',
     asset: '[dir]/[name].[hash].[ext]',
   },
-  publicPath: '/agents/',
   root: './src',
-  plugins: [tailwind],
   // Bundling `microsandbox` breaks it: its napi binding, `msb` hypervisor helper, and libkrunfw
   // cannot live inside bundled JS, so the bundle dies at execute time with "Cannot find module
   // '../../native/index.cjs'". Kept external; the Dockerfile stages the package into

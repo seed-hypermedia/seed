@@ -14,7 +14,8 @@ inspect everything that executed.
 5. **Secret redaction** — API keys are encrypted at rest and never returned in API responses.
 6. **Visible tools** — tool calls and tool results are durable session events rendered in the UI.
 7. **Shared hypermedia behavior** — `read` uses SDK code shared with CLI URL resolution, not a CLI shellout.
-8. **Inspectable operation** — the service exposes `/agents` and diagnostic logs for debugging local workflows.
+8. **Inspectable operation** — durable session events, the signed read actions, and diagnostic logs support debugging
+   local workflows; there is no unauthenticated inspection surface.
 9. **Five verbs, one address space** — `read`, `write`, `call`, `delegate`, `plan` are the whole model-facing surface;
    new capability arrives as a new address or a new callable, not a new tool in the provider payload.
 10. **Configuration is content** — an agent's tools and memory are documents in its Space, addressable and readable by
@@ -43,7 +44,6 @@ Desktop app
 Agents service (Bun)
   ├─ /api/message signed action API
   ├─ /agents/ws signed subscription API
-  ├─ /agents status and live session inspector UI
   ├─ SQLite persistence (state, and the runs table that is also the queue)
   ├─ AES-GCM secret storage
   ├─ Pi SDK-backed model execution loop
@@ -101,9 +101,8 @@ Shared Seed libraries
 - Bun standalone service with configurable host/port/db/data dir.
 - `/api/message` and `/agents/api/message` signed CBOR action routes.
 - `/api/health` and `/agents/api/health` JSON health routes.
-- `/agents/api/status` and `/agents/api/session` debug JSON routes for inspector UI.
 - `/agents/ws` signed WebSocket subscription endpoint.
-- `/agents` built-in inspector UI.
+- No browser UI or unauthenticated data routes; everything else is a 404.
 - Graceful shutdown for WebSockets and SQLite.
 
 ### Persistence

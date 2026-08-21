@@ -35,6 +35,7 @@ import {
   useModelProviders,
   useProviderModels,
   useRemoveAgentCollaborator,
+  useSetAgentPublicRead,
   useSaveAgentTool,
   useSigningIdentities,
   useUpdateAgent,
@@ -63,6 +64,7 @@ import {
 } from '@shm/ui/components/alert-dialog'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {Switch} from '@shm/ui/components/switch'
 import {Textarea} from '@shm/ui/components/textarea'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Container, PanelContainer} from '@shm/ui/container'
@@ -71,7 +73,7 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowRight, ArrowRightLeft, ExternalLink, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
+import {ArrowRight, ArrowRightLeft, ExternalLink, Globe, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
 import {HMIcon} from '@shm/ui/hm-icon'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '@seed-hypermedia/agents-protocol'
@@ -628,7 +630,8 @@ function AgentDetailPage({
                   accountUid={selectedAccountId ?? null}
                   agentId={agentId}
                   ownerAccountId={agent.data.agent.account}
-                  collaborators={collaborators.data || []}
+                  collaborators={collaborators.data?.collaborators || []}
+                  publicRead={collaborators.data?.publicRead ?? agent.data.agent.publicRead ?? false}
                   loading={collaborators.isLoading}
                   isOwner={isOwner}
                 />
@@ -771,6 +774,7 @@ function AgentCollaboratorsTab({
   agentId,
   ownerAccountId,
   collaborators,
+  publicRead,
   loading,
   isOwner,
 }: {
@@ -779,11 +783,13 @@ function AgentCollaboratorsTab({
   agentId: string
   ownerAccountId: string
   collaborators: AgentCollaboratorInfo[]
+  publicRead: boolean
   loading: boolean
   isOwner: boolean
 }) {
   const invite = useInviteAgentCollaborator(serverUrl, accountUid)
   const remove = useRemoveAgentCollaborator(serverUrl, accountUid)
+  const setPublicRead = useSetAgentPublicRead(serverUrl, accountUid)
   const [selected, setSelected] = useState<SearchResult[]>([])
   const [role, setRole] = useState<AgentCollaboratorRole>('writer')
   const excludedAccountIds = [ownerAccountId, ...collaborators.map((member) => member.accountId)]
@@ -839,6 +845,40 @@ function AgentCollaboratorsTab({
           </SizableText>
         </div>
       ) : null}
+
+      <div className="border-border flex items-center gap-3 rounded-md border p-3">
+        <Globe className="text-muted-foreground size-5 shrink-0" />
+        <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
+          <SizableText size="sm" weight="medium">
+            Public access
+          </SizableText>
+          <SizableText size="xs" color="muted">
+            {publicRead
+              ? 'This agent is public: anyone with a link can view its settings, memory, tools, and sessions.'
+              : 'This agent is private: only the owner and collaborators can view it.'}
+          </SizableText>
+        </div>
+        {isOwner ? (
+          <Switch
+            aria-label="Public access"
+            checked={publicRead}
+            disabled={setPublicRead.isLoading}
+            onCheckedChange={(checked) =>
+              setPublicRead.mutate(
+                {agentId, publicRead: checked},
+                {
+                  onError: (error) =>
+                    toast.error(error instanceof Error ? error.message : 'Could not change public access'),
+                },
+              )
+            }
+          />
+        ) : publicRead ? (
+          <SizableText size="xs" color="muted" className="shrink-0">
+            Public
+          </SizableText>
+        ) : null}
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

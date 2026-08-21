@@ -5,6 +5,7 @@ import {
   normalizeAgentServerUrl,
   sendAgentAction,
   signAgentAction,
+  type AgentCollaboratorInfo,
   type AgentCollaboratorRole,
   type AgentDefinition,
   type AgentInfo,
@@ -1133,7 +1134,7 @@ export function useCreateAgent(serverUrl: string | undefined, accountUid: string
   })
 }
 
-/** Lists everyone with access to one agent, including pending invitations. */
+/** Lists everyone with access to one agent, including pending invitations, plus its public-read flag. */
 export function useAgentCollaborators(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
@@ -1141,11 +1142,11 @@ export function useAgentCollaborators(
 ) {
   return useQuery({
     queryKey: ['agents', 'collaborators', serverUrl, accountUid, agentId],
-    queryFn: async () => {
-      if (!serverUrl || !accountUid || !agentId) return []
+    queryFn: async (): Promise<{collaborators: AgentCollaboratorInfo[]; publicRead: boolean}> => {
+      if (!serverUrl || !accountUid || !agentId) return {collaborators: [], publicRead: false}
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentCollaborators', agentId}})
       if (res._ !== 'ListAgentCollaboratorsResponse') throw new Error('Unexpected collaborator list response')
-      return res.collaborators
+      return {collaborators: res.collaborators, publicRead: res.publicRead === true}
     },
     enabled: !!serverUrl && !!accountUid && !!agentId,
     refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
@@ -1173,6 +1174,19 @@ export function useInviteAgentCollaborator(serverUrl: string | undefined, accoun
         accountUid,
         action: {_: 'InviteAgentCollaborator', agentId, accountId: collaboratorAccountId, role},
       })
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/** Owner-only: lets every signed account read the agent by id (or makes it private again). */
+export function useSetAgentPublicRead(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, publicRead}: {agentId: string; publicRead: boolean}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'SetAgentPublicRead', agentId, publicRead}})
     },
     onSuccess() {
       invalidateQueries(['agents'])

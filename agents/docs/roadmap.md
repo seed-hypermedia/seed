@@ -38,7 +38,7 @@ Complete enough to build on; treat as baseline functionality:
   auto-checked steps, runtime-authored messages durably `actor: 'system'`, and runtime step settlement from succeeded
   children;
 - per-agent memory filesystem, session-private attachments, self-hosted `web_search`/`web_read`, schedule and activity
-  triggers, the built-in `/agents` inspector.
+  triggers.
 
 ## Highest priority next steps
 
@@ -122,11 +122,6 @@ Heartbeat, explicit unsubscribe, CBOR server events, subscription limits, backpr
 
 Delete provider, rotate secret, delete secret, last-used/error metadata.
 
-### Run history in the inspector
-
-The `runs` table backs execution history, cancellation, and reconnect recovery, but the built-in `/agents` inspector
-still shows only sessions and events.
-
 ### Desktop packaging coverage
 
 `desktop-smoke-test.yml` builds and runs on macOS only; the Linux and Windows binaries are compiled but never executed
@@ -139,8 +134,6 @@ in CI. A fresh install also has no agent to talk to — auto-provisioning a buil
 3. Rate limits and quotas.
 4. Audit log for secret/provider/tool/security events.
 5. Outbound network policy for tools.
-6. Auth or local-only binding for the `/agents` inspector, which is unauthenticated and reveals account ids, session
-   titles, and event payloads.
 
 ## Code improvement areas found during review
 

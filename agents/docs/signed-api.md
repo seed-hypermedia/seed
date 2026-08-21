@@ -71,6 +71,7 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
 - `ListAgentCollaborators`
 - `InviteAgentCollaborator`
 - `RemoveAgentCollaborator`
+- `SetAgentPublicRead`
 - `AcceptAgentInvite`
 - `DeclineAgentInvite`
 - `CreateAgent`
@@ -165,12 +166,17 @@ returned here.
 
 - `ListAgentInvites {}` returns pending `AgentInviteInfo` rows for the signed account. An invite discloses only the
   agent id/name, owner account, role, and timestamps; agent contents remain unavailable until acceptance.
-- `ListAgentCollaborators {agentId}` returns the owner and accepted members. The owner also sees pending invitations.
+- `ListAgentCollaborators {agentId}` returns the owner and accepted members plus the agent's `publicRead` flag. The
+  owner also sees pending invitations.
 - `InviteAgentCollaborator {agentId, accountId, role}` creates an invitation (`reader` or `writer`) or updates an
   existing member's role. Owner-only.
 - `RemoveAgentCollaborator {agentId, accountId}` revokes an accepted member or cancels a pending invitation. Owner-only.
 - `AcceptAgentInvite {agentId}` accepts the signed account's pending invitation and returns the now-accessible agent.
 - `DeclineAgentInvite {agentId}` deletes the signed account's pending invitation.
+- `SetAgentPublicRead {agentId, publicRead}` turns public read access on or off. Owner-only. While on, every signed
+  account that knows the agent id is treated as a `reader` (the same view an invited reader gets, including live
+  subscriptions); the agent is still never returned from `ListAgents` or account-wide `ListSessions` for accounts that
+  are not owner or collaborator. `AgentInfo.publicRead` reports the flag.
 
 Readers can inspect all agent-scoped state. Writers can additionally create/update/delete agent-scoped resources and
 interact with sessions. Managing collaborators and deleting the agent remain owner-only. Account-scoped provider and

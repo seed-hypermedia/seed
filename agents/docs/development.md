@@ -195,7 +195,7 @@ After core changes:
     that the agent's next turn sees it.
 15. Give it a task worth a checklist and a delegation; confirm the run card shows the plan, the child attaches to the
     running step, and the parent resumes with the child's result.
-16. Open `/agents` inspector and confirm session events are visible.
+16. Reload the session page and confirm the durable session events are still visible.
 
 ## Known validation caveat
 

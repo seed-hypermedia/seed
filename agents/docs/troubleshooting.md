@@ -29,7 +29,8 @@ Diagnosis:
 
 - If desktop shows `Invalid signature`, check `signAgentAction()` and make sure undefined fields are omitted before
   signing.
-- If no partial publish appears, inspect the session in `/agents` for a durable error event from the Pi/provider path.
+- If no partial publish appears, inspect the session (desktop session page or `GetSession`) for a durable error event
+  from the Pi/provider path.
 - If server logs `skip partial; no subscription`, desktop is not subscribed to the target session/account.
 - If desktop logs partial state updates but UI does not render, inspect `AgentSessionPage` and `PartialAssistantRow`.
 
@@ -55,15 +56,15 @@ If it happens again:
 
 The Seed server receives text deltas from Pi SDK `message_update` events. If no deltas appear:
 
-- inspect `/agents` for a durable error event;
+- inspect the session for a durable error event;
 - verify the provider API key and model name;
 - check whether the provider/backend supports streaming for the selected Pi API mapping;
 - add temporary local diagnostics around `#runPiAgent()` if needed, without logging secrets or full session content.
 
 ## A `read` fails
 
-Check the tool result event in the session log or the `/agents` inspector. `read` takes one address and the address
-shape picks the source, so the first question is always whether the address was the shape the agent meant.
+Check the tool result event in the session log. `read` takes one address and the address shape picks the source, so the
+first question is always whether the address was the shape the agent meant.
 
 Common causes:
 
@@ -185,15 +186,10 @@ One past cause (fixed 2026-07): `parseMarkdown` in `@seed-hypermedia/client` loo
 so the tokenizer never advanced. Agent-generated `document.create`/`comment.create` markdown hit this within minutes of
 every restart. The tokenizer now guarantees forward progress each iteration.
 
-## Built-in inspector is empty
+## Desktop shows no agents
 
-Check:
-
-```bash
-curl http://localhost:3051/agents/api/status # dev port; release builds use 3050
-```
-
-If agents exist in desktop but not inspector, confirm desktop is pointing at the same server URL/database.
+Confirm the desktop is pointing at the same server URL/database. The server exposes no unauthenticated listing; to check
+what an account owns, send a signed `ListAgents` to `/api/message` as that account.
 
 ## Schema mismatch
 

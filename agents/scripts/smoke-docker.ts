@@ -20,14 +20,15 @@ try {
 
   await waitForHealth(port)
 
-  const status = await fetchJSON(`http://127.0.0.1:${port}/agents/api/status`)
-  if (!Array.isArray(status.agents) || !Array.isArray(status.watermarks)) {
-    throw new Error(`Unexpected status response: ${JSON.stringify(status)}`)
+  const version = await fetchJSON(`http://127.0.0.1:${port}/agents/api/version`)
+  if (typeof version.version !== 'string') {
+    throw new Error(`Unexpected version response: ${JSON.stringify(version)}`)
   }
 
-  const inspector = await fetch(`http://127.0.0.1:${port}/agents`)
-  if (!inspector.ok || !(await inspector.text()).includes('<!doctype html>')) {
-    throw new Error(`Unexpected inspector response: ${inspector.status}`)
+  // The server exposes no browser UI or unauthenticated data routes.
+  for (const route of ['/agents', '/agents/api/status', '/agents/api/session?id=x']) {
+    const res = await fetch(`http://127.0.0.1:${port}${route}`)
+    if (res.status !== 404) throw new Error(`Expected 404 from ${route}, got ${res.status}`)
   }
 
   if (!existsSync(path.join(dataDir, 'agents.sqlite'))) {

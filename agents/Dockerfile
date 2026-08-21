@@ -14,7 +14,7 @@ RUN cd agents && bun install --frozen-lockfile --production
 # install, so the layer caches on the lockfile.
 COPY agents/scripts/stage-msb-runtime.ts ./agents/scripts/
 RUN cd agents && bun scripts/stage-msb-runtime.ts /staged
-COPY agents/build.ts agents/tsconfig.json agents/bun-env.d.ts agents/components.json ./agents/
+COPY agents/build.ts agents/tsconfig.json agents/bun-env.d.ts ./agents/
 COPY agents/src ./agents/src/
 RUN cd agents && bun run build
 

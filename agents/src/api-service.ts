@@ -760,6 +760,8 @@ export class Service {
         )
       case 'RemoveAgentCollaborator':
         return this.#removeAgentCollaborator(verified.accountId, envelope.action.agentId, envelope.action.accountId)
+      case 'SetAgentPublicRead':
+        return this.#setAgentPublicRead(verified.accountId, envelope.action.agentId, envelope.action.publicRead)
       case 'AcceptAgentInvite':
         return this.#acceptAgentInvite(verified.accountId, envelope.action.agentId)
       case 'DeclineAgentInvite':
@@ -1070,31 +1072,44 @@ export class Service {
     }
   }
 
+  /**
+   * Resolves the actor's role on an agent. Owners and accepted collaborators get their membership
+   * role; when the agent has public read enabled, every other signed account is a `reader` and
+   * `viaPublic` is set so callers can tell membership from public access. Agents the actor cannot
+   * access look identical to missing ones (404).
+   */
   #requireAgentAccess(
     actorAccountId: string,
     agentId: string,
     required: 'reader' | 'writer' | 'owner',
-  ): {ownerAccountId: string; role: api.AgentAccessRole} {
+  ): {ownerAccountId: string; role: api.AgentAccessRole; viaPublic: boolean} {
     const row = this.#db
-      .query<{owner_account_id: string; role: string | null; status: string | null}, [string, string]>(
-        `SELECT a.account_id AS owner_account_id, c.role, c.status
+      .query<
+        {owner_account_id: string; public_read: number; role: string | null; status: string | null},
+        [string, string]
+      >(
+        `SELECT a.account_id AS owner_account_id, a.public_read, c.role, c.status
          FROM agents a
          LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ?
          WHERE a.id = ?`,
       )
       .get(actorAccountId, agentId)
     if (!row) throw new APIError(404, 'Agent not found')
-    const role: api.AgentAccessRole =
-      row.owner_account_id === actorAccountId
-        ? 'owner'
-        : row.status === 'accepted' && (row.role === 'reader' || row.role === 'writer')
-          ? row.role
-          : (() => {
-              throw new APIError(404, 'Agent not found')
-            })()
+    let role: api.AgentAccessRole
+    let viaPublic = false
+    if (row.owner_account_id === actorAccountId) {
+      role = 'owner'
+    } else if (row.status === 'accepted' && (row.role === 'reader' || row.role === 'writer')) {
+      role = row.role
+    } else if (row.public_read === 1) {
+      role = 'reader'
+      viaPublic = true
+    } else {
+      throw new APIError(404, 'Agent not found')
+    }
     if (required === 'owner' && role !== 'owner') throw new APIError(403, 'Only the agent owner can do this')
     if (required === 'writer' && role === 'reader') throw new APIError(403, 'Write access is required')
-    return {ownerAccountId: row.owner_account_id, role}
+    return {ownerAccountId: row.owner_account_id, role, viaPublic}
   }
 
   #registerSigner(envelopeSigner: Uint8Array, capabilityBytes: Uint8Array): api.RegisterSignerResponse {
@@ -1110,7 +1125,7 @@ export class Service {
   #listAgents(accountId: string): api.ListAgentsResponse {
     const rows = this.#db
       .query<AgentRow, [string, string, string]>(
-        `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.created_at, a.updated_at,
+        `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.created_at, a.updated_at,
                 CASE WHEN a.account_id = ? THEN 'owner' ELSE c.role END AS access_role
          FROM agents a
          LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ? AND c.status = 'accepted'
@@ -1161,8 +1176,8 @@ export class Service {
   #listAgentCollaborators(accountId: string, agentId: string): api.ListAgentCollaboratorsResponse {
     const access = this.#requireAgentAccess(accountId, agentId, 'reader')
     const owner = this.#db
-      .query<{created_at: number; updated_at: number}, [string]>(
-        `SELECT created_at, updated_at FROM agents WHERE id = ?`,
+      .query<{created_at: number; updated_at: number; public_read: number}, [string]>(
+        `SELECT created_at, updated_at, public_read FROM agents WHERE id = ?`,
       )
       .get(agentId)
     if (!owner) throw new APIError(404, 'Agent not found')
@@ -1184,6 +1199,7 @@ export class Service {
     return {
       _: 'ListAgentCollaboratorsResponse',
       agentId,
+      publicRead: owner.public_read === 1,
       collaborators: [
         {
           accountId: access.ownerAccountId,
@@ -1203,6 +1219,21 @@ export class Service {
           })),
       ],
     }
+  }
+
+  #setAgentPublicRead(accountId: string, agentId: string, publicRead: unknown): api.SetAgentPublicReadResponse {
+    if (typeof publicRead !== 'boolean') throw new APIError(400, 'publicRead must be a boolean')
+    this.#requireAgentAccess(accountId, agentId, 'owner')
+    this.#db.run(`UPDATE agents SET public_read = ?, updated_at = ? WHERE id = ?`, [
+      publicRead ? 1 : 0,
+      Date.now(),
+      agentId,
+    ])
+    const agent = this.#getAgentInfo(accountId, agentId)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    this.#emit({type: 'agent-change', accountId, agent})
+    this.#emit({type: 'account-change', accountId, reason: 'agent-collaborators-changed', agentId})
+    return {_: 'SetAgentPublicReadResponse', agent}
   }
 
   #inviteAgentCollaborator(
@@ -1977,7 +2008,7 @@ export class Service {
   #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, agentId)
@@ -2019,6 +2050,8 @@ export class Service {
     includeChildren?: boolean,
   ): api.ListSessionsResponse {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
+    // Account-wide listings only cover agents the account owns or collaborates on. A listing scoped to
+    // one agent additionally admits public-read agents, which #actionAccountId already authorized.
     const conditions = [
       `EXISTS (
         SELECT 1 FROM agents visible_agent
@@ -2027,7 +2060,9 @@ export class Service {
           AND visible_collaborator.account_id = ?
           AND visible_collaborator.status = 'accepted'
         WHERE visible_agent.id = sessions.agent_id
-          AND (visible_agent.account_id = ? OR visible_collaborator.account_id IS NOT NULL)
+          AND (visible_agent.account_id = ? OR visible_collaborator.account_id IS NOT NULL${
+            agentId !== undefined ? ' OR visible_agent.public_read = 1' : ''
+          })
       )`,
     ]
     const params: (string | number)[] = [accountId, accountId]
@@ -3147,7 +3182,7 @@ export class Service {
     }
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agentId)
@@ -3300,7 +3335,7 @@ export class Service {
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agent_id)
@@ -3433,7 +3468,7 @@ export class Service {
     const sessionId = run.sessionId
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(run.accountId, run.agentId)
@@ -3746,7 +3781,7 @@ export class Service {
     if (!session) return
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agent_id)
@@ -4663,7 +4698,7 @@ export class Service {
     }
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(run.accountId, run.agentId)
@@ -6079,7 +6114,7 @@ export class Service {
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agent_id)
@@ -6144,6 +6179,12 @@ export class Service {
   async verifySubscription(envelope: api.SignedActionEnvelope): Promise<{
     accountId: string
     key: string
+    /**
+     * Set when the subscriber reads the agent through public read access rather than membership:
+     * the server fans events out only to owner and collaborator accounts, so the socket layer uses
+     * this to forward the owner's events for the key to the public reader.
+     */
+    publicReadOf?: string
     replay?: api.GetSessionResponse
     /** Snapshot + durable journal replay for `runs/<rootRunId>` subscriptions. */
     runsReplay?: {runs: api.RunInfo[]; entries: api.RunJournalEntryInfo[]}
@@ -6162,8 +6203,8 @@ export class Service {
     if (agentMatch) {
       const agentId = agentMatch[1]
       if (!agentId) throw new APIError(400, 'Subscription key is invalid')
-      this.#requireAgentAccess(verified.accountId, agentId, 'reader')
-      return {accountId: verified.accountId, key}
+      const access = this.#requireAgentAccess(verified.accountId, agentId, 'reader')
+      return {accountId: verified.accountId, key, ...publicReadOf(access)}
     }
     const sessionMatch = /^sessions\/([^/]+)$/.exec(key)
     if (sessionMatch) {
@@ -6171,7 +6212,8 @@ export class Service {
       if (!sessionId) throw new APIError(400, 'Subscription key is invalid')
       const ownerAccountId = this.#actionAccountId(verified.accountId, {_: 'GetSession', sessionId})
       const replay = await this.#getSession(ownerAccountId, sessionId, envelope.action.afterSeq)
-      return {accountId: verified.accountId, key, replay}
+      const access = this.#requireAgentAccess(verified.accountId, replay.session.agentId, 'reader')
+      return {accountId: verified.accountId, key, replay, ...publicReadOf(access)}
     }
     const runMatch = /^runs\/([^/]+)$/.exec(key)
     if (runMatch) {
@@ -6186,10 +6228,12 @@ export class Service {
       for (const run of tree) {
         entries.push(...this.#getRunJournal(ownerAccountId, run.id, afterSeq).entries)
       }
+      const access = root.agentId ? this.#requireAgentAccess(verified.accountId, root.agentId, 'reader') : undefined
       return {
         accountId: verified.accountId,
         key,
         runsReplay: {runs: tree.map(runInfoFromRecord), entries},
+        ...(access ? publicReadOf(access) : {}),
       }
     }
     throw new APIError(400, 'Subscription key is not authorized')
@@ -6198,7 +6242,7 @@ export class Service {
   #getAgentInfo(accountId: string, agentId: string): api.AgentInfo | null {
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, agentId)
@@ -6767,6 +6811,7 @@ type AgentRow = {
   definition_cbor: Uint8Array
   state_dir: string
   status: api.AgentInfo['status']
+  public_read?: number
   created_at: number
   updated_at: number
   access_role?: api.AgentAccessRole
@@ -7055,6 +7100,11 @@ function bytesEqual(a: Uint8Array, b: Uint8Array): boolean {
   return true
 }
 
+/** The `publicReadOf` subscription field for an access result, present only for public readers. */
+function publicReadOf(access: {ownerAccountId: string; viaPublic: boolean}): {publicReadOf?: string} {
+  return access.viaPublic ? {publicReadOf: access.ownerAccountId} : {}
+}
+
 function agentRowToInfo(row: AgentRow, accessRole: api.AgentAccessRole = 'owner'): api.AgentInfo {
   return {
     id: row.id,
@@ -7065,6 +7115,7 @@ function agentRowToInfo(row: AgentRow, accessRole: api.AgentAccessRole = 'owner'
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     accessRole,
+    publicRead: row.public_read === 1,
   }
 }
 

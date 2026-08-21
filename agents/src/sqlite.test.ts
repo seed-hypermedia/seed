@@ -61,6 +61,7 @@ describe('sqlite', () => {
             '',
           )
           .replace(/CREATE INDEX sessions_by_parent ON sessions \(parent_session_id, created_at\);\n\n/u, '')
+          .replace(/    public_read INTEGER NOT NULL DEFAULT 0,\n/u, '')
           .replace(
             /CREATE TABLE agent_collaborators[\s\S]*?CREATE TABLE agent_triggers/u,
             'CREATE TABLE agent_triggers',
@@ -91,6 +92,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'run_journal')).toBe(true)
       expect(tableExists(db, 'tool_documents')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'cooldown_ms')).toBe(true)
+      expect(columnExists(db, 'agents', 'public_read')).toBe(true)
       expect(columnExists(db, 'sessions', 'title_source')).toBe(true)
       expect(columnExists(db, 'sessions', 'model_override_cbor')).toBe(true)
       expect(columnExists(db, 'sessions', 'parent_session_id')).toBe(true)

@@ -1,7 +1,6 @@
 # Desktop UI
 
-The desktop app is the primary user-facing UI for Agents. The built-in `/agents` server UI is only for
-inspection/debugging.
+The desktop app is the primary user-facing UI for Agents; the server itself has no browser UI.
 
 Two surfaces read the same sessions: the **Agents pages** (full-window) and the **Assistant sidebar** (a compact session
 view over the same service). Both render from the shared message renderer and the shared tool registry, so a tool row

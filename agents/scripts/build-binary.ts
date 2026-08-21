@@ -15,7 +15,6 @@
  * Defaults: host target, `<repo>/plz-out/bin/agents`. `--smoke` boots the built binary and
  * checks `/agents/api/health` (host-target builds only).
  */
-import tailwind from 'bun-plugin-tailwind'
 import {mkdir, rm, cp, mkdtemp, readdir, realpath} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import * as path from 'node:path'
@@ -91,9 +90,7 @@ const result = await Bun.build({
     // oven-sh/bun#6009) — this tells main.ts to start unconditionally.
     'process.env.SEED_AGENTS_STANDALONE': JSON.stringify('1'),
   },
-  publicPath: '/agents/',
   root: './src',
-  plugins: [tailwind],
   // Bundling `microsandbox` breaks it: its napi binding, `msb` hypervisor helper, and libkrunfw
   // cannot live in the binary's virtual filesystem, so the bundled JS dies at execute_code time
   // with "Cannot find module '../../native/index.cjs'". Kept external and staged on disk below.

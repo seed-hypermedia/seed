@@ -145,6 +145,7 @@ export type UnsignedAgentAction =
   | ListAgentCollaborators
   | InviteAgentCollaborator
   | RemoveAgentCollaborator
+  | SetAgentPublicRead
   | AcceptAgentInvite
   | DeclineAgentInvite
   | CreateAgent
@@ -240,6 +241,17 @@ export type InviteAgentCollaborator = {
   agentId: string
   accountId: string
   role: AgentCollaboratorRole
+}
+
+/**
+ * Turns public read access on or off for one owned agent. When on, any signed account that knows the
+ * agent id can read it (definition, memory, tools, sessions, live updates) exactly like an invited
+ * reader; it is never listed for accounts that are not owner or collaborator.
+ */
+export type SetAgentPublicRead = {
+  _: 'SetAgentPublicRead'
+  agentId: string
+  publicRead: boolean
 }
 
 /** Revokes an accepted collaborator or cancels a pending invitation. */
@@ -917,6 +929,8 @@ export type AgentInfo = {
   updatedAt: number
   /** Permissions of the signed account that requested this value. */
   accessRole?: AgentAccessRole
+  /** True when any signed account can read this agent by id (see `SetAgentPublicRead`). */
+  publicRead?: boolean
 }
 
 /** Public metadata returned for an agent trigger. */
@@ -1360,6 +1374,8 @@ export type ListAgentInvitesResponse = {
 /** Successful response for `ListAgentCollaborators`. */
 export type ListAgentCollaboratorsResponse = {
   _: 'ListAgentCollaboratorsResponse'
+  /** Whether the agent is readable by every signed account (see `SetAgentPublicRead`). */
+  publicRead: boolean
   agentId: string
   collaborators: AgentCollaboratorInfo[]
 }
@@ -1368,6 +1384,12 @@ export type ListAgentCollaboratorsResponse = {
 export type InviteAgentCollaboratorResponse = {
   _: 'InviteAgentCollaboratorResponse'
   collaborator: AgentCollaboratorInfo
+}
+
+/** Successful response for `SetAgentPublicRead`. */
+export type SetAgentPublicReadResponse = {
+  _: 'SetAgentPublicReadResponse'
+  agent: AgentInfo
 }
 
 /** Successful response for revoking or canceling agent access. */
@@ -1797,6 +1819,7 @@ export type AgentResponse =
   | ListAgentCollaboratorsResponse
   | InviteAgentCollaboratorResponse
   | RemoveAgentCollaboratorResponse
+  | SetAgentPublicReadResponse
   | AcceptAgentInviteResponse
   | DeclineAgentInviteResponse
   | ListModelProvidersResponse

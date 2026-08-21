@@ -13,6 +13,9 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Optionally-public agents: when set, any signed account can read the agent by id (the same view
+  // an invited reader gets). Owners toggle it from the collaborators panel via SetAgentPublicRead.
+  `ALTER TABLE agents ADD COLUMN public_read INTEGER NOT NULL DEFAULT 0;`,
   // Agent-maintained status line: the `status` verb lets a session describe what it is doing so
   // session lists and parent sessions can see inside without opening the transcript.
   `ALTER TABLE sessions ADD COLUMN description TEXT;`,

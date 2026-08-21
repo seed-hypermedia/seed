@@ -193,6 +193,132 @@ describe('api service', () => {
     }
   })
 
+  test('public read lets any signed account read an agent by id without listing it', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const ownerAccountId = blobs.principalToString(owner.principal)
+      const stranger = blobs.generateNobleKeyPair()
+      const strangerAccountId = blobs.principalToString(stranger.principal)
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+      await setDefaultProvider(svc, owner)
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Public Agent', systemPrompt: 'Be open.', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = created.agentId
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'CreateSession', agentId}}),
+      )
+      if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      // Private by default: a stranger sees a 404, and only the owner may flip the flag.
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'GetAgent', agentId}})),
+      ).rejects.toThrow('Agent not found')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {action: {_: 'SetAgentPublicRead', agentId, publicRead: true}}),
+        ),
+      ).rejects.toThrow('Agent not found')
+      const collaboratorsBefore = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'ListAgentCollaborators', agentId}}),
+      )
+      expect(collaboratorsBefore).toMatchObject({_: 'ListAgentCollaboratorsResponse', publicRead: false})
+
+      events.length = 0
+      const enabled = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'SetAgentPublicRead', agentId, publicRead: true}}),
+      )
+      expect(enabled).toMatchObject({
+        _: 'SetAgentPublicReadResponse',
+        agent: {id: agentId, publicRead: true, accessRole: 'owner'},
+      })
+      expect(events).toContainEqual(
+        expect.objectContaining({type: 'account-change', reason: 'agent-collaborators-changed', agentId}),
+      )
+
+      // Strangers read as `reader`, including sessions and the collaborators list, but cannot write.
+      const read = await svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'GetAgent', agentId}}))
+      expect(read).toMatchObject({
+        _: 'GetAgentResponse',
+        agent: {id: agentId, accessRole: 'reader', publicRead: true},
+        sessions: [{id: session.sessionId}],
+      })
+      const sessions = await svc.message(
+        await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListSessions', agentId}}),
+      )
+      expect(sessions).toMatchObject({_: 'ListSessionsResponse', sessions: [{id: session.sessionId}]})
+      const collaborators = await svc.message(
+        await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListAgentCollaborators', agentId}}),
+      )
+      expect(collaborators).toMatchObject({
+        _: 'ListAgentCollaboratorsResponse',
+        publicRead: true,
+        collaborators: [{accountId: ownerAccountId, role: 'owner'}],
+      })
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {
+            action: {_: 'WriteAgentMemoryFile', agentId, path: 'x.txt', content: 'no'},
+          }),
+        ),
+      ).rejects.toThrow('Write access is required')
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'CreateSession', agentId}})),
+      ).rejects.toThrow('Write access is required')
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'DeleteAgent', agentId}})),
+      ).rejects.toThrow('Only the agent owner can do this')
+
+      // Public agents never show up in a stranger's own lists.
+      const list = await svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListAgents'}}))
+      expect(list).toMatchObject({_: 'ListAgentsResponse', agents: []})
+      const allSessions = await svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListSessions'}}))
+      expect(allSessions).toMatchObject({_: 'ListSessionsResponse', sessions: []})
+
+      // Subscriptions are accepted and tagged with the owning account so live events can be forwarded.
+      await expect(
+        svc.verifySubscription(
+          await apisvc.createSignedEnvelope(stranger, {action: {_: 'Subscribe', key: `agents/${agentId}`}}),
+        ),
+      ).resolves.toMatchObject({accountId: strangerAccountId, key: `agents/${agentId}`, publicReadOf: ownerAccountId})
+      await expect(
+        svc.verifySubscription(
+          await apisvc.createSignedEnvelope(stranger, {
+            action: {_: 'Subscribe', key: `sessions/${session.sessionId}`},
+          }),
+        ),
+      ).resolves.toMatchObject({key: `sessions/${session.sessionId}`, publicReadOf: ownerAccountId})
+      const ownerSub = await svc.verifySubscription(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'Subscribe', key: `agents/${agentId}`}}),
+      )
+      expect(ownerSub.publicReadOf).toBeUndefined()
+
+      // Turning it off closes the door again.
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'SetAgentPublicRead', agentId, publicRead: false}}),
+      )
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'GetAgent', agentId}})),
+      ).rejects.toThrow('Agent not found')
+      await expect(
+        svc.verifySubscription(
+          await apisvc.createSignedEnvelope(stranger, {action: {_: 'Subscribe', key: `agents/${agentId}`}}),
+        ),
+      ).rejects.toThrow('Agent not found')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('invites read and write collaborators and enforces their roles', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

@@ -313,41 +313,20 @@ the agent. Staged chunked uploads live under the data dir until they are committ
 
 ## HTTP endpoints
 
-| Endpoint                             | Method    | Purpose                                    |
-| ------------------------------------ | --------- | ------------------------------------------ |
-| `/`                                  | `GET`     | Redirects to `/agents`.                    |
-| `/api/message`                       | `POST`    | Signed CBOR action API.                    |
-| `/agents/api/message`                | `POST`    | Same action API under `/agents`.           |
-| `/api/health`                        | `GET`     | JSON health (includes `version`).          |
-| `/agents/api/health`                 | `GET`     | JSON health under `/agents`.               |
-| `/api/version`                       | `GET`     | Build metadata of the deployed image.      |
-| `/agents/api/version`                | `GET`     | Build metadata under `/agents`.            |
-| `/agents/api/status`                 | `GET`     | Debug overview for inspector UI.           |
-| `/agents/api/session?id=<sessionId>` | `GET`     | Debug session event data for inspector UI. |
-| `/agents`                            | `GET`     | Built-in session inspector UI.             |
-| `/agents/*`                          | `GET`     | Built inspector assets or dev fallback.    |
-| `/agents/ws`                         | WebSocket | Signed live subscriptions.                 |
+| Endpoint              | Method    | Purpose                                         |
+| --------------------- | --------- | ----------------------------------------------- |
+| `/api/message`        | `POST`    | Signed CBOR action API.                         |
+| `/agents/api/message` | `POST`    | Same action API under `/agents`.                |
+| `/api/health`         | `GET`     | JSON health and capabilities (no account data). |
+| `/agents/api/health`  | `GET`     | JSON health under `/agents`.                    |
+| `/api/version`        | `GET`     | Build metadata of the deployed image.           |
+| `/agents/api/version` | `GET`     | Build metadata under `/agents`.                 |
+| `/agents/ws`          | WebSocket | Signed live subscriptions.                      |
 
-## Built-in inspector UI
-
-Open:
-
-```text
-http://localhost:3050/agents   # release/packaged default; the dev shell runs on 3051
-```
-
-It shows:
-
-- server uptime;
-- connected WebSocket count;
-- all agents visible in the local DB;
-- triggers grouped by agent, including enabled state, firing counts, last firing time, and last error;
-- activity monitor watermarks by account/server;
-- sessions grouped by agent;
-- session status and event counts;
-- durable session event details.
-
-It auto-refreshes every 2 seconds. It is a diagnostic UI, not a replacement for the desktop workflow.
+Everything else is a 404. The server has no browser UI and no unauthenticated data routes: account-owned state (agents,
+triggers, sessions, events, memory) is reachable only through signed envelopes on `/api/message` and `/agents/ws`. Use
+the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to
+inspect a server.
 
 ## Trigger monitors
 
@@ -551,9 +530,9 @@ Run, runtime, and script diagnostics:
 - `[agents/workflow] run paused on its time budget`
 
 Server model execution now goes through the Pi SDK. The old manual OpenAI stream logs are not emitted on the primary
-Pi-backed path. Use durable session events, WebSocket partial logs, mocked tests, and the `/agents` inspector for
-current runtime diagnosis. Add Seed-level Pi runtime diagnostics before production if real-provider troubleshooting
-needs more visibility.
+Pi-backed path. Use durable session events (via `GetSession` or the desktop session page), WebSocket partial logs, and
+mocked tests for current runtime diagnosis. Add Seed-level Pi runtime diagnostics before production if real-provider
+troubleshooting needs more visibility.
 
 Server WebSocket logs:
 
@@ -611,7 +590,7 @@ Follow the log chain:
 2. The session should be set to `streaming` after `MessageSession`.
 3. Server should then show `[agents/ws] publish partial` and `[agents/ws] send partial` when Pi emits text deltas.
 4. Desktop should show `[agents/ws] partial event` and `[agents/ui] rendering streaming assistant partial`.
-5. The final assistant message should appear as a durable event in `/agents` inspector and after refresh.
+5. The final assistant message should appear as a durable event in the desktop session page after refresh.
 
 If server shows `skip partial; no subscription`, the desktop subscribed too late or to a different key/account.
 

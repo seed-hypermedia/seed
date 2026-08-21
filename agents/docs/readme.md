@@ -14,8 +14,7 @@ Seed Agents is an account-scoped agent runtime — "the Harness" — composed of
 - SQLite persistence for durable state and event replay;
 - encrypted server-side provider secrets;
 - a Pi SDK-backed model execution loop with streaming responses and tool calls;
-- a desktop UI for configuring servers/providers/agents and working with sessions;
-- a built-in `/agents` server inspector UI for debugging server state.
+- a desktop UI for configuring servers/providers/agents and working with sessions.
 
 The runtime is built on three nouns and five verbs. The nouns: an agent's **Space** (`~/memory/`, `~/tools/`), the
 session **Log** (append-only, every event stamped with an actor), and the **Runs** table (every turn, child, and script,
@@ -91,7 +90,6 @@ Completed and usable locally:
   is mounted in the desktop (full page or selected sidebar session), so result links resolve immediately without syncing
   background sessions;
 - desktop Agents routes, provider dialogs, create-agent dialog, agent detail, Tools tab, session page;
-- server-side `/agents` live session inspector;
 - diagnostic logging for OpenAI streaming and WebSocket subscription/fanout.
 
 Important incomplete work:
@@ -147,7 +145,7 @@ Important incomplete work:
 
 Agents service:
 
-- `agents/src/main.ts` — Bun HTTP/WebSocket server, CORS, `/agents` inspector routes, live event fanout.
+- `agents/src/main.ts` — Bun HTTP/WebSocket server, CORS, live event fanout.
 - `agents/protocol/src/index.ts` — canonical shared protocol types for signed actions/responses/session events/WebSocket
   events.
 - `agents/src/api.ts` — compatibility re-export of the shared protocol package for service-local imports.
@@ -174,7 +172,6 @@ Agents service:
 - `agents/src/sqlite-schema.sql` — canonical schema.
 - `agents/src/cbor.ts` — DAG-CBOR request/response helpers.
 - `agents/src/config.ts` — env and CLI config.
-- `agents/src/frontend/app.tsx` — built-in server inspector UI.
 
 Desktop:
 
@@ -257,9 +254,7 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` (`.env.vars`), so the dev server
 default a release/packaged build uses (`src/config.ts`).
 
 - Agent server base: `http://localhost:3051`
-- Built-in inspector: `http://localhost:3051/agents`
 - Health: `http://localhost:3051/agents/api/health`
-- Status JSON: `http://localhost:3051/agents/api/status`
 - Signed API: `POST http://localhost:3051/api/message`
 - WebSocket: `ws://localhost:3051/agents/ws`
 
