@@ -48,6 +48,7 @@ export function AgentMemoryTab({
   accountUid,
   agentId,
   openPath,
+  onOpenPathChange,
   readOnly = false,
 }: {
   serverUrl: string
@@ -57,6 +58,8 @@ export function AgentMemoryTab({
   readOnly?: boolean
   /** File the route asked for — a tool row linking to `~/memory/<path>` lands the user on it. */
   openPath?: string
+  /** Reports the opened file back to the host so the route (and its copyable URL) can follow. */
+  onOpenPathChange?: (path: string) => void
 }) {
   const memory = useAgentMemory(serverUrl, accountUid, agentId)
   const writeFile = useWriteAgentMemoryFile(serverUrl, accountUid)
@@ -109,6 +112,7 @@ export function AgentMemoryTab({
     setDraftText(null)
     setConfirmDeletePath(null)
     revealPath(path)
+    if (path !== openPath) onOpenPathChange?.(path)
   }
 
   function toggleDir(path: string) {

@@ -121,6 +121,7 @@ function AgentDetailPage({
 }) {
   const selectedAccountId = useSelectedAccountId()
   const navigate = useNavigate()
+  const replaceRoute = useNavigate('replace')
   const clickNavigate = useClickNavigate()
   const serverUrlQuery = useAgentServerUrl()
   const localServerUrl = useLocalAgentServerUrl()
@@ -554,6 +555,9 @@ function AgentDetailPage({
                   accountUid={selectedAccountId ?? null}
                   agentId={agentId}
                   openPath={memoryPath}
+                  onOpenPathChange={(path) =>
+                    replaceRoute({key: 'agent', agentId, serverUrl, tab: 'memory', memoryPath: path})
+                  }
                   readOnly={!canWrite}
                 />
               ) : null}

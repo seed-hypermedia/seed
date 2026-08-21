@@ -1,5 +1,6 @@
 import appError from '@/errors'
 import {useConnectPeer} from '@/models/contacts'
+import {agentUrlToRoute} from '@/omnibar-url'
 import {useExperiments} from '@/models/experiments'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {useSelectedAccountId} from '@/selected-account'
@@ -551,6 +552,11 @@ function useURLHandler() {
     const existingRoute = hypermediaUrlToRoute(search) || hypermediaUrlToRoute(httpSearch)
     if (existingRoute) {
       return existingRoute
+    }
+
+    const agentRoute = agentUrlToRoute(httpSearch)
+    if (agentRoute) {
+      return agentRoute
     }
 
     // Extract view term (e.g., /:activity) before making request

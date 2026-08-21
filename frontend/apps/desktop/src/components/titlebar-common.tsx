@@ -770,7 +770,7 @@ function useCurrentRouteUrl(): {
       const url =
         route.tab === 'triggers' && route.triggerId
           ? agentTriggerUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.triggerId)
-          : agentUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId)
+          : agentUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.tab, route.memoryPath)
       return {displayUrl: url, copyableUrl: url}
     }
 
