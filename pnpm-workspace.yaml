@@ -1,5 +1,8 @@
 packages:
   - 'frontend/apps/*'
+  # The mobile app manages its own dependencies with npm (see its README):
+  # React Native needs react 19 while the root pnpm overrides pin react 18.
+  - '!frontend/apps/mobile'
   - 'frontend/packages/*'
   - 'frontend/scripts'
   - 'docs'
