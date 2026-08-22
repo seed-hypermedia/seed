@@ -6,18 +6,17 @@
 import {createGrpcWebTransport} from '@connectrpc/connect-node'
 import {createPromiseClient} from '@connectrpc/connect'
 import DaemonModule from '../frontend/packages/shared/src/client/.generated/daemon/v1alpha/daemon_connect'
-import * as bip39 from 'bip39'
+import {mkdtempSync, rmSync} from 'fs'
+import {tmpdir} from 'os'
 import * as path from 'path'
 import {spawnDaemon, DaemonConfig} from './integration/daemon'
-import {fileURLToPath} from 'url'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const {Daemon} = DaemonModule
 
 // Deterministic mnemonic for testing - DO NOT CHANGE
 // This mnemonic generates the expected account ID used in tests
-const TEST_MNEMONIC = "parrot midnight lion defense ski senior trouble slice chase spot history awkward"
-const EXPECTED_ACCOUNT_ID = "z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8"
+const TEST_MNEMONIC = 'parrot midnight lion defense ski senior trouble slice chase spot history awkward'
+const EXPECTED_ACCOUNT_ID = 'z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8'
 
 async function main() {
   console.log('=== Register Key Script ===')
@@ -25,11 +24,12 @@ async function main() {
   console.log('')
 
   // Set up daemon with test ports
+  const dataDir = mkdtempSync(path.join(tmpdir(), 'seed-register-key-script-'))
   const daemonConfig: DaemonConfig = {
     httpPort: 59101,
     grpcPort: 59102,
     p2pPort: 59103,
-    dataDir: path.join(__dirname, '../test-fixtures/register-key-test'),
+    dataDir,
   }
 
   console.log('Starting daemon...')
@@ -70,13 +70,13 @@ async function main() {
       console.error(`Got: ${result.accountId}`)
       throw new Error('Account ID mismatch')
     }
-
   } catch (error) {
     console.error('Error registering key:', error)
     throw error
   } finally {
     console.log('\nCleaning up...')
     await daemon.kill()
+    rmSync(dataDir, {recursive: true, force: true})
   }
 }
 

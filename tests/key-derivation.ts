@@ -35,10 +35,7 @@ const ED25519_MULTICODEC_PREFIX = new Uint8Array([0xed, 0x01])
  * @param passphrase - Optional passphrase (empty string if not used)
  * @returns Account ID (multibase base58btc encoded public key)
  */
-export function deriveAccountIdFromMnemonic(
-  mnemonic: string | string[],
-  passphrase: string = '',
-): string {
+export function deriveAccountIdFromMnemonic(mnemonic: string | string[], passphrase: string = ''): string {
   // 1. Convert mnemonic to BIP39 seed
   const mnemonicString = Array.isArray(mnemonic) ? mnemonic.join(' ') : mnemonic
   const seed = bip39.mnemonicToSeedSync(mnemonicString, passphrase)
@@ -52,10 +49,7 @@ export function deriveAccountIdFromMnemonic(
   const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes)
 
   // 4. Encode public key: multicodec prefix + public key bytes, then base58btc encode
-  const publicKeyWithPrefix = new Uint8Array([
-    ...ED25519_MULTICODEC_PREFIX,
-    ...publicKeyBytes,
-  ])
+  const publicKeyWithPrefix = new Uint8Array([...ED25519_MULTICODEC_PREFIX, ...publicKeyBytes])
 
   // Encode with multibase base58btc (starts with 'z')
   const accountId = base58btc.encode(publicKeyWithPrefix)
@@ -86,10 +80,7 @@ export function deriveKeyPairFromMnemonic(
   const privateKeyBytes = derivedKey.key
   const publicKeyBytes = ed25519.getPublicKey(privateKeyBytes)
 
-  const publicKeyWithPrefix = new Uint8Array([
-    ...ED25519_MULTICODEC_PREFIX,
-    ...publicKeyBytes,
-  ])
+  const publicKeyWithPrefix = new Uint8Array([...ED25519_MULTICODEC_PREFIX, ...publicKeyBytes])
 
   const accountId = base58btc.encode(publicKeyWithPrefix)
 

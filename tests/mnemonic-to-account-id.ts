@@ -10,7 +10,9 @@ const mnemonic = process.argv[2]
 
 if (!mnemonic) {
   console.error('Usage: npx tsx tests/mnemonic-to-account-id.ts "your mnemonic words here"')
-  console.error('Example: npx tsx tests/mnemonic-to-account-id.ts "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"')
+  console.error(
+    'Example: npx tsx tests/mnemonic-to-account-id.ts "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"',
+  )
   process.exit(1)
 }
 

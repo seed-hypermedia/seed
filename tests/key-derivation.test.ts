@@ -6,8 +6,8 @@ import {describe, it, expect} from 'vitest'
 import {deriveAccountIdFromMnemonic, deriveKeyPairFromMnemonic} from './key-derivation'
 
 // Test mnemonic and expected account ID from the Go implementation
-const TEST_MNEMONIC = "parrot midnight lion defense ski senior trouble slice chase spot history awkward"
-const EXPECTED_ACCOUNT_ID = "z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8"
+const TEST_MNEMONIC = 'parrot midnight lion defense ski senior trouble slice chase spot history awkward'
+const EXPECTED_ACCOUNT_ID = 'z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8'
 
 describe('Key Derivation', () => {
   it('should derive the same account ID as Go implementation', () => {
@@ -56,8 +56,8 @@ describe('Key Derivation', () => {
   describe('Additional test vectors', () => {
     const testVectors = [
       {
-        mnemonic: "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
-        passphrase: "",
+        mnemonic: 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about',
+        passphrase: '',
         // This will be verified against Go implementation if we run it
       },
     ]
