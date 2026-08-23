@@ -60,11 +60,21 @@ const DEK_SIZE = 64
 
 export type VaultIdentity = {name: string; accountId: string}
 
+/** Consecutive poll failures before the pending status carries a warning. */
+const POLL_WARNING_THRESHOLD = 3
+
 export type VaultStatus = {
   backendMode: 'local' | 'remote'
   connectionStatus: 'disconnected' | 'pending' | 'connected'
   remoteVaultUrl?: string
-  pendingConnection?: {vaultUrl: string; connectUrl: string; expireTime: number}
+  pendingConnection?: {
+    vaultUrl: string
+    connectUrl: string
+    expireTime: number
+    /** Set after repeated poll failures — the vault server is unreachable
+     * (e.g. cross-origin polls blocked when it has no CORS headers). */
+    pollWarning?: string
+  }
   lastConnectError?: string
   syncStatus?: {
     localVersion: number
@@ -93,6 +103,8 @@ export class VaultManager {
   #pending: PendingConnection | null = null
   #pollTimer: ReturnType<typeof setInterval> | null = null
   #pollInFlight = false
+  #pollFailureCount = 0
+  #lastPollError: string | undefined
   #lastConnectError: string | undefined
   #scheduler: SyncScheduler
 
@@ -191,6 +203,11 @@ export class VaultManager {
         vaultUrl: pendingActive.vaultUrl,
         connectUrl: pendingActive.connectUrl,
         expireTime: pendingActive.expireTime,
+      }
+      if (this.#pollFailureCount >= POLL_WARNING_THRESHOLD && this.#lastPollError) {
+        status.pendingConnection.pollWarning =
+          `Cannot reach the vault server (${this.#pollFailureCount} failed checks: ${this.#lastPollError}). ` +
+          'If this app is running in a web browser, the vault server must allow cross-origin requests.'
       }
     }
     if (this.#lastConnectError) {
@@ -331,6 +348,8 @@ export class VaultManager {
 
     this.#stopPolling()
     this.#lastConnectError = undefined
+    this.#pollFailureCount = 0
+    this.#lastPollError = undefined
     const pending = mintPendingConnection(normalizedUrl, opts.siteName)
     this.#pending = pending
     this.#startPolling()
@@ -371,14 +390,22 @@ export class VaultManager {
     this.#pollInFlight = true
     try {
       const result = await getVaultConnect(pending.vaultUrl, pending.connectId)
+      if (this.#pollFailureCount >= POLL_WARNING_THRESHOLD) this.#notify()
+      this.#pollFailureCount = 0
+      this.#lastPollError = undefined
       if (!result.found || this.#pending !== pending) return
       // The payload is one-time: consume the pending token before finalizing
       // (Go HandleConnection). Any later failure requires a fresh mint.
       this.#stopPolling()
       this.#pending = null
       await this.#handleConnectPayload(pending, result.payload!)
-    } catch {
-      // Transient network/server errors must not end the flow; keep polling.
+    } catch (error) {
+      // Transient network/server errors must not end the flow; keep polling —
+      // but surface persistent failure (e.g. CORS-blocked cross-origin polls)
+      // so "pending" is never a silent black hole.
+      this.#pollFailureCount += 1
+      this.#lastPollError = error instanceof Error ? error.message : String(error)
+      if (this.#pollFailureCount === POLL_WARNING_THRESHOLD) this.#notify()
     } finally {
       this.#pollInFlight = false
     }

@@ -115,6 +115,11 @@ export function VaultConnectScreen({navigation}: Props) {
           <Text style={styles.countdownText}>
             Link expires in {Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}
           </Text>
+          {pending.pollWarning && (
+            <Text testID="vault-connect-warning" style={styles.warningText}>
+              {pending.pollWarning}
+            </Text>
+          )}
         </>
       )}
 
@@ -239,5 +244,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 8,
     marginBottom: 4,
+  },
+  warningText: {
+    color: '#e8b04b',
+    fontSize: 13,
+    marginTop: 12,
+    lineHeight: 18,
   },
 })
