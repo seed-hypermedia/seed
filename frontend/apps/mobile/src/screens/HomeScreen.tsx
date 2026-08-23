@@ -57,6 +57,9 @@ export function HomeScreen({navigation, route}: Props) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.serverName}>{serverName}</Text>
+        <TouchableOpacity testID="open-vault" style={styles.vaultChip} onPress={() => navigation.navigate('Vault')}>
+          <Text style={styles.vaultChipText}>🔑 Vault</Text>
+        </TouchableOpacity>
         {state.status === 'loaded' ? (
           <View style={styles.statusBadge}>
             <View style={styles.statusDot} />
@@ -169,6 +172,19 @@ const styles = StyleSheet.create({
   serverName: {
     fontSize: 14,
     color: '#888',
+    flex: 1,
+  },
+  vaultChip: {
+    backgroundColor: '#2a5555',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  vaultChipText: {
+    color: '#4a9a9a',
+    fontSize: 12,
+    fontWeight: '600',
   },
   statusBadge: {
     flexDirection: 'row',

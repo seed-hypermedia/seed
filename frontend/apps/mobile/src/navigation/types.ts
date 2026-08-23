@@ -7,6 +7,12 @@ export type RootStackParamList = {
   Account: {
     mnemonic: string
   }
+  Vault: undefined
+  VaultConnect: undefined
+  CreateIdentity: undefined
+  Identity: {
+    accountId: string
+  }
 }
 
 declare global {

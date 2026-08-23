@@ -1,9 +1,9 @@
-import React, {useMemo, useState} from 'react'
-import {View, Text, StyleSheet, TouchableOpacity, Share, Platform, Alert} from 'react-native'
+import React, {useEffect, useMemo, useState} from 'react'
+import {View, Text, StyleSheet, TouchableOpacity, Share, Platform} from 'react-native'
 import {NativeStackNavigationProp} from '@react-navigation/native-stack'
 import {RouteProp} from '@react-navigation/native'
 import {deriveKeyPairFromMnemonic} from '../utils/key-derivation'
-import {saveMnemonic} from '../store/secure-storage'
+import {getVaultManager} from '../vault'
 import type {RootStackParamList} from '../navigation/types'
 
 type Props = {
@@ -11,13 +11,36 @@ type Props = {
   route: RouteProp<RootStackParamList, 'Account'>
 }
 
+type ImportState = {status: 'importing'} | {status: 'imported'} | {status: 'error'; message: string}
+
 export function AccountScreen({navigation, route}: Props) {
   const {mnemonic} = route.params
-  const [isSaving, setIsSaving] = useState(false)
-  const [isSaved, setIsSaved] = useState(false)
+  const [importState, setImportState] = useState<ImportState>({status: 'importing'})
 
+  // The account ID is derived locally so it is shown even if the vault import
+  // fails — daemon-derivation parity is asserted on this value in the e2e.
   const keyPair = useMemo(() => {
     return deriveKeyPairFromMnemonic(mnemonic)
+  }, [mnemonic])
+
+  // Import the identity into the vault (idempotent per principal).
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const manager = await getVaultManager()
+      await manager.importIdentityFromMnemonic(mnemonic)
+    })()
+      .then(() => {
+        if (!cancelled) setImportState({status: 'imported'})
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setImportState({status: 'error', message: error instanceof Error ? error.message : String(error)})
+        }
+      })
+    return () => {
+      cancelled = true
+    }
   }, [mnemonic])
 
   const handleShare = async () => {
@@ -28,20 +51,6 @@ export function AccountScreen({navigation, route}: Props) {
       })
     } catch (error) {
       console.error('Error sharing:', error)
-    }
-  }
-
-  const handleSave = async () => {
-    setIsSaving(true)
-    try {
-      await saveMnemonic(mnemonic)
-      setIsSaved(true)
-      Alert.alert('Saved', 'Key saved securely to device')
-    } catch (error) {
-      console.error('Error saving:', error)
-      Alert.alert('Error', 'Failed to save key')
-    } finally {
-      setIsSaving(false)
     }
   }
 
@@ -62,8 +71,8 @@ export function AccountScreen({navigation, route}: Props) {
           <Text style={styles.icon}>🔑</Text>
         </View>
 
-        <Text style={styles.title}>Account Ready</Text>
-        <Text style={styles.subtitle}>Your account has been derived from your recovery phrase</Text>
+        <Text style={styles.title}>Identity Imported</Text>
+        <Text style={styles.subtitle}>Your identity has been derived from your recovery phrase</Text>
 
         <View style={styles.accountCard}>
           <Text style={styles.accountLabel}>Account ID</Text>
@@ -74,7 +83,17 @@ export function AccountScreen({navigation, route}: Props) {
         </View>
 
         <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Key Details</Text>
+          <Text style={styles.infoTitle}>Vault</Text>
+          <Text
+            testID="vault-import-status"
+            style={[styles.importStatus, importState.status === 'error' && styles.importStatusError]}
+          >
+            {importState.status === 'importing'
+              ? 'Saving to your vault…'
+              : importState.status === 'imported'
+                ? 'Saved to your vault'
+                : `Vault import failed: ${importState.message}`}
+          </Text>
           <View style={styles.infoRow}>
             <Text style={styles.infoLabel}>Public Key</Text>
             <Text style={styles.infoValue}>{keyPair.publicKey.length} bytes (Ed25519)</Text>
@@ -88,11 +107,11 @@ export function AccountScreen({navigation, route}: Props) {
 
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.saveButton, isSaved && styles.saveButtonSaved]}
-          onPress={handleSave}
-          disabled={isSaving || isSaved}
+          testID="account-open-vault"
+          style={styles.vaultButton}
+          onPress={() => navigation.navigate('Vault')}
         >
-          <Text style={styles.saveButtonText}>{isSaved ? 'Key Saved' : isSaving ? 'Saving...' : 'Save Key'}</Text>
+          <Text style={styles.vaultButtonText}>Open Vault</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
@@ -169,7 +188,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+    marginBottom: 8,
+  },
+  importStatus: {
+    fontSize: 14,
+    color: '#4a9a9a',
     marginBottom: 16,
+  },
+  importStatusError: {
+    color: '#ff6b6b',
   },
   infoRow: {
     flexDirection: 'row',
@@ -188,7 +215,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
   },
-  saveButton: {
+  vaultButton: {
     height: 50,
     backgroundColor: '#4a9a9a',
     borderRadius: 12,
@@ -196,10 +223,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  saveButtonSaved: {
-    backgroundColor: '#3a7a7a',
-  },
-  saveButtonText: {
+  vaultButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',

@@ -32,6 +32,13 @@ config.resolver.extraNodeModules = {
 }
 
 // 5. Redirect expo/AppEntry to our index.ts to fix monorepo resolution
+// 6. On native platforms, redirect multiformats' node sha2 hasher to its
+// browser variant. Metro's native condition set resolves the "import"
+// condition of multiformats/hashes/sha2, which does `import crypto from
+// 'crypto'` — unresolvable in the native bundle. The browser variant calls
+// crypto.subtle.digest, which src/vault/platform.ts polyfills on Hermes.
+const fs = require('fs')
+const multiformatsSha2Pattern = /multiformats[\/\\]dist[\/\\]src[\/\\]hashes[\/\\]sha2\.js$/
 const originalResolveRequest = config.resolver.resolveRequest
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'expo/AppEntry' || moduleName.endsWith('expo/AppEntry.js')) {
@@ -40,10 +47,21 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       type: 'sourceFile',
     }
   }
-  if (originalResolveRequest) {
-    return originalResolveRequest(context, moduleName, platform)
+  const resolved = originalResolveRequest
+    ? originalResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform)
+  if (
+    platform !== 'web' &&
+    resolved &&
+    resolved.type === 'sourceFile' &&
+    multiformatsSha2Pattern.test(resolved.filePath)
+  ) {
+    const browserVariant = resolved.filePath.replace(/sha2\.js$/, 'sha2-browser.js')
+    if (fs.existsSync(browserVariant)) {
+      return {filePath: browserVariant, type: 'sourceFile'}
+    }
   }
-  return context.resolveRequest(context, moduleName, platform)
+  return resolved
 }
 
 module.exports = config

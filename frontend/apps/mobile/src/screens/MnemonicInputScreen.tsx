@@ -147,8 +147,8 @@ export function MnemonicInputScreen({navigation}: Props) {
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Enter Recovery Phrase</Text>
-        <Text style={styles.subtitle}>Enter your 12-word recovery phrase to restore your account</Text>
+        <Text style={styles.title}>Import Identity</Text>
+        <Text style={styles.subtitle}>Enter your 12-word recovery phrase to import an identity into your vault</Text>
 
         <View style={styles.wordsContainer}>
           {words.map((word, index) => {

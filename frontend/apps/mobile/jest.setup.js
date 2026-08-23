@@ -1,3 +1,37 @@
+// Node shims for globals that jsdom does not provide but the vault code (and
+// the shared @seed-hypermedia/client codec) relies on. On devices these come
+// from the platform or from src/vault/platform.ts polyfills.
+const {webcrypto} = require('crypto')
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto
+}
+if (!globalThis.crypto.subtle) {
+  Object.defineProperty(globalThis.crypto, 'subtle', {value: webcrypto.subtle})
+}
+if (!globalThis.crypto.getRandomValues) {
+  globalThis.crypto.getRandomValues = (array) => webcrypto.getRandomValues(array)
+}
+if (typeof globalThis.TextEncoder === 'undefined') {
+  // Re-wrap: Node's TextEncoder returns Node-realm Uint8Arrays, which miss
+  // prototype patches applied in the jsdom context (core-js toBase64).
+  const NodeTextEncoder = require('util').TextEncoder
+  globalThis.TextEncoder = class TextEncoder extends NodeTextEncoder {
+    encode(input) {
+      return Uint8Array.from(super.encode(input))
+    }
+  }
+}
+if (typeof globalThis.TextDecoder === 'undefined') {
+  globalThis.TextDecoder = require('util').TextDecoder
+}
+if (typeof globalThis.CompressionStream === 'undefined') {
+  const streamWeb = require('stream/web')
+  globalThis.CompressionStream = streamWeb.CompressionStream
+  globalThis.DecompressionStream = streamWeb.DecompressionStream
+  globalThis.ReadableStream = globalThis.ReadableStream || streamWeb.ReadableStream
+  globalThis.WritableStream = globalThis.WritableStream || streamWeb.WritableStream
+}
+
 // Mock key-derivation module to avoid complex crypto dependencies
 jest.mock('./src/utils/key-derivation', () => ({
   validateMnemonic: jest.fn((mnemonic) => mnemonic.split(' ').length === 12),

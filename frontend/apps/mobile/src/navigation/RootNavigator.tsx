@@ -4,6 +4,10 @@ import {ServerSelectScreen} from '../screens/ServerSelectScreen'
 import {HomeScreen} from '../screens/HomeScreen'
 import {MnemonicInputScreen} from '../screens/MnemonicInputScreen'
 import {AccountScreen} from '../screens/AccountScreen'
+import {VaultScreen} from '../screens/VaultScreen'
+import {VaultConnectScreen} from '../screens/VaultConnectScreen'
+import {CreateIdentityScreen} from '../screens/CreateIdentityScreen'
+import {IdentityScreen} from '../screens/IdentityScreen'
 import type {RootStackParamList} from './types'
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
@@ -54,6 +58,38 @@ export function RootNavigator() {
         component={AccountScreen}
         options={{
           title: 'Your Account',
+          headerBackTitle: 'Back',
+        }}
+      />
+      <Stack.Screen
+        name="Vault"
+        component={VaultScreen}
+        options={{
+          title: 'Vault',
+          headerBackTitle: 'Back',
+        }}
+      />
+      <Stack.Screen
+        name="VaultConnect"
+        component={VaultConnectScreen}
+        options={{
+          title: 'Connect Vault',
+          headerBackTitle: 'Back',
+        }}
+      />
+      <Stack.Screen
+        name="CreateIdentity"
+        component={CreateIdentityScreen}
+        options={{
+          title: 'Create Identity',
+          headerBackTitle: 'Back',
+        }}
+      />
+      <Stack.Screen
+        name="Identity"
+        component={IdentityScreen}
+        options={{
+          title: 'Identity',
           headerBackTitle: 'Back',
         }}
       />

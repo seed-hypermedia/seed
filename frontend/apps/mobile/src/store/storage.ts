@@ -3,7 +3,7 @@ import {Platform} from 'react-native'
 // Minimal key-value storage interface backed by MMKV on native and
 // localStorage on web (react-native-mmkv v4 is a native Nitro module and
 // cannot load on web or in jsdom tests).
-type KVStorage = {
+export type KVStorage = {
   getString(key: string): string | undefined
   set(key: string, value: string): void
   remove(key: string): void
@@ -43,6 +43,8 @@ export const storage: KVStorage = Platform.OS === 'web' ? createWebStorage() : c
 export const StorageKeys = {
   KNOWN_SERVERS: 'known_servers',
   CURRENT_SERVER: 'current_server',
+  // Encrypted vault envelope (ciphertext only — safe outside the keychain).
+  VAULT_ENVELOPE: 'vault_envelope',
 } as const
 
 export function getStorageItem<T>(key: string): T | null {
