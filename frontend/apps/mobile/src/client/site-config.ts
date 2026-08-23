@@ -10,8 +10,20 @@ export type SiteConfig = {
   notifyServiceHost?: string | null
 }
 
+const CONFIG_TIMEOUT_MS = 10_000
+
 export async function fetchSiteConfig(serverUrl: string): Promise<SiteConfig> {
-  const response = await fetch(`${serverUrl}/hm/api/config`)
+  // RN fetch has no default timeout; a wedged server must not hang callers.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), CONFIG_TIMEOUT_MS)
+  let response: Response
+  try {
+    response = await fetch(`${serverUrl}/hm/api/config`, {signal: controller.signal})
+  } catch (error) {
+    throw new Error(`Could not reach ${serverUrl}: ${error instanceof Error ? error.message : String(error)}`)
+  } finally {
+    clearTimeout(timer)
+  }
   if (!response.ok) {
     throw new Error(`Failed to fetch site config from ${serverUrl}: ${response.status}`)
   }

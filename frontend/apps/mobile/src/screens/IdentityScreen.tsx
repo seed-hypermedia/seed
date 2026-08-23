@@ -18,7 +18,7 @@ import type {RootStackParamList} from '../navigation/types'
 import {getCurrentServer} from '../store/server-store'
 import {updateProfile} from '../vault'
 import {hmId} from '../utils/hm-id'
-import {useVault} from './vault-hooks'
+import {identityDisplayName, useAccountProfileNames, useVault} from './vault-hooks'
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Identity'>
@@ -53,6 +53,7 @@ export function IdentityScreen({navigation, route}: Props) {
   const {accountId} = route.params
   const {manager, identities, loadError} = useVault()
   const identity = identities.find((entry) => entry.accountId === accountId)
+  const hydratedNames = useAccountProfileNames(identity ? [identity.accountId] : [])
 
   const [renameValue, setRenameValue] = useState('')
   const [renameError, setRenameError] = useState<string | null>(null)
@@ -205,7 +206,7 @@ export function IdentityScreen({navigation, route}: Props) {
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.card}>
         <Text style={styles.label}>Name</Text>
-        <Text style={styles.nameText}>{identity.name}</Text>
+        <Text style={styles.nameText}>{identityDisplayName(identity, hydratedNames[identity.accountId])}</Text>
         <Text style={styles.label}>Account ID</Text>
         <Text testID="identity-account-id" style={styles.accountId} selectable>
           {identity.accountId}

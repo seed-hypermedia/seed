@@ -4,7 +4,7 @@ import {ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpa
 import type {RootStackParamList} from '../navigation/types'
 import {getCurrentServer} from '../store/server-store'
 import {formattedDate} from '../utils/dates'
-import {shortAccountId, useVault} from './vault-hooks'
+import {identityDisplayName, shortAccountId, useAccountProfileNames, useVault} from './vault-hooks'
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Vault'>
@@ -14,6 +14,7 @@ const DEFAULT_VAULT_URL = 'https://hyper.media/vault'
 
 export function VaultScreen({navigation}: Props) {
   const {manager, status, identities, loadError} = useVault()
+  const profileNames = useAccountProfileNames(identities.map((identity) => identity.accountId))
   const [vaultUrl, setVaultUrl] = useState(DEFAULT_VAULT_URL)
   const [connectError, setConnectError] = useState<string | null>(null)
   const [connectBusy, setConnectBusy] = useState(false)
@@ -144,7 +145,9 @@ export function VaultScreen({navigation}: Props) {
               onPress={() => navigation.navigate('Identity', {accountId: identity.accountId})}
             >
               <View style={styles.identityText}>
-                <Text style={styles.identityName}>{identity.name}</Text>
+                <Text style={styles.identityName}>
+                  {identityDisplayName(identity, profileNames[identity.accountId])}
+                </Text>
                 <Text style={styles.identityId}>{shortAccountId(identity.accountId)}</Text>
               </View>
               {isActive ? (

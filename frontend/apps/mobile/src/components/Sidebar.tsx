@@ -1,7 +1,7 @@
 import React, {useEffect, useRef} from 'react'
-import {Animated, Dimensions, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View} from 'react-native'
+import {Animated, Dimensions, Modal, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View} from 'react-native'
 import {getCurrentServer} from '../store/server-store'
-import {useVault} from '../screens/vault-hooks'
+import {useAccountProfileNames, useVault} from '../screens/vault-hooks'
 import {Avatar} from './Avatar'
 
 const SIDEBAR_WIDTH = Math.min(300, Dimensions.get('window').width * 0.82)
@@ -20,8 +20,15 @@ function abbreviateUid(uid: string): string {
 export function Sidebar({open, onClose, navigate}: {open: boolean; onClose: () => void; navigate: SidebarNavigate}) {
   const vault = useVault()
   const currentIdentity = vault.manager?.getCurrentIdentity() ?? null
+  const profileNames = useAccountProfileNames(currentIdentity ? [currentIdentity.accountId] : [])
   const server = getCurrentServer()
   const slide = useRef(new Animated.Value(SIDEBAR_WIDTH)).current
+  // Navigation requested from inside the modal. On native, pushing a screen
+  // while the modal is still dismissing deadlocks touch handling (the classic
+  // RN Modal + navigation freeze) — so the tap only records the destination
+  // and closes the modal; navigation runs after dismissal (onDismiss on iOS,
+  // a post-close effect elsewhere).
+  const pendingNavigation = useRef<Parameters<SidebarNavigate>[0] | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -31,13 +38,36 @@ export function Sidebar({open, onClose, navigate}: {open: boolean; onClose: () =
     }
   }, [open, slide])
 
-  const go = (screen: Parameters<SidebarNavigate>[0]) => {
-    onClose()
-    navigate(screen)
+  const flushPendingNavigation = () => {
+    const screen = pendingNavigation.current
+    pendingNavigation.current = null
+    if (screen) navigate(screen)
   }
 
+  useEffect(() => {
+    // iOS fires Modal.onDismiss; web/Android need this fallback after close.
+    if (!open && pendingNavigation.current && Platform.OS !== 'ios') {
+      const timer = setTimeout(flushPendingNavigation, Platform.OS === 'web' ? 0 : 80)
+      return () => clearTimeout(timer)
+    }
+    return undefined
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const go = (screen: Parameters<SidebarNavigate>[0]) => {
+    pendingNavigation.current = screen
+    onClose()
+  }
+
+  const displayName = currentIdentity
+    ? profileNames[currentIdentity.accountId] ??
+      (currentIdentity.name !== currentIdentity.accountId
+        ? currentIdentity.name
+        : abbreviateUid(currentIdentity.accountId))
+    : ''
+
   return (
-    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose} onDismiss={flushPendingNavigation}>
       <Pressable style={styles.backdrop} onPress={onClose} testID="sidebar-backdrop">
         <Animated.View style={[styles.panel, {width: SIDEBAR_WIDTH, transform: [{translateX: slide}]}]}>
           <Pressable style={styles.panelInner} onPress={() => {}}>
@@ -45,10 +75,10 @@ export function Sidebar({open, onClose, navigate}: {open: boolean; onClose: () =
             <TouchableOpacity testID="sidebar-account" style={styles.accountCard} onPress={() => go('Vault')}>
               {currentIdentity ? (
                 <>
-                  <Avatar id={currentIdentity.accountId} name={currentIdentity.name} size={40} />
+                  <Avatar id={currentIdentity.accountId} name={displayName} size={40} />
                   <View style={styles.accountText}>
                     <Text style={styles.accountName} numberOfLines={1}>
-                      {currentIdentity.name || abbreviateUid(currentIdentity.accountId)}
+                      {displayName}
                     </Text>
                     <Text style={styles.accountId} numberOfLines={1}>
                       {currentIdentity.accountId}

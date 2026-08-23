@@ -44,10 +44,33 @@ export async function notificationSignerFor(accountId: string): Promise<Notifica
   }
 }
 
+const REQUEST_TIMEOUT_MS = 15_000
+
+/** RN fetch has no default timeout — an unreachable notify host must surface
+ * an error instead of leaving the notifications screen loading forever. */
+function withTimeout<T>(promise: Promise<T>, host: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Notification server not responding (${host})`)),
+      REQUEST_TIMEOUT_MS,
+    )
+    promise.then(
+      (value) => {
+        clearTimeout(timer)
+        resolve(value)
+      },
+      (error) => {
+        clearTimeout(timer)
+        reject(error)
+      },
+    )
+  })
+}
+
 export async function fetchNotificationState(accountId: string, host?: string): Promise<NotificationStateSnapshot> {
   const notifyHost = host ?? (await resolveNotifyHost())
   const signer = await notificationSignerFor(accountId)
-  return getNotificationState(notifyHost, signer)
+  return withTimeout(getNotificationState(notifyHost, signer), notifyHost)
 }
 
 export async function applyNotificationMutations(
@@ -57,5 +80,5 @@ export async function applyNotificationMutations(
 ): Promise<NotificationStateSnapshot> {
   const notifyHost = host ?? (await resolveNotifyHost())
   const signer = await notificationSignerFor(accountId)
-  return applyNotificationActions(notifyHost, signer, {actions})
+  return withTimeout(applyNotificationActions(notifyHost, signer, {actions}), notifyHost)
 }
