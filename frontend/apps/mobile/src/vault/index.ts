@@ -10,6 +10,8 @@ export {
   normalizeVaultOriginURL,
 } from './connect'
 export {openURL} from './open-url'
+export {updateProfile, type UpdateProfileInput, type UpdateProfileResult} from './profile'
+export {buildSeedKeyExport, ENCRYPTED_SEEDKEY_ERROR, parseSeedKeyImport, type SeedKeyMaterial} from './seedkey'
 export {
   createDefaultSecretStore,
   createMemorySecretStore,

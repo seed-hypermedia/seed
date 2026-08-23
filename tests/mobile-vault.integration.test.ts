@@ -32,6 +32,12 @@
  *   payload cannot be decrypted (src/vault/connect.ts error, rendered as
  *   lastConnectError)
  * - a button matching /try again/i on the connect screen for the fresh-mint retry
+ * Desktop-parity additions (profile editing + .seedkey export/import):
+ * - profile editor: profile-name-input, profile-save, profile-save-status,
+ *   profile-icon-preview, and the hidden DOM file input
+ *   data-testid="profile-icon-input" (driven with setInputFiles)
+ * - export: identity-export, identity-export-confirm, identity-export-payload
+ * - import: vault-import-seedkey, seedkey-input, seedkey-submit, seedkey-error
  *
  * Prerequisites: daemon binary built (plz-out/bin/backend), `npm install` run
  * in frontend/apps/mobile, `bun` on PATH (vault server), and Chromium
@@ -134,6 +140,17 @@ let postSeedVersion: number
 let mobileContext: BrowserContext
 let mobilePage: Page
 let mobileAccountId: string
+/** Second device: fresh context used for the .seedkey import round-trip. */
+let importContext: BrowserContext
+let importPage: Page
+
+// A 1x1 RGB PNG built by hand (signature + IHDR + IDAT + IEND with valid
+// CRCs) and verified against the web app's sharp pipeline — tiny but a fully
+// valid image for the /hm/api/image loader.
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGPwmjULAAKwAX+P+7cHAAAAAElFTkSuQmCC',
+  'base64',
+)
 
 /** Authenticated JSON call against the vault server as the web actor. */
 async function vaultApi(
@@ -210,6 +227,7 @@ beforeAll(async () => {
 }, TEST_TIMEOUT)
 
 afterAll(async () => {
+  await importContext?.close().catch(() => {})
   await mobileContext?.close().catch(() => {})
   await browser?.close()
   await expo?.kill()
@@ -416,6 +434,150 @@ describe('Mobile Remote Vault Connect e2e', () => {
       if (resource.type === 'document') {
         expect(resource.document.metadata?.name).toBe('mobile-identity')
       }
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'updates the profile name and icon on the existing home document',
+    async () => {
+      // Still on the Identity screen from the previous test. This exercises
+      // the EXISTING-doc path: resolveDocumentState → SetAttributes change on
+      // top of the current heads (deps + depth), never a fresh genesis.
+      await mobilePage.getByTestId('profile-name-input').fill('Mobile Renamed')
+
+      // The icon rides through the hidden DOM file input (web platform path);
+      // the picked image registers by rendering a local preview.
+      await mobilePage
+        .locator('[data-testid="profile-icon-input"]')
+        .setInputFiles({name: 'icon.png', mimeType: 'image/png', buffer: TINY_PNG})
+      await mobilePage.getByTestId('profile-icon-preview').waitFor({timeout: 15_000})
+
+      await mobilePage.getByTestId('profile-save').click()
+      await expect
+        .poll(
+          async () =>
+            mobilePage
+              .getByTestId('profile-save-status')
+              .textContent()
+              .catch(() => null),
+          {timeout: 60_000, interval: 500},
+        )
+        .toBe('Profile updated')
+
+      // Authoritative server-side assertion: the home document metadata now
+      // carries the new name AND an ipfs:// icon, with the icon blobs uploaded
+      // in the same client.publish call (no daemon key involved anywhere).
+      const client = createSeedClient(env.web.baseUrl)
+      let iconValue = ''
+      await expect
+        .poll(
+          async () => {
+            const resource = await client
+              .request('Resource', {
+                id: `hm://${mobileAccountId}`,
+                uid: mobileAccountId,
+                path: null,
+                version: null,
+                blockRef: null,
+                blockRange: null,
+                hostname: null,
+                scheme: null,
+              })
+              .catch(() => null)
+            if (resource?.type !== 'document') return null
+            iconValue = resource.document.metadata?.icon ?? ''
+            return resource.document.metadata?.name
+          },
+          {timeout: 60_000, interval: 2_000},
+        )
+        .toBe('Mobile Renamed')
+
+      expect(iconValue).toMatch(/^ipfs:\/\/./)
+      const iconCid = iconValue.slice('ipfs://'.length)
+
+      // The uploaded blob is served back through the web server.
+      await expect
+        .poll(
+          async () => {
+            const image = await fetch(`${env.web.baseUrl}/hm/api/image/${iconCid}`)
+            if (image.status === 200) return 200
+            const file = await fetch(`${env.web.baseUrl}/hm/api/file/${iconCid}`)
+            return file.status === 200 ? 200 : `image=${image.status} file=${file.status}`
+          },
+          {timeout: 30_000, interval: 1_000},
+        )
+        .toBe(200)
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'exports a desktop-format .seedkey and imports it into a fresh vault',
+    async () => {
+      // Reveal the export on the identity screen (still open): the reveal is
+      // gated behind an explicit unencrypted-private-key confirmation.
+      await mobilePage.getByTestId('identity-export').click()
+      await mobilePage.getByTestId('identity-export-confirm').click()
+      await mobilePage.getByTestId('identity-export-payload').waitFor({timeout: 15_000})
+      const payload = (await mobilePage.getByTestId('identity-export-payload').textContent()) ?? ''
+
+      // Desktop-parity shape (daemon.go createExportedKeyFile): exactly
+      // {createTime, publicKey, keyB64} with an RFC3339 createTime, the
+      // base58 principal, and an UNPADDED base64url 32-byte seed that
+      // re-derives the same principal.
+      const parsed = JSON.parse(payload) as Record<string, string>
+      expect(Object.keys(parsed).sort()).toEqual(['createTime', 'keyB64', 'publicKey'])
+      expect(Number.isNaN(Date.parse(parsed.createTime))).toBe(false)
+      expect(parsed.publicKey).toBe(mobileAccountId)
+      expect(parsed.keyB64).not.toContain('=')
+      const exportedSeed = b64urlDecode(parsed.keyB64)
+      expect(exportedSeed).toHaveLength(32)
+      expect(accountIdFromSeed(exportedSeed)).toBe(mobileAccountId)
+
+      // A fresh browser context = a fresh local vault. Importing the pasted
+      // payload must materialize the SAME account id from the key bytes alone.
+      const opened = await openApp()
+      importContext = opened.context
+      importPage = opened.page
+      await connectToServer(importPage, env.web.baseUrl)
+      await openVaultScreen(importPage)
+      await importPage.getByTestId('vault-import-seedkey').click()
+      await importPage.getByTestId('seedkey-input').fill(payload)
+      await importPage.getByTestId('seedkey-submit').click()
+      await importPage.getByTestId(`identity-${mobileAccountId}`).waitFor({timeout: 30_000})
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'rejects mangled and password-protected seedkey payloads',
+    async () => {
+      // The import box closed itself after the successful import — reopen it.
+      await importPage.getByTestId('vault-import-seedkey').click()
+
+      await importPage.getByTestId('seedkey-input').fill('this is not a seedkey')
+      await importPage.getByTestId('seedkey-submit').click()
+      await importPage.getByTestId('seedkey-error').waitFor({timeout: 15_000})
+      expect(await importPage.getByTestId('seedkey-error').textContent()).toBe('Invalid key file: not valid JSON.')
+
+      // Typing clears the error; a password-protected desktop export (an
+      // "encryption" field) gets the explicit not-supported message — Argon2id
+      // is out of reach on Hermes, so this must fail loudly, not mysteriously.
+      await importPage
+        .getByTestId('seedkey-input')
+        .fill(JSON.stringify({encryption: {mode: 'argon2id'}, keyB64: 'AAAA'}))
+      await importPage.getByTestId('seedkey-submit').click()
+      await expect
+        .poll(
+          async () =>
+            importPage
+              .getByTestId('seedkey-error')
+              .textContent()
+              .catch(() => null),
+          {timeout: 15_000, interval: 250},
+        )
+        .toBe('Password-protected key exports are not supported yet.')
     },
     TEST_TIMEOUT,
   )

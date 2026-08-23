@@ -53,6 +53,7 @@ import {
   type Account,
   type State,
 } from './state-codec'
+import {buildSeedKeyExport, parseSeedKeyImport} from './seedkey'
 import {runRemoteSync, SyncScheduler, type RemoteSyncContext, type SyncSuccess} from './sync'
 
 const KEY_NAME_FORMAT = /^[a-zA-Z0-9_-]+$/
@@ -240,6 +241,33 @@ export class VaultManager {
     const existing = this.#state.accounts.find((account) => accountIdFromSeed(account.seed) === accountId)
     if (existing) {
       return {name: getAccountName(existing), accountId}
+    }
+    return this.#storeIdentity(seed, name)
+  }
+
+  /**
+   * Export an identity as a desktop-format `.seedkey` JSON string
+   * (unencrypted variant only). Throws when the identity is unknown.
+   */
+  async exportIdentity(accountId: string): Promise<string> {
+    const index = findAccountIndex(this.#state.accounts, accountId)
+    if (index < 0) {
+      throw new Error(`${accountId}: named key not found`)
+    }
+    const account = this.#state.accounts[index]
+    return buildSeedKeyExport({seed: account.seed, createTime: account.createTime})
+  }
+
+  /**
+   * Import an identity from a pasted `.seedkey` JSON payload. Idempotent per
+   * principal, like importIdentityFromMnemonic: importing an already-present
+   * key returns the existing identity unchanged.
+   */
+  async importIdentityFromSeedKey(json: string, name?: string): Promise<VaultIdentity> {
+    const {seed, publicKey} = parseSeedKeyImport(json)
+    const existing = this.#state.accounts.find((account) => accountIdFromSeed(account.seed) === publicKey)
+    if (existing) {
+      return {name: getAccountName(existing), accountId: publicKey}
     }
     return this.#storeIdentity(seed, name)
   }

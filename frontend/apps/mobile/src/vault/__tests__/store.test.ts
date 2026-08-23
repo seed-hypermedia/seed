@@ -149,6 +149,75 @@ describe('VaultManager (local mode)', () => {
     }
   })
 
+  test('exportIdentity emits a desktop .seedkey payload that re-imports elsewhere', async () => {
+    const {manager} = await loadManager()
+    const identity = await manager.createIdentity('exportable')
+    let exported: string
+    try {
+      exported = await manager.exportIdentity(identity.accountId)
+    } finally {
+      manager.destroy()
+    }
+
+    // Desktop createExportedKeyFile shape: unencrypted, base64url seed.
+    const payload = JSON.parse(exported)
+    expect(payload.publicKey).toBe(identity.accountId)
+    expect(payload.encryption).toBeUndefined()
+    expect(b64url.decode(payload.keyB64)).toHaveLength(32)
+
+    // A SECOND device imports the payload and derives the same identity.
+    const {manager: other} = await loadManager()
+    try {
+      const imported = await other.importIdentityFromSeedKey(exported, 'from-desktop')
+      expect(imported.accountId).toBe(identity.accountId)
+      expect(imported.name).toBe('from-desktop')
+      expect(typeof other.getSigner(imported.accountId).sign).toBe('function')
+
+      // Idempotent per principal: re-importing returns the existing identity.
+      const again = await other.importIdentityFromSeedKey(exported, 'ignored-name')
+      expect(again).toEqual(imported)
+      expect(other.listIdentities()).toHaveLength(1)
+    } finally {
+      other.destroy()
+    }
+  })
+
+  test('exportIdentity throws for an unknown identity', async () => {
+    const {manager} = await loadManager()
+    try {
+      await expect(manager.exportIdentity('z6MkunknownUnknownUnknown')).rejects.toThrow('named key not found')
+    } finally {
+      manager.destroy()
+    }
+  })
+
+  test('importIdentityFromSeedKey persists across reloads and rejects encrypted payloads', async () => {
+    const seed = randomBytes(32)
+    const {manager, storage, secretStore} = await loadManager()
+    let accountId: string
+    try {
+      const imported = await manager.importIdentityFromSeedKey(
+        JSON.stringify({createTime: new Date().toISOString(), keyB64: b64url.encode(seed)}),
+        'pasted',
+      )
+      accountId = imported.accountId
+      expect(accountId).toBe(accountIdFromSeed(seed))
+
+      await expect(
+        manager.importIdentityFromSeedKey(JSON.stringify({keyB64: b64url.encode(seed), encryption: {kdf: 'argon2id'}})),
+      ).rejects.toThrow('not supported yet')
+    } finally {
+      manager.destroy()
+    }
+
+    const {manager: reloaded} = await loadManager({storage, secretStore})
+    try {
+      expect(reloaded.listIdentities()).toEqual([{name: 'pasted', accountId}])
+    } finally {
+      reloaded.destroy()
+    }
+  })
+
   test('forceSync throws in local mode', async () => {
     const {manager} = await loadManager()
     try {

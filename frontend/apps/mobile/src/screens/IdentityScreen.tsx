@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -12,9 +13,11 @@ import {
   View,
 } from 'react-native'
 import {getSeedClient} from '../client/seed-client'
+import {IconPicker, type PickedIcon} from '../components/IconPicker'
 import type {RootStackParamList} from '../navigation/types'
 import {getCurrentServer} from '../store/server-store'
-import {publishProfile} from '../vault'
+import {updateProfile} from '../vault'
+import {hmId} from '../utils/hm-id'
 import {useVault} from './vault-hooks'
 
 type Props = {
@@ -22,11 +25,29 @@ type Props = {
   route: RouteProp<RootStackParamList, 'Identity'>
 }
 
-type PublishState =
-  | {status: 'idle'}
-  | {status: 'publishing'}
-  | {status: 'published'}
+/** The published home document's current metadata (profile). */
+type ProfileLoad =
+  | {status: 'loading'}
+  /** No home document published yet — saving runs the fresh-genesis path. */
+  | {status: 'fresh'}
+  | {status: 'loaded'; name: string; iconUrl: string | null}
+
+type SaveState = {status: 'idle'} | {status: 'saving'} | {status: 'saved'} | {status: 'error'; message: string}
+
+type ExportState =
+  | {status: 'hidden'}
+  | {status: 'confirm'}
+  | {status: 'revealed'; payload: string}
   | {status: 'error'; message: string}
+
+/** Resolve a metadata icon value ('ipfs://CID') to a servable image URL. */
+function iconUrlFromMetadata(icon: string | undefined): string | null {
+  if (!icon) return null
+  if (icon.startsWith('ipfs://')) {
+    return `${getCurrentServer().url}/hm/api/image/${icon.slice('ipfs://'.length)}`
+  }
+  return icon
+}
 
 export function IdentityScreen({navigation, route}: Props) {
   const {accountId} = route.params
@@ -37,7 +58,13 @@ export function IdentityScreen({navigation, route}: Props) {
   const [renameError, setRenameError] = useState<string | null>(null)
   const [renameBusy, setRenameBusy] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [publishState, setPublishState] = useState<PublishState>({status: 'idle'})
+
+  const [profile, setProfile] = useState<ProfileLoad>({status: 'loading'})
+  const [profileName, setProfileName] = useState('')
+  const [pickedIcon, setPickedIcon] = useState<PickedIcon | null>(null)
+  const [saveState, setSaveState] = useState<SaveState>({status: 'idle'})
+
+  const [exportState, setExportState] = useState<ExportState>({status: 'hidden'})
 
   // Prefill the rename field with the current name (once it is known).
   const currentName = identity?.name
@@ -46,6 +73,37 @@ export function IdentityScreen({navigation, route}: Props) {
       setRenameValue(currentName === accountId ? '' : currentName)
     }
   }, [currentName, accountId])
+
+  // Load the currently published profile to prefill the editor. A fresh
+  // identity has no home document yet — prefill from the vault name instead.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const resource = await getSeedClient().request('Resource', hmId(accountId))
+        if (cancelled) return
+        if (resource.type === 'document') {
+          const name = resource.document.metadata?.name ?? ''
+          setProfile({status: 'loaded', name, iconUrl: iconUrlFromMetadata(resource.document.metadata?.icon)})
+          setProfileName(name)
+          return
+        }
+        setProfile({status: 'fresh'})
+      } catch {
+        if (!cancelled) setProfile({status: 'fresh'})
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [accountId])
+
+  // A fresh identity prefills the profile name from its vault name.
+  useEffect(() => {
+    if (profile.status === 'fresh' && currentName !== undefined) {
+      setProfileName(currentName === accountId ? '' : currentName)
+    }
+  }, [profile.status, currentName, accountId])
 
   const handleRename = useCallback(async () => {
     if (!manager || !identity || renameBusy) return
@@ -67,16 +125,55 @@ export function IdentityScreen({navigation, route}: Props) {
     navigation.goBack()
   }, [manager, identity, navigation])
 
-  const handlePublishProfile = useCallback(async () => {
-    if (!identity || publishState.status === 'publishing') return
-    setPublishState({status: 'publishing'})
+  const publishedName = profile.status === 'loaded' ? profile.name : null
+  const trimmedProfileName = profileName.trim()
+  const nameChanged =
+    profile.status === 'loaded'
+      ? trimmedProfileName !== '' && trimmedProfileName !== publishedName
+      : trimmedProfileName !== ''
+  const hasProfileChanges = nameChanged || pickedIcon !== null
+  const profileBusy = profile.status === 'loading' || saveState.status === 'saving'
+
+  const handleSaveProfile = useCallback(async () => {
+    if (!identity || profileBusy || !hasProfileChanges) return
+    setSaveState({status: 'saving'})
     try {
-      await publishProfile(getSeedClient(), identity.accountId, identity.name)
-      setPublishState({status: 'published'})
+      // Only the changed fields are published.
+      await updateProfile(getSeedClient(), identity.accountId, {
+        ...(nameChanged ? {name: trimmedProfileName} : {}),
+        ...(pickedIcon ? {iconBytes: pickedIcon.bytes} : {}),
+      })
+      setProfile((previous) => ({
+        status: 'loaded',
+        name: nameChanged ? trimmedProfileName : publishedName ?? trimmedProfileName,
+        iconUrl: pickedIcon ? pickedIcon.uri : previous.status === 'loaded' ? previous.iconUrl : null,
+      }))
+      setPickedIcon(null)
+      setSaveState({status: 'saved'})
     } catch (error) {
-      setPublishState({status: 'error', message: error instanceof Error ? error.message : String(error)})
+      setSaveState({status: 'error', message: error instanceof Error ? error.message : String(error)})
     }
-  }, [identity, publishState.status])
+  }, [identity, profileBusy, hasProfileChanges, nameChanged, trimmedProfileName, pickedIcon, publishedName])
+
+  const handleExportReveal = useCallback(async () => {
+    if (!manager || !identity) return
+    try {
+      const payload = await manager.exportIdentity(identity.accountId)
+      setExportState({status: 'revealed', payload})
+    } catch (error) {
+      setExportState({status: 'error', message: error instanceof Error ? error.message : String(error)})
+    }
+  }, [manager, identity])
+
+  const handleExportShare = useCallback(async () => {
+    if (exportState.status !== 'revealed') return
+    try {
+      await Share.share({message: exportState.payload})
+    } catch {
+      // Share sheet unavailable (e.g. web without navigator.share) — the
+      // payload stays selectable for manual copying.
+    }
+  }, [exportState])
 
   if (loadError) {
     return (
@@ -115,27 +212,65 @@ export function IdentityScreen({navigation, route}: Props) {
         </Text>
       </View>
 
-      {/* Publish profile */}
+      {/* Profile (published home document metadata) */}
+      <Text style={styles.sectionTitle}>Profile</Text>
       <View style={styles.card}>
-        <TouchableOpacity
-          testID="identity-publish-profile"
-          style={[styles.primaryButton, publishState.status === 'publishing' && styles.buttonDisabled]}
-          onPress={handlePublishProfile}
-          disabled={publishState.status === 'publishing'}
-        >
-          <Text style={styles.primaryButtonText}>Publish profile to {serverName}</Text>
-        </TouchableOpacity>
-        {publishState.status !== 'idle' && (
-          <Text
-            testID="publish-status"
-            style={[styles.publishStatus, publishState.status === 'error' && styles.errorText]}
-          >
-            {publishState.status === 'publishing'
-              ? 'Publishing…'
-              : publishState.status === 'published'
-                ? 'Published successfully'
-                : `Publish failed: ${publishState.message}`}
-          </Text>
+        {profile.status === 'loading' ? (
+          <ActivityIndicator size="small" color="#4a9a9a" />
+        ) : (
+          <>
+            <Text style={styles.label}>Profile name</Text>
+            <TextInput
+              testID="profile-name-input"
+              style={styles.input}
+              value={profileName}
+              onChangeText={(value) => {
+                setProfileName(value)
+                if (saveState.status !== 'saving') setSaveState({status: 'idle'})
+              }}
+              placeholder="Display name"
+              placeholderTextColor="#666"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Text style={styles.label}>Icon</Text>
+            <IconPicker
+              currentUrl={profile.status === 'loaded' ? profile.iconUrl : null}
+              picked={pickedIcon}
+              onPick={(icon) => {
+                setPickedIcon(icon)
+                if (saveState.status !== 'saving') setSaveState({status: 'idle'})
+              }}
+              disabled={saveState.status === 'saving'}
+            />
+            {/* Wrapper keeps the pre-editor testID working (fresh publish path). */}
+            <View testID="identity-publish-profile">
+              <TouchableOpacity
+                testID="profile-save"
+                style={[styles.primaryButton, (profileBusy || !hasProfileChanges) && styles.buttonDisabled]}
+                onPress={handleSaveProfile}
+                disabled={profileBusy || !hasProfileChanges}
+              >
+                <Text style={styles.primaryButtonText}>
+                  {profile.status === 'fresh' ? `Publish profile to ${serverName}` : 'Save profile'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
+        {saveState.status !== 'idle' && (
+          <View testID="publish-status">
+            <Text
+              testID="profile-save-status"
+              style={[styles.publishStatus, saveState.status === 'error' && styles.errorText]}
+            >
+              {saveState.status === 'saving'
+                ? 'Saving…'
+                : saveState.status === 'saved'
+                  ? 'Profile updated'
+                  : `Profile update failed: ${saveState.message}`}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -168,6 +303,65 @@ export function IdentityScreen({navigation, route}: Props) {
         >
           <Text style={styles.secondaryButtonText}>{renameBusy ? 'Renaming…' : 'Rename'}</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* Export key */}
+      <Text style={styles.sectionTitle}>Export key</Text>
+      <View style={styles.card}>
+        {exportState.status === 'hidden' && (
+          <>
+            <Text style={styles.helpText}>
+              Export this identity as a .seedkey file that the Seed desktop app can import.
+            </Text>
+            <TouchableOpacity
+              testID="identity-export"
+              style={styles.secondaryButton}
+              onPress={() => setExportState({status: 'confirm'})}
+            >
+              <Text style={styles.secondaryButtonText}>Export key</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {exportState.status === 'confirm' && (
+          <>
+            <Text style={styles.warningText}>
+              The export is your unencrypted private key. Anyone who sees it can fully control this identity. Only
+              reveal it in a private place.
+            </Text>
+            <TouchableOpacity testID="identity-export-confirm" style={styles.dangerButton} onPress={handleExportReveal}>
+              <Text style={styles.dangerButtonText}>Reveal private key</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setExportState({status: 'hidden'})}>
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {exportState.status === 'revealed' && (
+          <>
+            <Text style={styles.warningText}>
+              This is your unencrypted private key. Anyone who sees it can fully control this identity.
+            </Text>
+            <Text testID="identity-export-payload" style={styles.exportPayload} selectable>
+              {exportState.payload}
+            </Text>
+            <TouchableOpacity testID="identity-export-share" style={styles.primaryButton} onPress={handleExportShare}>
+              <Text style={styles.primaryButtonText}>Share…</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setExportState({status: 'hidden'})}>
+              <Text style={styles.secondaryButtonText}>Hide</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        {exportState.status === 'error' && (
+          <>
+            <Text testID="identity-export-error" style={styles.errorText}>
+              {exportState.message}
+            </Text>
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => setExportState({status: 'hidden'})}>
+              <Text style={styles.secondaryButtonText}>Close</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       {/* Delete */}
@@ -289,6 +483,22 @@ const styles = StyleSheet.create({
     color: '#aaa',
     fontSize: 13,
     lineHeight: 18,
+    marginBottom: 12,
+  },
+  warningText: {
+    color: '#ffcf8a',
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  exportPayload: {
+    color: '#4a9a9a',
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    backgroundColor: '#1F3838',
+    borderRadius: 10,
+    padding: 12,
     marginBottom: 12,
   },
   buttonDisabled: {

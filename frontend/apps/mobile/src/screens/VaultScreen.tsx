@@ -19,6 +19,10 @@ export function VaultScreen({navigation}: Props) {
   const [connectBusy, setConnectBusy] = useState(false)
   const [syncBusy, setSyncBusy] = useState(false)
   const [confirmLogout, setConfirmLogout] = useState(false)
+  const [showSeedKeyImport, setShowSeedKeyImport] = useState(false)
+  const [seedKeyText, setSeedKeyText] = useState('')
+  const [seedKeyError, setSeedKeyError] = useState<string | null>(null)
+  const [seedKeyBusy, setSeedKeyBusy] = useState(false)
 
   const handleConnectStart = useCallback(async () => {
     if (!manager) return
@@ -48,6 +52,21 @@ export function VaultScreen({navigation}: Props) {
       setSyncBusy(false)
     }
   }, [manager])
+
+  const handleSeedKeyImport = useCallback(async () => {
+    if (!manager || seedKeyBusy) return
+    setSeedKeyBusy(true)
+    setSeedKeyError(null)
+    try {
+      await manager.importIdentityFromSeedKey(seedKeyText.trim())
+      setSeedKeyText('')
+      setShowSeedKeyImport(false)
+    } catch (error) {
+      setSeedKeyError(error instanceof Error ? error.message : String(error))
+    } finally {
+      setSeedKeyBusy(false)
+    }
+  }, [manager, seedKeyText, seedKeyBusy])
 
   const handleDisconnect = useCallback(async () => {
     if (!manager) return
@@ -140,6 +159,61 @@ export function VaultScreen({navigation}: Props) {
         >
           <Text style={styles.secondaryButtonText}>Import from recovery phrase</Text>
         </TouchableOpacity>
+        {!showSeedKeyImport ? (
+          <TouchableOpacity
+            testID="vault-import-seedkey"
+            style={styles.secondaryButton}
+            onPress={() => {
+              setShowSeedKeyImport(true)
+              setSeedKeyError(null)
+            }}
+          >
+            <Text style={styles.secondaryButtonText}>Import key file</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.seedKeyBox}>
+            <Text style={styles.helpText}>
+              Paste the contents of a .seedkey file exported from the Seed desktop app. Password-protected exports are
+              not supported yet.
+            </Text>
+            <TextInput
+              testID="seedkey-input"
+              style={[styles.input, styles.seedKeyInput]}
+              value={seedKeyText}
+              onChangeText={(value) => {
+                setSeedKeyText(value)
+                setSeedKeyError(null)
+              }}
+              placeholder='{"createTime": …, "publicKey": …, "keyB64": …}'
+              placeholderTextColor="#666"
+              autoCapitalize="none"
+              autoCorrect={false}
+              multiline
+            />
+            {seedKeyError && (
+              <Text testID="seedkey-error" style={styles.errorText}>
+                {seedKeyError}
+              </Text>
+            )}
+            <TouchableOpacity
+              testID="seedkey-submit"
+              style={[styles.primaryButton, seedKeyBusy && styles.buttonDisabled]}
+              onPress={handleSeedKeyImport}
+              disabled={seedKeyBusy}
+            >
+              <Text style={styles.primaryButtonText}>{seedKeyBusy ? 'Importing…' : 'Import key'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={() => {
+                setShowSeedKeyImport(false)
+                setSeedKeyError(null)
+              }}
+            >
+              <Text style={styles.secondaryButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {/* Connection */}
@@ -362,6 +436,16 @@ const styles = StyleSheet.create({
   },
   confirmBox: {
     marginTop: 12,
+  },
+  seedKeyBox: {
+    marginTop: 12,
+  },
+  seedKeyInput: {
+    height: 120,
+    paddingTop: 12,
+    fontSize: 12,
+    fontFamily: 'Menlo',
+    textAlignVertical: 'top',
   },
   buttonDisabled: {
     opacity: 0.5,
