@@ -31,6 +31,8 @@ const TEST_TIMEOUT = 300_000
 // Go implementation - DO NOT CHANGE
 const TEST_MNEMONIC = 'parrot midnight lion defense ski senior trouble slice chase spot history awkward'
 const EXPECTED_ACCOUNT_ID = 'z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8'
+const BLOG_POST_TITLE = 'Blog Post One'
+const ORPHAN_TITLE = 'Orphan Page'
 
 let env: TestEnv
 let expo: ExpoWebInstance
@@ -45,8 +47,17 @@ beforeAll(async () => {
     skipBuild: process.env.SKIP_BUILD === 'true',
   })
 
-  // Add a Query block to the fixture home document so the app's query-block
-  // rendering can be exercised (lists the space's child documents as cards).
+  // Compose the fixture home so all three content features are exercised:
+  // - a Query block over /blog (NOT self-targeting, so the unreferenced
+  //   section stays active) rendering child docs as cards
+  // - an Embed card referencing the hierarchy doc
+  // - an orphan child doc referenced by nothing -> unreferenced children
+  await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, 'blog/post-one', [
+    {type: 'SetAttributes', attrs: [{key: ['name'], value: BLOG_POST_TITLE}]},
+  ])
+  await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, 'orphan-page', [
+    {type: 'SetAttributes', attrs: [{key: ['name'], value: ORPHAN_TITLE}]},
+  ])
   await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, '', [
     {
       type: 'ReplaceBlock',
@@ -60,14 +71,25 @@ beforeAll(async () => {
           columnCount: 1,
           banner: false,
           query: {
-            includes: [{space: FIXTURE_ACCOUNT_ID, path: '', mode: 'Children'}],
+            includes: [{space: FIXTURE_ACCOUNT_ID, path: '/blog', mode: 'Children'}],
             sort: [{term: 'UpdateTime', reverse: false}],
             limit: 10,
           },
         },
       },
     },
-    {type: 'MoveBlocks', parent: '', blocks: ['homequery']},
+    {
+      type: 'ReplaceBlock',
+      block: {
+        type: 'Embed',
+        id: 'homeembed',
+        text: '',
+        annotations: [],
+        link: `hm://${FIXTURE_ACCOUNT_ID}/hierarchy-test`,
+        attributes: {view: 'Card'},
+      },
+    },
+    {type: 'MoveBlocks', parent: '', blocks: ['homequery', 'homeembed']},
   ])
 
   try {
@@ -148,7 +170,37 @@ describe('Mobile app (web) e2e', () => {
       await card.waitFor({timeout: 30_000})
       await expect
         .poll(async () => page.getByTestId('query-block-cards').textContent(), {timeout: 30_000})
-        .toContain(FIXTURE_HIERARCHY_TITLE)
+        .toContain(BLOG_POST_TITLE)
+      await page.context().close()
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'renders embed blocks as document cards',
+    async () => {
+      const page = await openApp()
+      await connectToServer(page, env.web.baseUrl)
+      const embed = page.getByTestId('embed-card').first()
+      await embed.waitFor({timeout: 30_000})
+      expect(await embed.textContent()).toContain(FIXTURE_HIERARCHY_TITLE)
+      await page.context().close()
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'lists unreferenced child documents below the content',
+    async () => {
+      const page = await openApp()
+      await connectToServer(page, env.web.baseUrl)
+      const section = page.getByTestId('unreferenced-children')
+      await section.waitFor({timeout: 30_000})
+      const text = await section.textContent()
+      // The orphan is unreferenced; the hierarchy doc is embedded above and
+      // must NOT repeat here.
+      expect(text).toContain(ORPHAN_TITLE)
+      expect(text).not.toContain(FIXTURE_HIERARCHY_TITLE)
       await page.context().close()
     },
     TEST_TIMEOUT,

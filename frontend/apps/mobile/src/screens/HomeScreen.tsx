@@ -4,18 +4,23 @@ import React, {useCallback, useEffect, useState} from 'react'
 import {ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native'
 import {getSeedClient} from '../client/seed-client'
 import {fetchSiteConfig} from '../client/site-config'
+import {EmbedBlockView} from '../components/EmbedBlockView'
 import {QueryBlockView} from '../components/QueryBlockView'
 import {Sidebar} from '../components/Sidebar'
+import {UnreferencedChildren} from '../components/UnreferencedChildren'
 import type {RootStackParamList} from '../navigation/types'
 import {getCurrentServer} from '../store/server-store'
 import {hmId} from '../utils/hm-id'
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Home'>
-  route: {params: {serverUrl: string}}
+  route: {params?: {serverUrl?: string}}
 }
 
-type HomeState = {status: 'loading'} | {status: 'error'; message: string} | {status: 'loaded'; document: HMDocument}
+type HomeState =
+  | {status: 'loading'}
+  | {status: 'error'; message: string}
+  | {status: 'loaded'; document: HMDocument; uid: string}
 
 export function HomeScreen({navigation, route}: Props) {
   const [serverName, setServerName] = useState('')
@@ -41,7 +46,7 @@ export function HomeScreen({navigation, route}: Props) {
         setState({status: 'error', message: `Home document unavailable (${resource.type}).`})
         return
       }
-      setState({status: 'loaded', document: resource.document})
+      setState({status: 'loaded', document: resource.document, uid: config.registeredAccountUid})
     } catch (err) {
       console.error('Failed to load home page:', err)
       setState({
@@ -53,7 +58,7 @@ export function HomeScreen({navigation, route}: Props) {
 
   useEffect(() => {
     loadHomeDocument()
-  }, [loadHomeDocument, route.params.serverUrl])
+  }, [loadHomeDocument, route.params?.serverUrl])
 
   return (
     <View style={styles.container}>
@@ -94,6 +99,7 @@ export function HomeScreen({navigation, route}: Props) {
               <BlockNodeView key={node.block?.id ?? index} node={node} depth={0} />
             ))}
             {state.document.content.length === 0 && <Text style={styles.emptyText}>This page is empty.</Text>}
+            <UnreferencedChildren uid={state.uid} path={[]} content={state.document.content} />
           </ScrollView>
         )}
       </View>
@@ -116,6 +122,16 @@ function BlockNodeView({node, depth}: {node: HMBlockNode; depth: number}) {
     return (
       <View style={{marginLeft: depth > 0 ? 12 : 0}}>
         <QueryBlockView block={block} />
+        {node.children?.map((child, index) => (
+          <BlockNodeView key={child.block?.id ?? index} node={child} depth={depth + 1} />
+        ))}
+      </View>
+    )
+  }
+  if (block?.type === 'Embed' && 'link' in block && block.link) {
+    return (
+      <View style={{marginLeft: depth > 0 ? 12 : 0}}>
+        <EmbedBlockView link={block.link} />
         {node.children?.map((child, index) => (
           <BlockNodeView key={child.block?.id ?? index} node={child} depth={depth + 1} />
         ))}
