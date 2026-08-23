@@ -20,6 +20,7 @@
 
 import {chromium, type Browser, type Page} from 'playwright'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {FIXTURE_ACCOUNT_NAME, FIXTURE_HOME_CONTENT} from '../test-fixtures/minimal-fixtures'
 import {setupTestEnv, startExpoWeb, type ExpoWebInstance, type TestEnv} from './integration'
 
 const TEST_TIMEOUT = 300_000
@@ -86,13 +87,19 @@ async function connectToServer(page: Page, serverUrl: string): Promise<void> {
 
 describe('Mobile app (web) e2e', () => {
   it(
-    'connects to the local hypermedia server and reports Connected',
+    'loads the home page of the selected server',
     async () => {
       const page = await openApp()
       await connectToServer(page, env.web.baseUrl)
       await expect
         .poll(async () => page.getByTestId('connection-status').textContent(), {timeout: 30_000})
         .toBe('Connected')
+
+      // The home document is resolved via /hm/api/config -> registeredAccountUid
+      await expect
+        .poll(async () => page.getByTestId('home-doc-title').textContent(), {timeout: 30_000})
+        .toBe(FIXTURE_ACCOUNT_NAME)
+      expect(await page.getByTestId('home-doc-content').textContent()).toContain(FIXTURE_HOME_CONTENT.trim())
       await page.context().close()
     },
     TEST_TIMEOUT,
