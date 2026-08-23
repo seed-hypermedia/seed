@@ -51,7 +51,15 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {createSeedClient} from '../frontend/packages/client/src/client'
 import {decrypt, encrypt} from '../frontend/packages/client/src/encryption'
 import {accountIdFromSeed, deserializeState, serializeState, type State} from '../frontend/packages/client/src/vault'
-import {setupTestEnv, startExpoWeb, startVaultServer, type ExpoWebInstance, type TestEnv} from './integration'
+import {
+  setupTestEnv,
+  startExpoWeb,
+  startNotifyServer,
+  startVaultServer,
+  type ExpoWebInstance,
+  type NotifyServerInstance,
+  type TestEnv,
+} from './integration'
 import type {VaultServerInstance} from './integration'
 
 const TEST_TIMEOUT = 300_000
@@ -65,6 +73,7 @@ const DAEMON_GRPC_PORT = 59322
 const DAEMON_P2P_PORT = 59323
 const EXPO_PORT = 8399
 const VAULT_PORT = 3501
+const NOTIFY_PORT = 3561
 
 // HKDF info string for secret-credential auth keys (Go deriveVaultSecretAuthKey,
 // client vault.ts deriveSecretCredentialAuthKey).
@@ -125,6 +134,7 @@ let env: TestEnv
 let vault: VaultServerInstance
 let expo: ExpoWebInstance
 let browser: Browser
+let notify: NotifyServerInstance
 
 const jar = new CookieJar()
 const webActorEmail = `web-actor-${Date.now()}@example.com`
@@ -194,6 +204,8 @@ beforeAll(async () => {
     daemonGrpcPort: DAEMON_GRPC_PORT,
     daemonP2pPort: DAEMON_P2P_PORT,
     skipBuild: process.env.SKIP_BUILD === 'true',
+    // The app resolves its notify host from /hm/api/config
+    notifyServiceHost: `http://localhost:${NOTIFY_PORT}`,
   })
 
   try {
@@ -205,10 +217,20 @@ beforeAll(async () => {
   }
 
   try {
+    notify = await startNotifyServer({port: NOTIFY_PORT, daemonHttpPort: DAEMON_HTTP_PORT})
+    await notify.waitForReady()
+  } catch (error) {
+    await vault.kill()
+    await env.cleanup()
+    throw error
+  }
+
+  try {
     expo = await startExpoWeb({port: EXPO_PORT})
     await expo.waitForReady()
     await expo.prewarmBundle()
   } catch (error) {
+    await notify.kill()
     await vault.kill()
     await env.cleanup()
     throw error
@@ -218,6 +240,7 @@ beforeAll(async () => {
     browser = await chromium.launch({headless: true})
   } catch (error) {
     await expo.kill()
+    await notify.kill()
     await vault.kill()
     await env.cleanup()
     throw new Error(
@@ -231,6 +254,7 @@ afterAll(async () => {
   await mobileContext?.close().catch(() => {})
   await browser?.close()
   await expo?.kill()
+  await notify?.kill()
   await vault?.kill()
   await env?.cleanup()
 })
@@ -244,17 +268,20 @@ async function openApp(): Promise<{context: BrowserContext; page: Page}> {
   return {context, page}
 }
 
+// Connecting lands directly on the server's home document page.
 async function connectToServer(page: Page, serverUrl: string): Promise<void> {
   await page.getByTestId('server-url-input').fill(serverUrl)
   await page.getByTestId('server-connect').click()
-  await expect
-    .poll(async () => page.getByTestId('connection-status').textContent(), {timeout: 30_000})
-    .toBe('Connected')
+  await page.getByTestId('home-doc-title').waitFor({timeout: 30_000})
 }
 
+// The vault opens from the sidebar's account row. Waits on the identities
+// section, which renders in both local and connected modes (the connect form
+// disappears once a remote vault is linked).
 async function openVaultScreen(page: Page): Promise<void> {
-  await page.getByTestId('open-vault').click()
-  await page.getByTestId('vault-url-input').waitFor({timeout: 30_000})
+  await page.getByTestId('open-sidebar').click()
+  await page.getByTestId('sidebar-account').click()
+  await page.getByTestId('vault-create-identity').waitFor({timeout: 30_000})
 }
 
 /**
@@ -332,6 +359,7 @@ describe('Mobile Remote Vault Connect e2e', () => {
       mobilePage = opened.page
       await connectToServer(mobilePage, env.web.baseUrl)
       await openVaultScreen(mobilePage)
+      await mobilePage.getByTestId('vault-url-input').waitFor({timeout: 30_000})
 
       await mobilePage.getByTestId('vault-url-input').fill(vault.vaultUrl)
       await mobilePage.getByTestId('vault-connect-start').click()
@@ -578,6 +606,101 @@ describe('Mobile Remote Vault Connect e2e', () => {
           {timeout: 15_000, interval: 250},
         )
         .toBe('Password-protected key exports are not supported yet.')
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'switches the active identity and reflects it in the sidebar',
+    async () => {
+      // The main context now holds two identities (web-identity + the
+      // mobile-created one). Reload to a known screen, then switch to the
+      // mobile identity via its row action in the vault.
+      await mobilePage.goto(expo.baseUrl, {waitUntil: 'domcontentloaded'})
+      await mobilePage.getByTestId('server-url-input').waitFor({timeout: 60_000})
+      await connectToServer(mobilePage, env.web.baseUrl)
+      await openVaultScreen(mobilePage)
+
+      const useButton = mobilePage.getByTestId(`identity-use-${mobileAccountId}`)
+      if (await useButton.isVisible().catch(() => false)) {
+        await useButton.click()
+      }
+      // The active badge sits inside the mobile identity's row
+      await expect
+        .poll(
+          async () =>
+            mobilePage
+              .getByTestId(`identity-${mobileAccountId}`)
+              .getByTestId('identity-active-badge')
+              .isVisible()
+              .catch(() => false),
+          {timeout: 15_000},
+        )
+        .toBe(true)
+
+      // The sidebar's account card now shows the newly active identity
+      await mobilePage.goto(expo.baseUrl, {waitUntil: 'domcontentloaded'})
+      await mobilePage.getByTestId('server-url-input').waitFor({timeout: 60_000})
+      await connectToServer(mobilePage, env.web.baseUrl)
+      await mobilePage.getByTestId('open-sidebar').click()
+      await expect
+        .poll(async () => mobilePage.getByTestId('sidebar-account').textContent(), {timeout: 15_000})
+        .toContain(mobileAccountId)
+      await mobilePage.getByTestId('sidebar-backdrop').click({position: {x: 10, y: 10}})
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'subscribes the active identity to email notifications and verifies it',
+    async () => {
+      const email = `mobile-notify-${Date.now()}@example.com`
+
+      // Preflight: the web server must announce OUR notify instance, or the
+      // app would resolve some other host and this test would silently talk
+      // to the wrong server (exactly what a build-time-baked
+      // VITE_NOTIFY_SERVICE_HOST caused before the constants fix).
+      const config = (await (await fetch(`${env.web.baseUrl}/hm/api/config`)).json()) as any
+      expect(config.notifyServiceHost).toBe(notify.baseUrl)
+
+      // Independent of prior test state: reload to a known screen first
+      await mobilePage.goto(expo.baseUrl, {waitUntil: 'domcontentloaded'})
+      await mobilePage.getByTestId('server-url-input').waitFor({timeout: 60_000})
+      await connectToServer(mobilePage, env.web.baseUrl)
+      await mobilePage.getByTestId('open-sidebar').click()
+      await mobilePage.getByTestId('sidebar-notifications').click()
+
+      // The signed get-notification-state call must land: no email configured
+      await expect
+        .poll(async () => mobilePage.getByTestId('notif-status').textContent(), {timeout: 60_000})
+        .toBe('No email configured')
+
+      await mobilePage.getByTestId('notif-email-input').fill(email)
+      await mobilePage.getByTestId('notif-email-save').click()
+      await expect
+        .poll(async () => mobilePage.getByTestId('notif-status').textContent(), {timeout: 30_000})
+        .toContain('Pending verification')
+
+      // The verification token is what the emailed link carries; with no SMTP
+      // configured the mail is skipped but the token is in the notify DB.
+      let token: string | null = null
+      await expect
+        .poll(
+          () => {
+            token = notify.readVerificationToken(email)
+            return token
+          },
+          {timeout: 15_000},
+        )
+        .not.toBeNull()
+      const verifyRes = await fetch(`${notify.baseUrl}/hm/notification-email-verify?token=${token}`)
+      expect(verifyRes.status).toBeLessThan(400)
+
+      // The screen polls while pending and flips to verified
+      await expect
+        .poll(async () => mobilePage.getByTestId('notif-status').textContent(), {timeout: 30_000})
+        .toBe(`Verified: ${email}`)
+
     },
     TEST_TIMEOUT,
   )

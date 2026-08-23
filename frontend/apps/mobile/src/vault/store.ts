@@ -226,6 +226,43 @@ export class VaultManager {
     }))
   }
 
+  /**
+   * The device's active identity: the stored selection when it still exists,
+   * else the first identity, else null. The selection is device-local
+   * (KVStorage), never part of the synced vault state.
+   */
+  getCurrentIdentity(): VaultIdentity | null {
+    const identities = this.listIdentities()
+    if (identities.length === 0) return null
+    const storedId = this.#deps.storage.getString(StorageKeys.CURRENT_IDENTITY)
+    return identities.find((identity) => identity.accountId === storedId) ?? identities[0]
+  }
+
+  setCurrentIdentity(accountId: string): void {
+    if (!this.listIdentities().some((identity) => identity.accountId === accountId)) {
+      throw new Error(`${accountId}: named key not found`)
+    }
+    this.#deps.storage.set(StorageKeys.CURRENT_IDENTITY, accountId)
+    this.#notify()
+  }
+
+  /** Vault-synced notification server override (desktop GetVaultNotificationServer parity). */
+  getNotificationServerUrl(): string | null {
+    return this.#state.notificationServerUrl ?? null
+  }
+
+  async setNotificationServerUrl(url: string | null): Promise<void> {
+    await this.#applyMutation((state) => {
+      if ((state.notificationServerUrl ?? null) === (url ?? null)) return false
+      if (url) {
+        state.notificationServerUrl = url
+      } else {
+        delete state.notificationServerUrl
+      }
+      return true
+    })
+  }
+
   async createIdentity(name?: string): Promise<VaultIdentity> {
     const seed = randomBytes(32)
     return this.#storeIdentity(seed, name)

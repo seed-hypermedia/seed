@@ -11,6 +11,8 @@ export type WebServerConfig = {
   port: number
   daemonHttpPort: number
   dataDir: string // Path to web config directory (contains config.json)
+  /** Announced via /hm/api/config notifyServiceHost when set. */
+  notifyServiceHost?: string
 }
 
 export type WebServerInstance = {
@@ -57,6 +59,7 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
     DATA_DIR: config.dataDir,
     SEED_BASE_URL: baseUrl,
     NODE_ENV: 'production',
+    ...(config.notifyServiceHost ? {NOTIFY_SERVICE_HOST: config.notifyServiceHost} : {}),
   }
 
   // Use remix-serve to run the built app

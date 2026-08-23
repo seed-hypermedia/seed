@@ -27,6 +27,7 @@ config.resolver.unstable_enablePackageExports = true
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
   '@seed-hypermedia/client': path.resolve(monorepoRoot, 'frontend/packages/client'),
+  '@shm/shared': path.resolve(monorepoRoot, 'frontend/packages/shared'),
   react: path.resolve(projectRoot, 'node_modules/react'),
   'react-dom': path.resolve(projectRoot, 'node_modules/react-dom'),
 }

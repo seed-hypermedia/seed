@@ -13,6 +13,7 @@ export type RootStackParamList = {
   Identity: {
     accountId: string
   }
+  Notifications: undefined
 }
 
 declare global {

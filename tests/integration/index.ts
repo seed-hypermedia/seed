@@ -8,3 +8,4 @@ export {buildWebApp, startWebServer, type WebServerConfig, type WebServerInstanc
 export {setupTestEnv, type TestEnv, type TestEnvConfig} from './test-env'
 export {startExpoWeb, type ExpoWebConfig, type ExpoWebInstance} from './expo-web'
 export {startVaultServer, type VaultServerConfig, type VaultServerInstance} from './vault-server'
+export {startNotifyServer, type NotifyServerConfig, type NotifyServerInstance} from './notify-server'

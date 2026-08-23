@@ -13,6 +13,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/$1',
     '^@seed-hypermedia/client$': '<rootDir>/../../packages/client/src/index.ts',
     '^@seed-hypermedia/client/(.*)$': '<rootDir>/../../packages/client/src/$1',
+    '^@shm/shared/(.*)$': '<rootDir>/../../packages/shared/src/$1',
     // ESM-only deps of the client package: their exports maps carry only the
     // "import" condition, which jest's CJS resolver never matches. Point jest
     // at the ESM sources directly; babel transforms them to CJS

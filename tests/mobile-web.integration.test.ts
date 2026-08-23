@@ -106,10 +106,17 @@ async function openApp(): Promise<Page> {
   return page
 }
 
+// Connecting lands directly on the server's home document page.
 async function connectToServer(page: Page, serverUrl: string): Promise<void> {
   await page.getByTestId('server-url-input').fill(serverUrl)
   await page.getByTestId('server-connect').click()
-  await page.getByTestId('connection-status').waitFor({timeout: 30_000})
+  await page.getByTestId('home-doc-title').waitFor({timeout: 30_000})
+}
+
+/** Open the sidebar and tap one of its entries. */
+async function sidebarNavigate(page: Page, entryTestId: string): Promise<void> {
+  await page.getByTestId('open-sidebar').click()
+  await page.getByTestId(entryTestId).click()
 }
 
 describe('Mobile app (web) e2e', () => {
@@ -118,9 +125,6 @@ describe('Mobile app (web) e2e', () => {
     async () => {
       const page = await openApp()
       await connectToServer(page, env.web.baseUrl)
-      await expect
-        .poll(async () => page.getByTestId('connection-status').textContent(), {timeout: 30_000})
-        .toBe('Connected')
 
       // The home document is resolved via /hm/api/config -> registeredAccountUid
       await expect
@@ -154,8 +158,9 @@ describe('Mobile app (web) e2e', () => {
     'shows a connection error for an unreachable server',
     async () => {
       const page = await openApp()
-      // Nothing listens on this port
-      await connectToServer(page, 'http://localhost:59999')
+      // Nothing listens on this port; the home page shows the error state
+      await page.getByTestId('server-url-input').fill('http://localhost:59999')
+      await page.getByTestId('server-connect').click()
       await expect
         .poll(async () => page.getByTestId('connection-status').textContent(), {timeout: 30_000})
         .toBe('Connection error')
@@ -170,7 +175,7 @@ describe('Mobile app (web) e2e', () => {
       const page = await openApp()
       await connectToServer(page, env.web.baseUrl)
 
-      await page.getByTestId('setup-account').click()
+      await sidebarNavigate(page, 'sidebar-import-identity')
       // Pasting the full mnemonic into the first input fills all 12 fields
       await page.getByTestId('mnemonic-word-0').waitFor({timeout: 30_000})
       await page.getByTestId('mnemonic-word-0').fill(TEST_MNEMONIC)
@@ -190,7 +195,7 @@ describe('Mobile app (web) e2e', () => {
       const page = await openApp()
       await connectToServer(page, env.web.baseUrl)
 
-      await page.getByTestId('setup-account').click()
+      await sidebarNavigate(page, 'sidebar-import-identity')
       await page.getByTestId('mnemonic-word-0').waitFor({timeout: 30_000})
       // Valid BIP39 words, but the checksum in the 12th word is wrong
       const badMnemonic = TEST_MNEMONIC.split(' ').slice(0, 11).join(' ') + ' abandon'
@@ -211,7 +216,7 @@ describe('Mobile app (web) e2e', () => {
       const page = await openApp()
       await connectToServer(page, env.web.baseUrl)
 
-      await page.getByTestId('setup-account').click()
+      await sidebarNavigate(page, 'sidebar-import-identity')
       await page.getByTestId('mnemonic-random').waitFor({timeout: 30_000})
       await page.getByTestId('mnemonic-random').click()
       await expect.poll(async () => page.getByTestId('mnemonic-word-11').inputValue()).not.toBe('')

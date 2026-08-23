@@ -5,6 +5,7 @@ import {ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View}
 import {getSeedClient} from '../client/seed-client'
 import {fetchSiteConfig} from '../client/site-config'
 import {QueryBlockView} from '../components/QueryBlockView'
+import {Sidebar} from '../components/Sidebar'
 import type {RootStackParamList} from '../navigation/types'
 import {getCurrentServer} from '../store/server-store'
 import {hmId} from '../utils/hm-id'
@@ -19,6 +20,7 @@ type HomeState = {status: 'loading'} | {status: 'error'; message: string} | {sta
 export function HomeScreen({navigation, route}: Props) {
   const [serverName, setServerName] = useState('')
   const [state, setState] = useState<HomeState>({status: 'loading'})
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const loadHomeDocument = useCallback(async () => {
     setState({status: 'loading'})
@@ -55,23 +57,20 @@ export function HomeScreen({navigation, route}: Props) {
 
   return (
     <View style={styles.container}>
+      {/* The home page IS the server's home document — content first, with a
+          slim header: server label left, sidebar button top-right. */}
       <View style={styles.header}>
-        <Text style={styles.serverName}>{serverName}</Text>
-        <TouchableOpacity testID="open-vault" style={styles.vaultChip} onPress={() => navigation.navigate('Vault')}>
-          <Text style={styles.vaultChipText}>🔑 Vault</Text>
-        </TouchableOpacity>
-        {state.status === 'loaded' ? (
-          <View style={styles.statusBadge}>
-            <View style={styles.statusDot} />
-            <Text testID="connection-status" style={styles.statusText}>
-              Connected
-            </Text>
-          </View>
-        ) : state.status === 'error' ? (
+        <Text style={styles.serverName} numberOfLines={1}>
+          {serverName}
+        </Text>
+        {state.status === 'error' && (
           <Text testID="connection-status" style={styles.errorBadge}>
             Connection error
           </Text>
-        ) : null}
+        )}
+        <TouchableOpacity testID="open-sidebar" style={styles.menuButton} onPress={() => setSidebarOpen(true)}>
+          <Text style={styles.menuButtonGlyph}>☰</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.docContainer}>
@@ -87,37 +86,25 @@ export function HomeScreen({navigation, route}: Props) {
         )}
 
         {state.status === 'loaded' && (
-          <>
+          <ScrollView testID="home-doc-content" style={styles.docScroll} contentContainerStyle={styles.docContent}>
             <Text testID="home-doc-title" style={styles.docTitle}>
               {state.document.metadata?.name || serverName}
             </Text>
-            <ScrollView testID="home-doc-content" style={styles.docScroll} contentContainerStyle={styles.docContent}>
-              {state.document.content.map((node, index) => (
-                <BlockNodeView key={node.block?.id ?? index} node={node} depth={0} />
-              ))}
-              {state.document.content.length === 0 && <Text style={styles.emptyText}>This page is empty.</Text>}
-            </ScrollView>
-          </>
+            {state.document.content.map((node, index) => (
+              <BlockNodeView key={node.block?.id ?? index} node={node} depth={0} />
+            ))}
+            {state.document.content.length === 0 && <Text style={styles.emptyText}>This page is empty.</Text>}
+          </ScrollView>
         )}
       </View>
 
-      <View style={styles.actions}>
-        <TouchableOpacity
-          testID="setup-account"
-          style={styles.actionButton}
-          onPress={() => navigation.navigate('MnemonicInput')}
-        >
-          <Text style={styles.actionButtonText}>Set Up Account</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          testID="change-server"
-          style={styles.secondaryButton}
-          onPress={() => navigation.navigate('ServerSelect')}
-        >
-          <Text style={styles.secondaryButtonText}>Change Server</Text>
-        </TouchableOpacity>
-      </View>
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        navigate={(screen) => {
+          if (screen !== 'Home') navigation.navigate(screen)
+        }}
+      />
     </View>
   )
 }
@@ -174,37 +161,18 @@ const styles = StyleSheet.create({
     color: '#888',
     flex: 1,
   },
-  vaultChip: {
+  menuButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: '#2a5555',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  vaultChipText: {
-    color: '#4a9a9a',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  statusBadge: {
-    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#2a5555',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    justifyContent: 'center',
+    marginLeft: 10,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4a9a9a',
-    marginRight: 6,
-  },
-  statusText: {
-    color: '#4a9a9a',
-    fontSize: 12,
-    fontWeight: '600',
+  menuButtonGlyph: {
+    color: '#8fd5d5',
+    fontSize: 17,
   },
   errorBadge: {
     color: '#ff6b6b',
@@ -272,33 +240,5 @@ const styles = StyleSheet.create({
   emptyText: {
     color: '#666',
     fontSize: 14,
-  },
-  actions: {
-    padding: 20,
-  },
-  actionButton: {
-    height: 50,
-    backgroundColor: '#4a9a9a',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    height: 50,
-    backgroundColor: '#3a5a5a',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  secondaryButtonText: {
-    color: '#ccc',
-    fontSize: 16,
-    fontWeight: '500',
   },
 })

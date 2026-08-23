@@ -45,6 +45,8 @@ export const StorageKeys = {
   CURRENT_SERVER: 'current_server',
   // Encrypted vault envelope (ciphertext only — safe outside the keychain).
   VAULT_ENVELOPE: 'vault_envelope',
+  // Device-local selection of the active identity (not synced via the vault).
+  CURRENT_IDENTITY: 'current_identity',
 } as const
 
 export function getStorageItem<T>(key: string): T | null {

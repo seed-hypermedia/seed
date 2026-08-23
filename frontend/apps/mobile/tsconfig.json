@@ -5,7 +5,8 @@
     "paths": {
       "@/*": ["./*"],
       "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
-      "@seed-hypermedia/client/*": ["../../packages/client/src/*"]
+      "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
+      "@shm/shared/*": ["../../packages/shared/src/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"]

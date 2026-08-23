@@ -134,17 +134,35 @@ export function VaultScreen({navigation}: Props) {
       <Text style={styles.sectionTitle}>Identities</Text>
       <View style={styles.card}>
         {identities.length === 0 && <Text style={styles.emptyText}>No identities yet.</Text>}
-        {identities.map((identity) => (
-          <TouchableOpacity
-            key={identity.accountId}
-            testID={`identity-${identity.accountId}`}
-            style={styles.identityRow}
-            onPress={() => navigation.navigate('Identity', {accountId: identity.accountId})}
-          >
-            <Text style={styles.identityName}>{identity.name}</Text>
-            <Text style={styles.identityId}>{shortAccountId(identity.accountId)}</Text>
-          </TouchableOpacity>
-        ))}
+        {identities.map((identity) => {
+          const isActive = manager?.getCurrentIdentity()?.accountId === identity.accountId
+          return (
+            <TouchableOpacity
+              key={identity.accountId}
+              testID={`identity-${identity.accountId}`}
+              style={styles.identityRow}
+              onPress={() => navigation.navigate('Identity', {accountId: identity.accountId})}
+            >
+              <View style={styles.identityText}>
+                <Text style={styles.identityName}>{identity.name}</Text>
+                <Text style={styles.identityId}>{shortAccountId(identity.accountId)}</Text>
+              </View>
+              {isActive ? (
+                <Text testID="identity-active-badge" style={styles.activeBadge}>
+                  ACTIVE
+                </Text>
+              ) : (
+                <TouchableOpacity
+                  testID={`identity-use-${identity.accountId}`}
+                  style={styles.useButton}
+                  onPress={() => manager?.setCurrentIdentity(identity.accountId)}
+                >
+                  <Text style={styles.useButtonText}>Use</Text>
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          )
+        })}
         <TouchableOpacity
           testID="vault-create-identity"
           style={styles.primaryButton}
@@ -357,10 +375,33 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#3a5a5a',
     marginBottom: 8,
+  },
+  identityText: {
+    flex: 1,
+    marginRight: 10,
+  },
+  activeBadge: {
+    color: '#4a9a9a',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  useButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    backgroundColor: '#3a5a5a',
+    borderRadius: 8,
+  },
+  useButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   identityName: {
     color: '#fff',

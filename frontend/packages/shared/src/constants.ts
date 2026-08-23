@@ -143,8 +143,9 @@ export const ENABLE_EMAIL_NOTIFICATIONS =
   !!(NOTIFY_SMTP_HOST && NOTIFY_SMTP_PORT && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD && NOTIFY_SENDER)
 
 export const NOTIFY_SERVICE_HOST: string | undefined =
+  process.env.NOTIFY_SERVICE_HOST || // web server (runtime env must beat the build-time VITE value,
+  // which vite bakes into the SSR bundle from .env.vars on dev machines)
   IME.VITE_NOTIFY_SERVICE_HOST || // desktop app
-  process.env.NOTIFY_SERVICE_HOST || // web server
   WEB_ENV.NOTIFY_SERVICE_HOST // web client
 
 /**
