@@ -1,13 +1,15 @@
-import {unpackHmId, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {unpackHmId, type HMMetadata, type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import React, {useEffect, useState} from 'react'
 import {StyleSheet, Text, View} from 'react-native'
+import {radius, theme} from '../theme'
 import {getSeedClient} from '../client/seed-client'
-import {Avatar} from './Avatar'
+import {DocumentCard} from './DocumentCard'
+import {openDocument} from './doc-navigation'
 
 type EmbedState =
   | {status: 'loading'}
   | {status: 'error'}
-  | {status: 'loaded'; name: string; icon?: string | null; id: UnpackedHypermediaId}
+  | {status: 'loaded'; metadata: HMMetadata | null; id: UnpackedHypermediaId}
 
 // Metadata cache keyed by the embed link — home pages routinely carry dozens
 // of embeds and remounting must not refetch them all.
@@ -38,8 +40,7 @@ export function EmbedBlockView({link}: {link: string}) {
     getSeedClient()
       .request('ResourceMetadata', target)
       .then((payload) => {
-        const name = payload.metadata?.name?.trim() || target.path?.[target.path.length - 1] || target.uid.slice(0, 12)
-        const loaded: EmbedState = {status: 'loaded', name, icon: payload.metadata?.icon, id: target}
+        const loaded: EmbedState = {status: 'loaded', metadata: payload.metadata ?? null, id: target}
         embedCache.set(link, loaded)
         if (!cancelled) setState(loaded)
       })
@@ -53,63 +54,44 @@ export function EmbedBlockView({link}: {link: string}) {
   }, [link])
 
   if (state.status === 'loading') {
-    return <View testID="embed-card-loading" style={[styles.card, styles.placeholder]} />
+    return <View testID="embed-card-loading" style={styles.placeholder} />
   }
   if (state.status === 'error') {
     return (
-      <View style={[styles.card, styles.placeholder]}>
+      <View style={styles.placeholder}>
         <Text style={styles.errorText}>Document not available</Text>
       </View>
     )
   }
   return (
-    <View testID="embed-card" style={styles.card}>
-      <Avatar id={state.id.id} name={state.name} icon={state.icon} size={28} />
-      <View style={styles.cardText}>
-        <Text style={styles.cardTitle} numberOfLines={2}>
-          {state.name}
-        </Text>
-        {!!state.id.path?.length && (
-          <Text style={styles.cardPath} numberOfLines={1}>
-            /{state.id.path.join('/')}
-          </Text>
-        )}
-      </View>
+    <View style={styles.cardWrap}>
+      <DocumentCard
+        testID="embed-card"
+        id={state.id}
+        metadata={state.metadata}
+        onPress={() => openDocument(state.id, state.metadata?.name)}
+      />
     </View>
   )
 }
 
 const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2a4a4a',
-    borderWidth: 1,
-    borderColor: '#3a5a5a',
-    borderRadius: 12,
-    padding: 12,
+  cardWrap: {
     marginBottom: 10,
   },
   placeholder: {
     minHeight: 54,
     justifyContent: 'center',
-  },
-  cardText: {
-    flex: 1,
-    marginLeft: 10,
-  },
-  cardTitle: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  cardPath: {
-    color: '#7fa5a5',
-    fontSize: 12,
-    marginTop: 2,
+    alignItems: 'center',
+    backgroundColor: theme.card,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: radius.lg,
+    padding: 12,
+    marginBottom: 10,
   },
   errorText: {
-    color: '#888',
+    color: theme.mutedForeground,
     fontSize: 13,
     fontStyle: 'italic',
   },

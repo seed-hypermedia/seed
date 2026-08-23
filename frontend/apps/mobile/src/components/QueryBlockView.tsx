@@ -5,10 +5,11 @@ import type {
   HMQueryBlockPayload,
 } from '@seed-hypermedia/client/hm-types'
 import React, {useEffect, useState} from 'react'
-import {ActivityIndicator, Image, StyleSheet, Text, useWindowDimensions, View} from 'react-native'
+import {ActivityIndicator, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View} from 'react-native'
 import {getSeedClient} from '../client/seed-client'
-import {getCurrentServer} from '../store/server-store'
 import {formattedDate} from '../utils/dates'
+import {DocumentCard, type DocumentCardAuthor} from './DocumentCard'
+import {openDocument} from './doc-navigation'
 
 type QueryState =
   | {status: 'loading'}
@@ -116,7 +117,7 @@ function CardGrid({
   return (
     <View style={styles.cardGridContainer} testID="query-block-cards">
       {firstItem && (
-        <DocumentCard
+        <QueryResultCard
           item={firstItem}
           banner
           accountsMetadata={accountsMetadata}
@@ -126,7 +127,7 @@ function CardGrid({
       <View style={styles.cardGrid}>
         {restItems.map((item) => (
           <View key={item.id.id} style={{width: `${100 / columns}%`, padding: 6}}>
-            <DocumentCard
+            <QueryResultCard
               item={item}
               accountsMetadata={accountsMetadata}
               commentCount={interactionSummaries[item.id.id]?.comments ?? 0}
@@ -138,25 +139,17 @@ function CardGrid({
   )
 }
 
-// Cover resolution matches the web DocumentCard: explicit cover wins, the
-// indexer-derived first content image is the fallback, and an icon suppresses
-// the fallback entirely.
-function getCoverUrl(item: HMDocumentInfo): string | null {
-  const cover = item.metadata?.cover || (item.metadata?.icon ? undefined : item.firstImageInContent)
-  if (!cover) return null
-  const cid = cover.startsWith('ipfs://') ? cover.slice('ipfs://'.length) : cover
-  return `${getCurrentServer().url}/hm/api/image/${cid}?size=M`
-}
-
-function getAuthorNames(item: HMDocumentInfo, accountsMetadata: HMAccountsMetadata): string {
-  const names = Array.from(new Set(item.authors))
+function getAuthors(item: HMDocumentInfo, accountsMetadata: HMAccountsMetadata): DocumentCardAuthor[] {
+  return Array.from(new Set(item.authors))
     .slice(0, 3)
-    .map((uid) => accountsMetadata[uid]?.metadata?.name)
-    .filter((name): name is string => !!name)
-  return names.join(', ')
+    .map((uid) => ({
+      uid,
+      name: accountsMetadata[uid]?.metadata?.name,
+      icon: accountsMetadata[uid]?.metadata?.icon,
+    }))
 }
 
-function DocumentCard({
+function QueryResultCard({
   item,
   banner = false,
   accountsMetadata,
@@ -167,41 +160,17 @@ function DocumentCard({
   accountsMetadata: HMAccountsMetadata
   commentCount: number
 }) {
-  const coverUrl = getCoverUrl(item)
-  const title = item.metadata?.name || item.path[item.path.length - 1] || item.id.uid
-  const summary = item.metadata?.summary
-  const authorNames = getAuthorNames(item, accountsMetadata)
-  const date = formattedDate(item.updateTime)
-
   return (
-    <View style={[styles.card, banner && styles.cardBanner]} testID="query-block-card">
-      {coverUrl && (
-        <Image
-          source={{uri: coverUrl}}
-          style={[styles.cardCover, banner && styles.cardCoverBanner]}
-          resizeMode="cover"
-        />
-      )}
-      <View style={styles.cardBody}>
-        <Text style={[styles.cardTitle, banner && styles.cardTitleBanner]} numberOfLines={banner ? 3 : 2}>
-          {title}
-        </Text>
-        {!!summary && (
-          <Text style={styles.cardSummary} numberOfLines={banner ? 4 : 2}>
-            {summary}
-          </Text>
-        )}
-        <View style={styles.cardFooter}>
-          {!!authorNames && (
-            <Text style={styles.cardMeta} numberOfLines={1}>
-              {authorNames}
-            </Text>
-          )}
-          {!!date && <Text style={styles.cardMeta}>{date}</Text>}
-          {commentCount > 0 && <Text style={styles.cardMeta}>💬 {commentCount}</Text>}
-        </View>
-      </View>
-    </View>
+    <DocumentCard
+      testID="query-block-card"
+      id={item.id}
+      metadata={item.metadata}
+      firstImageInContent={item.firstImageInContent}
+      banner={banner}
+      commentCount={commentCount}
+      authors={getAuthors(item, accountsMetadata)}
+      onPress={() => openDocument(item.id, item.metadata?.name)}
+    />
   )
 }
 
@@ -215,10 +184,16 @@ function ListRow({
   commentCount: number
 }) {
   const title = item.metadata?.name || item.path[item.path.length - 1] || item.id.uid
-  const authorNames = getAuthorNames(item, accountsMetadata)
-  const date = formattedDate(item.updateTime)
+  const authorNames = getAuthors(item, accountsMetadata)
+    .map((author) => author.name)
+    .filter(Boolean)
+    .join(', ')
   return (
-    <View style={styles.listRow} testID="query-block-list-item">
+    <TouchableOpacity
+      testID="query-block-list-item"
+      style={styles.listRow}
+      onPress={() => openDocument(item.id, title)}
+    >
       <Text style={styles.listTitle} numberOfLines={1}>
         {title}
       </Text>
@@ -228,10 +203,10 @@ function ListRow({
             {authorNames}
           </Text>
         )}
-        {!!date && <Text style={styles.cardMeta}>{date}</Text>}
+        <Text style={styles.cardMeta}>{formattedDate(item.updateTime)}</Text>
         {commentCount > 0 && <Text style={styles.cardMeta}>💬 {commentCount}</Text>}
       </View>
-    </View>
+    </TouchableOpacity>
   )
 }
 

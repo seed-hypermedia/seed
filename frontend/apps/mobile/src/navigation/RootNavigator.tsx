@@ -8,6 +8,7 @@ import {VaultScreen} from '../screens/VaultScreen'
 import {VaultConnectScreen} from '../screens/VaultConnectScreen'
 import {CreateIdentityScreen} from '../screens/CreateIdentityScreen'
 import {IdentityScreen} from '../screens/IdentityScreen'
+import {DocumentScreen} from '../screens/DocumentScreen'
 import {NotificationsScreen} from '../screens/NotificationsScreen'
 import type {RootStackParamList} from './types'
 
@@ -91,6 +92,14 @@ export function RootNavigator() {
         component={IdentityScreen}
         options={{
           title: 'Identity',
+          headerBackTitle: 'Back',
+        }}
+      />
+      <Stack.Screen
+        name="Document"
+        component={DocumentScreen}
+        options={{
+          title: 'Document',
           headerBackTitle: 'Back',
         }}
       />

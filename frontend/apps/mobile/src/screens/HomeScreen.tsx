@@ -1,11 +1,10 @@
 import {NativeStackNavigationProp} from '@react-navigation/native-stack'
-import type {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import React, {useCallback, useEffect, useState} from 'react'
 import {ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native'
 import {getSeedClient} from '../client/seed-client'
 import {fetchSiteConfig} from '../client/site-config'
-import {EmbedBlockView} from '../components/EmbedBlockView'
-import {QueryBlockView} from '../components/QueryBlockView'
+import {BlockNodeView} from '../components/BlockNodeView'
 import {Sidebar} from '../components/Sidebar'
 import {UnreferencedChildren} from '../components/UnreferencedChildren'
 import type {RootStackParamList} from '../navigation/types'
@@ -96,7 +95,7 @@ export function HomeScreen({navigation, route}: Props) {
               {state.document.metadata?.name || serverName}
             </Text>
             {state.document.content.map((node, index) => (
-              <BlockNodeView key={node.block?.id ?? index} node={node} depth={0} />
+              <BlockNodeView key={node.block?.id ?? index} node={node} />
             ))}
             {state.document.content.length === 0 && <Text style={styles.emptyText}>This page is empty.</Text>}
             <UnreferencedChildren uid={state.uid} path={[]} content={state.document.content} />
@@ -111,50 +110,6 @@ export function HomeScreen({navigation, route}: Props) {
           if (screen !== 'Home') navigation.navigate(screen)
         }}
       />
-    </View>
-  )
-}
-
-// Minimal hypermedia block renderer: text-bearing blocks with indented children
-function BlockNodeView({node, depth}: {node: HMBlockNode; depth: number}) {
-  const block = node.block
-  if (block?.type === 'Query') {
-    return (
-      <View style={{marginLeft: depth > 0 ? 12 : 0}}>
-        <QueryBlockView block={block} />
-        {node.children?.map((child, index) => (
-          <BlockNodeView key={child.block?.id ?? index} node={child} depth={depth + 1} />
-        ))}
-      </View>
-    )
-  }
-  if (block?.type === 'Embed' && 'link' in block && block.link) {
-    return (
-      <View style={{marginLeft: depth > 0 ? 12 : 0}}>
-        <EmbedBlockView link={block.link} />
-        {node.children?.map((child, index) => (
-          <BlockNodeView key={child.block?.id ?? index} node={child} depth={depth + 1} />
-        ))}
-      </View>
-    )
-  }
-  const text = block && 'text' in block ? block.text : null
-  return (
-    <View style={{marginLeft: depth > 0 ? 12 : 0}}>
-      {text != null && text !== '' && (
-        <Text
-          style={[
-            styles.blockText,
-            block?.type === 'Heading' && styles.headingText,
-            block?.type === 'Code' && styles.codeText,
-          ]}
-        >
-          {text}
-        </Text>
-      )}
-      {node.children?.map((child, index) => (
-        <BlockNodeView key={child.block?.id ?? index} node={child} depth={depth + 1} />
-      ))}
     </View>
   )
 }
@@ -234,24 +189,6 @@ const styles = StyleSheet.create({
   },
   docContent: {
     paddingBottom: 24,
-  },
-  blockText: {
-    fontSize: 16,
-    color: '#ddd',
-    marginBottom: 10,
-    lineHeight: 22,
-  },
-  headingText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  codeText: {
-    fontFamily: 'Menlo',
-    fontSize: 14,
-    backgroundColor: '#16302f',
-    padding: 8,
-    borderRadius: 6,
   },
   emptyText: {
     color: '#666',

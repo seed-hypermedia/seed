@@ -116,6 +116,10 @@ jest.mock('@react-navigation/native', () => {
     useRoute: () => ({
       params: {},
     }),
+    createNavigationContainerRef: () => ({
+      isReady: () => false,
+      navigate: jest.fn(),
+    }),
   }
 })
 

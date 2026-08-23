@@ -38,3 +38,22 @@ export function formattedDate(value?: AnyTimestamp): string {
     ...(sameYear ? {} : {year: 'numeric'}),
   })
 }
+
+/**
+ * Absolute short timestamps, matching the web's formattedDateShort used for
+ * comments: time today, "MMM d, HH:mm" within a year, else with the year.
+ */
+export function formattedDateShort(value?: AnyTimestamp): string {
+  const date = normalizeDate(value)
+  if (!date || isNaN(date.getTime())) return ''
+  const now = new Date()
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  const time = date.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: false})
+  if (sameDay) return time
+  const withinYear = date.getTime() > Date.now() - 365 * 24 * 60 * 60 * 1000
+  const day = date.toLocaleDateString('en-US', {month: 'short', day: 'numeric'})
+  return withinYear ? `${day}, ${time}` : `${day} ${date.getFullYear()}, ${time}`
+}

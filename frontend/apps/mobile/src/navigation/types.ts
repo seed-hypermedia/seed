@@ -14,6 +14,13 @@ export type RootStackParamList = {
     accountId: string
   }
   Notifications: undefined
+  /** Any hypermedia document page (home docs included). */
+  Document: {
+    uid: string
+    path: string[]
+    /** Optional title for the header while the document loads. */
+    title?: string
+  }
 }
 
 declare global {

@@ -20,6 +20,9 @@
 
 import {chromium, type Browser, type Page} from 'playwright'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {createComment} from '../frontend/packages/client/src/comment'
+import {createSeedClient} from '../frontend/packages/client/src/client'
+import {nobleKeyPairFromSeed} from '../frontend/packages/client/src/blobs'
 import {createDocumentUpdate} from '../frontend/apps/cli/src/test/account-helpers'
 import {FIXTURE_ACCOUNT, FIXTURE_ACCOUNT_ID} from '../frontend/apps/cli/src/test/fixture-seed'
 import {FIXTURE_ACCOUNT_NAME, FIXTURE_HIERARCHY_TITLE, FIXTURE_HOME_CONTENT} from '../test-fixtures/minimal-fixtures'
@@ -33,6 +36,7 @@ const TEST_MNEMONIC = 'parrot midnight lion defense ski senior trouble slice cha
 const EXPECTED_ACCOUNT_ID = 'z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8'
 const BLOG_POST_TITLE = 'Blog Post One'
 const ORPHAN_TITLE = 'Orphan Page'
+const COMMENT_TEXT = 'A comment from the integration test'
 
 let env: TestEnv
 let expo: ExpoWebInstance
@@ -91,6 +95,39 @@ beforeAll(async () => {
     },
     {type: 'MoveBlocks', parent: '', blocks: ['homequery', 'homeembed']},
   ])
+
+  // Post a real comment on the blog post so the Discussions tab has content.
+  {
+    const client = createSeedClient(env.web.baseUrl)
+    const blogId = {
+      id: `hm://${FIXTURE_ACCOUNT_ID}/blog/post-one`,
+      uid: FIXTURE_ACCOUNT_ID,
+      path: ['blog', 'post-one'],
+      version: null,
+      blockRef: null,
+      blockRange: null,
+      hostname: null,
+      scheme: null,
+      latest: true,
+    }
+    const resource = await client.request('Resource', blogId)
+    if (resource.type !== 'document') throw new Error('blog post missing before commenting')
+    const signer = nobleKeyPairFromSeed(FIXTURE_ACCOUNT.keyPair.privateKey)
+    const publishInput = await createComment(
+      {
+        docId: blogId,
+        docVersion: resource.document.version,
+        content: [
+          {
+            block: {type: 'Paragraph', id: 'c1', text: COMMENT_TEXT, annotations: [], attributes: {}},
+            children: [],
+          },
+        ],
+      },
+      signer,
+    )
+    await client.publish(publishInput)
+  }
 
   try {
     expo = await startExpoWeb({port: 8199})
@@ -201,6 +238,30 @@ describe('Mobile app (web) e2e', () => {
       // must NOT repeat here.
       expect(text).toContain(ORPHAN_TITLE)
       expect(text).not.toContain(FIXTURE_HIERARCHY_TITLE)
+      await page.context().close()
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'opens the document page when a card is tapped, and shows its discussions',
+    async () => {
+      const page = await openApp()
+      await connectToServer(page, env.web.baseUrl)
+
+      // Tap the query-block card for the blog post
+      const card = page.getByTestId('query-block-card-press').first()
+      await card.waitFor({timeout: 30_000})
+      await card.click()
+
+      // The document page opens on the Content tab
+      await page.getByTestId('document-title').waitFor({timeout: 30_000})
+      expect(await page.getByTestId('document-title').textContent()).toBe(BLOG_POST_TITLE)
+
+      // The Comments tab shows the comment posted in setup
+      await page.getByTestId('tab-comments').click()
+      await page.getByTestId('discussion-comment').first().waitFor({timeout: 30_000})
+      expect(await page.getByTestId('discussions-list').textContent()).toContain(COMMENT_TEXT)
       await page.context().close()
     },
     TEST_TIMEOUT,
