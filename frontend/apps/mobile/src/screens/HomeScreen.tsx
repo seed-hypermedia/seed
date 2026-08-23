@@ -4,6 +4,7 @@ import React, {useCallback, useEffect, useState} from 'react'
 import {ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native'
 import {getSeedClient} from '../client/seed-client'
 import {fetchSiteConfig} from '../client/site-config'
+import {QueryBlockView} from '../components/QueryBlockView'
 import type {RootStackParamList} from '../navigation/types'
 import {getCurrentServer} from '../store/server-store'
 import {hmId} from '../utils/hm-id'
@@ -121,6 +122,16 @@ export function HomeScreen({navigation, route}: Props) {
 // Minimal hypermedia block renderer: text-bearing blocks with indented children
 function BlockNodeView({node, depth}: {node: HMBlockNode; depth: number}) {
   const block = node.block
+  if (block?.type === 'Query') {
+    return (
+      <View style={{marginLeft: depth > 0 ? 12 : 0}}>
+        <QueryBlockView block={block} />
+        {node.children?.map((child, index) => (
+          <BlockNodeView key={child.block?.id ?? index} node={child} depth={depth + 1} />
+        ))}
+      </View>
+    )
+  }
   const text = block && 'text' in block ? block.text : null
   return (
     <View style={{marginLeft: depth > 0 ? 12 : 0}}>

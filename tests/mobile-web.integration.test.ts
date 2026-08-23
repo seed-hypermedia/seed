@@ -20,7 +20,9 @@
 
 import {chromium, type Browser, type Page} from 'playwright'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {FIXTURE_ACCOUNT_NAME, FIXTURE_HOME_CONTENT} from '../test-fixtures/minimal-fixtures'
+import {createDocumentUpdate} from '../frontend/apps/cli/src/test/account-helpers'
+import {FIXTURE_ACCOUNT, FIXTURE_ACCOUNT_ID} from '../frontend/apps/cli/src/test/fixture-seed'
+import {FIXTURE_ACCOUNT_NAME, FIXTURE_HIERARCHY_TITLE, FIXTURE_HOME_CONTENT} from '../test-fixtures/minimal-fixtures'
 import {setupTestEnv, startExpoWeb, type ExpoWebInstance, type TestEnv} from './integration'
 
 const TEST_TIMEOUT = 300_000
@@ -42,6 +44,31 @@ beforeAll(async () => {
     daemonP2pPort: 59303,
     skipBuild: process.env.SKIP_BUILD === 'true',
   })
+
+  // Add a Query block to the fixture home document so the app's query-block
+  // rendering can be exercised (lists the space's child documents as cards).
+  await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, '', [
+    {
+      type: 'ReplaceBlock',
+      block: {
+        type: 'Query',
+        id: 'homequery',
+        text: '',
+        annotations: [],
+        attributes: {
+          style: 'Card',
+          columnCount: 1,
+          banner: false,
+          query: {
+            includes: [{space: FIXTURE_ACCOUNT_ID, path: '', mode: 'Children'}],
+            sort: [{term: 'UpdateTime', reverse: false}],
+            limit: 10,
+          },
+        },
+      },
+    },
+    {type: 'MoveBlocks', parent: '', blocks: ['homequery']},
+  ])
 
   try {
     expo = await startExpoWeb({port: 8199})
@@ -100,6 +127,24 @@ describe('Mobile app (web) e2e', () => {
         .poll(async () => page.getByTestId('home-doc-title').textContent(), {timeout: 30_000})
         .toBe(FIXTURE_ACCOUNT_NAME)
       expect(await page.getByTestId('home-doc-content').textContent()).toContain(FIXTURE_HOME_CONTENT.trim())
+      await page.context().close()
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'renders query block results as cards on the home page',
+    async () => {
+      const page = await openApp()
+      await connectToServer(page, env.web.baseUrl)
+
+      // The Query block lists the space's children; the hierarchy fixture
+      // document is a direct child and must appear as a card
+      const card = page.getByTestId('query-block-card').first()
+      await card.waitFor({timeout: 30_000})
+      await expect
+        .poll(async () => page.getByTestId('query-block-cards').textContent(), {timeout: 30_000})
+        .toContain(FIXTURE_HIERARCHY_TITLE)
       await page.context().close()
     },
     TEST_TIMEOUT,
