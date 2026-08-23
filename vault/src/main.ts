@@ -87,7 +87,7 @@ async function main() {
     },
     error: handleError,
     routes: {
-      ...createAPIRoutes(svc),
+      ...withCORS(createAPIRoutes(svc)),
       // In development, proxy /hm/api/config to the web app (shares the same daemon in prod).
       '/hm/api/config': {
         GET: () => {
@@ -350,6 +350,46 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
   }
 }
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+} as const
+
+function applyCORSHeaders(response: Response): Response {
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    response.headers.set(key, value)
+  }
+  return response
+}
+
+/**
+ * Wrap every /vault/api/* route so responses are readable cross-origin (the
+ * mobile app's web build talks to the vault from a different origin), and add
+ * an OPTIONS preflight handler per route. Error responses need the headers
+ * too — without them the client can't read e.g. the 409 write conflict — so
+ * thrown errors get theirs in handleError.
+ *
+ * Safe with `*` because Allow-Credentials is never set: browsers won't attach
+ * the session cookie cross-origin, so cookie-authed endpoints stay effectively
+ * same-origin; cross-origin callers use only bearer auth and the
+ * unauthenticated mailbox GET.
+ */
+function withCORS(routes: Bun.Serve.Routes<undefined, string>): Bun.Serve.Routes<undefined, string> {
+  type RouteHandler = (req: BunRequest) => Response | Promise<Response>
+  const wrapped: Record<string, Record<string, RouteHandler>> = {}
+  for (const [path, handlers] of Object.entries(routes as unknown as Record<string, Record<string, RouteHandler>>)) {
+    const route: Record<string, RouteHandler> = {
+      OPTIONS: () => applyCORSHeaders(new Response(null, {status: 204})),
+    }
+    for (const [method, handler] of Object.entries(handlers)) {
+      route[method] = async (req: BunRequest) => applyCORSHeaders(await handler(req))
+    }
+    wrapped[path] = route
+  }
+  return wrapped as unknown as Bun.Serve.Routes<undefined, string>
+}
+
 function handleResponse(data: unknown, ctx: api.ServerContext, status = 200, extraHeaders?: HeadersInit): Response {
   const headers = new Headers({'Content-Type': 'application/json'})
 
@@ -433,10 +473,12 @@ function parseKnownVersion(knownVersionRaw: string | null): number | undefined {
 }
 
 async function handleError(error: unknown): Promise<Response> {
+  // CORS headers on error responses too: cross-origin callers must be able to
+  // read API errors like the 409 vault write conflict.
   if ((error as apisvc.APIError).statusCode) {
     const apiError = error as apisvc.APIError
-    return Response.json({error: apiError.message}, {status: apiError.statusCode})
+    return applyCORSHeaders(Response.json({error: apiError.message}, {status: apiError.statusCode}))
   }
   console.error('Unexpected error:', error)
-  return Response.json({error: 'Internal server error'}, {status: 500})
+  return applyCORSHeaders(Response.json({error: 'Internal server error'}, {status: 500}))
 }
