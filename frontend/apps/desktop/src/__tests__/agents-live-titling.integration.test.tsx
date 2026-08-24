@@ -49,7 +49,11 @@ import {useAllAgentSessions} from '@shm/ui/agents/models'
 import {queryClient} from '@shm/shared/models/query-client'
 import {QueryClientProvider} from '@tanstack/react-query'
 
-const bunAvailable = spawnSync('bun', ['--version'], {encoding: 'utf8'}).status === 0
+const agentsServerAvailable =
+  spawnSync('bun', ['-e', 'await import("@mariozechner/pi-ai")'], {
+    cwd: REPO_AGENTS_DIR,
+    encoding: 'utf8',
+  }).status === 0
 
 let providerServer: Server | undefined
 let agentsServer: ChildProcess | undefined
@@ -90,7 +94,7 @@ async function send(action: unknown): Promise<any> {
   return response
 }
 
-describe.skipIf(!bunAvailable)('agents live integration: session titling reaches the UI', () => {
+describe.skipIf(!agentsServerAvailable)('agents live integration: session titling reaches the UI', () => {
   beforeAll(async () => {
     // 1. Scripted model provider: a chat model that never titles, plus the dedicated titling call.
     providerServer = createServer((req, res) => {

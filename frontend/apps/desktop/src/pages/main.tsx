@@ -36,6 +36,7 @@ import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
 import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
+import {WindowTitle} from '../components/window-title'
 import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
@@ -205,6 +206,7 @@ export default function Main({className}: {className?: string}) {
     )
     return (
       <div className={cn(windowContainerStyles, 'p-0', className)}>
+        <WindowTitle />
         <ErrorBoundary
           resetKeys={[routeKey]}
           FallbackComponent={AppErrorPage}
@@ -222,6 +224,7 @@ export default function Main({className}: {className?: string}) {
     // (read-only ipfs:// URL + copy + "…" menu) as the window's title bar.
     return (
       <div className={cn(windowContainerStyles, 'p-0', className)}>
+        <WindowTitle />
         <ErrorBoundary
           resetKeys={[routeKey]}
           FallbackComponent={AppErrorPage}
@@ -246,6 +249,7 @@ export default function Main({className}: {className?: string}) {
 
   return (
     <div className={cn(windowContainerStyles, 'p-0', className)}>
+      <WindowTitle />
       <PanelGroup direction="horizontal" autoSaveId="main-assistant">
         <Panel id="app-content" order={1}>
           <div className="flex h-full flex-col">

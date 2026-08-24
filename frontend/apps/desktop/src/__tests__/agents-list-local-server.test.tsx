@@ -41,6 +41,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   useAcceptAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
   useDeclineAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
   useAgentWebSocketSubscription: () => ({text: ''}),
+  useAgentAccountsSync: () => {},
 }))
 
 vi.mock('@shm/ui/agents/account', () => ({useSelectedAccountId: () => mockState.selectedAccountId}))

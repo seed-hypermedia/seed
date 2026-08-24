@@ -239,6 +239,10 @@ vi.mock('../components/titlebar', async () => {
   }
 })
 
+vi.mock('../components/window-title', () => ({
+  WindowTitle: () => null,
+}))
+
 vi.mock('../pages/base', async () => {
   const React = await import('react')
 

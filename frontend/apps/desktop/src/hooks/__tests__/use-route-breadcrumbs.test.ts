@@ -1,5 +1,6 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
+import {activitySlugToFilter} from '@shm/shared/utils/entity-id-url'
 import {describe, expect, it} from 'vitest'
 import {
   computeContactBreadcrumbs,
@@ -41,44 +42,39 @@ describe('getIconForRoute', () => {
 })
 
 describe('getWindowTitle', () => {
-  it('contacts -> Contacts', () => {
-    expect(getWindowTitle('contacts')).toBe('Contacts')
+  const id = hmId('alice')
+
+  it('uses static page names', () => {
+    expect(getWindowTitle({key: 'contacts'})).toBe('Contacts')
+    expect(getWindowTitle({key: 'settings'})).toBe('Settings')
+    expect(getWindowTitle({key: 'agents'})).toBe('Agents')
+    expect(getWindowTitle({key: 'notifications'})).toBe('Notifications')
   })
-  it('bookmarks -> Bookmarks', () => {
-    expect(getWindowTitle('bookmarks')).toBe('Bookmarks')
+
+  it('uses the document name for the base document route', () => {
+    expect(getWindowTitle({key: 'document', id}, 'Document A')).toBe('Document A')
   })
-  it('api-inspector -> API Inspector', () => {
-    expect(getWindowTitle('api-inspector')).toBe('API Inspector')
+
+  it('adds the dedicated view route name', () => {
+    expect(getWindowTitle({key: 'activity', id}, 'Document A')).toBe('Document A – Activity')
+    expect(getWindowTitle({key: 'comments', id}, 'Document A')).toBe('Document A – Discussions')
+    expect(getWindowTitle({key: 'directory', id}, 'Document A')).toBe('Document A – Sub-documents')
+    expect(getWindowTitle({key: 'collaborators', id}, 'Document A')).toBe('Document A – Collaborators')
+    expect(getWindowTitle({key: 'metadata', id}, 'Document A')).toBe('Document A – Metadata')
   })
-  it('contact with name', () => {
-    expect(getWindowTitle('contact', 'Alice')).toBe('Contact: Alice')
+
+  it('uses Citations for the citations activity filter', () => {
+    expect(
+      getWindowTitle({key: 'activity', id, filterEventType: activitySlugToFilter('citations')}, 'Document A'),
+    ).toBe('Document A – Citations')
   })
-  it('contact without name', () => {
-    expect(getWindowTitle('contact')).toBe('Contact')
+
+  it('ignores a document right panel', () => {
+    expect(getWindowTitle({key: 'document', id, panel: {key: 'comments', id}}, 'Document A')).toBe('Document A')
   })
-  it('profile with name', () => {
-    expect(getWindowTitle('profile', 'Bob')).toBe('Profile: Bob')
-  })
-  it('profile without name', () => {
-    expect(getWindowTitle('profile')).toBe('Profile')
-  })
-  it('draft with name', () => {
-    expect(getWindowTitle('draft', 'My Draft')).toBe('Draft: My Draft')
-  })
-  it('draft without name', () => {
-    expect(getWindowTitle('draft')).toBe('Draft')
-  })
-  it('document with name', () => {
-    expect(getWindowTitle('document', 'My Doc')).toBe('My Doc')
-  })
-  it('document without name', () => {
-    expect(getWindowTitle('document')).toBe('Document')
-  })
-  it('inspect with name', () => {
-    expect(getWindowTitle('inspect', 'My Doc')).toBe('My Doc')
-  })
-  it('unknown key -> null', () => {
-    expect(getWindowTitle('settings')).toBeNull()
+
+  it('falls back to Seed while a resource name is unavailable', () => {
+    expect(getWindowTitle({key: 'document', id})).toBe('Seed')
   })
 })
 

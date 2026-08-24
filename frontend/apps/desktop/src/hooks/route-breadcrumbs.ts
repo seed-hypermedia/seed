@@ -1,5 +1,7 @@
 import {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {findContentBlock, getBlockText, getContactMetadata, getDocumentTitle, hmId} from '@shm/shared'
+import type {NavRoute} from '@shm/shared/routes'
+import {activityFilterToSlug} from '@shm/shared/utils/entity-id-url'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -72,31 +74,52 @@ export function getIconForRoute(routeKey: string): BreadcrumbIconKey {
   }
 }
 
-export function getWindowTitle(routeKey: string, activeName?: string): string | null {
-  switch (routeKey) {
-    case 'contacts':
-      return 'Contacts'
-    case 'bookmarks':
-      return 'Bookmarks'
-    case 'api-inspector':
-      return 'API Inspector'
-    case 'contact':
-      return activeName ? `Contact: ${activeName}` : 'Contact'
-    case 'profile':
-      return activeName ? `Profile: ${activeName}` : 'Profile'
-    case 'draft':
-      return activeName ? `Draft: ${activeName}` : 'Draft'
-    case 'document':
-    case 'feed':
-    case 'directory':
-    case 'collaborators':
+const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
+  onboarding: 'Welcome to Seed Hypermedia',
+  library: 'Library',
+  contacts: 'Contacts',
+  bookmarks: 'Bookmarks',
+  drafts: 'Drafts',
+  settings: 'Settings',
+  'account-settings': 'Identity Settings',
+  'site-settings': 'Site Settings',
+  'deleted-content': 'Deleted Content',
+  'api-inspector': 'API Inspector',
+  'query-documents': 'Query Documents',
+  explore: 'Explore',
+  agents: 'Agents',
+  'agent-server': 'Agents',
+  agent: 'Agent',
+  'agent-session': 'Agent Session',
+  notifications: 'Notifications',
+  'site-settings-emails': 'Email Settings',
+  'inspect-ipfs': 'IPFS Inspector',
+}
+
+/** Returns the native window title for the active navigation route. */
+export function getWindowTitle(route: NavRoute, activeName?: string): string {
+  const staticTitle = STATIC_WINDOW_TITLES[route.key]
+  if (staticTitle) return staticTitle
+  if (!activeName) return 'Seed'
+
+  switch (route.key) {
     case 'activity':
+      return `${activeName} – ${activityFilterToSlug(route.filterEventType) === 'citations' ? 'Citations' : 'Activity'}`
     case 'comments':
+      return `${activeName} – Discussions`
+    case 'directory':
+    case 'all-documents':
+      return `${activeName} – Sub-documents`
+    case 'collaborators':
+      return `${activeName} – Collaborators`
     case 'metadata':
+      return `${activeName} – Metadata`
     case 'inspect':
-      return activeName || 'Document'
+      return `${activeName} – Inspector`
+    case 'feed':
+      return `${activeName} – Feed`
     default:
-      return null
+      return activeName
   }
 }
 
