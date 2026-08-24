@@ -1,4 +1,4 @@
-import React, {useState} from 'react'
+import React, {useRef, useState} from 'react'
 import {Wrench} from 'lucide-react'
 import {Button} from '@shm/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
@@ -25,21 +25,33 @@ export function UserToolPalette({
   agentTools,
   agentToolsLoading,
   disabled,
+  onStartSession,
+  onSessionStarted,
 }: {
   serverUrl: string
   accountId: string | null
-  sessionId: string
+  /** Absent for a draft composer: tool calls land on a session's log, so no session yet means the
+   * first run creates one via {@link onStartSession} — or, without that, a disabled palette. */
+  sessionId?: string
   /** The agent definition's tools array; undefined means the default grant set. */
   agentTools?: string[]
   /** True while the agent definition is still loading — the callable list must wait, not grant-all. */
   agentToolsLoading?: boolean
   disabled?: boolean
+  /** Draft mode: creates the session the first tool run needs, so a tool call can start a session
+   * the same way a first message does. */
+  onStartSession?: () => Promise<string>
+  /** Called once a tool run that created its own session finishes, e.g. to navigate to it. */
+  onSessionStarted?: (sessionId: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const invoke = useInvokeSessionTool(serverUrl, accountId)
   const health = useAgentServerHealth(serverUrl)
+  /** Session a draft-mode run created, so a contract-miss retry or a failed call reuses it
+   * instead of opening another. */
+  const startedSessionIdRef = useRef<string | null>(null)
 
   const capabilities: AgentServerWebCapabilities | undefined = health.data
     ? {
@@ -65,7 +77,14 @@ export function UserToolPalette({
   async function run(verb: 'read' | 'write' | 'call', input: unknown) {
     setNotice(null)
     try {
-      const response = await invoke.mutateAsync({sessionId, verb, input})
+      let targetSessionId = sessionId ?? startedSessionIdRef.current
+      if (!targetSessionId) {
+        if (!onStartSession) return
+        targetSessionId = await onStartSession()
+        startedSessionIdRef.current = targetSessionId
+      }
+      const startedHere = !sessionId && startedSessionIdRef.current === targetSessionId
+      const response = await invoke.mutateAsync({sessionId: targetSessionId, verb, input})
       if (response._ === 'InvokeSessionToolResponse') {
         if (response.error) {
           toast.error(response.error)
@@ -79,6 +98,8 @@ export function UserToolPalette({
       }
       setOpen(false)
       setSelected(null)
+      // Even a failed call lands on the new session's log, so surface the session either way.
+      if (startedHere) onSessionStarted?.(targetSessionId)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Tool call failed')
     }
@@ -97,8 +118,12 @@ export function UserToolPalette({
           size="sm"
           variant="ghost"
           className="max-sm:size-10"
-          disabled={disabled}
-          title="Run a tool yourself — the agent sees the result"
+          disabled={disabled || (!sessionId && !onStartSession)}
+          title={
+            sessionId || onStartSession
+              ? 'Run a tool yourself — the agent sees the result'
+              : 'Send a message to start the session before running tools'
+          }
         >
           <Wrench className="size-3.5" />
         </Button>

@@ -8661,42 +8661,8 @@ describe('symmetric log: user tool calls', () => {
       if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
       const sessionId = createdSession.sessionId
 
-      // The user writes a memory file through their own write verb.
-      const written = await svc.message(
-        await apisvc.createSignedEnvelope(account, {
-          action: {
-            _: 'InvokeSessionTool',
-            sessionId,
-            verb: 'write',
-            input: {address: '~/memory/from-user.md', content: 'the user wrote this'},
-          },
-        }),
-      )
-      if (written._ !== 'InvokeSessionToolResponse') throw new Error(`unexpected: ${written._}`)
-      expect(written.error).toBeUndefined()
-      expect((written.output as {summary?: string})?.summary).toContain('Wrote')
-
-      // A failing verb still logs, and reports the error in the response instead of throwing.
-      const failed = await svc.message(
-        await apisvc.createSignedEnvelope(account, {
-          action: {_: 'InvokeSessionTool', sessionId, verb: 'read', input: {address: 'gopher://x'}},
-        }),
-      )
-      if (failed._ !== 'InvokeSessionToolResponse') throw new Error('unexpected response')
-      expect(failed.error).toContain('Unrecognized address')
-
-      // Both actions are durable actor-'user' events on the log.
-      const loaded = await svc.message(
-        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
-      )
-      if (loaded._ !== 'GetSessionResponse') throw new Error('unexpected response')
-      const toolEvents = loaded.events.filter((event) => {
-        const value = event.event as {type?: string; actor?: string}
-        return (value.type === 'tool_call' || value.type === 'tool_result') && value.actor === 'user'
-      })
-      expect(toolEvents.length).toBe(4)
-
-      // The agent's next turn sees the user's actions as tagged ground truth.
+      // Every user verb now ends in an agent turn, so the provider must be served from the start.
+      // The turn's replay carries the user's action as tagged ground truth.
       let sawUserAction = false
       globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
         const href = String(url)
@@ -8711,13 +8677,61 @@ describe('symmetric log: user tool calls', () => {
         }
         throw new Error(`Unexpected fetch: ${href}`)
       }) as unknown as typeof fetch
+
+      // The user writes a memory file through their own write verb.
+      const written = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'InvokeSessionTool',
+            sessionId,
+            verb: 'write',
+            input: {address: '~/memory/from-user.md', content: 'the user wrote this'},
+          },
+        }),
+      )
+      if (written._ !== 'InvokeSessionToolResponse') throw new Error(`unexpected: ${written._}`)
+      expect(written.error).toBeUndefined()
+      expect((written.output as {summary?: string})?.summary).toContain('Wrote')
+      // The verb dispatched a follow-up agent turn; let it finish before acting again (a verb
+      // during a live turn is rejected, same as always).
+      await svc.awaitQueueIdle()
+      expect(sawUserAction).toBe(true)
+
+      // A failing verb still logs, reports the error in the response instead of throwing — and
+      // still hands the agent a turn: the user's failed attempt is context worth answering.
+      const failed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'InvokeSessionTool', sessionId, verb: 'read', input: {address: 'gopher://x'}},
+        }),
+      )
+      if (failed._ !== 'InvokeSessionToolResponse') throw new Error('unexpected response')
+      expect(failed.error).toContain('Unrecognized address')
+      await svc.awaitQueueIdle()
+
+      // Both actions are durable actor-'user' events on the log, and each got an agent reply
+      // without any typed user message.
+      const loaded = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (loaded._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const toolEvents = loaded.events.filter((event) => {
+        const value = event.event as {type?: string; actor?: string}
+        return (value.type === 'tool_call' || value.type === 'tool_result') && value.actor === 'user'
+      })
+      expect(toolEvents.length).toBe(4)
+      const assistantReplies = loaded.events.filter((event) => {
+        const value = event.event as {type?: string; role?: string}
+        return value.type === 'message' && value.role === 'assistant'
+      })
+      expect(assistantReplies.length).toBe(2)
+
+      // A typed message keeps working the same way on top of the verb history.
       const response = await svc.message(
         await apisvc.createSignedEnvelope(account, {
           action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'What did I just do?'}]},
         }),
       )
       expect(response._).toBe('MessageSessionResponse')
-      expect(sawUserAction).toBe(true)
 
       // Crash-shaped history: a user tool_call whose result never landed must not brick the
       // session — no synthetic 'Interrupted' result is fabricated for it, and the next turn's

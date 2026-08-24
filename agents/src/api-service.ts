@@ -3273,7 +3273,7 @@ export class Service {
     }
     const toolCallId = `user-${crypto.randomUUID()}`
     this.#liveUserVerbs.set(sessionId, (this.#liveUserVerbs.get(sessionId) ?? 0) + 1)
-    this.#appendSessionEvent(
+    const callEvent = this.#appendSessionEvent(
       accountId,
       session.agentId,
       sessionId,
@@ -3310,6 +3310,29 @@ export class Service {
       },
       Date.now(),
     )
+    // A user's tool run is conversation, not a silent side-play: the agent takes a turn over the
+    // updated log, exactly as it would after a typed message — which is also what names a session
+    // this action just started (titling keys off run activity). Dispatched in the background so
+    // the tool result returns immediately; the agent's turn streams over the session WS.
+    const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
+    this.#runQueue.enqueue({
+      accountId,
+      kind: 'agent',
+      origin: 'user',
+      agentId: session.agentId,
+      sessionId,
+      title: `Respond to user ${verb}`,
+      input: {
+        kind: 'session-message',
+        userEventIds: [callEvent.id, resultEvent.id],
+        queuedBehindAnotherTurn,
+      },
+      queue: 'interactive',
+      // The user is watching this thread: fail fast rather than holding the session lock through
+      // retry backoff, same reasoning as interactive message turns. They have Retry.
+      maxAttempts: 1,
+      dispatch: true,
+    })
     return {
       _: 'InvokeSessionToolResponse',
       sessionId,
@@ -3851,10 +3874,34 @@ export class Service {
       .map(sessionEventRowToInfo)
     const lines: string[] = []
     for (const event of events) {
-      const value = event.event as {type?: string; role?: string; content?: string}
-      if (value.type !== 'message' || typeof value.content !== 'string') continue
-      if (value.role === 'user') lines.push(`User: ${value.content.slice(0, 1200)}`)
-      else if (value.role === 'assistant') lines.push(`Assistant: ${value.content.slice(0, 600)}`)
+      const value = event.event as {
+        type?: string
+        role?: string
+        content?: string
+        name?: string
+        input?: unknown
+        output?: unknown
+        error?: string
+      }
+      if (value.type === 'message' && typeof value.content === 'string') {
+        if (value.role === 'user') lines.push(`User: ${value.content.slice(0, 1200)}`)
+        else if (value.role === 'assistant') lines.push(`Assistant: ${value.content.slice(0, 600)}`)
+        continue
+      }
+      // A session can begin with the user running a tool instead of typing. That action is the
+      // whole conversation so far, so the digest must carry it — otherwise the namer sees an
+      // empty session and bails.
+      if (sessionEventActor(value as never) !== 'user') continue
+      if (value.type === 'tool_call') {
+        lines.push(`User ran ${value.name ?? 'a tool'}: ${safeJSONStringify(value.input ?? {}).slice(0, 600)}`)
+      } else if (value.type === 'tool_result') {
+        lines.push(
+          `Result: ${(value.error !== undefined ? String(value.error) : safeJSONStringify(value.output ?? {})).slice(
+            0,
+            400,
+          )}`,
+        )
+      }
     }
     if (lines.length === 0) return
     const generated = await this.#generateSessionTitle(accountId, definition, lines.join('\n\n').slice(0, 4000))
@@ -5466,30 +5513,34 @@ export class Service {
     // tail of assistant A. Put an in-memory handoff last so the serialized follow-up turn cannot
     // mistake A's later event for an answer to B. The original messages remain the only durable
     // copies; this is provider guidance, not another transcript event.
-    if (queuedUserEventIds.length) {
-      const wanted = new Set(queuedUserEventIds)
-      const concurrentMessages = this.#db
-        .query<SessionEventRow, [string]>(
-          `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-        )
-        .all(sessionId)
-        .filter((row) => wanted.has(row.id))
-        .map((row) => {
-          const payload = cbor.decode<api.SessionEventPayload>(row.event_cbor) as {
-            type?: string
-            role?: string
-            content?: string
-            meta?: api.SessionEventMeta
-          }
-          return {
-            eventId: row.id,
-            accountId: payload.meta?.accountId,
-            content: payload.type === 'message' && payload.role === 'user' ? payload.content : undefined,
-          }
-        })
-        .filter((message): message is {eventId: string; accountId: string | undefined; content: string} =>
-          Boolean(message.content),
-        )
+    const wanted = new Set(queuedUserEventIds)
+    const concurrentMessages = queuedUserEventIds.length
+      ? this.#db
+          .query<SessionEventRow, [string]>(
+            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+          )
+          .all(sessionId)
+          .filter((row) => wanted.has(row.id))
+          .map((row) => {
+            const payload = cbor.decode<api.SessionEventPayload>(row.event_cbor) as {
+              type?: string
+              role?: string
+              content?: string
+              meta?: api.SessionEventMeta
+            }
+            return {
+              eventId: row.id,
+              accountId: payload.meta?.accountId,
+              content: payload.type === 'message' && payload.role === 'user' ? payload.content : undefined,
+            }
+          })
+          .filter((message): message is {eventId: string; accountId: string | undefined; content: string} =>
+            Boolean(message.content),
+          )
+      : []
+    // Queued user events that are not plain messages (a user tool action behind a live turn)
+    // render nothing here — they replay positionally as user_action messages instead.
+    if (concurrentMessages.length) {
       replayMessages.push({
         role: 'user',
         content: `<concurrent_user_messages>\nThese user messages arrived while the previous response was already in progress. Any assistant event that follows them in the durable transcript belongs to that earlier turn and does not answer them. Respond to these messages now:\n${JSON.stringify(

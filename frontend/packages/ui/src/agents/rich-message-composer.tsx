@@ -37,6 +37,8 @@ export function AgentRichMessageComposer({
   agentToolsLoading,
   focusOnMount = true,
   composerHandleRef,
+  onToolStartSession,
+  onToolSessionStarted,
   onSend,
   onStop,
 }: {
@@ -47,8 +49,8 @@ export function AgentRichMessageComposer({
   stopPending: boolean
   serverUrl: string
   accountId: string | null
-  /** Absent for a sidebar draft: no session exists yet, so attachments and the tool palette —
-   * which both need one to target — stay off until the first send creates it. */
+  /** Absent for a draft: no session exists yet, so attachments stay off and the tool palette —
+   * which needs one to target — renders disabled until the first send creates it. */
   sessionId?: string
   /** The agent definition's tools array, for the user tool palette's callable list. */
   agentTools?: string[]
@@ -58,6 +60,10 @@ export function AgentRichMessageComposer({
   focusOnMount?: boolean
   /** External handle for imperative focus/submit (e.g. the sidebar's new-chat flows). */
   composerHandleRef?: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
+  /** Draft composer only: lets a tool run create the session, the same way the first send would. */
+  onToolStartSession?: () => Promise<string>
+  /** Called once a tool run that created its own session finishes, e.g. to navigate to it. */
+  onToolSessionStarted?: (sessionId: string) => void
   onSend: (message: AgentSessionDraftMessage) => void
   onStop: () => void
 }) {
@@ -166,16 +172,16 @@ export function AgentRichMessageComposer({
           />
         </div>
         <div className="flex shrink-0 gap-1 pb-1">
-          {sessionId ? (
-            <UserToolPalette
-              serverUrl={serverUrl}
-              accountId={accountId}
-              sessionId={sessionId}
-              agentTools={agentTools}
-              agentToolsLoading={agentToolsLoading}
-              disabled={isBusy}
-            />
-          ) : null}
+          <UserToolPalette
+            serverUrl={serverUrl}
+            accountId={accountId}
+            sessionId={sessionId}
+            agentTools={agentTools}
+            agentToolsLoading={agentToolsLoading}
+            disabled={isBusy}
+            onStartSession={sessionId ? undefined : onToolStartSession}
+            onSessionStarted={onToolSessionStarted}
+          />
           {draftMarkdown.trim() ? (
             <Button
               size="sm"
