@@ -1950,6 +1950,128 @@ describe('api service', () => {
     }
   })
 
+  test('deleting a granted signing identity scrubs it from agent definitions', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      globalThis.fetch = mock(async () => Response.json(serialize({cids: ['profile-cid']}))) as never
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await setDefaultProvider(svc, account)
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'scrub-key'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      const definition = {
+        name: 'Agent',
+        systemPrompt: 'Test.',
+        modelProvider: 'openai',
+        model: 'gpt',
+        signingKeys: [identity.identity.name],
+        signingKey: identity.identity.name,
+      }
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateAgent', definition}}),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'DeleteSigningIdentity', name: identity.identity.name},
+        }),
+      )
+
+      // The agent no longer references the deleted key, so future grants start from a clean set.
+      const fetched = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId: created.agentId}}),
+      )
+      if (fetched._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(fetched.agent.definition.signingKeys ?? []).toEqual([])
+      expect(fetched.agent.definition.signingKey).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('prunes stale granted keys on update instead of failing the new grant', async () => {
+    // Regression: identities deleted before the delete-time scrub existed left dangling names in
+    // agent definitions. The client re-sends the full grant set on every save, so granting any new
+    // account replayed the dangling name and the whole update failed with "Signing key not found".
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await setDefaultProvider(svc, account)
+
+      const definition = {name: 'Agent', systemPrompt: 'Test.', modelProvider: 'openai', model: 'gpt'}
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateAgent', definition}}),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+
+      // Poison the stored definition the way a pre-scrub deletion did: a grant set naming a key
+      // that no longer exists in secrets.
+      const staleName = 'hm-account-z6MkDeleted00000'
+      const row = db
+        .query<{definition_cbor: Uint8Array}, [string]>(`SELECT definition_cbor FROM agents WHERE id = ?`)
+        .get(created.agentId)
+      if (!row) throw new Error('agent row missing')
+      const poisoned = cbor.decode<Record<string, unknown>>(row.definition_cbor)
+      poisoned.signingKeys = [staleName]
+      poisoned.signingKey = staleName
+      db.run(`UPDATE agents SET definition_cbor = ? WHERE id = ?`, [cbor.encode(poisoned), created.agentId])
+
+      const imported = blobs.generateNobleKeyPair()
+      const importedKey = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ImportSigningIdentity', seed: imported.seed, label: 'Real', clientRequestId: 'import-real'},
+        }),
+      )
+      if (importedKey._ !== 'ImportSigningIdentityResponse') throw new Error('unexpected response')
+
+      // Granting the imported key re-sends the stale name too (the client echoes the stored set);
+      // the stale name is dropped and the grant succeeds.
+      const updated = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'UpdateAgent',
+            agentId: created.agentId,
+            definition: {
+              ...definition,
+              signingKeys: [staleName, importedKey.identity.name],
+              signingKey: staleName,
+            },
+          },
+        }),
+      )
+      if (updated._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(updated.agent.definition.signingKeys).toEqual([importedKey.identity.name])
+      expect(updated.agent.definition.signingKey).toBe(importedKey.identity.name)
+
+      // A name that was never in the stored set still fails loudly: only carried-over staleness is
+      // healed, typos are not.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'UpdateAgent',
+              agentId: created.agentId,
+              definition: {...definition, signingKeys: [importedKey.identity.name, 'hm-account-z6MkTypo0000000']},
+            },
+          }),
+        ),
+      ).rejects.toThrow('Signing key not found')
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('lists only uploaded signing identities for the signed account', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {

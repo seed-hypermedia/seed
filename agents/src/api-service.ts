@@ -1719,7 +1719,44 @@ export class Service {
     if (!row?.metadata_cbor) throw new APIError(404, 'Signing identity not found')
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind !== 'hm-account-key') throw new APIError(404, 'Signing identity not found')
-    this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, name])
+    // Scrub the name from every agent granted this key: agent updates re-send the full grant set,
+    // so a dangling reference would make every future grant fail validation.
+    const agents = this.#db
+      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
+        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+      )
+      .all(accountId)
+    const ungranted: string[] = []
+    const transaction = this.#db.transaction(() => {
+      this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, name])
+      const now = Date.now()
+      for (const agent of agents) {
+        const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+        const keys = definition.signingKeys ?? (definition.signingKey ? [definition.signingKey] : [])
+        if (!keys.includes(name)) continue
+        const keptKeys = keys.filter((key) => key !== name)
+        if (keptKeys.length) {
+          definition.signingKeys = keptKeys
+          definition.signingKey = keptKeys[0]
+        } else {
+          delete definition.signingKeys
+          delete definition.signingKey
+        }
+        this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE account_id = ? AND id = ?`, [
+          cbor.encode(definition),
+          now,
+          accountId,
+          agent.id,
+        ])
+        ungranted.push(agent.id)
+      }
+    })
+    transaction()
+    for (const agentId of ungranted) {
+      const agentInfo = this.#getAgentInfo(accountId, agentId)
+      if (agentInfo) this.#emit({type: 'agent-change', accountId, agent: agentInfo})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+    }
     return {_: 'DeleteSigningIdentityResponse', name}
   }
 
@@ -1991,17 +2028,21 @@ export class Service {
     }
   }
 
+  #signingKeyExists(accountId: string, name: string): boolean {
+    const row = this.#db
+      .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, name)
+    if (!row?.metadata_cbor) return false
+    const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
+    return metadata.kind === 'hm-account-key'
+  }
+
   #validateSigningKeys(accountId: string, definition: api.AgentDefinition): void {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
     for (const signingKey of signingKeys) {
-      const row = this.#db
-        .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
-          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-        )
-        .get(accountId, signingKey)
-      if (!row?.metadata_cbor) throw new APIError(400, 'Signing key not found')
-      const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
-      if (metadata.kind !== 'hm-account-key') throw new APIError(400, 'Signing key not found')
+      if (!this.#signingKeyExists(accountId, signingKey)) throw new APIError(400, 'Signing key not found')
     }
   }
 
@@ -2129,10 +2170,10 @@ export class Service {
       )
       .get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
+    const prior = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
     if (viewerAccountId !== accountId) {
       // Writers may edit the agent, but granting signing accounts stays with the owner: the keys
       // live on the owner's account and the grant set decides what the agent can publish as.
-      const prior = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
       const grantSet = (d: api.AgentDefinition) =>
         JSON.stringify([...new Set(d.signingKeys ?? (d.signingKey ? [d.signingKey] : []))].sort())
       if (grantSet(prior) !== grantSet(definition)) {
@@ -2146,6 +2187,20 @@ export class Service {
       .get(accountId, definition.modelProvider)
     if (!provider) throw new APIError(400, 'Model provider not found')
     validateReasoningLevel(provider.type, definition)
+    // A grant set carried over from the stored definition may reference keys that were deleted
+    // before deletion started scrubbing them (the client re-sends the full set on every save, so a
+    // dangling name would poison all future grants). Prune those silently; a name that is NEW in
+    // this update must still resolve, so typos and races keep failing loudly.
+    const priorKeys = new Set(prior.signingKeys ?? (prior.signingKey ? [prior.signingKey] : []))
+    const requestedKeys = definition.signingKeys ?? (definition.signingKey ? [definition.signingKey] : [])
+    const keptKeys = requestedKeys.filter((key) => !priorKeys.has(key) || this.#signingKeyExists(accountId, key))
+    if (keptKeys.length) {
+      definition.signingKeys = keptKeys
+      definition.signingKey = keptKeys[0]
+    } else {
+      delete definition.signingKeys
+      delete definition.signingKey
+    }
     this.#validateSigningKeys(accountId, definition)
 
     const now = Date.now()
