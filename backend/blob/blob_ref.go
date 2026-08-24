@@ -44,7 +44,7 @@ type Ref struct {
 	Space_      core.Principal  `refmt:"space,omitempty"` // Use Space() method.
 	Path        string          `refmt:"path,omitempty"`
 	GenesisBlob cid.Cid         `refmt:"genesisBlob,omitempty"` // TODO(burdiyan): this should probably be deprecated and generation should be enough.
-	Capability  cid.Cid         `refmt:"capability,omitempty"`
+	_           cid.Cid         `refmt:"capability,omitempty"`  // Deprecated.
 	Heads       []cid.Cid       `refmt:"heads"`
 	Redirect    *RedirectTarget `refmt:"redirect,omitempty"`
 	Generation  int64           `refmt:"generation,omitempty"`
@@ -252,10 +252,6 @@ func indexRef(ictx *indexingCtx, _ int64, eb Encoded[*Ref]) error {
 
 	for _, head := range v.Heads {
 		sb.AddBlobLink("ref/head", head)
-	}
-
-	if v.Capability.Defined() {
-		sb.AddBlobLink("ref/capability", v.Capability)
 	}
 
 	if err := ictx.SaveBlob(sb); err != nil {
