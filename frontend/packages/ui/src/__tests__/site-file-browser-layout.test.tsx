@@ -8,8 +8,16 @@ import {SiteFileBrowserLayout} from '../site-file-browser-layout'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const mediaMock = vi.hoisted(() => ({value: {xs: false}}))
+const fileBrowserPropsMock = vi.hoisted(() => ({
+  value: null as null | {onPrefetch?: (id: ReturnType<typeof hmId>) => void},
+}))
 vi.mock('../use-media', () => ({useMedia: () => mediaMock.value}))
-vi.mock('../site-file-browser', () => ({SiteFileBrowser: () => <div data-testid="site-file-browser" />}))
+vi.mock('../site-file-browser', () => ({
+  SiteFileBrowser: (props: {onPrefetch?: (id: ReturnType<typeof hmId>) => void}) => {
+    fileBrowserPropsMock.value = props
+    return <div data-testid="site-file-browser" />
+  },
+}))
 vi.mock('../components/scroll-area', () => ({
   ScrollArea: ({children}: {children: React.ReactNode}) => <div data-testid="main-scroll-area">{children}</div>,
 }))
@@ -66,6 +74,27 @@ function renderLayout() {
 }
 
 describe('SiteFileBrowserLayout', () => {
+  it('passes document prefetch intent to the file browser', () => {
+    const onPrefetch = vi.fn()
+    act(() => {
+      root.render(
+        <SiteFileBrowserLayout
+          siteId={hmId('site')}
+          activeDocumentId={hmId('site')}
+          siteName="Site"
+          mobileOpen={false}
+          onMobileOpenChange={vi.fn()}
+          onNavigate={vi.fn()}
+          onPrefetch={onPrefetch}
+        >
+          <div>Document body</div>
+        </SiteFileBrowserLayout>,
+      )
+    })
+
+    expect(fileBrowserPropsMock.value?.onPrefetch).toBe(onPrefetch)
+  })
+
   it('server-renders a static 288px file explorer before client sizing is known', () => {
     const html = renderToString(
       <SiteFileBrowserLayout

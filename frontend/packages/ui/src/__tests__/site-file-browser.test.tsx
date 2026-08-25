@@ -64,10 +64,18 @@ describe('SiteFileBrowser', () => {
   it('shows title matches as a flat list and navigates', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed')
     const onNavigate = vi.fn()
+    const onPrefetch = vi.fn()
     useDirectoryMock.mockReturnValue({data: [makeDoc(['guides'], 'Guides'), install], isLoading: false, isError: false})
 
     act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={onNavigate} />)
+      root.render(
+        <SiteFileBrowser
+          siteId={hmId('site')}
+          activeDocumentId={null}
+          onNavigate={onNavigate}
+          onPrefetch={onPrefetch}
+        />,
+      )
     })
     const input = container.querySelector('input')!
     act(() => {
@@ -80,6 +88,10 @@ describe('SiteFileBrowser', () => {
     const result = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Install Seed'),
     )!
+    act(() => result.dispatchEvent(new MouseEvent('pointerover', {bubbles: true})))
+    act(() => result.focus())
+    expect(onPrefetch).toHaveBeenNthCalledWith(1, install.id)
+    expect(onPrefetch).toHaveBeenNthCalledWith(2, install.id)
     act(() => result.click())
     expect(onNavigate).toHaveBeenCalledWith(install.id)
   })

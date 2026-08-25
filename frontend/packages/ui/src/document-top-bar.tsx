@@ -14,10 +14,12 @@ import {cn} from './utils'
  */
 export function DocumentTopBar({
   breadcrumbs,
+  status,
   actions,
   isMobile,
 }: {
   breadcrumbs?: BreadcrumbEntry[]
+  status?: ReactNode
   actions?: ReactNode
   isMobile?: boolean
 }) {
@@ -54,6 +56,11 @@ export function DocumentTopBar({
           </Tooltip>
         ) : null}
         {breadcrumbs?.length ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
+        {status ? (
+          <div data-document-status="" className="flex shrink-0 items-center gap-1">
+            {status}
+          </div>
+        ) : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
     </div>

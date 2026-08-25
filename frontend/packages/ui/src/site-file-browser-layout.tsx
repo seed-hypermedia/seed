@@ -35,6 +35,7 @@ export interface SiteFileBrowserLayoutProps {
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
   onNavigate: (id: UnpackedHypermediaId) => void
+  onPrefetch?: (id: UnpackedHypermediaId) => void
   children: ReactNode
 }
 
@@ -46,6 +47,7 @@ export function SiteFileBrowserLayout({
   mobileOpen,
   onMobileOpenChange,
   onNavigate,
+  onPrefetch,
   children,
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
@@ -57,7 +59,14 @@ export function SiteFileBrowserLayout({
   const [minimumPercent, setMinimumPercent] = useState(20)
   const [revealClaims, setRevealClaims] = useState(0)
   const didSetInitialWidth = useRef(false)
-  const browser = <SiteFileBrowser siteId={siteId} activeDocumentId={activeDocumentId} onNavigate={onNavigate} />
+  const browser = (
+    <SiteFileBrowser
+      siteId={siteId}
+      activeDocumentId={activeDocumentId}
+      onNavigate={onNavigate}
+      onPrefetch={onPrefetch}
+    />
+  )
   // Only the inline (wide) layout has a collapse affordance; the mobile drawer is
   // opened from the site header, so page chrome below gets no controls there.
   const controls = useMemo<SiteFileBrowserControls>(

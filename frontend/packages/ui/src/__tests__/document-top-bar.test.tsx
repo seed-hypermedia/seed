@@ -86,6 +86,25 @@ describe('DocumentTopBar', () => {
     expect(Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'Publish')).toBe(true)
   })
 
+  it('renders document status beside breadcrumbs and before page actions', () => {
+    render(
+      <DocumentTopBar
+        breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]}
+        status={<span>Private</span>}
+        actions={<button type="button">Publish</button>}
+      />,
+    )
+
+    const status = container.querySelector('[data-document-status]')
+    const breadcrumbs = container.querySelector('nav[aria-label="Breadcrumb"]')
+    expect(status?.textContent).toBe('Private')
+    expect(status?.parentElement?.contains(breadcrumbs)).toBe(true)
+    expect(breadcrumbs?.className).not.toContain('flex-1')
+    expect(status!.compareDocumentPosition(container.querySelector('button')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+  })
+
   it('renders a home document as its own single crumb', () => {
     render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} isMobile />)
 

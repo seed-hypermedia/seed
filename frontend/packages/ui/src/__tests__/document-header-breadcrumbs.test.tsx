@@ -231,4 +231,20 @@ describe('DocumentHeader Breadcrumbs', () => {
     })
     expect(container.querySelector('button')).toBeNull()
   })
+
+  it('leaves document status badges to the top bar', () => {
+    renderWithProvider(
+      <DocumentHeader
+        docId={hmId('site', {path: ['doc']})}
+        docMetadata={{name: 'Doc'} as any}
+        authors={[]}
+        updateTime={null}
+        visibility="PRIVATE"
+        version="head-one.head-two"
+      />,
+    )
+
+    expect(container.textContent).not.toContain('Private')
+    expect(container.textContent).not.toContain('Merged')
+  })
 })

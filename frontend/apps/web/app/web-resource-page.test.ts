@@ -31,4 +31,11 @@ describe('WebResourcePage restore action wiring', () => {
     expect(source).toContain('<QuerySearchInputProvider value={WebQuerySearchInput}>')
     expect(source).toContain('</QuerySearchInputProvider>')
   })
+
+  it('connects file-browser intent to Remix document prefetching', () => {
+    const source = readFileSync(join(__dirname, 'web-resource-page.tsx'), 'utf8')
+
+    expect(source).toContain('<WebDocumentPrefetch originHomeId={originHomeId}>')
+    expect(source).toContain('onPrefetchDocument={onPrefetchDocument}')
+  })
 })

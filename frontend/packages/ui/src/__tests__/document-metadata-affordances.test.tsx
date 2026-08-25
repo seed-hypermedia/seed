@@ -264,6 +264,15 @@ describe('EditableDocumentMetadataFields', () => {
     return {onMetadata}
   }
 
+  it('positions desktop affordances above the title without reserving layout height', async () => {
+    await renderFields({fileUpload: vi.fn()})
+
+    const affordanceRow = container.querySelector('[data-document-metadata-affordances]')!
+    expect(affordanceRow.parentElement?.className).toContain('relative')
+    expect(affordanceRow.className).toContain('absolute')
+    expect(affordanceRow.className).toContain('bottom-full')
+  })
+
   it('keeps editor affordances mobile-visible and desktop-hidden until hover', async () => {
     await renderFields()
     const affordanceRow = container.querySelector('[data-document-metadata-affordances]')!
