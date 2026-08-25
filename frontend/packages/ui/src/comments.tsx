@@ -148,6 +148,12 @@ export function CommentDiscussions({
     return () => clearTimeout(timer)
   }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
 
+  useLayoutEffect(() => {
+    if (!showParents) return
+
+    focusedCommentRef.current?.scrollIntoView({behavior: 'instant', block: 'start'})
+  }, [showParents, commentId])
+
   const commentEditorSlot = commentEditor ? (
     <div className="relative max-h-1/2 py-4">
       <div
