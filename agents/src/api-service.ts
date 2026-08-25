@@ -74,8 +74,12 @@ import {
   parseMarkdown,
   fileToIpfsBlobs,
   resolveFileLinksInBlocks,
+  describeRedirect,
+  followRedirects,
+  followToDocument,
   resolveCapability,
   resolveDocumentState,
+  resolveEditableDocument,
   resolveIdWithClient,
   updateComment,
   documentToResolvedMarkdown,
@@ -9304,21 +9308,24 @@ export async function executeWriteVerb(
           }),
         )
       case 'redirect':
+        // The command handler reads the target from `to` — mapping toUrl to `destination` (as this
+        // envelope once did) made every redirect fail with "Redirect target is required".
         return writeHypermedia(
           context,
           envelope('document.redirect', {
             source: address,
-            ...(typeof options.toUrl === 'string' ? {destination: options.toUrl} : {}),
+            ...(typeof options.toUrl === 'string' ? {to: options.toUrl} : {}),
           }),
         )
       case 'delete':
-        return writeHypermedia(context, envelope('document.delete', {account: hm.account, path: hm.path}))
+        // The command handler reads `id`, not account/path — the address is the document to delete.
+        return writeHypermedia(context, envelope('document.delete', {id: address}))
       case 'fork':
+        // The address is where the fork lands; the handler reads it from `destination`.
         return writeHypermedia(
           context,
           envelope('document.fork', {
-            account: hm.account,
-            path: hm.path,
+            destination: address,
             ...(typeof options.fromUrl === 'string' ? {source: options.fromUrl} : {}),
           }),
         )
@@ -10127,6 +10134,9 @@ async function writeDocumentCreate(
   await ensureParentDocumentExists(client, account, path)
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
+  // Checked before the dry-run return so a dry run surfaces authorization failures instead of
+  // reporting a success that publish would silently lose.
+  const capability = await requireWriteCapability(client, account, signer.publicKey)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: `hm://${account}${path}`,
@@ -10134,7 +10144,6 @@ async function writeDocumentCreate(
       blockCount: parsed.blocks.length,
       dryRun: true,
     })
-  const capability = await resolveCapability(client, account, signer.publicKey)
   const genesisBlock = await createGenesisChange(signer.signer)
   const {unsignedBytes, ts} = createChangeOps({ops, genesisCid: genesisBlock.cid, deps: [genesisBlock.cid], depth: 1})
   const changeBlock = await createChange(unsignedBytes, signer.signer)
@@ -10164,6 +10173,27 @@ async function writeDocumentCreate(
   })
 }
 
+/**
+ * Resolves the signer's capability on a space, refusing the write outright when the signer is
+ * neither the space owner nor a capability holder. Publishing without authorization "succeeds" at
+ * the blob layer but never advances the document's latest version — a silent no-op that reads as
+ * success (live incident: session b44d4d81's guide update) — so fail loudly before publishing.
+ */
+async function requireWriteCapability(
+  client: ReturnType<typeof createSeedClient>,
+  space: string,
+  signerPublicKey: string,
+): Promise<string | undefined> {
+  const capability = await resolveCapability(client, space, signerPublicKey)
+  if (space !== signerPublicKey && !capability) {
+    throw new APIError(
+      403,
+      `Signer ${signerPublicKey} has no write access to space ${space} — publishing would succeed but never become the document's latest version. Ask the space owner for a WRITER capability, or sign as the space owner.`,
+    )
+  }
+  return capability
+}
+
 async function writeDocumentUpdate(
   client: ReturnType<typeof createSeedClient>,
   signer: ResolvedAgentSigner,
@@ -10179,8 +10209,13 @@ async function writeDocumentUpdate(
   }
   const edit = normalizeBoundedString(editSource, 'Document edit target', 2048)
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
-  const resource = await client.request('Resource', id)
-  if (resource.type !== 'document') throw new APIError(400, `Resource is ${resource.type}, not a document`)
+  // A redirected address (including a republished one) is edited by building the Change on the
+  // redirect target's DAG and publishing a Version Ref at THIS address with a fresh generation,
+  // which supersedes the redirect: the path becomes a live document and stops following the target.
+  const base = await resolveEditableDocument(client, id).catch((error) => {
+    throw new APIError(400, error instanceof Error ? error.message : String(error))
+  })
+  const resource = {document: base.document}
   if (
     typeof request.input.expectedVersion === 'string' &&
     resource.document.version !== request.input.expectedVersion
@@ -10210,14 +10245,22 @@ async function writeDocumentUpdate(
   }
   const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
   if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
+  // The Ref lands at the requested address (id.uid's space), not the redirect target's, so
+  // authorization is checked against the address's space. Checked before the dry-run return so a
+  // dry run surfaces authorization failures instead of reporting a success that publish would
+  // silently lose.
+  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
+  const replacedRedirect = base.redirect
+    ? {target: packHmId(base.redirect.target), republish: base.redirect.republish}
+    : undefined
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: packHmId(id),
       ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
+      ...(replacedRedirect ? {replacedRedirect} : {}),
       dryRun: true,
     })
-  const state = await resolveDocumentState(client, edit)
-  const capability = await resolveCapability(client, resource.document.account, signer.publicKey)
+  const state = base.state
   const {unsignedBytes, ts} = createChangeOps({
     ops,
     genesisCid: CID.parse(state.genesis),
@@ -10227,8 +10270,8 @@ async function writeDocumentUpdate(
   const changeBlock = await createChange(unsignedBytes, signer.signer)
   const refInput = await createVersionRef(
     {
-      space: resource.document.account,
-      path: resource.document.path || '',
+      space: id.uid,
+      path: hmIdPathToEntityQueryPath(id.path),
       genesis: state.genesis,
       version: changeBlock.cid.toString(),
       generation: Number(ts),
@@ -10247,6 +10290,7 @@ async function writeDocumentUpdate(
     id: packHmId(id),
     version: changeBlock.cid.toString(),
     cids: published.cids,
+    ...(replacedRedirect ? {replacedRedirect} : {}),
   })
 }
 
@@ -10258,15 +10302,32 @@ async function writeDocumentDelete(
   const target = normalizeBoundedString(request.input.id ?? request.input.target, 'Document ID', 2048)
   const {id} = await resolveIdWithClient(target, {serverUrl: client.baseUrl})
   const resource = await client.request('Resource', id)
-  if (resource.type !== 'document') throw new APIError(400, `Cannot delete ${resource.type}`)
+  if (resource.type !== 'document' && resource.type !== 'redirect')
+    throw new APIError(400, `Cannot delete ${resource.type}`)
+  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
+  // A redirected path (including a republished one) has no document of its own to read genesis and
+  // generation from, so the tombstone borrows the redirect target's genesis and takes a fresh
+  // generation — the new maximum generation supersedes the redirect Ref, so the path reads as
+  // deleted instead of continuing to follow the target.
+  let genesis: string
+  let generation: number
+  if (resource.type === 'redirect') {
+    const base = await followToDocument(client, id).catch((error) => {
+      throw new APIError(400, error instanceof Error ? error.message : String(error))
+    })
+    genesis = base.document.genesis
+    generation = Date.now()
+  } else {
+    genesis = resource.document.genesis
+    generation = resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0
+  }
   if (request.dryRun) return writeToolResult(request.command, signer, {id: packHmId(id), dryRun: true})
-  const capability = await resolveCapability(client, id.uid, signer.publicKey)
   const refInput = await createTombstoneRef(
     {
       space: id.uid,
       path: hmIdPathToEntityQueryPath(id.path),
-      genesis: resource.document.genesis,
-      generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0,
+      genesis,
+      generation,
       capability,
     },
     signer.signer,
@@ -10289,17 +10350,21 @@ async function writeDocumentRef(
     )
     const {id: sourceId} = await resolveIdWithClient(source, {serverUrl: client.baseUrl})
     const {id: destId} = await resolveIdWithClient(destination, {serverUrl: client.baseUrl})
-    const resource = await client.request('Resource', sourceId)
-    if (resource.type !== 'document') throw new APIError(400, 'Source is not a document')
-    if (!resource.document.generationInfo) throw new APIError(400, 'Source document has no generation info')
+    // Following redirects lets a republished path be forked: the fork points at the content the
+    // path is currently re-publishing.
+    const base = await followToDocument(client, sourceId).catch((error) => {
+      throw new APIError(400, error instanceof Error ? error.message : String(error))
+    })
+    const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
     if (request.dryRun) return writeToolResult(request.command, signer, {id: packHmId(destId), dryRun: true})
     const refInput = await createVersionRef(
       {
         space: destId.uid,
         path: hmIdPathToEntityQueryPath(destId.path),
-        genesis: resource.document.generationInfo.genesis,
-        version: resource.document.version,
-        generation: Number(resource.document.generationInfo.generation),
+        genesis: base.document.generationInfo?.genesis ?? base.document.genesis,
+        version: base.document.version,
+        generation: Date.now(),
+        capability,
       },
       signer.signer,
     )
@@ -10336,16 +10401,35 @@ async function writeDocumentMove(
   const destination = await resolveMoveDestination(client, source, request.input)
   const {id: sourceId} = await resolveIdWithClient(source, {serverUrl: client.baseUrl})
   const {id: destId} = await resolveIdWithClient(destination, {serverUrl: client.baseUrl})
-  const sourceResource = await client.request('Resource', sourceId)
-  if (sourceResource.type !== 'document') throw new APIError(400, 'Source is not a document')
-  const destinationAlreadyMatches = await destinationMatchesDocument(client, destId, sourceResource.document).catch(
+  const sourceBase = await followToDocument(client, sourceId).catch((error) => {
+    throw new APIError(400, error instanceof Error ? error.message : String(error))
+  })
+  // A move acts on whatever kind of thing lives at the source, keeping it that kind of thing at
+  // the destination:
+  //   - a republish (A re-publishes B): the republish moves. The destination re-publishes B (so it
+  //     keeps tracking B's latest), and the source redirects to the destination — NOT a fork, which
+  //     would snapshot B and silently stop following it.
+  //   - a plain document: it forks to the destination (its history) and the source redirects there.
+  // A source that has itself already moved has nowhere to move to — it is a pointer, not content.
+  if (sourceBase.redirect && !sourceBase.redirect.republish) {
+    throw new APIError(
+      400,
+      `${packHmId(sourceId)} has already moved to ${packHmId(sourceBase.redirect.target)}; move ${packHmId(
+        sourceBase.redirect.target,
+      )} instead.`,
+    )
+  }
+  if (sourceBase.redirect?.republish) {
+    return writeRepublishMove(client, signer, request, {source, destination, sourceId, destId, sourceBase})
+  }
+  const destinationAlreadyMatches = await destinationMatchesDocument(client, destId, sourceBase.document).catch(
     () => false,
   )
   const ref = destinationAlreadyMatches
     ? writeToolResult('document.fork', signer, {
         id: packHmId(destId),
         status: 'already_exists',
-        version: sourceResource.document.version,
+        version: sourceBase.document.version,
       })
     : await writeDocumentRef(client, signer, {
         ...request,
@@ -10362,6 +10446,64 @@ async function writeDocumentMove(
       destination: packHmId(destId),
       ref,
       warning: `Destination was created, but source redirect failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    })
+  }
+}
+
+/**
+ * Moves a republish: the destination re-publishes the same original the source did (so it keeps
+ * tracking the original's latest), then the source redirects to the destination. The alternative —
+ * forking — would freeze a snapshot of the original at the destination and silently break the
+ * republish link, which is never what "move this republish" means.
+ */
+async function writeRepublishMove(
+  client: ReturnType<typeof createSeedClient>,
+  signer: ResolvedAgentSigner,
+  request: ReturnType<typeof normalizeWriteToolRequest>,
+  ctx: {
+    source: string
+    destination: string
+    sourceId: NonNullable<ReturnType<typeof unpackHmId>>
+    destId: NonNullable<ReturnType<typeof unpackHmId>>
+    sourceBase: Awaited<ReturnType<typeof followToDocument>>
+  },
+): Promise<Record<string, unknown>> {
+  const {source, destination, destId, sourceBase} = ctx
+  const original = sourceBase.targetId
+  const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+  if (request.dryRun)
+    return writeToolResult(request.command, signer, {
+      destination: packHmId(destId),
+      republish: {id: packHmId(destId), target: packHmId(original), dryRun: true},
+      dryRun: true,
+    })
+  // Fresh generation (the daemon's own CreateRef choice) so the redirect sits in its own generation
+  // row and any later publish at the destination supersedes it cleanly.
+  const republishInput = await createRedirectRef(
+    {
+      space: destId.uid,
+      path: hmIdPathToEntityQueryPath(destId.path),
+      genesis: sourceBase.document.genesis,
+      generation: Date.now(),
+      targetSpace: original.uid,
+      targetPath: hmIdPathToEntityQueryPath(original.path),
+      capability,
+      republish: true,
+    },
+    signer.signer,
+  )
+  const publishedRepublish = await client.publish(republishInput)
+  const republish = {id: packHmId(destId), target: packHmId(original), cids: publishedRepublish.cids}
+  try {
+    const redirect = await writeDocumentRedirect(client, signer, {...request, input: {id: source, to: destination}})
+    return writeToolResult(request.command, signer, {destination: packHmId(destId), republish, redirect})
+  } catch (error) {
+    return writeToolResult(request.command, signer, {
+      destination: packHmId(destId),
+      republish,
+      warning: `Destination now republishes ${packHmId(original)}, but the source redirect failed: ${
         error instanceof Error ? error.message : String(error)
       }`,
     })
@@ -10405,16 +10547,29 @@ async function writeDocumentRedirect(
   const {id: sourceId} = await resolveIdWithClient(source, {serverUrl: client.baseUrl})
   const {id: targetId} = await resolveIdWithClient(to, {serverUrl: client.baseUrl})
   const resource = await client.request('Resource', sourceId)
-  if (resource.type !== 'document') throw new APIError(400, 'Redirect source is not a document')
+  if (resource.type !== 'document' && resource.type !== 'redirect')
+    throw new APIError(400, `Redirect source is ${resource.type}, not a document`)
+  // Re-pointing an already-redirected source borrows the current target's genesis (the source has
+  // no document of its own). A fresh generation is minted either way — the same choice the daemon's
+  // CreateRef makes — so the redirect occupies its own generation row and any later publish at this
+  // path supersedes it cleanly.
+  const genesis =
+    resource.type === 'redirect'
+      ? await followToDocument(client, sourceId)
+          .then((base) => base.document.genesis)
+          .catch((error) => {
+            throw new APIError(400, error instanceof Error ? error.message : String(error))
+          })
+      : resource.document.genesis
+  const capability = await requireWriteCapability(client, sourceId.uid, signer.publicKey)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {id: packHmId(sourceId), target: packHmId(targetId), dryRun: true})
-  const capability = await resolveCapability(client, sourceId.uid, signer.publicKey)
   const refInput = await createRedirectRef(
     {
       space: sourceId.uid,
       path: hmIdPathToEntityQueryPath(sourceId.path),
-      genesis: resource.document.genesis,
-      generation: resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 1,
+      genesis,
+      generation: Date.now(),
       targetSpace: targetId.uid,
       targetPath: hmIdPathToEntityQueryPath(targetId.path),
       capability,
@@ -11252,16 +11407,35 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
   const stripped = stripAttributesViewTerm(id)
   id = stripped.id
   const attributesOnly = stripped.attributesOnly
-  const resource = await client.request('Resource', id)
+  // Redirects (a moved path, or a "republished" path that re-publishes another document as its
+  // own) are followed so the agent gets content — but never silently: `id` is the address the
+  // content was actually read from, and `redirect` spells out where the request went and what a
+  // write to either address would do. A write to the requested address does NOT edit the target.
+  const followed = await followRedirects(client, id)
+  const resource = followed.resource
   const outputFormat = format || 'markdown'
   const result: Record<string, unknown> = {
     type: 'hypermedia_document',
     requestedId,
-    id: packHmId(id),
+    id: packHmId(followed.targetId),
     server: serverUrl,
     format: outputFormat,
   }
   if (dev) result.dev = true
+  if (followed.redirects.length > 0) {
+    const first = followed.redirects[0]!
+    result.redirect = {
+      from: packHmId(id),
+      to: packHmId(followed.targetId),
+      republish: first.republish,
+      hops: followed.redirects.map((hop) => ({
+        from: packHmId(hop.from),
+        to: packHmId(hop.to),
+        republish: hop.republish,
+      })),
+      notice: describeRedirect(followed),
+    }
+  }
 
   if (resource.type === 'document') {
     result.title = resource.document.metadata?.name

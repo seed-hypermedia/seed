@@ -1,4 +1,4 @@
-import {createTombstoneRef} from '@seed-hypermedia/client'
+import {createTombstoneRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocumentInfo, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient} from '@shm/shared'
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
@@ -111,14 +111,28 @@ export async function deleteWebDocuments(
     input.ids.map(async (id) => {
       await client.deleteRecent?.(id.id)
       const resource = await client.request('Resource', id)
-      if (resource.type !== 'document') throw new Error(`Cannot delete: resource is ${resource.type}`)
-      const doc = resource.document
-      const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
+      if (resource.type !== 'document' && resource.type !== 'redirect')
+        throw new Error(`Cannot delete: resource is ${resource.type}`)
+      // A redirected path (including a republished one) has no document of its own to read
+      // genesis and generation from: the tombstone borrows the redirect target's genesis and
+      // takes a fresh generation, which supersedes the redirect Ref so the path reads as
+      // deleted instead of continuing to follow the target.
+      let genesis: string
+      let generation: number
+      if (resource.type === 'redirect') {
+        const followed = await followToDocument(client as unknown as SeedClient, id)
+        genesis = followed.document.genesis
+        generation = Date.now()
+      } else {
+        const doc = resource.document
+        genesis = doc.genesis
+        generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
+      }
       const refInput = await createTombstoneRef(
         {
           space: id.uid,
           path: hmIdPathToEntityQueryPath(id.path),
-          genesis: doc.genesis,
+          genesis,
           generation,
           capability: input.capabilityId,
         },
