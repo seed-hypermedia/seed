@@ -21,7 +21,6 @@ function createTableSchema(): Schema {
         content: 'blockNode+',
         attrs: {
           listType: {default: 'Group'},
-          listLevel: {default: '1'},
           start: {default: null},
           columnCount: {default: null},
         },

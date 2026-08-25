@@ -49,7 +49,6 @@ export function hmBlocksToEditorContent(
   blocks: HMBlockNode[],
   opts: ServerToEditorRecursiveOpts & {
     childrenType?: HMBlockChildrenType
-    listLevel?: string
     start?: string
     parentType?: HMBlockType
   } = {level: 1},

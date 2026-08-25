@@ -15,10 +15,7 @@ function wrapBlockContentInContainer(blockContentNode: any, schema: any): any {
 function orphanGroupPlaceholder(blockGroupNode: any, schema: any): any {
   const listType = blockGroupNode?.attrs?.listType
   if (listType && listType !== 'Group' && schema.nodes['slot']) {
-    return schema.nodes['slot'].create({
-      childrenType: listType,
-      listLevel: blockGroupNode.attrs?.listLevel ?? '1',
-    })
+    return schema.nodes['slot'].create({childrenType: listType})
   }
   return schema.nodes['paragraph']!.create()
 }

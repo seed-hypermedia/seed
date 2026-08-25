@@ -5,29 +5,20 @@ import {ReplaceAroundStep} from '@tiptap/pm/transform'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {BlockNoteEditor} from '../../../BlockNoteEditor'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
-import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {getGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 import {isInGridContainer} from '../../../extensions/Blocks/nodes/BlockChildren'
 import {getCarryableStoredMarks} from './splitBlock'
-import {updateGroupChildrenCommand} from './updateGroup'
+import {liftSlotItem, liftSlotSelection} from './updateGroup'
 
 function liftListItem(editor: Editor, posInBlock: number) {
   return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
     const storedMarks = getCarryableStoredMarks(state)
-    console.log(
-      '[CTF] liftListItem | depth:',
-      state.selection.$from.depth - 1,
-      '| hasDispatch:',
-      !!dispatch,
-      '| hasChildren:',
-      false,
-    )
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
 
     if (state.selection.$from.depth - 1 > 2 && dispatch) {
       // If there are children, need to manually append siblings
       // into block's children to avoid the range error.
       if (blockInfo.block.node.childCount > 1) {
-        console.log('[CTF] liftListItem | complex path with children')
         const blockChildren = state.tr.doc
           .resolve(blockInfo.block.beforePos + blockInfo.blockContent.node.nodeSize + 2)
           .node().content
@@ -44,27 +35,8 @@ function liftListItem(editor: Editor, posInBlock: number) {
 
         // If last child or the only child, just lift list item.
         if (Fragment.empty.eq(siblingBlocksAfter)) {
-          const {group, container, $pos, depth} = getGroupInfoFromPos(state.selection.from, state)
-
-          const {node: parentGroup, pos: parentGroupPos} = getParentGroupInfoFromPos(group, $pos, depth)
-
           setTimeout(() => {
-            editor
-              .chain()
-              .liftListItem('blockNode')
-              .command(
-                updateGroupChildrenCommand(
-                  group,
-                  container!,
-                  $pos,
-                  parentGroup?.attrs.listType === 'Unordered'
-                    ? parseInt(parentGroup.attrs.listLevel) + 1
-                    : parseInt(group.attrs.listLevel),
-                  group.attrs.listType,
-                  false,
-                ),
-              )
-              .run()
+            editor.chain().liftListItem('blockNode').run()
           })
           return true
         }
@@ -99,15 +71,7 @@ function liftListItem(editor: Editor, posInBlock: number) {
         if (children) {
           // @ts-ignore
           const blockGroup = state.schema.nodes['blockChildren'].create(
-            childGroup
-              ? {
-                  listType: childGroup.group.attrs.listType,
-                  listLevel:
-                    parseInt(childGroup.group.attrs.listLevel) > 1
-                      ? String(parseInt(childGroup.group.attrs.listLevel) - 1)
-                      : '1',
-                }
-              : null,
+            childGroup ? {listType: childGroup.group.attrs.listType} : null,
             children,
           )
           blockContent.push(blockGroup)
@@ -122,13 +86,11 @@ function liftListItem(editor: Editor, posInBlock: number) {
         state.tr.insert(insertPos, block)
         state.tr.setSelection(new TextSelection(state.tr.doc.resolve(insertPos + 2)))
         state.tr.setStoredMarks(storedMarks)
-        console.log('[CTF] liftListItem | complex dispatch with storedMarks')
 
         dispatch(state.tr)
 
         return true
       } else {
-        console.log('[CTF] liftListItem | simple path: setTimeout -> editor.commands.liftListItem')
         setTimeout(() => {
           editor.commands.liftListItem('blockNode')
         })
@@ -136,27 +98,19 @@ function liftListItem(editor: Editor, posInBlock: number) {
       }
     }
 
-    console.log('[CTF] liftListItem | fallthrough: depth <= 2 or no dispatch')
     return true
   }
 }
 
-export function sinkListItem(
-  itemType: NodeType,
-  groupType: NodeType,
-  listType: HMBlockChildrenType,
-  listLevel: string,
-) {
+export function sinkListItem(itemType: NodeType, groupType: NodeType, listType: HMBlockChildrenType) {
   return function ({state, dispatch}: {state: EditorState; dispatch: any}) {
     const storedMarks = getCarryableStoredMarks(state)
-    console.log('[CTF] sinkListItem | storedMarks count:', storedMarks.length, '| hasDispatch:', !!dispatch)
     const {$from, $to} = state.selection
     const range = $from.blockRange(
       $to,
       (node) => node.childCount > 0 && node.type.name === 'blockChildren', // change necessary to not look at first item child type
     )
     if (!range) {
-      console.log('[CTF] sinkListItem | SKIPPED: no range')
       return false
     }
     const startIndex = range.startIndex
@@ -173,7 +127,7 @@ export function sinkListItem(
       const inner = Fragment.from(nestedBefore ? itemType.create() : null)
       const slice = new Slice(
         Fragment.from(
-          itemType.create(null, Fragment.from(groupType.create({listType: listType, listLevel: listLevel}, inner))), // change necessary to create "groupType" instead of parent.type
+          itemType.create(null, Fragment.from(groupType.create({listType: listType}, inner))), // change necessary to create "groupType" instead of parent.type
         ),
         nestedBefore ? 3 : 1,
         0,
@@ -187,25 +141,24 @@ export function sinkListItem(
           .setStoredMarks(storedMarks)
           .scrollIntoView(),
       )
-      console.log('[CTF] sinkListItem | dispatched with setStoredMarks')
     }
     return true
   }
 }
 
-export function nestBlock(editor: BlockNoteEditor<any>, listType: HMBlockChildrenType, listLevel: string) {
+export function nestBlock(editor: BlockNoteEditor<any>, listType: HMBlockChildrenType) {
   return editor._tiptapEditor.commands.command(
     sinkListItem(
       editor._tiptapEditor.schema.nodes['blockNode'],
       editor._tiptapEditor.schema.nodes['blockChildren'],
       listType,
-      listLevel,
     ),
   )
 }
 
 export function unnestBlock(editor: Editor, posInBlock: number) {
-  console.log('[CTF] unnestBlock called at pos:', posInBlock)
+  if (editor.state.selection.empty && editor.commands.command(liftSlotItem())) return true
+  if (editor.commands.command(liftSlotSelection())) return true
   return editor.commands.command(liftListItem(editor, posInBlock))
 }
 

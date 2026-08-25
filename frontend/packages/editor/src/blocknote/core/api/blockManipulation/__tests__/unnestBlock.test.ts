@@ -88,7 +88,6 @@ describe('unnestBlock - liftListItem', () => {
             text: 'First',
             children: {
               listType: 'Unordered',
-              listLevel: '2',
               blocks: [{id: 'item-2', text: 'Second'}],
             },
           },
@@ -292,8 +291,8 @@ describe('unnestBlock - liftListItem', () => {
   //         blockNode (sibling)                                  paragraph "Sibling"
   //           paragraph "Sibling"
   //
-  describe('list unnest with children+siblings — list levels', () => {
-    it('decrements listLevel on children group after lift', () => {
+  describe('list unnest with children+siblings', () => {
+    it("keeps the lifted child's own sublist nested after lift", () => {
       const doc = buildDoc(
         schema,
         [
@@ -302,14 +301,12 @@ describe('unnestBlock - liftListItem', () => {
             text: 'Parent',
             children: {
               listType: 'Unordered',
-              listLevel: '2',
               blocks: [
                 {
                   id: 'child',
                   text: 'Child',
                   children: {
                     listType: 'Unordered',
-                    listLevel: '3',
                     blocks: [{id: 'grandchild', text: 'Grandchild'}],
                   },
                 },
@@ -325,7 +322,6 @@ describe('unnestBlock - liftListItem', () => {
       const topGroup = newState.doc.firstChild!
       expect(topGroup.type.name).toBe('blockChildren')
       expect(topGroup.attrs.listType).toBe('Unordered')
-      expect(topGroup.attrs.listLevel).toBe('1')
       expect(topGroup.childCount).toBe(2)
 
       // Parent should no longer have nested blockChildren
@@ -340,11 +336,10 @@ describe('unnestBlock - liftListItem', () => {
       expect(child.firstChild!.textContent).toBe('Child')
       expect(child.childCount).toBe(2) // paragraph + blockChildren
 
-      // Child's blockChildren should preserve listType and decrement level
+      // Child's blockChildren should preserve listType
       const childGroup = child.lastChild!
       expect(childGroup.type.name).toBe('blockChildren')
       expect(childGroup.attrs.listType).toBe('Unordered')
-      expect(childGroup.attrs.listLevel).toBe('2') // was '3', should decrement to '2'
       expect(childGroup.childCount).toBe(2)
 
       const grandchild = childGroup.firstChild!

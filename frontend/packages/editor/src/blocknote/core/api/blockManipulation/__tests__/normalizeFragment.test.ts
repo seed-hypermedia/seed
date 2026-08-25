@@ -28,11 +28,11 @@ describe('normalizeFragment — paste normalization', () => {
   }
 
   function group(children: any[]) {
-    return bc({listType: 'Group', listLevel: '1'}, children)
+    return bc({listType: 'Group'}, children)
   }
 
   function ulist(children: any[], level = '1') {
-    return bc({listType: 'Unordered', listLevel: level}, children)
+    return bc({listType: 'Unordered'}, children)
   }
 
   describe('splitBlockContainerNode', () => {
@@ -230,7 +230,7 @@ describe('normalizeFragment — paste normalization', () => {
     // Pasting two adjacent lists must keep both. The second must
     // not overwrite the first.
     it('keeps both lists when two lists are pasted adjacently', () => {
-      const olist = (children: any[]) => bc({listType: 'Ordered', listLevel: '1'}, children)
+      const olist = (children: any[]) => bc({listType: 'Ordered'}, children)
       const fragment = Fragment.from([
         ulist([bn({id: null}, para('a')), bn({id: null}, para('b'))]),
         olist([bn({id: null}, para('c')), bn({id: null}, para('d'))]),

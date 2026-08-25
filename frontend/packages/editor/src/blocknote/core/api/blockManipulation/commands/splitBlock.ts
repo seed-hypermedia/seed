@@ -7,13 +7,8 @@ const carryableMarkNames = new Set(['textSize', 'textFamily'])
 
 /** Returns active text formatting marks that should continue after creating a new block. */
 export function getCarryableStoredMarks(state: EditorState): Mark[] {
-  const source = state.storedMarks ? 'storedMarks' : 'selection.$from.marks()'
   const marks = state.storedMarks ?? state.selection.$from.marks()
-  const allNames = marks.map((m) => m.type.name)
-  const filtered = marks.filter((mark) => carryableMarkNames.has(mark.type.name))
-  const filteredNames = filtered.map((m) => `${m.type.name}=${JSON.stringify(m.attrs)}`)
-  console.log('[CTF] getCarryableStoredMarks | source:', source, '| allMarks:', allNames, '| carryable:', filteredNames)
-  return filtered
+  return marks.filter((mark) => carryableMarkNames.has(mark.type.name))
 }
 
 export const splitBlockCommand = (posInBlock: number, keepType?: boolean, keepProps?: boolean, insertNode?: Node) => {
@@ -54,10 +49,6 @@ export const splitBlockCommand = (posInBlock: number, keepType?: boolean, keepPr
     }
 
     tr = tr.setStoredMarks(storedMarks)
-    console.log(
-      '[CTF] splitBlockCommand | setting storedMarks:',
-      storedMarks.map((m) => `${m.type.name}=${JSON.stringify(m.attrs)}`),
-    )
 
     if (dispatch) {
       dispatch(tr)

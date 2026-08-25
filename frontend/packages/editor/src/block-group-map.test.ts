@@ -25,7 +25,6 @@ const schema = new Schema({
       content: 'blockContainer+',
       attrs: {
         listType: {default: null},
-        listLevel: {default: '1'},
         start: {default: null},
         columnCount: {default: null},
       },
@@ -52,7 +51,6 @@ function createBlock(spec: BlockSpec): TipTapNode {
           listType: spec.listType ?? null,
           start: spec.start ?? null,
           columnCount: spec.columnCount ?? null,
-          listLevel: '1',
         },
         spec.children.map(createBlock),
       ),

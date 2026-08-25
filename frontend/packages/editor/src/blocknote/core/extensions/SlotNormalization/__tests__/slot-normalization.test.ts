@@ -19,10 +19,10 @@ function blockNode(id: string, content: any[]) {
   return {type: 'blockNode', attrs: {id}, content}
 }
 function group(listType: string, blocks: any[]) {
-  return {type: 'blockChildren', attrs: {listType, listLevel: '1', columnCount: null}, content: blocks}
+  return {type: 'blockChildren', attrs: {listType, columnCount: null}, content: blocks}
 }
 function slot(childrenType: string) {
-  return {type: 'slot', attrs: {childrenType, listLevel: '1', columnCount: ''}}
+  return {type: 'slot', attrs: {childrenType, columnCount: ''}}
 }
 function doc(schema: Schema, blocks: any[]) {
   return schema.nodeFromJSON({type: 'doc', content: [group('Group', blocks)]})
@@ -113,6 +113,18 @@ describe('slot normalization', () => {
     // The orphan slot must survive: load/rebase reconcile content by id, so the
     // normalizer must not mutate (and delete ids) during those transactions.
     expect(countSlots(newState.doc)).toBe(1)
+  })
+
+  it('detects a slot inserted into a previously slot free document', () => {
+    // Slot-free doc means the plugin's hasSlot state starts false and it early exits.
+    const d = doc(schema, [blockNode('p1', [para('test')])])
+    const state = EditorState.create({doc: d, schema, plugins: [createSlotNormalizationPlugin()]})
+    // Insert an orphan slot (as a paste would). The transaction adds a slot, so
+    // the state must flip and normalization must run.
+    const orphan = schema.nodeFromJSON({type: 'blockNode', attrs: {id: 'orphan'}, content: [slot('Unordered')]})
+    const endOfRoot = d.firstChild!.content.size + 1
+    const newState = state.apply(state.tr.insert(endOfRoot, orphan))
+    expect(countSlots(newState.doc)).toBe(0)
   })
 })
 

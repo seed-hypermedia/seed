@@ -104,7 +104,6 @@ function setEditorRootChildrenType(
     view.state.tr.setNodeMarkup(0, null, {
       ...rootGroup.attrs,
       listType,
-      listLevel: '1',
     }),
   )
 }

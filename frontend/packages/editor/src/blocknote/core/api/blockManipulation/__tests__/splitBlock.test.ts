@@ -140,7 +140,6 @@ describe('splitBlockCommand', () => {
       const topGroup = newState.doc.firstChild!
       expect(topGroup.type.name).toBe('blockChildren')
       expect(topGroup.attrs.listType).toBe('Unordered')
-      expect(topGroup.attrs.listLevel).toBe('1')
       expect(topGroup.childCount).toBe(2)
 
       expect(topGroup.child(0).firstChild!.textContent).toBe('Hello')

@@ -26,7 +26,6 @@ function createSchemaWithCodeBlock(): Schema {
         content: 'blockNode+',
         attrs: {
           listType: {default: 'Group'},
-          listLevel: {default: '1'},
           columnCount: {default: null},
         },
       },

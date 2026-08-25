@@ -4,7 +4,7 @@ import {ResolvedPos} from '@tiptap/pm/model'
 import {Fragment, Node as PMNode} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
-import {getGroupInfoFromPos, getParentGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
+import {getGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
 
 // Returns true if the current block's previous sibling is a table block.
 function isPreviousSiblingTable(state: EditorState): boolean {
@@ -26,7 +26,6 @@ function wrapBlockInSlot(
   state: EditorState,
   dispatch: ((args?: any) => any) | undefined,
   listType: HMBlockChildrenType,
-  listLevel: string,
   posInBlock: number,
 ): boolean {
   let blockInfo
@@ -42,8 +41,8 @@ function wrapBlockInSlot(
   const blockChildrenType = state.schema.nodes['blockChildren']
   if (!slotType || !blockNodeType || !blockChildrenType) return false
 
-  const slotContent = slotType.create({childrenType: listType, listLevel})
-  const innerChildren = blockChildrenType.create({listType, listLevel}, blockInfo.block.node)
+  const slotContent = slotType.create({childrenType: listType})
+  const innerChildren = blockChildrenType.create({listType}, blockInfo.block.node)
   const wrappingBlock = blockNodeType.create(null, [slotContent, innerChildren])
 
   // Capture the cursor position before mutating the transaction.
@@ -91,9 +90,9 @@ function unwrapSlot(
 }
 
 /**
- * Nest the root level slot under the previous sibling. Used in tab handler.
+ * Nest the whole Slot list under the previous sibling block.
  */
-export const nestFirstSlotItemCommand = () => {
+export const nestSlotItem = () => {
   return ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
     const {group, container, depth, $pos} = getGroupInfoFromPos(state.selection.from, state)
     if (!container) return false
@@ -135,59 +134,239 @@ export const nestFirstSlotItemCommand = () => {
 }
 
 /**
- * Lift the first item out of a root-level Slot list. It becomes a plain
- * block at the root, while the remaining items stay grouped in the Slot.
- * If the Slot held only one item, the whole Slot is unwrapped.
+ * Unnest a single root Slot item by one level. It leaves the Slot to
+ * become a plain root block, keeping its entire subtree nested under it.
  *
  * @param opts.requireAtStart when true (Backspace), only fires if the cursor is
  * at the very start of the item's content.
  */
-export const liftFirstSlotItemCommand = (opts: {requireAtStart?: boolean} = {}) => {
+export const liftSlotItem = (opts: {requireAtStart?: boolean} = {}) => {
   return ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
-    const {group, container, depth, $pos} = getGroupInfoFromPos(state.selection.from, state)
-    if (!container) return false
+    const {$from} = state.selection
 
-    const slotWrapper = depth - 1 >= 0 ? $pos.node(depth - 1) : null
-    const isRootSlot =
-      slotWrapper?.type.name === 'blockNode' &&
-      slotWrapper.firstChild?.type.name === 'slot' &&
-      depth - 3 >= 0 &&
-      $pos.node(depth - 2).type.name === 'blockChildren' &&
-      $pos.node(depth - 3).type.name === 'doc'
-    if (!isRootSlot) return false
+    // Locate the root Slot's inner list group.
+    let groupDepth = -1
+    for (let d = $from.depth; d >= 3; d--) {
+      if ($from.node(d).type.name !== 'blockChildren') continue
+      const parent = $from.node(d - 1)
+      const grand = $from.node(d - 2)
+      const great = $from.node(d - 3)
+      if (
+        parent.type.name === 'blockNode' &&
+        parent.firstChild?.type.name === 'slot' &&
+        grand.type.name === 'blockChildren' &&
+        great.type.name === 'doc'
+      ) {
+        groupDepth = d
+        break
+      }
+    }
+    if (groupDepth === -1) return false
+    // Must be a cursor directly in a top-level item (content block at +2).
+    if ($from.depth !== groupDepth + 2) return false
+    if (opts.requireAtStart && $from.parentOffset !== 0) return false
 
-    // Only the first item lifts to root.
-    if (group.firstChild?.attrs.id !== container.attrs.id) return false
-    // For Backspace, only when the cursor is at the very start of the item.
-    if (opts.requireAtStart && $pos.parentOffset !== 0) return false
+    const innerGroup = $from.node(groupDepth)
+    const slotWrapper = $from.node(groupDepth - 1)
+    const slotNode = slotWrapper.firstChild
+    const blockNodeType = state.schema.nodes['blockNode']
+    if (!slotNode || !blockNodeType) return false
 
+    const itemIndex = $from.index(groupDepth)
     if (!dispatch) return true
 
-    const innerGroup = slotWrapper!.lastChild! // the list blockChildren
-    const firstItem = innerGroup.firstChild!
-    const slotWrapperPos = $pos.before(depth - 1)
-    const slotWrapperEnd = slotWrapperPos + slotWrapper!.nodeSize
+    const items: PMNode[] = []
+    innerGroup.forEach((child) => items.push(child))
+    const item = items[itemIndex]!
+    const before = items.slice(0, itemIndex)
+    const after = items.slice(itemIndex + 1)
 
-    let replacement: PMNode[]
-    if (innerGroup.childCount === 1) {
-      // Only item. Unwrap the Slot entirely.
-      replacement = [firstItem]
-    } else {
-      // Keep the remaining items grouped in a Slot after the lifted first item.
-      const remaining: PMNode[] = []
-      innerGroup.forEach((child, _offset, index) => {
-        if (index > 0) remaining.push(child)
+    let idUsed = false
+    const makeSlot = (groupItems: PMNode[]): PMNode => {
+      const attrs = idUsed ? {...slotWrapper.attrs, id: null} : slotWrapper.attrs
+      idUsed = true
+      return blockNodeType.create(attrs, [slotNode, innerGroup.copy(Fragment.fromArray(groupItems))])
+    }
+
+    const replacement: PMNode[] = []
+    if (before.length) replacement.push(makeSlot(before))
+    replacement.push(item)
+    if (after.length) replacement.push(makeSlot(after))
+
+    const slotWrapperPos = $from.before(groupDepth - 1)
+    const slotWrapperEnd = slotWrapperPos + slotWrapper.nodeSize
+    const tr = state.tr.replaceWith(slotWrapperPos, slotWrapperEnd, replacement)
+
+    // Keep the cursor in the lifted item at the same offset.
+    const liftedStart = slotWrapperPos + (before.length ? replacement[0]!.nodeSize : 0)
+    tr.setSelection(TextSelection.near(tr.doc.resolve(liftedStart + 2 + $from.parentOffset))).scrollIntoView()
+    dispatch(tr)
+    return true
+  }
+}
+
+// Check if a list item carries a nested sublist.
+function itemSublist(item: PMNode): PMNode | null {
+  return item.childCount === 2 && item.lastChild?.type.name === 'blockChildren' ? item.lastChild : null
+}
+
+/**
+ * Outdent every selected list item inside a root Slot by exactly one level.
+ */
+export const liftSlotSelection = () => {
+  return ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
+    const selection = state.selection
+    const {$from} = selection
+
+    // Locate the root Slot's inner list group, if any.
+    let groupDepth = -1
+    for (let d = $from.depth; d >= 3; d--) {
+      if ($from.node(d).type.name !== 'blockChildren') continue
+      const parent = $from.node(d - 1)
+      const grand = $from.node(d - 2)
+      const great = $from.node(d - 3)
+      if (
+        parent.type.name === 'blockNode' &&
+        parent.firstChild?.type.name === 'slot' &&
+        grand.type.name === 'blockChildren' &&
+        great.type.name === 'doc'
+      ) {
+        groupDepth = d
+        break
+      }
+    }
+    if (groupDepth === -1) return false
+
+    const innerGroup = $from.node(groupDepth)
+    const slotWrapper = $from.node(groupDepth - 1)
+    const slotNode = slotWrapper.firstChild
+    const blockNodeType = state.schema.nodes['blockNode']
+    const blockChildrenType = state.schema.nodes['blockChildren']
+    if (!slotNode || !blockNodeType || !blockChildrenType) return false
+
+    const slotWrapperPos = $from.before(groupDepth - 1)
+    const slotWrapperEnd = slotWrapperPos + slotWrapper.nodeSize
+
+    // Determine selected items.
+    const {from, to} = selection
+    const selectedIds = new Set<string>()
+    state.doc.nodesBetween(slotWrapperPos, slotWrapperEnd, (node, pos) => {
+      if (node.type.name === 'blockNode' && typeof node.attrs.id === 'string' && node.firstChild) {
+        const cStart = pos + 1
+        const cEnd = cStart + node.firstChild.nodeSize
+        const overlaps = from === to ? cStart <= from && from <= cEnd : cStart < to && cEnd > from
+        if (overlaps) selectedIds.add(node.attrs.id)
+      }
+      return true
+    })
+    if (!selectedIds.size) return false
+    if (!dispatch) return true
+
+    // Remember both selection endpoints by (block id, offset)
+    // so we can restore the same range after the rebuild.
+    const captureEndpoint = ($pos: typeof $from): {id: string | null; offset: number} => {
+      for (let d = $pos.depth; d >= 1; d--) {
+        const node = $pos.node(d)
+        if (node.type.name === 'blockNode' && typeof node.attrs.id === 'string') {
+          return {id: node.attrs.id, offset: $pos.parentOffset}
+        }
+      }
+      return {id: null, offset: $pos.parentOffset}
+    }
+    const anchorEnd = captureEndpoint($from)
+    const headEnd = captureEndpoint(selection.$to)
+
+    // Flatten to (content item, target depth, original list attrs).
+    // A Slot item starts at depth 1 and each nesting adds one.
+    // The depth drops by one when the item, or any ancestor is selected.
+    type Flat = {item: PMNode; depth: number; listAttrs: PMNode['attrs']}
+    const flat: Flat[] = []
+    const flatten = (list: PMNode, depth: number, ancestorSelected: boolean) => {
+      list.forEach((item) => {
+        const selected = ancestorSelected || (typeof item.attrs.id === 'string' && selectedIds.has(item.attrs.id))
+        const sublist = itemSublist(item)
+        flat.push({
+          item: blockNodeType.create(item.attrs, [item.firstChild!]),
+          depth: selected ? depth - 1 : depth,
+          listAttrs: list.attrs,
+        })
+        if (sublist) flatten(sublist, depth + 1, selected)
       })
-      const newInnerGroup = innerGroup.copy(Fragment.fromArray(remaining))
-      const newSlot = slotWrapper!.copy(Fragment.fromArray([slotWrapper!.firstChild!, newInnerGroup]))
-      replacement = [firstItem, newSlot]
+    }
+    flatten(innerGroup, 1, false)
+
+    // Rebuild the nested list items for a run of same or deeper entries.
+    // Each entry becomes a blockNode. Deeper entries become its nested list.
+    const buildNested = (entries: Flat[], depth: number): PMNode[] => {
+      const result: PMNode[] = []
+      let i = 0
+      while (i < entries.length) {
+        const cur = entries[i]!
+        let j = i + 1
+        while (j < entries.length && entries[j]!.depth > depth) j++
+        const descendants = entries.slice(i + 1, j)
+        let node = cur.item
+        if (descendants.length) {
+          const childList = blockChildrenType.create(
+            descendants[0]!.listAttrs,
+            Fragment.fromArray(buildNested(descendants, depth + 1)),
+          )
+          node = blockNodeType.create(cur.item.attrs, [cur.item.firstChild!, childList])
+        }
+        result.push(node)
+        i = j
+      }
+      return result
+    }
+
+    // Walk the flattened items. Depth 0 entries are plain root blocks.
+    // Each run of depth 1+ entries becomes one Slot-wrapped list.
+    let idUsed = false
+    const replacement: PMNode[] = []
+    let i = 0
+    while (i < flat.length) {
+      if (flat[i]!.depth <= 0) {
+        replacement.push(flat[i]!.item)
+        i++
+        continue
+      }
+      let j = i
+      while (j < flat.length && flat[j]!.depth >= 1) j++
+      const run = flat.slice(i, j)
+      const list = blockChildrenType.create(run[0]!.listAttrs, Fragment.fromArray(buildNested(run, 1)))
+      const attrs = idUsed ? {...slotWrapper.attrs, id: null} : slotWrapper.attrs
+      idUsed = true
+      replacement.push(blockNodeType.create(attrs, [slotNode, list]))
+      i = j
     }
 
     const tr = state.tr.replaceWith(slotWrapperPos, slotWrapperEnd, replacement)
-    // The lifted first item now sits at slotWrapperPos.
-    // Its content starts at +2. Preserve the cursor's offset.
-    const newFrom = slotWrapperPos + 2 + $pos.parentOffset
-    tr.setSelection(TextSelection.near(tr.doc.resolve(newFrom))).scrollIntoView()
+
+    // Restore the selection over the same blocks.
+    const locate = (end: {id: string | null; offset: number}): number | null => {
+      if (!end.id) return null
+      let result: number | null = null
+      tr.doc.descendants((node, pos) => {
+        if (result !== null) return false
+        if (node.type.name === 'blockNode' && node.attrs.id === end.id) {
+          const content = node.firstChild
+          const maxOffset = content ? content.content.size : 0
+          result = pos + 2 + Math.min(end.offset, maxOffset)
+          return false
+        }
+        return true
+      })
+      return result
+    }
+    const anchorPos = locate(anchorEnd)
+    const headPos = locate(headEnd)
+    const clamp = (p: number) => Math.max(0, Math.min(p, tr.doc.content.size))
+    if (anchorPos !== null && headPos !== null) {
+      tr.setSelection(TextSelection.between(tr.doc.resolve(clamp(anchorPos)), tr.doc.resolve(clamp(headPos))))
+    } else if (anchorPos !== null) {
+      tr.setSelection(TextSelection.near(tr.doc.resolve(clamp(anchorPos))))
+    }
+    tr.scrollIntoView()
     dispatch(tr)
     return true
   }
@@ -211,13 +390,10 @@ export const updateGroupCommand = (
     dispatch: ((args?: any) => any) | undefined
   }) => {
     // Find block group, block container and depth it is at
-    const {
-      group,
-      container,
-      depth,
-      level: groupLevel,
-      $pos,
-    } = getGroupInfoFromPos(posInBlock < 0 ? state.selection.from : posInBlock, state)
+    const {group, container, depth, $pos} = getGroupInfoFromPos(
+      posInBlock < 0 ? state.selection.from : posInBlock,
+      state,
+    )
 
     if (isSank && group.attrs.listType === listType) return true
 
@@ -236,15 +412,9 @@ export const updateGroupCommand = (
         tr.setNodeMarkup($pos.before(depth), null, {
           ...group.attrs,
           listType: 'Group',
-          listLevel: '1',
         })
         dispatch(tr)
       }
-
-      // Update children levels asynchronously
-      setTimeout(() => {
-        editor.commands.command(updateGroupChildrenCommand(group, container, $pos, 0, group.attrs.listType, false))
-      })
 
       return true
     }
@@ -256,7 +426,7 @@ export const updateGroupCommand = (
 
       // Wrap the block in an invisible Slot.
       setTimeout(() => {
-        editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, '1', s.selection.from))
+        editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, s.selection.from))
       })
       return false
     }
@@ -273,7 +443,7 @@ export const updateGroupCommand = (
         // Can't sink under a table, so wrap the block in an invisible Slot that
         // carries the list instead.
         setTimeout(() => {
-          editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, '1', s.selection.from))
+          editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, s.selection.from))
         })
         return false
       }
@@ -303,7 +473,7 @@ export const updateGroupCommand = (
         // Can't sink under a table, so wrap the block in an invisible Slot that
         // carries the list instead.
         setTimeout(() => {
-          editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, '1', s.selection.from))
+          editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, s.selection.from))
         })
         return false
       }
@@ -320,112 +490,14 @@ export const updateGroupCommand = (
     }
 
     if (dispatch && group.type.name === 'blockChildren') {
-      let level = '1'
-      // Set new level based on the level of the previous group, if any.
-      if (depth >= 5) {
-        const {node: parentGroup, pos: parentGroupPos} = getParentGroupInfoFromPos(group, $pos, depth)
-        if (parentGroup && parentGroup.attrs.listType === listType) {
-          level = `${parseInt(parentGroup.attrs.listLevel) + 1}`
-        }
-      }
-
       const tr = state.tr
       tr.setNodeMarkup($pos.before(depth), null, {
         ...group.attrs,
         listType: listType,
-        listLevel: level,
       })
       dispatch(tr)
-
-      // Update children levels asynchronously
-      if (container) {
-        setTimeout(() => {
-          editor.commands.command(
-            updateGroupChildrenCommand(
-              group,
-              container!,
-              $pos,
-              listType === 'Unordered' ? parseInt(level) : 0,
-              listType,
-              true,
-            ),
-          )
-        })
-      }
     }
 
     return true
-  }
-}
-
-export const updateGroupChildrenCommand = (
-  group: PMNode,
-  container: PMNode,
-  groupPos: ResolvedPos,
-  groupLevel: number,
-  listType: HMBlockChildrenType,
-  indent: boolean,
-) => {
-  return ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
-    if (dispatch) {
-      let beforeSelectedContainer = true
-      let tr = state.tr
-      // Update children level of each child of the group.
-      group.content.forEach((childContainer, offset) => {
-        if (childContainer.type.name === 'blockNode') {
-          if (childContainer.attrs.id === container.attrs.id) {
-            beforeSelectedContainer = false
-          }
-          if (beforeSelectedContainer) {
-            return
-          }
-          childContainer.descendants((childGroup, pos, _parent, index) => {
-            // If the child has a group, update group's list level attribute.
-            if (childGroup.type.name === 'blockChildren' && childGroup.attrs.listType === 'Unordered') {
-              const $pos = childContainer.resolve(pos)
-              let newLevel: string
-              // Set new level based on depth and indent.
-              if (indent) {
-                let numericLevel = $pos.depth / 2 + groupLevel + 1
-                newLevel = numericLevel < 3 ? numericLevel.toString() : '3'
-              } else {
-                let numericLevel = $pos.depth / 2 + groupLevel
-                newLevel = numericLevel < 3 ? numericLevel.toString() : '3'
-              }
-              const maybeContainer = state.doc.resolve(groupPos.start() + pos - 1).parent
-
-              // Position adjustment based on where the node is in the group.
-              let posAddition =
-                maybeContainer.type.name === 'blockNode'
-                  ? indent && group.attrs.listType === listType
-                    ? -3
-                    : -1
-                  : group.lastChild && childContainer.eq(group.lastChild) && !childContainer.eq(group.firstChild!)
-                    ? 1
-                    : 0
-
-              if (
-                childContainer.eq(maybeContainer) &&
-                indent
-                // &&
-                // childContainer.eq(group.firstChild!)
-              )
-                posAddition = -1
-
-              // Add offset only when changing between list types.
-              if (group.attrs.listType !== listType) posAddition += offset
-
-              if (newLevel !== childGroup.attrs.listLevel) {
-                tr = tr.setNodeAttribute(groupPos.start() + pos + posAddition, 'listLevel', newLevel)
-              }
-            }
-          })
-        }
-      })
-
-      dispatch(tr)
-      return true
-    }
-    return false
   }
 }

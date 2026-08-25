@@ -18,9 +18,6 @@ export const defaultProps = {
     default: 'Group' as const,
     values: ['Group', 'Unordered', 'Ordered', 'Blockquote', 'Grid'] as const,
   },
-  listLevel: {
-    default: '1' as const,
-  },
 } satisfies PropSchema
 
 export type DefaultProps = typeof defaultProps

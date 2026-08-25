@@ -446,9 +446,8 @@ export function nodeToBlock<BSchema extends BlockSchema>(
   }
 
   if (node.lastChild!.attrs.listType) {
-    const {listType, listLevel, start, columnCount} = node.lastChild!.attrs
+    const {listType, start, columnCount} = node.lastChild!.attrs
     props['childrenType'] = listType
-    props['listLevel'] = listLevel
     props['start'] = start
     if (listType === 'Grid' && columnCount) {
       props['columnCount'] = columnCount
@@ -461,7 +460,6 @@ export function nodeToBlock<BSchema extends BlockSchema>(
     // Table's children are structural rows/columns. Strip list/grid affiliated
     // attributes because tables cannot have nested blockChildren nodes.
     delete props.childrenType
-    delete props.listLevel
     delete props.start
     delete props.columnCount
 
@@ -490,11 +488,10 @@ export function nodeToBlock<BSchema extends BlockSchema>(
         orphanedChildren.push(nodeToBlock(orphanedContainer.child(j), blockSchema, blockCache))
       }
       const listType = orphanedContainer.attrs?.listType || 'Group'
-      const listLevel = orphanedContainer.attrs?.listLevel || '1'
       children.push({
         id: UniqueID.options.generateID(),
         type: 'paragraph',
-        props: {childrenType: listType, listLevel},
+        props: {childrenType: listType},
         content: [],
         children: orphanedChildren,
       } as unknown as Block<BSchema>)

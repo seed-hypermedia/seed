@@ -218,7 +218,7 @@ function insertAsChild(
   } else {
     // Create a new blockChildren wrapper and insert it at the end of the blockNode
     const blockChildrenType = schema.nodes.blockChildren
-    const wrapper = blockChildrenType.create({listType: 'Group', listLevel: '1'}, Fragment.from(sourceNodes))
+    const wrapper = blockChildrenType.create({listType: 'Group'}, Fragment.from(sourceNodes))
     // Insert just before the closing of the blockNode
     const insertAt = targetPos + targetBlock.nodeSize - 1
     tr.insert(insertAt, wrapper)

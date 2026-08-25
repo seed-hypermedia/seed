@@ -33,6 +33,7 @@ import {Transaction} from 'prosemirror-state'
 import {MentionMenuProsemirrorPlugin} from '../../mention-menu-plugin'
 import {HMBlockSchema, hmBlockSchema} from '../../schema'
 import {insertBlocks} from './api/blockManipulation/commands/insertBlocks'
+import {unnestBlock as unnestBlockCommand} from './api/blockManipulation/commands/nestBlock'
 import {newRemoveBlocks} from './api/blockManipulation/commands/removeBlocks'
 import {newReplaceBlocks} from './api/blockManipulation/commands/replaceBlocks'
 import {updateBlock} from './api/blockManipulation/commands/updateBlock'
@@ -927,7 +928,7 @@ export class BlockNoteEditor<BSchema extends BlockSchema = HMBlockSchema> {
    * Lifts the block containing the text cursor out of its parent.
    */
   public unnestBlock() {
-    this._tiptapEditor.commands.liftListItem('blockNode')
+    unnestBlockCommand(this._tiptapEditor, this._tiptapEditor.state.selection.from)
   }
 
   /**

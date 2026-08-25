@@ -2,7 +2,7 @@ import {Schema} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {getGroupInfoFromPos} from '../../../extensions/Blocks/helpers/getGroupInfoFromPos'
-import {liftFirstSlotItemCommand, nestFirstSlotItemCommand, updateGroupCommand} from '../commands/updateGroup'
+import {liftSlotItem, liftSlotSelection, nestSlotItem, updateGroupCommand} from '../commands/updateGroup'
 import {buildDoc, createMinimalSchema, createMockEditor, findPosInBlock} from './test-helpers-prosemirror'
 
 describe('updateGroup command', () => {
@@ -166,16 +166,16 @@ describe('updateGroup command', () => {
       content: [
         {
           type: 'blockChildren',
-          attrs: {listType: 'Group', listLevel: '1', columnCount: null},
+          attrs: {listType: 'Group', columnCount: null},
           content: [
             {
               type: 'blockNode',
               attrs: {id: 'slot-wrapper'},
               content: [
-                {type: 'slot', attrs: {childrenType: 'Unordered', listLevel: '1', columnCount: ''}},
+                {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
                 {
                   type: 'blockChildren',
-                  attrs: {listType: 'Unordered', listLevel: '1', columnCount: null},
+                  attrs: {listType: 'Unordered', columnCount: null},
                   content: [
                     {
                       type: 'blockNode',
@@ -250,16 +250,16 @@ describe('updateGroup command', () => {
         content: [
           {
             type: 'blockChildren',
-            attrs: {listType: 'Group', listLevel: '1', columnCount: null},
+            attrs: {listType: 'Group', columnCount: null},
             content: [
               {
                 type: 'blockNode',
                 attrs: {id: 'slot-wrapper'},
                 content: [
-                  {type: 'slot', attrs: {childrenType: 'Unordered', listLevel: '1', columnCount: ''}},
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
                   {
                     type: 'blockChildren',
-                    attrs: {listType: 'Unordered', listLevel: '1', columnCount: null},
+                    attrs: {listType: 'Unordered', columnCount: null},
                     content: itemTexts.map((text, i) => ({
                       type: 'blockNode',
                       attrs: {id: `item-${i + 1}`},
@@ -280,7 +280,7 @@ describe('updateGroup command', () => {
       const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
       const editor = createMockEditor(state)
 
-      const newState = runCommand(state, editor, liftFirstSlotItemCommand())!
+      const newState = runCommand(state, editor, liftSlotItem())!
 
       const rootGroup = newState.doc.firstChild!
       expect(rootGroup.childCount).toBe(2)
@@ -308,7 +308,7 @@ describe('updateGroup command', () => {
       const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
       const editor = createMockEditor(state)
 
-      const newState = runCommand(state, editor, liftFirstSlotItemCommand())!
+      const newState = runCommand(state, editor, liftSlotItem())!
 
       const rootGroup = newState.doc.firstChild!
       expect(rootGroup.childCount).toBe(1)
@@ -329,8 +329,693 @@ describe('updateGroup command', () => {
       const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
       const editor = createMockEditor(state)
 
-      const newState = runCommand(state, editor, liftFirstSlotItemCommand({requireAtStart: true}))
+      const newState = runCommand(state, editor, liftSlotItem({requireAtStart: true}))
       // Command returns false so no dispatch.
+      expect(newState).toBeUndefined()
+    })
+
+    it('lifts a middle item, keeping a leading and trailing Slot', () => {
+      const doc = rootSlotDoc(['one', 'two', 'three'])
+      const pos = findPosInBlock(doc, 'item-2')
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotItem())!
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(3)
+      expect(rootGroup.child(0).firstChild!.type.name).toBe('slot')
+      expect(rootGroup.child(0).lastChild!.child(0).attrs.id).toBe('item-1')
+      expect(rootGroup.child(1).attrs.id).toBe('item-2') // lifted plain
+      expect(rootGroup.child(2).firstChild!.type.name).toBe('slot')
+      expect(rootGroup.child(2).lastChild!.child(0).attrs.id).toBe('item-3')
+    })
+
+    // A Slot item that has a sublist is lifted with its subtree kept nested under it.
+    it('keeps the lifted item’s children nested under it', () => {
+      const doc = schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', columnCount: null},
+                    content: [
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'A'},
+                        content: [
+                          {type: 'paragraph', content: [{type: 'text', text: 'A'}]},
+                          {
+                            type: 'blockChildren',
+                            attrs: {listType: 'Unordered', columnCount: null},
+                            content: [
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'A1'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'A1'}]}],
+                              },
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'A2'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'A2'}]}],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'B'},
+                        content: [{type: 'paragraph', content: [{type: 'text', text: 'B'}]}],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, findPosInBlock(doc, 'A'))})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotItem())!
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(2)
+
+      // A is a plain root block that still owns its nested list [A1, A2].
+      const A = rootGroup.child(0)
+      expect(A.attrs.id).toBe('A')
+      expect(A.lastChild!.type.name).toBe('blockChildren')
+      expect(A.lastChild!.child(0).attrs.id).toBe('A1')
+      expect(A.lastChild!.child(1).attrs.id).toBe('A2')
+
+      // B stays in its own Slot. A's children were not merged into it.
+      const slot = rootGroup.child(1)
+      expect(slot.firstChild!.type.name).toBe('slot')
+      expect(slot.lastChild!.childCount).toBe(1)
+      expect(slot.lastChild!.child(0).attrs.id).toBe('B')
+    })
+
+    it('declines for a cursor inside a nested item', () => {
+      const item = (id: string, ...extra: any[]) => ({
+        type: 'blockNode',
+        attrs: {id},
+        content: [{type: 'paragraph', content: [{type: 'text', text: id}]}, ...extra],
+      })
+      const ul = (...content: any[]) => ({type: 'blockChildren', attrs: {listType: 'Unordered'}, content})
+      const slotWrapper = {
+        type: 'blockNode',
+        attrs: {id: 'sw'},
+        content: [{type: 'slot'}, ul(item('parent', ul(item('nested'))))],
+      }
+      const doc = schema.nodeFromJSON({type: 'doc', content: [{type: 'blockChildren', content: [slotWrapper]}]})
+      const state = EditorState.create({
+        doc,
+        schema,
+        selection: TextSelection.create(doc, findPosInBlock(doc, 'nested')),
+      })
+      const newState = runCommand(state, createMockEditor(state), liftSlotItem())
+      expect(newState).toBeUndefined() // cursor is nested, not a top-level item
+    })
+  })
+
+  // Shift-Tab with a selection spanning several items of a root Slot list lifts
+  // every touched item out to the root at once, keeping items before and after
+  // the range grouped in their own Slot.
+  describe('lift a selected range of root Slot items (multi-select unnest)', () => {
+    function rootSlotDoc(itemTexts: string[]) {
+      return schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', columnCount: null},
+                    content: itemTexts.map((text, i) => ({
+                      type: 'blockNode',
+                      attrs: {id: `item-${i + 1}`},
+                      content: [{type: 'paragraph', content: [{type: 'text', text}]}],
+                    })),
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+    }
+
+    it('lifts the leading two of three items and keeps the third grouped', () => {
+      const doc = rootSlotDoc(['one', 'two', 'three'])
+      const state = EditorState.create({
+        doc,
+        schema,
+        selection: TextSelection.create(doc, findPosInBlock(doc, 'item-1'), findPosInBlock(doc, 'item-2')),
+      })
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(3)
+
+      // Two lifted plain root blocks, in order.
+      expect(rootGroup.child(0).attrs.id).toBe('item-1')
+      expect(rootGroup.child(0).firstChild!.textContent).toBe('one')
+      expect(rootGroup.child(1).attrs.id).toBe('item-2')
+      expect(rootGroup.child(1).firstChild!.textContent).toBe('two')
+
+      // A trailing Slot with the remaining item.
+      const trailing = rootGroup.child(2)
+      expect(trailing.firstChild!.type.name).toBe('slot')
+      const innerGroup = trailing.lastChild!
+      expect(innerGroup.attrs.listType).toBe('Unordered')
+      expect(innerGroup.childCount).toBe(1)
+      expect(innerGroup.child(0).attrs.id).toBe('item-3')
+    })
+
+    it('lifts a middle range, keeping a leading and a trailing Slot', () => {
+      const doc = rootSlotDoc(['one', 'two', 'three', 'four'])
+      const state = EditorState.create({
+        doc,
+        schema,
+        selection: TextSelection.create(doc, findPosInBlock(doc, 'item-2'), findPosInBlock(doc, 'item-3')),
+      })
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(4)
+
+      // Leading Slot: item-1.
+      const leading = rootGroup.child(0)
+      expect(leading.firstChild!.type.name).toBe('slot')
+      expect(leading.lastChild!.childCount).toBe(1)
+      expect(leading.lastChild!.child(0).attrs.id).toBe('item-1')
+
+      // Lifted items in the middle.
+      expect(rootGroup.child(1).attrs.id).toBe('item-2')
+      expect(rootGroup.child(2).attrs.id).toBe('item-3')
+
+      // Trailing Slot: item-4.
+      const trailing = rootGroup.child(3)
+      expect(trailing.firstChild!.type.name).toBe('slot')
+      expect(trailing.lastChild!.child(0).attrs.id).toBe('item-4')
+
+      // The split must not duplicate the wrapper's block id.
+      expect(leading.attrs.id).not.toBe(trailing.attrs.id)
+    })
+
+    it('unwraps the whole Slot when the selection covers every item', () => {
+      const doc = rootSlotDoc(['one', 'two', 'three'])
+      const state = EditorState.create({
+        doc,
+        schema,
+        selection: TextSelection.create(doc, findPosInBlock(doc, 'item-1'), findPosInBlock(doc, 'item-3')),
+      })
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(3)
+      expect(rootGroup.child(0).attrs.id).toBe('item-1')
+      expect(rootGroup.child(1).attrs.id).toBe('item-2')
+      expect(rootGroup.child(2).attrs.id).toBe('item-3')
+
+      let hasSlot = false
+      newState.doc.descendants((node) => {
+        if (node.type.name === 'slot') hasSlot = true
+      })
+      expect(hasSlot).toBe(false)
+    })
+
+    it('lifts just the item under a collapsed cursor (single item unnest)', () => {
+      const doc = rootSlotDoc(['one', 'two', 'three'])
+      const pos = findPosInBlock(doc, 'item-2')
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(3)
+
+      // Leading Slot: item-1.
+      expect(rootGroup.child(0).firstChild!.type.name).toBe('slot')
+      expect(rootGroup.child(0).lastChild!.child(0).attrs.id).toBe('item-1')
+      // Lifted middle item.
+      expect(rootGroup.child(1).attrs.id).toBe('item-2')
+      expect(rootGroup.child(1).firstChild!.textContent).toBe('two')
+      // Trailing Slot: item-3.
+      expect(rootGroup.child(2).firstChild!.type.name).toBe('slot')
+      expect(rootGroup.child(2).lastChild!.child(0).attrs.id).toBe('item-3')
+    })
+
+    // Selecting a top level item and one of its nested children outdents each by
+    // one level.
+    it('outdents a parent, carrying its whole subtree up one level', () => {
+      const doc = schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', columnCount: null},
+                    content: [
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'item-1'},
+                        content: [
+                          {type: 'paragraph', content: [{type: 'text', text: 'one'}]},
+                          {
+                            type: 'blockChildren',
+                            attrs: {listType: 'Unordered', columnCount: null},
+                            content: [
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'sub-a'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'sub a'}]}],
+                              },
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'sub-b'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'sub b'}]}],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'item-2'},
+                        content: [{type: 'paragraph', content: [{type: 'text', text: 'two'}]}],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      const state = EditorState.create({
+        doc,
+        schema,
+        selection: TextSelection.create(doc, findPosInBlock(doc, 'item-1'), findPosInBlock(doc, 'sub-a')),
+      })
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const rootGroup = newState.doc.firstChild!
+      expect(rootGroup.childCount).toBe(2)
+
+      // item-1 is now a plain root block with no nested list.
+      const lifted = rootGroup.child(0)
+      expect(lifted.attrs.id).toBe('item-1')
+      expect(lifted.childCount).toBe(1)
+      expect(lifted.firstChild!.textContent).toBe('one')
+
+      // sub-a and sub-b both lifted to level 1, then item-2
+      // is one flat Slot list, none nested under another.
+      const slot = rootGroup.child(1)
+      expect(slot.firstChild!.type.name).toBe('slot')
+      const list = slot.lastChild!
+      expect(list.childCount).toBe(3)
+      expect(list.child(0).attrs.id).toBe('sub-a')
+      expect(list.child(0).childCount).toBe(1)
+      expect(list.child(1).attrs.id).toBe('sub-b')
+      expect(list.child(2).attrs.id).toBe('item-2')
+    })
+
+    it('outdents items at different levels each by one level', () => {
+      const doc = schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', columnCount: null},
+                    content: [
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'test-1'},
+                        content: [
+                          {type: 'paragraph', content: [{type: 'text', text: 'test 1'}]},
+                          {
+                            type: 'blockChildren',
+                            attrs: {listType: 'Unordered', columnCount: null},
+                            content: [
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'sub-1'},
+                                content: [
+                                  {type: 'paragraph', content: [{type: 'text', text: 'sub 1'}]},
+                                  {
+                                    type: 'blockChildren',
+                                    attrs: {listType: 'Unordered', columnCount: null},
+                                    content: [
+                                      {
+                                        type: 'blockNode',
+                                        attrs: {id: 'two-sub'},
+                                        content: [{type: 'paragraph', content: [{type: 'text', text: '2 sub'}]}],
+                                      },
+                                    ],
+                                  },
+                                ],
+                              },
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'sub-2'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'sub 2'}]}],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'test-2'},
+                        content: [{type: 'paragraph', content: [{type: 'text', text: 'test 2'}]}],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      const state = EditorState.create({
+        doc,
+        schema,
+        selection: TextSelection.create(doc, findPosInBlock(doc, 'sub-2'), findPosInBlock(doc, 'test-2')),
+      })
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const rootGroup = newState.doc.firstChild!
+      // A Slot, then test 2 as a plain block.
+      expect(rootGroup.childCount).toBe(2)
+
+      const slot = rootGroup.child(0)
+      expect(slot.firstChild!.type.name).toBe('slot')
+      const list = slot.lastChild!
+      expect(list.childCount).toBe(2)
+
+      // test 1 untouched..
+      const t1 = list.child(0)
+      expect(t1.attrs.id).toBe('test-1')
+      const t1Sub = t1.lastChild!
+      expect(t1Sub.type.name).toBe('blockChildren')
+      expect(t1Sub.childCount).toBe(1)
+      expect(t1Sub.child(0).attrs.id).toBe('sub-1')
+      expect(t1Sub.child(0).lastChild!.child(0).attrs.id).toBe('two-sub')
+
+      // sub 2 moved up one level, now a sibling of test 1.
+      expect(list.child(1).attrs.id).toBe('sub-2')
+      expect(list.child(1).childCount).toBe(1)
+
+      // test 2 moved up one level, out of the Slot, to a plain root block.
+      expect(rootGroup.child(1).attrs.id).toBe('test-2')
+      expect(rootGroup.child(1).childCount).toBe(1)
+    })
+
+    // A selection spanning a sub item, its own child,
+    // and its sibling outdents all of them one level.
+    it('outdents every selected item when the range crosses a nested child', () => {
+      const doc = schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', columnCount: null},
+                    content: [
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'test-1'},
+                        content: [
+                          {type: 'paragraph', content: [{type: 'text', text: 'test 1'}]},
+                          {
+                            type: 'blockChildren',
+                            attrs: {listType: 'Unordered', columnCount: null},
+                            content: [
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'sub-1'},
+                                content: [
+                                  {type: 'paragraph', content: [{type: 'text', text: 'sub 1'}]},
+                                  {
+                                    type: 'blockChildren',
+                                    attrs: {listType: 'Unordered', columnCount: null},
+                                    content: [
+                                      {
+                                        type: 'blockNode',
+                                        attrs: {id: 'sub-1-5'},
+                                        content: [{type: 'paragraph', content: [{type: 'text', text: 'sub 1.5'}]}],
+                                      },
+                                    ],
+                                  },
+                                ],
+                              },
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'sub-2'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'sub 2'}]}],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      const state = EditorState.create({
+        doc,
+        schema,
+        selection: TextSelection.create(doc, findPosInBlock(doc, 'sub-1'), findPosInBlock(doc, 'sub-2')),
+      })
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const list = newState.doc.firstChild!.child(0).lastChild!
+      // Level 1 list is now [test 1, sub 1 [sub 1.5], sub 2].
+      expect(list.childCount).toBe(3)
+      expect(list.child(0).attrs.id).toBe('test-1')
+      expect(list.child(0).childCount).toBe(1) // test 1 lost its children
+
+      const sub1 = list.child(1)
+      expect(sub1.attrs.id).toBe('sub-1')
+      expect(sub1.lastChild!.type.name).toBe('blockChildren') // sub 1.5 stays nested under sub 1
+      expect(sub1.lastChild!.child(0).attrs.id).toBe('sub-1-5')
+
+      // sub 2 lifted to level 1 as its own sibling.
+      expect(list.child(2).attrs.id).toBe('sub-2')
+      expect(list.child(2).childCount).toBe(1)
+
+      // The multi item selection is retained.
+      const {$from, $to} = newState.selection
+      expect(newState.selection.empty).toBe(false)
+      const blockIdAt = ($pos: (typeof newState.selection)['$from']) => {
+        for (let d = $pos.depth; d > 0; d--) {
+          if ($pos.node(d).type.name === 'blockNode') return $pos.node(d).attrs.id
+        }
+        return null
+      }
+      expect(blockIdAt($from)).toBe('sub-1')
+      expect(blockIdAt($to)).toBe('sub-2')
+    })
+
+    // The cursor stays in the block it was in, not jumping to some other block.
+    it('keeps the cursor in the outdented block', () => {
+      const doc = schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', columnCount: null},
+                    content: [
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'only'},
+                        content: [{type: 'paragraph', content: [{type: 'text', text: 'hello'}]}],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            type: 'blockNode',
+            attrs: {id: 'after'},
+            content: [{type: 'paragraph', content: [{type: 'text', text: 'after'}]}],
+          },
+        ],
+      })
+      // Cursor after "hel" in the item.
+      const pos = findPosInBlock(doc, 'only') + 3
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const $sel = newState.selection.$from
+      let containerId: string | null = null
+      for (let d = $sel.depth; d > 0; d--) {
+        if ($sel.node(d).type.name === 'blockNode') {
+          containerId = $sel.node(d).attrs.id
+          break
+        }
+      }
+      expect(containerId).toBe('only')
+      expect($sel.parentOffset).toBe(3)
+    })
+
+    // A collapsed cursor inside a nested item outdents just that item one level.
+    it('outdents a single nested item under a collapsed cursor', () => {
+      const doc = schema.nodeFromJSON({
+        type: 'doc',
+        content: [
+          {
+            type: 'blockChildren',
+            attrs: {listType: 'Group', columnCount: null},
+            content: [
+              {
+                type: 'blockNode',
+                attrs: {id: 'slot-wrapper'},
+                content: [
+                  {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
+                  {
+                    type: 'blockChildren',
+                    attrs: {listType: 'Unordered', columnCount: null},
+                    content: [
+                      {
+                        type: 'blockNode',
+                        attrs: {id: 'parent'},
+                        content: [
+                          {type: 'paragraph', content: [{type: 'text', text: 'parent'}]},
+                          {
+                            type: 'blockChildren',
+                            attrs: {listType: 'Unordered', columnCount: null},
+                            content: [
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'n1'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'n1'}]}],
+                              },
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'n2'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'n2'}]}],
+                              },
+                              {
+                                type: 'blockNode',
+                                attrs: {id: 'n3'},
+                                content: [{type: 'paragraph', content: [{type: 'text', text: 'n3'}]}],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      // Collapsed cursor in the last nested item.
+      const pos = findPosInBlock(doc, 'n3')
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())!
+
+      const rootGroup = newState.doc.firstChild!
+      // Still one Slot.
+      expect(rootGroup.childCount).toBe(1)
+      const list = rootGroup.child(0).lastChild!
+      expect(list.childCount).toBe(2)
+
+      const parent = list.child(0)
+      expect(parent.attrs.id).toBe('parent')
+      expect(parent.lastChild!.type.name).toBe('blockChildren')
+      expect(parent.lastChild!.childCount).toBe(2) // n1, n2 stay nested
+      expect(parent.lastChild!.child(0).attrs.id).toBe('n1')
+      expect(parent.lastChild!.child(1).attrs.id).toBe('n2')
+
+      expect(list.child(1).attrs.id).toBe('n3')
+    })
+
+    it('returns false for a cursor outside any root Slot', () => {
+      const doc = buildDoc(schema, [{id: 'plain', text: 'not a list'}])
+      const pos = findPosInBlock(doc, 'plain')
+      const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
+      const editor = createMockEditor(state)
+
+      const newState = runCommand(state, editor, liftSlotSelection())
       expect(newState).toBeUndefined()
     })
   })
@@ -343,7 +1028,7 @@ describe('updateGroup command', () => {
       content: [
         {
           type: 'blockChildren',
-          attrs: {listType: 'Group', listLevel: '1', columnCount: null},
+          attrs: {listType: 'Group', columnCount: null},
           content: [
             {
               type: 'blockNode',
@@ -354,10 +1039,10 @@ describe('updateGroup command', () => {
               type: 'blockNode',
               attrs: {id: 'slot-wrapper'},
               content: [
-                {type: 'slot', attrs: {childrenType: 'Unordered', listLevel: '1', columnCount: ''}},
+                {type: 'slot', attrs: {childrenType: 'Unordered', columnCount: ''}},
                 {
                   type: 'blockChildren',
-                  attrs: {listType: 'Unordered', listLevel: '1', columnCount: null},
+                  attrs: {listType: 'Unordered', columnCount: null},
                   content: [
                     {
                       type: 'blockNode',
@@ -376,7 +1061,7 @@ describe('updateGroup command', () => {
     const state = EditorState.create({doc, schema, selection: TextSelection.create(doc, pos)})
     const editor = createMockEditor(state)
 
-    const newState = runCommand(state, editor, nestFirstSlotItemCommand())!
+    const newState = runCommand(state, editor, nestSlotItem())!
 
     // Root now has one child: the previous block, with the list nested under it.
     const rootGroup = newState.doc.firstChild!
