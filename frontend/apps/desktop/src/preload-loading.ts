@@ -4,7 +4,7 @@ import {contextBridge, ipcRenderer} from 'electron'
 type GoDaemonState =
   | {t: 'startup'}
   | {t: 'ready'}
-  | {t: 'error'; message: string}
+  | {t: 'error'; message: string; details?: string; exitCode?: number | null; signal?: string | null}
   | {t: 'migrating'; completed: number; total: number}
 
 // Minimal state stream implementation (no dependencies)

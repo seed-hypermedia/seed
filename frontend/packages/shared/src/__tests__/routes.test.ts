@@ -5,6 +5,7 @@ import {
   createInspectIpfsNavRoute,
   createInspectNavRoute,
   createRouteFromInspectNavRoute,
+  defaultRoute,
   navRouteSchema,
   replaceRouteDocumentId,
   type NavRoute,
@@ -15,6 +16,10 @@ import {appRouteOfId} from '../utils/navigation'
 import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')
+
+test('defaults new windows to onboarding', () => {
+  expect(defaultRoute).toEqual({key: 'onboarding'})
+})
 
 function assertDocumentRoute(route: NavRoute | undefined): Extract<NavRoute, {key: 'document'}> {
   if (!route || route.key !== 'document') {

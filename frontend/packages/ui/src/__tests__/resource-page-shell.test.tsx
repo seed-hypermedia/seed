@@ -29,11 +29,21 @@ vi.mock('../site-header', () => ({
 vi.mock('../site-file-browser-layout', () => {
   let nextMountId = 0
   return {
-    SiteFileBrowserLayout: ({children}: {children: React.ReactNode}) => {
+    SiteFileBrowserLayout: ({
+      children,
+      onPrefetch,
+    }: {
+      children: React.ReactNode
+      onPrefetch?: (id: ReturnType<typeof hmId>) => void
+    }) => {
       const React = require('react')
       const mountId = React.useRef(++nextMountId)
       return (
-        <div data-testid="file-browser-layout" data-mount-id={mountId.current}>
+        <div
+          data-testid="file-browser-layout"
+          data-mount-id={mountId.current}
+          data-has-prefetch={onPrefetch ? 'true' : 'false'}
+        >
           {children}
         </div>
       )
@@ -62,6 +72,33 @@ afterEach(() => {
 })
 
 describe('PageWrapper', () => {
+  it('passes document prefetch intent to the file browser layout', () => {
+    const headerData = {
+      items: [],
+      homeNavigationItems: [],
+      directoryItems: [],
+      isCenterLayout: false,
+      siteHomeDocument: null,
+    }
+
+    act(() => {
+      root.render(
+        <PageWrapper
+          siteHomeId={hmId('site')}
+          docId={hmId('site')}
+          headerData={headerData}
+          onPrefetchDocument={vi.fn()}
+        >
+          <div>Document</div>
+        </PageWrapper>,
+      )
+    })
+
+    expect(container.querySelector('[data-testid="file-browser-layout"]')?.getAttribute('data-has-prefetch')).toBe(
+      'true',
+    )
+  })
+
   it('keeps the file browser layout mounted when keyed route content changes', () => {
     const siteHomeId = hmId('site')
     const headerData = {

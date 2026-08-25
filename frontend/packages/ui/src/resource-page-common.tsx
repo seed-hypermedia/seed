@@ -13,9 +13,9 @@ import {
   createInspectNavRoute,
   DocumentPanelRoute,
   findContentBlock,
-  getMetadataName,
   getBlockText,
   getDraftNodesOutline,
+  getMetadataName,
   getNodesOutline,
   hmId,
   NavRoute,
@@ -40,6 +40,8 @@ import type {
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
+import {parseExploreQuery} from '@shm/shared/explore'
+import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {
   useAccount,
@@ -52,9 +54,8 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {parseExploreQuery} from '@shm/shared/explore'
 import {useExploreResults} from '@shm/shared/models/explore'
+import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -80,7 +81,6 @@ import {
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
-import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl} from '@shm/shared/routing'
@@ -88,6 +88,7 @@ import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/br
 import {
   activityFilterToSlug,
   getCommentTargetId,
+  getVersionHeads,
   hmIdToURL,
   latestId,
   parseFragment,
@@ -103,7 +104,6 @@ import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useS
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
-import {ExplorePage} from './explore-page'
 import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
@@ -117,15 +117,17 @@ import {
   HomeDocumentMetadataAffordanceBar,
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
-import {DocumentTopBar} from './document-top-bar'
 import {DocumentTools} from './document-tools'
+import {DocumentTopBar} from './document-top-bar'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
+import {ExplorePage} from './explore-page'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
 import {HMIcon} from './hm-icon'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
+import {MergedBadge} from './merged-badge'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
@@ -133,8 +135,9 @@ import {OptionsPanel} from './options-panel'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
-import {SiteHeader} from './site-header'
+import {PrivateBadge} from './private-badge'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
+import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {UnreferencedDocuments} from './unreferenced-documents'
@@ -733,6 +736,8 @@ export interface ResourcePageProps {
   ssrContentHTML?: string | null
   /** Platform-specific page footer (web only) */
   pageFooter?: ReactNode
+  /** Starts loading a document route before navigation when the platform supports it. */
+  onPrefetchDocument?: (id: UnpackedHypermediaId) => void
 
   floatingButtons?: ReactNode
   /** Inline child draft cards rendered after document content */
@@ -818,6 +823,7 @@ export function ResourcePage({
   draftVersionOnDiscardConfirm,
   floatingButtons,
   pageFooter,
+  onPrefetchDocument,
   inlineCards,
   rightActions,
   onEditProfile,
@@ -940,6 +946,7 @@ export function ResourcePage({
         headerData={headerData}
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
       >
         <DocumentTopBar
           breadcrumbs={[{id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
@@ -960,7 +967,13 @@ export function ResourcePage({
 
   if (resourceFetchId === null && existingDraft === undefined && !reservedDraftId) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -984,7 +997,13 @@ export function ResourcePage({
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -996,7 +1015,13 @@ export function ResourcePage({
   // Handle discovery state
   if (resource.isDiscovering && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageDiscovery />
         {pageFooter}
       </PageWrapper>
@@ -1006,7 +1031,13 @@ export function ResourcePage({
   // Handle not-found
   if ((!resource.data || resource.data.type === 'not-found') && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -1017,7 +1048,13 @@ export function ResourcePage({
   if (!hasUnpublishedDraft && (resource.isTombstone || resource.data?.type === 'tombstone')) {
     const isCommentRoute = route.key === 'comments'
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageDeleted entityType={isCommentRoute ? 'comment' : 'document'} />
         {pageFooter}
       </PageWrapper>
@@ -1027,7 +1064,13 @@ export function ResourcePage({
   // Handle private document (permission denied) — persistent state, always unmount.
   if (resource.data?.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PagePrivate />
         {pageFooter}
       </PageWrapper>
@@ -1038,7 +1081,13 @@ export function ResourcePage({
   // success render path with a banner so the user keeps the document in view.
   if (!hasUnpublishedDraft && resource.data?.type === 'error' && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
         </div>
@@ -1052,7 +1101,13 @@ export function ResourcePage({
   if (comment) {
     if (!targetDocId || targetResource.data?.type === 'not-found') {
       return (
-        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
+          docId={docId}
+          headerData={headerData}
+          rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
+        >
           <PageNotFound />
           {pageFooter}
         </PageWrapper>
@@ -1060,7 +1115,13 @@ export function ResourcePage({
     }
     if (targetResource.isInitialLoading) {
       return (
-        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
+          docId={docId}
+          headerData={headerData}
+          rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
+        >
           <div className="flex flex-1 items-center justify-center">
             <Spinner />
           </div>
@@ -1070,7 +1131,13 @@ export function ResourcePage({
     }
     if (targetResource.data?.type !== 'document') {
       return (
-        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
+          docId={docId}
+          headerData={headerData}
+          rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
+        >
           <PageNotFound />
           {pageFooter}
         </PageWrapper>
@@ -1085,6 +1152,7 @@ export function ResourcePage({
           headerData={headerData}
           document={targetDocument}
           rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
         >
           <DocumentBody
             routeDocId={targetDocId}
@@ -1133,7 +1201,13 @@ export function ResourcePage({
     } as unknown as HMDocument
   } else {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -1158,6 +1232,7 @@ export function ResourcePage({
       headerData={headerData}
       document={document}
       rightActions={rightActions}
+      onPrefetchDocument={onPrefetchDocument}
       editNavPanePortalRef={setEditNavPanePortalElement}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
@@ -1339,6 +1414,8 @@ export interface PageShellProps {
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from an active document machine. */
   liveNavigationItems?: DocNavigationItem[]
+  /** Starts loading a document route before navigation when the platform supports it. */
+  onPrefetchDocument?: (id: UnpackedHypermediaId) => void
 }
 
 /** Persistent site chrome for the header and file browser around route content. */
@@ -1354,6 +1431,7 @@ export function PageShell({
   editNavPanePortalRef,
   transientResourceError,
   liveNavigationItems,
+  onPrefetchDocument,
 }: PageShellProps) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -1401,6 +1479,7 @@ export function PageShell({
         siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Site documents'}
         mobileOpen={isFileBrowserOpen}
         onMobileOpenChange={setIsFileBrowserOpen}
+        onPrefetch={onPrefetchDocument}
         onNavigate={(id) => {
           setIsFileBrowserOpen(false)
           navigate({key: 'document', id})
@@ -1425,6 +1504,7 @@ export function PageWrapper({
   editNavPanePortalRef,
   transientResourceError,
   liveNavigationItems,
+  onPrefetchDocument,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
@@ -1439,6 +1519,8 @@ export function PageWrapper({
   transientResourceError?: TransientResourceError
   /** In-flight header navigation from a document machine mounted inside this wrapper. */
   liveNavigationItems?: DocNavigationItem[]
+  /** Starts loading a document route before navigation when the platform supports it. */
+  onPrefetchDocument?: (id: UnpackedHypermediaId) => void
 }) {
   // Live-preview the in-flight nav while the user edits the home doc, so
   // additions/reorders/deletions in the EditNavPopover show immediately in
@@ -1463,6 +1545,7 @@ export function PageWrapper({
       editNavPanePortalRef={editNavPanePortalRef}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveItems}
+      onPrefetchDocument={onPrefetchDocument}
     >
       {children}
     </PageShell>
@@ -1832,6 +1915,7 @@ function DocumentBody({
   const draftVisibility = shouldUseDraftOverlay && existingDraft ? existingDraftVisibility : undefined
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
+  const versionHeadCount = getVersionHeads(document.version).length
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   // Skip the queries for anonymous pending drafts.
   const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
@@ -2376,7 +2460,19 @@ function DocumentBody({
   // The bar always states where you are, so a home document is its own single crumb.
   const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
   const documentTopBar = (
-    <DocumentTopBar breadcrumbs={topBarBreadcrumbs} actions={documentContentAction} isMobile={isMobile} />
+    <DocumentTopBar
+      breadcrumbs={topBarBreadcrumbs}
+      status={
+        !isHomeDoc && (headerVisibility === 'PRIVATE' || versionHeadCount > 1) ? (
+          <>
+            {headerVisibility === 'PRIVATE' ? <PrivateBadge size="sm" /> : null}
+            <MergedBadge count={versionHeadCount} size="sm" />
+          </>
+        ) : null
+      }
+      actions={documentContentAction}
+      isMobile={isMobile}
+    />
   )
 
   // Main page content (used in both mobile and desktop layouts)
@@ -2471,7 +2567,7 @@ function DocumentBody({
       {/* DocumentTools - scrolls with the page; the border separates document
           identity above from document body below. Hidden when showActivity is false. */}
       {showActivity && (
-        <div className="border-border border-b px-5 py-1">
+        <div className="px-5 py-1">
           <DocumentTools
             id={docId}
             activeTab={

@@ -20,6 +20,7 @@ export interface SiteFileBrowserProps {
   siteId: UnpackedHypermediaId
   activeDocumentId: UnpackedHypermediaId | null
   onNavigate: (id: UnpackedHypermediaId) => void
+  onPrefetch?: (id: UnpackedHypermediaId) => void
 }
 
 function titleOf(doc: HMDocumentInfo) {
@@ -27,7 +28,7 @@ function titleOf(doc: HMDocumentInfo) {
 }
 
 /** Renders the searchable, expandable document hierarchy for a site. */
-export function SiteFileBrowser({siteId, activeDocumentId, onNavigate}: SiteFileBrowserProps) {
+export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetch}: SiteFileBrowserProps) {
   const directory = useDirectory(siteId, {mode: 'AllDescendants'})
   const [query, setQuery] = useState('')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
@@ -119,6 +120,8 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate}: SiteFile
                     <button
                       type="button"
                       aria-current={isActive ? 'page' : undefined}
+                      onPointerEnter={() => onPrefetch?.(doc.id)}
+                      onFocus={() => onPrefetch?.(doc.id)}
                       onClick={() => onNavigate(doc.id)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >

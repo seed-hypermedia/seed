@@ -8,7 +8,6 @@ import {
 import {abbreviateUid, useRouteLink} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import type {NavRoute} from '@shm/shared/routes'
-import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {X} from 'lucide-react'
 import {useMemo} from 'react'
@@ -19,8 +18,6 @@ import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
 import {getContextualProfileRoute} from './inline-descriptor'
-import {MergedBadge} from './merged-badge'
-import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -51,8 +48,6 @@ export function DocumentHeader({
   updateTime = null,
   siteUrl,
   documentTools,
-  visibility,
-  version,
   showTitle = true,
   children,
   onRemoveIcon,
@@ -75,8 +70,6 @@ export function DocumentHeader({
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
   const isHomeDoc = !docId?.path?.length
   const highlighter = useHighlighter()
-  const isPrivate = visibility === 'PRIVATE'
-  const headCount = getVersionHeads(version).length
   const displayAuthors = useMemo(() => {
     const seen = new Set<string>()
     return authors.filter((author) => {
@@ -121,12 +114,6 @@ export function DocumentHeader({
             ) : null}
           </div>
         ) : null}
-        {(isPrivate || headCount > 1) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {isPrivate && <PrivateBadge />}
-            {headCount > 1 && <MergedBadge count={headCount} />}
-          </div>
-        )}
         {children ? (
           children
         ) : (
@@ -241,8 +228,8 @@ export function Breadcrumbs({breadcrumbs, className}: {breadcrumbs: BreadcrumbEn
   const lastIndex = breadcrumbs.length - 1
 
   return (
-    <nav aria-label="Breadcrumb" className={cn('text-muted-foreground flex min-w-0 flex-1 items-center', className)}>
-      <ol className="flex min-w-0 flex-1 items-center gap-2">
+    <nav aria-label="Breadcrumb" className={cn('text-muted-foreground flex min-w-0 items-center', className)}>
+      <ol className="flex min-w-0 items-center gap-2">
         {first && 'id' in first ? (
           <li className="flex shrink-0 items-center">
             <HomeBreadcrumb crumb={first} isCurrent={lastIndex === 0} />
