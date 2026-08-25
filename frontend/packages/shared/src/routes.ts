@@ -16,7 +16,7 @@ export const PROFILE_TABS = [
 ] as const
 export type ProfileTab = (typeof PROFILE_TABS)[number]
 
-export const defaultRoute: NavRoute = {key: 'contacts'}
+export const defaultRoute: NavRoute = {key: 'onboarding'}
 
 export const onboardingRouteSchema = z.object({key: z.literal('onboarding')})
 export type OnboardingRoute = z.infer<typeof onboardingRouteSchema>
