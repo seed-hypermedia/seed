@@ -1068,23 +1068,33 @@ export function useCreateDraft(
   const navigate = useNavigate('push')
   const selectedAccountId = useSelectedAccountId()
 
-  return async ({visibility}: {visibility?: HMResourceVisibility} = {}) => {
+  return async ({
+    visibility,
+    initialMetadata,
+    initialContent,
+  }: {
+    visibility?: HMResourceVisibility
+    initialMetadata?: HMDraft['metadata']
+    initialContent?: EditorBlock[]
+  } = {}) => {
+    const hasInitialData = initialMetadata !== undefined || initialContent !== undefined
     const plan = computeNewDraftParams(
       visibility,
       draftParams,
       selectedAccountId ?? undefined,
       () => nanoid(10),
       () => nanoid(21),
+      hasInitialData,
     )
     if (!plan) return
-    if (visibility === 'PRIVATE') {
-      rememberDraftReturnParentId(plan.draftId, hmId(plan.routeId.uid))
+    if (plan.shouldWrite) {
+      if (visibility === 'PRIVATE') rememberDraftReturnParentId(plan.draftId, hmId(plan.routeId.uid))
       await client.drafts.write.mutate({
         ...plan.writeParams,
         signingAccount: selectedAccountId ?? undefined,
-        metadata: {},
-        content: [],
-        deps: [],
+        metadata: initialMetadata ?? {},
+        content: initialContent ?? [],
+        deps: plan.writeParams.deps ?? [],
       })
       invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, plan.routeId.uid])
       invalidateQueries([queryKeys.DRAFTS_LIST])

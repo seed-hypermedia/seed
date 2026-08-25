@@ -7,7 +7,7 @@ import {
   flattenTree,
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
-import {ChevronDown, ChevronRight, Lock, Search} from 'lucide-react'
+import {ChevronDown, ChevronRight, Grid3X3, Lock, Search} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
@@ -125,7 +125,9 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
                       onClick={() => onNavigate(doc.id)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {doc.visibility === 'PRIVATE' ? (
+                      {doc.metadata.type === 'Collection' ? (
+                        <Grid3X3 aria-label="Document collection" className="size-3 shrink-0" />
+                      ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-3 shrink-0" />
                       ) : null}
                       <span className="truncate">{titleOf(doc)}</span>

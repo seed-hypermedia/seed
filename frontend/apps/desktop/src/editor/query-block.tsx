@@ -281,7 +281,6 @@ function QuerySettings({
   onValuesChange: ({id, props}: {id: UnpackedHypermediaId | null; props: EditorQueryBlock['props']}) => void
   editor: BlockNoteEditor<HMBlockSchema>
 }) {
-  // @ts-expect-error
   const popoverState = usePopoverState(block.props.defaultOpen === 'true')
   const [limit, setLimit] = useState(!!block.props.queryLimit)
 

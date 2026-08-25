@@ -5,10 +5,35 @@ import {
   computeInlineDraftPublishPath,
   computeNewDraftParams,
   computePublishPath,
+  buildDocumentCollectionDraftSeed,
   resolvePublishPath,
   shouldAutoLinkParent,
   validatePublishPath,
 } from '../publish-utils'
+
+describe('buildDocumentCollectionDraftSeed', () => {
+  it('creates Collection metadata and exactly one empty-target query block', () => {
+    const seed = buildDocumentCollectionDraftSeed('query-block-id')
+
+    expect(seed.metadata).toEqual({type: 'Collection'})
+    expect(seed.content).toEqual([
+      {
+        id: 'query-block-id',
+        type: 'query',
+        props: {
+          style: 'Card',
+          columnCount: '3',
+          queryLimit: '',
+          queryIncludes: '[{"space":"","path":"","mode":"Children"}]',
+          querySort: '[{"term":"UpdateTime","reverse":false}]',
+          defaultOpen: 'true',
+        },
+        content: [],
+        children: [],
+      },
+    ])
+  })
+})
 
 function createDocument(content: HMBlockNode[]): HMDocument {
   return {
@@ -424,6 +449,20 @@ describe('computeNewDraftParams', () => {
     })
     expect(result?.routeId.uid).toBe('location-uid')
     expect(result?.routeId.path).toEqual(['docs', 'sub', '-draft-id-10'])
+    expect(result?.shouldWrite).toBe(false)
+  })
+
+  it('writes a seeded public draft immediately', () => {
+    const result = computeNewDraftParams(
+      'PUBLIC',
+      {locationUid: 'location-uid'},
+      'selected-account-uid',
+      mockGenerateId,
+      mockGeneratePath,
+      true,
+    )
+
+    expect(result?.shouldWrite).toBe(true)
   })
 
   it('editing existing doc uses editUid/editPath and preserves deps', () => {

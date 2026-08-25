@@ -1,9 +1,33 @@
-import {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {HMDocument, HMMetadata, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
 import {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 export {computeInlineDraftPublishPath}
+
+/** Builds the metadata and initial query block for a document collection draft. */
+export function buildDocumentCollectionDraftSeed(blockId: string): {metadata: HMMetadata; content: EditorBlock[]} {
+  return {
+    metadata: {type: 'Collection'},
+    content: [
+      {
+        id: blockId,
+        type: 'query',
+        props: {
+          style: 'Card',
+          columnCount: '3',
+          queryLimit: '',
+          queryIncludes: JSON.stringify([{space: '', path: '', mode: 'Children'}]),
+          querySort: JSON.stringify([{term: 'UpdateTime', reverse: false}]),
+          defaultOpen: 'true',
+        },
+        content: [],
+        children: [],
+      },
+    ],
+  }
+}
 
 /**
  * Compute the publish path for a document.
@@ -115,6 +139,7 @@ export function computeNewDraftParams(
   selectedAccountId: string | undefined,
   generateId: () => string,
   generatePath: () => string,
+  hasInitialData = false,
 ): {
   draftId: string
   writeParams: {
@@ -127,6 +152,7 @@ export function computeNewDraftParams(
     visibility: HMResourceVisibility
   }
   routeId: UnpackedHypermediaId
+  shouldWrite: boolean
 } | null {
   const draftId = generateId()
 
@@ -145,6 +171,7 @@ export function computeNewDraftParams(
         visibility: 'PRIVATE',
       },
       routeId: hmId(locationUid, {path: [privatePath]}),
+      shouldWrite: true,
     }
   }
 
@@ -160,6 +187,7 @@ export function computeNewDraftParams(
         visibility: visibility ?? 'PUBLIC',
       },
       routeId: hmId(draftParams.editUid, {path: editPath}),
+      shouldWrite: hasInitialData,
     }
   }
 
@@ -176,6 +204,7 @@ export function computeNewDraftParams(
         visibility: visibility ?? 'PUBLIC',
       },
       routeId: hmId(draftParams.locationUid, {path: routePath}),
+      shouldWrite: hasInitialData,
     }
   }
 
