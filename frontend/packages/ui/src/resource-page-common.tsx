@@ -13,9 +13,9 @@ import {
   createInspectNavRoute,
   DocumentPanelRoute,
   findContentBlock,
-  getMetadataName,
   getBlockText,
   getDraftNodesOutline,
+  getMetadataName,
   getNodesOutline,
   hmId,
   NavRoute,
@@ -31,7 +31,7 @@ import {
   useCommentsServiceContext,
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
-import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import { IS_DESKTOP, NOTIFY_SERVICE_HOST } from '@shm/shared/constants'
 import type {
   BlockRangeSelectOptions,
   CitationFragmentClick,
@@ -39,8 +39,10 @@ import type {
   DocumentContentProps,
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
-import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
-import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
+import { findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe } from '@shm/shared/draft-breadcrumb-context'
+import { parseExploreQuery } from '@shm/shared/explore'
+import { useIsHomeDraftOverride } from '@shm/shared/home-draft-context'
+import type { DocumentMachineEvent, TransientResourceError } from '@shm/shared/models/document-machine'
 import {
   useAccount,
   useAccountsMetadata,
@@ -52,9 +54,8 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
-import {parseExploreQuery} from '@shm/shared/explore'
-import {useExploreResults} from '@shm/shared/models/explore'
+import { useExploreResults } from '@shm/shared/models/explore'
+import { useInteractionSummary } from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -80,11 +81,10 @@ import {
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
-import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
-import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {getRoutePanel} from '@shm/shared/routes'
-import {useOpenUrl} from '@shm/shared/routing'
-import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
+import { useEditorGate } from '@shm/shared/models/use-editor-gate'
+import { getRoutePanel } from '@shm/shared/routes'
+import { useOpenUrl } from '@shm/shared/routing'
+import { getBreadcrumbDocumentIds, isDraftPathSegment } from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
   getCommentTargetId,
@@ -93,59 +93,59 @@ import {
   parseFragment,
   routeToUrl,
 } from '@shm/shared/utils/entity-id-url'
-import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
-import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
-import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {useQuery} from '@tanstack/react-query'
-import {FilePen, Info, Quote, Search} from 'lucide-react'
-import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {createPortal} from 'react-dom'
-import {AccountPage} from './account-page'
-import {AllDocumentsPage} from './all-documents-page'
-import {ExplorePage} from './explore-page'
-import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
-import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
-import {ScrollArea} from './components/scroll-area'
-import {DirectoryPageContent} from './directory-page'
-import {DiscussionsPageContent} from './discussions-page'
-import {DocumentCover} from './document-cover'
-import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
+import { useNavigate, useNavRoute } from '@shm/shared/utils/navigation'
+import { isPendingSpaceUid } from '@shm/shared/utils/pending-space'
+import { getReservedLazyDraftBreadcrumbName } from '@shm/shared/utils/reserved-draft-ids'
+import { useIsomorphicLayoutEffect } from '@shm/shared/utils/use-isomorphic-layout-effect'
+import { useQuery } from '@tanstack/react-query'
+import { FilePen, Info, Quote, Search } from 'lucide-react'
+import { lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { AccountPage } from './account-page'
+import { AllDocumentsPage } from './all-documents-page'
+import { CollaboratorsPage, getRenderedCollaboratorsCount } from './collaborators-page'
+import { Popover, PopoverAnchor, PopoverContent } from './components/popover'
+import { ScrollArea } from './components/scroll-area'
+import { DirectoryPageContent } from './directory-page'
+import { DiscussionsPageContent } from './discussions-page'
+import { DocumentCover } from './document-cover'
+import { AuthorPayload, BreadcrumbEntry, DocumentHeader } from './document-header'
 import {
   DocumentMetadataAffordanceButtons,
   EditableDocumentMetadataFields,
   HomeDocumentMetadataAffordanceBar,
 } from './document-metadata-affordances'
-import {DocumentMetadataView} from './document-metadata-view'
-import {DocumentTopBar} from './document-top-bar'
-import {DocumentTools} from './document-tools'
-import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
-import {Feed, type DraftVersionEntry} from './feed'
-import {FeedFilters} from './feed-filters'
-import {HMIcon} from './hm-icon'
-import {useDocumentLayout} from './layout'
-import {MembersFacepile} from './members-facepile'
-import {MobilePanelSheet} from './mobile-panel-sheet'
-import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
-import {OpenInPanelButton} from './open-in-panel'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {OptionsPanel} from './options-panel'
-import {PageLayout} from './page-layout'
-import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
-import {PanelLayout} from './panel-layout'
-import {SiteHeader} from './site-header'
-import {SiteFileBrowserLayout} from './site-file-browser-layout'
-import {Spinner} from './spinner'
-import {toast} from './toast'
-import {UnreferencedDocuments} from './unreferenced-documents'
-import {useBlockScroll} from './use-block-scroll'
-import {useCopyHmLink} from './use-copy-hm-link'
-import {useMedia} from './use-media'
-import {cn} from './utils'
-import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
+import { DocumentMetadataView } from './document-metadata-view'
+import { DocumentTools } from './document-tools'
+import { DocumentTopBar } from './document-top-bar'
+import { DocumentVersionsPanel, isDocumentVersionsPanelRoute } from './document-versions-panel'
+import { ExplorePage } from './explore-page'
+import { Feed, type DraftVersionEntry } from './feed'
+import { FeedFilters } from './feed-filters'
+import { HMIcon } from './hm-icon'
+import { useDocumentLayout } from './layout'
+import { MembersFacepile } from './members-facepile'
+import { MobilePanelSheet } from './mobile-panel-sheet'
+import { DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem } from './navigation'
+import { OpenInPanelButton } from './open-in-panel'
+import { MenuItemType, OptionsDropdown } from './options-dropdown'
+import { OptionsPanel } from './options-panel'
+import { PageLayout } from './page-layout'
+import { PageDeleted, PageDiscovery, PageNotFound, PagePrivate } from './page-message-states'
+import { PanelLayout } from './panel-layout'
+import { SiteFileBrowserLayout } from './site-file-browser-layout'
+import { SiteHeader } from './site-header'
+import { Spinner } from './spinner'
+import { toast } from './toast'
+import { UnreferencedDocuments } from './unreferenced-documents'
+import { useBlockScroll } from './use-block-scroll'
+import { useCopyHmLink } from './use-copy-hm-link'
+import { useMedia } from './use-media'
+import { cn } from './utils'
+import { AttributeAutocomplete, AttributeAutocompleteProvider } from './value-editor'
 
 const LazyDocumentMachineDebugDrawer = lazy(() =>
-  import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({default: m.DocumentMachineDebugDrawer})),
+  import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({ default: m.DocumentMachineDebugDrawer })),
 )
 
 function sourceTypeKind(sourceType?: string): CitationFragmentHighlight['sourceType'] {
@@ -180,16 +180,16 @@ function normalizeCitationFragmentHighlights(citations: HMRawCitation[] | undefi
       {
         id: `${citation.source || 'unknown'}:${citation.targetFragment || ''}:${citation.sourceContext || ''}:${index}`,
         targetBlockId: fragment.blockId,
-        targetRange: {start: fragment.start, end: fragment.end},
+        targetRange: { start: fragment.start, end: fragment.end },
         sourceType: kind,
         sourceId:
           kind === 'document' && sourceId
             ? {
-                ...sourceId,
-                version: citation.sourceBlob?.cid || sourceId.version || null,
-                blockRef: sourceBlockId,
-                blockRange: sourceBlockId ? {expanded: true} : null,
-              }
+              ...sourceId,
+              version: citation.sourceBlob?.cid || sourceId.version || null,
+              blockRef: sourceBlockId,
+              blockRange: sourceBlockId ? { expanded: true } : null,
+            }
             : sourceId,
         sourceDocumentId,
         sourceBlockId,
@@ -231,13 +231,13 @@ function CitationFragmentPopover({
   onClose: () => void
   onCitationSelect: (citation: CitationFragmentHighlight) => void
 }) {
-  const {universalClient} = useUniversalAppContext()
+  const { universalClient } = useUniversalAppContext()
   const documentCitations = click.citations.filter(
     (citation) => citation.sourceType === 'document' && citation.sourceId,
   )
   const documentResources = useResources(
     documentCitations.map((citation) => citation.sourceId),
-    {enabled: documentCitations.length > 0},
+    { enabled: documentCitations.length > 0 },
   )
   const sourceDocumentIds = Array.from(
     new Map(
@@ -251,7 +251,7 @@ function CitationFragmentPopover({
     queryFn: async () => {
       const entries = await Promise.all(
         sourceDocumentIds.map(async (id) => {
-          const result = await universalClient.request('ListComments', {targetId: id})
+          const result = await universalClient.request('ListComments', { targetId: id })
           return [id.id, result] as const
         }),
       )
@@ -273,7 +273,7 @@ function CitationFragmentPopover({
       <PopoverAnchor asChild>
         <span
           className="pointer-events-none fixed z-50 size-px"
-          style={{left: click.clientX, top: click.clientY}}
+          style={{ left: click.clientX, top: click.clientY }}
           aria-hidden="true"
         />
       </PopoverAnchor>
@@ -339,7 +339,7 @@ function CitationFragmentPopover({
 
 /** Extract panel route from a view route, stripping top-level-only fields */
 function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
-  const {panel, width, ...params} = route as any
+  const { panel, width, ...params } = route as any
   return params as DocumentPanelRoute
 }
 
@@ -403,10 +403,10 @@ export type ActiveView =
 export function getCommentsPanelTarget(
   docId: UnpackedHypermediaId,
   panelRoute: DocumentPanelRoute | null,
-): {docId: UnpackedHypermediaId; openComment?: string} {
+): { docId: UnpackedHypermediaId; openComment?: string } {
   return panelRoute?.key === 'comments'
-    ? {docId: panelRoute.id ?? docId, openComment: panelRoute.openComment}
-    : {docId, openComment: undefined}
+    ? { docId: panelRoute.id ?? docId, openComment: panelRoute.openComment }
+    : { docId, openComment: undefined }
 }
 
 /** Selects the action controls shown for document content. */
@@ -422,14 +422,14 @@ export function getDocumentContentAction({
   activeView: ActiveView
   isEditing: boolean
   hasDraft: boolean
-  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
-  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  editingFloatingActions?: (props: { menuItems: MenuItemType[] }) => ReactNode
+  draftActions?: (props: { menuItems: MenuItemType[] }) => ReactNode
   actionButtons: ReactNode
   allMenuItems: MenuItemType[]
 }) {
   if (activeView !== 'content' && activeView !== 'metadata') return null
-  if (editingFloatingActions) return editingFloatingActions({menuItems: allMenuItems})
-  if (!isEditing && hasDraft && draftActions) return draftActions({menuItems: allMenuItems})
+  if (editingFloatingActions) return editingFloatingActions({ menuItems: allMenuItems })
+  if (!isEditing && hasDraft && draftActions) return draftActions({ menuItems: allMenuItems })
   return actionButtons
 }
 
@@ -465,7 +465,7 @@ export function getDocumentMachineKey(renderedDocId: UnpackedHypermediaId): stri
   return renderedDocId.id
 }
 
-function extractQuotingRange(blockRange?: BlockRange | null): {start: number; end: number} | undefined {
+function extractQuotingRange(blockRange?: BlockRange | null): { start: number; end: number } | undefined {
   if (!blockRange) return undefined
   if (
     'start' in blockRange &&
@@ -473,7 +473,7 @@ function extractQuotingRange(blockRange?: BlockRange | null): {start: number; en
     typeof blockRange.start === 'number' &&
     typeof blockRange.end === 'number'
   ) {
-    return {start: blockRange.start, end: blockRange.end}
+    return { start: blockRange.start, end: blockRange.end }
   }
   return undefined
 }
@@ -491,7 +491,7 @@ function getCommentEditorRouteKey(params?: {
 
 function getCommentDraftTarget(
   docId: UnpackedHypermediaId,
-  params?: {openComment?: string; targetBlockId?: string; blockRange?: BlockRange | null},
+  params?: { openComment?: string; targetBlockId?: string; blockRange?: BlockRange | null },
 ): CommentDraftTarget {
   const range = extractQuotingRange(params?.blockRange ?? null)
   return {
@@ -521,7 +521,7 @@ export function shouldSuppressMainCommentEditor({
 }: {
   docId: UnpackedHypermediaId
   activeView: ActiveView
-  discussionsParams?: {openComment?: string; targetBlockId?: string; blockRange?: BlockRange | null}
+  discussionsParams?: { openComment?: string; targetBlockId?: string; blockRange?: BlockRange | null }
   panelRoute: DocumentPanelRoute | null
 }) {
   if (activeView !== 'comments' || panelRoute?.key !== 'comments') return false
@@ -583,7 +583,7 @@ export function hasUnpublishedDraftForResourceState({
   reservedDraftId?: string | null
   resourceFetchId: UnpackedHypermediaId | null
   resourceIsDiscovering: boolean
-  resourceData?: {type?: string; message?: string} | null
+  resourceData?: { type?: string; message?: string } | null
 }) {
   const hasVirtualDraft = !!reservedDraftId && !existingDraft
   return (
@@ -631,7 +631,7 @@ export function getCitationsTargetId({
   documentVersion?: string | null
 }) {
   if (!documentVersion || isPendingSpaceUid(docId.uid)) return null
-  return {...docId, blockRef: null, blockRange: null}
+  return { ...docId, blockRef: null, blockRange: null }
 }
 
 export function getCommentReplyPanelRoute({
@@ -642,17 +642,17 @@ export function getCommentReplyPanelRoute({
   docId: UnpackedHypermediaId
   comment: HMComment
   isReplying?: boolean
-}): Extract<DocumentPanelRoute, {key: 'comments'}> {
+}): Extract<DocumentPanelRoute, { key: 'comments' }> {
   const targetRoute = isRouteEqualToCommentTarget({
     id: docId,
     comment,
   })
   const replyVersionData = isReplying
     ? {
-        isReplying: true,
-        replyCommentVersion: comment.version,
-        rootReplyCommentVersion: comment.threadRootVersion || comment.version,
-      }
+      isReplying: true,
+      replyCommentVersion: comment.version,
+      rootReplyCommentVersion: comment.threadRootVersion || comment.version,
+    }
     : {}
 
   return {
@@ -690,7 +690,7 @@ export interface CommentEditorProps {
   docId: UnpackedHypermediaId
   quotingBlockId?: string
   /** Codepoint range within the quoted block. Absent ⇒ whole-block quote. */
-  quotingRange?: {start: number; end: number}
+  quotingRange?: { start: number; end: number }
   commentId?: string
   isReplying?: boolean
   /** Focus the editor on mount. Renamed from `autoFocus` to avoid `jsx-a11y/no-autofocus`; focus driven imperatively. */
@@ -762,9 +762,9 @@ export interface ResourcePageProps {
   /** Extra components to render inside the DocumentMachineProvider (e.g. draft content loader). */
   machineExtras?: ReactNode
   /** Render prop for floating overlay when editing. Receives existing menu items so they can be merged. */
-  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  editingFloatingActions?: (props: { menuItems: MenuItemType[] }) => ReactNode
   /** Render prop for floating overlay when a draft exists but not actively editing. Shown when a draft exists and isEditing is false. */
-  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  draftActions?: (props: { menuItems: MenuItemType[] }) => ReactNode
   /** Signing account ID for draft saving (desktop only). Flows into machine context. */
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only). Flows into machine context. */
@@ -850,7 +850,7 @@ export function ResourcePage({
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
-    ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
+    ({ isDeleted, redirectTarget }: { isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null }) => {
       if (isDeleted || !redirectTarget) return
       const nextRoute = replaceRouteDocumentId(route, redirectTarget)
       const sourcePathName = docId.path?.join('/') || '/'
@@ -891,9 +891,9 @@ export function ResourcePage({
   }
 
   // docId.uid determines the site header — for site-profile, docId IS the site context
-  const siteHomeId = hmId(docId.uid, {latest: true})
-  const siteHomeResource = useResource(siteHomeId, {subscribed: true})
-  const latestDocumentResource = useResource(resourceFetchId ? latestId(resourceFetchId) : null, {subscribed: true})
+  const siteHomeId = hmId(docId.uid, { latest: true })
+  const siteHomeResource = useResource(siteHomeId, { subscribed: true })
+  const latestDocumentResource = useResource(resourceFetchId ? latestId(resourceFetchId) : null, { subscribed: true })
   const latestDocumentVersion =
     latestDocumentResource.data?.type === 'document' ? latestDocumentResource.data.document.version : null
   const isLatest = useIsLatest(resourceFetchId, resource)
@@ -922,10 +922,10 @@ export function ResourcePage({
       const msg = resource.data.message ?? 'Refresh failed'
       // Permission errors are persistent, not transient — leave to the regular branch.
       if (msg.toLowerCase().includes('permission')) return null
-      return {kind: 'refetch-error', message: msg}
+      return { kind: 'refetch-error', message: msg }
     }
-    if (resource.isDiscovering) return {kind: 'discovering'}
-    if (resource.data?.type === 'not-found') return {kind: 'not-found-transient'}
+    if (resource.isDiscovering) return { kind: 'discovering' }
+    if (resource.data?.type === 'not-found') return { kind: 'not-found-transient' }
     return null
   })()
 
@@ -942,7 +942,7 @@ export function ResourcePage({
         rightActions={rightActions}
       >
         <DocumentTopBar
-          breadcrumbs={[{id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
+          breadcrumbs={[{ id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {} }, { label: 'Profile' }]}
           isMobile={media.xs && !IS_DESKTOP}
         />
         <SiteProfileContent
@@ -1078,7 +1078,7 @@ export function ResourcePage({
     }
     const targetDocument = targetResource.data.document
     return (
-      <DocumentMachineProvider input={{documentId: targetDocId, canEdit: false}} inspect={inspect}>
+      <DocumentMachineProvider input={{ documentId: targetDocId, canEdit: false }} inspect={inspect}>
         <PageWrapper
           siteHomeId={siteHomeId}
           docId={targetDocId}
@@ -1140,15 +1140,15 @@ export function ResourcePage({
     )
   }
 
-  const effectiveCanEdit = getEffectiveCanEdit({canEdit, resourceFetchId, existingDraft, reservedDraftId})
+  const effectiveCanEdit = getEffectiveCanEdit({ canEdit, resourceFetchId, existingDraft, reservedDraftId })
   const draftVersionEntry = existingDraft
     ? {
-        docId: renderedDocId,
-        draftId: existingDraft.id,
-        deps: existingDraftDeps,
-        metadata: existingDraft.metadata,
-        onDiscardConfirm: draftVersionOnDiscardConfirm,
-      }
+      docId: renderedDocId,
+      draftId: existingDraft.id,
+      deps: existingDraftDeps,
+      metadata: existingDraft.metadata,
+      onDiscardConfirm: draftVersionOnDiscardConfirm,
+    }
     : undefined
 
   return (
@@ -1258,20 +1258,20 @@ export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderDa
   const navigationBlockNode = siteHomeDocument?.detachedBlocks?.navigation
   const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
-        ?.map((child) => {
-          const linkBlock = child.block.type === 'Link' ? child.block : null
-          if (!linkBlock) return null
-          const id = unpackHmId(linkBlock.link)
-          return {
-            isPublished: true,
-            isDraft: false,
-            key: linkBlock.id,
-            metadata: {name: linkBlock.text || ''},
-            id: id || undefined,
-            webUrl: id ? undefined : linkBlock.link,
-          } as DocNavigationItem
-        })
-        .filter((item): item is DocNavigationItem => item !== null && isValidSiteHeaderItem(item)) ?? []
+      ?.map((child) => {
+        const linkBlock = child.block.type === 'Link' ? child.block : null
+        if (!linkBlock) return null
+        const id = unpackHmId(linkBlock.link)
+        return {
+          isPublished: true,
+          isDraft: false,
+          key: linkBlock.id,
+          metadata: { name: linkBlock.text || '' },
+          id: id || undefined,
+          webUrl: id ? undefined : linkBlock.link,
+        } as DocNavigationItem
+      })
+      .filter((item): item is DocNavigationItem => item !== null && isValidSiteHeaderItem(item)) ?? []
     : []
 
   const isCenterLayout =
@@ -1298,7 +1298,7 @@ function getLiveHeaderNavigationItems(
         id: id ?? undefined,
         webUrl: id ? undefined : n.link,
         draftId: undefined,
-        metadata: {name: n.text || ''},
+        metadata: { name: n.text || '' },
         isPublished: true,
       } satisfies DocNavigationItem
     })
@@ -1403,7 +1403,7 @@ export function PageShell({
         onMobileOpenChange={setIsFileBrowserOpen}
         onNavigate={(id) => {
           setIsFileBrowserOpen(false)
-          navigate({key: 'document', id})
+          navigate({ key: 'document', id })
         }}
       >
         {children}
@@ -1469,7 +1469,7 @@ export function PageWrapper({
   )
 }
 
-function TransientResourceBanner({error}: {error: TransientResourceError}) {
+function TransientResourceBanner({ error }: { error: TransientResourceError }) {
   if (!error) return null
   const tone =
     error.kind === 'refetch-error'
@@ -1573,9 +1573,9 @@ function DocumentBody({
   /** Whether the current user can edit this document */
   canEdit?: boolean
   /** Render prop for floating overlay when editing */
-  editingFloatingActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  editingFloatingActions?: (props: { menuItems: MenuItemType[] }) => ReactNode
   /** Render prop for floating overlay when a draft exists but not actively editing */
-  draftActions?: (props: {menuItems: MenuItemType[]}) => ReactNode
+  draftActions?: (props: { menuItems: MenuItemType[] }) => ReactNode
   /** Signing account ID for draft saving (desktop only) */
   signingAccountId?: string
   /** Publish account UID for publishing (desktop only) */
@@ -1607,19 +1607,19 @@ function DocumentBody({
   const draftResolution = useMemo(() => {
     let result:
       | {
-          draftId: string | null
-          content: HMBlockNode[] | null
-          cursorPosition: number | null
-          metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null
-          deps?: string[] | null
-          mineTouchedIds?: string[] | null
-          baseBlocks?: HMBlockNode[] | null
-        }
+        draftId: string | null
+        content: HMBlockNode[] | null
+        cursorPosition: number | null
+        metadata?: import('@seed-hypermedia/client/hm-types').HMMetadata | null
+        deps?: string[] | null
+        mineTouchedIds?: string[] | null
+        baseBlocks?: HMBlockNode[] | null
+      }
       | undefined
     if (existingDraft === undefined) {
       result = undefined
     } else if (!existingDraft) {
-      result = {draftId: null as string | null, content: null, cursorPosition: null}
+      result = { draftId: null as string | null, content: null, cursorPosition: null }
     } else if (existingDraftContent) {
       result = {
         draftId: existingDraft.id,
@@ -1651,12 +1651,12 @@ function DocumentBody({
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
   const send = useDocumentSend()
-  const {beginEditIfNeeded} = useEditorGate()
+  const { beginEditIfNeeded } = useEditorGate()
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = useMemo(
     () =>
       draftOverlayAllowed
-        ? {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+        ? { ...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata }
         : ctx.document?.metadata || document.metadata || {},
     [draftOverlayAllowed, ctx.document?.metadata, document.metadata, ctx.metadata],
   )
@@ -1680,14 +1680,14 @@ function DocumentBody({
   )
   const removeCover = useCallback(() => {
     beginEditIfNeeded()
-    send({type: 'change', metadata: {cover: ''}})
+    send({ type: 'change', metadata: { cover: '' } })
   }, [beginEditIfNeeded, send])
   const changeCover = useCallback(
     async (file: File) => {
       if (!fileUpload) return
       const cid = await fileUpload(file)
       beginEditIfNeeded()
-      send({type: 'change', metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
+      send({ type: 'change', metadata: { cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}` } })
     },
     [beginEditIfNeeded, fileUpload, send],
   )
@@ -1712,18 +1712,18 @@ function DocumentBody({
     // Conflict path applies a mine-wins merge automatically (publish is never
     // blocked). The toast informs the user so they can review the other side's
     // changes if desired. Phase B will surface a per-block picker.
-    onConflictDetected: ({conflictedBlockIds, author}) => {
+    onConflictDetected: ({ conflictedBlockIds, author }) => {
       const blockCount = conflictedBlockIds.length
       const blockNoun = blockCount === 1 ? 'block' : 'blocks'
       const who = author ? `${author}` : 'another author'
-      toast.info(`${who} also edited ${blockCount} ${blockNoun} — your version was kept.`, {duration: 6000})
+      toast.info(`${who} also edited ${blockCount} ${blockNoun} — your version was kept.`, { duration: 6000 })
     },
   })
 
   const route = useNavRoute()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
-  const showOlderVersionToast = shouldShowOlderVersionToast({routeDocId, latestVersion})
+  const showOlderVersionToast = shouldShowOlderVersionToast({ routeDocId, latestVersion })
   const olderVersionToastId = getOlderVersionToastId(routeDocId)
 
   useEffect(() => {
@@ -1765,17 +1765,17 @@ function DocumentBody({
   const discussionsParams =
     route.key === 'comments'
       ? {
-          openComment: route.openComment,
-          targetBlockId: route.targetBlockId,
-          blockId: route.blockId,
-          blockRange: route.blockRange,
-          autoFocus: route.autoFocus,
-          isReplying: route.isReplying,
-          replyCommentVersion: route.replyCommentVersion,
-          rootReplyCommentVersion: route.rootReplyCommentVersion,
-        }
+        openComment: route.openComment,
+        targetBlockId: route.targetBlockId,
+        blockId: route.blockId,
+        blockRange: route.blockRange,
+        autoFocus: route.autoFocus,
+        isReplying: route.isReplying,
+        replyCommentVersion: route.replyCommentVersion,
+        rootReplyCommentVersion: route.rootReplyCommentVersion,
+      }
       : openComment
-        ? {openComment}
+        ? { openComment }
         : undefined
   const suppressMainCommentEditor = shouldSuppressMainCommentEditor({
     docId,
@@ -1789,7 +1789,7 @@ function DocumentBody({
 
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
-  const {scrollToBlock} = useBlockScroll(routeBlockRef)
+  const { scrollToBlock } = useBlockScroll(routeBlockRef)
 
   // On mount, sync URL hash (#blockId) into route if not already present
   useEffect(() => {
@@ -1800,16 +1800,16 @@ function DocumentBody({
     if (!fragment?.blockId) return
     const blockRange =
       'start' in fragment && 'end' in fragment
-        ? {start: fragment.start, end: fragment.end}
+        ? { start: fragment.start, end: fragment.end }
         : 'expanded' in fragment && fragment.expanded
-          ? {expanded: true}
+          ? { expanded: true }
           : null
     // For comments routes, sync fragment into blockId/blockRange (comment block selection)
     if (route.key === 'comments') {
       if (route.blockId) return // already have block selection
       replaceRoute({
         ...route,
-        id: {...route.id, blockRef: fragment.blockId, blockRange},
+        id: { ...route.id, blockRef: fragment.blockId, blockRange },
         blockId: fragment.blockId,
         blockRange,
       })
@@ -1844,7 +1844,7 @@ function DocumentBody({
     [collaborators.data, isHomeDoc],
   )
   const citationsTargetId = useMemo(
-    () => getCitationsTargetId({docId, documentVersion: document.version}),
+    () => getCitationsTargetId({ docId, documentVersion: document.version }),
     [docId, document.version],
   )
   const citations = useCitations(citationsTargetId)
@@ -1898,7 +1898,7 @@ function DocumentBody({
     [breadcrumbIds, draftsForBreadcrumbs, pendingDraftLookup, reservedDraftBreadcrumbNames],
   )
 
-  const breadcrumbResults = useResources(resourceFetchIds, {subscribed: true})
+  const breadcrumbResults = useResources(resourceFetchIds, { subscribed: true })
 
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
@@ -1919,7 +1919,7 @@ function DocumentBody({
         const draftName = currentDraftName || draftMetadata.name
         return {
           id,
-          metadata: draftName ? {...draftMetadata, name: draftName} : draftMetadata,
+          metadata: draftName ? { ...draftMetadata, name: draftName } : draftMetadata,
           draftId: draft.id,
           fallbackName: draftName || fallbackName,
           isLoading: false,
@@ -1933,7 +1933,7 @@ function DocumentBody({
       if (reservedDraftBreadcrumbName) {
         return {
           id,
-          metadata: currentDraftName ? {name: currentDraftName} : {},
+          metadata: currentDraftName ? { name: currentDraftName } : {},
           fallbackName,
           isLoading: false,
           isTombstone: false,
@@ -1964,7 +1964,7 @@ function DocumentBody({
       const showAsUnpublishedDraft = isCurrent && isUnpublishedDraft
       const itemMetadata = isCurrent
         ? currentDraftName
-          ? {...metadata, name: currentDraftName}
+          ? { ...metadata, name: currentDraftName }
           : metadata
         : data?.type === 'document'
           ? data.document?.metadata || {}
@@ -1992,7 +1992,7 @@ function DocumentBody({
       metadata: 'Attributes',
     }
     if (activeView !== 'content' && panelLabels[activeView]) {
-      items.push({label: panelLabels[activeView]})
+      items.push({ label: panelLabels[activeView] })
     }
 
     // Append block text when a block is focused
@@ -2006,7 +2006,7 @@ function DocumentBody({
           text = text.slice(blockRange.start, blockRange.end)
         }
         const truncated = text.length > 40 ? text.slice(0, 40) + '…' : text
-        if (truncated) items.push({label: `"${truncated}"`})
+        if (truncated) items.push({ label: `"${truncated}"` })
       }
     }
 
@@ -2031,7 +2031,7 @@ function DocumentBody({
   // Mobile panel open state derived from URL panel route
   const mobilePanelOpen = !!panelKey
 
-  const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
+  const { showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth } =
     useDocumentLayout({
       contentWidth: metadata?.contentWidth,
       showSidebars: !isHomeDoc && metadata?.showOutline !== false && activeView === 'content',
@@ -2062,7 +2062,7 @@ function DocumentBody({
   const copyHmLink = useCopyHmLink()
   // Current origin for gateway-format links (web: site's own URL; desktop: the
   // configured gateway). Used as a fallback when the document has no site URL.
-  const {origin: appOrigin, originHomeId, experiments, openRouteNewWindow, openUrl} = useUniversalAppContext()
+  const { origin: appOrigin, originHomeId, experiments, openRouteNewWindow, openUrl } = useUniversalAppContext()
   const [showCitationFragments, setShowCitationFragments] = useState(true)
   const [citationFragmentClick, setCitationFragmentClick] = useState<CitationFragmentClick | null>(null)
   const citationFragmentHighlights = useMemo(
@@ -2092,13 +2092,13 @@ function DocumentBody({
           id: {
             ...citation.sourceId,
             blockRef: citation.sourceBlockId,
-            blockRange: citation.sourceBlockId ? {expanded: true} : null,
+            blockRange: citation.sourceBlockId ? { expanded: true } : null,
           },
         }
         if (openRouteNewWindow) {
           openRouteNewWindow(sourceRoute)
         } else {
-          const href = routeToUrl(sourceRoute, {hostname: appOrigin, originHomeId}) || hmIdToURL(sourceRoute.id)
+          const href = routeToUrl(sourceRoute, { hostname: appOrigin, originHomeId }) || hmIdToURL(sourceRoute.id)
           openUrl(href, true)
         }
       }
@@ -2127,7 +2127,7 @@ function DocumentBody({
           blockRef: blockId || null,
           // Mark the block as expanded so the editor highlight plugin focuses
           // and highlights the whole block (not just a text range).
-          blockRange: blockId ? {expanded: true} : null,
+          blockRange: blockId ? { expanded: true } : null,
         },
         panel: {
           key: 'comments',
@@ -2174,9 +2174,9 @@ function DocumentBody({
       if (route.key !== 'document' && route.key !== 'feed') return
       const blockRange =
         opts && 'start' in opts && 'end' in opts
-          ? {start: opts.start, end: opts.end}
+          ? { start: opts.start, end: opts.end }
           : opts && 'expanded' in opts && opts.expanded
-            ? {expanded: true}
+            ? { expanded: true }
             : null
       const blockRoute = {
         ...route,
@@ -2244,7 +2244,7 @@ function DocumentBody({
   }, [route, replaceRoute])
 
   // Activity filter change handler (main page)
-  const handleMainActivityFilterChange = (filter: {filterEventType?: string[]}) => {
+  const handleMainActivityFilterChange = (filter: { filterEventType?: string[] }) => {
     if (route.key === 'activity') {
       navigate({
         ...route,
@@ -2257,7 +2257,7 @@ function DocumentBody({
   const inspectMenuItem = useMemo<MenuItemType | null>(() => {
     if (!experiments?.developerTools) return null
     if (route.key === 'inspect') return null
-    const inspectDocId = {...docId, blockRef: null, blockRange: null}
+    const inspectDocId = { ...docId, blockRef: null, blockRange: null }
     return {
       key: 'inspect',
       label: 'Inspect Document',
@@ -2274,8 +2274,8 @@ function DocumentBody({
       label: 'Document Settings',
       icon: <FilePen className="size-4" />,
       onClick: () => {
-        const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
-        replaceRoute({...route, panel: newPanel} as any)
+        const newPanel = panelKey === 'options' ? null : { key: 'options' as const }
+        replaceRoute({ ...route, panel: newPanel } as any)
       },
     }
   }, [canEditCurrentRoute, panelKey, route, replaceRoute])
@@ -2299,7 +2299,7 @@ function DocumentBody({
       label: 'Attributes',
       icon: <Info className="size-4" />,
       onClick: () => {
-        navigate({key: 'metadata', id: {...docId, blockRef: null, blockRange: null}})
+        navigate({ key: 'metadata', id: { ...docId, blockRef: null, blockRange: null } })
       },
     }
   }, [docId, navigate, route.key])
@@ -2374,7 +2374,7 @@ function DocumentBody({
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
-  const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
+  const topBarBreadcrumbs = breadcrumbs ?? [{ id: hmId(docId.uid, { latest: true }), metadata }]
   const documentTopBar = (
     <DocumentTopBar breadcrumbs={topBarBreadcrumbs} actions={documentContentAction} isMobile={isMobile} />
   )
@@ -2385,7 +2385,7 @@ function DocumentBody({
       className={cn(
         'flex flex-col',
         pageFooter &&
-          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
+        'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
         !pageFooter && 'min-h-full',
       )}
     >
@@ -2435,7 +2435,7 @@ function DocumentBody({
           {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
         </div>
       ) : (
-        <div className={cn('mx-auto flex w-full flex-col px-4')} style={{maxWidth: contentMaxWidth}}>
+        <div className={cn('mx-auto flex w-full flex-col px-4')} style={{ maxWidth: contentMaxWidth }}>
           {isHomeDoc &&
             activeView !== 'all-documents' &&
             !siteMembers.isInitialLoading &&
@@ -2471,18 +2471,18 @@ function DocumentBody({
       {/* DocumentTools - scrolls with the page; the border separates document
           identity above from document body below. Hidden when showActivity is false. */}
       {showActivity && (
-        <div className="border-border border-b px-5 py-1">
+        <div className="px-5 py-1">
           <DocumentTools
             id={docId}
             activeTab={
               activeView === 'activity' &&
-              activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
+                activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
                 ? 'citations'
                 : activeView === 'activity' ||
-                    activeView === 'directory' ||
-                    activeView === 'site-profile' ||
-                    activeView === 'all-documents' ||
-                    activeView === 'explore'
+                  activeView === 'directory' ||
+                  activeView === 'site-profile' ||
+                  activeView === 'all-documents' ||
+                  activeView === 'explore'
                   ? undefined
                   : activeView
             }
@@ -2496,29 +2496,29 @@ function DocumentBody({
               isMobile
                 ? undefined
                 : {
-                    wrapperProps,
-                    sidebarProps,
-                    mainContentProps,
-                    showSidebars,
-                  }
+                  wrapperProps,
+                  sidebarProps,
+                  mainContentProps,
+                  showSidebars,
+                }
             }
             activeTabAction={
               activeView !== 'content' &&
-              activeView !== 'site-profile' &&
-              activeView !== 'all-documents' &&
-              activeView !== 'explore' ? (
+                activeView !== 'site-profile' &&
+                activeView !== 'all-documents' &&
+                activeView !== 'explore' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<
-                            ActiveView,
-                            'content' | 'site-profile' | 'all-documents' | 'explore'
-                          >,
-                          id: docId,
-                        }
+                        key: activeView as Exclude<
+                          ActiveView,
+                          'content' | 'site-profile' | 'all-documents' | 'explore'
+                        >,
+                        id: docId,
+                      }
                   }
                 />
               ) : null
@@ -2583,16 +2583,16 @@ function DocumentBody({
   // Close panel handler
   const handlePanelClose = () => {
     if ('panel' in route) {
-      navigate({...route, panel: null})
+      navigate({ ...route, panel: null })
     }
   }
 
   // Activity filter change handler (panel)
-  const handleFilterChange = (filter: {filterEventType?: string[]}) => {
+  const handleFilterChange = (filter: { filterEventType?: string[] }) => {
     if ((route.key === 'document' || route.key === 'feed') && route.panel?.key === 'activity') {
       navigate({
         ...route,
-        panel: {...route.panel, filterEventType: filter.filterEventType},
+        panel: { ...route.panel, filterEventType: filter.filterEventType },
       })
     }
   }
@@ -2625,10 +2625,10 @@ function DocumentBody({
                     key={
                       panelRoute?.key === 'comments'
                         ? getCommentEditorRouteKey({
-                            openComment: panelRoute.openComment,
-                            targetBlockId: panelRoute.targetBlockId,
-                            blockRange: panelRoute.blockRange,
-                          })
+                          openComment: panelRoute.openComment,
+                          targetBlockId: panelRoute.targetBlockId,
+                          blockRange: panelRoute.blockRange,
+                        })
                         : undefined
                     }
                     docId={commentsPanelTarget.docId}
@@ -2732,7 +2732,7 @@ function EditableDocumentHeader({
   // Use machine context metadata if it has been changed, otherwise fall back to document metadata
   const name = ctx.metadata?.name ?? docMetadata?.name ?? ''
   const summary = ctx.metadata?.summary ?? docMetadata?.summary ?? ''
-  const metadata = {...(docMetadata || {}), ...ctx.metadata}
+  const metadata = { ...(docMetadata || {}), ...ctx.metadata }
 
   return (
     <DocumentHeader
@@ -2749,10 +2749,10 @@ function EditableDocumentHeader({
           mobileOnly
           fileUpload={fileUpload}
           onBeforeMetadataChange={() => {
-            if (!isEditing) send({type: 'edit.start'})
+            if (!isEditing) send({ type: 'edit.start' })
           }}
           onMetadata={(metadata) => {
-            send({type: 'change', metadata})
+            send({ type: 'change', metadata })
           }}
           onRequestSummary={() => {
             setSummaryRequested(true)
@@ -2763,9 +2763,9 @@ function EditableDocumentHeader({
       onRemoveIcon={
         metadata.icon
           ? () => {
-              if (!isEditing) send({type: 'edit.start'})
-              send({type: 'change', metadata: {icon: ''}})
-            }
+            if (!isEditing) send({ type: 'edit.start' })
+            send({ type: 'change', metadata: { icon: '' } })
+          }
           : undefined
       }
     >
@@ -2776,18 +2776,18 @@ function EditableDocumentHeader({
         fileUpload={fileUpload}
         focusTitleOnMount={focusTitleOnMount}
         onBeginEdit={() => {
-          if (!isEditing) send({type: 'edit.start'})
+          if (!isEditing) send({ type: 'edit.start' })
         }}
         onMetadata={(metadata) => {
-          send({type: 'change', metadata})
+          send({ type: 'change', metadata })
         }}
         onCancelEdit={() => {
           if (isEditing) {
-            send({type: 'edit.cancel'})
+            send({ type: 'edit.cancel' })
           }
         }}
         onSummaryEnter={() => {
-          send({type: 'edit.start', cursorPosition: 'end'})
+          send({ type: 'edit.start', cursorPosition: 'end' })
         }}
         summaryRequested={summaryRequested}
         onSummaryRequestedChange={setSummaryRequested}
@@ -2876,7 +2876,7 @@ function CommentsPanelContent({
 }: {
   docId: UnpackedHypermediaId
   openComment?: string
-  panelRoute: Extract<DocumentPanelRoute, {key: 'comments'}>
+  panelRoute: Extract<DocumentPanelRoute, { key: 'comments' }>
   contentMaxWidth: number
   targetDomain?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
@@ -2959,11 +2959,11 @@ function DocumentOptionsPanel({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
-  const {beginEditIfNeeded} = useEditorGate()
+  const { beginEditIfNeeded } = useEditorGate()
   const homeDraftOverride = useIsHomeDraftOverride()
   const isHomeDoc = homeDraftOverride ?? !docId.path?.length
 
-  const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
+  const metadata = { ...(ctx.document?.metadata || {}), ...ctx.metadata }
   // draftId may not exist yet when the panel is opened in read mode. Fall back
   // to docId.id so form field HTML ids remain stable and unique.
   const formId = ctx.draftId ?? docId.id
@@ -2977,7 +2977,7 @@ function DocumentOptionsPanel({
       onMetadata={(newMetadata) => {
         if (!newMetadata) return
         beginEditIfNeeded()
-        send({type: 'change', metadata: newMetadata})
+        send({ type: 'change', metadata: newMetadata })
       }}
     />
   )
@@ -2991,7 +2991,7 @@ function HomeDocumentMetadataControls({
   fileUpload?: (file: File) => Promise<string>
 }) {
   const send = useDocumentSend()
-  const {beginEditIfNeeded} = useEditorGate()
+  const { beginEditIfNeeded } = useEditorGate()
 
   return (
     <HomeDocumentMetadataAffordanceBar
@@ -3000,7 +3000,7 @@ function HomeDocumentMetadataControls({
       onBeginEdit={beginEditIfNeeded}
       onMetadata={(patch) => {
         beginEditIfNeeded()
-        send({type: 'change', metadata: patch})
+        send({ type: 'change', metadata: patch })
       }}
     />
   )
@@ -3017,12 +3017,12 @@ function DocumentMetadataPage({
 }) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
-  const {beginEditIfNeeded} = useEditorGate()
+  const { beginEditIfNeeded } = useEditorGate()
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const openUrl = useOpenUrl()
 
   // Draft metadata (partial) overrides published metadata, same as the options panel.
-  const metadata = {...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata}
+  const metadata = { ...(ctx.document?.metadata || document.metadata || {}), ...ctx.metadata }
 
   // Open an uploaded IPFS file reference in its own dedicated viewer window/tab.
   const openFile = useCallback((cid: string) => openUrl(`hm://inspect/ipfs/${cid}`, true), [openUrl])
@@ -3037,7 +3037,7 @@ function DocumentMetadataPage({
       onMetadata={(patch) => {
         if (!canEditCurrentRoute) return
         beginEditIfNeeded()
-        send({type: 'change', metadata: patch as any})
+        send({ type: 'change', metadata: patch as any })
       }}
       fileUpload={fileUpload}
       openFile={openFile}
@@ -3107,8 +3107,8 @@ function MainContent({
   }
   suppressCommentEditor?: boolean
   activityFilterEventType?: string[]
-  onActivityFilterChange?: (filter: {filterEventType?: string[]}) => void
-  blockCitations?: Record<string, {citations: number; comments: number}> | null
+  onActivityFilterChange?: (filter: { filterEventType?: string[] }) => void
+  blockCitations?: Record<string, { citations: number; comments: number }> | null
   citationFragmentHighlights?: CitationFragmentHighlight[]
   onCitationFragmentClick?: (event: CitationFragmentClick) => void
   onBlockCitationClick?: (blockId?: string | null) => void
@@ -3136,7 +3136,7 @@ function MainContent({
   fileUpload?: (file: File) => Promise<string>
   draftVersionEntry?: DraftVersionEntry
 }) {
-  const {openRouteNewWindow, originHomeId} = useUniversalAppContext()
+  const { openRouteNewWindow, originHomeId } = useUniversalAppContext()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
   const route = useNavRoute()
@@ -3148,7 +3148,7 @@ function MainContent({
   const parsedExploreQuery = useMemo(() => parseExploreQuery(exploreQuery), [exploreQuery])
   const explore = useExploreResults(
     parsedExploreQuery,
-    {type: 'site', id: allDocumentsSiteId},
+    { type: 'site', id: allDocumentsSiteId },
     {
       enabled: activeView === 'explore',
     },
@@ -3161,12 +3161,12 @@ function MainContent({
           siteId={allDocumentsSiteId}
           scopeId={allDocumentsSiteId}
           onNavigateToDocument={(id, opts) => {
-            const route = {key: 'document' as const, id}
+            const route = { key: 'document' as const, id }
             if (opts?.newWindow) {
               if (openRouteNewWindow) {
                 openRouteNewWindow(route)
               } else {
-                const href = routeToHref(route, {originHomeId})
+                const href = routeToHref(route, { originHomeId })
                 if (href) window.open(href, '_blank')
               }
               return
@@ -3193,15 +3193,15 @@ function MainContent({
           onLoadMore={explore.loadMore}
           isLoading={explore.isLoading}
           error={explore.error instanceof Error ? explore.error.message : null}
-          onQueryChange={(q) => replaceRoute({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q})}
+          onQueryChange={(q) => replaceRoute({ key: 'explore', context: { type: 'site', id: allDocumentsSiteId }, q })}
           accountUid={allDocumentsSiteId.uid}
-          context={{type: 'site', id: allDocumentsSiteId}}
+          context={{ type: 'site', id: allDocumentsSiteId }}
           onOpenResult={(result) => {
             if (result.type === 'comment') {
-              navigate({key: 'comments', id: result.documentId, openComment: result.commentId})
+              navigate({ key: 'comments', id: result.documentId, openComment: result.commentId })
               return
             }
-            navigate({key: 'document', id: result.id})
+            navigate({ key: 'document', id: result.id })
           }}
         />
       )
@@ -3363,7 +3363,7 @@ function ContentViewWithOutline({
   mainContentProps: React.HTMLAttributes<HTMLDivElement>
   showSidebars: boolean
   showCollapsed: boolean
-  blockCitations?: Record<string, {citations: number; comments: number}> | null
+  blockCitations?: Record<string, { citations: number; comments: number }> | null
   citationFragmentHighlights?: CitationFragmentHighlight[]
   onCitationFragmentClick?: (event: CitationFragmentClick) => void
   onBlockCitationClick?: (blockId?: string | null) => void
@@ -3422,7 +3422,7 @@ function ContentViewWithOutline({
                   onActivateBlock={(blockId) => {
                     const el = window.document.getElementById(blockId)
                     if (el) {
-                      el.scrollIntoView({behavior: 'smooth', block: 'start'})
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }
                   }}
                   outline={outline}
@@ -3527,7 +3527,7 @@ function DocumentContentHandoff({
         <div
           ref={placeholderRef}
           className={editorMounted ? 'dark:bg-background absolute inset-x-0 top-0 z-10 bg-white' : undefined}
-          dangerouslySetInnerHTML={{__html: ssrContentHTML}}
+          dangerouslySetInnerHTML={{ __html: ssrContentHTML }}
         />
       )}
     </div>
@@ -3561,7 +3561,7 @@ function SiteProfileContent({
 }) {
   const profileId = hmId(accountUid)
   // Subscribe to trigger background discovery/sync and track discovery state
-  const profileResource = useResource(profileId, {subscribed: true, recursive: true})
+  const profileResource = useResource(profileId, { subscribed: true, recursive: true })
   const account = useAccount(accountUid)
 
   // Track when we started looking so we can keep showing discovery UI
