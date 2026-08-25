@@ -1,12 +1,11 @@
-import {
-  type AgentRunActivity,
-  type RunInfo,
-  type SessionActor,
-  type SessionAttachmentInfo,
-  type SessionEventMeta,
-} from './client'
+import {type AgentRunActivity, type RunInfo, type SessionEventMeta} from './client'
 import {eventMetaRows} from './event-meta'
-import {buildLegacyChatMessageParts, type ChatMessagePart, type ChatToolPart} from './chat-parts'
+import {
+  buildLegacyChatMessageParts,
+  type ChatBubbleMessage,
+  type ChatMessagePart,
+  type ChatToolPart,
+} from './chat-parts'
 import {getSeedTool, type SeedToolMetadata} from '@seed-hypermedia/agents-protocol'
 import {
   detailLinkTarget,
@@ -365,34 +364,6 @@ export function AgentErrorRow({
       ) : null}
     </div>
   )
-}
-
-/** Message shape accepted by the shared assistant chat bubble renderer. */
-export type ChatBubbleMessage = {
-  role?: string
-  content?: string
-  parts?: ChatMessagePart[]
-  toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>
-  toolResults?: Array<{id: string; name: string; result: string; rawOutput?: unknown}>
-  errorMessage?: string
-  rawMarkdown?: string
-  blocks?: HMBlockNode[]
-  eventId?: string
-  sessionId?: string
-  seq?: number
-  shareUrl?: string
-  /** Client context (e.g. the sender's current window) attached to this message for the model. */
-  contextLines?: string[]
-  /** Session-private attachments that accompanied this user message. */
-  attachments?: SessionAttachmentInfo[]
-  /**
-   * Who wrote this message on the shared log. `role` says how the model reads it; this says who put
-   * it there — and they disagree exactly where it matters, on the runtime's own messages, which the
-   * model must read as instruction (role 'user') and the reader must not mistake for the user.
-   */
-  actor?: SessionActor
-  /** User origin or model/provider/usage/timing, as the writer stamped it. */
-  meta?: SessionEventMeta
 }
 
 /**

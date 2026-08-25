@@ -48,9 +48,7 @@ export function formattedDateShort(value?: AnyTimestamp): string {
   if (!date || isNaN(date.getTime())) return ''
   const now = new Date()
   const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
+    date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate()
   const time = date.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: false})
   if (sameDay) return time
   const withinYear = date.getTime() > Date.now() - 365 * 24 * 60 * 60 * 1000

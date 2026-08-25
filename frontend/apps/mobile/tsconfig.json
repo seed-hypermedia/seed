@@ -6,7 +6,9 @@
       "@/*": ["./*"],
       "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
       "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
-      "@shm/shared/*": ["../../packages/shared/src/*"]
+      "@shm/shared/*": ["../../packages/shared/src/*"],
+      "@shm/ui/agents/*": ["../../packages/ui/src/agents/*"],
+      "@seed-hypermedia/agents-protocol": ["../../../agents/protocol/src/index.ts"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx"]

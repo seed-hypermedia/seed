@@ -37,6 +37,27 @@ if (typeof g.crypto!.getRandomValues !== 'function') {
   }
 }
 
+// ─── crypto.randomUUID ───────────────────────────────────────────────────────
+// Hermes has none. The shared agents models use it for client request ids and for the optimistic
+// message ids that let a durable echo replace its pending row, so it has to exist before any agents
+// code runs. Built on getRandomValues above, so it inherits expo-crypto's CSPRNG.
+
+if (typeof g.crypto!.randomUUID !== 'function') {
+  ;(g.crypto as {randomUUID: unknown}).randomUUID = (): string => {
+    const bytes = new Uint8Array(16)
+    g.crypto!.getRandomValues(bytes)
+    // RFC 4122 §4.4: version 4, variant 10xx.
+    bytes[6] = (bytes[6] & 0x0f) | 0x40
+    bytes[8] = (bytes[8] & 0x3f) | 0x80
+    const hex: string[] = []
+    for (let i = 0; i < 16; i++) hex.push(bytes[i].toString(16).padStart(2, '0'))
+    return (
+      `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-` +
+      `${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
+    )
+  }
+}
+
 // ─── crypto.subtle.digest (noble hashes) ─────────────────────────────────────
 // Hermes has no WebCrypto. The publish path needs digest only (multiformats'
 // sha2-browser hasher, redirected to by metro.config.js). HKDF is deliberately
