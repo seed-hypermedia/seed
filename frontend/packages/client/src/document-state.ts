@@ -7,8 +7,8 @@
  */
 
 import type {SeedClient} from './client'
-import type {HMListChangesOutput} from './hm-types'
-import {unpackHmId} from './hm-types'
+import type {HMDocument, HMListChangesOutput, UnpackedHypermediaId} from './hm-types'
+import {packHmId, unpackHmId} from './hm-types'
 
 /** The resolved state of a document's change DAG. */
 export type DocumentState = {
@@ -86,6 +86,65 @@ export async function resolveDocumentState(client: SeedClient, targetId: string)
     headDepth: maxHeadDepth,
     version,
   }
+}
+
+/** Maximum redirect hops {@link resolveEditableDocument} follows before giving up. */
+const MAX_REDIRECT_HOPS = 5
+
+/** The baseline needed to edit (or take over) a document address. */
+export type EditableDocumentBase = {
+  /** The address being edited — where a new Ref should be published. */
+  id: UnpackedHypermediaId
+  /** Where the content baseline lives after following redirects (same as `id` for a plain document). */
+  targetId: UnpackedHypermediaId
+  /** The current document at the target — the content baseline for edits. */
+  document: HMDocument
+  /** Change-DAG state of the target (genesis/heads/depth) for building the next Change. */
+  state: DocumentState
+  /**
+   * Non-null when `id` currently holds a redirect Ref. Publishing a Version Ref at `id` with the
+   * target's genesis and a fresh (current-timestamp) generation replaces the redirect: the path
+   * becomes a live document continuing the target's change history, and stops following the target.
+   */
+  redirect: {republish: boolean; target: UnpackedHypermediaId} | null
+}
+
+/**
+ * Resolves an address to the state needed to edit the document there, following redirects.
+ *
+ * A path that holds a redirect Ref (including a "republish" redirect, which re-publishes the
+ * target's latest content at this path) has no change DAG of its own — `ListChanges` returns
+ * nothing for it. The editable content lives at the redirect target, so edits at the source
+ * address must build a Change on the target's DAG and publish a Version Ref at the source path
+ * with a fresh generation, which supersedes the redirect Ref.
+ */
+export async function resolveEditableDocument(
+  client: SeedClient,
+  id: UnpackedHypermediaId,
+): Promise<EditableDocumentBase> {
+  const seen = new Set<string>([packHmId(id)])
+  let current = id
+  let firstRedirect: EditableDocumentBase['redirect'] = null
+  for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
+    const resource = await client.request('Resource', current)
+    if (resource.type === 'document') {
+      const state = await resolveDocumentState(client, packHmId(current))
+      return {id, targetId: current, document: resource.document, state, redirect: firstRedirect}
+    }
+    if (resource.type === 'redirect') {
+      firstRedirect ??= {republish: resource.republish === true, target: resource.redirectTarget}
+      const next = packHmId(resource.redirectTarget)
+      if (seen.has(next)) throw new Error(`Redirect cycle detected at ${next}`)
+      seen.add(next)
+      current = resource.redirectTarget
+      continue
+    }
+    throw new Error(
+      `Cannot edit ${packHmId(current)}: resource is ${resource.type}` +
+        (firstRedirect ? ` (followed redirect from ${packHmId(id)})` : ''),
+    )
+  }
+  throw new Error(`Too many redirects while resolving ${packHmId(id)} (limit ${MAX_REDIRECT_HOPS})`)
 }
 
 /**
