@@ -1,4 +1,4 @@
-import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   entityQueryPathToHmIdPath,
   HMBlockChildrenType,
@@ -10,8 +10,9 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import {collectChildDraftIds} from '../utils/child-draft-refs'
+import {nanoid} from 'nanoid'
 import {assign, emit, fromPromise, raise, setup, spawnChild, StateFrom} from 'xstate'
+import {collectChildDraftIds} from '../utils/child-draft-refs'
 
 const DOCUMENT_EMBED_CLEANUP_LOG_PREFIX = '[Document embed cleanup]'
 
@@ -29,6 +30,41 @@ function documentEmbedCleanupError(...args: unknown[]) {
 
 function getTopLevelBlockCount(blocks: unknown[] | null | undefined) {
   return Array.isArray(blocks) ? blocks.length : 0
+}
+
+/** Whether metadata identifies the canonical document collection type. */
+export function isDocumentCollection(metadata: HMMetadata | null | undefined): boolean {
+  return metadata?.type == 'Collection'
+}
+
+/** Creates the standard query block required by a document collection. */
+export function createDefaultCollectionQueryBlock(blockId: string): EditorBlock {
+  return {
+    id: blockId,
+    type: 'query',
+    props: {
+      style: 'Table',
+      columnCount: '3',
+      queryLimit: '',
+      queryIncludes: JSON.stringify([{space: '', path: '', mode: 'Children'}]),
+      querySort: JSON.stringify([{term: 'UpdateTime', reverse: false}]),
+      defaultOpen: 'true',
+      tableConfig: '',
+    },
+    content: [],
+    children: [],
+  }
+}
+
+/** Ensures the first root query block exists and uses the collection Table view. */
+export function normalizeCollectionEditorBlocks(blocks: EditorBlock[], blockId: string): EditorBlock[] {
+  const queryIndex = blocks.findIndex((block) => block.type === 'query')
+  if (queryIndex === -1) return [...blocks, createDefaultCollectionQueryBlock(blockId)]
+  const query = blocks[queryIndex]
+  if (!query || query.type !== 'query' || query.props.style === 'Table') return blocks
+  const result = [...blocks]
+  result[queryIndex] = {...query, props: {...query.props, style: 'Table'}}
+  return result
 }
 
 type QueryInclude = {
@@ -224,6 +260,35 @@ export type DocumentMachineContext = {
   transientResourceError: TransientResourceError
   /** True after this old-version visit has already warned about blocked edit attempts. */
   oldVersionEditNoticeShown: boolean
+  /** Prevents a failed automatic collection repair from retrying in a tight loop. */
+  collectionRepairAttempted: boolean
+}
+
+function contentToEditorBlocks(content: HMBlockNode[] | EditorBlock[] | null | undefined): EditorBlock[] {
+  if (!content?.length) return []
+  const first = content[0]
+  return first && 'block' in first
+    ? hmBlocksToEditorContent(content as HMBlockNode[], {childrenType: 'Group'})
+    : (content as EditorBlock[])
+}
+
+/** Returns the machine's authoritative editor content for collection rendering and repair. */
+export function getCollectionEditorBlocks(context: DocumentMachineContext): EditorBlock[] {
+  const useDraft = shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && context.draftContent
+  return contentToEditorBlocks(useDraft || context.document?.content)
+}
+
+/** Returns the effective metadata derived from the published document and draft overlay. */
+export function getEffectiveDocumentMetadata(context: DocumentMachineContext): HMMetadata {
+  return {...(context.document?.metadata ?? {}), ...context.metadata}
+}
+
+/** Whether an editable collection needs a missing query repaired or its first root query normalized to Table. */
+export function collectionNeedsRepair(context: DocumentMachineContext): boolean {
+  if (!context.canEdit || !isDocumentCollection(getEffectiveDocumentMetadata(context))) return false
+  if (!shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion)) return false
+  const query = getCollectionEditorBlocks(context).find((block) => block.type === 'query')
+  return !query || query.props.style !== 'Table'
 }
 
 /**
@@ -248,6 +313,7 @@ export type DocumentMachineEvent =
   | {type: 'rootChildrenType.change'; childrenType: HMBlockChildrenType}
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
+  | {type: 'collection.query.change'; props: Partial<EditorQueryBlock['props']>}
   | {
       type: 'publish.start'
       /**
@@ -314,6 +380,8 @@ export type WriteDraftInput = {
   mineTouchedIds: string[]
   /** Three-way merge base captured at edit-start (or updated by `rebase.apply`). */
   baseBlocks: HMBlockNode[] | null
+  /** Explicit editor content for machine-owned repairs when no editor is mounted. */
+  contentOverride?: EditorBlock[]
 }
 
 /** Output returned by draft writers after the saved draft hits local storage. */
@@ -384,6 +452,7 @@ export const documentMachine = setup({
         }
         return null
       },
+      collectionRepairAttempted: false,
     }),
     setTransientResourceError: assign({
       transientResourceError: ({context, event}) => {
@@ -407,6 +476,21 @@ export const documentMachine = setup({
         }
         return context.metadata
       },
+    }),
+    updateCollectionQuery: assign({
+      draftContent: ({context, event}) => {
+        if (event.type !== 'collection.query.change') return context.draftContent
+        const blocks = normalizeCollectionEditorBlocks(getCollectionEditorBlocks(context), nanoid(10))
+        const queryIndex = blocks.findIndex((block) => block.type === 'query')
+        const query = blocks[queryIndex]
+        if (!query || query.type !== 'query') return context.draftContent
+        const next = [...blocks]
+        next[queryIndex] = {...query, props: {...query.props, ...event.props}}
+        return next as unknown as HMBlockNode[]
+      },
+    }),
+    markCollectionRepairAttempted: assign({
+      collectionRepairAttempted: true,
     }),
     setNavigation: assign({
       navigation: ({event}) => {
@@ -719,6 +803,7 @@ export const documentMachine = setup({
         if (event.type === 'draft.resolved' && event.content) return collectChildDraftIds(event.content)
         return context.referencedChildDraftIds
       },
+      collectionRepairAttempted: false,
     }),
     setExistingDraft: assign({
       draftId: ({event}) => {
@@ -969,6 +1054,7 @@ export const documentMachine = setup({
     hasExistingDraft: ({context}) => context.shouldAutoEdit,
     hasRemoteUpdate: ({context}) => context.pendingRemoteDocument !== null,
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
+    collectionNeedsRepair: ({context}) => !context.collectionRepairAttempted && collectionNeedsRepair(context),
     capabilityLost: ({event}) => event.type === 'capability.changed' && !event.canEdit,
     hasPendingPublish: ({context}) => context.pendingPublish,
     hasPendingExitEditingAfterSave: ({context}) => context.pendingExitEditingAfterSave,
@@ -1058,6 +1144,7 @@ export const documentMachine = setup({
     error: null,
     transientResourceError: null,
     oldVersionEditNoticeShown: false,
+    collectionRepairAttempted: false,
   }),
   initial: 'loading',
   states: {
@@ -1088,14 +1175,52 @@ export const documentMachine = setup({
           actions: ['setRouteVersionState'],
         },
       },
-      always: {
-        target: 'loaded',
-        guard: 'bothSourcesReady',
-      },
+      always: [
+        {
+          target: 'repairingCollection',
+          guard: ({context}) =>
+            context.documentReady &&
+            context.draftReady &&
+            !context.collectionRepairAttempted &&
+            collectionNeedsRepair(context),
+        },
+        {target: 'loaded', guard: 'bothSourcesReady'},
+      ],
       after: {
         loadingTimeout: {
           target: 'error',
         },
+      },
+    },
+
+    repairingCollection: {
+      entry: ['markCollectionRepairAttempted', 'setDepsFromPublished', 'snapshotBaseBlocks'],
+      invoke: {
+        src: 'writeDraft',
+        input: ({context}) => ({
+          draftId: context.draftId,
+          metadata: getEffectiveDocumentMetadata(context),
+          deps: context.deps,
+          navigation: context.navigation,
+          locationUid: context.locationUid,
+          locationPath: context.locationPath,
+          editUid: context.editUid,
+          editPath: context.editPath,
+          signingAccountId: context.signingAccountId,
+          mineTouchedIds: context.mineTouchedIds,
+          baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
+          contentOverride: normalizeCollectionEditorBlocks(getCollectionEditorBlocks(context), nanoid(10)),
+        }),
+        onDone: {
+          target: 'editing',
+          actions: [
+            'setDraftCreated',
+            {type: 'setDraftIdFromResult', params: ({event}: {event: any}) => event.output},
+            {type: 'setDraftSavedSnapshotFromResult', params: ({event}: {event: any}) => event.output},
+            'clearShouldAutoEdit',
+          ],
+        },
+        onError: {target: 'loaded'},
       },
     },
 
@@ -1135,6 +1260,11 @@ export const documentMachine = setup({
         'version.changed': {
           actions: ['setRouteVersionState'],
         },
+        'collection.query.change': {
+          target: 'editing',
+          guard: 'canTransitionToEditing',
+          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'updateCollectionQuery'],
+        },
         'draft.existing': [
           {
             target: 'editing',
@@ -1146,15 +1276,18 @@ export const documentMachine = setup({
           },
         ],
       },
-      always: {
-        target: 'editing',
-        guard: ({context}) =>
-          context.shouldAutoEdit &&
-          context.canEdit &&
-          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
-          (context.isLatestVersion || !!context.draftId),
-        actions: ['clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
-      },
+      always: [
+        {target: 'repairingCollection', guard: 'collectionNeedsRepair'},
+        {
+          target: 'editing',
+          guard: ({context}) =>
+            context.shouldAutoEdit &&
+            context.canEdit &&
+            shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) &&
+            (context.isLatestVersion || !!context.draftId),
+          actions: ['clearShouldAutoEdit', 'setDepsFromPublished', 'snapshotBaseBlocks'],
+        },
+      ],
     },
 
     editing: {
@@ -1240,6 +1373,10 @@ export const documentMachine = setup({
           states: {
             idle: {
               on: {
+                'collection.query.change': {
+                  target: 'changed',
+                  actions: ['updateCollectionQuery'],
+                },
                 change: {
                   target: 'changed',
                   actions: ['setMetadata'],
@@ -1282,6 +1419,11 @@ export const documentMachine = setup({
             },
             changed: {
               on: {
+                'collection.query.change': {
+                  target: 'changed',
+                  actions: ['updateCollectionQuery'],
+                  reenter: true,
+                },
                 change: {
                   target: 'changed',
                   actions: ['setMetadata'],
@@ -1346,6 +1488,9 @@ export const documentMachine = setup({
             creating: {
               entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
+                'collection.query.change': {
+                  actions: ['setHasChangedWhileSaving', 'updateCollectionQuery'],
+                },
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
                 },
@@ -1390,6 +1535,9 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
+                  contentOverride: isDocumentCollection(getEffectiveDocumentMetadata(context))
+                    ? getCollectionEditorBlocks(context)
+                    : undefined,
                 }),
                 onDone: [
                   {
@@ -1465,6 +1613,9 @@ export const documentMachine = setup({
             saving: {
               entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
+                'collection.query.change': {
+                  actions: ['setHasChangedWhileSaving', 'updateCollectionQuery'],
+                },
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
                 },
@@ -1510,6 +1661,9 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
+                  contentOverride: isDocumentCollection(getEffectiveDocumentMetadata(context))
+                    ? getCollectionEditorBlocks(context)
+                    : undefined,
                 }),
                 onDone: [
                   {

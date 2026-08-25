@@ -21,7 +21,7 @@ describe('buildDocumentCollectionDraftSeed', () => {
         id: 'query-block-id',
         type: 'query',
         props: {
-          style: 'Card',
+          style: 'Table',
           columnCount: '3',
           queryLimit: '',
           queryIncludes: '[{"space":"","path":"","mode":"Children"}]',

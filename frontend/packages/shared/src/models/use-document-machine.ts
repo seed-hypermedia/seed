@@ -8,6 +8,10 @@ import {ActorRefFrom, SnapshotFrom} from 'xstate'
 import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
 import {
   documentMachine,
+  getCollectionEditorBlocks,
+  getEffectiveDocumentMetadata,
+  isDocumentCollection,
+  normalizeCollectionEditorBlocks,
   DocumentMachineContext,
   DocumentMachineEvent,
   DocumentMachineInput,
@@ -619,6 +623,20 @@ export function selectError(snapshot: DocumentMachineSnapshot): unknown {
 /** The full machine context. */
 export function selectContext(snapshot: DocumentMachineSnapshot): DocumentMachineContext {
   return snapshot.context
+}
+
+/** Whether the effective document metadata identifies a document collection. */
+export function selectIsDocumentCollection(snapshot: DocumentMachineSnapshot): boolean {
+  return isDocumentCollection(getEffectiveDocumentMetadata(snapshot.context))
+}
+
+/** The first root query block used by the document collection view. */
+export function selectCollectionQueryBlock(snapshot: DocumentMachineSnapshot): EditorBlock | null {
+  return (
+    normalizeCollectionEditorBlocks(getCollectionEditorBlocks(snapshot.context), 'collection-query-preview').find(
+      (block) => block.type === 'query',
+    ) ?? null
+  )
 }
 
 /** Whether draft content is allowed to overlay the published document for the current route. */

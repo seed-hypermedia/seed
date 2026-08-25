@@ -5,10 +5,13 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
+  HMBlockQuery,
+  HMQueryTableConfig,
   HMRawCitation,
   HMResource,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -56,13 +59,16 @@ import {
 } from '@shm/shared/models/entity'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {queryQueryBlock} from '@shm/shared/models/queries'
 import {
   documentMachine,
   DocumentMachineProvider,
   selectCanEditCurrentRoute,
   selectContext,
+  selectCollectionQueryBlock,
   selectDraftOverlayAllowed,
   selectIsEditing,
+  selectIsDocumentCollection,
   selectIsUnpublishedDraft,
   selectPublishedVersion,
   selectRenderableBlocks,
@@ -83,7 +89,7 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
-import {useOpenUrl} from '@shm/shared/routing'
+import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activityFilterToSlug,
@@ -139,6 +145,7 @@ import {PrivateBadge} from './private-badge'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {QueryBlockContent} from './query-block-content'
 import {toast} from './toast'
 import {UnreferencedDocuments} from './unreferenced-documents'
 import {useBlockScroll} from './use-block-scroll'
@@ -1733,6 +1740,8 @@ function DocumentBody({
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
+  const isDocumentCollection = useDocumentSelector(selectIsDocumentCollection)
+  const collectionQueryBlock = useDocumentSelector(selectCollectionQueryBlock)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   // Draft metadata (partial) overrides published metadata, same as the options panel.
@@ -2495,9 +2504,26 @@ function DocumentBody({
       ) : null}
 
       {!isMobile ? (
-        <div {...wrapperProps} className={cn(wrapperProps.className, 'flex-none', !showSidebars && 'justify-center')}>
-          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
-          <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
+        <div
+          {...wrapperProps}
+          className={cn(
+            wrapperProps.className,
+            'flex-none',
+            !showSidebars && 'justify-center',
+            isDocumentCollection && '!block w-full',
+          )}
+        >
+          {showSidebars && !isDocumentCollection && (
+            <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />
+          )}
+          <div
+            {...mainContentProps}
+            className={cn(
+              mainContentProps.className,
+              'flex flex-col',
+              isDocumentCollection && '!w-full !max-w-none px-5',
+            )}
+          >
             {isHomeDoc &&
               activeView !== 'all-documents' &&
               !siteMembers.isInitialLoading &&
@@ -2528,10 +2554,15 @@ function DocumentBody({
                 />
               ))}
           </div>
-          {showSidebars && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
+          {showSidebars && !isDocumentCollection && (
+            <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />
+          )}
         </div>
       ) : (
-        <div className={cn('mx-auto flex w-full flex-col px-4')} style={{maxWidth: contentMaxWidth}}>
+        <div
+          className={cn('mx-auto flex w-full flex-col px-4')}
+          style={{maxWidth: isDocumentCollection ? undefined : contentMaxWidth}}
+        >
           {isHomeDoc &&
             activeView !== 'all-documents' &&
             !siteMembers.isInitialLoading &&
@@ -2566,7 +2597,7 @@ function DocumentBody({
 
       {/* DocumentTools - scrolls with the page; the border separates document
           identity above from document body below. Hidden when showActivity is false. */}
-      {showActivity && (
+      {showActivity && !isDocumentCollection && (
         <div className="px-5 py-1">
           <DocumentTools
             id={docId}
@@ -2624,46 +2655,50 @@ function DocumentBody({
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('flex-1', activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
-        <MainContent
-          docId={docId}
-          resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
-          document={document}
-          activeView={activeView}
-          contentMaxWidth={contentMaxWidth}
-          wrapperProps={wrapperProps}
-          sidebarProps={sidebarProps}
-          mainContentProps={mainContentProps}
-          showSidebars={showSidebars}
-          showCollapsed={showCollapsed}
-          discussionsParams={discussionsParams}
-          suppressCommentEditor={suppressMainCommentEditor}
-          activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-          onActivityFilterChange={handleMainActivityFilterChange}
-          blockCitations={blockCitations}
-          citationFragmentHighlights={citationFragmentHighlights}
-          onCitationFragmentClick={handleCitationFragmentClick}
-          onBlockCitationClick={handleBlockCitationClick}
-          onBlockCommentClick={handleBlockCommentClick}
-          onBlockSelect={handleBlockSelect}
-          onTextSelection={handleTextSelection}
-          isUnpublishedDraft={isUnpublishedDraft}
-          isBlockInPublishedVersion={isBlockInPublishedVersion}
-          CommentEditor={CommentEditor}
-          directory={directory.data}
-          siteUrl={siteUrl}
-          inlineCards={inlineCards}
-          inlineInsert={inlineInsert}
-          DocumentContentComponent={DocumentContentComponent}
-          onEditorReady={handleEditorReadyWrapped}
-          existingDraftContent={effectiveContent}
-          existingDraftCursorPosition={existingDraftCursorPosition}
-          ssrContentHTML={ssrContentHTML}
-          perspectiveAccountUid={perspectiveAccountUid}
-          linkExtensionOptions={linkExtensionOptions}
-          fileUpload={fileUpload}
-          draftVersionEntry={draftVersionEntry}
-        />
+      <div className={cn('flex-1', !isDocumentCollection && activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
+        {isDocumentCollection ? (
+          <DocumentCollectionTable docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+        ) : (
+          <MainContent
+            docId={docId}
+            resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+            document={document}
+            activeView={activeView}
+            contentMaxWidth={contentMaxWidth}
+            wrapperProps={wrapperProps}
+            sidebarProps={sidebarProps}
+            mainContentProps={mainContentProps}
+            showSidebars={showSidebars}
+            showCollapsed={showCollapsed}
+            discussionsParams={discussionsParams}
+            suppressCommentEditor={suppressMainCommentEditor}
+            activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+            onActivityFilterChange={handleMainActivityFilterChange}
+            blockCitations={blockCitations}
+            citationFragmentHighlights={citationFragmentHighlights}
+            onCitationFragmentClick={handleCitationFragmentClick}
+            onBlockCitationClick={handleBlockCitationClick}
+            onBlockCommentClick={handleBlockCommentClick}
+            onBlockSelect={handleBlockSelect}
+            onTextSelection={handleTextSelection}
+            isUnpublishedDraft={isUnpublishedDraft}
+            isBlockInPublishedVersion={isBlockInPublishedVersion}
+            CommentEditor={CommentEditor}
+            directory={directory.data}
+            siteUrl={siteUrl}
+            inlineCards={inlineCards}
+            inlineInsert={inlineInsert}
+            DocumentContentComponent={DocumentContentComponent}
+            onEditorReady={handleEditorReadyWrapped}
+            existingDraftContent={effectiveContent}
+            existingDraftCursorPosition={existingDraftCursorPosition}
+            ssrContentHTML={ssrContentHTML}
+            perspectiveAccountUid={perspectiveAccountUid}
+            linkExtensionOptions={linkExtensionOptions}
+            fileUpload={fileUpload}
+            draftVersionEntry={draftVersionEntry}
+          />
+        )}
         {citationFragmentClick ? (
           <CitationFragmentPopover
             click={citationFragmentClick}
@@ -3139,6 +3174,98 @@ function DocumentMetadataPage({
       openFile={openFile}
       onCreateBlob={onCreateBlob}
     />
+  )
+}
+
+function DocumentCollectionTable({
+  docId,
+  queryBlock,
+  canEdit,
+}: {
+  docId: UnpackedHypermediaId
+  queryBlock: EditorBlock | null
+  canEdit: boolean
+}) {
+  const client = useUniversalClient()
+  const send = useDocumentSend()
+  const props = queryBlock?.type === 'query' ? queryBlock.props : undefined
+  const includes = useMemo<HMBlockQuery['attributes']['query']['includes']>(() => {
+    try {
+      const parsed = JSON.parse(props?.queryIncludes || '[]')
+      if (!Array.isArray(parsed) || !parsed.length) return []
+      return parsed.map((include) =>
+        include.space ? include : {...include, space: docId.uid, path: (docId.path ?? []).join('/')},
+      )
+    } catch {
+      return []
+    }
+  }, [docId.path, docId.uid, props?.queryIncludes])
+  const querySort = useMemo(() => {
+    try {
+      return JSON.parse(props?.querySort || '[]')
+    } catch {
+      return []
+    }
+  }, [props?.querySort])
+  const queryLimit = Number.parseInt(props?.queryLimit || '', 10) || undefined
+  const query = useQuery(
+    queryQueryBlock(client, includes.length ? {query: {includes, sort: querySort, limit: queryLimit}} : null),
+  )
+  const tableConfig = useMemo<HMQueryTableConfig | undefined>(() => {
+    try {
+      return props?.tableConfig ? JSON.parse(props.tableConfig) : undefined
+    } catch {
+      return undefined
+    }
+  }, [props?.tableConfig])
+  const firstSort = querySort[0]
+  const sortIds: Record<string, string> = {
+    Title: 'title',
+    Path: 'path',
+    CreateTime: 'created',
+    UpdateTime: 'updated',
+  }
+  const tableSorting = firstSort?.term
+    ? [{id: sortIds[firstSort.term] ?? 'updated', desc: firstSort.reverse ?? false}]
+    : []
+
+  return (
+    <div className="w-full px-5 pb-8">
+      <QueryBlockContent
+        items={query.data?.results ?? []}
+        style="Table"
+        accountsMetadata={query.data?.accountsMetadata ?? {}}
+        interactionSummaries={query.data?.interactionSummaries ?? {}}
+        isDiscovering={query.isLoading}
+        tableConfig={tableConfig}
+        tableSorting={tableSorting}
+        onTableConfigChange={
+          canEdit
+            ? (config) => send({type: 'collection.query.change', props: {tableConfig: JSON.stringify(config)}})
+            : undefined
+        }
+        onTableSortingChange={
+          canEdit
+            ? (sorting) => {
+                const first = sorting[0]
+                const terms: Record<string, string> = {
+                  title: 'Title',
+                  path: 'Path',
+                  created: 'CreateTime',
+                  updated: 'UpdateTime',
+                }
+                const term = first ? terms[first.id] : undefined
+                if (term) {
+                  send({
+                    type: 'collection.query.change',
+                    props: {querySort: JSON.stringify([{term, reverse: first?.desc ?? false}])},
+                  })
+                }
+              }
+            : undefined
+        }
+      />
+    </div>
   )
 }
 

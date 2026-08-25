@@ -1,8 +1,11 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
 import {
+  createDefaultCollectionQueryBlock,
   documentMachine,
   DocumentMachineInput,
+  isDocumentCollection,
+  normalizeCollectionEditorBlocks,
   PushDocumentInput,
   retargetQueryBlockIncludesForPublish,
   WriteDraftOutput,
@@ -40,6 +43,74 @@ const mockDocument = {
   genesis: 'bafygenesis',
   visibility: 'PUBLIC',
 } as unknown as HMDocument
+
+describe('document collection helpers', () => {
+  it('recognizes only the canonical Collection type', () => {
+    expect(isDocumentCollection({type: 'Collection'})).toBe(true)
+    expect(isDocumentCollection({type: 'collection'})).toBe(false)
+    expect(isDocumentCollection({})).toBe(false)
+  })
+
+  it('adds a default table query when one is missing', () => {
+    const result = normalizeCollectionEditorBlocks([], 'query-id')
+
+    expect(result).toEqual([createDefaultCollectionQueryBlock('query-id')])
+  })
+
+  it('normalizes only the first root query to Table', () => {
+    const blocks: EditorBlock[] = [
+      {
+        ...createDefaultCollectionQueryBlock('first'),
+        props: {...createDefaultCollectionQueryBlock('first').props, style: 'Card'},
+      } as EditorBlock,
+      {
+        ...createDefaultCollectionQueryBlock('second'),
+        props: {...createDefaultCollectionQueryBlock('second').props, style: 'List'},
+      } as EditorBlock,
+    ]
+
+    const result = normalizeCollectionEditorBlocks(blocks, 'unused')
+
+    expect((result[0] as any).props.style).toBe('Table')
+    expect((result[1] as any).props.style).toBe('List')
+  })
+
+  it('repairs an editable collection into a local Table draft and enters editing', async () => {
+    let repairInput: any
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          repairInput = input
+          return {id: 'collection-draft', content: input.contentOverride}
+        }),
+      },
+    })
+    const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}}).start()
+    const collection = {...mockDocument, metadata: {name: 'Collection', type: 'Collection'}} as HMDocument
+
+    loadDocument(actor as ReturnType<typeof createTestActor>, collection)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('editing')).toBe(true))
+
+    expect(repairInput.contentOverride).toHaveLength(1)
+    expect(repairInput.contentOverride[0].type).toBe('query')
+    expect(repairInput.contentOverride[0].props.style).toBe('Table')
+    expect(actor.getSnapshot().context.draftId).toBe('collection-draft')
+  })
+
+  it('does not create a repair draft for a reader', async () => {
+    const writeDraft = vi.fn(async () => ({id: 'unexpected-draft'}))
+    const machine = documentMachine.provide({
+      actors: {writeDraft: fromPromise<WriteDraftOutput, any>(writeDraft)},
+    })
+    const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: false}}).start()
+    const collection = {...mockDocument, metadata: {type: 'Collection'}} as HMDocument
+
+    loadDocument(actor as ReturnType<typeof createTestActor>, collection)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+
+    expect(writeDraft).not.toHaveBeenCalled()
+  })
+})
 
 /** Create an actor with test-friendly provided actors. */
 function createTestActor(inputOverrides: Partial<DocumentMachineInput> = {}) {

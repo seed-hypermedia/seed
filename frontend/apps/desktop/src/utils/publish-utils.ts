@@ -15,7 +15,7 @@ export function buildDocumentCollectionDraftSeed(blockId: string): {metadata: HM
         id: blockId,
         type: 'query',
         props: {
-          style: 'Card',
+          style: 'Table',
           columnCount: '3',
           queryLimit: '',
           queryIncludes: JSON.stringify([{space: '', path: '', mode: 'Children'}]),
