@@ -811,26 +811,62 @@ export function registerDocumentCommands(program: Command) {
         const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
-        // Follows redirects so an already-redirected source can be moved again: the destination
-        // receives the content the source currently presents, and the source is re-pointed.
-        const {document: doc} = await followToDocument(client, source)
-        const genesis = doc.generationInfo?.genesis ?? doc.genesis
+        // A move acts on whatever lives at the source and keeps it that kind of thing at the
+        // destination. Following redirects tells us which: a republish moves as a republish; a
+        // plain document moves as a fork of its history; a path that has itself already moved is a
+        // pointer with nothing to move.
+        const followed = await followToDocument(client, source)
+        const genesis = followed.document.generationInfo?.genesis ?? followed.document.genesis
 
-        // Create version ref at destination. Fresh generations let both refs supersede any
-        // redirect Refs already sitting at their paths.
-        const versionRefInput = await createVersionRef(
-          {
-            space: dest.uid,
-            path: hmIdPathToEntityQueryPath(dest.path),
-            genesis,
-            version: doc.version,
-            generation: Date.now(),
-          },
-          signer,
-        )
-        await client.publish(versionRefInput)
+        if (followed.redirect && !followed.redirect.republish) {
+          printError(
+            `${packHmId(source)} has already moved to ${packHmId(followed.redirect.target)}. ` +
+              `Move ${packHmId(followed.redirect.target)} instead.`,
+          )
+          process.exit(1)
+        }
 
-        // Create redirect ref at source
+        if (followed.redirect?.republish) {
+          // Moving a republish moves the republish: the destination re-publishes the same original
+          // (so it keeps tracking the original's edits), and the source redirects to the
+          // destination. Forking here would freeze a snapshot and sever the republish.
+          const original = followed.targetId
+          if (!globalOpts.quiet) {
+            printInfo(
+              `${packHmId(source)} republishes ${packHmId(original)}; ` +
+                `moving it makes ${packHmId(dest)} republish ${packHmId(original)}.`,
+            )
+          }
+          const destRepublishInput = await createRedirectRef(
+            {
+              space: dest.uid,
+              path: hmIdPathToEntityQueryPath(dest.path),
+              genesis,
+              generation: Date.now(),
+              targetSpace: original.uid,
+              targetPath: hmIdPathToEntityQueryPath(original.path),
+              republish: true,
+            },
+            signer,
+          )
+          await client.publish(destRepublishInput)
+        } else {
+          // A plain document forks its history to the destination. Fresh generations let both refs
+          // supersede any redirect Refs already sitting at their paths.
+          const versionRefInput = await createVersionRef(
+            {
+              space: dest.uid,
+              path: hmIdPathToEntityQueryPath(dest.path),
+              genesis,
+              version: followed.document.version,
+              generation: Date.now(),
+            },
+            signer,
+          )
+          await client.publish(versionRefInput)
+        }
+
+        // Redirect the source to the destination (a plain move redirect, not a republish).
         const redirectRefInput = await createRedirectRef(
           {
             space: source.uid,

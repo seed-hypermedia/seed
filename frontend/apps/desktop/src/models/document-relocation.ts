@@ -1,4 +1,5 @@
-import type {CreateRedirectRefInput} from '@seed-hypermedia/client/ref'
+import {packHmId} from '@seed-hypermedia/client'
+import type {CreateRedirectRefInput, CreateVersionRefInput} from '@seed-hypermedia/client/ref'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {planDocumentCardMoveOperations} from '@shm/shared/utils/document-card-cleanup'
@@ -101,4 +102,87 @@ export function createRepublishRefOperation({
     republish: true,
     capability: capabilityId || undefined,
   }
+}
+
+/** The two ref operations a move publishes: one at the destination, one (the redirect) at the source. */
+export type DocumentMoveRefOperations = {
+  /**
+   * The ref to publish at the destination. A plain document forks its history (`version`); a
+   * republish moves as a republish (`republish`) so the destination keeps tracking the original.
+   */
+  destination: ({kind: 'version'} & CreateVersionRefInput) | ({kind: 'republish'} & CreateRedirectRefInput)
+  /** The move redirect to publish at the source, pointing at the destination. */
+  sourceRedirect: CreateRedirectRefInput
+}
+
+/**
+ * Decides the two refs a move publishes, from the followed source document.
+ *
+ * A move acts on whatever kind of thing lives at the source and keeps it that kind at the
+ * destination: a plain document forks its history there, while a republish moves as a republish so
+ * the destination keeps tracking the original's edits (forking it would freeze a snapshot and
+ * silently sever the link). A source that has itself already moved is a pointer, not content —
+ * there is nothing to move, so this throws. Fresh generations let both refs supersede any redirect
+ * Ref already sitting at their paths — required for the republish case, where the source currently
+ * holds the republish redirect the new move redirect must overtake.
+ */
+export function getDocumentMoveRefOperations({
+  sourceId,
+  targetId,
+  doc,
+  sourceRedirect,
+  originalId,
+  sourceCapabilityId,
+  targetCapabilityId,
+}: {
+  sourceId: UnpackedHypermediaId
+  targetId: UnpackedHypermediaId
+  doc: HMDocument
+  /** The redirect (if any) currently at the source, from following it to `doc`. */
+  sourceRedirect: {republish: boolean; target: UnpackedHypermediaId} | null
+  /** The address `doc` really lives at — the republish target when the source is a republish. */
+  originalId: UnpackedHypermediaId
+  sourceCapabilityId?: string
+  targetCapabilityId?: string
+}): DocumentMoveRefOperations {
+  if (!doc.generationInfo) throw new Error('No generation info for document')
+  if (sourceRedirect && !sourceRedirect.republish) {
+    throw new Error(
+      `${packHmId(sourceId)} has already moved to ${packHmId(sourceRedirect.target)}. ` +
+        `Move ${packHmId(sourceRedirect.target)} instead.`,
+    )
+  }
+  const genesis = doc.generationInfo.genesis
+  const generation = Date.now()
+  const destination: DocumentMoveRefOperations['destination'] = sourceRedirect?.republish
+    ? {
+        kind: 'republish',
+        space: targetId.uid,
+        path: hmIdPathToEntityQueryPath(targetId.path),
+        genesis,
+        generation,
+        targetSpace: originalId.uid,
+        targetPath: hmIdPathToEntityQueryPath(originalId.path),
+        republish: true,
+        capability: targetCapabilityId || undefined,
+      }
+    : {
+        kind: 'version',
+        space: targetId.uid,
+        path: hmIdPathToEntityQueryPath(targetId.path),
+        genesis,
+        version: doc.version,
+        generation,
+        capability: targetCapabilityId || undefined,
+      }
+  const sourceRedirectOp: CreateRedirectRefInput = {
+    space: sourceId.uid,
+    path: hmIdPathToEntityQueryPath(sourceId.path),
+    genesis,
+    generation,
+    targetSpace: targetId.uid,
+    targetPath: hmIdPathToEntityQueryPath(targetId.path),
+    capability: sourceCapabilityId || undefined,
+  }
+  return {destination, sourceRedirect: sourceRedirectOp}
 }

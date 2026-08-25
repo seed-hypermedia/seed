@@ -5076,6 +5076,227 @@ describe('api service', () => {
     }
   })
 
+  test('moving a republished path moves the republish: the destination re-publishes the same original, not a frozen fork', async () => {
+    // A path that republishes B is a live mirror of B. Moving it must keep it a mirror: the
+    // destination republishes B (so it keeps tracking B's edits) and the source redirects to the
+    // destination. Forking instead — snapshotting B's current content at the destination — would
+    // silently sever the republish, so a later edit of B would never reach the moved path.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const otherSpace = 'z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS'
+      const targetGenesis = 'bafyreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const targetHead = 'bafyreibnw7dfl23nougcud3jtdsc3v2ems3wymk3x4eiup2jo2qzzdhkbq'
+      let signerPublicKey = ''
+      let openAICallCount = 0
+      const publishedBodies: Uint8Array[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
+          return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities: []}))
+        if (href.includes('/api/Resource')) {
+          const requestedId = new URL(href).searchParams.get('id') ?? ''
+          // The source path `/guide` republishes the original at hm://otherSpace/resources/guide.
+          if (requestedId.startsWith(`hm://${signerPublicKey}/guide`)) {
+            return Response.json(
+              serialize({
+                type: 'redirect',
+                id: unpackHmId(requestedId),
+                redirectTarget: unpackHmId(`hm://${otherSpace}/resources/guide`),
+                republish: true,
+              }),
+            )
+          }
+          // The original document that both the source (today) and the destination (after the
+          // move) republish.
+          if (requestedId.startsWith(`hm://${otherSpace}/resources/guide`)) {
+            return Response.json(
+              serialize({
+                type: 'document',
+                id: unpackHmId(`hm://${otherSpace}/resources/guide`),
+                document: {
+                  content: [{block: {id: 'b1', type: 'Paragraph', text: 'Canonical guide body'}, children: []}],
+                  version: targetHead,
+                  account: otherSpace,
+                  authors: [otherSpace],
+                  path: '/resources/guide',
+                  createTime: '',
+                  updateTime: '',
+                  metadata: {name: 'Agent Guide'},
+                  genesis: targetGenesis,
+                  generationInfo: {genesis: targetGenesis, generation: 1000},
+                  visibility: 'PUBLIC',
+                },
+              }),
+            )
+          }
+          // The destination path is empty until the move creates the republish there.
+          return Response.json(serialize({type: 'not-found', id: unpackHmId(requestedId)}))
+        }
+        if (!href.includes('/chat/completions') && !href.includes('/responses')) {
+          throw new Error(`Unexpected fetch: ${href}`)
+        }
+        openAICallCount += 1
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}/guide`,
+                            options: {
+                              action: 'move',
+                              toPath: '/resources/guide',
+                              signer: {publicKey: signerPublicKey},
+                            },
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: `chat-${openAICallCount}`, choices: [{delta: {content: 'Moved.'}}]},
+          {id: `chat-${openAICallCount}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSigningIdentity', label: 'Starlight', clientRequestId: 'starlight'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      signerPublicKey = identity.identity.accountId
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Starlight',
+              systemPrompt: 'Maintain docs.',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['publish'],
+              signingKeys: [identity.identity.name],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const publishesBeforeMessage = publishedBodies.length
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Move the republished guide to /resources/guide'}],
+          },
+        }),
+      )
+
+      const loadedSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (loadedSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const moveResult = loadedSession.events
+        .map(
+          (event) =>
+            event.event as {
+              type?: string
+              name?: string
+              error?: string
+              output?: {
+                command?: string
+                destination?: string
+                republish?: {id?: string; target?: string}
+              }
+            },
+        )
+        .find((event) => event.type === 'tool_result' && event.name === 'write')
+      expect(moveResult?.error).toBeUndefined()
+      expect(moveResult?.output?.command).toBe('document.move')
+      // The move reports that the destination now republishes the ORIGINAL — not a copy.
+      expect(moveResult?.output?.destination).toBe(`hm://${signerPublicKey}/resources/guide`)
+      expect(moveResult?.output?.republish).toMatchObject({
+        id: `hm://${signerPublicKey}/resources/guide`,
+        target: `hm://${otherSpace}/resources/guide`,
+      })
+
+      // Two publishes, both plain redirect Refs. Crucially, NEITHER is a Change: no content was
+      // forked/snapshotted. A fork-based move would publish a Change here.
+      const messagePublishes = publishedBodies.slice(publishesBeforeMessage)
+      expect(messagePublishes).toHaveLength(2)
+      const refsByPath = new Map<string, Record<string, unknown>>()
+      for (const body of messagePublishes) {
+        const {blobs: published} = cbor.decode<{blobs: {data: Uint8Array}[]}>(body)
+        for (const blob of published) {
+          const decoded = cbor.decode<Record<string, unknown>>(new Uint8Array(blob.data))
+          expect(decoded.type).toBe('Ref') // never a 'Change'
+          refsByPath.set(String(decoded.path), decoded)
+        }
+      }
+
+      // At the destination: a republish redirect pointing at the original, with fresh generation.
+      const destRef = refsByPath.get('/resources/guide') as {
+        heads: unknown[]
+        generation: number
+        redirect?: {republish?: boolean}
+      }
+      expect(destRef).toBeDefined()
+      expect(destRef.heads).toHaveLength(0)
+      expect(destRef.redirect?.republish).toBe(true)
+      expect(destRef.generation).toBeGreaterThan(1000)
+
+      // At the source: a plain move redirect (NOT a republish) pointing at the destination.
+      const sourceRef = refsByPath.get('/guide') as {redirect?: {republish?: boolean}}
+      expect(sourceRef).toBeDefined()
+      expect(sourceRef.redirect?.republish).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('a provider outage on a delegated child retries itself and succeeds without human action', async () => {
     // Live incident: a child's turn died on a Codex 503 and the parent was left parked. Retryable
     // failures on background runs must ride out the outage on the queue's backoff.

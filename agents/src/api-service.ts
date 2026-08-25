@@ -10401,11 +10401,27 @@ async function writeDocumentMove(
   const destination = await resolveMoveDestination(client, source, request.input)
   const {id: sourceId} = await resolveIdWithClient(source, {serverUrl: client.baseUrl})
   const {id: destId} = await resolveIdWithClient(destination, {serverUrl: client.baseUrl})
-  // Following redirects lets a republished path be moved: the destination receives the content
-  // the source path currently re-publishes, and the source is re-pointed at the destination.
   const sourceBase = await followToDocument(client, sourceId).catch((error) => {
     throw new APIError(400, error instanceof Error ? error.message : String(error))
   })
+  // A move acts on whatever kind of thing lives at the source, keeping it that kind of thing at
+  // the destination:
+  //   - a republish (A re-publishes B): the republish moves. The destination re-publishes B (so it
+  //     keeps tracking B's latest), and the source redirects to the destination — NOT a fork, which
+  //     would snapshot B and silently stop following it.
+  //   - a plain document: it forks to the destination (its history) and the source redirects there.
+  // A source that has itself already moved has nowhere to move to — it is a pointer, not content.
+  if (sourceBase.redirect && !sourceBase.redirect.republish) {
+    throw new APIError(
+      400,
+      `${packHmId(sourceId)} has already moved to ${packHmId(sourceBase.redirect.target)}; move ${packHmId(
+        sourceBase.redirect.target,
+      )} instead.`,
+    )
+  }
+  if (sourceBase.redirect?.republish) {
+    return writeRepublishMove(client, signer, request, {source, destination, sourceId, destId, sourceBase})
+  }
   const destinationAlreadyMatches = await destinationMatchesDocument(client, destId, sourceBase.document).catch(
     () => false,
   )
@@ -10430,6 +10446,64 @@ async function writeDocumentMove(
       destination: packHmId(destId),
       ref,
       warning: `Destination was created, but source redirect failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    })
+  }
+}
+
+/**
+ * Moves a republish: the destination re-publishes the same original the source did (so it keeps
+ * tracking the original's latest), then the source redirects to the destination. The alternative —
+ * forking — would freeze a snapshot of the original at the destination and silently break the
+ * republish link, which is never what "move this republish" means.
+ */
+async function writeRepublishMove(
+  client: ReturnType<typeof createSeedClient>,
+  signer: ResolvedAgentSigner,
+  request: ReturnType<typeof normalizeWriteToolRequest>,
+  ctx: {
+    source: string
+    destination: string
+    sourceId: NonNullable<ReturnType<typeof unpackHmId>>
+    destId: NonNullable<ReturnType<typeof unpackHmId>>
+    sourceBase: Awaited<ReturnType<typeof followToDocument>>
+  },
+): Promise<Record<string, unknown>> {
+  const {source, destination, destId, sourceBase} = ctx
+  const original = sourceBase.targetId
+  const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+  if (request.dryRun)
+    return writeToolResult(request.command, signer, {
+      destination: packHmId(destId),
+      republish: {id: packHmId(destId), target: packHmId(original), dryRun: true},
+      dryRun: true,
+    })
+  // Fresh generation (the daemon's own CreateRef choice) so the redirect sits in its own generation
+  // row and any later publish at the destination supersedes it cleanly.
+  const republishInput = await createRedirectRef(
+    {
+      space: destId.uid,
+      path: hmIdPathToEntityQueryPath(destId.path),
+      genesis: sourceBase.document.genesis,
+      generation: Date.now(),
+      targetSpace: original.uid,
+      targetPath: hmIdPathToEntityQueryPath(original.path),
+      capability,
+      republish: true,
+    },
+    signer.signer,
+  )
+  const publishedRepublish = await client.publish(republishInput)
+  const republish = {id: packHmId(destId), target: packHmId(original), cids: publishedRepublish.cids}
+  try {
+    const redirect = await writeDocumentRedirect(client, signer, {...request, input: {id: source, to: destination}})
+    return writeToolResult(request.command, signer, {destination: packHmId(destId), republish, redirect})
+  } catch (error) {
+    return writeToolResult(request.command, signer, {
+      destination: packHmId(destId),
+      republish,
+      warning: `Destination now republishes ${packHmId(original)}, but the source redirect failed: ${
         error instanceof Error ? error.message : String(error)
       }`,
     })

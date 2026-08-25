@@ -1,4 +1,4 @@
-import {createRedirectRef, createVersionRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
+import {createRedirectRef, createVersionRef, followToDocument, packHmId, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocumentInfo, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -159,26 +159,49 @@ export async function moveWebDocuments(
   const moves = [{from: input.from, to: input.to}, ...childMoves]
 
   for (const move of moves) {
-    // Follows redirects so an already-redirected source can be moved again: the destination
-    // receives the content the source currently presents. Fresh generations let both refs
-    // supersede any redirect Refs already sitting at their paths.
-    const {document: doc} = await followToDocument(client as unknown as SeedClient, move.from)
+    // Follows redirects so a redirected source can be moved. The destination keeps the source's
+    // KIND: a republish moves as a republish (so it keeps tracking the original's edits), a plain
+    // document forks its history. A source that has itself already moved is a pointer with nothing
+    // to move. Fresh generations let both refs supersede any redirect Ref sitting at their paths.
+    const {document: doc, redirect, targetId} = await followToDocument(client as unknown as SeedClient, move.from)
     if (!doc.generationInfo) throw new Error('No generation info for document')
+    if (redirect && !redirect.republish) {
+      throw new Error(`${packHmId(move.from)} has already moved to ${packHmId(redirect.target)}. Move that instead.`)
+    }
     const generation = Date.now()
     const genesis = doc.generationInfo.genesis
-    await client.publish(
-      await createVersionRef(
-        {
-          space: move.to.uid,
-          path: hmIdPathToEntityQueryPath(move.to.path),
-          genesis,
-          version: doc.version,
-          generation,
-          capability: input.capabilityId,
-        },
-        signer,
-      ),
-    )
+    if (redirect?.republish) {
+      // Moving a republish: the destination re-publishes the same original, not a frozen fork.
+      await client.publish(
+        await createRedirectRef(
+          {
+            space: move.to.uid,
+            path: hmIdPathToEntityQueryPath(move.to.path),
+            genesis,
+            generation,
+            targetSpace: targetId.uid,
+            targetPath: hmIdPathToEntityQueryPath(targetId.path),
+            republish: true,
+            capability: input.capabilityId,
+          },
+          signer,
+        ),
+      )
+    } else {
+      await client.publish(
+        await createVersionRef(
+          {
+            space: move.to.uid,
+            path: hmIdPathToEntityQueryPath(move.to.path),
+            genesis,
+            version: doc.version,
+            generation,
+            capability: input.capabilityId,
+          },
+          signer,
+        ),
+      )
+    }
     await client.publish(
       await createRedirectRef(
         {

@@ -69,6 +69,7 @@ import {
   createRepublishRefOperation,
   getDocumentCardReconciliationInputForRepublish,
   getDocumentCardReconciliationInputsForMove,
+  getDocumentMoveRefOperations,
   getMovedChildPath,
   isChildDocumentPath,
 } from './document-relocation'
@@ -1202,6 +1203,8 @@ async function createDocumentMoveRefs({
   signer,
   sourceCapabilityId,
   targetCapabilityId,
+  sourceRedirect,
+  originalId,
 }: {
   sourceId: UnpackedHypermediaId
   targetId: UnpackedHypermediaId
@@ -1210,6 +1213,10 @@ async function createDocumentMoveRefs({
   signer: HMSigner
   sourceCapabilityId?: string
   targetCapabilityId?: string
+  /** The redirect (if any) currently at the source, from following it to `doc`. */
+  sourceRedirect: {republish: boolean; target: UnpackedHypermediaId} | null
+  /** The address `doc` really lives at — the republish target when the source is a republish. */
+  originalId: UnpackedHypermediaId
 }): Promise<MoveRefBundle> {
   // console.log(`[move-document] creating move refs`, {
   //   moveScope: moveScopeLabel(isSubdocumentMove),
@@ -1217,20 +1224,23 @@ async function createDocumentMoveRefs({
   //   targetId,
   //   doc,
   // })
-  if (!doc.generationInfo) throw new Error('No generation info for document')
-  const generation = Number(doc.generationInfo.generation)
-
-  const versionRefOperation = {
-    space: targetId.uid,
-    path: hmIdPathToEntityQueryPath(targetId.path),
-    genesis: doc.generationInfo.genesis,
-    version: doc.version,
-    generation,
-    capability: targetCapabilityId || undefined,
-  }
-  const versionRefInput = await createVersionRef(versionRefOperation, signer)
+  // The behavior — fork vs. move-a-republish, and the "already moved" guard — is a pure decision
+  // extracted to document-relocation.ts so it can be unit-tested without signing/publishing.
+  const {destination: versionRefOperation, sourceRedirect: redirectRefOperation} = getDocumentMoveRefOperations({
+    sourceId,
+    targetId,
+    doc,
+    sourceRedirect,
+    originalId,
+    sourceCapabilityId,
+    targetCapabilityId,
+  })
+  const versionRefInput =
+    versionRefOperation.kind === 'republish'
+      ? await createRedirectRef(versionRefOperation, signer)
+      : await createVersionRef(versionRefOperation, signer)
   logMoveRefBlob({
-    kind: 'version',
+    kind: versionRefOperation.kind === 'republish' ? 'redirect' : 'version',
     sourceId,
     targetId,
     isSubdocumentMove,
@@ -1238,15 +1248,6 @@ async function createDocumentMoveRefs({
     publishInput: versionRefInput,
   })
 
-  const redirectRefOperation = {
-    space: sourceId.uid,
-    path: hmIdPathToEntityQueryPath(sourceId.path),
-    genesis: doc.generationInfo.genesis,
-    generation,
-    targetSpace: targetId.uid,
-    targetPath: hmIdPathToEntityQueryPath(targetId.path),
-    capability: sourceCapabilityId || undefined,
-  }
   const redirectRefInput = await createRedirectRef(redirectRefOperation, signer)
   logMoveRefBlob({
     kind: 'redirect',
@@ -1454,9 +1455,14 @@ export function useMoveDocument() {
           //   sourceId,
           //   targetId,
           // })
-          // Follows redirects so an already-redirected source can be moved again: the
-          // destination receives the content the source currently presents.
-          const {document: doc} = await followToDocument(universalClient as unknown as SeedClient, sourceId)
+          // Follows redirects so a redirected source can be moved: the destination receives the
+          // content the source currently presents. `redirect` tells us the source's kind (a
+          // republish moves as a republish) and `targetId` is where that content really lives.
+          const {
+            document: doc,
+            redirect,
+            targetId: originalId,
+          } = await followToDocument(universalClient as unknown as SeedClient, sourceId)
           if (!doc.generationInfo) throw new Error('No generation info for document')
           // console.log(`[move-document] loaded source document`, {
           //   moveScope: moveScopeLabel(isSubdocumentMove),
@@ -1465,13 +1471,13 @@ export function useMoveDocument() {
           //   version: doc.version,
           //   generationInfo: doc.generationInfo,
           // })
-          return {from: sourceId, to: targetId, isSubdocumentMove, doc}
+          return {from: sourceId, to: targetId, isSubdocumentMove, doc, redirect, originalId}
         }),
       )
 
       // console.log(`[move-document] creating ref bundles`, {count: moveResources.length})
       const moveRefBundles = []
-      for (const {from: sourceId, to: targetId, isSubdocumentMove, doc} of moveResources) {
+      for (const {from: sourceId, to: targetId, isSubdocumentMove, doc, redirect, originalId} of moveResources) {
         const moveRefs = await createDocumentMoveRefs({
           sourceId,
           targetId,
@@ -1480,6 +1486,8 @@ export function useMoveDocument() {
           signer,
           sourceCapabilityId,
           targetCapabilityId,
+          sourceRedirect: redirect,
+          originalId,
         })
         moveRefBundles.push(moveRefs)
       }

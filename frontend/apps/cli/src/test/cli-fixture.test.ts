@@ -1832,6 +1832,140 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
+      'moving a republished path moves the republish (destination keeps tracking the original)',
+      async () => {
+        // A path that republishes an original is a live mirror. Moving it must keep it a mirror:
+        // the destination republishes the SAME original (so later edits of the original still show
+        // through), rather than freezing a fork of the original's current content.
+        const runId = Date.now()
+        const original = `move-original-${runId}`
+        const originalHmId = `hm://${writeAccount.accountId}/${original}`
+        const republishedSlug = `move-republished-${runId}`
+        const republishedHmId = `hm://${writeAccount.accountId}/${republishedSlug}`
+        const destSlug = `move-destination-${runId}`
+        const destHmId = `hm://${writeAccount.accountId}/${destSlug}`
+
+        const tmpDirMove = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdOriginal = join(tmpDirMove, 'original.md')
+        writeFileSync(mdOriginal, 'Original guide, first edition.')
+        expect(
+          (
+            await runCli(
+              [
+                'document',
+                'create',
+                '--path',
+                original,
+                '--name',
+                'Original Guide',
+                '-f',
+                mdOriginal,
+                '--key',
+                TEST_KEY_NAME,
+              ],
+              {server: ctx.webServerUrl},
+            )
+          ).exitCode,
+        ).toBe(0)
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // A path that republishes the original.
+        const mdRepub = join(tmpDirMove, 'repub.md')
+        writeFileSync(mdRepub, 'placeholder')
+        expect(
+          (
+            await runCli(
+              [
+                'document',
+                'create',
+                '--path',
+                republishedSlug,
+                '--name',
+                'Mirror',
+                '-f',
+                mdRepub,
+                '--key',
+                TEST_KEY_NAME,
+              ],
+              {server: ctx.webServerUrl},
+            )
+          ).exitCode,
+        ).toBe(0)
+        await new Promise((r) => setTimeout(r, 2000))
+        expect(
+          (
+            await runCli(
+              ['document', 'redirect', republishedHmId, '--to', originalHmId, '--republish', '--key', TEST_KEY_NAME],
+              {server: ctx.webServerUrl},
+            )
+          ).exitCode,
+        ).toBe(0)
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Move the republished path to a new location.
+        const moveResult = await runCli(['document', 'move', republishedHmId, destHmId, '--key', TEST_KEY_NAME], {
+          server: ctx.webServerUrl,
+        })
+        if (moveResult.exitCode !== 0) console.log('[test] republish move stderr:', moveResult.stderr)
+        expect(moveResult.exitCode).toBe(0)
+        expect(moveResult.stderr).toContain('republishes')
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // The destination now shows the original's content, disclosed as a republish of the
+        // original (NOT a fork living in the destination's own space).
+        const getDest = await runCli(['document', 'get', destHmId], {server: ctx.webServerUrl})
+        expect(getDest.exitCode).toBe(0)
+        expect(getDest.stdout).toContain('Original guide, first edition.')
+        expect(getDest.stdout).toContain(`republishOf: "${originalHmId}"`)
+
+        // Editing the ORIGINAL after the move still shows through at the destination — proof the
+        // move preserved a live republish rather than snapshotting a fork.
+        const mdOriginal2 = join(tmpDirMove, 'original2.md')
+        writeFileSync(mdOriginal2, 'Original guide, first edition.\n\nSecond edition addendum.')
+        expect(
+          (
+            await runCli(
+              [
+                'document',
+                'update',
+                originalHmId,
+                '--name',
+                'Original Guide',
+                '-f',
+                mdOriginal2,
+                '--key',
+                TEST_KEY_NAME,
+              ],
+              {server: ctx.webServerUrl},
+            )
+          ).exitCode,
+        ).toBe(0)
+        await new Promise((r) => setTimeout(r, 2000))
+        const getDestAfter = await runCli(['document', 'get', destHmId], {server: ctx.webServerUrl})
+        expect(getDestAfter.stdout).toContain('Second edition addendum.')
+
+        // The moved source now redirects to the destination, and moving it again is refused: a
+        // moved pointer has nothing left to move.
+        const moveAgain = await runCli(
+          [
+            'document',
+            'move',
+            republishedHmId,
+            `hm://${writeAccount.accountId}/move-again-${runId}`,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(moveAgain.exitCode).toBe(1)
+        expect(moveAgain.stderr).toContain('already moved')
+
+        rmSync(tmpDirMove, {recursive: true, force: true})
+      },
+      TEST_TIMEOUT * 2,
+    )
+
+    test(
       'document delete with missing key shows error',
       async () => {
         const result = await runCli(
