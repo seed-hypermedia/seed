@@ -1691,6 +1691,123 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
+      'republished document can be edited (takes over the path) and deleted',
+      async () => {
+        // Live incident (agent session b44d4d81): a path holding a republish redirect could not
+        // be updated ("Resource is redirect, not a document") or deleted ("Cannot delete:
+        // resource is redirect"). Editing a republished path must build on the redirect target's
+        // change DAG and publish a Version Ref at the path with a fresh generation, which
+        // supersedes the redirect in the daemon's generation resolution.
+        const runId = Date.now()
+        const targetSlug = `republish-target-${runId}`
+        const targetHmId = `hm://${writeAccount.accountId}/${targetSlug}`
+        const editedSlug = `republish-edited-${runId}`
+        const editedHmId = `hm://${writeAccount.accountId}/${editedSlug}`
+        const deletedSlug = `republish-deleted-${runId}`
+        const deletedHmId = `hm://${writeAccount.accountId}/${deletedSlug}`
+
+        const tmpDirRepub = mkdtempSync(join(tmpdir(), 'seed-test-'))
+        const mdTarget = join(tmpDirRepub, 'target.md')
+        writeFileSync(mdTarget, 'Canonical guide content')
+
+        const targetResult = await runCli(
+          [
+            'document',
+            'create',
+            '--path',
+            targetSlug,
+            '--name',
+            'Canonical Guide',
+            '-f',
+            mdTarget,
+            '--key',
+            TEST_KEY_NAME,
+          ],
+          {server: ctx.webServerUrl},
+        )
+        expect(targetResult.exitCode).toBe(0)
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Two republished paths pointing at the target: one to edit, one to delete.
+        for (const [slug, hmId] of [
+          [editedSlug, editedHmId],
+          [deletedSlug, deletedHmId],
+        ] as const) {
+          const mdSource = join(tmpDirRepub, `${slug}.md`)
+          writeFileSync(mdSource, 'Original body before republish')
+          const createResult = await runCli(
+            [
+              'document',
+              'create',
+              '--path',
+              slug,
+              '--name',
+              'Republished Copy',
+              '-f',
+              mdSource,
+              '--key',
+              TEST_KEY_NAME,
+            ],
+            {server: ctx.webServerUrl},
+          )
+          expect(createResult.exitCode).toBe(0)
+          await new Promise((r) => setTimeout(r, 2000))
+          const redirectResult = await runCli(
+            ['document', 'redirect', hmId, '--to', targetHmId, '--republish', '--key', TEST_KEY_NAME],
+            {server: ctx.webServerUrl},
+          )
+          if (redirectResult.exitCode !== 0) {
+            console.log('[test] republish redirect stderr:', redirectResult.stderr)
+          }
+          expect(redirectResult.exitCode).toBe(0)
+        }
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // Editing the republished path takes it over: the update follows the redirect to the
+        // target for its baseline and publishes a fresh-generation Version Ref at the path.
+        const mdEdited = join(tmpDirRepub, 'edited.md')
+        writeFileSync(mdEdited, 'Canonical guide content\n\nPlus locally added lessons.')
+        const updateResult = await runCli(
+          ['document', 'update', editedHmId, '--name', 'Guide With Lessons', '-f', mdEdited, '--key', TEST_KEY_NAME],
+          {server: ctx.webServerUrl},
+        )
+        if (updateResult.exitCode !== 0) {
+          console.log('[test] republish update stderr:', updateResult.stderr)
+          console.log('[test] republish update stdout:', updateResult.stdout)
+        }
+        expect(updateResult.exitCode).toBe(0)
+        expect(updateResult.stderr + updateResult.stdout).toContain('republishes')
+        await new Promise((r) => setTimeout(r, 2000))
+
+        // The path now serves the edited document (not the redirect, not the plain target).
+        const getEdited = await runCli(['document', 'get', editedHmId], {server: ctx.webServerUrl})
+        expect(getEdited.exitCode).toBe(0)
+        expect(getEdited.stdout).toContain('Plus locally added lessons.')
+
+        // And the target document itself is untouched.
+        const getTarget = await runCli(['document', 'get', targetHmId], {server: ctx.webServerUrl})
+        expect(getTarget.exitCode).toBe(0)
+        expect(getTarget.stdout).not.toContain('Plus locally added lessons.')
+
+        // Deleting a republished path publishes a fresh-generation tombstone that supersedes the
+        // redirect: afterwards the path must not serve the target's content anymore.
+        const deleteResult = await runCli(['document', 'delete', deletedHmId, '--key', TEST_KEY_NAME], {
+          server: ctx.webServerUrl,
+        })
+        if (deleteResult.exitCode !== 0) {
+          console.log('[test] republish delete stderr:', deleteResult.stderr)
+        }
+        expect(deleteResult.exitCode).toBe(0)
+        await new Promise((r) => setTimeout(r, 2000))
+        const getDeleted = await runCli(['document', 'get', deletedHmId], {server: ctx.webServerUrl})
+        expect(`${getDeleted.stdout}${getDeleted.stderr}`).not.toContain('Canonical guide content')
+
+        rmSync(tmpDirRepub, {recursive: true, force: true})
+      },
+      TEST_TIMEOUT * 2,
+    )
+
+    test(
       'document delete with missing key shows error',
       async () => {
         const result = await runCli(

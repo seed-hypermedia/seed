@@ -17,7 +17,10 @@ import {
   pdfToBlocks,
   fileToIpfsBlobs,
   slugify,
+  followToDocument,
+  packHmId,
   resolveCapability,
+  resolveEditableDocument,
   type DocumentOperation,
   type CollectedBlob,
 } from '@seed-hypermedia/client'
@@ -431,8 +434,13 @@ export function registerDocumentCommands(program: Command) {
                   `Document already exists at ${path}. Use "document update hm://${account}${path}" to modify it, or --force to overwrite with a new lineage.`,
                 )
               }
+              if (existing.type === 'redirect') {
+                throw new Error(
+                  `A redirect already exists at ${path}. Use "document update hm://${account}${path}" to replace it with edited content (continuing the target's history), or --force to overwrite with a new lineage.`,
+                )
+              }
             } catch (e) {
-              // Re-throw our own "already exists" error; swallow network/not-found errors
+              // Re-throw our own guard errors; swallow network/not-found errors
               if ((e as Error).message.includes('already exists')) throw e
             }
           }
@@ -541,13 +549,18 @@ export function registerDocumentCommands(program: Command) {
         let fileBlobs: CollectedBlob[] = []
         let metaBlobs: CollectedBlob[] = []
 
-        // Fetch the document — needed for diffing and state resolution
-        const resource = await client.request('Resource', resourceId)
-        if (resource.type !== 'document') {
-          printError(`Resource is ${resource.type}, not a document.`)
-          process.exit(1)
+        // Fetch the document — needed for diffing and state resolution. A redirected address
+        // (including a republished one) is followed to its target: the edit builds on the
+        // target's DAG and the new Version Ref at THIS address supersedes the redirect.
+        const base = await resolveEditableDocument(client, resourceId)
+        const existingDoc = base.document
+        if (base.redirect && !globalOpts.quiet) {
+          printInfo(
+            `This address currently ${base.redirect.republish ? 'republishes' : 'redirects to'} ${packHmId(
+              base.redirect.target,
+            )}; updating it replaces the redirect with an edited copy of that document.`,
+          )
         }
-        const existingDoc = resource.document
 
         // Collect content and metadata from file input
         let inputMeta: HMMetadata = {}
@@ -605,10 +618,11 @@ export function registerDocumentCommands(program: Command) {
           process.exit(1)
         }
 
-        const docAccount = existingDoc.account
-        const docPath = existingDoc.path || ''
+        // The Ref lands at the requested address, not the (possibly different) redirect target.
+        const docAccount = resourceId.uid
+        const docPath = resourceId.path?.length ? `/${resourceId.path.join('/')}` : existingDoc.path || ''
 
-        const state = await resolveDocumentState(client, id)
+        const state = base.state
         const genesisCid = CID.parse(state.genesis)
         const depCids = state.heads.map((h) => CID.parse(h))
         const newDepth = state.headDepth + 1
@@ -666,12 +680,24 @@ export function registerDocumentCommands(program: Command) {
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', unpacked)
-        if (resource.type !== 'document') {
+        if (resource.type !== 'document' && resource.type !== 'redirect') {
           printError(`Cannot delete: resource is ${resource.type}, not a document.`)
           process.exit(1)
         }
-        const doc = resource.document
-        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
+        // A redirected path (including a republished one) has no document of its own to read
+        // genesis and generation from, so the tombstone borrows the redirect target's genesis and
+        // takes a fresh generation — the new maximum generation supersedes the redirect Ref, so
+        // the path reads as deleted instead of continuing to follow the target.
+        let genesis: string
+        let generation: number
+        if (resource.type === 'redirect') {
+          const base = await followToDocument(client, unpacked)
+          genesis = base.document.genesis
+          generation = Date.now()
+        } else {
+          genesis = resource.document.genesis
+          generation = resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0
+        }
         const docPath = hmIdPathToEntityQueryPath(unpacked.path)
         const capability = await resolveCapability(client, unpacked.uid, key.accountId, docPath)
 
@@ -679,7 +705,7 @@ export function registerDocumentCommands(program: Command) {
           {
             space: unpacked.uid,
             path: hmIdPathToEntityQueryPath(unpacked.path),
-            genesis: doc.genesis,
+            genesis,
             generation,
             capability,
           },
@@ -710,21 +736,18 @@ export function registerDocumentCommands(program: Command) {
         const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
-        const resource = await client.request('Resource', sourceUnpacked)
-        if (resource.type !== 'document') {
-          printError(`Cannot fork: source is ${resource.type}, not a document.`)
-          process.exit(1)
-        }
-        const doc = resource.document
-        if (!doc.generationInfo) throw new Error('No generation info for source document')
+        // Follows redirects so a republished path can be forked: the fork points at the content
+        // the path currently re-publishes. A fresh generation lets the fork supersede any
+        // redirect Ref already sitting at the destination path.
+        const {document: doc} = await followToDocument(client, sourceUnpacked)
 
         const refInput = await createVersionRef(
           {
             space: dest.uid,
             path: hmIdPathToEntityQueryPath(dest.path),
-            genesis: doc.generationInfo.genesis,
+            genesis: doc.generationInfo?.genesis ?? doc.genesis,
             version: doc.version,
-            generation: Number(doc.generationInfo.generation),
+            generation: Date.now(),
           },
           signer,
         )
@@ -756,22 +779,20 @@ export function registerDocumentCommands(program: Command) {
         const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
-        const resource = await client.request('Resource', source)
-        if (resource.type !== 'document') {
-          printError(`Cannot move: source is ${resource.type}, not a document.`)
-          process.exit(1)
-        }
-        const doc = resource.document
-        if (!doc.generationInfo) throw new Error('No generation info for source document')
+        // Follows redirects so an already-redirected source can be moved again: the destination
+        // receives the content the source currently presents, and the source is re-pointed.
+        const {document: doc} = await followToDocument(client, source)
+        const genesis = doc.generationInfo?.genesis ?? doc.genesis
 
-        // Create version ref at destination
+        // Create version ref at destination. Fresh generations let both refs supersede any
+        // redirect Refs already sitting at their paths.
         const versionRefInput = await createVersionRef(
           {
             space: dest.uid,
             path: hmIdPathToEntityQueryPath(dest.path),
-            genesis: doc.generationInfo.genesis,
+            genesis,
             version: doc.version,
-            generation: Number(doc.generationInfo.generation),
+            generation: Date.now(),
           },
           signer,
         )
@@ -782,8 +803,8 @@ export function registerDocumentCommands(program: Command) {
           {
             space: source.uid,
             path: hmIdPathToEntityQueryPath(source.path),
-            genesis: doc.generationInfo.genesis,
-            generation: Number(doc.generationInfo.generation),
+            genesis,
+            generation: Date.now(),
             targetSpace: dest.uid,
             targetPath: hmIdPathToEntityQueryPath(dest.path),
           },
@@ -820,19 +841,25 @@ export function registerDocumentCommands(program: Command) {
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', source)
-        if (resource.type !== 'document') {
+        if (resource.type !== 'document' && resource.type !== 'redirect') {
           printError(`Cannot redirect: resource is ${resource.type}, not a document.`)
           process.exit(1)
         }
-        const doc = resource.document
-        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
+        // Re-pointing an already-redirected source borrows the current target's genesis (the
+        // source has no document of its own). A fresh generation is minted either way — the same
+        // choice the daemon's CreateRef makes — so the redirect occupies its own generation row
+        // and any later publish at this path supersedes it cleanly.
+        const genesis =
+          resource.type === 'redirect'
+            ? (await followToDocument(client, source)).document.genesis
+            : resource.document.genesis
 
         const refInput = await createRedirectRef(
           {
             space: source.uid,
             path: hmIdPathToEntityQueryPath(source.path),
-            genesis: doc.genesis,
-            generation,
+            genesis,
+            generation: Date.now(),
             targetSpace: target.uid,
             targetPath: hmIdPathToEntityQueryPath(target.path),
             republish: !!_options.republish,
