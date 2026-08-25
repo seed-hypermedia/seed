@@ -76,7 +76,13 @@ let currentDaemonProcess: ChildProcess | null = null
 let expectingDaemonClose = false
 
 type ReadyState = {t: 'ready'}
-type ErrorState = {t: 'error'; message: string}
+type ErrorState = {
+  t: 'error'
+  message: string
+  details?: string
+  exitCode?: number | null
+  signal?: string | null
+}
 type StartupState = {t: 'startup'}
 type MigratingState = {t: 'migrating'; completed: number; total: number}
 
@@ -118,11 +124,16 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
   // Store reference for restart capability
   currentDaemonProcess = daemonProcess
 
-  let lastStderr = ''
+  const output: string[] = []
+  const rememberOutput = (stream: 'stdout' | 'stderr', line: string) => {
+    output.push(`[${stream}] ${line}`)
+    if (output.length > 160) output.shift()
+  }
+
   const stderr = readline.createInterface({input: daemonProcess.stderr})
   await new Promise<void>((resolve, reject) => {
     stderr.on('line', (line: string) => {
-      lastStderr = line
+      rememberOutput('stderr', line)
       if (line.includes('DaemonStarted')) {
         updateGoDaemonState({t: 'ready'})
       }
@@ -130,10 +141,18 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
     })
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
+      rememberOutput('stdout', line)
       if (!quietNodeLogs) log.rawMessage(line)
     })
     daemonProcess.on('error', (err) => {
       log.error('Go daemon spawn error', {error: err})
+      if (daemonProcess === currentDaemonProcess) {
+        updateGoDaemonState({
+          t: 'error',
+          message: 'Seed could not start the local daemon.',
+          details: output.join('\n') || err.message,
+        })
+      }
       reject(err)
     })
     daemonProcess.on('close', (code, signal) => {
@@ -142,9 +161,12 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
       if (!expectingDaemonClose && daemonProcess === currentDaemonProcess) {
         updateGoDaemonState({
           t: 'error',
-          message: 'Service Error: !!!' + lastStderr,
+          message: 'The local daemon stopped unexpectedly.',
+          details: output.join('\n') || 'The daemon did not write any diagnostic output.',
+          exitCode: code,
+          signal,
         })
-        log.error('Go daemon closed', {code: code, signal: signal})
+        log.error('Go daemon closed', {code, signal, output: output.join('\n')})
       }
     })
     daemonProcess.on('spawn', () => {

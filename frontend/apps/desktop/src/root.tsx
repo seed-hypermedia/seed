@@ -400,7 +400,15 @@ function MainApp({}: {}) {
     console.error('Daemon error', daemonState?.message)
     return (
       <div className={windowContainerStyles}>
-        <AppErrorContent message={daemonState?.message} />
+        <AppErrorContent
+          message={daemonState.message}
+          details={daemonState.details}
+          exitCode={daemonState.exitCode}
+          signal={daemonState.signal}
+          title="Seed could not start"
+          description="The app needs its local daemon to load your data."
+          eyebrow="Local service error"
+        />
       </div>
     )
   } else {
