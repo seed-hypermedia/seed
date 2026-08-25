@@ -17,6 +17,8 @@ import {
   pdfToBlocks,
   fileToIpfsBlobs,
   slugify,
+  describeRedirect,
+  followRedirects,
   followToDocument,
   packHmId,
   resolveCapability,
@@ -44,7 +46,7 @@ import {
 } from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
 import {markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client'
-import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 // ── Input helpers ────────────────────────────────────────────────────────────
 
@@ -209,6 +211,17 @@ export async function readInput(options: {file?: string; grobidUrl?: string; qui
   return {ops, metadata, fileBlobs: resolved.blobs, tree: resolvedTree}
 }
 
+/**
+ * Records a followed redirect in the markdown frontmatter so the fact survives piping to a file:
+ * `republishOf` (the address whose latest content this is) or `movedTo`. Both keys are ignored by
+ * the frontmatter parser on the way back in, so `get > file; update -f file` still round-trips.
+ */
+function withRedirectFrontmatter(md: string, republish: boolean, target: UnpackedHypermediaId): string {
+  const line = `${republish ? 'republishOf' : 'movedTo'}: ${JSON.stringify(packHmId(target))}`
+  if (md.startsWith('---\n')) return `---\n${line}\n${md.slice(4)}`
+  return `---\n${line}\n---\n${md}`
+}
+
 export function registerDocumentCommands(program: Command) {
   const doc = program
     .command('document')
@@ -284,7 +297,14 @@ export function registerDocumentCommands(program: Command) {
           return
         }
 
-        const result = await client.request('Resource', resolvedId)
+        // A redirected address (a moved path, or a "republished" path that re-publishes another
+        // document as its own) is followed so the reader gets content — but never silently: the
+        // output names the address the content really lives at, because a write to the requested
+        // address does something different (it replaces the redirect) from a write to the target.
+        const followed = await followRedirects(client, resolvedId)
+        const result = followed.resource
+        const redirectNotice = describeRedirect(followed)
+        if (redirectNotice && !globalOpts.quiet && !options.quiet) printInfo(redirectNotice)
 
         if (globalOpts.quiet || options.quiet) {
           if (result.type === 'document') {
@@ -296,7 +316,18 @@ export function registerDocumentCommands(program: Command) {
           }
         } else if (useStructuredOutput) {
           // --json or --yaml → structured output (optionally colorized with --pretty)
-          emit(formatOutput(result, format, pretty))
+          const structured = redirectNotice
+            ? {
+                ...result,
+                redirect: {
+                  from: packHmId(followed.id),
+                  to: packHmId(followed.targetId),
+                  republish: followed.redirects[0]!.republish,
+                  notice: redirectNotice,
+                },
+              }
+            : result
+          emit(formatOutput(structured, format, pretty))
         } else {
           // Default: markdown output (with frontmatter and block IDs)
           // When --pretty: render markdown with ANSI terminal styling
@@ -305,6 +336,7 @@ export function registerDocumentCommands(program: Command) {
               resolve: options.resolve,
               client: options.resolve ? client : undefined,
             })
+            if (redirectNotice) md = withRedirectFrontmatter(md, followed.redirects[0]!.republish, followed.targetId)
             if (pretty) md = renderMarkdown(md)
             emit(md)
           } else if (result.type === 'comment') {

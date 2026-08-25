@@ -82,6 +82,87 @@ describe('api service', () => {
     }
   })
 
+  test("read tool follows a republished path but says so: content is the target's, and the notice tells a writer what each address means", async () => {
+    // Live incident (session b44d4d81): reading a republished path returned a bare
+    // {type: 'redirect'} blob with no content and no explanation, so the agent could not tell what
+    // it was looking at. Readers must follow the redirect to give the agent content, but never
+    // pretend the content lives at the requested address: writing there replaces the republish
+    // with an independent copy, while writing to the target edits the shared original.
+    const republishedAt = 'hm://z6MkAgent/guide'
+    const original = 'hm://z6MkOther/resources/guide'
+    const originalFetch = globalThis.fetch
+    const resourceRequests: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      if (href.includes('/api/Resource')) {
+        const requestedId = new URL(href).searchParams.get('id') ?? ''
+        resourceRequests.push(requestedId)
+        if (requestedId.startsWith(republishedAt)) {
+          return Response.json(
+            serialize({
+              type: 'redirect',
+              id: unpackHmId(republishedAt),
+              redirectTarget: unpackHmId(original),
+              republish: true,
+            }),
+          )
+        }
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(original),
+            document: {
+              content: [{block: {id: 'b1', type: 'Paragraph', text: 'Canonical guide body'}, children: []}],
+              version: 'v3',
+              account: 'z6MkOther',
+              authors: ['z6MkOther'],
+              path: '/resources/guide',
+              createTime: '',
+              updateTime: '',
+              metadata: {name: 'Agent Guide'},
+              genesis: 'genesis',
+              visibility: 'PUBLIC',
+            },
+          }),
+        )
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    try {
+      const result = await apisvc.readHypermedia({id: republishedAt})
+
+      // The redirect was followed: one request for the republished path, one for the original.
+      expect(resourceRequests).toEqual([republishedAt, original])
+
+      // The agent gets the original's content, attributed to the original's address...
+      expect(result.id).toBe(original)
+      expect(result.requestedId).toBe(republishedAt)
+      expect(result.title).toBe('Agent Guide')
+      expect(result.version).toBe('v3')
+      expect(result.markdown).toContain('Canonical guide body')
+
+      // ...and an explicit account of the redirect that was followed.
+      expect(result.redirect).toEqual({
+        from: republishedAt,
+        to: original,
+        republish: true,
+        hops: [{from: republishedAt, to: original, republish: true}],
+        notice:
+          `${republishedAt} republishes ${original}: the content shown is the latest version of ${original}. ` +
+          `To edit the shared original, write to ${original}. ` +
+          `Writing to ${republishedAt} replaces the republish with an independent copy that no longer follows ${original}.`,
+      })
+
+      // A plain document read carries no redirect field at all.
+      const direct = await apisvc.readHypermedia({id: original})
+      expect(direct.redirect).toBeUndefined()
+      expect(direct.id).toBe(original)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('read tool lists child documents for :directory URLs', async () => {
     // `<doc>/:directory` is a view term like `:attributes`: it must trigger a Query listing of
     // the children (the desktop's directory tab), never a Resource fetch of a document at the

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {SeedClient} from './client'
-import {resolveEditableDocument} from './document-state'
+import {describeRedirect, followRedirects, resolveEditableDocument} from './document-state'
 import {packHmId, unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 const SPACE_A = 'z6MkwRA1sPTdRk6nvDBs2eZiXAxYtvxRusN3faHibKPULdrL'
@@ -121,5 +121,109 @@ describe('resolveEditableDocument', () => {
       },
     })
     await expect(resolveEditableDocument(client, sourceId)).rejects.toThrow(/is tombstone.*followed redirect/)
+  })
+})
+
+describe('followRedirects (what a reader sees at a redirected address)', () => {
+  it('reading a plain document follows nothing and reports no redirects', async () => {
+    const docId = id(`hm://${SPACE_A}/notes`)
+    const client = stubClient({resources: {[packHmId(docId)]: documentResource(docId)}})
+    const followed = await followRedirects(client, docId)
+    expect(followed.targetId).toEqual(docId)
+    expect(followed.resource.type).toBe('document')
+    expect(followed.redirects).toEqual([])
+    expect(describeRedirect(followed)).toBeNull()
+  })
+
+  it('reading a republished path returns the TARGET content and says so', async () => {
+    const republishedAt = id(`hm://${SPACE_A}/guide`)
+    const original = id(`hm://${SPACE_B}/resources/guide`)
+    const client = stubClient({
+      resources: {
+        [packHmId(republishedAt)]: {type: 'redirect', id: republishedAt, redirectTarget: original, republish: true},
+        [packHmId(original)]: documentResource(original),
+      },
+    })
+    const followed = await followRedirects(client, republishedAt)
+
+    // The content is the original's, read from the original's address.
+    expect(followed.id).toEqual(republishedAt)
+    expect(followed.targetId).toEqual(original)
+    expect(followed.resource).toEqual(documentResource(original))
+    expect(followed.redirects).toEqual([{from: republishedAt, to: original, republish: true}])
+
+    // And the explanation tells a writer what each address means.
+    expect(describeRedirect(followed)).toBe(
+      `hm://${SPACE_A}/guide republishes hm://${SPACE_B}/resources/guide: ` +
+        `the content shown is the latest version of hm://${SPACE_B}/resources/guide. ` +
+        `To edit the shared original, write to hm://${SPACE_B}/resources/guide. ` +
+        `Writing to hm://${SPACE_A}/guide replaces the republish with an independent copy ` +
+        `that no longer follows hm://${SPACE_B}/resources/guide.`,
+    )
+  })
+
+  it('reading a moved path explains the move instead of a republish', async () => {
+    const oldPath = id(`hm://${SPACE_A}/old`)
+    const newPath = id(`hm://${SPACE_A}/new`)
+    const client = stubClient({
+      resources: {
+        [packHmId(oldPath)]: {type: 'redirect', id: oldPath, redirectTarget: newPath, republish: false},
+        [packHmId(newPath)]: documentResource(newPath),
+      },
+    })
+    const followed = await followRedirects(client, oldPath)
+    expect(followed.redirects).toEqual([{from: oldPath, to: newPath, republish: false}])
+    expect(describeRedirect(followed)).toBe(
+      `hm://${SPACE_A}/old has moved to hm://${SPACE_A}/new: ` +
+        `the content shown is the latest version of hm://${SPACE_A}/new. ` +
+        `Write to hm://${SPACE_A}/new. Writing to hm://${SPACE_A}/old would revive it as an ` +
+        `independent copy that no longer follows hm://${SPACE_A}/new.`,
+    )
+  })
+
+  it('reports every hop of a redirect chain, in order', async () => {
+    const a = id(`hm://${SPACE_A}/a`)
+    const b = id(`hm://${SPACE_A}/b`)
+    const c = id(`hm://${SPACE_B}/c`)
+    const client = stubClient({
+      resources: {
+        [packHmId(a)]: {type: 'redirect', id: a, redirectTarget: b, republish: true},
+        [packHmId(b)]: {type: 'redirect', id: b, redirectTarget: c, republish: false},
+        [packHmId(c)]: documentResource(c),
+      },
+    })
+    const followed = await followRedirects(client, a)
+    expect(followed.targetId).toEqual(c)
+    expect(followed.redirects).toEqual([
+      {from: a, to: b, republish: true},
+      {from: b, to: c, republish: false},
+    ])
+    expect(describeRedirect(followed)).toContain(`hm://${SPACE_A}/a republishes hm://${SPACE_B}/c (via 2 redirects)`)
+  })
+
+  it('a redirect that lands on a deleted or missing resource still reports the redirect', async () => {
+    const a = id(`hm://${SPACE_A}/a`)
+    const gone = id(`hm://${SPACE_B}/gone`)
+    const client = stubClient({
+      resources: {
+        [packHmId(a)]: {type: 'redirect', id: a, redirectTarget: gone, republish: true},
+        [packHmId(gone)]: {type: 'not-found', id: gone},
+      },
+    })
+    const followed = await followRedirects(client, a)
+    expect(followed.resource.type).toBe('not-found')
+    expect(followed.redirects).toHaveLength(1)
+  })
+
+  it('throws on a redirect cycle', async () => {
+    const a = id(`hm://${SPACE_A}/a`)
+    const b = id(`hm://${SPACE_A}/b`)
+    const client = stubClient({
+      resources: {
+        [packHmId(a)]: {type: 'redirect', id: a, redirectTarget: b, republish: true},
+        [packHmId(b)]: {type: 'redirect', id: b, redirectTarget: a, republish: true},
+      },
+    })
+    await expect(followRedirects(client, a)).rejects.toThrow('Redirect cycle detected')
   })
 })

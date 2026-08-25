@@ -74,6 +74,8 @@ import {
   parseMarkdown,
   fileToIpfsBlobs,
   resolveFileLinksInBlocks,
+  describeRedirect,
+  followRedirects,
   followToDocument,
   resolveCapability,
   resolveDocumentState,
@@ -11331,16 +11333,35 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
   const stripped = stripAttributesViewTerm(id)
   id = stripped.id
   const attributesOnly = stripped.attributesOnly
-  const resource = await client.request('Resource', id)
+  // Redirects (a moved path, or a "republished" path that re-publishes another document as its
+  // own) are followed so the agent gets content — but never silently: `id` is the address the
+  // content was actually read from, and `redirect` spells out where the request went and what a
+  // write to either address would do. A write to the requested address does NOT edit the target.
+  const followed = await followRedirects(client, id)
+  const resource = followed.resource
   const outputFormat = format || 'markdown'
   const result: Record<string, unknown> = {
     type: 'hypermedia_document',
     requestedId,
-    id: packHmId(id),
+    id: packHmId(followed.targetId),
     server: serverUrl,
     format: outputFormat,
   }
   if (dev) result.dev = true
+  if (followed.redirects.length > 0) {
+    const first = followed.redirects[0]!
+    result.redirect = {
+      from: packHmId(id),
+      to: packHmId(followed.targetId),
+      republish: first.republish,
+      hops: followed.redirects.map((hop) => ({
+        from: packHmId(hop.from),
+        to: packHmId(hop.to),
+        republish: hop.republish,
+      })),
+      notice: describeRedirect(followed),
+    }
+  }
 
   if (resource.type === 'document') {
     result.title = resource.document.metadata?.name

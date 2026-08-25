@@ -1763,6 +1763,30 @@ describe('CLI Full Integration Tests', () => {
         }
         await new Promise((r) => setTimeout(r, 2000))
 
+        // Reading a republished path shows the TARGET's content, but never silently: the
+        // frontmatter records which address the content really belongs to, and the notice tells a
+        // writer what a write to either address would do.
+        const getRepublished = await runCli(['document', 'get', editedHmId], {server: ctx.webServerUrl})
+        expect(getRepublished.exitCode).toBe(0)
+        expect(getRepublished.stdout).toContain('Canonical guide content')
+        expect(getRepublished.stdout).toContain(`republishOf: "${targetHmId}"`)
+        expect(getRepublished.stderr).toContain(`${editedHmId} republishes ${targetHmId}`)
+        expect(getRepublished.stderr).toContain(`To edit the shared original, write to ${targetHmId}`)
+
+        // Structured output carries the same facts as data.
+        const getRepublishedJson = await runCli(['document', 'get', editedHmId, '--json'], {server: ctx.webServerUrl})
+        expect(getRepublishedJson.exitCode).toBe(0)
+        const republishedJson = JSON.parse(getRepublishedJson.stdout)
+        expect(republishedJson.type).toBe('document')
+        expect(republishedJson.id.id).toBe(targetHmId)
+        expect(republishedJson.redirect).toMatchObject({from: editedHmId, to: targetHmId, republish: true})
+        expect(republishedJson.redirect.notice).toContain('republishes')
+
+        // Reading the original directly involves no redirect at all.
+        const getOriginal = await runCli(['document', 'get', targetHmId], {server: ctx.webServerUrl})
+        expect(getOriginal.stdout).not.toContain('republishOf')
+        expect(getOriginal.stderr).not.toContain('republishes')
+
         // Editing the republished path takes it over: the update follows the redirect to the
         // target for its baseline and publishes a fresh-generation Version Ref at the path.
         const mdEdited = join(tmpDirRepub, 'edited.md')
