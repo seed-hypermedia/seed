@@ -19,7 +19,7 @@ import {createDocumentNavRoute, createInspectNavRoute, NavRoute} from '@shm/shar
 import {
   extractViewTermFromUrl,
   isHypermediaScheme,
-  isSiteProfileTab,
+  isSpaceProfileTab,
   packHmId,
   hmId,
   parseCustomURL,
@@ -247,11 +247,11 @@ export const SearchInput = forwardRef<
     onMouseEnter: () => {},
     onSelect: () => {
       const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-      const siteId = routeId?.uid ? hmId(routeId.uid) : null
+      const spaceId = routeId?.uid ? hmId(routeId.uid) : null
       onSelect({
         route: {
           key: 'explore',
-          context: siteId ? {type: 'site', id: siteId} : {type: 'node'},
+          context: spaceId ? {type: 'space', id: spaceId} : {type: 'node'},
         },
       })
     },
@@ -264,11 +264,11 @@ export const SearchInput = forwardRef<
     onMouseEnter: () => {},
     onSelect: () => {
       const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-      const siteId = routeId?.uid ? hmId(routeId.uid) : null
+      const spaceId = routeId?.uid ? hmId(routeId.uid) : null
       onSelect({
         route: {
           key: 'explore',
-          context: siteId ? {type: 'site', id: siteId} : {type: 'node'},
+          context: spaceId ? {type: 'space', id: spaceId} : {type: 'node'},
           q: debouncedSearch || undefined,
         },
       })
@@ -484,11 +484,11 @@ function applyViewTermToRoute(
       openCommentVersion: route.id.version || undefined,
     }
   }
-  if (isSiteProfileTab(routeKey)) {
-    return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
+  if (isSpaceProfileTab(routeKey)) {
+    return {key: 'space-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
   }
   if (routeKey === 'explore') {
-    return {key: 'explore', context: {type: 'site', id: route.id}}
+    return {key: 'explore', context: {type: 'space', id: route.id}}
   }
   return {key: routeKey, id: route.id}
 }

@@ -96,7 +96,7 @@ describe('createSeedClient', () => {
       contextSize: 44,
       searchType: 0,
       pageSize: 20,
-      iriFilter: 'hm://site*',
+      iriFilter: 'hm://space*',
       contentTypeFilter: [0],
     })
 
@@ -107,7 +107,7 @@ describe('createSeedClient', () => {
     expect(calledUrl.searchParams.get('contextSize')).toBe('44')
     expect(calledUrl.searchParams.get('searchType')).toBe('0')
     expect(calledUrl.searchParams.get('pageSize')).toBe('20')
-    expect(calledUrl.searchParams.get('iriFilter')).toBe('hm://site*')
+    expect(calledUrl.searchParams.get('iriFilter')).toBe('hm://space*')
     expect(calledUrl.searchParams.get('contentTypeFilter')).toBe('[0]')
   })
 

@@ -51,18 +51,19 @@ async function signedNotifPost(host: string, signer: NotificationSigner, payload
 export async function getNotificationState(
   notifyServiceHost: string,
   signer: NotificationSigner,
-  opts?: {beforeMs?: number; limit?: number; siteUid?: string},
+  opts?: {beforeMs?: number; limit?: number; spaceUid?: string},
 ) {
   return signedNotifPost(notifyServiceHost, signer, {
     action: 'get-notification-state',
     ...(opts?.beforeMs != null ? {beforeMs: opts.beforeMs} : {}),
     limit: opts?.limit ?? DEFAULT_NOTIFICATION_INBOX_LIMIT,
-    ...(opts?.siteUid ? {siteUid: opts.siteUid} : {}),
+    // Wire key stays `siteUid` so already-deployed notify services keep understanding it.
+    ...(opts?.spaceUid ? {siteUid: opts.spaceUid} : {}),
   }) as Promise<NotificationStateSnapshot>
 }
 
-/** One email subscribed to a site via the public subscribe form. */
-export type SiteEmailSubscriber = {
+/** One email subscribed to a space via the public subscribe form. */
+export type SpaceEmailSubscriber = {
   email: string
   createdAt: string
   notifyOwnedDocChange: boolean
@@ -71,27 +72,28 @@ export type SiteEmailSubscriber = {
 }
 
 /**
- * Fetches the emails subscribed to the signer's site. The notify service
+ * Fetches the emails subscribed to the signer's space. The notify service
  * only returns subscribers for the account resolved from the signature,
- * so this is available exclusively to the site owner (or their agent).
+ * so this is available exclusively to the space owner (or their agent).
  */
-export async function getSiteEmailSubscribers(notifyServiceHost: string, signer: NotificationSigner) {
+export async function getSpaceEmailSubscribers(notifyServiceHost: string, signer: NotificationSigner) {
   return signedNotifPost(notifyServiceHost, signer, {
     action: 'get-email-subscribers',
-  }) as Promise<{subscribers: SiteEmailSubscriber[]}>
+  }) as Promise<{subscribers: SpaceEmailSubscriber[]}>
 }
 
 /** Applies one or more notification actions on the notify service and returns canonical state. */
 export async function applyNotificationActions(
   notifyServiceHost: string,
   signer: NotificationSigner,
-  input: {actions: NotificationMutationAction[]; beforeMs?: number; limit?: number; siteUid?: string},
+  input: {actions: NotificationMutationAction[]; beforeMs?: number; limit?: number; spaceUid?: string},
 ) {
   return signedNotifPost(notifyServiceHost, signer, {
     action: 'apply-notification-actions',
     actions: input.actions,
     ...(input.beforeMs != null ? {beforeMs: input.beforeMs} : {}),
     limit: input.limit ?? DEFAULT_NOTIFICATION_INBOX_LIMIT,
-    ...(input.siteUid ? {siteUid: input.siteUid} : {}),
+    // Wire key stays `siteUid` so already-deployed notify services keep understanding it.
+    ...(input.spaceUid ? {siteUid: input.spaceUid} : {}),
   }) as Promise<NotificationStateSnapshot>
 }

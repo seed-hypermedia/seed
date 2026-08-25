@@ -2338,9 +2338,9 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {
           action: {
             _: 'SetSecret',
-            name: 'site-key',
+            name: 'space-key',
             value: new TextEncoder().encode('mnemonic words'),
-            metadata: {kind: 'hm-account-key', accountId: 'hm-account', label: 'Main site', dev: false},
+            metadata: {kind: 'hm-account-key', accountId: 'hm-account', label: 'Main space', dev: false},
           },
         }),
       )
@@ -2358,7 +2358,7 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(otherAccount, {
           action: {
             _: 'SetSecret',
-            name: 'other-site-key',
+            name: 'other-space-key',
             value: new TextEncoder().encode('other mnemonic'),
             metadata: {kind: 'hm-account-key', accountId: 'other-account'},
           },
@@ -2369,9 +2369,9 @@ describe('api service', () => {
       expect(list._).toBe('ListSigningIdentitiesResponse')
       if (list._ !== 'ListSigningIdentitiesResponse') throw new Error('unexpected response')
       expect(list.identities).toHaveLength(1)
-      expect(list.identities[0]).toMatchObject({name: 'site-key', accountId: 'hm-account', label: 'Main site'})
+      expect(list.identities[0]).toMatchObject({name: 'space-key', accountId: 'hm-account', label: 'Main space'})
       expect(JSON.stringify(list)).not.toContain('mnemonic words')
-      expect(JSON.stringify(list)).not.toContain('other-site-key')
+      expect(JSON.stringify(list)).not.toContain('other-space-key')
     } finally {
       db.close()
       cleanup()
@@ -2532,7 +2532,7 @@ describe('api service', () => {
           action: {
             _: 'CreateAgentTrigger',
             agentId: createdAgent.agentId,
-            trigger: {name: 'Trigger', source: {type: 'site-update', resourcePrefix: 'hm://site'}, prompt: 'go'},
+            trigger: {name: 'Trigger', source: {type: 'site-update', resourcePrefix: 'hm://space'}, prompt: 'go'},
           },
         }),
       )

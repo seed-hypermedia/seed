@@ -4,7 +4,7 @@ import {hmId} from '@shm/shared'
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {SiteFileBrowser} from '../site-file-browser'
+import {SpaceFileBrowser} from '../space-file-browser'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const useDirectoryMock = vi.hoisted(() => vi.fn())
@@ -14,7 +14,7 @@ let container: HTMLDivElement
 let root: Root
 
 function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
-  return {id: hmId('site', {path}), path, metadata: {name}, visibility} as HMDocumentInfo
+  return {id: hmId('space', {path}), path, metadata: {name}, visibility} as HMDocumentInfo
 }
 
 beforeEach(() => {
@@ -29,7 +29,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('SiteFileBrowser', () => {
+describe('SpaceFileBrowser', () => {
   it('reveals the active document and marks private rows', () => {
     useDirectoryMock.mockReturnValue({
       data: [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'private'], 'Private guide', 'PRIVATE')],
@@ -39,9 +39,9 @@ describe('SiteFileBrowser', () => {
 
     act(() => {
       root.render(
-        <SiteFileBrowser
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site', {path: ['guides', 'private']})}
+        <SpaceFileBrowser
+          spaceId={hmId('space')}
+          activeDocumentId={hmId('space', {path: ['guides', 'private']})}
           onNavigate={vi.fn()}
         />,
       )
@@ -69,8 +69,8 @@ describe('SiteFileBrowser', () => {
 
     act(() => {
       root.render(
-        <SiteFileBrowser
-          siteId={hmId('site')}
+        <SpaceFileBrowser
+          spaceId={hmId('space')}
           activeDocumentId={null}
           onNavigate={onNavigate}
           onPrefetch={onPrefetch}

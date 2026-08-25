@@ -9,7 +9,7 @@ export default function AllDocumentsDesktopPage() {
   if (route.key !== 'all-documents') return null
   return (
     <AllDocumentsPage
-      siteId={route.id}
+      spaceId={route.id}
       onNavigateToDocument={(id, opts) => {
         const documentRoute = {key: 'document' as const, id}
         if (opts?.newWindow) spawn(documentRoute)

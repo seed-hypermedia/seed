@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
-import {getConfig, writeConfig} from '@/site-config.server'
+import {getConfig, writeConfig} from '@/space-config.server'
 import type {ActionFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
 import {z} from 'zod'
@@ -26,7 +26,7 @@ export const action: ActionFunction = async ({request}) => {
     if (input.registrationSecret !== config.availableRegistrationSecret) {
       throw {message: 'Invalid registration secret'}
     }
-    console.log('REGISTERING SITE', JSON.stringify(input, null, 2))
+    console.log('REGISTERING SPACE', JSON.stringify(input, null, 2))
     const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`)
     console.log('networking.connect', addrs)
     await grpcClient.networking.connect({

@@ -18,7 +18,7 @@ export const htmlContent = {
   mixedFormatting: '<p>This has <strong>strong</strong>, <em>emphasis</em>, and <u>underlined</u> words</p>',
 
   // Links
-  simpleLink: '<p>Visit <a href="https://example.com">Example Site</a></p>',
+  simpleLink: '<p>Visit <a href="https://example.com">Example Space</a></p>',
   multiplLinks: '<p><a href="https://one.com">One</a> and <a href="https://two.com">Two</a></p>',
 
   // Lists
@@ -207,7 +207,7 @@ This is a paragraph with **bold** and *italic* text.
 
 > Important note
 
-Visit [our site](https://example.com) for more.`,
+Visit [our space](https://example.com) for more.`,
 }
 
 // =============================================================================

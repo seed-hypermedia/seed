@@ -26,7 +26,7 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'Append /:attributes to a document URL (e.g. `hm://z6Mk.../notes/:attributes`) to read only its metadata/attributes without the content. Use it when the user is viewing the attributes view or asks about document metadata.',
     'Append /:directory to an account or document URL (e.g. `hm://z6Mk.../notes/:directory`) to list its child documents (the directory view) with names, links, and child counts. Use it whenever asked what documents live under a space or document, instead of scraping links out of document content.',
     'Use `read` with the `activity:` address for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
-    'To explore a section of a site, read the directory first, then read each child document.',
+    'To explore a section of a space, read the directory first, then read each child document.',
     'Tables read and write as GFM markdown tables carrying identity comments: a `<!-- id:… -->` line before the table, `<!-- col:… -->` inside each header cell, and `<!-- id:… -->` inside the last cell of each row. When editing a table, keep every comment for content you are keeping — they preserve table/column/row identity, history, and anchored comments; only omit them for rows or columns you are adding. Cells never carry their own ids. Use `\\|` for a literal pipe and `<br>` for a line break inside a cell. New tables may be plain GFM without any comments.',
   ]
   if (options.currentTime) parts.push(`The current time is: ${options.currentTime}`)
@@ -514,6 +514,8 @@ export type AgentTriggerPatch = {
 export type AgentTriggerSource =
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
+  // Wire + stored discriminator. Renaming this to `space-update` crashes the
+  // trigger UI in already-installed desktop builds, so it stays until they roll over.
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
   | {type: 'schedule'; schedule: AgentScheduleTrigger}
   /** Fires when a run of this account finishes — the source that lets automations chain. */

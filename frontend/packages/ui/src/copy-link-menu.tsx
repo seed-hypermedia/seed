@@ -38,7 +38,7 @@ export type CopyLinkMenuOptions = {
 
 /**
  * Copies the most user-friendly available document link.
- * Preference order is canonical/site URL, then gateway/web URL, then hm:// URL.
+ * Preference order is canonical/space URL, then gateway/web URL, then hm:// URL.
  */
 export async function copyBestAvailableLink({
   canonical,

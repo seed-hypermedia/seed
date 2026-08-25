@@ -57,7 +57,7 @@ func (idx *Index) Put(ctx context.Context, blk blocks.Block) error {
 		if exists || !isIndexable(multicodec.Code(codec)) {
 			if wrote && fromNetwork {
 				kinds = append(kinds, syncperf.KindSample{
-					Site:  syncSite(ctx),
+					Space: syncSpace(ctx),
 					Kind:  syncperf.KindMedia,
 					Bytes: int64(len(blk.RawData())),
 				})
@@ -100,8 +100,8 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 	fromNetwork := networkOrigin(ctx)
 	// Raw media never reaches the indexer, so it can't learn its space the way
 	// structural blobs do. The syncing session that pulled it does know, and
-	// passes it down here — see blob.ContextWithSyncSite.
-	mediaSite := syncSite(ctx)
+	// passes it down here — see blob.ContextWithSyncSpace.
+	mediaSpace := syncSpace(ctx)
 	opts := indexOpts{
 		TrackUnreads:            unreadsTrackingEnabled(ctx),
 		DeferPropagation:        true,
@@ -166,7 +166,7 @@ func (idx *Index) PutMany(ctx context.Context, blks []blocks.Block) error {
 					// that document isn't in scope by the time it lands here.
 					if !indexable && fromNetwork {
 						kinds = append(kinds, syncperf.KindSample{
-							Site:  mediaSite,
+							Space: mediaSpace,
 							Kind:  syncperf.KindMedia,
 							Bytes: int64(len(blk.RawData())),
 						})

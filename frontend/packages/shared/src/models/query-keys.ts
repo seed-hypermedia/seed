@@ -9,7 +9,7 @@ export const queryKeys = {
   // NOTE: Arguments to query keys documented in comments
 
   LIBRARY: 'LIBRARY',
-  SITE_LIBRARY: 'SITE_LIBRARY', // siteUid: string
+  SPACE_LIBRARY: 'SPACE_LIBRARY', // spaceUid: string
 
   // feed
   FEED: 'FEED', // docId?: boolean
@@ -143,7 +143,7 @@ export const queryKeys = {
   NOTIFICATION_INBOX: 'NOTIFICATION_INBOX', // accountUid
   NOTIFICATION_READ_STATE: 'NOTIFICATION_READ_STATE', // notifyServiceHost, accountUid
   NOTIFICATION_SYNC_STATUS: 'NOTIFICATION_SYNC_STATUS', // accountUid
-  SITE_EMAIL_SUBSCRIBERS: 'SITE_EMAIL_SUBSCRIBERS', // notifyServiceHost, accountUid
+  SPACE_EMAIL_SUBSCRIBERS: 'SPACE_EMAIL_SUBSCRIBERS', // notifyServiceHost, accountUid
 
   // ai config
   AI_CONFIG: 'AI_CONFIG',
@@ -167,8 +167,8 @@ export function labelOfQueryKey(key: QueryKey) {
     // library
     case queryKeys.LIBRARY:
       return 'Library'
-    case queryKeys.SITE_LIBRARY:
-      return `Site Library`
+    case queryKeys.SPACE_LIBRARY:
+      return `Space Library`
 
     // feed
     case queryKeys.FEED:

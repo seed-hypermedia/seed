@@ -66,9 +66,9 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
       const publishedCount = results.length - failures.length
       if (publishedCount > 0) {
         // Some grants are now in the local daemon. They must reach the
-        // document's site as fast as a comment does: push instead of waiting
-        // for the site's next sync wave. No-op on platforms that publish
-        // through the site. Pushed even when other grants failed, so the ones
+        // document's space as fast as a comment does: push instead of waiting
+        // for the space's next sync wave. No-op on platforms that publish
+        // through the space. Pushed even when other grants failed, so the ones
         // that did publish don't fall back to the slow path.
         onPushPublished?.(id)
         invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
@@ -119,33 +119,33 @@ export function useSelectedAccountCapability(
 }
 
 /**
- * Whether the current identity can act as the site owner: the site account
- * is the current user, or an AGENT capability on the site account was
+ * Whether the current identity can act as the space owner: the space account
+ * is the current user, or an AGENT capability on the space account was
  * granted to the current user. Like useIsCurrentUser, both the selected
  * identity (vault/account UID) and the signing identity (web session key
  * UID) are checked, because web sign-in delegates an AGENT capability to
  * the session key itself.
  */
-export function useIsSiteOwner(siteUid: string | undefined): {isSiteOwner: boolean; isLoading: boolean} {
+export function useIsSpaceOwner(spaceUid: string | undefined): {isSpaceOwner: boolean; isLoading: boolean} {
   const {selectedIdentity, signingIdentity} = useUniversalAppContext()
   const selectedId = useStream(selectedIdentity) ?? null
   const signingId = useStream(signingIdentity) ?? null
-  const capabilities = useCapabilities(siteUid ? hmId(siteUid) : undefined)
+  const capabilities = useCapabilities(spaceUid ? hmId(spaceUid) : undefined)
   const identityUids = [selectedId, signingId].filter((uid): uid is string => !!uid)
-  const isDirectOwner = Boolean(siteUid && identityUids.includes(siteUid))
+  const isDirectOwner = Boolean(spaceUid && identityUids.includes(spaceUid))
   const hasAgentCapability = (capabilities.data ?? []).some(
     (cap) => cap.role === 'agent' && identityUids.includes(cap.accountUid),
   )
-  const isSiteOwner = Boolean(siteUid) && (isDirectOwner || hasAgentCapability)
-  return {isSiteOwner, isLoading: !isSiteOwner && Boolean(siteUid) && capabilities.isLoading}
+  const isSpaceOwner = Boolean(spaceUid) && (isDirectOwner || hasAgentCapability)
+  return {isSpaceOwner, isLoading: !isSpaceOwner && Boolean(spaceUid) && capabilities.isLoading}
 }
 
 /**
  * Returns true if the currently selected account has writer+ capability
- * on the site's home document, meaning they can view private documents.
+ * on the space's home document, meaning they can view private documents.
  */
 export function useCanSeePrivateDocs(docId?: UnpackedHypermediaId): boolean {
-  const siteHomeId = docId ? hmId(docId.uid) : undefined
-  const capability = useSelectedAccountCapability(siteHomeId, 'writer')
+  const spaceHomeId = docId ? hmId(docId.uid) : undefined
+  const capability = useSelectedAccountCapability(spaceHomeId, 'writer')
   return roleCanWrite(capability?.role)
 }

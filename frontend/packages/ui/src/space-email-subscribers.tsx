@@ -1,4 +1,4 @@
-import type {SiteEmailSubscriber} from '@shm/shared/models/notification-service'
+import type {SpaceEmailSubscriber} from '@shm/shared/models/notification-service'
 import type {NavRoute} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {formattedDateShort} from '@shm/shared/utils/date'
@@ -9,7 +9,7 @@ import {SizableText} from './text'
 import {cn} from './utils'
 
 /**
- * Document-options menu entry that opens the site's email subscribers page.
+ * Document-options menu entry that opens the space's email subscribers page.
  * Shared between the web and desktop document options menus.
  */
 export function createEmailSubscribersMenuItem({
@@ -23,7 +23,7 @@ export function createEmailSubscribersMenuItem({
     key: 'email-subscribers',
     label: 'Email Subscribers',
     icon: <Mail className="size-4" />,
-    onClick: () => navigate({key: 'site-settings-emails', accountUid}),
+    onClick: () => navigate({key: 'space-settings-emails', accountUid}),
   }
 }
 
@@ -32,7 +32,7 @@ export function createEmailSubscribersMenuItem({
  * a status message or the subscriber list. Shared between web and desktop;
  * the platform pages provide their own chrome and data fetching.
  */
-export function SiteEmailSubscribersPanel({
+export function SpaceEmailSubscribersPanel({
   message,
   subscribers,
   isLoading,
@@ -40,7 +40,7 @@ export function SiteEmailSubscribersPanel({
 }: {
   /** When set, shown instead of the list (sign-in / not-owner / unavailable states). */
   message?: string | null
-  subscribers?: SiteEmailSubscriber[] | undefined
+  subscribers?: SpaceEmailSubscriber[] | undefined
   isLoading?: boolean
   errorMessage?: string | null
 }) {
@@ -51,27 +51,27 @@ export function SiteEmailSubscribersPanel({
         <h1>{tx('Email Subscribers')}</h1>
       </SizableText>
       <SizableText size="sm" className="text-muted-foreground">
-        {tx('People who subscribed to receive updates from this site.')}
+        {tx('People who subscribed to receive updates from this space.')}
       </SizableText>
       {message ? (
         <SizableText className="text-muted-foreground">{message}</SizableText>
       ) : (
-        <SiteEmailSubscribersList subscribers={subscribers} isLoading={!!isLoading} errorMessage={errorMessage} />
+        <SpaceEmailSubscribersList subscribers={subscribers} isLoading={!!isLoading} errorMessage={errorMessage} />
       )}
     </div>
   )
 }
 
 /**
- * Renders the list of emails subscribed to a site. Shared between the web
+ * Renders the list of emails subscribed to a space. Shared between the web
  * and desktop email subscribers pages.
  */
-export function SiteEmailSubscribersList({
+export function SpaceEmailSubscribersList({
   subscribers,
   isLoading,
   errorMessage,
 }: {
-  subscribers: SiteEmailSubscriber[] | undefined
+  subscribers: SpaceEmailSubscriber[] | undefined
   isLoading: boolean
   errorMessage?: string | null
 }) {
@@ -90,7 +90,7 @@ export function SiteEmailSubscribersList({
   }
 
   if (!subscribers?.length) {
-    return <SizableText className="text-muted-foreground">{tx('No one has subscribed to this site yet.')}</SizableText>
+    return <SizableText className="text-muted-foreground">{tx('No one has subscribed to this space yet.')}</SizableText>
   }
 
   const activeCount = subscribers.filter((s) => !s.isUnsubscribed).length

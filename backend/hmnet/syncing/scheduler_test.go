@@ -673,9 +673,9 @@ func TestScheduler_NoPreemptYoungRun(t *testing.T) {
 // TestScheduler_NoPreemptSubscriptionWhileDownloading verifies that the
 // subscription-preemption path honors the same download protection as the hot
 // path: a freshly-rendered card (a new hot task) must not cancel a recursive
-// subscription — e.g. the foreground site sync — while it is actively
+// subscription — e.g. the foreground space sync — while it is actively
 // downloading; a stalled subscription is still fair game. Without this guard the
-// site sync was killed mid-download and rescheduled a full Interval later, which
+// space sync was killed mid-download and rescheduled a full Interval later, which
 // is the multi-cycle cold-sync stall.
 func TestScheduler_NoPreemptSubscriptionWhileDownloading(t *testing.T) {
 	disc := &mockDiscoverer{calls: make(map[blob.IRI]int)}
@@ -684,7 +684,7 @@ func TestScheduler_NoPreemptSubscriptionWhileDownloading(t *testing.T) {
 
 	cancelled := false
 	downloading := &taskHandle{
-		key:          DiscoveryKey{IRI: "hm://site/sub"},
+		key:          DiscoveryKey{IRI: "hm://space/sub"},
 		state:        TaskStateInProgress,
 		subscription: true,
 		cancelFunc:   func() { cancelled = true },
@@ -706,7 +706,7 @@ func TestScheduler_NoPreemptSubscriptionWhileDownloading(t *testing.T) {
 
 // TestScheduler_NoPreemptWhileReconciling verifies that a discovery still in its
 // reconcile ramp — growing a peer's reconciled want-count but with no block
-// downloaded yet — is protected from preemption. The foreground site sync was
+// downloaded yet — is protected from preemption. The foreground space sync was
 // being killed in exactly this window (connected_sync cut with ok=0 downloaded=0
 // under the startup storm, then a full re-cycle), because the old protection only
 // looked at downloads.
@@ -717,7 +717,7 @@ func TestScheduler_NoPreemptWhileReconciling(t *testing.T) {
 
 	cancelled := false
 	reconciling := &taskHandle{
-		key:          DiscoveryKey{IRI: "hm://site/sub"},
+		key:          DiscoveryKey{IRI: "hm://space/sub"},
 		state:        TaskStateInProgress,
 		subscription: true,
 		cancelFunc:   func() { cancelled = true },
@@ -870,7 +870,7 @@ func TestScheduler_HotSubscriptionReschedulesAtCooldown(t *testing.T) {
 	now := time.Now()
 
 	task := &taskHandle{
-		key:          DiscoveryKey{IRI: "hm://site/space"},
+		key:          DiscoveryKey{IRI: "hm://space/space"},
 		subscription: true,
 		hotDeadline:  now.Add(s.hotTTL),
 		runCount:     1,
@@ -908,7 +908,7 @@ func TestScheduler_HotSubscriptionReschedulesAtCooldown(t *testing.T) {
 func TestScheduler_HotTouchPullsSubscriptionForward(t *testing.T) {
 	s := newScheduler(nil, testConfig(time.Minute, 2))
 	now := time.Now()
-	key := DiscoveryKey{IRI: "hm://site/space"}
+	key := DiscoveryKey{IRI: "hm://space/space"}
 
 	s.mu.Lock()
 	task := &taskHandle{
@@ -942,7 +942,7 @@ func TestScheduler_SettledStaysOnHotCadence(t *testing.T) {
 	now := time.Now()
 
 	task := &taskHandle{
-		key:          DiscoveryKey{IRI: "hm://site/space"},
+		key:          DiscoveryKey{IRI: "hm://space/space"},
 		subscription: true,
 		hotDeadline:  now.Add(s.hotTTL),
 		runCount:     1,
@@ -1088,7 +1088,7 @@ func TestScheduler_HotDispatchTagsContext(t *testing.T) {
 	go func() { _ = s.run(ctx) }()
 
 	hotKey := DiscoveryKey{IRI: "hm://doc/viewed"}
-	subKey := DiscoveryKey{IRI: "hm://site/background"}
+	subKey := DiscoveryKey{IRI: "hm://space/background"}
 
 	s.scheduleTask(hotKey, time.Now(), schedOpts{isHot: true})
 	s.scheduleTask(subKey, time.Now(), schedOpts{forceSubscription: true})

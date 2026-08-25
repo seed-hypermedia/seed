@@ -12,14 +12,14 @@ vi.mock('./mailer', () => ({
   sendEmail: sendEmailMock,
 }))
 
-function insertTestNotification(accountId: string, feedEventId: string, eventAtMs: number, siteUid: string) {
+function insertTestNotification(accountId: string, feedEventId: string, eventAtMs: number, spaceUid: string) {
   insertNotification(accountId, feedEventId, eventAtMs, {
     feedEventId,
     eventAtMs,
     reason: 'reply',
     eventType: 'comment',
     author: {uid: 'author-a', name: 'Author', icon: null},
-    target: {uid: siteUid, path: ['post'], name: 'Post'},
+    target: {uid: spaceUid, path: ['post'], name: 'Post'},
     commentId: `${feedEventId}-comment`,
     sourceId: null,
     citationType: null,
@@ -44,7 +44,7 @@ describe('notification state service', () => {
   it('applies shared actions to canonical notify-service state', async () => {
     const accountId = 'account-state-1'
 
-    insertTestNotification(accountId, 'event-1', 2000, 'site-a')
+    insertTestNotification(accountId, 'event-1', 2000, 'space-a')
 
     const nextState = await applyNotificationActionsForAccount(accountId, [
       {
@@ -85,15 +85,15 @@ describe('notification state service', () => {
     expect(getInboxRegisteredAccounts()).toEqual([accountId])
   })
 
-  it('filters site-scoped inbox pages on the notify service', () => {
-    const accountId = 'account-state-site-filter'
+  it('filters space-scoped inbox pages on the notify service', () => {
+    const accountId = 'account-state-space-filter'
 
-    insertTestNotification(accountId, 'event-1', 4000, 'site-a')
-    insertTestNotification(accountId, 'event-2', 3000, 'site-b')
-    insertTestNotification(accountId, 'event-3', 2000, 'site-a')
+    insertTestNotification(accountId, 'event-1', 4000, 'space-a')
+    insertTestNotification(accountId, 'event-2', 3000, 'space-b')
+    insertTestNotification(accountId, 'event-3', 2000, 'space-a')
 
     const firstPage = getNotificationStateSnapshot(accountId, {
-      siteUid: 'site-a',
+      spaceUid: 'space-a',
       limit: 1,
     })
 
@@ -102,7 +102,7 @@ describe('notification state service', () => {
     expect(firstPage.inbox.oldestEventAtMs).toBe(4000)
 
     const secondPage = getNotificationStateSnapshot(accountId, {
-      siteUid: 'site-a',
+      spaceUid: 'space-a',
       limit: 1,
       beforeMs: firstPage.inbox.oldestEventAtMs ?? undefined,
     })
@@ -111,17 +111,17 @@ describe('notification state service', () => {
     expect(secondPage.inbox.hasMore).toBe(false)
   })
 
-  it('marks all notifications for the requested site as read and advances the global watermark conservatively', async () => {
-    const accountId = 'account-state-site-read'
+  it('marks all notifications for the requested space as read and advances the global watermark conservatively', async () => {
+    const accountId = 'account-state-space-read'
 
-    insertTestNotification(accountId, 'event-1', 1000, 'site-a')
-    insertTestNotification(accountId, 'event-2', 2000, 'site-a')
-    insertTestNotification(accountId, 'event-3', 3000, 'site-b')
+    insertTestNotification(accountId, 'event-1', 1000, 'space-a')
+    insertTestNotification(accountId, 'event-2', 2000, 'space-a')
+    insertTestNotification(accountId, 'event-3', 3000, 'space-b')
 
     const nextState = await applyNotificationActionsForAccount(
       accountId,
-      [{type: 'mark-site-read', siteUid: 'site-a'}],
-      {siteUid: 'site-a'},
+      [{type: 'mark-site-read', siteUid: 'space-a'}],
+      {spaceUid: 'space-a'},
     )
 
     expect(nextState.inbox.notifications.map((notification) => notification.feedEventId)).toEqual([
@@ -136,17 +136,17 @@ describe('notification state service', () => {
     expect(globalState.readState.readEvents).toEqual([])
   })
 
-  it('does not advance the watermark through mixed timestamps when other-site notifications remain unread', async () => {
+  it('does not advance the watermark through mixed timestamps when other-space notifications remain unread', async () => {
     const accountId = 'account-state-mixed-bucket'
 
-    insertTestNotification(accountId, 'event-1', 2000, 'site-a')
-    insertTestNotification(accountId, 'event-2', 2000, 'site-b')
-    insertTestNotification(accountId, 'event-3', 3000, 'site-a')
+    insertTestNotification(accountId, 'event-1', 2000, 'space-a')
+    insertTestNotification(accountId, 'event-2', 2000, 'space-b')
+    insertTestNotification(accountId, 'event-3', 3000, 'space-a')
 
     const nextState = await applyNotificationActionsForAccount(
       accountId,
-      [{type: 'mark-site-read', siteUid: 'site-a'}],
-      {siteUid: 'site-a'},
+      [{type: 'mark-site-read', siteUid: 'space-a'}],
+      {spaceUid: 'space-a'},
     )
 
     expect(nextState.readState.markAllReadAtMs).toBeNull()

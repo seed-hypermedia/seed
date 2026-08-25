@@ -1396,7 +1396,7 @@ func TestSubscriptions(t *testing.T) {
 func TestHotDiscoveryDeliversCommentsFast(t *testing.T) {
 	t.Parallel()
 
-	// Alice is the author (site-like); her sync cadence is irrelevant here.
+	// Alice is the author (space-like); her sync cadence is irrelevant here.
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	aliceIdentity := coretest.NewTester("alice")
 
@@ -4084,7 +4084,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	}
 
 	// 3. Bob first pulls Alice's home document (public). This gives Bob:
-	//    - The siteURL metadata (so Bob knows the gateway is Alice's siteURL server).
+	//    - The spaceURL metadata (so Bob knows the gateway is Alice's spaceURL server).
 	//    - The capability blob (so Bob knows he has access to Alice's space).
 	pullDocument(t, bob, aliceKey.String(), "", "")
 
@@ -4637,7 +4637,7 @@ func TestSearchProfileOnlyAccount(t *testing.T) {
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
-				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Site"},
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Space"},
 			}},
 		},
 	})
@@ -4669,16 +4669,16 @@ func TestSearchProfileOnlyAccount(t *testing.T) {
 		require.True(t, found, "must find Bob's profile in search results")
 	})
 
-	t.Run("AccountWithSiteStillWorks", func(t *testing.T) {
+	t.Run("AccountWithSpaceStillWorks", func(t *testing.T) {
 		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
 			Query: "Alice",
 		})
 		require.NoError(t, err)
-		require.Greater(t, len(res.Entities), 0, "account with site must still appear")
+		require.Greater(t, len(res.Entities), 0, "account with space must still appear")
 
 		found := false
 		for _, e := range res.Entities {
-			if e.Content == "Alice Site" && e.Type == "title" {
+			if e.Content == "Alice Space" && e.Type == "title" {
 				found = true
 				break
 			}

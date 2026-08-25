@@ -26,7 +26,7 @@ import React, {useMemo, useState} from 'react'
 export const TRIGGER_TYPE_OPTIONS: {value: AgentTriggerSource['type']; label: string}[] = [
   {value: 'document-comment', label: 'Comment in a document'},
   {value: 'user-mention', label: 'User mention'},
-  {value: 'site-update', label: 'Site update'},
+  {value: 'site-update', label: 'Space update'},
   {value: 'schedule', label: 'Schedule'},
 ]
 
@@ -138,10 +138,10 @@ export function TriggerSourceFields({
       {source.type === 'site-update' ? (
         <div className="grid gap-3 md:grid-cols-2">
           <AccountAutocompleteField
-            label="Resource/site prefix"
+            label="Resource/space prefix"
             value={source.resourcePrefix}
             onChange={(value) => onChange({...source, resourcePrefix: value})}
-            placeholder="Search site/account or enter hm:// prefix"
+            placeholder="Search space/account or enter hm:// prefix"
             valueFormat="hm-url"
           />
           <label className="flex flex-col gap-1">

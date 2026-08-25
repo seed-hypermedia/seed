@@ -10,13 +10,13 @@ export function NotRegisteredPage({}: {}) {
           <div className="flex items-center gap-3">
             <SizableText size="3xl">🚧</SizableText>
             <SizableText size="2xl" weight="bold">
-              Seed Hypermedia Site Coming Soon
+              Seed Hypermedia Space Coming Soon
             </SizableText>
           </div>
           <div>
             <SizableText>
               Welcome! We're excited to have you onboard. It looks like your content has not been published to this new
-              site.
+              space.
             </SizableText>
             <SizableText className="mt-3">
               To complete your setup, please follow the remaining steps from your secret setup URL. Reach out to the
@@ -29,7 +29,7 @@ export function NotRegisteredPage({}: {}) {
   )
 }
 
-export function NoSitePage({}: {}) {
+export function NoSpacePage({}: {}) {
   return (
     <div>
       <Container>
@@ -48,7 +48,7 @@ export function NoSitePage({}: {}) {
             <SizableText className="mt-3">
               To publish something here, <Link to="https://discord.com/invite/xChFt8WPN8">join our Discord server</Link>{' '}
               and ask about our hosting service. If you have a domain and a server, you can also{' '}
-              <Link to="https://seed.hyper.media/resources/self-host-seed">self-host your site</Link>.
+              <Link to="https://seed.hyper.media/resources/self-host-seed">self-host your space</Link>.
             </SizableText>
           </div>
         </div>

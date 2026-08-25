@@ -148,7 +148,7 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
   WEB_ENV.NOTIFY_SERVICE_HOST // web client
 
 /**
- * Default agent server for the web app's /hm/agents UI. The site will eventually support several
+ * Default agent server for the web app's /hm/agents UI. The space will eventually support several
  * configured agent servers (as desktop does); for now this is the seed of the configured list.
  *
  * The dev fallback matches the harness dev agents server port (see agents/.env.vars), not the

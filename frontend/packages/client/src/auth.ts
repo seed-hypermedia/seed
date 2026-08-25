@@ -2,7 +2,7 @@
  * Browser-side "Sign in with Seed" session management.
  *
  * Implements the client half of the Hypermedia Auth Protocol (see `./hmauth`):
- * a site generates a non-extractable Ed25519 session key, redirects the user to
+ * a space generates a non-extractable Ed25519 session key, redirects the user to
  * their Vault to authorize it, and receives back a signed Capability delegating
  * the `AGENT` role to that session key. The account's own key never leaves the
  * Vault.
@@ -29,6 +29,7 @@ import {
   PARAM_REDIRECT_URI,
   PARAM_SESSION_KEY,
   PARAM_SITE_NAME,
+  PARAM_SPACE_NAME,
   PARAM_STATE,
   PARAM_TS,
   validateClientId,
@@ -217,7 +218,13 @@ export async function startAuth(config: HypermediaAuthConfig, options: AuthOptio
   url.searchParams.set(PARAM_STATE, authState)
   url.searchParams.set(PARAM_TS, String(authStartTime))
   if (config.email) url.searchParams.set(PARAM_EMAIL, config.email)
-  if (config.siteName) url.searchParams.set(PARAM_SITE_NAME, config.siteName)
+  const spaceName = config.spaceName ?? config.siteName
+  if (spaceName) {
+    url.searchParams.set(PARAM_SPACE_NAME, spaceName)
+    // Also sent under the pre-rename key so a vault on an older build still
+    // shows the space name on its consent screen.
+    url.searchParams.set(PARAM_SITE_NAME, spaceName)
+  }
 
   // The proof signs the URL as it appears without the trailing `proof` param,
   // so it must be appended last and never reordered.

@@ -10,9 +10,9 @@ describe('hypermediaUrlToRoute', () => {
     })
   })
 
-  test('converts a profile URL into a site-profile route', () => {
+  test('converts a profile URL into a space-profile route', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:profile')).toEqual({
-      key: 'site-profile',
+      key: 'space-profile',
       id: unpackHmId('hm://uid1'),
       accountUid: undefined,
       tab: 'profile',
@@ -53,16 +53,16 @@ describe('hypermediaUrlToRoute', () => {
     })
   })
 
-  test('converts a settings URL into a site-settings route', () => {
+  test('converts a settings URL into a space-settings route', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:settings')).toEqual({
-      key: 'site-settings',
+      key: 'space-settings',
       id: unpackHmId('hm://uid1'),
     })
   })
 
-  test('converts a settings URL with a tab into a site-settings route with that tab', () => {
+  test('converts a settings URL with a tab into a space-settings route with that tab', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:settings/email-subscribers')).toEqual({
-      key: 'site-settings',
+      key: 'space-settings',
       id: unpackHmId('hm://uid1'),
       tab: 'email-subscribers',
     })
@@ -70,7 +70,7 @@ describe('hypermediaUrlToRoute', () => {
 
   test('does not treat an unknown settings subpath as a settings route', () => {
     const route = hypermediaUrlToRoute('hm://uid1/:settings/bogus')
-    expect(route?.key).not.toBe('site-settings')
+    expect(route?.key).not.toBe('space-settings')
   })
 
   test('converts an activity URL into an activity route', () => {

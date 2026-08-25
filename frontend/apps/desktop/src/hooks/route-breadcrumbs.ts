@@ -82,7 +82,7 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
   drafts: 'Drafts',
   settings: 'Settings',
   'account-settings': 'Identity Settings',
-  'site-settings': 'Site Settings',
+  'space-settings': 'Space Settings',
   'deleted-content': 'Deleted Content',
   'api-inspector': 'API Inspector',
   'query-documents': 'Query Documents',
@@ -92,7 +92,7 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
   agent: 'Agent',
   'agent-session': 'Agent Session',
   notifications: 'Notifications',
-  'site-settings-emails': 'Email Settings',
+  'space-settings-emails': 'Email Settings',
   'inspect-ipfs': 'IPFS Inspector',
 }
 

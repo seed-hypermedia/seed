@@ -1,4 +1,4 @@
-// Package server is the serve to monitor site status.
+// Package server is the serve to monitor space status.
 package server
 
 import (
@@ -58,7 +58,7 @@ func (s *Srv) checkP2P(ctx context.Context, peer peer.AddrInfo, numPings int) (t
 }
 
 func (s *Srv) checkSeedAddrs(ctx context.Context, hostname, mustInclude string) (info peer.AddrInfo, err error) {
-	resp, err := getSiteInfoHTTP(ctx, nil, hostname)
+	resp, err := getSpaceInfoHTTP(ctx, nil, hostname)
 	if err != nil {
 		return info, err
 	}
@@ -80,31 +80,31 @@ func (s *Srv) checkSeedAddrs(ctx context.Context, hostname, mustInclude string) 
 	return info, nil
 }
 
-type publicSiteInfo struct {
+type publicSpaceInfo struct {
 	RegisteredAccountUID string   `json:"registeredAccountUid,omitempty"`
 	PeerID               string   `json:"peerId"`
 	Addrs                []string `json:"addrs"`
 }
 
-func getSiteInfoHTTP(ctx context.Context, client *http.Client, siteURL string) (*publicSiteInfo, error) {
+func getSpaceInfoHTTP(ctx context.Context, client *http.Client, spaceURL string) (*publicSpaceInfo, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 
-	if siteURL[len(siteURL)-1] == '/' {
-		return nil, fmt.Errorf("site URL must not have trailing slash: %s", siteURL)
+	if spaceURL[len(spaceURL)-1] == '/' {
+		return nil, fmt.Errorf("space URL must not have trailing slash: %s", spaceURL)
 	}
 
-	requestURL := siteURL + "/hm/api/config"
+	requestURL := spaceURL + "/hm/api/config"
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
 	if err != nil {
-		return nil, fmt.Errorf("could not create request to hm/api/config site: %w ", err)
+		return nil, fmt.Errorf("could not create request to hm/api/config space: %w ", err)
 	}
 
 	res, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("could not contact to provided site [%s]: %w ", requestURL, err)
+		return nil, fmt.Errorf("could not contact to provided space [%s]: %w ", requestURL, err)
 	}
 	defer res.Body.Close()
 
@@ -114,10 +114,10 @@ func getSiteInfoHTTP(ctx context.Context, client *http.Client, siteURL string) (
 	}
 
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return nil, fmt.Errorf("site info url %q not working, status code: %d, response body: %s", requestURL, res.StatusCode, data)
+		return nil, fmt.Errorf("space info url %q not working, status code: %d, response body: %s", requestURL, res.StatusCode, data)
 	}
 
-	resp := &publicSiteInfo{}
+	resp := &publicSpaceInfo{}
 	if err := json.Unmarshal(data, resp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON body: %w", err)
 	}

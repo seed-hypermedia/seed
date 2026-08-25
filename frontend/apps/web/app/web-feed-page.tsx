@@ -7,7 +7,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {FeedPage} from '@shm/ui/feed-page-common'
 import {lazy, Suspense, useCallback} from 'react'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
-import {WebHeaderActions, WebSitePageShell, useWebMenuItems} from './web-utils'
+import {WebHeaderActions, WebSpacePageShell, useWebMenuItems} from './web-utils'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
 
@@ -21,7 +21,7 @@ function renderWebInlineEditor(props: InlineEditCommentProps) {
   )
 }
 
-/** Web-specific wrapper for the site feed page, including host-site context UI. */
+/** Web-specific wrapper for the space feed page, including host-space context UI. */
 export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
   const menuItems = useWebMenuItems(docId)
   const {canEdit, signingAccountId, capability} = useWebCanEdit(docId)
@@ -53,7 +53,7 @@ export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
   )
 
   return (
-    <WebSitePageShell siteUid={docId.uid}>
+    <WebSpacePageShell spaceUid={docId.uid}>
       <CommentsProvider renderInlineEditor={renderWebInlineEditor}>
         <DocumentActionsProvider
           onCopyLink={() => {}}
@@ -63,11 +63,11 @@ export function WebFeedPage({docId}: {docId: UnpackedHypermediaId}) {
           onMoveDocument={signingAccountId ? onMoveDocument : undefined}
           onDeleteDocument={onDeleteDocument}
         >
-          <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<WebHeaderActions siteUid={docId.uid} />} />
+          <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<WebHeaderActions spaceUid={docId.uid} />} />
         </DocumentActionsProvider>
       </CommentsProvider>
       {deleteDialog.content}
       {destinationDialog.content}
-    </WebSitePageShell>
+    </WebSpacePageShell>
   )
 }

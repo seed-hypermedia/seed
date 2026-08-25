@@ -88,16 +88,16 @@ const PeerRow = React.memo(function PeerRow({
   const {id, connectionStatus, protocol} = peer
   const visibleDomains = domains.slice(0, 2)
   const hiddenDomainCount = domains.length - visibleDomains.length
-  // const isSite =
-  //   account?.profile?.bio === 'Hypermedia Site. Powered by Mintter.'
-  // const label = isSite
+  // const isSpace =
+  //   account?.profile?.bio === 'Hypermedia Space. Powered by Mintter.'
+  // const label = isSpace
   //   ? hostnameStripProtocol(account?.profile?.alias)
   //   : account?.profile?.alias || 'Unknown Account'
   // const spawn = useNavigate('spawn')
   // const openUrl = useOpenUrl()
   // function handlePress() {
-  //   if (isSite && account?.profile?.alias) openUrl(account?.profile?.alias)
-  //   else if (!isSite && account?.id)
+  //   if (isSpace && account?.profile?.alias) openUrl(account?.profile?.alias)
+  //   else if (!isSpace && account?.id)
   //     spawn({key: 'document', id: hmId( account.id)})
   //   else toast.error('Could not open account')
   // }
@@ -136,7 +136,7 @@ const PeerRow = React.memo(function PeerRow({
       </div>
       <div className="group mx-3 flex shrink-0 gap-3">
         {/* <XStack gap="$2">
-          {account && !isSite ? (
+          {account && !isSpace ? (
             <UIAvatar
               size={20}
               onPress={handlePress}
@@ -148,9 +148,9 @@ const PeerRow = React.memo(function PeerRow({
             />
           ) : null}
           <ButtonText
-            color={isSite ? '$brand5' : '$gray10'}
+            color={isSpace ? '$brand5' : '$gray10'}
             hoverStyle={{
-              textDecorationLine: isSite ? 'underline' : 'none',
+              textDecorationLine: isSpace ? 'underline' : 'none',
             }}
             onPress={handlePress}
           >
@@ -172,8 +172,8 @@ const PeerRow = React.memo(function PeerRow({
           menuItems={[
             // {
             //   key: 'open',
-            //   icon: isSite ? ExternalLink : ArrowUpRight,
-            //   label: isSite ? 'Open Site' : 'Open Account',
+            //   icon: isSpace ? ExternalLink : ArrowUpRight,
+            //   label: isSpace ? 'Open Space' : 'Open Account',
             //   onPress: handlePress,
             // },
             // {

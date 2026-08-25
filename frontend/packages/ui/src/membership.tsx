@@ -6,12 +6,12 @@ import {HMIcon} from './hm-icon'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 
-/** Shows sites/accounts that this account has membership in (all contacts). */
+/** Shows spaces/accounts that this account has membership in (all contacts). */
 export function MembershipContent({accountUid}: {accountUid: string}) {
   const contacts = useContactListOfAccount(accountUid)
-  const siteSubscribed = contacts.data?.filter((contact) => contact.subscribe?.site)
+  const spaceSubscribed = contacts.data?.filter((contact) => contact.subscribe?.site)
   // Deduplicate by subject (account being subscribed to)
-  const uniqueSiteSubscribed = siteSubscribed?.filter(
+  const uniqueSpaceSubscribed = spaceSubscribed?.filter(
     (contact, index, arr) => arr.findIndex((c) => c.subject === contact.subject) === index,
   )
   if (contacts.isLoading) {
@@ -21,23 +21,23 @@ export function MembershipContent({accountUid}: {accountUid: string}) {
       </div>
     )
   }
-  if (!uniqueSiteSubscribed?.length) {
+  if (!uniqueSpaceSubscribed?.length) {
     return (
       <div className="py-8 text-center">
-        <SizableText color="muted">No sites joined yet</SizableText>
+        <SizableText color="muted">No spaces joined yet</SizableText>
       </div>
     )
   }
   return (
     <div className="flex flex-col gap-2 py-4">
-      {uniqueSiteSubscribed?.map((contact) => {
+      {uniqueSpaceSubscribed?.map((contact) => {
         return <MembershipItem key={contact.subject} contact={contact} />
       })}
     </div>
   )
 }
 
-/** Single item showing a site/account membership. */
+/** Single item showing a space/account membership. */
 function MembershipItem({contact}: {contact: HMContactRecord}) {
   const subject = useAccount(contact.subject, {subscribe: true})
   const linkProps = useRouteLink({

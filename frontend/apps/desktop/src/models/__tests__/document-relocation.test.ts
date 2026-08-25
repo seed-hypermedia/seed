@@ -26,8 +26,8 @@ describe('document relocation path helpers', () => {
 
 describe('republish ref operation', () => {
   it('creates a republish redirect at the destination that points to the source document', () => {
-    const sourceId = hmId('source-site', {path: ['specs', 'api']})
-    const destinationId = hmId('target-site', {path: ['library', 'api-copy']})
+    const sourceId = hmId('source-space', {path: ['specs', 'api']})
+    const destinationId = hmId('target-space', {path: ['library', 'api-copy']})
 
     const before = Date.now()
     const operation = createRepublishRefOperation({
@@ -40,11 +40,11 @@ describe('republish ref operation', () => {
       capabilityId: 'bafy-capability',
     })
     expect(operation).toEqual({
-      space: 'target-site',
+      space: 'target-space',
       path: '/library/api-copy',
       genesis: 'bafy-genesis',
       generation: operation.generation,
-      targetSpace: 'source-site',
+      targetSpace: 'source-space',
       targetPath: '/specs/api',
       republish: true,
       capability: 'bafy-capability',
@@ -61,11 +61,11 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
   it('forks a plain document to the destination and redirects the source there', () => {
     const before = Date.now()
     const ops = getDocumentMoveRefOperations({
-      sourceId: hmId('site', {path: ['old']}),
-      targetId: hmId('site', {path: ['new']}),
+      sourceId: hmId('space', {path: ['old']}),
+      targetId: hmId('space', {path: ['new']}),
       doc: plainDoc,
       sourceRedirect: null,
-      originalId: hmId('site', {path: ['old']}),
+      originalId: hmId('space', {path: ['old']}),
       targetCapabilityId: 'cap',
       sourceCapabilityId: 'cap',
     })
@@ -73,7 +73,7 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
     // Destination gets the document's own history (a version ref), not a redirect.
     expect(ops.destination).toEqual({
       kind: 'version',
-      space: 'site',
+      space: 'space',
       path: '/new',
       genesis: 'doc-genesis',
       version: 'doc-version',
@@ -82,11 +82,11 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
     })
     // Source redirects to the destination (a plain move redirect — no republish flag).
     expect(ops.sourceRedirect).toEqual({
-      space: 'site',
+      space: 'space',
       path: '/old',
       genesis: 'doc-genesis',
       generation: ops.sourceRedirect.generation,
-      targetSpace: 'site',
+      targetSpace: 'space',
       targetPath: '/new',
       capability: 'cap',
     })
@@ -96,11 +96,11 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
   })
 
   it('moves a republish as a republish: the destination re-publishes the ORIGINAL, not a fork', () => {
-    // The source at hm://site/mirror republishes hm://other/resources/guide; following it reaches
+    // The source at hm://space/mirror republishes hm://other/resources/guide; following it reaches
     // that original document. Moving the mirror must keep it a mirror of the original.
     const ops = getDocumentMoveRefOperations({
-      sourceId: hmId('site', {path: ['mirror']}),
-      targetId: hmId('site', {path: ['moved-mirror']}),
+      sourceId: hmId('space', {path: ['mirror']}),
+      targetId: hmId('space', {path: ['moved-mirror']}),
       // `doc` is the followed ORIGINAL (its genesis/version), living at `originalId`.
       doc: {version: 'guide-version', generationInfo: {genesis: 'guide-genesis', generation: 9}} as any,
       sourceRedirect: {republish: true, target: hmId('other', {path: ['resources', 'guide']})},
@@ -110,7 +110,7 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
     // Destination is a republish redirect pointing at the original — NOT a version/fork.
     expect(ops.destination.kind).toBe('republish')
     expect(ops.destination).toMatchObject({
-      space: 'site',
+      space: 'space',
       path: '/moved-mirror',
       genesis: 'guide-genesis',
       targetSpace: 'other',
@@ -119,9 +119,9 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
     })
     // Source redirects to the destination (a plain move redirect, no republish).
     expect(ops.sourceRedirect).toMatchObject({
-      space: 'site',
+      space: 'space',
       path: '/mirror',
-      targetSpace: 'site',
+      targetSpace: 'space',
       targetPath: '/moved-mirror',
     })
     expect(ops.sourceRedirect).not.toHaveProperty('republish')
@@ -130,11 +130,11 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
   it('refuses to move a path that has itself already moved (a pointer, not content)', () => {
     expect(() =>
       getDocumentMoveRefOperations({
-        sourceId: hmId('site', {path: ['old']}),
-        targetId: hmId('site', {path: ['newer']}),
+        sourceId: hmId('space', {path: ['old']}),
+        targetId: hmId('space', {path: ['newer']}),
         doc: plainDoc,
-        sourceRedirect: {republish: false, target: hmId('site', {path: ['new']})},
-        originalId: hmId('site', {path: ['new']}),
+        sourceRedirect: {republish: false, target: hmId('space', {path: ['new']})},
+        originalId: hmId('space', {path: ['new']}),
       }),
     ).toThrow('already moved')
   })
@@ -142,48 +142,48 @@ describe('getDocumentMoveRefOperations (what a move publishes)', () => {
 
 describe('document card reconciliation inputs', () => {
   it('plans remove and add jobs for a move across parents', () => {
-    const from = hmId('site', {path: ['old-parent', 'child']})
-    const to = hmId('site', {path: ['new-parent', 'child']})
+    const from = hmId('space', {path: ['old-parent', 'child']})
+    const to = hmId('space', {path: ['new-parent', 'child']})
 
-    expect(getDocumentCardReconciliationInputsForMove({from, to, signingAccountUid: 'site'})).toEqual([
+    expect(getDocumentCardReconciliationInputsForMove({from, to, signingAccountUid: 'space'})).toEqual([
       {
         operation: 'remove',
-        parentDocumentId: 'hm://site/old-parent',
+        parentDocumentId: 'hm://space/old-parent',
         sourceDocumentId: from.id,
-        signingAccountUid: 'site',
+        signingAccountUid: 'space',
       },
       {
         operation: 'add',
-        parentDocumentId: 'hm://site/new-parent',
+        parentDocumentId: 'hm://space/new-parent',
         targetDocumentId: to.id,
-        signingAccountUid: 'site',
+        signingAccountUid: 'space',
       },
     ])
   })
 
   it('plans a rewrite job for a same-parent move', () => {
-    const from = hmId('site', {path: ['parent', 'old']})
-    const to = hmId('site', {path: ['parent', 'new']})
+    const from = hmId('space', {path: ['parent', 'old']})
+    const to = hmId('space', {path: ['parent', 'new']})
 
-    expect(getDocumentCardReconciliationInputsForMove({from, to, signingAccountUid: 'site'})).toEqual([
+    expect(getDocumentCardReconciliationInputsForMove({from, to, signingAccountUid: 'space'})).toEqual([
       {
         operation: 'rewrite',
-        parentDocumentId: 'hm://site/parent',
+        parentDocumentId: 'hm://space/parent',
         sourceDocumentId: from.id,
         targetDocumentId: to.id,
-        signingAccountUid: 'site',
+        signingAccountUid: 'space',
       },
     ])
   })
 
   it('plans an add job for a republish destination parent', () => {
-    const to = hmId('site', {path: ['library', 'copy']})
+    const to = hmId('space', {path: ['library', 'copy']})
 
-    expect(getDocumentCardReconciliationInputForRepublish({to, signingAccountUid: 'site'})).toEqual({
+    expect(getDocumentCardReconciliationInputForRepublish({to, signingAccountUid: 'space'})).toEqual({
       operation: 'add',
-      parentDocumentId: 'hm://site/library',
+      parentDocumentId: 'hm://space/library',
       targetDocumentId: to.id,
-      signingAccountUid: 'site',
+      signingAccountUid: 'space',
     })
   })
 })

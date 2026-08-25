@@ -14,7 +14,7 @@ describe('chat parts', () => {
       {
         id: 'tool-1',
         name: 'read',
-        args: {url: 'hm://site/doc'},
+        args: {url: 'hm://space/doc'},
       },
     ])
 
@@ -35,7 +35,7 @@ describe('chat parts', () => {
         type: 'tool',
         id: 'tool-1',
         name: 'read',
-        args: {url: 'hm://site/doc'},
+        args: {url: 'hm://space/doc'},
         result: 'Document body',
         rawOutput: {markdown: '# Seed'},
       },
@@ -52,7 +52,7 @@ describe('chat parts', () => {
   it('builds legacy assistant parts from tool arrays and message content', () => {
     const parts = buildLegacyChatMessageParts({
       content: 'Final answer',
-      toolCalls: [{id: 'tool-1', name: 'read', args: {url: 'hm://site/doc'}}],
+      toolCalls: [{id: 'tool-1', name: 'read', args: {url: 'hm://space/doc'}}],
       toolResults: [{id: 'tool-1', name: 'read', result: 'Document body', rawOutput: {markdown: '# Seed'}}],
     })
 
@@ -61,7 +61,7 @@ describe('chat parts', () => {
         type: 'tool',
         id: 'tool-1',
         name: 'read',
-        args: {url: 'hm://site/doc'},
+        args: {url: 'hm://space/doc'},
         result: 'Document body',
         rawOutput: {markdown: '# Seed'},
       },

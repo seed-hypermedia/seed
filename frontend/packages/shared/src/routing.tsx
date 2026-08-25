@@ -45,7 +45,7 @@ type UniversalAppContextValue = {
   originHomeId?: UnpackedHypermediaId | undefined
 
   // the web URL in the current context. If null, the hm URL should be used.
-  // on desktop its the gateway URL, on mobile its the web site host.
+  // on desktop its the gateway URL, on mobile its the web space host.
   origin?: string | null
 
   openUrl: (url: string, newWindow?: boolean) => void
@@ -56,10 +56,10 @@ type UniversalAppContextValue = {
    * undefined. */
   onPushReference?: (hmId: UnpackedHypermediaId) => void
   /** Optional platform-specific push trigger fired after locally publishing a
-   * blob that must reach the document's site fast (e.g. a capability grant —
+   * blob that must reach the document's space fast (e.g. a capability grant —
    * same need as comments). On desktop this delegates to the
    * pushOnPublish-gated push flow with toast feedback; web/mobile may leave it
-   * undefined because they already publish through the site. */
+   * undefined because they already publish through the space. */
   onPushPublished?: (hmId: UnpackedHypermediaId) => void
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
@@ -204,11 +204,11 @@ export function routeToHref(
     origin?: string | null
   },
 ) {
-  if (typeof route !== 'string' && route.key === 'site-profile') {
+  if (typeof route !== 'string' && route.key === 'space-profile') {
     const docId = route.id
-    const siteBase = options?.originHomeId?.uid === docId.uid ? '' : `/hm/${docId.uid}`
+    const spaceBase = options?.originHomeId?.uid === docId.uid ? '' : `/hm/${docId.uid}`
     const accountSuffix = route.accountUid && route.accountUid !== docId.uid ? `/${route.accountUid}` : ''
-    return `${siteBase}/:${route.tab}${accountSuffix}`
+    return `${spaceBase}/:${route.tab}${accountSuffix}`
   }
   if (typeof route !== 'string' && route.key == 'profile') {
     const tab = route.tab || 'profile'
@@ -241,10 +241,10 @@ export function routeToHref(
     if (route.agentId) query.push(`agent=${encodeURIComponent(route.agentId)}`)
     return `/hm/agents/session/${encodeURIComponent(route.sessionId)}${query.length ? `?${query.join('&')}` : ''}`
   }
-  if (typeof route !== 'string' && route.key === 'site-settings-emails') {
-    const siteBase =
+  if (typeof route !== 'string' && route.key === 'space-settings-emails') {
+    const spaceBase =
       !route.accountUid || options?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`
-    return `${siteBase}/:settings/email-subscribers`
+    return `${spaceBase}/:settings/email-subscribers`
   }
 
   if (typeof route !== 'string' && route.key === 'inspect') {

@@ -2,35 +2,35 @@ import {hmId} from '../utils/entity-id-url'
 import {useDeleteContact, useSaveContact, useSelectedAccountContacts} from './contacts'
 import {useResource, useSelectedAccountId} from './entity'
 
-export function useJoinSite({siteUid}: {siteUid: string}) {
+export function useJoinSpace({spaceUid}: {spaceUid: string}) {
   const selectedAccountId = useSelectedAccountId()
   const selectedAccountContacts = useSelectedAccountContacts()
   const saveContact = useSaveContact()
 
-  const siteResource = useResource(hmId(siteUid))
-  const siteName = siteResource.data?.type === 'document' ? siteResource.data.document?.metadata?.name : undefined
+  const spaceResource = useResource(hmId(spaceUid))
+  const spaceName = spaceResource.data?.type === 'document' ? spaceResource.data.document?.metadata?.name : undefined
 
-  const isSiteMember = selectedAccountContacts.data?.some((c) => c.subject === siteUid && c.subscribe?.site) ?? false
+  const isSpaceMember = selectedAccountContacts.data?.some((c) => c.subject === spaceUid && c.subscribe?.site) ?? false
 
-  const isOwnAccount = selectedAccountId === siteUid
+  const isOwnAccount = selectedAccountId === spaceUid
 
-  const isJoined = isOwnAccount || isSiteMember
+  const isJoined = isOwnAccount || isSpaceMember
 
-  const joinSite = async () => {
+  const joinSpace = async () => {
     if (!selectedAccountId) {
       throw new Error('No account selected')
     }
-    console.log('Joining Site', {selectedAccountId, siteUid})
+    console.log('Joining Space', {selectedAccountId, spaceUid})
     // Check if there's an existing contact for this subject (might have profile subscription only)
-    const existingContact = selectedAccountContacts.data?.find((c) => c.subject === siteUid)
+    const existingContact = selectedAccountContacts.data?.find((c) => c.subject === spaceUid)
     if (existingContact) {
       // Check if existing contact has profile subscription (explicit or implicit legacy)
       const hadProfileSubscription = hasProfileSubscription(existingContact)
-      // Update existing contact to add site subscription, preserving profile if it existed
+      // Update existing contact to add space subscription, preserving profile if it existed
       await saveContact.mutateAsync({
         accountUid: selectedAccountId,
         name: existingContact.name,
-        subjectUid: siteUid,
+        subjectUid: spaceUid,
         subscribe: {
           ...existingContact.subscribe,
           site: true,
@@ -40,11 +40,11 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
         editId: existingContact.id,
       })
     } else {
-      // Create new contact with site subscription
+      // Create new contact with space subscription
       await saveContact.mutateAsync({
         accountUid: selectedAccountId,
         name: '',
-        subjectUid: siteUid,
+        subjectUid: spaceUid,
         subscribe: {site: true},
       })
     }
@@ -53,62 +53,62 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
   return {
     isJoined,
     isPending: saveContact.isPending,
-    siteName,
+    spaceName,
     isOwnAccount,
-    joinSite,
+    joinSpace,
   }
 }
 
-/** Hook for leaving a site (removing subscribe.site from a contact). */
-export function useLeaveSite({siteUid}: {siteUid: string}) {
+/** Hook for leaving a space (removing subscribe.site from a contact). */
+export function useLeaveSpace({spaceUid}: {spaceUid: string}) {
   const selectedAccountId = useSelectedAccountId()
   const selectedAccountContacts = useSelectedAccountContacts()
   const saveContact = useSaveContact()
   const deleteContact = useDeleteContact()
 
-  // Find contact with site subscription
-  const siteContact = selectedAccountContacts.data?.find((c) => c.subject === siteUid && c.subscribe?.site)
+  // Find contact with space subscription
+  const spaceContact = selectedAccountContacts.data?.find((c) => c.subject === spaceUid && c.subscribe?.site)
 
-  const isOwnAccount = selectedAccountId === siteUid
-  const isSiteMember = isOwnAccount || !!siteContact
+  const isOwnAccount = selectedAccountId === spaceUid
+  const isSpaceMember = isOwnAccount || !!spaceContact
 
-  const leaveSite = async () => {
+  const leaveSpace = async () => {
     if (!selectedAccountId) {
       throw new Error('No account selected')
     }
-    if (!siteContact) {
+    if (!spaceContact) {
       return // Not a member, nothing to do
     }
 
     // Check if contact has profile subscription
     const hasProfileSubscription =
-      siteContact.subscribe?.profile || (!siteContact.subscribe?.site && !siteContact.subscribe?.profile) // Legacy: implicit profile
+      spaceContact.subscribe?.profile || (!spaceContact.subscribe?.site && !spaceContact.subscribe?.profile) // Legacy: implicit profile
 
     if (hasProfileSubscription) {
-      // Update contact to remove site subscription, keep profile
+      // Update contact to remove space subscription, keep profile
       await saveContact.mutateAsync({
         accountUid: selectedAccountId,
-        name: siteContact.name,
-        subjectUid: siteUid,
+        name: spaceContact.name,
+        subjectUid: spaceUid,
         subscribe: {profile: true},
-        editId: siteContact.id,
+        editId: spaceContact.id,
       })
     } else {
       // No profile subscription, delete the contact
       await deleteContact.mutateAsync({
-        id: siteContact.id,
-        account: siteContact.account,
-        subject: siteContact.subject,
-        signer: siteContact.signer,
+        id: spaceContact.id,
+        account: spaceContact.account,
+        subject: spaceContact.subject,
+        signer: spaceContact.signer,
       })
     }
   }
 
   return {
-    isSiteMember,
+    isSpaceMember,
     isPending: saveContact.isPending || deleteContact.isPending,
     isOwnAccount,
-    leaveSite,
+    leaveSpace,
   }
 }
 
@@ -143,7 +143,7 @@ export function useFollowProfile({profileUid}: {profileUid: string}) {
     if (!selectedAccountId) {
       throw new Error('No account selected')
     }
-    // Check if there's an existing contact for this subject (might have site subscription only)
+    // Check if there's an existing contact for this subject (might have space subscription only)
     const existingContact = selectedAccountContacts.data?.find((c) => c.subject === profileUid)
     if (existingContact) {
       // Update existing contact to add profile subscription
@@ -176,11 +176,11 @@ export function useFollowProfile({profileUid}: {profileUid: string}) {
     // Process each contact
     await Promise.all(
       contactsWithProfile.map(async (contact) => {
-        // Check if contact has site subscription (the only other subscription type)
-        const hasSiteSubscription = contact.subscribe?.site
+        // Check if contact has space subscription (the only other subscription type)
+        const hasSpaceSubscription = contact.subscribe?.site
 
-        if (hasSiteSubscription) {
-          // Update contact to remove profile subscription, keep site
+        if (hasSpaceSubscription) {
+          // Update contact to remove profile subscription, keep space
           await saveContact.mutateAsync({
             accountUid: selectedAccountId,
             name: contact.name,

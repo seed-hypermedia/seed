@@ -31,15 +31,15 @@ export function useDocumentUrl({
   const accountEntity = useResource(accountId)
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
   // @ts-expect-error
-  const siteHostname = accountEntity.data?.document?.metadata?.siteUrl
+  const spaceHostname = accountEntity.data?.document?.metadata?.siteUrl
   const [copyDialogContent, onCopyReference] = useCopyReferenceUrl(
-    siteHostname || gwUrl,
-    siteHostname ? accountId : undefined,
+    spaceHostname || gwUrl,
+    spaceHostname ? accountId : undefined,
   )
   if (!docId?.uid || !accountId) return null
   const url = routeToUrl(route, {
-    hostname: siteHostname || gwUrl,
-    originHomeId: siteHostname ? accountId : undefined,
+    hostname: spaceHostname || gwUrl,
+    originHomeId: spaceHostname ? accountId : undefined,
   })
   if (!url) return null
   // Get document version for block links
@@ -47,8 +47,8 @@ export function useDocumentUrl({
 
   return {
     url,
-    label: siteHostname
-      ? 'Site' + (latest ? ' Latest' : ' Exact Version')
+    label: spaceHostname
+      ? 'Space' + (latest ? ' Latest' : ' Exact Version')
       : 'Public' + (latest ? ' Latest' : ' Exact Version'),
     content: copyDialogContent,
     onCopy: (blockId: string | undefined, blockRange?: BlockRange | null) => {

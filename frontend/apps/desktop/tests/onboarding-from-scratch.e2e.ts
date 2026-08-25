@@ -60,7 +60,7 @@ test('Onboarding from scratch', async ({onboardingPage}) => {
 //     await elNextBtn.click()
 //   })
 
-//   await test.step('Connect to Site', async () => {
+//   await test.step('Connect to Space', async () => {
 //     let elNextBtn = await appWindow.locator('#btn-next')
 //     let elSkipBtn = await appWindow.locator('#btn-skip')
 //     expect(elNextBtn).toBeInViewport()

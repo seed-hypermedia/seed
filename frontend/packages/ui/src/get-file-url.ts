@@ -73,7 +73,7 @@ export function useFileUrl() {
 /**
  * Returns a function that builds a /hm/api/file/[cid] URL for non-image
  * files (videos, documents, etc.). This proxies through the web server,
- * avoiding localhost daemon URLs that break on hosted sites.
+ * avoiding localhost daemon URLs that break on hosted spaces.
  * Falls back to the direct IPFS URL on desktop.
  */
 export function useFileProxyUrl() {

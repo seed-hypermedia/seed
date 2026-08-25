@@ -8,7 +8,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useTx, useTxString} from '@shm/shared/translation'
 import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
-import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {EditProfileForm, SpaceMetaFields} from '@shm/ui/edit-profile-form'
 import {SeedLogo} from '@shm/ui/seed-logo'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
@@ -194,7 +194,7 @@ export async function updateProfile({
 }: {
   keyPair: CryptoKeyPair
   document: HMDocument
-  updates: SiteMetaFields
+  updates: SpaceMetaFields
 }) {
   const signer = createSignerFromKeyPair(keyPair)
   const changes: HMPrepareDocumentChangeInput['changes'] = []
@@ -277,18 +277,18 @@ function useIsMobileKeyboardOpen() {
   return isOpen
 }
 
-/** Display name of the current site from its home document, falling back to the hostname. */
-function useSiteName() {
+/** Display name of the current space from its home document, falling back to the hostname. */
+function useSpaceName() {
   const {origin, originHomeId} = useUniversalAppContext()
   const homeResource = useResource(originHomeId)
   const homeDocument = homeResource.data?.type === 'document' ? homeResource.data.document : null
-  return homeDocument?.metadata?.name || hostnameStripProtocol(origin) || 'this site'
+  return homeDocument?.metadata?.name || hostnameStripProtocol(origin) || 'this space'
 }
 
 function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose: () => void}) {
   const {origin, originHomeId} = useUniversalAppContext()
   const tx = useTxString()
-  const siteName = useSiteName()
+  const spaceName = useSpaceName()
   const defaultVaultOrigin = WEB_IDENTITY_ORIGIN || origin || 'http://localhost'
   const defaultVaultUrl = `${defaultVaultOrigin}/vault/delegate`
   const [customVaultUrl, setCustomVaultUrl] = useState('https://hyper.media')
@@ -316,7 +316,7 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
         clientId: origin || window.location.origin,
         redirectUri: `${origin || window.location.origin}/hm/auth/callback`,
         email: email || undefined,
-        siteName,
+        spaceName,
       })
       window.location.href = authUrl
     } catch (err) {
@@ -335,16 +335,16 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
         <span className="font-semibold">Hypermedia</span>
       </div>
       <DialogTitle className="max-sm:text-base">
-        {isJoin ? tx('join_site', ({siteName}) => `Join ${siteName}`, {siteName}) : tx('sign_in', 'Sign in')}
+        {isJoin ? tx('join_site', ({spaceName}) => `Join ${spaceName}`, {spaceName}) : tx('sign_in', 'Sign in')}
       </DialogTitle>
 
       <DialogDescription className="max-sm:text-sm">
         {isJoin
           ? tx(
               'join_site_description',
-              ({siteName}) =>
-                `${siteName} is built with Hypermedia, a platform to create sites to share knowledge. Create your identity to participate, it takes two minutes.`,
-              {siteName},
+              ({spaceName}) =>
+                `${spaceName} is built with Hypermedia, a platform to create spaces to share knowledge. Create your identity to participate, it takes two minutes.`,
+              {spaceName},
             )
           : 'Sign in or create your identity to get started.'}
       </DialogDescription>
@@ -433,7 +433,7 @@ function VaultSuccessDialog({onClose}: {input: {variant: 'comment'}; onClose: ()
         You are in <span aria-hidden>🎉</span>
       </DialogTitle>
       <DialogDescription>
-        You joined the site, posting your comment now...
+        You joined the space, posting your comment now...
         <br />
         This post will be signed by you and shared across the network.
       </DialogDescription>
@@ -447,7 +447,7 @@ function VaultSuccessDialog({onClose}: {input: {variant: 'comment'}; onClose: ()
 /** Detects `?vault_success=...` in the URL and shows the matching dialog or toast. */
 export function useVaultSuccessDialog() {
   const dialog = useAppDialog(VaultSuccessDialog)
-  const siteName = useSiteName()
+  const spaceName = useSpaceName()
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -467,24 +467,24 @@ export function useVaultSuccessDialog() {
       return
     }
     if (variant === 'join') {
-      toast.success(`You've joined ${siteName} — you can now comment and participate`)
+      toast.success(`You've joined ${spaceName} — you can now comment and participate`)
       return
     }
     if (variant === 'login') {
-      toast.success(`Welcome to ${siteName}`)
+      toast.success(`Welcome to ${spaceName}`)
       return
     }
     if (variant === 'welcome-back') {
-      toast.success(`Welcome back to ${siteName}`)
+      toast.success(`Welcome back to ${spaceName}`)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteName])
+  }, [spaceName])
 
   return dialog.content
 }
 
 async function optimizeImage(file: File): Promise<Blob> {
-  const response = await fetch('/hm/api/site-image', {
+  const response = await fetch('/hm/api/space-image', {
     method: 'POST',
     body: await file.arrayBuffer(),
   })
@@ -555,7 +555,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   const accountDocument = useResource(account.data?.id)
   const document = accountDocument?.data?.type === 'document' ? accountDocument.data.document : undefined
   const update = useMutation({
-    mutationFn: (updates: SiteMetaFields) => {
+    mutationFn: (updates: SpaceMetaFields) => {
       if (!keyPair) {
         throw new Error('No key pair found')
       }

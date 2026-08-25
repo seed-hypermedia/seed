@@ -25,9 +25,9 @@ func networkOrigin(ctx context.Context) bool {
 	return networkOriginKey.Value(ctx)
 }
 
-var syncSiteKey = ctxkey.New("blob.SyncSite", "")
+var syncSpaceKey = ctxkey.New("blob.SyncSpace", "")
 
-// ContextWithSyncSite tags a context with the space whose sync pulled these
+// ContextWithSyncSpace tags a context with the space whose sync pulled these
 // blobs.
 //
 // It exists for media. Raw blocks never reach the indexer, so unlike structural
@@ -36,14 +36,14 @@ var syncSiteKey = ctxkey.New("blob.SyncSite", "")
 // time the block lands in the blockstore. But the discovery session that caused
 // the fetch does know its space, so it passes it down here. The attribution is
 // therefore "the space whose catch-up pulled these bytes", which is the
-// question the per-site breakdown is meant to answer.
-func ContextWithSyncSite(ctx context.Context, space string) context.Context {
+// question the per-space breakdown is meant to answer.
+func ContextWithSyncSpace(ctx context.Context, space string) context.Context {
 	if space == "" {
 		return ctx
 	}
-	return syncSiteKey.WithValue(ctx, space)
+	return syncSpaceKey.WithValue(ctx, space)
 }
 
-func syncSite(ctx context.Context) string {
-	return syncSiteKey.Value(ctx)
+func syncSpace(ctx context.Context) string {
+	return syncSpaceKey.Value(ctx)
 }

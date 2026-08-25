@@ -59,10 +59,10 @@ export async function loader({request}: LoaderFunctionArgs) {
 
   const domain = process.env.MONITORING_DOMAIN || runtimeDomain
 
-  // Get siteHost for window.ENV injection
-  const siteHost = url.hostname
+  // Get spaceHost for window.ENV injection
+  const spaceHost = url.hostname
 
-  const result = {isProd, enableStats, domain, siteHost}
+  const result = {isProd, enableStats, domain, spaceHost}
 
   return json(result)
 }

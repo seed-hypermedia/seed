@@ -19,7 +19,7 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {DraftRoute} from '@shm/shared/routes'
 import {validatePath} from '@shm/shared/utils/document-path'
-import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
+import {createSpaceUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
@@ -210,16 +210,16 @@ export default function PublishDraftButton() {
   const locationId = isFirstPublish ? editableLocation : editId
 
   const gatewayUrl = useGatewayUrl()
-  const {data: siteResource} = useResource(locationId ? hmId(locationId.uid, {latest: true}) : undefined)
-  const siteDocument = siteResource?.type === 'document' ? siteResource.document : undefined
+  const {data: spaceResource} = useResource(locationId ? hmId(locationId.uid, {latest: true}) : undefined)
+  const spaceDocument = spaceResource?.type === 'document' ? spaceResource.document : undefined
 
-  // Compute parent URL (site root or parent path)
+  // Compute parent URL (space root or parent path)
   const parentUrl = useMemo(() => {
     if (!locationId || !gatewayUrl.data) return null
-    const siteUrl = siteDocument?.metadata?.siteUrl
+    const siteUrl = spaceDocument?.metadata?.siteUrl
     const parentPath = locationId.path?.slice(0, -1) || []
     if (siteUrl) {
-      return createSiteUrl({
+      return createSpaceUrl({
         path: parentPath,
         hostname: siteUrl,
       })
@@ -228,13 +228,13 @@ export default function PublishDraftButton() {
       path: parentPath,
       hostname: gatewayUrl.data,
     })
-  }, [locationId, gatewayUrl.data, siteDocument?.metadata?.siteUrl])
+  }, [locationId, gatewayUrl.data, spaceDocument?.metadata?.siteUrl])
 
   const documentUrl = useMemo(() => {
     if (!locationId || !gatewayUrl.data) return null
-    const siteUrl = siteDocument?.metadata?.siteUrl
+    const siteUrl = spaceDocument?.metadata?.siteUrl
     if (siteUrl) {
-      return createSiteUrl({
+      return createSpaceUrl({
         path: locationId.path,
         hostname: siteUrl,
       })
@@ -243,7 +243,7 @@ export default function PublishDraftButton() {
       path: locationId.path,
       hostname: gatewayUrl.data,
     })
-  }, [locationId, gatewayUrl.data, siteDocument?.metadata?.siteUrl])
+  }, [locationId, gatewayUrl.data, spaceDocument?.metadata?.siteUrl])
 
   // Get the editable path segment (last part of the path)
   const editablePath = editableLocation?.path?.at(-1) || ''

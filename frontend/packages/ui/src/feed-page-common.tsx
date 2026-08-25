@@ -22,20 +22,20 @@ export interface FeedPageProps {
 }
 
 export function FeedPage({docId, extraMenuItems, rightActions}: FeedPageProps) {
-  const siteHomeId = hmId(docId.uid)
-  const siteHomeResource = useResource(siteHomeId, {subscribed: true})
+  const spaceHomeId = hmId(docId.uid)
+  const spaceHomeResource = useResource(spaceHomeId, {subscribed: true})
 
-  const siteHomeDocument: HMDocument | null =
-    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
+  const spaceHomeDocument: HMDocument | null =
+    spaceHomeResource.data?.type === 'document' ? spaceHomeResource.data.document : null
 
-  const headerData = computeHeaderData(siteHomeDocument)
+  const headerData = computeHeaderData(spaceHomeDocument)
 
-  const targetDomain = siteHomeDocument?.metadata?.siteUrl || undefined
+  const targetDomain = spaceHomeDocument?.metadata?.siteUrl || undefined
 
-  if (siteHomeResource.isInitialLoading) {
+  if (spaceHomeResource.isInitialLoading) {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         isMainFeedVisible
@@ -50,24 +50,24 @@ export function FeedPage({docId, extraMenuItems, rightActions}: FeedPageProps) {
 
   return (
     <PageWrapper
-      siteHomeId={siteHomeId}
+      spaceHomeId={spaceHomeId}
       docId={docId}
       headerData={headerData}
-      document={siteHomeDocument ?? undefined}
+      document={spaceHomeDocument ?? undefined}
       isMainFeedVisible
       rightActions={rightActions}
     >
-      <FeedBody siteHomeId={siteHomeId} extraMenuItems={extraMenuItems} targetDomain={targetDomain} />
+      <FeedBody spaceHomeId={spaceHomeId} extraMenuItems={extraMenuItems} targetDomain={targetDomain} />
     </PageWrapper>
   )
 }
 
 function FeedBody({
-  siteHomeId,
+  spaceHomeId,
   extraMenuItems,
   targetDomain,
 }: {
-  siteHomeId: UnpackedHypermediaId
+  spaceHomeId: UnpackedHypermediaId
   extraMenuItems?: MenuItemType[]
   targetDomain?: string
 }) {
@@ -98,7 +98,7 @@ function FeedBody({
       <GeneralPageHeader title="Activity Feed" />
       <Separator />
       <Feed
-        filterResource={`${siteHomeId.id}*`}
+        filterResource={`${spaceHomeId.id}*`}
         targetDomain={targetDomain}
         size="md"
         filterEventType={filterEventType}

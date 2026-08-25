@@ -112,14 +112,14 @@ export const action = cborApiAction<NotificationAction, any>(async (signedPayloa
 
   if (restPayload.action === 'get-email-subscribers') {
     // The resolved accountId scopes the query, so a signer can only list
-    // subscribers of the site they own (or are a delegated agent of).
+    // subscribers of the space they own (or are a delegated agent of).
     return {subscribers: getEmailSubscribersForAccount(accountId)}
   }
 
   const page = {
     beforeMs: restPayload.beforeMs,
     limit: restPayload.limit,
-    siteUid: restPayload.siteUid,
+    spaceUid: restPayload.siteUid,
   }
 
   if (restPayload.action === 'get-notification-state') {

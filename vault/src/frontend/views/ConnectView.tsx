@@ -9,17 +9,17 @@ import {useActions, useAppState} from '@/frontend/store'
 export function ConnectView() {
   const {error, loading, vaultConnectionInProgress, vaultConnectionRequest} = useAppState()
   const actions = useActions()
-  const siteName = vaultConnectionRequest?.siteName
+  const spaceName = vaultConnectionRequest?.spaceName
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-left text-xl">
-          {siteName ? `Join ${siteName}` : 'Connect your desktop app'}
+          {spaceName ? `Join ${spaceName}` : 'Connect your desktop app'}
         </CardTitle>
         <CardDescription className="text-left">
-          {siteName
-            ? `You're signed in. Join ${siteName} to comment, reply, and participate.`
+          {spaceName
+            ? `You're signed in. Join ${spaceName} to comment, reply, and participate.`
             : 'Allow the Seed desktop app on this device to connect to this vault for remote sync.'}
         </CardDescription>
       </CardHeader>
@@ -40,7 +40,7 @@ export function ConnectView() {
             disabled={loading}
             onClick={actions.completeVaultConnection}
           >
-            {siteName ? `Join ${siteName}` : 'Connect desktop'}
+            {spaceName ? `Join ${spaceName}` : 'Connect desktop'}
           </Button>
           <Button
             variant="ghost"

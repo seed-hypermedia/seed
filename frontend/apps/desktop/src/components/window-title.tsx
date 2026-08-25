@@ -10,7 +10,7 @@ function getRouteResourceId(route: NavRoute): UnpackedHypermediaId | null {
   switch (route.key) {
     case 'contact':
     case 'profile':
-    case 'site-profile':
+    case 'space-profile':
     case 'document':
     case 'feed':
     case 'directory':
@@ -20,7 +20,7 @@ function getRouteResourceId(route: NavRoute): UnpackedHypermediaId | null {
     case 'comments':
     case 'metadata':
     case 'inspect':
-    case 'site-settings':
+    case 'space-settings':
       return route.id
     default:
       return null

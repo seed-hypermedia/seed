@@ -8,7 +8,7 @@ import {
   writeLocalKeys,
 } from '@/local-db'
 import {queryAPI} from '@/models'
-import {getSiteMembershipStatus, processPendingIntent} from '@/pending-intent'
+import {getSpaceMembershipStatus, processPendingIntent} from '@/pending-intent'
 import {webUniversalClient} from '@/universal-client'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
@@ -154,7 +154,7 @@ export default function AuthCallbackRoute() {
         } else if (intentResult.type === 'join') {
           successVariant = intentResult.joinStatus === 'joined' ? 'join' : 'welcome-back'
         } else if (originHomeId?.uid) {
-          const membershipStatus = await getSiteMembershipStatus(originHomeId.uid)
+          const membershipStatus = await getSpaceMembershipStatus(originHomeId.uid)
           successVariant = membershipStatus === 'not-member' && !hadExistingAccountAtOrigin ? 'login' : 'welcome-back'
         } else if (hadExistingAccountAtOrigin) {
           successVariant = 'welcome-back'

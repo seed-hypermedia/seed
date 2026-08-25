@@ -131,21 +131,21 @@ func (srv *Server) lookupLocalDomainAccount(ctx context.Context, domain string) 
 
 	err := srv.store.DB().WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.Exec(conn, qLookupLocalDomainAccount(), func(stmt *sqlite.Stmt) error {
-			siteURL := stmt.ColumnText(1)
-			if siteURL == "" {
+			spaceURL := stmt.ColumnText(1)
+			if spaceURL == "" {
 				return nil
 			}
-			parsed, err := url.Parse(siteURL)
+			parsed, err := url.Parse(spaceURL)
 			if err != nil || parsed.Hostname() != domain {
 				return nil
 			}
 			entry.LastStatus = "success"
-			entry.LastConfig = &blob.SiteConfigResponse{RegisteredAccountUID: stmt.ColumnText(0)}
+			entry.LastConfig = &blob.SpaceConfigResponse{RegisteredAccountUID: stmt.ColumnText(0)}
 			return nil
 		})
 	})
 	if err != nil {
-		return blob.DomainEntry{}, false, status.Errorf(codes.Internal, "failed to inspect local site metadata: %v", err)
+		return blob.DomainEntry{}, false, status.Errorf(codes.Internal, "failed to inspect local space metadata: %v", err)
 	}
 	if entry.LastConfig == nil || entry.LastConfig.RegisteredAccountUID == "" {
 		return blob.DomainEntry{}, false, nil

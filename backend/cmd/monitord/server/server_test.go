@@ -1,4 +1,4 @@
-// Package server is the serve to monitor site status.
+// Package server is the serve to monitor space status.
 package server
 
 import (

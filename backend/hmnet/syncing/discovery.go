@@ -121,11 +121,11 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// it's the one place that has to mark the session in flight for throughput
 	// accounting. Concurrent sessions are handled by the tracker: it unions
 	// their intervals instead of summing them.
-	sessionSite := ""
+	sessionSpace := ""
 	if space, _, err := entityID.SpacePath(); err == nil {
-		sessionSite = space.String()
+		sessionSpace = space.String()
 	}
-	endSession := syncperf.Default.SessionStart(sessionSite)
+	endSession := syncperf.Default.SessionStart(sessionSpace)
 	outcome := "notfound"
 	defer func() {
 		endSession()
@@ -294,11 +294,11 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	//	missing, no host known → 20. We have no idea who has this.
 	//
 	// Holding the content is what removes the need to search, and that does not
-	// depend on there being a site server. A space with no siteUrl — a plain
+	// depend on there being a space server. A space with no siteUrl — a plain
 	// account, which is most of the long tail — still has an authority: the
 	// gateways, which hold essentially everything and are already connected.
 	//
-	// Measured: gating this on the site server alone left the ~32% of waves with
+	// Measured: gating this on the space server alone left the ~32% of waves with
 	// no resolvable host on the full 20-peer search every ~11s forever, and that
 	// was ~10 of the remaining 10.1 dials/sec on a completely idle daemon.
 	//
@@ -306,7 +306,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// one leaves an EMPTY peer set — a node that syncs with nobody, forever, and
 	// silently. Production hides this: bootstrap means there are always gateways,
 	// so "we hold the content" implies somebody can still answer. Two daemons
-	// paired directly with no bootstrap and no site server have neither, and the
+	// paired directly with no bootstrap and no space server have neither, and the
 	// speculative sample is the only thing connecting them. Hence the peer
 	// collection below runs FIRST, and the width is chosen from what actually
 	// exists rather than from what we assume exists.
@@ -385,22 +385,22 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	}
 
 	// Now choose the width, knowing what is actually reachable.
-	hasSite := len(auth.addrInfos) > 0
-	maxSample := sampleWidth(haveLocally, hasSite, len(gatewayPeers) > 0)
+	hasSpace := len(auth.addrInfos) > 0
+	maxSample := sampleWidth(haveLocally, hasSpace, len(gatewayPeers) > 0)
 	if exhaustive {
 		// A probe is a search by definition: full width, and (because the
 		// width is non-zero) the gateway drop below never fires, so the probe
-		// asks site + gateways + the full sample.
+		// asks space + gateways + the full sample.
 		maxSample = maxSampledPeers
 	}
 
-	// Gateways drop out only when a site server can answer instead — it is
+	// Gateways drop out only when a space server can answer instead — it is
 	// authoritative for its own space, so they are pure overhead on every 10s
 	// check. Without one they ARE the authority and are the whole point of the
 	// liveness check, and they always stay for the case they were added for:
 	// content we do NOT have, the cold start that rendered blank.
 	alwaysPeers := gatewayPeers
-	if maxSample == 0 && hasSite {
+	if maxSample == 0 && hasSpace {
 		alwaysPeers = nil
 	}
 	MDiscoverPeersSource.WithLabelValues("site").Add(float64(len(auth.addrInfos)))
@@ -585,7 +585,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 			if _, ok := peers[pid]; ok {
 				continue
 			}
-			// ResolveSiteURL gives us addresses libp2p may not have yet — this is
+			// ResolveSpaceURL gives us addresses libp2p may not have yet — this is
 			// often a peer we've never dialed.
 			if len(info.Addrs) > 0 {
 				s.host.Peerstore().AddAddrs(pid, info.Addrs, peerstore.TempAddrTTL)
@@ -603,7 +603,7 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 		return res
 	}
 
-	// auth.addrInfos counts too: a site server we've never dialed is still a peer
+	// auth.addrInfos counts too: a space server we've never dialed is still a peer
 	// worth syncing with, and it is the best one. Gating on allPeers alone would
 	// skip straight to the DHT for a space whose host we already know.
 	if len(allPeers) != 0 || len(auth.addrInfos) != 0 {

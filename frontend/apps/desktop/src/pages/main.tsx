@@ -44,7 +44,7 @@ import './polyfills'
 var Onboarding = lazy(() => import('./onboarding'))
 var Settings = lazy(() => import('./settings'))
 var AccountSettings = lazy(() => import('./account-settings'))
-var SiteSettings = lazy(() => import('./site-settings'))
+var SpaceSettings = lazy(() => import('./space-settings'))
 var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./desktop-resource'))
@@ -61,7 +61,7 @@ var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
 var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
-var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
+var SpaceSettingsEmails = lazy(() => import('./space-settings-emails'))
 
 /**
  * Redirect persisted `key: 'draft'` routes (from before draft-route removal)
@@ -179,7 +179,7 @@ export default function Main({className}: {className?: string}) {
   const {PageComponent, Fallback} = useMemo(() => getPageComponent(navR), [navR])
   // Reset route-scoped crashes on navigation without forcing the entire page tree
   // to unmount. Document routes share a single page component and rely on staying
-  // mounted so the site header and editor state do not flash between navigations.
+  // mounted so the space header and editor state do not flash between navigations.
   const routeKey = useMemo(() => getRouteKey(navR), [navR])
   useListen<NavRoute>(
     'open_route',
@@ -428,9 +428,9 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: AccountSettings,
         Fallback: BaseLoading,
       }
-    case 'site-settings':
+    case 'space-settings':
       return {
-        PageComponent: SiteSettings,
+        PageComponent: SpaceSettings,
         Fallback: BaseLoading,
       }
     case 'deleted-content':
@@ -518,7 +518,7 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Profile,
         Fallback: BaseLoading,
       }
-    case 'site-profile':
+    case 'space-profile':
       return {
         PageComponent: Document,
         Fallback: DocumentPlaceholder,
@@ -528,9 +528,9 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Notifications,
         Fallback: BaseLoading,
       }
-    case 'site-settings-emails':
+    case 'space-settings-emails':
       return {
-        PageComponent: SiteSettingsEmails,
+        PageComponent: SpaceSettingsEmails,
         Fallback: BaseLoading,
       }
     default:

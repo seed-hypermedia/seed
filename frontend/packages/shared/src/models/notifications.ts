@@ -38,13 +38,13 @@ function invalidateNotificationStateQueries(notifyServiceHost: string | undefine
 export function useNotificationState(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
-  opts?: {siteUid?: string},
+  opts?: {spaceUid?: string},
 ) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.spaceUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
+      return getNotificationState(notifyServiceHost!, signer!, {spaceUid: opts?.spaceUid})
     },
     enabled: !!notifyServiceHost && !!signer && !!accountId,
     refetchOnMount: 'always',
@@ -61,13 +61,13 @@ export function useNotificationState(
 export function useNotificationConfig(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
-  opts?: {siteUid?: string},
+  opts?: {spaceUid?: string},
 ) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.spaceUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
+      return getNotificationState(notifyServiceHost!, signer!, {spaceUid: opts?.spaceUid})
     },
     select: (state: NotificationStateSnapshot) => state.config,
     enabled: !!notifyServiceHost && !!signer && !!accountId,
@@ -157,13 +157,13 @@ export function useRemoveNotificationConfig(
 export function useNotificationReadState(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
-  opts?: {siteUid?: string},
+  opts?: {spaceUid?: string},
 ) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.spaceUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
+      return getNotificationState(notifyServiceHost!, signer!, {spaceUid: opts?.spaceUid})
     },
     select: (state) => state.readState,
     enabled: !!notifyServiceHost && !!signer && !!accountId,
@@ -174,7 +174,7 @@ export function useNotificationReadState(
 export async function getNotificationInbox(
   notifyServiceHost: string,
   signer: NotificationSigner,
-  opts?: {beforeMs?: number; limit?: number; siteUid?: string},
+  opts?: {beforeMs?: number; limit?: number; spaceUid?: string},
 ) {
   const state = await getNotificationState(notifyServiceHost, signer, opts)
   return {
@@ -189,13 +189,13 @@ export async function getNotificationInbox(
 export function useNotificationInbox(
   notifyServiceHost: string | undefined,
   signer: NotificationSigner | undefined,
-  opts?: {siteUid?: string},
+  opts?: {spaceUid?: string},
 ) {
   const accountId = accountIdFromSigner(signer)
   return useQuery({
-    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.siteUid ?? null],
+    queryKey: [...getNotificationStateQueryKey(notifyServiceHost, accountId), opts?.spaceUid ?? null],
     queryFn: async (): Promise<NotificationStateSnapshot> => {
-      return getNotificationState(notifyServiceHost!, signer!, {siteUid: opts?.siteUid})
+      return getNotificationState(notifyServiceHost!, signer!, {spaceUid: opts?.spaceUid})
     },
     select: (state) =>
       ({

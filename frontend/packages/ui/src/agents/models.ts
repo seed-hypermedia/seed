@@ -447,7 +447,7 @@ function useSigningIdentityLists(serverUrls: string[] | undefined, accountUid: s
  * Mentions and hm:// navigation elsewhere in the app only resolve accounts the local node has
  * synced, but agent signing accounts live on the agent server's HM node (or a shared agent owner's
  * node) — so without this, the user could watch an agent publish as an account and still be unable
- * to @mention it or open its site. This extends the existing screen-driven sync used for session
+ * to @mention it or open its space. This extends the existing screen-driven sync used for session
  * references ({@link subscribeToAgentReferences}) and resource pages: `platform.subscribeToEntity`
  * holds a live discovery subscription while the page stays mounted, and the daemon's hot-task TTL
  * retires it after navigation. A one-shot discover ({@link syncAgentAccountToLocalNode}) is not
@@ -455,7 +455,7 @@ function useSigningIdentityLists(serverUrls: string[] | undefined, accountUid: s
  *
  * Three account sets, gathered across every configured server:
  * - the signed-in account's own signing identities (the "Agent Server Accounts" dialog set),
- *   subscribed recursively so their sites arrive whole;
+ *   subscribed recursively so their spaces arrive whole;
  * - the granted signing identities of agents shared with this account (`ListSigningIdentities`
  *   scoped by agentId returns exactly the granted set for collaborators), also recursive;
  * - the owner accounts behind shared agents and pending invites, non-recursive — enough for their

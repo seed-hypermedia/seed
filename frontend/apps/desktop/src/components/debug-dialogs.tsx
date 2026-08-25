@@ -3,7 +3,7 @@ import {hmId} from '@shm/shared'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
 import {useState} from 'react'
-import {usePublishSite, useRemoveSiteDialog, useSeedHostDialog} from './publish-site'
+import {usePublishSpace, useRemoveSpaceDialog, useSeedHostDialog} from './publish-space'
 
 // Mock data for testing - create proper UnpackedHypermediaId
 // Using a valid-looking UID that matches the expected format
@@ -17,9 +17,9 @@ const MOCK_DOCUMENT_ROUTE = {
 
 export function DebugDialogs() {
   const [showDebug, setShowDebug] = useState(false)
-  const publishSiteDialog = usePublishSite()
+  const publishSpaceDialog = usePublishSpace()
   const seedHostDialog = useSeedHostDialog()
-  const removeSiteDialog = useRemoveSiteDialog()
+  const removeSpaceDialog = useRemoveSpaceDialog()
 
   // Don't show in production unless explicitly enabled
   if (!showDebug) {
@@ -49,25 +49,25 @@ export function DebugDialogs() {
             size="sm"
             variant="outline"
             onClick={() =>
-              publishSiteDialog.open({
+              publishSpaceDialog.open({
                 id: MOCK_DOCUMENT_ID,
               })
             }
           >
-            Publish Site (Main)
+            Publish Space (Main)
           </Button>
 
           <Button
             size="sm"
             variant="outline"
             onClick={() =>
-              publishSiteDialog.open({
+              publishSpaceDialog.open({
                 id: MOCK_DOCUMENT_ID,
                 step: 'seed-host-custom-domain',
               })
             }
           >
-            Publish Site (Custom Domain)
+            Publish Space (Custom Domain)
           </Button>
 
           <Button
@@ -87,8 +87,8 @@ export function DebugDialogs() {
             Seed Host Published
           </Button>
 
-          <Button size="sm" variant="outline" onClick={() => removeSiteDialog.open(MOCK_DOCUMENT_ID)}>
-            Remove Site
+          <Button size="sm" variant="outline" onClick={() => removeSpaceDialog.open(MOCK_DOCUMENT_ID)}>
+            Remove Space
           </Button>
         </div>
 
@@ -100,7 +100,7 @@ export function DebugDialogs() {
             variant="outline"
             onClick={() => {
               // Test the dark background seed host container
-              publishSiteDialog.open({
+              publishSpaceDialog.open({
                 id: MOCK_DOCUMENT_ID,
               })
               console.log('Testing dark background container')
@@ -131,16 +131,16 @@ export function DebugDialogs() {
       </div>
 
       {/* Render dialog contents */}
-      {publishSiteDialog.content}
+      {publishSpaceDialog.content}
       {seedHostDialog.content}
-      {removeSiteDialog.content}
+      {removeSpaceDialog.content}
     </>
   )
 }
 
 // Additional debug component for testing specific dialog states
 export function DebugPublishStates() {
-  const publishDialog = usePublishSite()
+  const publishDialog = usePublishSpace()
   const [currentMode, setCurrentMode] = useState<string>('none')
 
   const modes = [

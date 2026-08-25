@@ -206,7 +206,7 @@ func affectedScopes(conn *sqlite.Conn, blobID int64, scopes []DiscoveryKey) (ins
 // seed/closure above does NOT cover: the recursive agent-capability delegation
 // closure, the inbound Contact-by-subject edge, and late-arriving forward link
 // targets. Previously every one of these drifted until the periodic
-// shadow-verify re-materialized the scope; under real sync load (a team site
+// shadow-verify re-materialized the scope; under real sync load (a team space
 // with hundreds of agent capabilities, blobs arriving wildly out of order) that
 // 5-minute sweep cannot keep pace and the maintained set serves ~40% short.
 //

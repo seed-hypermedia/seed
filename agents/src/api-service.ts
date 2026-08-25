@@ -9057,9 +9057,9 @@ export async function executeReadVerb(
   // environment — never a hardcoded public gateway (environments.md).
   if (address.startsWith('hm://')) return readHypermedia({id: address, format, server: context.hmServerUrl})
   if (/^https?:\/\//.test(address)) {
-    // Seed sites and gateway URLs resolve as hypermedia first; anything else is a web page.
+    // Seed spaces and gateway URLs resolve as hypermedia first; anything else is a web page.
     // Fall through to the web reader ONLY when the URL is established as not-hypermedia (the
-    // resolver's explicit marker) or the document is absent (404 on a real Seed site can still be
+    // resolver's explicit marker) or the document is absent (404 on a real Seed space can still be
     // an ordinary web page). Every other failure — transient daemon errors, too-large, network —
     // surfaces instead of being silently replaced by scraped page HTML the model would mistake
     // for the document's real content.

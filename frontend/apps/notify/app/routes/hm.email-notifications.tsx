@@ -18,13 +18,13 @@ import {Spinner} from '@shm/ui/spinner'
 
 export default function EmailNotificationsPage() {
   return (
-    <NotifySiteContainer>
+    <NotifySpaceContainer>
       <EmailNotificationsContent />
-    </NotifySiteContainer>
+    </NotifySpaceContainer>
   )
 }
 
-function NotifySiteHeader() {
+function NotifySpaceHeader() {
   return (
     <div className="flex flex-col gap-4 px-6 pt-8">
       <div className="flex items-center gap-2">
@@ -35,10 +35,10 @@ function NotifySiteHeader() {
   )
 }
 
-function NotifySiteContainer({children}: {children: React.ReactNode}) {
+function NotifySpaceContainer({children}: {children: React.ReactNode}) {
   return (
     <div className="bg-panel flex h-screen max-h-screen min-h-svh w-screen flex-col overflow-hidden">
-      <NotifySiteHeader />
+      <NotifySpaceHeader />
       <div className="dark:bg-background flex flex-1 gap-4 overflow-hidden overflow-y-auto bg-white px-6 py-8">
         <div className="flex flex-col gap-4">
           <div className="rounded-md border-1 p-4">{children}</div>
@@ -110,7 +110,7 @@ export function EmailNotificationsContent() {
                     <EmailNotificationSubscription key={sub.id} subscription={sub} token={token} />
                   ))
                 ) : (
-                  <p className="text-sm text-gray-600">No site subscriptions configured for this email yet.</p>
+                  <p className="text-sm text-gray-600">No space subscriptions configured for this email yet.</p>
                 )}
                 <MyNotificationsSection myNotifications={notifSettings.myNotifications} token={token} />
               </div>
@@ -227,7 +227,7 @@ function EmailNotificationSubscription({
 
       <div className="space-y-6">
         <div className="space-y-3">
-          <h4 className="font-bold text-gray-800">Site Activity</h4>
+          <h4 className="font-bold text-gray-800">Space Activity</h4>
           <p className="text-sm text-gray-600">
             Get notified when something happens in {account.document?.metadata?.name}. Emails will be sent every 4 hours
             at most.

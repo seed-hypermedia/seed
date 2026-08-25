@@ -186,7 +186,7 @@ describe('activity trigger matching', () => {
     ).toBe(false)
   })
 
-  test('matches site updates by resource prefix and event type', () => {
+  test('matches space updates by resource prefix and event type', () => {
     const event = {
       new_blob: {
         cid: 'bafyref',

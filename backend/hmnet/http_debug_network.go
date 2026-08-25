@@ -200,8 +200,8 @@ type section struct {
 	Matrix  *matrixTable
 }
 
-// matrixTable renders a rows-by-columns grid: one row per site, one column per
-// blob kind. The totals row is always visible; the per-site rows live inside a
+// matrixTable renders a rows-by-columns grid: one row per space, one column per
+// blob kind. The totals row is always visible; the per-space rows live inside a
 // <details> so a node subscribed to hundreds of spaces doesn't bury the rest of
 // the page.
 type matrixTable struct {
@@ -209,12 +209,12 @@ type matrixTable struct {
 	Columns   []string // e.g. "total", "media", "Ref", ...
 	Groups    []matrixGroup
 	// Footnote carries caveats that belong with the numbers rather than in the
-	// help text — e.g. unclassified bytes, or folded-away sites.
+	// help text — e.g. unclassified bytes, or folded-away spaces.
 	Footnote string
 }
 
 // matrixGroup is one metric row plus, for metrics that disaggregate by space,
-// the per-site rows revealed when it's expanded. Metrics that exist only in
+// the per-space rows revealed when it's expanded. Metrics that exist only in
 // aggregate (timings, duty cycle) simply carry no children and don't expand.
 type matrixGroup struct {
 	Row      matrixRow
@@ -1234,7 +1234,7 @@ const helpBitswapCompleteness template.HTML = `
 const helpReconcileServerPhases template.HTML = `
 <p>When OTHER peers call our ReconcileBlobs RPC, where does our time go? Same Go code runs on gateways, so this is a structural proxy for what they spend per request.</p>
 <dl>
-<dt>auth_resolve</dt><dd>Check which spaces the calling peer is authorized for. May trigger an HTTP fetch to a siteURL on cache miss (we just added stale-while-revalidate + persistent cache to mitigate this).</dd>
+<dt>auth_resolve</dt><dd>Check which spaces the calling peer is authorized for. May trigger an HTTP fetch to a spaceURL on cache miss (we just added stale-while-revalidate + persistent cache to mitigate this).</dd>
 <dt>load_store</dt><dd>Build the per-filter RBSR set from our local blobs. Recursive CTEs over <code>structural_blobs</code> + <code>blob_links</code>. Scales with corpus size — a heavy gateway will spend a lot here.</dd>
 <dt>rbsr_session</dt><dd>Allocate the RBSR session struct. Always trivial.</dd>
 <dt>rbsr_reconcile</dt><dd>The actual set-reconciliation algorithm: fingerprint the set, compute the diff. O(n) over store size.</dd>
@@ -1368,7 +1368,7 @@ tr.det>td{background:#fafafa;font-size:12px}
 tr.det>td.sub{padding-left:26px;color:#555}
 </style></head><body>
 <script>
-// Expand one metric row to reveal its per-site breakdown. The detail rows are
+// Expand one metric row to reveal its per-space breakdown. The detail rows are
 // the consecutive tr.det siblings that follow, so no ids or lookups are needed.
 function tgm(r){
   var open = r.classList.toggle('open');

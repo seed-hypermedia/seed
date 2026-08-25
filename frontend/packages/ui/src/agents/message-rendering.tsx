@@ -238,7 +238,7 @@ function UserMessageOrigin({meta}: {meta?: SessionEventMeta}) {
   const metadata = account.data?.metadata
   const label = metadata?.name || meta?.accountId || 'Unknown user'
   const linkProps = useRouteLink(
-    meta?.accountId ? {key: 'site-profile', id: hmId(meta.accountId), tab: 'profile'} : null,
+    meta?.accountId ? {key: 'space-profile', id: hmId(meta.accountId), tab: 'profile'} : null,
   )
 
   return meta?.accountId ? (

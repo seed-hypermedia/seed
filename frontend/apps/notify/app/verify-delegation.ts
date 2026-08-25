@@ -22,7 +22,7 @@ async function listAgentGrantorAccounts(delegateUid: string): Promise<Set<string
  * an AGENT capability for that account via the daemon. One level of chaining
  * is supported: a web session key delegated by a user account (AGENT) may act
  * for any account that granted that user account an AGENT capability — e.g.
- * a site account whose owner is signed in through the vault. Returns
+ * a space account whose owner is signed in through the vault. Returns
  * `accountUid` on success.
  *
  * When `accountUid` is absent, derives the account ID from the signer's

@@ -1,6 +1,6 @@
 import type {HMDocument, HMMetadata, HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
-  createSiteUrl,
+  createSpaceUrl,
   createWebHMUrl,
   hmId,
   hmIdPathToEntityQueryPath,
@@ -15,7 +15,7 @@ import {
   canUseDocumentAsDestinationParent,
   canUseMoveTargetParent,
   isMoveTargetParentBlocked,
-  isMoveTargetSameSite,
+  isMoveTargetSameSpace,
   type DocumentCardActionOrigin,
 } from '@shm/shared/utils/document-actions'
 import {validatePath} from '@shm/shared/utils/document-path'
@@ -129,7 +129,7 @@ export function DocumentDestinationDialog({
     [destinationId?.id],
   )
   const modeDisabled = !enabledModes.includes(input.mode)
-  const moveTargetWrongSite = input.mode === 'move' && !!targetParent && !isMoveTargetSameSite(sourceId, targetParent)
+  const moveTargetWrongSpace = input.mode === 'move' && !!targetParent && !isMoveTargetSameSpace(sourceId, targetParent)
   const moveTargetBlocked = input.mode === 'move' && isMoveTargetParentBlocked(sourceId, targetParent)
   const sourceIsHomeDocument = !sourceId.path?.length
   const destinationExists = destinationResource.data?.type === 'document'
@@ -145,8 +145,8 @@ export function DocumentDestinationDialog({
             ? 'Private documents cannot contain child documents.'
             : !slug
               ? 'Enter a URL path.'
-              : moveTargetWrongSite
-                ? 'Moves must stay inside the current site.'
+              : moveTargetWrongSpace
+                ? 'Moves must stay inside the current space.'
                 : moveTargetBlocked
                   ? 'Choose a location outside this document subtree.'
                   : pathInvalid
@@ -212,7 +212,7 @@ export function DocumentDestinationDialog({
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-            {targetParent ? 'Location' : 'Choose a site'}
+            {targetParent ? 'Location' : 'Choose a space'}
           </SizableText>
           {targetParent ? <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} /> : null}
         </div>
@@ -501,9 +501,10 @@ function LocationBreadcrumb({
   location: UnpackedHypermediaId
   onSelect: (id: UnpackedHypermediaId) => void
 }) {
-  const siteId = hmId(location.uid, {latest: true})
-  const {data: siteResource} = useResource(siteId)
-  const siteTitle = siteResource?.type === 'document' ? getMetadataName(siteResource.document.metadata) : location.uid
+  const spaceId = hmId(location.uid, {latest: true})
+  const {data: spaceResource} = useResource(spaceId)
+  const spaceTitle =
+    spaceResource?.type === 'document' ? getMetadataName(spaceResource.document.metadata) : location.uid
   const ancestorIds = useMemo(
     () => location.path?.map((_, index) => hmId(location.uid, {path: location.path?.slice(0, index + 1)})) || [],
     [location.id],
@@ -512,7 +513,7 @@ function LocationBreadcrumb({
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
       <button type="button" className="font-medium hover:underline" onClick={() => onSelect(hmId(location.uid))}>
-        {siteTitle}
+        {spaceTitle}
       </button>
       {ancestors.map((ancestor, index) => {
         const doc = ancestor.data?.type === 'document' ? ancestor.data.document : null
@@ -537,11 +538,11 @@ function LocationBreadcrumb({
 
 function useDestinationUrl(location: UnpackedHypermediaId | null) {
   const {origin} = useUniversalAppContext()
-  const {data: siteResource} = useResource(location ? hmId(location.uid, {latest: true}) : null)
+  const {data: spaceResource} = useResource(location ? hmId(location.uid, {latest: true}) : null)
   if (!location) return null
-  const siteDocument = siteResource?.type === 'document' ? siteResource.document : undefined
-  const siteUrl = siteDocument?.metadata.siteUrl
-  if (siteUrl) return createSiteUrl({path: location.path, hostname: siteUrl})
+  const spaceDocument = spaceResource?.type === 'document' ? spaceResource.document : undefined
+  const siteUrl = spaceDocument?.metadata.siteUrl
+  if (siteUrl) return createSpaceUrl({path: location.path, hostname: siteUrl})
   return createWebHMUrl(location.uid, {path: location.path, hostname: origin || DEFAULT_GATEWAY_URL})
 }
 

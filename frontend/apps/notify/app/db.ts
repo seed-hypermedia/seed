@@ -558,7 +558,7 @@ export function getSubscriptionsForAccount(id: string): BaseSubscription[] {
   }))
 }
 
-/** Lists every email subscribed to an account's site, without exposing admin tokens. */
+/** Lists every email subscribed to an account's space, without exposing admin tokens. */
 export function getEmailSubscribersForAccount(id: string): EmailSubscriber[] {
   const rows = stmtGetEmailSubscribersForAccount.all(id) as Array<{
     email: string
@@ -891,9 +891,9 @@ export function replaceNotificationReadState(
 
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 
-function notificationMatchesSite(notification: NotificationPayload, siteUid?: string) {
-  if (!siteUid) return true
-  return notification.target.uid === siteUid
+function notificationMatchesSpace(notification: NotificationPayload, spaceUid?: string) {
+  if (!spaceUid) return true
+  return notification.target.uid === spaceUid
 }
 
 function selectNotificationRows(
@@ -929,23 +929,23 @@ export function insertNotificationsBatch(
   transaction()
 }
 
-/** Returns every persisted notification for an account, optionally filtered to one site UID. */
-export function getAllNotifications(accountId: string, opts: {siteUid?: string} = {}): NotificationPayload[] {
+/** Returns every persisted notification for an account, optionally filtered to one space UID. */
+export function getAllNotifications(accountId: string, opts: {spaceUid?: string} = {}): NotificationPayload[] {
   const rows = stmtGetAllNotificationsForAccount.all(accountId) as Array<{data: string}>
   return rows
     .map((row) => JSON.parse(row.data) as NotificationPayload)
-    .filter((notification) => notificationMatchesSite(notification, opts.siteUid))
+    .filter((notification) => notificationMatchesSpace(notification, opts.spaceUid))
 }
 
 /** Returns a single page of persisted notifications for an account. */
 export function getNotificationsPage(
   accountId: string,
-  opts: {beforeMs?: number; limit?: number; siteUid?: string} = {},
+  opts: {beforeMs?: number; limit?: number; spaceUid?: string} = {},
 ): {notifications: NotificationPayload[]; hasMore: boolean; oldestEventAtMs: number | null} {
   const limit = Math.min(opts.limit ?? 50, 500)
   const fetchLimit = limit + 1
 
-  if (!opts.siteUid) {
+  if (!opts.spaceUid) {
     const rows = selectNotificationRows(accountId, {
       beforeMs: opts.beforeMs,
       limit: fetchLimit,
@@ -970,7 +970,7 @@ export function getNotificationsPage(
 
     for (const row of rows) {
       const notification = JSON.parse(row.data) as NotificationPayload
-      if (!notificationMatchesSite(notification, opts.siteUid)) continue
+      if (!notificationMatchesSpace(notification, opts.spaceUid)) continue
       notifications.push(notification)
       if (notifications.length >= fetchLimit) break
     }

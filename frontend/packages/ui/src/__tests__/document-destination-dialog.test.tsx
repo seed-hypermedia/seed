@@ -14,9 +14,9 @@ import {
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const hmIconMock = vi.hoisted(() => vi.fn(() => <span data-testid="hm-icon" />))
-const siteId = hmId('site')
-const otherSiteId = hmId('other')
-const sourceId = hmId('site', {path: ['old-parent', 'move-me']})
+const spaceId = hmId('space')
+const otherSpaceId = hmId('other')
+const sourceId = hmId('space', {path: ['old-parent', 'move-me']})
 
 vi.mock('@shm/shared/models/entity', () => ({
   useResource: (id: any) => {
@@ -30,11 +30,11 @@ vi.mock('@shm/shared/models/entity', () => ({
         },
       }
     }
-    if (id.id === siteId.id) {
+    if (id.id === spaceId.id) {
       return {
         data: {
           type: 'document',
-          id: siteId,
+          id: spaceId,
           document: {metadata: {name: 'Docs'}, version: 'v1', visibility: 'PUBLIC'},
         },
       }
@@ -107,10 +107,10 @@ function renderDialog(props: {
         <DocumentDestinationDialog
           input={props.input || {id: sourceId, mode: 'move'}}
           onClose={vi.fn()}
-          selectedAccountUid="site"
+          selectedAccountUid="space"
           writableDocuments={
             props.writableDocuments || [
-              {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs', icon: 'site-icon'}} as any},
+              {id: spaceId, title: 'Docs', document: {metadata: {name: 'Docs', icon: 'space-icon'}} as any},
             ]
           }
           onSubmit={onSubmit}
@@ -143,9 +143,9 @@ describe('DocumentDestinationDialog', () => {
 
     expect(onSubmit).toHaveBeenCalledWith({
       from: sourceId,
-      to: hmId('site', {path: ['old-parent', 'moved']}),
+      to: hmId('space', {path: ['old-parent', 'moved']}),
       mode: 'move',
-      signingAccountId: 'site',
+      signingAccountId: 'space',
     })
   })
   it('passes destination metadata icons into location rows', async () => {
@@ -153,24 +153,24 @@ describe('DocumentDestinationDialog', () => {
     await clearToWritableRoots()
 
     expect(hmIconMock).toHaveBeenCalledWith(
-      expect.objectContaining({id: siteId, name: 'Docs', icon: 'site-icon', size: 28}),
+      expect.objectContaining({id: spaceId, name: 'Docs', icon: 'space-icon', size: 28}),
       expect.anything(),
     )
   })
 
-  it('filters writable roots to the source site for moves but not republish', async () => {
+  it('filters writable roots to the source space for moves but not republish', async () => {
     renderDialog({
       input: {id: sourceId, mode: 'move'},
       writableDocuments: [
-        {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
-        {id: otherSiteId, title: 'Other Site', document: {metadata: {name: 'Other Site'}} as any},
+        {id: spaceId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
+        {id: otherSpaceId, title: 'Other Space', document: {metadata: {name: 'Other Space'}} as any},
       ],
     })
 
     await clearToWritableRoots()
 
     expect(container.textContent).toContain('Docs')
-    expect(container.textContent).not.toContain('Other Site')
+    expect(container.textContent).not.toContain('Other Space')
 
     act(() => {
       root.unmount()
@@ -183,13 +183,13 @@ describe('DocumentDestinationDialog', () => {
     renderDialog({
       input: {id: sourceId, mode: 'republish'},
       writableDocuments: [
-        {id: siteId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
-        {id: otherSiteId, title: 'Other Site', document: {metadata: {name: 'Other Site'}} as any},
+        {id: spaceId, title: 'Docs', document: {metadata: {name: 'Docs'}} as any},
+        {id: otherSpaceId, title: 'Other Space', document: {metadata: {name: 'Other Space'}} as any},
       ],
     })
     await clearToWritableRoots()
 
     expect(container.textContent).toContain('Docs')
-    expect(container.textContent).toContain('Other Site')
+    expect(container.textContent).toContain('Other Space')
   })
 })

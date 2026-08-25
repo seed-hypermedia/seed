@@ -1,5 +1,5 @@
 :root {
-  --site-header-h: 60px;
+  --space-header-h: 60px;
   --hm-host-banner-h: 0px;
 }
 
@@ -74,20 +74,20 @@ body {
 }
 
 /* === SITE HEADER DEFAULT HEIGHT ===
- * SSR fallback for --site-header-live-h (JS-measured after hydration).
+ * SSR fallback for --space-header-live-h (JS-measured after hydration).
  * Must match the header's actual rendered height so the footer doesn't
  * jump when the live measurement replaces the fallback: the bar header is
  * p-4 (32px) + 48px account button + 1px border at md+, and p-4 + 32px
  * menu button + 1px border below md. */
 [data-header-layout='bar'] {
-  --site-header-default-h: 65px;
+  --space-header-default-h: 65px;
 }
 [data-header-layout='center'] {
-  --site-header-default-h: 96px;
+  --space-header-default-h: 96px;
 }
 @media (min-width: 768px) {
   [data-header-layout='bar'] {
-    --site-header-default-h: 81px;
+    --space-header-default-h: 81px;
   }
 }
 

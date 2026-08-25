@@ -144,7 +144,7 @@ describe('handleApiRequest schema introspection', () => {
 
     const result = await handleApiRequest(
       new URL(
-        'http://localhost/api/Search?query=slow&includeBody=true&contextSize=44&searchType=0&pageSize=20&pageToken=page-token&iriFilter=hm%3A%2F%2Fsite*&contentTypeFilter=%5B0%5D&entityKindFilter=%5B1%5D',
+        'http://localhost/api/Search?query=slow&includeBody=true&contextSize=44&searchType=0&pageSize=20&pageToken=page-token&iriFilter=hm%3A%2F%2Fspace*&contentTypeFilter=%5B0%5D&entityKindFilter=%5B1%5D',
       ),
       grpcClient,
       queryDaemon,
@@ -165,7 +165,7 @@ describe('handleApiRequest schema introspection', () => {
       searchType: 0,
       pageSize: 20,
       pageToken: 'page-token',
-      iriFilter: 'hm://site*',
+      iriFilter: 'hm://space*',
       contentTypeFilter: [0],
       entityKindFilter: [1],
     })
@@ -200,7 +200,7 @@ describe('handleApiRequest schema introspection', () => {
     const listContacts = vi.fn().mockResolvedValue({contacts: []})
     const getAccount = vi.fn(async ({id}: {id: string}) => ({
       aliasAccount: '',
-      profile: {name: id === 'z6Mksite' ? 'Site Owner' : 'Collaborator'},
+      profile: {name: id === 'z6Mksite' ? 'Space Owner' : 'Collaborator'},
       homeDocumentInfo: {version: 'v1'},
     }))
     const grpcClient = {

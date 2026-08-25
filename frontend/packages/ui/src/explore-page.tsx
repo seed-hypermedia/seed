@@ -127,11 +127,11 @@ function ExploreScopePill({
               type="button"
               className="hover:bg-accent flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
               onClick={() => {
-                onChange({type: 'site', id: hmId(account.value)})
+                onChange({type: 'space', id: hmId(account.value)})
                 setOpen(false)
               }}
             >
-              {context.type === 'site' && context.id.uid === account.value ? (
+              {context.type === 'space' && context.id.uid === account.value ? (
                 <Check className="size-3.5" />
               ) : (
                 <span className="size-3.5" />

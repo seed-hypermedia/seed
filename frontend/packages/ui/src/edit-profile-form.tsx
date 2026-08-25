@@ -9,12 +9,12 @@ import {FormError, FormInput} from './form-input'
 import {getDaemonFileUrl} from './get-file-url'
 import {SizableText} from './text'
 
-export const siteMetaSchema = z.object({
+export const spaceMetaSchema = z.object({
   name: z.string().trim().min(1, 'Name is required'),
   icon: z.string().or(z.instanceof(Blob)).nullable(),
   description: z.string().optional(),
 })
-export type SiteMetaFields = z.infer<typeof siteMetaSchema>
+export type SpaceMetaFields = z.infer<typeof spaceMetaSchema>
 
 export function EditProfileForm({
   onSubmit,
@@ -22,14 +22,14 @@ export function EditProfileForm({
   submitLabel,
   processImage,
 }: {
-  onSubmit: (data: SiteMetaFields) => void
-  defaultValues?: SiteMetaFields
+  onSubmit: (data: SpaceMetaFields) => void
+  defaultValues?: SpaceMetaFields
   submitLabel?: string
   processImage?: (file: File) => Promise<Blob>
 }) {
   const tx = useTxString()
-  const form = useForm<SiteMetaFields>({
-    resolver: zodResolver(siteMetaSchema),
+  const form = useForm<SpaceMetaFields>({
+    resolver: zodResolver(spaceMetaSchema),
     defaultValues: defaultValues || {
       name: '',
       icon: null,

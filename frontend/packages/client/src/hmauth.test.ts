@@ -50,6 +50,7 @@ async function createSignedDelegationUrl(
   clientId = 'https://example.com',
   redirectUri = 'https://example.com/callback',
   vaultOrigin = 'https://example.com',
+  extraParams: Record<string, string> = {},
 ) {
   const keyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
     'sign',
@@ -65,6 +66,9 @@ async function createSignedDelegationUrl(
   unsignedUrl.searchParams.set(SDK.PARAM_SESSION_KEY, sessionKeyPrincipal)
   unsignedUrl.searchParams.set(SDK.PARAM_STATE, state)
   unsignedUrl.searchParams.set(SDK.PARAM_TS, String(requestTs))
+  for (const [key, value] of Object.entries(extraParams)) {
+    unsignedUrl.searchParams.set(key, value)
+  }
   const payload = new TextEncoder().encode(unsignedUrl.toString())
   const proof = new Uint8Array(
     await crypto.subtle.sign(
@@ -123,6 +127,30 @@ describe('delegation request protocol', () => {
     const request = SDK.parseDelegationRequest(url)
     const now = Date.now() + 25 * 60 * 60 * 1000
     await expect(SDK.verifyDelegationRequestProof(request!, 'https://example.com', now)).rejects.toThrow('expired')
+  })
+
+  cryptoTest('reads the requesting space name', async () => {
+    const {url} = await createSignedDelegationUrl(
+      'https://example.com',
+      'https://example.com/callback',
+      'https://example.com',
+      {
+        [SDK.PARAM_SPACE_NAME]: 'Ethosfera',
+      },
+    )
+    expect(SDK.parseDelegationRequest(url)?.spaceName).toBe('Ethosfera')
+  })
+
+  cryptoTest('still reads the pre-rename site_name parameter', async () => {
+    const {url} = await createSignedDelegationUrl(
+      'https://example.com',
+      'https://example.com/callback',
+      'https://example.com',
+      {
+        [SDK.PARAM_SITE_NAME]: 'Ethosfera',
+      },
+    )
+    expect(SDK.parseDelegationRequest(url)?.spaceName).toBe('Ethosfera')
   })
 
   cryptoTest('rejects request when proof is not the final query parameter', async () => {

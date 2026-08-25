@@ -6,7 +6,7 @@ import {StoreContext, createStore} from '@/frontend/store'
 import {createMockBlockstore, createMockClient} from '@/frontend/test-utils'
 import {DelegateView} from './DelegateView'
 
-function renderDelegateView({siteName, accountNames}: {siteName?: string; accountNames: string[]}) {
+function renderDelegateView({spaceName, accountNames}: {spaceName?: string; accountNames: string[]}) {
   const store = createStore(createMockClient(), createMockBlockstore())
 
   const accounts = accountNames.map((name, index) => {
@@ -28,7 +28,7 @@ function renderDelegateView({siteName, accountNames}: {siteName?: string; accoun
     requestTs: Date.now(),
     proof: 'cA',
     vaultOrigin: 'https://vault.example.com',
-    ...(siteName ? {siteName} : {}),
+    ...(spaceName ? {spaceName} : {}),
   }
 
   render(
@@ -66,14 +66,14 @@ describe('DelegateView', () => {
     expect(screen.getByRole('button', {name: 'Continue as Bea'})).toBeDefined()
   })
 
-  test('uses the requested site name in the description and keeps the origin visible', () => {
-    renderDelegateView({siteName: 'Ethosfera', accountNames: ['Bea']})
+  test('uses the requested space name in the description and keeps the origin visible', () => {
+    renderDelegateView({spaceName: 'Ethosfera', accountNames: ['Bea']})
 
     expect(screen.getByText('Ethosfera')).toBeDefined()
     expect(screen.getByText('site.example.com')).toBeDefined()
   })
 
-  test('falls back to the client hostname when no site name is provided', () => {
+  test('falls back to the client hostname when no space name is provided', () => {
     renderDelegateView({accountNames: ['Bea']})
 
     expect(screen.getByText('site.example.com')).toBeDefined()

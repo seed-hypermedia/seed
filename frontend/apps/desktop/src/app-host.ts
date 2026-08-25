@@ -19,6 +19,7 @@ const PendingDomainSchema = z
   .object({
     id: z.string(),
     hostname: z.string(),
+    // Persisted in the desktop app store; kept as `siteUid` so existing state still parses.
     siteUid: z.string(),
     status: z.enum(['waiting-dns', 'initializing', 'error']),
   })

@@ -56,6 +56,7 @@ export type NotificationMutationAction =
     }
   | {
       type: 'mark-site-read'
+      /** Wire field name; kept as `siteUid` for notify-service compatibility. */
       siteUid: string
     }
   | {
@@ -160,7 +161,7 @@ export function reduceNotificationState(
   }
 
   if (action.type === 'mark-site-read') {
-    // Site-scoped mark-all is resolved on the notify service using the full inbox.
+    // Space-scoped mark-all is resolved on the notify service using the full inbox.
     return state
   }
 

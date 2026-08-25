@@ -15,11 +15,11 @@ vi.mock('@/wrapping', () => ({
 }))
 
 vi.mock('@/loaders', () => ({
-  loadSiteHeaderData: vi.fn(),
+  loadSpaceHeaderData: vi.fn(),
 }))
 
 vi.mock('@/providers', () => ({
-  WebSiteProvider: ({children}: PropsWithChildren) => <>{children}</>,
+  WebSpaceProvider: ({children}: PropsWithChildren) => <>{children}</>,
   NavigationLoadingContent: ({children, className}: PropsWithChildren<{className?: string}>) => (
     <div data-navigation-loading-content={className}>{children}</div>
   ),
@@ -30,8 +30,8 @@ vi.mock('@/page-footer', () => ({
   PageFooter: ({className}: {className?: string}) => <div data-page-footer-class={className} />,
 }))
 
-vi.mock('@/web-site-header', () => ({
-  WebSiteHeader: () => <div data-web-site-header="true" />,
+vi.mock('@/web-space-header', () => ({
+  WebSpaceHeader: () => <div data-web-space-header="true" />,
 }))
 
 vi.mock('@/client-lazy', () => ({
@@ -47,8 +47,8 @@ import NotificationsRoute from '../routes/hm.notifications'
 describe('NotificationsRoute', () => {
   beforeEach(() => {
     mocks.useLoaderDataMock.mockReturnValue({
-      originHomeId: {uid: 'site-1'},
-      siteHost: 'seed.example.com',
+      originHomeId: {uid: 'space-1'},
+      spaceHost: 'seed.example.com',
       origin: 'https://seed.example.com',
       homeMetadata: null,
       dehydratedState: null,

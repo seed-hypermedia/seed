@@ -7,8 +7,8 @@ type LWW[T any] struct {
 }
 
 // Set the value if it's newer.
-func (lww *LWW[T]) Set(site string, clock int64, v T) {
-	id := ID{Origin: site, Clock: int(clock)}
+func (lww *LWW[T]) Set(space string, clock int64, v T) {
+	id := ID{Origin: space, Clock: int(clock)}
 	if lww.ID.Less(id) {
 		lww.ID = id
 		lww.Value = v

@@ -21,7 +21,7 @@ export const budgets = {
     },
     landing: {
         mobile: {
-            lcp: 3000, // 3s - slightly more lenient as it's a static site
+            lcp: 3000, // 3s - slightly more lenient as it's a static space
             inp: 500, // 500ms
             cls: 0.25, // 0.25
             ttfb: 800, // 800ms

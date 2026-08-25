@@ -376,7 +376,8 @@ export function registerDocumentCommands(program: Command) {
     .option('--display-publish-time <value>', 'Display publish time (YYYY-MM-DD)')
     .option('--icon <value>', 'Document icon (ipfs:// or file:// URL)')
     .option('--cover <value>', 'Cover image (ipfs:// or file:// URL)')
-    .option('--site-url <value>', 'Site URL')
+    .option('--site-url <value>', 'Space URL (metadata key: siteUrl)')
+    .option('--space-url <value>', 'Alias of --site-url')
     .option('--layout <value>', 'Document layout (e.g. "Seed/Experimental/Newspaper")')
     .option('--show-outline', 'Show document outline')
     .option('--no-show-outline', 'Hide document outline')
@@ -549,7 +550,8 @@ export function registerDocumentCommands(program: Command) {
     .option('--display-publish-time <value>', 'Display publish time (YYYY-MM-DD)')
     .option('--icon <value>', 'Document icon (ipfs:// or file:// URL)')
     .option('--cover <value>', 'Cover image (ipfs:// or file:// URL)')
-    .option('--site-url <value>', 'Site URL')
+    .option('--site-url <value>', 'Space URL (metadata key: siteUrl)')
+    .option('--space-url <value>', 'Alias of --site-url')
     .option('--layout <value>', 'Document layout')
     .option('--show-outline', 'Show document outline')
     .option('--no-show-outline', 'Hide document outline')
@@ -1063,6 +1065,11 @@ function extractCliMetadata(options: Record<string, unknown>): HMMetadata {
     if (options[key] !== undefined) {
       ;(meta as any)[key] = options[key]
     }
+  }
+  // `--space-url` is the current spelling; `--site-url` is kept for compatibility
+  // and both write the `siteUrl` metadata key.
+  if (options.spaceUrl !== undefined) {
+    meta.siteUrl = options.spaceUrl as string
   }
   return meta
 }

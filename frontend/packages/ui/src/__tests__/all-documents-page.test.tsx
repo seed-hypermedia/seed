@@ -39,7 +39,7 @@ afterEach(() => {
 })
 
 function makeDoc(path: string[], name: string): HMDocumentInfo {
-  const id = hmId('site', {path})
+  const id = hmId('space', {path})
   return {
     type: 'document',
     id,
@@ -73,7 +73,7 @@ describe('AllDocumentsPage', () => {
     })
 
     act(() => {
-      root.render(<AllDocumentsPage siteId={hmId('site')} onNavigateToDocument={onNavigateToDocument} />)
+      root.render(<AllDocumentsPage spaceId={hmId('space')} onNavigateToDocument={onNavigateToDocument} />)
     })
 
     expect(container.textContent).toContain('Doc Title')
@@ -100,7 +100,7 @@ describe('AllDocumentsPage', () => {
     })
 
     act(() => {
-      root.render(<AllDocumentsPage siteId={hmId('site')} onNavigateToDocument={onNavigateToDocument} />)
+      root.render(<AllDocumentsPage spaceId={hmId('space')} onNavigateToDocument={onNavigateToDocument} />)
     })
 
     const titleButton = Array.from(container.querySelectorAll('button')).find(

@@ -36,7 +36,7 @@ export const Providers = (props: {children: any}) => {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <WebSiteProvider>{props.children}</WebSiteProvider>
+        <WebSpaceProvider>{props.children}</WebSpaceProvider>
       </QueryClientProvider>
     </ThemeProvider>
   )
@@ -99,10 +99,10 @@ export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
   return url
 }
 
-export function WebSiteProvider(props: {
+export function WebSpaceProvider(props: {
   originHomeId?: UnpackedHypermediaId // empty in the notify web app
   children: React.ReactNode
-  siteHost?: string
+  spaceHost?: string
   origin?: string
   prefersLanguages?: (keyof typeof languagePacks)[]
 }) {

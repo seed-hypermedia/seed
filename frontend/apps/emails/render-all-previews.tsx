@@ -78,7 +78,7 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
     name: 'welcome',
     result: await createWelcomeEmail({
       recipientName: 'First Name',
-      siteName: '<sitename>',
+      spaceName: '<spacename>',
       siteUrl: 'https://seedteamtalks.hyper.media',
     }),
   },

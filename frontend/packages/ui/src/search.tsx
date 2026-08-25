@@ -31,18 +31,18 @@ import {cn} from './utils'
 const SEARCH_DEBOUNCE_MS = 250
 
 // Runs two parallel keyword searches and merges them:
-// - Primary: scoped to the current site with iriFilter.
+// - Primary: scoped to the current space with iriFilter.
 // - Secondary: global TITLE-only search, client-filtered to account-home
 //   entries (no path) so foreign contributor profiles surface without
-//   polluting results with unrelated docs from other sites.
+//   polluting results with unrelated docs from other spaces.
 // Keyword-only because the web server runs the embedder on CPU and HYBRID
 // costs 5-8s; keyword is ~20ms per leg and the two run in parallel.
-function useSiteSearch(searchValue: string, siteHomeId: UnpackedHypermediaId | null) {
+function useSpaceSearch(searchValue: string, spaceHomeId: UnpackedHypermediaId | null) {
   const query = searchValue.trim()
   const enabled = !!query
   const primary = useSearch(query, {
     enabled,
-    iriFilter: siteHomeId?.uid ? `hm://${siteHomeId.uid}*` : undefined,
+    iriFilter: spaceHomeId?.uid ? `hm://${spaceHomeId.uid}*` : undefined,
     includeBody: true,
     contextSize: Math.max(8, 48 - query.length),
     searchType: SearchType.SEARCH_KEYWORD,
@@ -74,7 +74,7 @@ function useSiteSearch(searchValue: string, siteHomeId: UnpackedHypermediaId | n
   }
 }
 
-function toSearchResults(entities: ReturnType<typeof useSiteSearch>['entities']): SearchResult[] {
+function toSearchResults(entities: ReturnType<typeof useSpaceSearch>['entities']): SearchResult[] {
   return entities.map((item) => {
     const title = item.title || item.id.uid
     return {
@@ -123,11 +123,11 @@ function SearchStatusMessage({
 }
 
 export function MobileSearch({
-  siteHomeId,
+  spaceHomeId,
   onSelect,
   onSearchActiveChange,
 }: {
-  siteHomeId: UnpackedHypermediaId | null
+  spaceHomeId: UnpackedHypermediaId | null
   onSelect: () => void
   onSearchActiveChange?: (isActive: boolean) => void
 }) {
@@ -136,7 +136,7 @@ export function MobileSearch({
   const debouncedSearchValue = useDebounce(trimmedSearchValue, SEARCH_DEBOUNCE_MS)
   const isSearchActive = trimmedSearchValue.length > 0
   const isDebouncing = isSearchActive && debouncedSearchValue !== trimmedSearchValue
-  const searchResults = useSiteSearch(debouncedSearchValue, siteHomeId)
+  const searchResults = useSpaceSearch(debouncedSearchValue, spaceHomeId)
   const isLoading = isDebouncing || searchResults.isFetching
   const resultEntities = isDebouncing ? [] : searchResults.entities
   const searchItems: SearchResult[] = toSearchResults(resultEntities)
@@ -174,7 +174,7 @@ export function MobileSearch({
                           ...item,
                         }}
                         onSelect={onSelect}
-                        siteHomeId={siteHomeId}
+                        spaceHomeId={spaceHomeId}
                         selected={false}
                       />
                     </Fragment>
@@ -196,13 +196,13 @@ export function MobileSearch({
   )
 }
 
-export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | null}) {
+export function HeaderSearch({spaceHomeId}: {spaceHomeId: UnpackedHypermediaId | null}) {
   const popoverState = usePopoverState()
   const [searchValue, setSearchValue] = useState('')
   const trimmedSearchValue = searchValue.trim()
   const debouncedSearchValue = useDebounce(trimmedSearchValue, SEARCH_DEBOUNCE_MS)
   const isDebouncing = trimmedSearchValue.length > 0 && debouncedSearchValue !== trimmedSearchValue
-  const searchResults = useSiteSearch(debouncedSearchValue, siteHomeId)
+  const searchResults = useSpaceSearch(debouncedSearchValue, spaceHomeId)
   const isLoading = isDebouncing || searchResults.isFetching
   const resultEntities = isDebouncing ? [] : searchResults.entities
   const [focusedIndex, setFocusedIndex] = useState(0)
@@ -350,7 +350,7 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
                           >
                             <SearchResultItem
                               item={item}
-                              siteHomeId={siteHomeId}
+                              spaceHomeId={spaceHomeId}
                               selected={focusedIndex === index}
                               // onSelect={() => {
                               //   popoverState.onOpenChange(false)
@@ -381,14 +381,14 @@ export function HeaderSearch({siteHomeId}: {siteHomeId: UnpackedHypermediaId | n
 
 export function SearchResultItem({
   item,
-  siteHomeId,
+  spaceHomeId,
   selected = false,
   className,
   onSelect,
   ...props
 }: {
   item: SearchResult
-  siteHomeId?: UnpackedHypermediaId | null
+  spaceHomeId?: UnpackedHypermediaId | null
   selected: boolean
   className?: string
   onSelect?: () => void
@@ -497,12 +497,12 @@ export type SearchResultItem = {
 export function RecentSearchResultItem({
   item,
   selected,
-  siteHomeId,
+  spaceHomeId,
   ...props
 }: {
   item: SearchResultItem
   selected: boolean
-  siteHomeId?: UnpackedHypermediaId | null
+  spaceHomeId?: UnpackedHypermediaId | null
   onFocus?: (e: React.FocusEvent) => void
   onMouseEnter?: (e: React.MouseEvent) => void
   onMouseDown?: (e: React.MouseEvent) => void
@@ -526,7 +526,7 @@ export function RecentSearchResultItem({
         ...item,
       }}
       selected={selected}
-      siteHomeId={siteHomeId}
+      spaceHomeId={spaceHomeId}
     />
   )
 }

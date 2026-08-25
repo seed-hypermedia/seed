@@ -133,7 +133,7 @@ export function DocumentHeader({
           </>
         )}
         <div className="border-border flex flex-col gap-2 border-b pb-2 md:pb-4">
-          {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
+          {siteUrl ? <SpaceURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
             <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">
               {displayAuthors.length ? (
@@ -141,7 +141,7 @@ export function DocumentHeader({
                   <p className="text-sm font-bold">
                     {displayAuthors.flatMap((a, index) => {
                       return [
-                        <AuthorLink id={a.id} key={a.id.id} siteUid={docId?.uid} />,
+                        <AuthorLink id={a.id} key={a.id.id} spaceUid={docId?.uid} />,
                         index !== displayAuthors.length - 1 ? (
                           index === displayAuthors.length - 2 ? (
                             <SizableText key={`${a.id.id}-and`} size="xs" weight="bold">
@@ -175,7 +175,7 @@ export function DocumentHeader({
                     ))}
                   </div>
                   <p className="min-w-0 truncate text-xs font-medium">
-                    <AuthorLink id={displayAuthors[0]!.id} siteUid={docId?.uid} />
+                    <AuthorLink id={displayAuthors[0]!.id} spaceUid={docId?.uid} />
                     {displayAuthors.length > 1 ? ` & ${displayAuthors.length - 1} others` : null}
                   </p>
                 </>
@@ -197,11 +197,11 @@ export function DocumentHeader({
 }
 
 /** Renders a clickable author name with a spinner while the account is loading. */
-function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string}) {
+function AuthorLink({id, spaceUid}: {id: UnpackedHypermediaId; spaceUid?: string}) {
   const currentRoute = useNavRoute()
   const account = useAccount(id.uid, {subscribe: true})
   const resolvedName = account.data?.metadata?.name
-  const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, siteUid))
+  const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, id, spaceUid))
   return (
     <a
       {...linkProps}
@@ -359,12 +359,12 @@ function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
   return renderText('min-w-0 truncate overflow-hidden text-xs whitespace-nowrap', crumb.metadata.name)
 }
 
-function SiteURLButton({siteUrl, onSiteUrlClick}: {siteUrl: string; onSiteUrlClick?: (url: string) => void}) {
+function SpaceURLButton({siteUrl, onSpaceUrlClick}: {siteUrl: string; onSpaceUrlClick?: (url: string) => void}) {
   return (
     <SizableText
       size="sm"
       className="no-underline underline-offset-4 hover:underline"
-      onClick={() => onSiteUrlClick?.(siteUrl)}
+      onClick={() => onSpaceUrlClick?.(siteUrl)}
     >
       {siteUrl}
     </SizableText>

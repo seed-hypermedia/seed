@@ -23,7 +23,7 @@ function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
 }
 
 /**
- * Consent screen for delegating authority to a third-party site.
+ * Consent screen for delegating authority to a third-party space.
  * Shows the requesting origin, allows account selection, and lets the user
  * authorize or deny the delegation request.
  */
@@ -100,7 +100,7 @@ export function DelegateView() {
   const hasValidSelection = selectedAccountIndex >= 0 && selectedAccountIndex < accounts.length
 
   const clientHostname = new URL(delegationRequest.clientId).host
-  const siteDisplayName = delegationRequest.siteName || clientHostname
+  const spaceDisplayName = delegationRequest.spaceName || clientHostname
 
   const selectedAccount = hasValidSelection ? accounts[selectedAccountIndex] : undefined
   const selectedPrincipal = selectedAccount
@@ -115,10 +115,10 @@ export function DelegateView() {
       <CardHeader>
         <CardTitle className="text-left text-xl">Confirm your account</CardTitle>
         <CardDescription className="text-left">
-          Join <span className="text-foreground font-medium">{siteDisplayName}</span> to comment, reply, and
+          Join <span className="text-foreground font-medium">{spaceDisplayName}</span> to comment, reply, and
           participate.
-          {/* The site name is claimed by the requesting site, so keep the real origin visible. */}
-          {delegationRequest.siteName && (
+          {/* The space name is claimed by the requesting space, so keep the real origin visible. */}
+          {delegationRequest.spaceName && (
             <span className="text-muted-foreground my-3 block text-xs">{clientHostname}</span>
           )}
         </CardDescription>

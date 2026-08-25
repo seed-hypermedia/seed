@@ -5,9 +5,9 @@ vi.mock('@shm/shared', () => ({unpackHmId: vi.fn()}))
 vi.mock('@shm/shared/constants', () => ({NOTIFY_SERVICE_HOST: ''}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: vi.fn()}))
 vi.mock('@shm/ui/hm-host-banner', () => ({HypermediaHostBanner: vi.fn()}))
-vi.mock('@shm/ui/site-header', () => ({SiteHeader: vi.fn()}))
+vi.mock('@shm/ui/space-header', () => ({SpaceHeader: vi.fn()}))
 
-import {resolveNavigationItems} from '../web-site-header'
+import {resolveNavigationItems} from '../web-space-header'
 
 function makeNavItem(name: string): DocNavigationItem {
   return {

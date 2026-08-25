@@ -453,7 +453,7 @@ Manage notifications: ${input.unsubscribeUrl}`
 
 export type CreateWelcomeEmailInput = {
   recipientName?: string
-  siteName: string
+  spaceName: string
   siteUrl: string
 }
 
@@ -467,7 +467,7 @@ ${greeting}
 
 We're thrilled to have you as part of Seed Hypermedia. You can now participate, comment, follow authors, bookmark content and much more!
 
-Go to ${input.siteName}: ${input.siteUrl}`
+Go to ${input.spaceName}: ${input.siteUrl}`
 
   const {html} = await renderReactToMjml(
     <Mjml>
@@ -502,7 +502,7 @@ Go to ${input.siteName}: ${input.siteUrl}`
               align="center"
               padding="0 0 24px"
             >
-              Go to {input.siteName}
+              Go to {input.spaceName}
             </MjmlButton>
           </MjmlColumn>
         </MjmlSection>
@@ -647,7 +647,7 @@ export async function createNotificationsEmail(
     firstNotification.accountMeta,
   )
   const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${opts.adminToken}`
-  const batchSiteUrl = extractOrigin(firstNotification.notif.url)
+  const batchSpaceUrl = extractOrigin(firstNotification.notif.url)
 
   const text = `${baseNotifsSubject}
 
@@ -823,7 +823,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
           )
         })}
 
-        <EmailFooter siteUrl={batchSiteUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
+        <EmailFooter siteUrl={batchSpaceUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
         </MjmlWrapper>
       </MjmlBody>
     </Mjml>,
@@ -865,7 +865,7 @@ export async function createDesktopNotificationsEmail(
   const preview = sorted.length === 1 ? firstText : `${firstText} and ${sorted.length - 1} more`
 
   const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${opts.adminToken}`
-  const desktopSiteUrl = extractOrigin(first.notif.url)
+  const desktopSpaceUrl = extractOrigin(first.notif.url)
 
   const textLines = sorted
     .map((notification) => {
@@ -942,7 +942,7 @@ Manage notification emails: ${notifSettingsUrl}`
           )
         })}
 
-        <EmailFooter siteUrl={desktopSiteUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
+        <EmailFooter siteUrl={desktopSpaceUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
         </MjmlWrapper>
       </MjmlBody>
     </Mjml>,

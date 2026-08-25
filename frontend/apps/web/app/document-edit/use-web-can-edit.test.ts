@@ -6,7 +6,7 @@ import {resolveWebCanEdit} from './use-web-can-edit'
 const OWNER_UID = 'z6OWNER'
 const ALICE_UID = 'z6ALICE'
 const BOB_UID = 'z6BOB'
-const SITE_UID = 'z6SITE'
+const SPACE_UID = 'z6SITE'
 
 function makeDocId(uid: string, path: string[] = []): UnpackedHypermediaId {
   return {
@@ -136,12 +136,12 @@ describe('resolveWebCanEdit', () => {
     expect(result.capability).toBe(null)
   })
 
-  it('gateway deployment can edit off-site doc when authorized', () => {
+  it('gateway deployment can edit off-space doc when authorized', () => {
     const result = resolveWebCanEdit({
       docId: makeDocId(OWNER_UID),
       delegatedAccountUid: ALICE_UID,
       origin: 'https://hyper.media',
-      originHomeId: makeDocId(SITE_UID),
+      originHomeId: makeDocId(SPACE_UID),
       capabilities: [ownerCap(OWNER_UID), writerCap(ALICE_UID)],
       isBrowser: true,
       isGateway: true,
@@ -152,34 +152,34 @@ describe('resolveWebCanEdit', () => {
 
   it('owner on custom-domain (own home) can edit', () => {
     const result = resolveWebCanEdit({
-      docId: makeDocId(SITE_UID),
-      delegatedAccountUid: SITE_UID,
+      docId: makeDocId(SPACE_UID),
+      delegatedAccountUid: SPACE_UID,
       origin: 'https://my-site.example',
-      originHomeId: makeDocId(SITE_UID),
-      capabilities: [ownerCap(SITE_UID)],
+      originHomeId: makeDocId(SPACE_UID),
+      capabilities: [ownerCap(SPACE_UID)],
       isBrowser: true,
     })
     expect(result.canEdit).toBe(true)
   })
 
-  it('writer-cap on custom-domain site doc can edit', () => {
+  it('writer-cap on custom-domain space doc can edit', () => {
     const result = resolveWebCanEdit({
-      docId: makeDocId(SITE_UID),
+      docId: makeDocId(SPACE_UID),
       delegatedAccountUid: ALICE_UID,
       origin: 'https://my-site.example',
-      originHomeId: makeDocId(SITE_UID),
-      capabilities: [ownerCap(SITE_UID), writerCap(ALICE_UID)],
+      originHomeId: makeDocId(SPACE_UID),
+      capabilities: [ownerCap(SPACE_UID), writerCap(ALICE_UID)],
       isBrowser: true,
     })
     expect(result.canEdit).toBe(true)
   })
 
-  it('off-site doc on custom-domain blocked even with capability', () => {
+  it('off-space doc on custom-domain blocked even with capability', () => {
     const result = resolveWebCanEdit({
       docId: makeDocId(OWNER_UID),
       delegatedAccountUid: ALICE_UID,
       origin: 'https://my-site.example',
-      originHomeId: makeDocId(SITE_UID),
+      originHomeId: makeDocId(SPACE_UID),
       capabilities: [ownerCap(OWNER_UID), writerCap(ALICE_UID)],
       isBrowser: true,
     })

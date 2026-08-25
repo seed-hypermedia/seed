@@ -52,7 +52,7 @@ import {
   useIsLatest,
   useResource,
   useResources,
-  useSiteMembers,
+  useSpaceMembers,
 } from '@shm/shared/models/entity'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
@@ -128,7 +128,7 @@ import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {MergedBadge} from './merged-badge'
-import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
+import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSpaceHeaderItem} from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {OptionsPanel} from './options-panel'
@@ -136,8 +136,8 @@ import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
 import {PrivateBadge} from './private-badge'
-import {SiteFileBrowserLayout} from './site-file-browser-layout'
-import {SiteHeader} from './site-header'
+import {SpaceFileBrowserLayout} from './space-file-browser-layout'
+import {SpaceHeader} from './space-header'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {UnreferencedDocuments} from './unreferenced-documents'
@@ -397,7 +397,7 @@ export type ActiveView =
   | 'comments'
   | 'directory'
   | 'collaborators'
-  | 'site-profile'
+  | 'space-profile'
   | 'all-documents'
   | 'explore'
   | 'metadata'
@@ -680,8 +680,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'all-documents'
     case 'explore':
       return 'explore'
-    case 'site-profile':
-      return 'site-profile'
+    case 'space-profile':
+      return 'space-profile'
     case 'metadata':
       return 'metadata'
     default:
@@ -742,11 +742,11 @@ export interface ResourcePageProps {
   floatingButtons?: ReactNode
   /** Inline child draft cards rendered after document content */
   inlineCards?: ReactNode
-  /** Platform-specific actions rendered in the site header right side */
+  /** Platform-specific actions rendered in the space header right side */
   rightActions?: ReactNode
-  /** Callback to open edit profile dialog for site profile pages (only shown for own account) */
+  /** Callback to open edit profile dialog for space profile pages (only shown for own account) */
   onEditProfile?: () => void
-  /** Additional header buttons for site profile pages (e.g., logout) - only shown for own account */
+  /** Additional header buttons for space profile pages (e.g., logout) - only shown for own account */
   profileHeaderButtons?: ReactNode
   /** Override follow button click on profile pages (web: saves intent + opens signup for unauthenticated users) */
   onFollowClick?: () => void
@@ -780,7 +780,7 @@ export interface ResourcePageProps {
   perspectiveAccountUid?: string | null
   /** Options passed to the link extension. */
   linkExtensionOptions?: LinkExtensionOptions
-  /** Optional site-header edit-nav pane rendered inside DocumentMachineProvider. */
+  /** Optional space-header edit-nav pane rendered inside DocumentMachineProvider. */
   editNavPane?: ReactNode
   /** Optional platform adapter for user-defined metadata autocomplete. */
   attributeAutocomplete?: AttributeAutocomplete
@@ -850,7 +850,7 @@ export function ResourcePage({
 }: ResourcePageProps) {
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
-  const isSiteProfile = route.key === 'site-profile'
+  const isSpaceProfile = route.key === 'space-profile'
   const media = useMedia()
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
@@ -896,18 +896,18 @@ export function ResourcePage({
     lastLoadedDocumentRef.current = resource.data.document
   }
 
-  // docId.uid determines the site header — for site-profile, docId IS the site context
-  const siteHomeId = hmId(docId.uid, {latest: true})
-  const siteHomeResource = useResource(siteHomeId, {subscribed: true})
+  // docId.uid determines the space header — for space-profile, docId IS the space context
+  const spaceHomeId = hmId(docId.uid, {latest: true})
+  const spaceHomeResource = useResource(spaceHomeId, {subscribed: true})
   const latestDocumentResource = useResource(resourceFetchId ? latestId(resourceFetchId) : null, {subscribed: true})
   const latestDocumentVersion =
     latestDocumentResource.data?.type === 'document' ? latestDocumentResource.data.document.version : null
   const isLatest = useIsLatest(resourceFetchId, resource)
 
-  const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : null
+  const spaceHomeDocument = spaceHomeResource.data?.type === 'document' ? spaceHomeResource.data.document : null
 
   // Compute header data
-  const headerData = computeHeaderData(siteHomeDocument)
+  const headerData = computeHeaderData(spaceHomeDocument)
 
   // Comment handling: when resource is a comment, resolve and load its target document.
   // Hooks must be called unconditionally, so we always call useResource for the target
@@ -919,7 +919,7 @@ export function ResourcePage({
     recursive: true,
   })
 
-  // Transient (non-fatal) resource state surfaced as a banner under the site header
+  // Transient (non-fatal) resource state surfaced as a banner under the space header
   // while the document keeps rendering. Only meaningful after the doc has loaded at
   // least once; before that, the regular loading/error branches still take over.
   const transientResourceError: TransientResourceError = (() => {
@@ -935,25 +935,25 @@ export function ResourcePage({
     return null
   })()
 
-  // Site profile view: subscribe to and discover the profile account, then render profile content
-  if (isSiteProfile) {
-    const accountUid = route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid
-    const tab = route.key === 'site-profile' ? route.tab : 'profile'
+  // Space profile view: subscribe to and discover the profile account, then render profile content
+  if (isSpaceProfile) {
+    const accountUid = route.key === 'space-profile' ? route.accountUid || docId.uid : docId.uid
+    const tab = route.key === 'space-profile' ? route.tab : 'profile'
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={siteHomeId}
+        spaceHomeId={spaceHomeId}
+        docId={spaceHomeId}
         headerData={headerData}
-        document={siteHomeDocument || undefined}
+        document={spaceHomeDocument || undefined}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
       >
         <DocumentTopBar
-          breadcrumbs={[{id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
+          breadcrumbs={[{id: spaceHomeId, metadata: spaceHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
           isMobile={media.xs && !IS_DESKTOP}
         />
-        <SiteProfileContent
-          siteUid={docId.uid}
+        <SpaceProfileContent
+          spaceUid={docId.uid}
           accountUid={accountUid}
           tab={tab}
           onEditProfile={onEditProfile}
@@ -968,7 +968,7 @@ export function ResourcePage({
   if (resourceFetchId === null && existingDraft === undefined && !reservedDraftId) {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -998,7 +998,7 @@ export function ResourcePage({
   if (resource.isInitialLoading && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -1016,7 +1016,7 @@ export function ResourcePage({
   if (resource.isDiscovering && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -1032,7 +1032,7 @@ export function ResourcePage({
   if ((!resource.data || resource.data.type === 'not-found') && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -1049,7 +1049,7 @@ export function ResourcePage({
     const isCommentRoute = route.key === 'comments'
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -1065,7 +1065,7 @@ export function ResourcePage({
   if (resource.data?.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -1082,7 +1082,7 @@ export function ResourcePage({
   if (!hasUnpublishedDraft && resource.data?.type === 'error' && !hasEverLoadedRef.current) {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -1097,12 +1097,12 @@ export function ResourcePage({
   }
 
   // Handle comment — show the target document's discussions view with this comment open.
-  // Uses the same PageWrapper as all other branches so the site header stays mounted.
+  // Uses the same PageWrapper as all other branches so the space header stays mounted.
   if (comment) {
     if (!targetDocId || targetResource.data?.type === 'not-found') {
       return (
         <PageWrapper
-          siteHomeId={siteHomeId}
+          spaceHomeId={spaceHomeId}
           docId={docId}
           headerData={headerData}
           rightActions={rightActions}
@@ -1116,7 +1116,7 @@ export function ResourcePage({
     if (targetResource.isInitialLoading) {
       return (
         <PageWrapper
-          siteHomeId={siteHomeId}
+          spaceHomeId={spaceHomeId}
           docId={docId}
           headerData={headerData}
           rightActions={rightActions}
@@ -1132,7 +1132,7 @@ export function ResourcePage({
     if (targetResource.data?.type !== 'document') {
       return (
         <PageWrapper
-          siteHomeId={siteHomeId}
+          spaceHomeId={spaceHomeId}
           docId={docId}
           headerData={headerData}
           rightActions={rightActions}
@@ -1147,7 +1147,7 @@ export function ResourcePage({
     return (
       <DocumentMachineProvider input={{documentId: targetDocId, canEdit: false}} inspect={inspect}>
         <PageWrapper
-          siteHomeId={siteHomeId}
+          spaceHomeId={spaceHomeId}
           docId={targetDocId}
           headerData={headerData}
           document={targetDocument}
@@ -1163,7 +1163,7 @@ export function ResourcePage({
             openComment={comment.id}
             existingDraft={false}
             CommentEditor={CommentEditor}
-            siteUrl={siteHomeDocument?.metadata?.siteUrl}
+            siteUrl={spaceHomeDocument?.metadata?.siteUrl}
             pageFooter={pageFooter}
             DocumentContentComponent={DocumentContentComponent}
             ssrContentHTML={ssrContentHTML}
@@ -1202,7 +1202,7 @@ export function ResourcePage({
   } else {
     return (
       <PageWrapper
-        siteHomeId={siteHomeId}
+        spaceHomeId={spaceHomeId}
         docId={docId}
         headerData={headerData}
         rightActions={rightActions}
@@ -1227,7 +1227,7 @@ export function ResourcePage({
 
   return (
     <PageWrapper
-      siteHomeId={siteHomeId}
+      spaceHomeId={spaceHomeId}
       docId={renderedDocId}
       headerData={headerData}
       document={document}
@@ -1275,7 +1275,7 @@ export function ResourcePage({
             activeView={getActiveView(route.key)}
             isLatest={isLatest}
             latestVersion={latestDocumentVersion}
-            siteUrl={siteHomeDocument?.metadata?.siteUrl}
+            siteUrl={spaceHomeDocument?.metadata?.siteUrl}
             CommentEditor={CommentEditor}
             optionsMenuItems={optionsMenuItems}
             extraMenuItems={extraMenuItems}
@@ -1317,20 +1317,20 @@ export function ResourcePage({
   )
 }
 
-// Header data computed from site home document
+// Header data computed from space home document
 export interface HeaderData {
   items: DocNavigationItem[]
   homeNavigationItems: DocNavigationItem[]
   directoryItems: DocNavigationItem[]
   isCenterLayout: boolean
-  siteHomeDocument: HMDocument | null
+  spaceHomeDocument: HMDocument | null
 }
 
-export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderData {
+export function computeHeaderData(spaceHomeDocument: HMDocument | null): HeaderData {
   // Top navigation is manual-only for now. If the home document has no
   // explicit `navigation` detached block, the header stays empty rather than
   // inferring items from the document hierarchy.
-  const navigationBlockNode = siteHomeDocument?.detachedBlocks?.navigation
+  const navigationBlockNode = spaceHomeDocument?.detachedBlocks?.navigation
   const homeNavigationItems: DocNavigationItem[] = navigationBlockNode
     ? navigationBlockNode.children
         ?.map((child) => {
@@ -1346,19 +1346,19 @@ export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderDa
             webUrl: id ? undefined : linkBlock.link,
           } as DocNavigationItem
         })
-        .filter((item): item is DocNavigationItem => item !== null && isValidSiteHeaderItem(item)) ?? []
+        .filter((item): item is DocNavigationItem => item !== null && isValidSpaceHeaderItem(item)) ?? []
     : []
 
   const isCenterLayout =
-    siteHomeDocument?.metadata?.theme?.headerLayout === 'Center' ||
-    siteHomeDocument?.metadata?.layout === 'Seed/Experimental/Newspaper'
+    spaceHomeDocument?.metadata?.theme?.headerLayout === 'Center' ||
+    spaceHomeDocument?.metadata?.layout === 'Seed/Experimental/Newspaper'
 
   return {
     items: homeNavigationItems,
     homeNavigationItems,
     directoryItems: [],
     isCenterLayout,
-    siteHomeDocument,
+    spaceHomeDocument,
   }
 }
 
@@ -1377,7 +1377,7 @@ function getLiveHeaderNavigationItems(
         isPublished: true,
       } satisfies DocNavigationItem
     })
-    .filter(isValidSiteHeaderItem)
+    .filter(isValidSpaceHeaderItem)
 }
 
 function DocumentNavigationItemsBridge({
@@ -1399,9 +1399,9 @@ function DocumentNavigationItemsBridge({
   return null
 }
 
-/** Props for the persistent site page shell. */
+/** Props for the persistent space page shell. */
 export interface PageShellProps {
-  siteHomeId: UnpackedHypermediaId
+  spaceHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
   headerData: HeaderData
   document?: HMDocument
@@ -1418,9 +1418,9 @@ export interface PageShellProps {
   onPrefetchDocument?: (id: UnpackedHypermediaId) => void
 }
 
-/** Persistent site chrome for the header and file browser around route content. */
+/** Persistent space chrome for the header and file browser around route content. */
 export function PageShell({
-  siteHomeId,
+  spaceHomeId,
   docId,
   headerData,
   document,
@@ -1444,7 +1444,7 @@ export function PageShell({
 
   return (
     <div
-      // The SSR fallback for the measured --site-header-live-h. The values
+      // The SSR fallback for the measured --space-header-live-h. The values
       // live in a stylesheet (web app styles.css) rather than an inline
       // style because the header height is responsive; only the pre-hydration
       // web paint ever reads them.
@@ -1456,15 +1456,15 @@ export function PageShell({
         isMobile ? 'min-h-dvh' : 'h-dvh',
       )}
     >
-      <SiteHeader
-        siteHomeId={siteHomeId}
+      <SpaceHeader
+        spaceHomeId={spaceHomeId}
         docId={docId}
         items={itemsForHeader}
         homeNavigationItems={headerData.homeNavigationItems}
         directoryItems={headerData.directoryItems}
         isCenterLayout={headerData.isCenterLayout}
         document={document}
-        siteHomeDocument={headerData.siteHomeDocument}
+        spaceHomeDocument={headerData.spaceHomeDocument}
         isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
@@ -1473,10 +1473,10 @@ export function PageShell({
         onOpenFileBrowser={() => setIsFileBrowserOpen(true)}
       />
       <TransientResourceBanner error={transientResourceError ?? null} />
-      <SiteFileBrowserLayout
-        siteId={hmId(siteHomeId.uid)}
+      <SpaceFileBrowserLayout
+        spaceId={hmId(spaceHomeId.uid)}
         activeDocumentId={docId}
-        siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Site documents'}
+        spaceName={getMetadataName(headerData.spaceHomeDocument?.metadata) || 'Space documents'}
         mobileOpen={isFileBrowserOpen}
         onMobileOpenChange={setIsFileBrowserOpen}
         onPrefetch={onPrefetchDocument}
@@ -1486,14 +1486,14 @@ export function PageShell({
         }}
       >
         {children}
-      </SiteFileBrowserLayout>
+      </SpaceFileBrowserLayout>
     </div>
   )
 }
 
-/** Wrapper that renders the persistent site header, file browser, and page content. */
+/** Wrapper that renders the persistent space header, file browser, and page content. */
 export function PageWrapper({
-  siteHomeId,
+  spaceHomeId,
   docId,
   headerData,
   document,
@@ -1506,7 +1506,7 @@ export function PageWrapper({
   liveNavigationItems,
   onPrefetchDocument,
 }: {
-  siteHomeId: UnpackedHypermediaId
+  spaceHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
   headerData: HeaderData
   document?: HMDocument
@@ -1524,7 +1524,7 @@ export function PageWrapper({
 }) {
   // Live-preview the in-flight nav while the user edits the home doc, so
   // additions/reorders/deletions in the EditNavPopover show immediately in
-  // the visible site header. Mirrors the legacy draft route at
+  // the visible space header. Mirrors the legacy draft route at
   // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
   // outside DocumentMachineProvider (loading/error/discovery branches), in
   // which case we fall back to the published headerData.items.
@@ -1535,7 +1535,7 @@ export function PageWrapper({
 
   return (
     <PageShell
-      siteHomeId={siteHomeId}
+      spaceHomeId={spaceHomeId}
       docId={docId}
       headerData={headerData}
       document={document}
@@ -1916,10 +1916,10 @@ function DocumentBody({
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const versionHeadCount = getVersionHeads(document.version).length
-  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
+  const spaceId = useMemo(() => hmId(docId.uid), [docId.uid])
   // Skip the queries for anonymous pending drafts.
   const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
-  const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
+  const spaceMembers = useSpaceMembers(isLocalOnlyDoc ? null : spaceId)
   const directory = useDirectory(isLocalOnlyDoc ? null : docId)
   const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
   const collaborators = useDocumentCollaborators(isLocalOnlyDoc ? null : docId)
@@ -2144,8 +2144,8 @@ function DocumentBody({
   // Block tools handlers
   const blockCitations = useMemo(() => interactionSummary.data?.blocks || null, [interactionSummary.data?.blocks])
   const copyHmLink = useCopyHmLink()
-  // Current origin for gateway-format links (web: site's own URL; desktop: the
-  // configured gateway). Used as a fallback when the document has no site URL.
+  // Current origin for gateway-format links (web: space's own URL; desktop: the
+  // configured gateway). Used as a fallback when the document has no space URL.
   const {origin: appOrigin, originHomeId, experiments, openRouteNewWindow, openUrl} = useUniversalAppContext()
   const [showCitationFragments, setShowCitationFragments] = useState(true)
   const [citationFragmentClick, setCitationFragmentClick] = useState<CitationFragmentClick | null>(null)
@@ -2290,7 +2290,7 @@ function DocumentBody({
           },
           // Fall back to the app origin for gateway-format URLs so copied
           // links on web point back to this deployment (instead of the
-          // default `hyper.media` gateway) when no site URL is set.
+          // default `hyper.media` gateway) when no space URL is set.
           gatewayUrl: appOrigin ?? undefined,
         })
       }
@@ -2407,7 +2407,7 @@ function DocumentBody({
       'options',
       'metadata',
       'copy-link',
-      'link-site',
+      'link-space',
       'link',
       'move',
       'duplicate',
@@ -2481,7 +2481,7 @@ function DocumentBody({
       className={cn(
         'flex flex-col',
         pageFooter &&
-          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
+          'min-h-[calc(100dvh-var(--space-header-live-h,var(--space-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
         !pageFooter && 'min-h-full',
       )}
     >
@@ -2500,10 +2500,10 @@ function DocumentBody({
           <div {...mainContentProps} className={cn(mainContentProps.className, 'flex flex-col')}>
             {isHomeDoc &&
               activeView !== 'all-documents' &&
-              !siteMembers.isInitialLoading &&
-              siteMembers.members.length > 0 && (
+              !spaceMembers.isInitialLoading &&
+              spaceMembers.members.length > 0 && (
                 <div className="pt-4">
-                  <MembersFacepile members={siteMembers.members} siteId={siteId} />
+                  <MembersFacepile members={spaceMembers.members} spaceId={spaceId} />
                 </div>
               )}
             {!isHomeDoc &&
@@ -2534,10 +2534,10 @@ function DocumentBody({
         <div className={cn('mx-auto flex w-full flex-col px-4')} style={{maxWidth: contentMaxWidth}}>
           {isHomeDoc &&
             activeView !== 'all-documents' &&
-            !siteMembers.isInitialLoading &&
-            siteMembers.members.length > 0 && (
+            !spaceMembers.isInitialLoading &&
+            spaceMembers.members.length > 0 && (
               <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
+                <MembersFacepile members={spaceMembers.members} spaceId={spaceId} />
               </div>
             )}
           {!isHomeDoc &&
@@ -2576,7 +2576,7 @@ function DocumentBody({
                 ? 'citations'
                 : activeView === 'activity' ||
                     activeView === 'directory' ||
-                    activeView === 'site-profile' ||
+                    activeView === 'space-profile' ||
                     activeView === 'all-documents' ||
                     activeView === 'explore'
                   ? undefined
@@ -2600,7 +2600,7 @@ function DocumentBody({
             }
             activeTabAction={
               activeView !== 'content' &&
-              activeView !== 'site-profile' &&
+              activeView !== 'space-profile' &&
               activeView !== 'all-documents' &&
               activeView !== 'explore' ? (
                 <OpenInPanelButton
@@ -2611,7 +2611,7 @@ function DocumentBody({
                       : {
                           key: activeView as Exclude<
                             ActiveView,
-                            'content' | 'site-profile' | 'all-documents' | 'explore'
+                            'content' | 'space-profile' | 'all-documents' | 'explore'
                           >,
                           id: docId,
                         }
@@ -3236,7 +3236,7 @@ function MainContent({
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
   const route = useNavRoute()
-  const allDocumentsSiteId = !IS_DESKTOP && originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
+  const allDocumentsSpaceId = !IS_DESKTOP && originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
   const rawExploreQuery = route.key === 'explore' ? route.q || '' : ''
   const legacyExploreSort =
     route.key === 'explore' && route.sort && !/\bsort:/.test(rawExploreQuery) ? `sort:${route.sort}` : ''
@@ -3244,7 +3244,7 @@ function MainContent({
   const parsedExploreQuery = useMemo(() => parseExploreQuery(exploreQuery), [exploreQuery])
   const explore = useExploreResults(
     parsedExploreQuery,
-    {type: 'site', id: allDocumentsSiteId},
+    {type: 'space', id: allDocumentsSpaceId},
     {
       enabled: activeView === 'explore',
     },
@@ -3254,8 +3254,8 @@ function MainContent({
     case 'all-documents':
       return (
         <AllDocumentsPage
-          siteId={allDocumentsSiteId}
-          scopeId={allDocumentsSiteId}
+          spaceId={allDocumentsSpaceId}
+          scopeId={allDocumentsSpaceId}
           onNavigateToDocument={(id, opts) => {
             const route = {key: 'document' as const, id}
             if (opts?.newWindow) {
@@ -3275,7 +3275,7 @@ function MainContent({
     case 'explore':
       return (
         <ExplorePage
-          contextLabel={`Site: ${allDocumentsSiteId.uid}`}
+          contextLabel={`Space: ${allDocumentsSpaceId.uid}`}
           query={exploreQuery}
           parsed={parsedExploreQuery}
           results={explore.results}
@@ -3289,9 +3289,9 @@ function MainContent({
           onLoadMore={explore.loadMore}
           isLoading={explore.isLoading}
           error={explore.error instanceof Error ? explore.error.message : null}
-          onQueryChange={(q) => replaceRoute({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q})}
-          accountUid={allDocumentsSiteId.uid}
-          context={{type: 'site', id: allDocumentsSiteId}}
+          onQueryChange={(q) => replaceRoute({key: 'explore', context: {type: 'space', id: allDocumentsSpaceId}, q})}
+          accountUid={allDocumentsSpaceId.uid}
+          context={{type: 'space', id: allDocumentsSpaceId}}
           onOpenResult={(result) => {
             if (result.type === 'comment') {
               navigate({key: 'comments', id: result.documentId, openComment: result.commentId})
@@ -3631,15 +3631,15 @@ function DocumentContentHandoff({
 }
 
 /**
- * Handles discovery subscription and loading states for a profile viewed within a site context.
+ * Handles discovery subscription and loading states for a profile viewed within a space context.
  * Subscribes to the profile account so it gets discovered from the network, then shows
  * appropriate loading/discovery indicators before rendering the AccountPage.
  */
 /** Profile discovery can take much longer than normal entity discovery (sync, etc). */
 const PROFILE_DISCOVERY_TIMEOUT_MS = 5 * 60 * 1000
 
-function SiteProfileContent({
-  siteUid,
+function SpaceProfileContent({
+  spaceUid,
   accountUid,
   tab,
   onEditProfile,
@@ -3647,7 +3647,7 @@ function SiteProfileContent({
   onFollowClick,
   pageFooter,
 }: {
-  siteUid: string
+  spaceUid: string
   accountUid: string
   tab: ProfileTab
   onEditProfile?: () => void
@@ -3690,7 +3690,7 @@ function SiteProfileContent({
     return (
       <>
         <AccountPage
-          siteUid={siteUid}
+          spaceUid={spaceUid}
           accountUid={accountUid}
           tab={tab}
           onEditProfile={onEditProfile}

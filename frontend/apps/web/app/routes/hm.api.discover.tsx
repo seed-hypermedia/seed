@@ -1,11 +1,11 @@
 import {discoverDocument, discoverMedia} from '@/utils/discovery'
 import {ActionFunction, json} from '@remix-run/node'
-import {siteDiscoverRequestSchema} from '@seed-hypermedia/client/hm-types'
+import {spaceDiscoverRequestSchema} from '@seed-hypermedia/client/hm-types'
 
 export const action: ActionFunction = async ({request}) => {
   try {
     const data = await request.json()
-    const input = siteDiscoverRequestSchema.parse(data)
+    const input = spaceDiscoverRequestSchema.parse(data)
     await discoverDocument(input.uid, input.path, input.version)
     if (data.media) {
       await discoverMedia(input.uid, input.path, input.version)

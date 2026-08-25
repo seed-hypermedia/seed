@@ -1,6 +1,6 @@
 import {HMDocument, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
-import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
+import {hmId, useJoinSpace, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {CommentsProvider, InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
@@ -68,7 +68,7 @@ import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
 import {WebQuerySearchInput} from './web-query-search-input'
 import {WebDocumentPrefetch} from './web-document-prefetch'
-import {WebHeaderActions, WebSitePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
+import {WebHeaderActions, WebSpacePageShell, useWebCreateDocumentMenuItem, useWebMenuItems} from './web-utils'
 
 /** Lazy-loaded inline comment editor — avoids pulling the full editor bundle eagerly. */
 const LazyWebInlineEditor = lazy(() => import('./commenting').then((mod) => ({default: mod.WebInlineEditBox})))
@@ -115,7 +115,7 @@ export interface WebResourcePageProps {
 
 /**
  * Web-specific wrapper for ResourcePage that handles:
- * - HypermediaHostBanner (shown when viewing content from a different site)
+ * - HypermediaHostBanner (shown when viewing content from a different space)
  * - Account button with login/create account flow
  */
 // Client-only wrapper: DocumentEditor uses BlockNoteView which requires
@@ -188,7 +188,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
             id: {...currentId, version: null},
           } as any)
         }
-      } else if (currentRoute.key === 'site-profile') {
+      } else if (currentRoute.key === 'space-profile') {
         const currentId = (currentRoute as any).id as UnpackedHypermediaId | undefined
         if (currentId?.version) {
           replaceRouteRef.current({
@@ -323,11 +323,11 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     cleanupOldWebDocDrafts().catch((err) => console.warn('cleanupOldWebDocDrafts failed', err))
   }, [])
 
-  // Determine if viewing own profile on site-profile page
-  const isSiteProfile = route.key === 'site-profile'
-  const profileAccountUid = isSiteProfile ? route.accountUid || docId.uid : null
+  // Determine if viewing own profile on space-profile page
+  const isSpaceProfile = route.key === 'space-profile'
+  const profileAccountUid = isSpaceProfile ? route.accountUid || docId.uid : null
   const ownAccountUid = userKeyPair?.delegatedAccountUid ?? userKeyPair?.id
-  const isOwnProfile = isSiteProfile && !!userKeyPair && profileAccountUid === ownAccountUid
+  const isOwnProfile = isSpaceProfile && !!userKeyPair && profileAccountUid === ownAccountUid
   const isDelegated = !!userKeyPair?.delegatedAccountUid
 
   // Profile edit callback - only for non-delegated own profile
@@ -348,7 +348,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         <LogoutButton />
         {hasExistingSpace ? null : (
           <Button variant="default" onClick={openCreateSpaceDialog}>
-            Create my site
+            Create my space
           </Button>
         )}
       </>
@@ -364,12 +364,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   const onFollowClick = useMemo(() => {
     if (userKeyPair) return undefined
-    if (!isSiteProfile || !profileAccountUid) return undefined
+    if (!isSpaceProfile || !profileAccountUid) return undefined
     return async () => {
       await setPendingIntent({type: 'follow', profileUid: profileAccountUid})
       openFollowAccountDialog()
     }
-  }, [userKeyPair, isSiteProfile, profileAccountUid, openFollowAccountDialog])
+  }, [userKeyPair, isSpaceProfile, profileAccountUid, openFollowAccountDialog])
 
   // Preload the comment editor chunk on first hover over any Comments-related element
   const preloaded = useRef(false)
@@ -459,7 +459,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         )
       : undefined
 
-  const siteUid = docId.uid
+  const spaceUid = docId.uid
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
   const canCreateChildDocs = canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
@@ -554,9 +554,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
 
   // Inline subscribe box for non-members
-  const {isJoined} = useJoinSite({siteUid})
-  const siteResource = useResource(docId.path?.length ? undefined : docId)
-  const siteMetadata = siteResource.data?.type === 'document' ? siteResource.data.document?.metadata : undefined
+  const {isJoined} = useJoinSpace({spaceUid})
+  const spaceResource = useResource(docId.path?.length ? undefined : docId)
+  const spaceMetadata = spaceResource.data?.type === 'document' ? spaceResource.data.document?.metadata : undefined
   // Only offer to subscribe on a published doc — not while previewing an
   // unpublished draft (placeholder route), where subscription can't work yet.
   const showSubscribeBox = (!userKeyPair || !isJoined) && !placeholderDraftId
@@ -564,12 +564,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     if (!showSubscribeBox || !NOTIFY_SERVICE_HOST) return undefined
     return (
       <InlineSubscribeBox
-        accountId={siteUid}
+        accountId={spaceUid}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
-        accountMeta={siteMetadata ?? undefined}
+        accountMeta={spaceMetadata ?? undefined}
       />
     )
-  }, [showSubscribeBox, siteUid, siteMetadata])
+  }, [showSubscribeBox, spaceUid, spaceMetadata])
 
   const {onReplyClick, onReplyCountClick} = useCommentNavigation({
     docId,
@@ -617,7 +617,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const canCreateInlineDraft = !useLocalDraftShell && canCreateChildDocs
 
   return (
-    <WebSitePageShell siteUid={docId.uid}>
+    <WebSpacePageShell spaceUid={docId.uid}>
       <CommentsProvider
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
@@ -655,7 +655,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           onEditProfile={onEditProfile}
                           profileHeaderButtons={profileHeaderButtons}
                           onFollowClick={onFollowClick}
-                          rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                          rightActions={<WebHeaderActions spaceUid={docId.uid} />}
                           optionsMenuItems={optionsMenuItems}
                           inlineInsert={inlineInsert}
                           DocumentContentComponent={DocumentContentComponent}
@@ -696,15 +696,15 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       {deleteDialog.content}
       {destinationDialog.content}
       {vaultSuccessContent}
-    </WebSitePageShell>
+    </WebSpacePageShell>
   )
 }
 
 /** Web-specific wrapper for the dedicated inspector page. */
 export function WebInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
   return (
-    <WebSitePageShell siteUid={docId.uid}>
+    <WebSpacePageShell spaceUid={docId.uid}>
       <InspectorPage docId={docId} pageFooter={<PageFooter id={docId} />} />
-    </WebSitePageShell>
+    </WebSpacePageShell>
   )
 }

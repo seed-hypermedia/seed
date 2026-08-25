@@ -1,4 +1,4 @@
-export const defaultSiteIcon = '/favicon.png'
+export const defaultSpaceIcon = '/favicon.png'
 
 export function defaultPageMeta(title: string) {
   return () => [
@@ -6,7 +6,7 @@ export function defaultPageMeta(title: string) {
     {
       tagName: 'link',
       rel: 'icon',
-      href: defaultSiteIcon,
+      href: defaultSpaceIcon,
       type: 'image/png',
     },
   ]

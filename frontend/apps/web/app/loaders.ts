@@ -50,7 +50,7 @@ import {createPrefetchContext, dehydratePrefetchContext, PrefetchContext} from '
 import {ParsedRequest} from './request'
 import {createResourceRedirectUrl, RedirectRouteContext} from './resource-redirect'
 import {serverUniversalClient} from './server-universal-client'
-import {getConfig} from './site-config.server'
+import {getConfig} from './space-config.server'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
@@ -144,11 +144,11 @@ export type WebResourcePayload = {
   // if the resource is a comment, this is the target document. Otherwise, it is the doc identified by the resource ID
   document: HMDocument
 
-  siteHost: string | undefined
+  spaceHost: string | undefined
   isLatest: boolean
 
   // Icon from the document's home (for favicon in SSR)
-  siteHomeIcon?: string | null
+  spaceHomeIcon?: string | null
 
   // Dehydrated React Query state for SSR hydration
   dehydratedState?: DehydratedState
@@ -207,7 +207,7 @@ export function getOriginRequestData(parsedRequest: ParsedRequest) {
 
   return {
     enableWebSigning,
-    siteHost: parsedRequest.origin,
+    spaceHost: parsedRequest.origin,
     origin: parsedRequest.origin,
   }
 }
@@ -333,7 +333,7 @@ async function prefetchResourceData(
   // (500 per page), and each ListCitations materialises the target's whole
   // citation fan-out before applying its LIMIT — 0.3-2.5s of daemon CPU per
   // call, measured against the production database. Thirty of those per page
-  // view took hyper.media and every hosted site down on 2026-08-11: ~1.9
+  // view took hyper.media and every hosted space down on 2026-08-11: ~1.9
   // req/s was enough to pin all 8 cores, with ListCitations at 87% of CPU.
   //
   // Crawlers never run JS, so serving them these counts was pure waste. The
@@ -469,7 +469,7 @@ async function loadResourcePayload(
         // The mounted editor's content width: contentWidth setting minus the
         // px-4 content padding. Media with absolute px widths size against it.
         editorWidth: getContentWidthValue(document.metadata?.contentWidth) - 32,
-        // The same context values WebSiteProvider passes on the client, so
+        // The same context values WebSpaceProvider passes on the client, so
         // block components produce identical URLs server-side.
         appContext: {
           origin,
@@ -495,7 +495,7 @@ async function loadResourcePayload(
     isLatest: !latestDocument || latestDocument.version === document.version,
     // For comments, return the comment's own ID so the client route uses it
     id: commentId || finalId,
-    siteHomeIcon: homeDocument?.metadata?.icon || null,
+    spaceHomeIcon: homeDocument?.metadata?.icon || null,
     dehydratedState,
     ssrContentHTML,
     ...getOriginRequestData(parsedRequest),
@@ -550,7 +550,7 @@ export async function loadResource(
     // The chain does not end at a live document — fall through to the plain-redirect handling.
   }
   if (resource.type === 'redirect') {
-    // The destination URL is built in loadSiteResource, which has the route
+    // The destination URL is built in loadSpaceResource, which has the route
     // context (view term, open comment, panel) that must survive the redirect.
     throw new HMRedirectError(
       new RedirectErrorDetails({
@@ -648,7 +648,7 @@ export async function loadResourceWithDiscovery(
   }
 }
 
-export type SiteDocumentPayload = WebResourcePayload & {
+export type SpaceDocumentPayload = WebResourcePayload & {
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
@@ -673,7 +673,7 @@ export async function loadWebDraftPlaceholderResource<T extends Record<string, u
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
   extraData?: T & {instrumentationCtx?: InstrumentationContext},
-): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
+): Promise<WrappedResponse<SpaceDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
   const noopCtx = {
@@ -712,11 +712,11 @@ export async function loadWebDraftPlaceholderResource<T extends Record<string, u
     genesis: '',
   } as unknown as HMDocument
 
-  const loadedSiteDocument = {
+  const loadedSpaceDocument = {
     ...(extraData || {}),
     id,
     document,
-    siteHost: origin,
+    spaceHost: origin,
     isLatest: false,
     ssrContentHTML: null,
     homeMetadata,
@@ -724,11 +724,11 @@ export async function loadWebDraftPlaceholderResource<T extends Record<string, u
     originHomeId,
     metadataId: id,
   }
-  const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
+  const {instrumentationCtx: _, ...cleanDocument} = loadedSpaceDocument as any
   return wrapJSON(cleanDocument)
 }
 
-export async function loadSiteResource<T extends Record<string, unknown> = Record<string, never>>(
+export async function loadSpaceResource<T extends Record<string, unknown> = Record<string, never>>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
   extraData?: T & {
@@ -738,7 +738,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     openComment?: string | null
     commentVersion?: string | null
   },
-): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
+): Promise<WrappedResponse<SpaceDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
   // Profile pages render/load the account root document, but the public
@@ -837,7 +837,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       }
     }
 
-    const loadedSiteDocument = {
+    const loadedSpaceDocument = {
       ...(extraData || {}),
       ...resourceContent,
       ...(comment ? {comment} : {}),
@@ -848,7 +848,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       metadataId,
     }
     // Remove instrumentationCtx from the response
-    const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
+    const {instrumentationCtx: _, ...cleanDocument} = loadedSpaceDocument as any
     const metadata = createResourceMetadata({
       id: comment ? commentIdToHmId(comment.id) : metadataId,
       document: resourceContent.document,
@@ -894,7 +894,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       })
       return redirect(destRedirectUrl)
     }
-    console.error('Error Loading Site Document', id, e)
+    console.error('Error Loading Space Document', id, e)
 
     let daemonError: GRPCError | undefined = undefined
     if (e instanceof ConnectError) {
@@ -925,23 +925,23 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
 }
 
 /**
- * Site header payload for utility pages (profile, connect, etc.)
+ * Space header payload for utility pages (profile, connect, etc.)
  * These pages need the home document and directory for navigation but don't
  * have their own document content.
  */
-export type SiteHeaderPayload = {
+export type SpaceHeaderPayload = {
   originHomeId: UnpackedHypermediaId | undefined
   homeMetadata: HMMetadata | null
   origin: string
-  siteHost: string
+  spaceHost: string
   dehydratedState?: DehydratedState
 }
 
 /**
- * Load site header data for utility pages.
+ * Load space header data for utility pages.
  * Prefetches home document and directory for navigation rendering via React Query hydration.
  */
-export async function loadSiteHeaderData(parsedRequest: ParsedRequest): Promise<SiteHeaderPayload> {
+export async function loadSpaceHeaderData(parsedRequest: ParsedRequest): Promise<SpaceHeaderPayload> {
   const {hostname, origin} = parsedRequest
   const config = await getConfig(hostname)
 
@@ -950,7 +950,7 @@ export async function loadSiteHeaderData(parsedRequest: ParsedRequest): Promise<
       originHomeId: undefined,
       homeMetadata: null,
       origin,
-      siteHost: origin,
+      spaceHost: origin,
     }
   }
 
@@ -976,23 +976,23 @@ export async function loadSiteHeaderData(parsedRequest: ParsedRequest): Promise<
       originHomeId: homeId,
       homeMetadata: homeDocument?.metadata || null,
       origin,
-      siteHost: origin,
+      spaceHost: origin,
       dehydratedState: dehydratePrefetchContext(prefetchCtx),
     }
   } catch (e) {
-    console.error('Error loading site header data', e)
+    console.error('Error loading space header data', e)
     // Return minimal data on error
     const metadataResult = await getMetadata(homeId)
     return {
       originHomeId: homeId,
       homeMetadata: metadataResult.metadata,
       origin,
-      siteHost: origin,
+      spaceHost: origin,
     }
   }
 }
 
-export type ProfilePagePayload = SiteHeaderPayload & {
+export type ProfilePagePayload = SpaceHeaderPayload & {
   profileId: UnpackedHypermediaId
   // For SSR meta tags
   profileName: string | null
@@ -1026,7 +1026,7 @@ export async function loadProfilePageData(
       originHomeId: undefined,
       homeMetadata: null,
       origin,
-      siteHost: origin,
+      spaceHost: origin,
       profileId,
       profileName,
       dehydratedState: dehydratePrefetchContext(prefetchCtx),
@@ -1051,7 +1051,7 @@ export async function loadProfilePageData(
       originHomeId: homeId,
       homeMetadata: homeDocument?.metadata || null,
       origin,
-      siteHost: origin,
+      spaceHost: origin,
       profileId,
       profileName,
       dehydratedState: dehydratePrefetchContext(prefetchCtx),
@@ -1063,7 +1063,7 @@ export async function loadProfilePageData(
       originHomeId: homeId,
       homeMetadata: metadataResult.metadata,
       origin,
-      siteHost: origin,
+      spaceHost: origin,
       profileId,
       profileName,
       dehydratedState: dehydratePrefetchContext(prefetchCtx),

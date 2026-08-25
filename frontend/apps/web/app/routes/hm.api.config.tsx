@@ -1,7 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
 import {getOrCreateServerSignerAccountUid} from '@/server-signing'
-import {getConfig} from '@/site-config.server'
+import {getConfig} from '@/space-config.server'
 import type {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
 import {NOTIFY_SERVICE_HOST, SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared/constants'

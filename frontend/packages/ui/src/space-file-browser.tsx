@@ -15,9 +15,9 @@ import {ScrollArea} from './components/scroll-area'
 import {Spinner} from './spinner'
 import {cn} from './utils'
 
-/** Props for the shared site document browser. */
-export interface SiteFileBrowserProps {
-  siteId: UnpackedHypermediaId
+/** Props for the shared space document browser. */
+export interface SpaceFileBrowserProps {
+  spaceId: UnpackedHypermediaId
   activeDocumentId: UnpackedHypermediaId | null
   onNavigate: (id: UnpackedHypermediaId) => void
   onPrefetch?: (id: UnpackedHypermediaId) => void
@@ -27,9 +27,9 @@ function titleOf(doc: HMDocumentInfo) {
   return getMetadataName(doc.metadata) || doc.path?.at(-1) || 'Untitled'
 }
 
-/** Renders the searchable, expandable document hierarchy for a site. */
-export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetch}: SiteFileBrowserProps) {
-  const directory = useDirectory(siteId, {mode: 'AllDescendants'})
+/** Renders the searchable, expandable document hierarchy for a space. */
+export function SpaceFileBrowser({spaceId, activeDocumentId, onNavigate, onPrefetch}: SpaceFileBrowserProps) {
+  const directory = useDirectory(spaceId, {mode: 'AllDescendants'})
   const [query, setQuery] = useState('')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
 
@@ -88,7 +88,7 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
               {query.trim() ? 'No documents found' : 'No documents to browse'}
             </p>
           ) : (
-            <div role={query.trim() ? 'list' : 'tree'} aria-label="Site documents">
+            <div role={query.trim() ? 'list' : 'tree'} aria-label="Space documents">
               {visibleDocuments.map((doc) => {
                 const row = rowById.get(doc.id.id)
                 const isFiltered = !!query.trim()

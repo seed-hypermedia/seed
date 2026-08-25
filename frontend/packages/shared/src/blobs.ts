@@ -1,6 +1,6 @@
 /**
  * Re-export of the blob signing/verification primitives, which now live in
- * `@seed-hypermedia/client` so third-party sites can consume them from a
+ * `@seed-hypermedia/client` so third-party spaces can consume them from a
  * published package.
  */
 

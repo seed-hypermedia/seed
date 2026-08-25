@@ -3,12 +3,12 @@ import {
   createInspectNavRouteFromRoute,
   hmId,
   routeToUrl,
-  useJoinSite,
+  useJoinSpace,
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {useIsSpaceOwner} from '@shm/shared/models/capabilities'
 import {useAccount} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
@@ -30,7 +30,7 @@ import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
+import {createEmailSubscribersMenuItem} from '@shm/ui/space-email-subscribers'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -64,9 +64,9 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
   const navigate = useNavigate()
   const {onCopyReference, onPushReference, origin, originHomeId, experiments} = useUniversalAppContext()
   const includeInspect = options?.includeInspect !== false
-  // Email subscribers is offered on the home document for the site owner,
+  // Email subscribers is offered on the home document for the space owner,
   // matching the desktop document options menu.
-  const {isSiteOwner} = useIsSiteOwner(docId.path?.length ? undefined : docId.uid)
+  const {isSpaceOwner} = useIsSpaceOwner(docId.path?.length ? undefined : docId.uid)
   const inspectRoute = useMemo(() => {
     if (!includeInspect) return null
     const wrappedRoute = createInspectNavRouteFromRoute(route)
@@ -118,7 +118,7 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
         icon: <LayoutList className="size-4" />,
         onClick: () => navigate({key: 'all-documents', id: allDocumentsId}),
       },
-      ...(isSiteOwner ? [createEmailSubscribersMenuItem({navigate})] : []),
+      ...(isSpaceOwner ? [createEmailSubscribersMenuItem({navigate})] : []),
       ...(inspectRoute
         ? [
             {
@@ -136,7 +136,7 @@ export function useWebMenuItems(docId: UnpackedHypermediaId, options?: {includeI
       allDocumentsId,
       docId,
       inspectRoute,
-      isSiteOwner,
+      isSpaceOwner,
       navigate,
       onCopyReference,
       onPushReference,
@@ -262,13 +262,13 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
 }
 
 /**
- * Site-header join button or avatar with notifications bell
+ * Space-header join button or avatar with notifications bell
  */
-export function WebHeaderActions({siteUid}: {siteUid: string}) {
+export function WebHeaderActions({spaceUid}: {spaceUid: string}) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
-  const {isJoined, joinSite} = useJoinSite({siteUid})
+  const {isJoined, joinSpace} = useJoinSpace({spaceUid})
   const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
   const {data: hasExistingSpace} = useHasExistingSpace(accountId)
@@ -297,7 +297,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
-  // Show the join button if not joined the site
+  // Show the join button if not joined the space
   if (!keyPair) {
     return (
       <>
@@ -310,7 +310,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     )
   }
 
-  const joinButton = !isJoined ? <JoinButton onClick={() => joinSite()} /> : null
+  const joinButton = !isJoined ? <JoinButton onClick={() => joinSpace()} /> : null
 
   // Show the avatar and bell when logged in.
   const avatarIcon = (
@@ -322,13 +322,13 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     />
   )
 
-  // When the account already has a site, the dropdown shows a link to it.
-  const mySiteUrl = account?.metadata?.siteUrl || null
-  const mySiteLabel = mySiteUrl
-    ? mySiteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
-    : account?.metadata?.name || 'My site'
-  const goToMySite = () => {
-    if (mySiteUrl) window.open(mySiteUrl, '_blank', 'noopener,noreferrer')
+  // When the account already has a space, the dropdown shows a link to it.
+  const mySpaceUrl = account?.metadata?.siteUrl || null
+  const mySpaceLabel = mySpaceUrl
+    ? mySpaceUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+    : account?.metadata?.name || 'My space'
+  const goToMySpace = () => {
+    if (mySpaceUrl) window.open(mySpaceUrl, '_blank', 'noopener,noreferrer')
     else if (accountId) navigate({key: 'document', id: hmId(accountId, {latest: true})})
   }
 
@@ -370,21 +370,21 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           }}
         >
           <Plus className="size-5" />
-          <span className="text-sm">Create my site</span>
+          <span className="text-sm">Create my space</span>
         </button>
       ) : (
         <>
-          <div className="text-muted-foreground px-4 pt-2 pb-1 text-xs">My site</div>
+          <div className="text-muted-foreground px-4 pt-2 pb-1 text-xs">My space</div>
           <button
             className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
             onClick={() => {
               setMobileMenuOpen(false)
-              goToMySite()
+              goToMySpace()
             }}
           >
             <Globe className="size-5" />
-            <span className="flex-1 truncate text-sm">{mySiteLabel}</span>
-            {mySiteUrl ? <ExternalLink className="text-muted-foreground size-4" /> : null}
+            <span className="flex-1 truncate text-sm">{mySpaceLabel}</span>
+            {mySpaceUrl ? <ExternalLink className="text-muted-foreground size-4" /> : null}
           </button>
         </>
       )}
@@ -465,15 +465,15 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                   className="text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
                 >
                   <Plus className="size-4 text-green-600 dark:text-green-500" />
-                  Create my site
+                  Create my space
                 </DropdownMenuItem>
               ) : (
                 <>
-                  <div className="text-muted-foreground px-2 pt-1 pb-0.5 text-xs">My site</div>
-                  <DropdownMenuItem onClick={goToMySite}>
+                  <div className="text-muted-foreground px-2 pt-1 pb-0.5 text-xs">My space</div>
+                  <DropdownMenuItem onClick={goToMySpace}>
                     <Globe className="size-4" />
-                    <span className="flex-1 truncate">{mySiteLabel}</span>
-                    {mySiteUrl ? <ExternalLink className="text-muted-foreground size-3.5" /> : null}
+                    <span className="flex-1 truncate">{mySpaceLabel}</span>
+                    {mySpaceUrl ? <ExternalLink className="text-muted-foreground size-3.5" /> : null}
                   </DropdownMenuItem>
                 </>
               )}
@@ -495,11 +495,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
 }
 
 /**
- * Shared shell for site-scoped web pages that need consistent top-level chrome.
+ * Shared shell for space-scoped web pages that need consistent top-level chrome.
  */
-export function WebSitePageShell({children, siteUid}: {children?: ReactNode; siteUid: string}) {
+export function WebSpacePageShell({children, spaceUid}: {children?: ReactNode; spaceUid: string}) {
   const {origin, originHomeId} = useUniversalAppContext()
-  const shouldShowHostBanner = origin && originHomeId && siteUid !== originHomeId.uid
+  const shouldShowHostBanner = origin && originHomeId && spaceUid !== originHomeId.uid
 
   return (
     <>
@@ -515,9 +515,9 @@ function NotifsButton() {
   const route = useNavRoute()
   const isActive = route.key === 'notifications'
   const {originHomeId} = useUniversalAppContext()
-  const siteUid = originHomeId?.uid
-  const inbox = useWebNotificationInbox(siteUid)
-  const readState = useWebNotificationReadState(siteUid)
+  const spaceUid = originHomeId?.uid
+  const inbox = useWebNotificationInbox(spaceUid)
+  const readState = useWebNotificationReadState(spaceUid)
 
   const unreadCount = useMemo(() => {
     const notifications = inbox.data?.notifications ?? []

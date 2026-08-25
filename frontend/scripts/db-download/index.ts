@@ -127,7 +127,7 @@ for (const { email, isUnsubscribed } of emails) {
         if (sub.notifyAllMentions) flags.push("allMentions");
         if (sub.notifyAllReplies) flags.push("replies");
         if (sub.notifyOwnedDocChange) flags.push("ownedDocChange");
-        if (sub.notifySiteDiscussions) flags.push("siteDiscussions");
+        if (sub.notifySiteDiscussions) flags.push("spaceDiscussions");
         if (sub.notifyAllComments) flags.push("allComments");
 
         const title = idTitles.get(sub.id) || "(unknown)";

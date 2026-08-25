@@ -53,15 +53,15 @@ export function startApiServer(): Promise<void> {
         res.end(JSON.stringify({error: 'Forbidden'}))
       }
 
-      const site = req.headers['sec-fetch-site']
+      const fetchSite = req.headers['sec-fetch-site']
 
       // Missing fetch metadata headers in a browser request means some weird browser — so we reject it.
-      if (req.headers.origin && !site) {
+      if (req.headers.origin && !fetchSite) {
         return forbid()
       }
 
       // If fetch metadata is present and we detect that it's cross-site — we reject it.
-      if (site && site !== 'same-origin' && site !== 'same-site' && site !== 'none') {
+      if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'same-site' && fetchSite !== 'none') {
         return forbid()
       }
 

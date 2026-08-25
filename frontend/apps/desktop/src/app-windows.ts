@@ -1,7 +1,7 @@
 import appError from '@/errors'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
-import {defaultRoute, type NavRoute} from '@shm/shared/routes'
+import {defaultRoute, migrateLegacyRoute, type NavRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
 import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen, shell} from 'electron'
 import path from 'node:path'
@@ -189,8 +189,9 @@ const LAST_SELECTED_IDENTITY_STORAGE_KEY = 'LastSelectedIdentity-v001'
 
 const initalizedWindows = new Set<string>()
 
-let windowsState =
-  (appStore.get(WINDOW_STATE_STORAGE_KEY) as Record<string, AppWindow>) || ({} as Record<string, AppWindow>)
+let windowsState = migratePersistedWindows(
+  (appStore.get(WINDOW_STATE_STORAGE_KEY) as Record<string, AppWindow>) || ({} as Record<string, AppWindow>),
+)
 let lastSelectedIdentity =
   typeof appStore.get(LAST_SELECTED_IDENTITY_STORAGE_KEY) === 'string'
     ? (appStore.get(LAST_SELECTED_IDENTITY_STORAGE_KEY) as string)
@@ -324,6 +325,16 @@ let isExpectingQuit = false
 app.addListener('before-quit', () => {
   isExpectingQuit = true
 })
+
+/** Upgrades routes saved by builds that predate the site→space rename. */
+function migratePersistedWindows(windows: Record<string, AppWindow>): Record<string, AppWindow> {
+  return Object.fromEntries(
+    Object.entries(windows).map(([id, win]) => [
+      id,
+      win?.routes ? {...win, routes: win.routes.map(migrateLegacyRoute)} : win,
+    ]),
+  )
+}
 
 function setWindowsState(newWindows: Record<string, AppWindow>) {
   windowsState = newWindows

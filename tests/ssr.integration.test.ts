@@ -137,7 +137,7 @@ describe("SSR API Integration", () => {
 
 describe("SSR Header and Navigation", () => {
   it(
-    "should server-render the header with site logo",
+    "should server-render the header with space logo",
     async () => {
       const response = await fetch(`${env.web.baseUrl}/`, {
         headers: {
@@ -174,7 +174,7 @@ describe("SSR Header and Navigation", () => {
 
       // The header should contain links (navigation items)
       const headerLinks = header.find("a");
-      // At minimum we should have the site logo link
+      // At minimum we should have the space logo link
       expect(headerLinks.length).toBeGreaterThan(0);
     },
     TEST_TIMEOUT,
@@ -223,7 +223,7 @@ describe("SSR Utility Pages Header", () => {
       });
       const html = await response.text();
 
-      // Page should load (even if it shows error due to missing site config)
+      // Page should load (even if it shows error due to missing space config)
       expect(response.status).toBeLessThan(500);
 
       // Should not have React SSR errors
@@ -244,7 +244,7 @@ describe("SSR Utility Pages Header", () => {
       });
       const html = await response.text();
 
-      // Page should load (even if it shows error due to missing site config)
+      // Page should load (even if it shows error due to missing space config)
       expect(response.status).toBeLessThan(500);
 
       // Should not have React SSR errors

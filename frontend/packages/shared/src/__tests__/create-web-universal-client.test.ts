@@ -18,7 +18,7 @@ describe('createWebUniversalClient publishDocument', () => {
     vi.clearAllMocks()
   })
 
-  it('creates brand-new site home metadata without PrepareDocumentChange', async () => {
+  it('creates brand-new space home metadata without PrepareDocumentChange', async () => {
     const mockedCreateGenesisChange = vi.mocked(createGenesisChange)
     const mockedCreateDocumentChange = vi.mocked(createDocumentChange)
     const mockedCreateVersionRef = vi.mocked(createVersionRef)
@@ -30,10 +30,10 @@ describe('createWebUniversalClient publishDocument', () => {
     })
     mockedCreateDocumentChange.mockResolvedValueOnce({
       bytes: new Uint8Array([2]),
-      cid: {toString: () => 'bafy-site-metadata'} as any,
+      cid: {toString: () => 'bafy-space-metadata'} as any,
     })
     mockedCreateVersionRef.mockResolvedValueOnce({
-      blobs: [{cid: 'bafy-site-ref', data: new Uint8Array([3])}],
+      blobs: [{cid: 'bafy-space-ref', data: new Uint8Array([3])}],
     })
 
     const request = vi.fn()
@@ -69,7 +69,7 @@ describe('createWebUniversalClient publishDocument', () => {
         space: 'test-uid',
         path: '',
         genesis: 'bafy-genesis',
-        version: 'bafy-site-metadata',
+        version: 'bafy-space-metadata',
       }),
       signer,
     )

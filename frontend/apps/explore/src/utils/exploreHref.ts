@@ -8,7 +8,7 @@ export function isProfileId(id: UnpackedHypermediaId): boolean {
 }
 
 /**
- * Maps a site view term (e.g. `/:comments`) to the Explore tab that represents
+ * Maps a space view term (e.g. `/:comments`) to the Explore tab that represents
  * it. View terms without a distinct Explore tab — the remaining profile family
  * (`:membership`, `:followers`, `:following`) and `:feed`/`:activity` — resolve
  * to the resource's default document view.

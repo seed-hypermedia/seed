@@ -35,7 +35,7 @@ func TestComputeAuthInfoUsesListKeyPairs(t *testing.T) {
 		},
 	}
 	index := &fakeAuthIndex{
-		siteURLs: map[string]string{
+		spaceURLs: map[string]string{
 			space.String(): "https://site.example",
 		},
 		addrInfos: map[string]peer.AddrInfo{
@@ -82,7 +82,7 @@ func TestComputeAuthInfoResolvesHostsWithoutKeys(t *testing.T) {
 	space := spaceKey.Principal()
 
 	index := &fakeAuthIndex{
-		siteURLs: map[string]string{
+		spaceURLs: map[string]string{
 			space.String(): "https://site.example",
 		},
 		addrInfos: map[string]peer.AddrInfo{
@@ -111,9 +111,9 @@ func TestComputeAuthInfoResolvesHostsWithoutKeys(t *testing.T) {
 	}
 }
 
-// TestComputeAuthInfoSkipsSelfAsHost: when we ARE the site server for a space,
+// TestComputeAuthInfoSkipsSelfAsHost: when we ARE the space server for a space,
 // we must not appear in our own peer set. Beyond being a no-op, counting
-// ourselves as the authority narrows the speculative sample away, so a site
+// ourselves as the authority narrows the speculative sample away, so a space
 // daemon would stop syncing its own space and never see anyone else's
 // contributions to it.
 func TestComputeAuthInfoSkipsSelfAsHost(t *testing.T) {
@@ -126,7 +126,7 @@ func TestComputeAuthInfoSkipsSelfAsHost(t *testing.T) {
 	self := peer.ID("me")
 	svc := &Service{
 		index: &fakeAuthIndex{
-			siteURLs:  map[string]string{space.String(): "https://site.example"},
+			spaceURLs: map[string]string{space.String(): "https://site.example"},
 			addrInfos: map[string]peer.AddrInfo{"https://site.example": {ID: self}},
 		},
 		host: &fakeSelfHost{id: self},
@@ -189,7 +189,7 @@ func (f *fakeAuthKeyStore) ListKeyPairs(context.Context) ([]core.NamedKeyPair, e
 
 type fakeAuthIndex struct {
 	getSpacesByAccountCalls int
-	siteURLs                map[string]string
+	spaceURLs               map[string]string
 	addrInfos               map[string]peer.AddrInfo
 	authorizedSpaces        map[string][]core.Principal
 }
@@ -214,14 +214,14 @@ func (f *fakeAuthIndex) GetAuthorizedSpacesForPeer(context.Context, peer.ID, []b
 	panic("unexpected GetAuthorizedSpacesForPeer call")
 }
 
-func (f *fakeAuthIndex) GetSiteURL(_ context.Context, space core.Principal) (string, error) {
-	return f.siteURLs[space.String()], nil
+func (f *fakeAuthIndex) GetSpaceURL(_ context.Context, space core.Principal) (string, error) {
+	return f.spaceURLs[space.String()], nil
 }
 
-func (f *fakeAuthIndex) ResolveSiteURL(_ context.Context, siteURL string) (peer.AddrInfo, error) {
-	addrInfo, ok := f.addrInfos[siteURL]
+func (f *fakeAuthIndex) ResolveSpaceURL(_ context.Context, spaceURL string) (peer.AddrInfo, error) {
+	addrInfo, ok := f.addrInfos[spaceURL]
 	if !ok {
-		return peer.AddrInfo{}, fmt.Errorf("missing site URL %q", siteURL)
+		return peer.AddrInfo{}, fmt.Errorf("missing space URL %q", spaceURL)
 	}
 	return addrInfo, nil
 }

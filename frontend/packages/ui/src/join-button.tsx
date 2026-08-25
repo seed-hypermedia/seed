@@ -7,8 +7,8 @@ export interface JoinButtonProps {
 
 /**
  * Shared Join button component used on both web and desktop.
- * - Web: triggers account creation or joins site
- * - Desktop: joins site and subscribes for P2P syncing
+ * - Web: triggers account creation or joins space
+ * - Desktop: joins space and subscribes for P2P syncing
  */
 export function JoinButton({onClick, disabled}: JoinButtonProps) {
   return (

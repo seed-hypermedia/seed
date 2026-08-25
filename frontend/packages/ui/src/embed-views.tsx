@@ -313,7 +313,7 @@ function HmLinkEmbed({
   )
 }
 
-/** Non-HM-link variant: shows site favicon or blue-globe fallback and link text. */
+/** Non-HM-link variant: shows space favicon or blue-globe fallback and link text. */
 function ExternalLinkEmbed({
   url,
   parentBlockId,
@@ -325,7 +325,7 @@ function ExternalLinkEmbed({
 }) {
   const domain = useMemo(() => safeUrlHostname(url), [url])
   const [faviconFailed, setFaviconFailed] = useState(false)
-  // Try the site's own favicon directly via <img> tag
+  // Try the space's own favicon directly via <img> tag
   const faviconSrc = domain ? `https://${domain}/favicon.ico` : null
   const linkText = domain || url
   const link = useRouteLink(url)

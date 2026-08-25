@@ -260,7 +260,7 @@ async function main() {
     tmpDirs.push(webDataDirB)
     mkdirSync(webDataDirB, {recursive: true})
     // The route loader requires a registeredAccountUid even on the gateway
-    // (the prod gateway registers its home site account). It MUST NOT be the
+    // (the prod gateway registers its home space account). It MUST NOT be the
     // fixture account: the web server subscribes the daemon to its registered
     // account (applyConfigSubscriptions, recursive), and a subscription would
     // legitimately bulk-sync the test doc from daemon A without discovery.

@@ -37,20 +37,20 @@ describe('isEmailUsableForAuthored', () => {
 
 describe('createAuthorKeyName', () => {
   it('creates deterministic keys for the same login', () => {
-    const keyA = createAuthorKeyName('siteA', 'theme reviewer')
-    const keyB = createAuthorKeyName('siteA', 'theme reviewer')
+    const keyA = createAuthorKeyName('spaceA', 'theme reviewer')
+    const keyB = createAuthorKeyName('spaceA', 'theme reviewer')
     expect(keyA).toBe(keyB)
   })
 
   it('creates distinct keys for different logins', () => {
-    const keyA = createAuthorKeyName('siteA', 'theme-reviewer')
-    const keyB = createAuthorKeyName('siteA', 'theme-buster')
+    const keyA = createAuthorKeyName('spaceA', 'theme-reviewer')
+    const keyB = createAuthorKeyName('spaceA', 'theme-buster')
     expect(keyA).not.toBe(keyB)
   })
 
   it('creates distinct keys for same login in different scopes', () => {
-    const keyA = createAuthorKeyName('siteA', 'theme-reviewer')
-    const keyB = createAuthorKeyName('siteB', 'theme-reviewer')
+    const keyA = createAuthorKeyName('spaceA', 'theme-reviewer')
+    const keyB = createAuthorKeyName('spaceB', 'theme-reviewer')
     expect(keyA).not.toBe(keyB)
   })
 })

@@ -57,58 +57,61 @@ describe('resolved markdown', () => {
     expect(c.request).toHaveBeenCalledWith('Account', 'alice')
   })
 
-  it('renders site-scoped :profile inline embeds with the referenced account display name', async () => {
+  it('renders space-scoped :profile inline embeds with the referenced account display name', async () => {
     const c = client({
       'Account:hm://alice': {type: 'account', id: {uid: 'alice'}, metadata: {name: 'Alice Example'}},
     })
     const markdown = await documentToResolvedMarkdown(
       doc('Root', [
-        paragraph('p1', 'hello ￼', [{type: 'Embed', starts: [6], ends: [7], link: 'hm://site/:profile/alice'}]),
+        paragraph('p1', 'hello ￼', [{type: 'Embed', starts: [6], ends: [7], link: 'hm://space/:profile/alice'}]),
       ]),
       {client: c},
     )
 
-    expect(markdown).toContain('hello [@Alice Example](hm://site/:profile/alice)')
+    expect(markdown).toContain('hello [@Alice Example](hm://space/:profile/alice)')
     expect(c.request).toHaveBeenCalledWith('Account', 'alice')
   })
 
   it('renders document inline embeds with document names', async () => {
     const c = client({
-      'Resource:hm://site/docs': {type: 'document', document: doc('Named Document', [])},
+      'Resource:hm://space/docs': {type: 'document', document: doc('Named Document', [])},
     })
     const markdown = await documentToResolvedMarkdown(
-      doc('Root', [paragraph('p1', 'see ￼', [{type: 'Embed', starts: [4], ends: [5], link: 'hm://site/docs'}])]),
+      doc('Root', [paragraph('p1', 'see ￼', [{type: 'Embed', starts: [4], ends: [5], link: 'hm://space/docs'}])]),
       {client: c},
     )
 
-    expect(markdown).toContain('see [Named Document](hm://site/docs)')
+    expect(markdown).toContain('see [Named Document](hm://space/docs)')
   })
 
   it('inlines block embeds as resolved markdown content', async () => {
     const c = client({
-      'Resource:hm://site/embedded': {
+      'Resource:hm://space/embedded': {
         type: 'document',
         document: doc('Embedded Doc', [paragraph('e1', 'embedded body')]),
       },
     })
-    const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://site/embedded')]), {client: c})
+    const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://space/embedded')]), {client: c})
 
-    expect(markdown).toContain('<!-- embed: hm://site/embedded; title: Embedded Doc -->')
+    expect(markdown).toContain('<!-- embed: hm://space/embedded; title: Embedded Doc -->')
     expect(markdown).toContain('embedded body')
-    expect(markdown).toContain('<!-- /embed: hm://site/embedded -->')
+    expect(markdown).toContain('<!-- /embed: hm://space/embedded -->')
     expect(markdown).not.toContain('> embedded body')
   })
 
   it('zooms block embeds to the referenced text range', async () => {
     const c = client({
-      'Resource:hm://site/embedded': {
+      'Resource:hm://space/embedded': {
         type: 'document',
         document: doc('Embedded Doc', [paragraph('target', 'hello selected world')]),
       },
     })
-    const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://site/embedded#target[6:14]')]), {
-      client: c,
-    })
+    const markdown = await documentToResolvedMarkdown(
+      doc('Root', [embed('emb1', 'hm://space/embedded#target[6:14]')]),
+      {
+        client: c,
+      },
+    )
 
     expect(markdown).toContain('block: target[6:14]')
     expect(markdown).toContain('selected')
@@ -136,13 +139,13 @@ describe('resolved markdown', () => {
 
   it('shows when an embed references a specific older version', async () => {
     const c = client({
-      'Resource:hm://site/embedded?v=old-version': {
+      'Resource:hm://space/embedded?v=old-version': {
         type: 'document',
         document: doc('Embedded Doc', [paragraph('e1', 'old body')], 'current-version'),
       },
     })
     const markdown = await documentToResolvedMarkdown(
-      doc('Root', [embed('emb1', 'hm://site/embedded?v=old-version')]),
+      doc('Root', [embed('emb1', 'hm://space/embedded?v=old-version')]),
       {
         client: c,
       },
@@ -154,50 +157,50 @@ describe('resolved markdown', () => {
 
   it('block embeds prefer root document content over account profile metadata', async () => {
     const c = client({
-      'Account:hm://site': {type: 'account', id: {uid: 'site'}, metadata: {name: 'Site Account'}},
-      'Resource:hm://site': {
+      'Account:hm://space': {type: 'account', id: {uid: 'space'}, metadata: {name: 'Space Account'}},
+      'Resource:hm://space': {
         type: 'document',
         document: doc('Home Document', [paragraph('home', 'home body')]),
       },
     })
-    const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://site')]), {client: c})
+    const markdown = await documentToResolvedMarkdown(doc('Root', [embed('emb1', 'hm://space')]), {client: c})
 
-    expect(markdown).toContain('<!-- embed: hm://site; title: Home Document -->')
+    expect(markdown).toContain('<!-- embed: hm://space; title: Home Document -->')
     expect(markdown).toContain('home body')
-    expect(c.request).not.toHaveBeenCalledWith('Account', 'site')
+    expect(c.request).not.toHaveBeenCalledWith('Account', 'space')
   })
 
   it('resolves query blocks in shared resolved markdown', async () => {
     const c = client({
-      'Query:{"includes":[{"space":"site","path":"/","mode":"Children"}],"sort":[{"term":"UpdateTime","reverse":true}],"limit":5}':
+      'Query:{"includes":[{"space":"space","path":"/","mode":"Children"}],"sort":[{"term":"UpdateTime","reverse":true}],"limit":5}':
         {
-          results: [{id: {id: 'hm://site/result', uid: 'site', path: ['result']}, metadata: {name: 'Query Result'}}],
+          results: [{id: {id: 'hm://space/result', uid: 'space', path: ['result']}, metadata: {name: 'Query Result'}}],
         },
     })
     const markdown = await documentToResolvedMarkdown(
-      doc('Root', [query('q1', {space: 'site', path: '/', mode: 'Children', limit: 5})]),
+      doc('Root', [query('q1', {space: 'space', path: '/', mode: 'Children', limit: 5})]),
       {client: c},
     )
 
     expect(c.request).toHaveBeenCalledWith('Query', {
-      includes: [{space: 'site', path: '/', mode: 'Children'}],
+      includes: [{space: 'space', path: '/', mode: 'Children'}],
       sort: [{term: 'UpdateTime', reverse: true}],
       limit: 5,
     })
-    expect(markdown).toContain('- [Query Result](hm://site/result)')
+    expect(markdown).toContain('- [Query Result](hm://space/result)')
   })
 
   it('resolves block embeds while rendering standalone block content', async () => {
     const c = client({
-      'Resource:hm://site/embedded': {
+      'Resource:hm://space/embedded': {
         type: 'document',
         document: doc('Embedded Doc', [paragraph('e1', 'standalone embedded body')]),
       },
     })
-    const markdown = await contentToResolvedMarkdown([embed('emb1', 'hm://site/embedded')], {client: c})
+    const markdown = await contentToResolvedMarkdown([embed('emb1', 'hm://space/embedded')], {client: c})
 
     expect(markdown).toContain('standalone embedded body')
-    expect(markdown).toContain('<!-- /embed: hm://site/embedded -->')
+    expect(markdown).toContain('<!-- /embed: hm://space/embedded -->')
     expect(markdown).not.toContain('> standalone embedded body')
   })
 

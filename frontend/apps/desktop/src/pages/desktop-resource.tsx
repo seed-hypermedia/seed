@@ -15,7 +15,7 @@ import {useFollowProfileIntent} from '@/components/desktop-intents'
 import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {JoinButton} from '@/components/join-button'
 import {ParentUpdateToast} from '@/components/parent-update-toast'
-import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
+import {usePublishSpace, useRemoveSpaceDialog} from '@/components/publish-space'
 import {SearchInput} from '@/components/search-input'
 import {domainResolver, grpcClient} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
@@ -56,8 +56,8 @@ import {CommentsProvider} from '@shm/shared/comments-service-provider'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import type {LinkExtensionOptions} from '@shm/shared/document-content-props'
 import {canCreateChildDocuments} from '@shm/shared/document-utils'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
-import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
+import {useIsSpaceOwner} from '@shm/shared/models/capabilities'
+import {createEmailSubscribersMenuItem} from '@shm/ui/space-email-subscribers'
 // import {hasQueryBlockTargetingSelf, hasSelfQueryBlockInEditorContent} from '@shm/shared/content'
 import {
   DiscardDraftInput,
@@ -218,7 +218,7 @@ export default function DesktopResourcePage() {
     'collaborators',
     'activity',
     'comments',
-    'site-profile',
+    'space-profile',
     'all-documents',
     'metadata',
   ]
@@ -316,8 +316,8 @@ export default function DesktopResourcePage() {
   const capability = useSelectedAccountCapability(capabilityId)
   const canEdit = roleCanWrite(capability?.role)
   const myAccountIds = useMyAccountIds()
-  // Email subscribers is offered on the home document for the site owner.
-  const {isSiteOwner} = useIsSiteOwner(docId.path?.length ? undefined : docId.uid)
+  // Email subscribers is offered on the home document for the space owner.
+  const {isSpaceOwner} = useIsSpaceOwner(docId.path?.length ? undefined : docId.uid)
 
   // Fetch draft content early so the editor can be initialized with draft blocks
   // instead of published blocks (avoids the flash + replaceBlocks race condition)
@@ -711,18 +711,18 @@ export default function DesktopResourcePage() {
     [writeDraftActor, publishDocumentActor, discardDraftActor, pushDocumentActor],
   )
 
-  // Get site URL for publication actions
-  const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
+  // Get space URL for publication actions
+  const spaceHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteUrl =
-    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+    spaceHomeResource.data?.type === 'document' ? spaceHomeResource.data.document?.metadata?.siteUrl : undefined
 
   // Publishing / unpublishing
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const removeSiteDialog = useRemoveSiteDialog()
-  const publishSite = usePublishSite()
+  const removeSpaceDialog = useRemoveSpaceDialog()
+  const publishSpace = usePublishSpace()
   const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === docId.uid)
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
-  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
+  const [copySpaceUrlContent, onCopySpaceUrl] = useCopyReferenceUrl(
     siteUrl || gwUrl,
     siteUrl ? hmId(docId.uid) : undefined,
   )
@@ -790,11 +790,11 @@ export default function DesktopResourcePage() {
   //   )
   // }, [childDrafts, lastCreatedDraftId, hasSelfQuery])
 
-  // Profile editing for site-profile pages
+  // Profile editing for space-profile pages
   const editProfileDialog = useEditProfileDialog()
-  const isSiteProfile = route.key === 'site-profile'
-  const profileAccountUid = isSiteProfile && route.key === 'site-profile' ? route.accountUid || docId.uid : null
-  const isOwnProfile = isSiteProfile && !!profileAccountUid && !!myAccountIds.data?.includes(profileAccountUid)
+  const isSpaceProfile = route.key === 'space-profile'
+  const profileAccountUid = isSpaceProfile && route.key === 'space-profile' ? route.accountUid || docId.uid : null
+  const isOwnProfile = isSpaceProfile && !!profileAccountUid && !!myAccountIds.data?.includes(profileAccountUid)
   const onEditProfile = useMemo(() => {
     if (!isOwnProfile || !profileAccountUid) return undefined
     return () => editProfileDialog.open({accountUid: profileAccountUid})
@@ -812,7 +812,7 @@ export default function DesktopResourcePage() {
       canonical: siteUrl
         ? {
             label: `Copy ${displayHostname(siteUrl)} Link`,
-            copy: () => onCopySiteUrl(route),
+            copy: () => onCopySpaceUrl(route),
           }
         : null,
       gateway: {
@@ -972,41 +972,41 @@ export default function DesktopResourcePage() {
     onClick: () => navigate({key: 'all-documents', id: hmId(docId.uid)}),
   })
 
-  // Publish / Unpublish site options (only for home documents)
+  // Publish / Unpublish space options (only for home documents)
   if (!docId.path?.length && canEdit) {
     if (siteUrl) {
-      const siteHost = hostnameStripProtocol(siteUrl)
+      const spaceHost = hostnameStripProtocol(siteUrl)
       const gwHost = hostnameStripProtocol(gwUrl)
-      if (siteHost.endsWith(gwHost) && !pendingDomain) {
+      if (spaceHost.endsWith(gwHost) && !pendingDomain) {
         menuItems.push({
           key: 'publish-custom-domain',
           label: 'Publish Custom Domain',
           icon: <UploadCloud className="size-4" />,
           onClick: () => {
-            publishSite.open({id: docId, step: 'seed-host-custom-domain'})
+            publishSpace.open({id: docId, step: 'seed-host-custom-domain'})
           },
         })
       }
       menuItems.push({
-        key: 'remove-site',
-        label: 'Remove Site from Publication',
+        key: 'remove-space',
+        label: 'Remove Space from Publication',
         icon: <CloudOff className="size-4" />,
         variant: 'destructive',
         onClick: () => {
-          removeSiteDialog.open(docId)
+          removeSpaceDialog.open(docId)
         },
       })
     } else {
       menuItems.push({
-        key: 'publish-site',
-        label: 'Publish Site to Domain',
+        key: 'publish-space',
+        label: 'Publish Space to Domain',
         icon: <UploadCloud className="size-4" />,
         onClick: () => {
-          publishSite.open({id: docId})
+          publishSpace.open({id: docId})
         },
       })
     }
-    if (isSiteOwner) {
+    if (isSpaceOwner) {
       menuItems.push(createEmailSubscribersMenuItem({navigate, accountUid: docId.uid}))
     }
   }
@@ -1081,7 +1081,7 @@ export default function DesktopResourcePage() {
     replaceRoute: replace,
     onAfterReply,
   })
-  const followIntent = useFollowProfileIntent(route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid)
+  const followIntent = useFollowProfileIntent(route.key === 'space-profile' ? route.accountUid || docId.uid : docId.uid)
 
   return (
     <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
@@ -1128,7 +1128,7 @@ export default function DesktopResourcePage() {
                     existingDraftBaseBlocks={draftData?.baseBlocks}
                     existingDraftDeps={draftData?.deps}
                     draftVersionOnDiscardConfirm={draftVersionToolbarCallbacks.onDiscardConfirm}
-                    rightActions={<JoinButton siteUid={docId.uid} />}
+                    rightActions={<JoinButton spaceUid={docId.uid} />}
                     onEditProfile={onEditProfile}
                     onFollowClick={followIntent.follow}
                     inspect={inspect}
@@ -1156,12 +1156,12 @@ export default function DesktopResourcePage() {
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {copyGatewayContent}
-      {copySiteUrlContent}
+      {copySpaceUrlContent}
       {deleteEntity.content}
       {destinationDialog.content}
       {editProfileDialog.content}
-      {removeSiteDialog.content}
-      {publishSite.content}
+      {removeSpaceDialog.content}
+      {publishSpace.content}
       {newMenuContent}
       {followIntent.content}
     </div>

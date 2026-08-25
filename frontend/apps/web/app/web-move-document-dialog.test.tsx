@@ -75,7 +75,7 @@ describe('WebDocumentDestinationDialog', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    const id = makeId('site', ['doc'])
+    const id = makeId('space', ['doc'])
     const queryClient = new QueryClient()
 
     act(() => {
@@ -89,7 +89,7 @@ describe('WebDocumentDestinationDialog', () => {
             <WebDocumentDestinationDialog
               input={{id, mode: 'move'}}
               onClose={vi.fn()}
-              signingAccountId="site"
+              signingAccountId="space"
               canMove
             />
           </UniversalAppProvider>
@@ -110,8 +110,8 @@ describe('WebDocumentDestinationDialog', () => {
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
-    const id = makeId('site', ['parent', 'doc'])
-    const writableLocationId = makeId('site', ['parent'])
+    const id = makeId('space', ['parent', 'doc'])
+    const writableLocationId = makeId('space', ['parent'])
     const queryClient = new QueryClient()
 
     act(() => {
@@ -141,8 +141,8 @@ describe('WebDocumentDestinationDialog', () => {
 
 describe('moveWebDocuments', () => {
   it('publishes version and redirect refs and enqueues parent card rewrite', async () => {
-    const from = makeId('site', ['old-parent', 'doc'])
-    const to = makeId('site', ['old-parent', 'renamed'])
+    const from = makeId('space', ['old-parent', 'doc'])
+    const to = makeId('space', ['old-parent', 'renamed'])
     const publish = vi.fn(async () => ({}))
     const getSigner = vi.fn(() => ({
       getPublicKey: async () => new Uint8Array([1]),
@@ -159,13 +159,13 @@ describe('moveWebDocuments', () => {
     await moveWebDocuments({request, publish, getSigner} as any, {
       from,
       to,
-      signingAccountId: 'site',
+      signingAccountId: 'space',
       capabilityId: 'cap-cid',
     })
 
     expect(createVersionRefMock).toHaveBeenCalledWith(
       {
-        space: 'site',
+        space: 'space',
         path: '/old-parent/renamed',
         genesis: 'genesis-cid',
         version: 'doc-version',
@@ -177,11 +177,11 @@ describe('moveWebDocuments', () => {
     )
     expect(createRedirectRefMock).toHaveBeenCalledWith(
       {
-        space: 'site',
+        space: 'space',
         path: '/old-parent/doc',
         genesis: 'genesis-cid',
         generation: expect.any(Number),
-        targetSpace: 'site',
+        targetSpace: 'space',
         targetPath: '/old-parent/renamed',
         capability: 'cap-cid',
       },
@@ -191,10 +191,10 @@ describe('moveWebDocuments', () => {
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         operation: 'rewrite',
-        parentDocumentId: 'hm://site/old-parent',
+        parentDocumentId: 'hm://space/old-parent',
         sourceDocumentId: from.id,
         targetDocumentId: to.id,
-        signingAccountUid: 'site',
+        signingAccountUid: 'space',
         capabilityId: 'cap-cid',
       },
       {client: expect.anything()},
@@ -202,8 +202,8 @@ describe('moveWebDocuments', () => {
   })
 
   it('does not fail the move when post-move card cleanup fails', async () => {
-    const from = makeId('site', ['old-parent', 'doc'])
-    const to = makeId('site', ['new-parent', 'doc'])
+    const from = makeId('space', ['old-parent', 'doc'])
+    const to = makeId('space', ['new-parent', 'doc'])
     const publish = vi.fn(async () => ({}))
     const getSigner = vi.fn(() => ({
       getPublicKey: async () => new Uint8Array([1]),
@@ -222,7 +222,7 @@ describe('moveWebDocuments', () => {
       moveWebDocuments({request, publish, getSigner} as any, {
         from,
         to,
-        signingAccountId: 'site',
+        signingAccountId: 'space',
       }),
     ).resolves.toEqual([{from, to}])
 
@@ -233,8 +233,8 @@ describe('moveWebDocuments', () => {
   it('moves a republished path as a republish: the destination re-publishes the original, not a fork', async () => {
     // A path that republishes an original is a live mirror. Moving it must keep it a mirror — the
     // destination republishes the SAME original — rather than freezing a fork of its content.
-    const from = makeId('site', ['mirror'])
-    const to = makeId('site', ['moved-mirror'])
+    const from = makeId('space', ['mirror'])
+    const to = makeId('space', ['moved-mirror'])
     const original = makeId('other', ['resources', 'guide'])
     const publish = vi.fn(async () => ({}))
     const getSigner = vi.fn(() => ({
@@ -243,7 +243,7 @@ describe('moveWebDocuments', () => {
     }))
     // The source republishes the original; following it reaches the original document.
     const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
-      if (id.uid === 'site' && (id.path || []).join('/') === 'mirror') {
+      if (id.uid === 'space' && (id.path || []).join('/') === 'mirror') {
         return {type: 'redirect', id, redirectTarget: original, republish: true}
       }
       return {
@@ -257,7 +257,7 @@ describe('moveWebDocuments', () => {
     await moveWebDocuments({request, publish, getSigner} as any, {
       from,
       to,
-      signingAccountId: 'site',
+      signingAccountId: 'space',
       capabilityId: 'cap-cid',
     })
 
@@ -265,7 +265,7 @@ describe('moveWebDocuments', () => {
     expect(createVersionRefMock).not.toHaveBeenCalled()
     expect(createRedirectRefMock).toHaveBeenCalledWith(
       {
-        space: 'site',
+        space: 'space',
         path: '/moved-mirror',
         genesis: 'guide-genesis',
         generation: expect.any(Number),
@@ -279,11 +279,11 @@ describe('moveWebDocuments', () => {
     // And the source redirects to the destination — a plain move redirect, no republish flag.
     expect(createRedirectRefMock).toHaveBeenCalledWith(
       {
-        space: 'site',
+        space: 'space',
         path: '/mirror',
         genesis: 'guide-genesis',
         generation: expect.any(Number),
-        targetSpace: 'site',
+        targetSpace: 'space',
         targetPath: '/moved-mirror',
         capability: 'cap-cid',
       },
@@ -293,9 +293,9 @@ describe('moveWebDocuments', () => {
   })
 
   it('refuses to move a path that has itself already moved', async () => {
-    const from = makeId('site', ['old'])
-    const to = makeId('site', ['newer'])
-    const movedTarget = makeId('site', ['new'])
+    const from = makeId('space', ['old'])
+    const to = makeId('space', ['newer'])
+    const movedTarget = makeId('space', ['new'])
     const publish = vi.fn(async () => ({}))
     const getSigner = vi.fn(() => ({
       getPublicKey: async () => new Uint8Array([1]),
@@ -303,14 +303,14 @@ describe('moveWebDocuments', () => {
     }))
     // A move redirect (republish: false) — the source is a pointer, not content.
     const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
-      if (id.uid === 'site' && (id.path || []).join('/') === 'old') {
+      if (id.uid === 'space' && (id.path || []).join('/') === 'old') {
         return {type: 'redirect', id, redirectTarget: movedTarget, republish: false}
       }
       return {type: 'document', document: {version: 'v', generationInfo: {genesis: 'g', generation: 1n}}}
     })
 
     await expect(
-      moveWebDocuments({request, publish, getSigner} as any, {from, to, signingAccountId: 'site'}),
+      moveWebDocuments({request, publish, getSigner} as any, {from, to, signingAccountId: 'space'}),
     ).rejects.toThrow('already moved')
     expect(publish).not.toHaveBeenCalled()
   })
@@ -319,7 +319,7 @@ describe('moveWebDocuments', () => {
 describe('republishWebDocument', () => {
   it('publishes a republish redirect and enqueues a parent card add', async () => {
     const from = makeId('source', ['doc'])
-    const to = makeId('site', ['parent', 'copy'])
+    const to = makeId('space', ['parent', 'copy'])
     const publish = vi.fn(async () => ({}))
     const getSigner = vi.fn(() => ({
       getPublicKey: async () => new Uint8Array([1]),
@@ -335,13 +335,13 @@ describe('republishWebDocument', () => {
     await republishWebDocument({request, publish, getSigner} as any, {
       from,
       to,
-      signingAccountId: 'site',
+      signingAccountId: 'space',
       capabilityId: 'cap-cid',
     })
 
     expect(createRedirectRefMock).toHaveBeenCalledWith(
       {
-        space: 'site',
+        space: 'space',
         path: '/parent/copy',
         genesis: 'genesis-cid',
         // Fresh generation — not the source document's — so any later publish at the
@@ -358,9 +358,9 @@ describe('republishWebDocument', () => {
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         operation: 'add',
-        parentDocumentId: 'hm://site/parent',
+        parentDocumentId: 'hm://space/parent',
         targetDocumentId: to.id,
-        signingAccountUid: 'site',
+        signingAccountUid: 'space',
         capabilityId: 'cap-cid',
       },
       {client: expect.anything()},

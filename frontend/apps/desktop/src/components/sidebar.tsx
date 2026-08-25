@@ -13,10 +13,10 @@ import {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {defaultJoinedSiteUid, useRouteLink} from '@shm/shared'
+import {defaultJoinedSpaceUid, useRouteLink} from '@shm/shared'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
-import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
+import {hasProfileSubscription, useFollowProfile, useLeaveSpace} from '@shm/shared/models/join-space'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -49,7 +49,7 @@ import {cn} from '@shm/ui/utils'
 import {Bot, ChevronDown, ChevronRight, LayoutList, MoreHorizontal, Settings} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
-import {isSiteDocumentsActiveRoute} from './sidebar-active'
+import {isSpaceDocumentsActiveRoute} from './sidebar-active'
 import {GenericSidebarContainer} from './sidebar-base'
 
 export const AppSidebar = memo(MainAppSidebar)
@@ -58,10 +58,10 @@ export function MainAppSidebar() {
   const route = useNavRoute()
   const navigate = useNavigate()
   const selectedAccountId = useSelectedAccountId()
-  const selectedSite = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
+  const selectedSpace = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
   const contacts = useSelectedAccountContacts()
-  const hasSelectedSite = selectedSite.data?.type === 'document' && selectedSite.data.document
-  const joinedSiteCount = selectedAccountId
+  const hasSelectedSpace = selectedSpace.data?.type === 'document' && selectedSpace.data.document
+  const joinedSpaceCount = selectedAccountId
     ? new Set(
         (contacts.data ?? [])
           .filter((contact) => contact.subscribe?.site && contact.subject !== selectedAccountId)
@@ -69,8 +69,8 @@ export function MainAppSidebar() {
       ).size
     : 1
   const isCheckingOnboardingVisibility =
-    !!selectedAccountId && (contacts.isLoading || selectedSite.isInitialLoading || selectedSite.isDiscovering)
-  const shouldShowOnboarding = !isCheckingOnboardingVisibility && !hasSelectedSite && joinedSiteCount < 2
+    !!selectedAccountId && (contacts.isLoading || selectedSpace.isInitialLoading || selectedSpace.isDiscovering)
+  const shouldShowOnboarding = !isCheckingOnboardingVisibility && !hasSelectedSpace && joinedSpaceCount < 2
   return (
     <GenericSidebarContainer
       footer={({isVisible}) => (
@@ -123,7 +123,7 @@ export function MainAppSidebar() {
         <CreateDocumentButton />
       </SidebarHeader>
       <SidebarContent>
-        <MySiteSection selectedAccountId={selectedAccountId ?? undefined} />
+        <MySpaceSection selectedAccountId={selectedAccountId ?? undefined} />
         <SubscriptionsSection />
         <FollowingSection />
       </SidebarContent>
@@ -180,9 +180,9 @@ function SubscriptionsSection() {
   // accountList is already sorted by activity from backend (default sort)
   const accountList = useContactList()
 
-  const defaultJoinedSiteContact: HMContactRecord = {
-    id: `default-joined-site:${defaultJoinedSiteUid}`,
-    subject: defaultJoinedSiteUid,
+  const defaultJoinedSpaceContact: HMContactRecord = {
+    id: `default-joined-space:${defaultJoinedSpaceUid}`,
+    subject: defaultJoinedSpaceUid,
     name: '',
     account: '',
     signer: '',
@@ -193,7 +193,7 @@ function SubscriptionsSection() {
     if (selectedAccountId) return
     grpcClient.subscriptions
       .subscribe({
-        account: defaultJoinedSiteUid,
+        account: defaultJoinedSpaceUid,
         path: '',
         recursive: true,
       })
@@ -201,36 +201,36 @@ function SubscriptionsSection() {
         invalidateQueries([queryKeys.SUBSCRIPTIONS])
       })
       .catch((error) => {
-        console.error('Failed to subscribe to default joined site', error)
+        console.error('Failed to subscribe to default joined space', error)
       })
   }, [selectedAccountId])
 
-  // Filter contacts with site subscription, excluding own account. Before an
-  // account exists, show the default joined site so the sidebar isn't empty.
-  const siteSubscribedRaw = selectedAccountId
+  // Filter contacts with space subscription, excluding own account. Before an
+  // account exists, show the default joined space so the sidebar isn't empty.
+  const spaceSubscribedRaw = selectedAccountId
     ? contacts.data?.filter((contact) => contact.subscribe?.site && contact.subject !== selectedAccountId)
-    : [defaultJoinedSiteContact]
+    : [defaultJoinedSpaceContact]
 
-  // Deduplicate by subject — the same site may have been joined multiple times
+  // Deduplicate by subject — the same space may have been joined multiple times
   // (e.g. via delegated keys or repeated join actions), each creating a separate
   // contact record with a unique tsid. The backend returns contacts ordered by
   // id DESC (most recent first), so the first occurrence per subject wins.
-  const siteSubscribed = siteSubscribedRaw
+  const spaceSubscribed = spaceSubscribedRaw
     ? Object.values(
-        siteSubscribedRaw.reduce<Record<string, (typeof siteSubscribedRaw)[0]>>((acc, contact) => {
+        spaceSubscribedRaw.reduce<Record<string, (typeof spaceSubscribedRaw)[0]>>((acc, contact) => {
           if (!acc[contact.subject]) acc[contact.subject] = contact
           return acc
         }, {}),
       )
     : undefined
 
-  // Fetch site resources for all joined sites to ensure metadata is available
-  const siteIds = siteSubscribed?.map((contact) => hmId(contact.subject)) || []
-  const siteResources = useResources(siteIds, {subscribed: true})
+  // Fetch space resources for all joined spaces to ensure metadata is available
+  const spaceIds = spaceSubscribed?.map((contact) => hmId(contact.subject)) || []
+  const spaceResources = useResources(spaceIds, {subscribed: true})
 
   // Sort by activity using the backend's account order (already sorted by activity desc)
   const accounts = accountList.data?.accounts || []
-  const sortedContacts = [...(siteSubscribed || [])].sort((a, b) => {
+  const sortedContacts = [...(spaceSubscribed || [])].sort((a, b) => {
     const indexA = accounts.findIndex((acc) => acc.id === a.subject)
     const indexB = accounts.findIndex((acc) => acc.id === b.subject)
     // items not found in accounts list go to end
@@ -255,24 +255,24 @@ function SubscriptionsSection() {
   const comments = useComments(commentIds)
 
   return (
-    <SidebarSection title="Joined Sites">
+    <SidebarSection title="Joined Spaces">
       {sortedContacts.length ? (
         sortedContacts.map((contact) => {
           const id = hmId(contact.subject)
           // Get account from the backend's account list (has metadata)
           const account = accounts.find((acc) => acc.id === contact.subject)
           const accountMeta = accountsMetadata?.[contact.subject]
-          // Get metadata from fetched site resource (most reliable source)
-          const siteResource = siteResources.find((r) => r.data?.id?.uid === contact.subject)
-          const siteMeta = siteResource?.data?.type === 'document' ? siteResource.data.document?.metadata : undefined
+          // Get metadata from fetched space resource (most reliable source)
+          const spaceResource = spaceResources.find((r) => r.data?.id?.uid === contact.subject)
+          const spaceMeta = spaceResource?.data?.type === 'document' ? spaceResource.data.document?.metadata : undefined
 
-          // Build metadata: prefer contact name, then site resource, then account metadata
-          const name = contact.name || siteMeta?.name || accountMeta?.metadata?.name || account?.metadata?.name
-          const icon = siteMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
+          // Build metadata: prefer contact name, then space resource, then account metadata
+          const name = contact.name || spaceMeta?.name || accountMeta?.metadata?.name || account?.metadata?.name
+          const icon = spaceMeta?.icon || accountMeta?.metadata?.icon || account?.metadata?.icon
           const metadata: HMMetadata = {name, icon}
 
-          // Skip if no name and still loading, except for the pre-account default site.
-          if (!name && siteResource?.isLoading && selectedAccountId) return null
+          // Skip if no name and still loading, except for the pre-account default space.
+          if (!name && spaceResource?.isLoading && selectedAccountId) return null
           if (!name && selectedAccountId) return null
 
           // Get activity data
@@ -294,11 +294,11 @@ function SubscriptionsSection() {
           const isUnread = activitySummary?.isUnread ?? false
           return (
             <SidebarMenuItem key={id.id}>
-              <JoinedSiteListItem
+              <JoinedSpaceListItem
                 id={id}
                 contact={contact}
                 metadata={metadata}
-                active={isSiteDocumentsActiveRoute(route, id)}
+                active={isSpaceDocumentsActiveRoute(route, id)}
                 isUnread={isUnread}
                 activitySummary={activitySummary}
                 latestComment={latestComment}
@@ -311,7 +311,7 @@ function SubscriptionsSection() {
       ) : (
         <SidebarMenuItem>
           <div className="text-muted-foreground flex items-center justify-center px-4 pb-3 text-center text-xs leading-relaxed select-none">
-            Click "Join" on a site to get started.
+            Click "Join" on a space to get started.
           </div>
         </SidebarMenuItem>
       )}
@@ -319,8 +319,8 @@ function SubscriptionsSection() {
   )
 }
 
-/** Sidebar item for a joined site with leave functionality. */
-function JoinedSiteListItem({
+/** Sidebar item for a joined space with leave functionality. */
+function JoinedSpaceListItem({
   id,
   contact,
   metadata,
@@ -343,7 +343,7 @@ function JoinedSiteListItem({
 }) {
   const linkProps = useRouteLink({key: 'document', id})
   const navigate = useNavigate()
-  const {leaveSite, isPending} = useLeaveSite({siteUid: contact.subject})
+  const {leaveSpace, isPending} = useLeaveSpace({spaceUid: contact.subject})
   return (
     <>
       <SidebarMenuButton
@@ -373,7 +373,7 @@ function JoinedSiteListItem({
         side="right"
         align="start"
         button={
-          <SidebarMenuAction aria-label="Joined site options" onClick={(e) => e.stopPropagation()}>
+          <SidebarMenuAction aria-label="Joined space options" onClick={(e) => e.stopPropagation()}>
             <MoreHorizontal className="size-4" />
           </SidebarMenuAction>
         }
@@ -388,11 +388,11 @@ function JoinedSiteListItem({
             ? [
                 {
                   key: 'leave',
-                  label: 'Leave Site',
+                  label: 'Leave Space',
                   icon: <CircleOff className="size-4" />,
                   variant: 'destructive' as const,
                   disabled: isPending,
-                  onClick: () => leaveSite(),
+                  onClick: () => leaveSpace(),
                 },
               ]
             : []),
@@ -525,22 +525,22 @@ function FollowingListItem({
   )
 }
 
-function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
-  const siteId = selectedAccountId ? hmId(selectedAccountId) : undefined
-  const resource = useResource(siteId)
+function MySpaceSection({selectedAccountId}: {selectedAccountId?: string}) {
+  const spaceId = selectedAccountId ? hmId(selectedAccountId) : undefined
+  const resource = useResource(spaceId)
   const imageUrl = useImageUrl()
   const navigate = useNavigate()
   const route = useNavRoute()
-  const active = siteId ? isSiteDocumentsActiveRoute(route, siteId) : false
+  const active = spaceId ? isSpaceDocumentsActiveRoute(route, spaceId) : false
   const createSpaceDialog = useCreateSpaceDialog()
 
   if (!selectedAccountId) return null
 
-  // Account has a home document — show the existing site section
+  // Account has a home document — show the existing space section
   if (resource.data?.type === 'document' && resource.data.document) {
     const {document} = resource.data
     return (
-      <SidebarSection title="My Site">
+      <SidebarSection title="My Space">
         <div className="relative">
           <div
             className={cn(
@@ -563,7 +563,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
             align="start"
             button={
               <button
-                aria-label="My site options"
+                aria-label="My space options"
                 className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md hover:bg-black/10 dark:hover:bg-white/10"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -578,10 +578,10 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
                 onClick: () => navigate({key: 'all-documents', id: hmId(selectedAccountId)}),
               },
               {
-                key: 'site-settings',
-                label: 'Site settings',
+                key: 'space-settings',
+                label: 'Space settings',
                 icon: <Settings className="size-4" />,
-                onClick: () => navigate({key: 'site-settings', id: hmId(selectedAccountId)}),
+                onClick: () => navigate({key: 'space-settings', id: hmId(selectedAccountId)}),
               },
             ]}
           />
@@ -595,10 +595,10 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   if (resource.isInitialLoading || resource.isDiscovering) return null
 
   return (
-    <SidebarSection title="My Site">
-      <Tooltip content="Create your site to publish documents and share your profile.">
+    <SidebarSection title="My Space">
+      <Tooltip content="Create your space to publish documents and share your profile.">
         <Button className="w-full" variant="default" onClick={() => createSpaceDialog.open()}>
-          Create my Site
+          Create my Space
         </Button>
       </Tooltip>
       {createSpaceDialog.content}

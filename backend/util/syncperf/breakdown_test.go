@@ -16,21 +16,21 @@ func resolved(t *Tracker, spaces map[string]string) BreakdownSnapshot {
 	return b
 }
 
-func row(t *testing.T, b BreakdownSnapshot, site string) SiteBreakdown {
+func row(t *testing.T, b BreakdownSnapshot, space string) SpaceBreakdown {
 	t.Helper()
-	for _, s := range b.Sites {
-		if s.Site == site {
+	for _, s := range b.Spaces {
+		if s.Space == space {
 			return s
 		}
 	}
-	t.Fatalf("no row for %q; have %v", site, siteNamesOf(b))
-	return SiteBreakdown{}
+	t.Fatalf("no row for %q; have %v", space, spaceNamesOf(b))
+	return SpaceBreakdown{}
 }
 
-func siteNamesOf(b BreakdownSnapshot) []string {
-	out := make([]string, 0, len(b.Sites))
-	for _, s := range b.Sites {
-		out = append(out, s.Site)
+func spaceNamesOf(b BreakdownSnapshot) []string {
+	out := make([]string, 0, len(b.Spaces))
+	for _, s := range b.Spaces {
+		out = append(out, s.Space)
 	}
 	return out
 }
@@ -41,7 +41,7 @@ func siteNamesOf(b BreakdownSnapshot) []string {
 func TestBreakdownRoutesSamples(t *testing.T) {
 	tr := NewTracker(time.Now())
 	tr.RecordKinds([]KindSample{
-		{Site: "spaceA", Kind: KindMedia, Bytes: 1000},
+		{Space: "spaceA", Kind: KindMedia, Bytes: 1000},
 		{Doc: "g7", Kind: "Change", Bytes: 300},
 		{Kind: "Ref", Bytes: 50},
 	})
@@ -55,7 +55,7 @@ func TestBreakdownRoutesSamples(t *testing.T) {
 	require.EqualValues(t, 1000, row(t, b, "spaceA").Bytes[KindMedia])
 	require.EqualValues(t, 300, row(t, b, "spaceB").Bytes["Change"],
 		"a resolved document's bytes belong to its space")
-	require.EqualValues(t, 50, row(t, b, UnattributedSite).Bytes["Ref"])
+	require.EqualValues(t, 50, row(t, b, UnattributedSpace).Bytes["Ref"])
 	require.EqualValues(t, 1350, b.Total.TotalBytes)
 	require.EqualValues(t, 3, b.Total.TotalBlobs)
 }
@@ -74,17 +74,17 @@ func TestBreakdownUnresolvedDocsAreUnattributed(t *testing.T) {
 	b := resolved(tr, map[string]string{"g1": "spaceA"})
 
 	require.EqualValues(t, 100, row(t, b, "spaceA").Bytes["Change"])
-	require.EqualValues(t, 200, row(t, b, UnattributedSite).Bytes["Change"])
+	require.EqualValues(t, 200, row(t, b, UnattributedSpace).Bytes["Change"])
 	require.EqualValues(t, 300, b.Total.TotalBytes, "nothing may be dropped")
 }
 
-// TestBreakdownDocsMergeIntoExistingSite guards the fold: a space that already
+// TestBreakdownDocsMergeIntoExistingSpace guards the fold: a space that already
 // has directly-attributed bytes must accumulate the resolved ones, not replace
 // or duplicate them.
-func TestBreakdownDocsMergeIntoExistingSite(t *testing.T) {
+func TestBreakdownDocsMergeIntoExistingSpace(t *testing.T) {
 	tr := NewTracker(time.Now())
 	tr.RecordKinds([]KindSample{
-		{Site: "spaceA", Kind: KindMedia, Bytes: 1000},
+		{Space: "spaceA", Kind: KindMedia, Bytes: 1000},
 		{Doc: "g9", Kind: "Change", Bytes: 400},
 		{Doc: "g9", Kind: "Change", Bytes: 600},
 	})
@@ -96,20 +96,20 @@ func TestBreakdownDocsMergeIntoExistingSite(t *testing.T) {
 	require.EqualValues(t, 1000, r.Bytes["Change"], "both change samples must accumulate")
 	require.EqualValues(t, 2000, r.TotalBytes)
 	require.EqualValues(t, 3, r.TotalBlobs)
-	require.Len(t, b.Sites, 1, "the resolved doc must not create a second row")
+	require.Len(t, b.Spaces, 1, "the resolved doc must not create a second row")
 }
 
 // TestBreakdownSortsBySizeDescending pins the row order the page relies on.
 func TestBreakdownSortsBySizeDescending(t *testing.T) {
 	tr := NewTracker(time.Now())
 	tr.RecordKinds([]KindSample{
-		{Site: "small", Kind: KindMedia, Bytes: 10},
-		{Site: "big", Kind: KindMedia, Bytes: 9000},
-		{Site: "mid", Kind: KindMedia, Bytes: 500},
+		{Space: "small", Kind: KindMedia, Bytes: 10},
+		{Space: "big", Kind: KindMedia, Bytes: 9000},
+		{Space: "mid", Kind: KindMedia, Bytes: 500},
 	})
 
 	b := resolved(tr, nil)
-	require.Equal(t, []string{"big", "mid", "small"}, siteNamesOf(b))
+	require.Equal(t, []string{"big", "mid", "small"}, spaceNamesOf(b))
 }
 
 // TestBreakdownUnclassifiedIsTheGap: the blockstore's byte total is
@@ -119,7 +119,7 @@ func TestBreakdownUnclassifiedIsTheGap(t *testing.T) {
 	tr := NewTracker(time.Now())
 	tr.RecordWrite(3, 1000) // what the blockstore actually wrote
 	tr.RecordKinds([]KindSample{
-		{Site: "spaceA", Kind: KindMedia, Bytes: 600},
+		{Space: "spaceA", Kind: KindMedia, Bytes: 600},
 	})
 
 	b := resolved(tr, nil)
@@ -130,7 +130,7 @@ func TestBreakdownUnclassifiedIsTheGap(t *testing.T) {
 func TestBreakdownNoUnclassifiedWhenFullyAccounted(t *testing.T) {
 	tr := NewTracker(time.Now())
 	tr.RecordWrite(1, 600)
-	tr.RecordKinds([]KindSample{{Site: "spaceA", Kind: KindMedia, Bytes: 600}})
+	tr.RecordKinds([]KindSample{{Space: "spaceA", Kind: KindMedia, Bytes: 600}})
 
 	b := resolved(tr, nil)
 	require.Zero(t, b.UnclassifiedBytes)
@@ -160,21 +160,21 @@ func TestBreakdownDocCapKeepsTotalsExact(t *testing.T) {
 	require.EqualValues(t, over, b.Total.TotalBlobs)
 }
 
-// TestBreakdownSiteCapFoldsToOverflow is the same property for spaces, which
+// TestBreakdownSpaceCapFoldsToOverflow is the same property for spaces, which
 // fold into a named bucket rather than into unattributed.
-func TestBreakdownSiteCapFoldsToOverflow(t *testing.T) {
+func TestBreakdownSpaceCapFoldsToOverflow(t *testing.T) {
 	tr := NewTracker(time.Now())
 
-	const over = maxBreakdownSites + 25
+	const over = maxBreakdownSpaces + 25
 	samples := make([]KindSample, 0, over)
 	for i := range over {
-		samples = append(samples, KindSample{Site: fmt.Sprintf("space%d", i), Kind: KindMedia, Bytes: 10})
+		samples = append(samples, KindSample{Space: fmt.Sprintf("space%d", i), Kind: KindMedia, Bytes: 10})
 	}
 	tr.RecordKinds(samples)
 
 	b := resolved(tr, nil)
 	require.EqualValues(t, over*10, b.Total.TotalBytes, "overflowed spaces must still be counted")
-	require.EqualValues(t, 250, row(t, b, OverflowSite).TotalBytes, "the 25 past the cap land in overflow")
+	require.EqualValues(t, 250, row(t, b, OverflowSpace).TotalBytes, "the 25 past the cap land in overflow")
 }
 
 // TestBreakdownIgnoresUnknownKind: a kind outside Kinds has no column to land
@@ -182,8 +182,8 @@ func TestBreakdownSiteCapFoldsToOverflow(t *testing.T) {
 func TestBreakdownIgnoresUnknownKind(t *testing.T) {
 	tr := NewTracker(time.Now())
 	tr.RecordKinds([]KindSample{
-		{Site: "spaceA", Kind: "NotAKind", Bytes: 999},
-		{Site: "spaceA", Kind: KindMedia, Bytes: 1},
+		{Space: "spaceA", Kind: "NotAKind", Bytes: 999},
+		{Space: "spaceA", Kind: KindMedia, Bytes: 1},
 	})
 
 	b := resolved(tr, nil)

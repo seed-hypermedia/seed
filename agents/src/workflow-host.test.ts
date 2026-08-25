@@ -122,7 +122,7 @@ describe('workflow host', () => {
       }`,
       callTool: async (tool) => {
         if (tool === 'publish') {
-          throw {code: 'quota-exceeded', message: 'Site quota exceeded', detail: {limitBytes: 10_000}}
+          throw {code: 'quota-exceeded', message: 'Space quota exceeded', detail: {limitBytes: 10_000}}
         }
         return {ok: true}
       },
@@ -131,7 +131,7 @@ describe('workflow host', () => {
     if (outcome.type !== 'failed') throw new Error(`expected failure, got ${outcome.type}`)
     expect(outcome.error).toMatchObject({
       code: 'quota-exceeded',
-      message: 'Site quota exceeded',
+      message: 'Space quota exceeded',
       tool: 'publish',
       detail: {limitBytes: 10_000},
     })
@@ -153,7 +153,7 @@ describe('workflow host', () => {
     const first = fakeAdapters({
       source,
       callTool: async () => {
-        throw {code: 'quota-exceeded', message: 'Site quota exceeded'}
+        throw {code: 'quota-exceeded', message: 'Space quota exceeded'}
       },
     })
     const liveOutcome = await runWorkflowVM(first.adapters)

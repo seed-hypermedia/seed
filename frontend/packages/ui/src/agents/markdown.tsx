@@ -47,8 +47,8 @@ function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) 
     () => (href && isHypermediaLink ? resolveHypermediaRoute(href) : null),
     [href, isHypermediaLink],
   )
-  const siteHome = useResource(resolvedLink ? hmId(resolvedLink.id.uid) : null)
-  const siteUrl = siteHome.data?.type === 'document' ? siteHome.data.document.metadata?.siteUrl : null
+  const spaceHome = useResource(resolvedLink ? hmId(resolvedLink.id.uid) : null)
+  const siteUrl = spaceHome.data?.type === 'document' ? spaceHome.data.document.metadata?.siteUrl : null
   const renderedHref = React.useMemo(() => {
     if (!href || !resolvedLink) return href
     return (

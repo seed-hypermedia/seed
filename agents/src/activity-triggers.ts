@@ -40,7 +40,7 @@ export function activityEventKey(event: ActivityFeedEvent): string | null {
  * To make the mention fire exactly once regardless of which sibling is processed first (and survive the
  * other being dropped), we collapse the citation onto its comment sibling's `blob-<cid>` identity here.
  *
- * Comment events keep their natural `blob-<cid>` key, so non-mention activity (document comments, site
+ * Comment events keep their natural `blob-<cid>` key, so non-mention activity (document comments, space
  * updates) and existing firing keys are unchanged. Falls back to {@link activityEventKey} for shapes
  * with no recognizable comment CID.
  */
@@ -114,7 +114,7 @@ export function matchesActivityCriteria(
 export function activityMatchesTriggerSource(source: api.AgentTriggerSource, event: ActivityFeedEvent): boolean {
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
   if (source.type === 'user-mention') return matchesUserMention(source, event)
-  if (source.type === 'site-update') return matchesSiteUpdate(source, event)
+  if (source.type === 'site-update') return matchesSpaceUpdate(source, event)
   return false
 }
 
@@ -337,7 +337,7 @@ function blockNodesMentionAccount(nodes: unknown, mentionedAccount: string): boo
   })
 }
 
-/** Applies the optional resource/site prefix filter against the resources a mention event references. */
+/** Applies the optional resource/space prefix filter against the resources a mention event references. */
 function mentionMatchesResourcePrefix(event: ActivityFeedEvent, resourcePrefix: string | undefined): boolean {
   if (!resourcePrefix) return true
   const candidates: Array<string | undefined> = []
@@ -351,11 +351,11 @@ function mentionMatchesResourcePrefix(event: ActivityFeedEvent, resourcePrefix: 
   return jsonContainsString(event, resourcePrefix)
 }
 
-function matchesSiteUpdate(
+function matchesSpaceUpdate(
   source: Extract<api.AgentTriggerSource, {type: 'site-update'}>,
   event: ActivityFeedEvent,
 ): boolean {
-  const resource = siteUpdateResource(event)
+  const resource = spaceUpdateResource(event)
   if (resource) {
     if (!resource.startsWith(source.resourcePrefix)) return false
   } else if (!jsonContainsString(event, source.resourcePrefix)) {
@@ -363,11 +363,11 @@ function matchesSiteUpdate(
   }
 
   if (!source.eventTypes?.length) return true
-  const eventTypes = siteUpdateEventTypes(event)
+  const eventTypes = spaceUpdateEventTypes(event)
   return source.eventTypes.some((eventType) => eventTypes.some((actual) => activityTypeMatches(eventType, actual)))
 }
 
-function siteUpdateResource(event: ActivityFeedEvent): string | null {
+function spaceUpdateResource(event: ActivityFeedEvent): string | null {
   const blob = activityEventBlob(event)
   const blobResource = blob ? stringField(blob, 'resource') : undefined
   if (blobResource) return canonicalizeResourceId(blobResource)
@@ -394,7 +394,7 @@ function siteUpdateResource(event: ActivityFeedEvent): string | null {
   return null
 }
 
-function siteUpdateEventTypes(event: ActivityFeedEvent): string[] {
+function spaceUpdateEventTypes(event: ActivityFeedEvent): string[] {
   const types: string[] = []
   const type = stringField(event, 'type')
   if (type) types.push(type)

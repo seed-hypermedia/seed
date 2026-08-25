@@ -17,7 +17,7 @@ export type ResolvedIdWithClient = {
 }
 
 /**
- * Resolves an hm:// ID, gateway URL, or Seed site URL and returns the matching Seed client.
+ * Resolves an hm:// ID, gateway URL, or Seed space URL and returns the matching Seed client.
  *
  * This is the shared implementation used by CLI-like document readers:
  * - hm:// IDs use the caller's configured client/server.

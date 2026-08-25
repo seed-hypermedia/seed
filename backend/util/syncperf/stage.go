@@ -45,10 +45,10 @@ func (s Stage) String() string {
 //
 // Each call adjusts the occupancy that both partitions are computed from; see
 // StageSnapshot.
-// site is the space this unit of work is syncing, used to break the stage
+// space is the space this unit of work is syncing, used to break the stage
 // figures down per space. Empty is fine — those land under the unattributed
 // bucket.
-func (t *Tracker) EnterStage(s Stage, site string) (leave func()) {
+func (t *Tracker) EnterStage(s Stage, space string) (leave func()) {
 	if s <= StageIdle || s >= numStages {
 		return func() {}
 	}
@@ -64,7 +64,7 @@ func (t *Tracker) EnterStage(s Stage, site string) (leave func()) {
 	t.smu.Unlock()
 
 	t.stmu.Lock()
-	ss := t.siteStateLocked(site)
+	ss := t.spaceStateLocked(space)
 	ss.stageBank(enter)
 	ss.occ[s]++
 	t.stmu.Unlock()
@@ -83,7 +83,7 @@ func (t *Tracker) EnterStage(s Stage, site string) (leave func()) {
 		t.smu.Unlock()
 
 		t.stmu.Lock()
-		ss := t.siteStateLocked(site)
+		ss := t.spaceStateLocked(space)
 		ss.stageBank(now)
 		ss.occ[s]--
 		t.stmu.Unlock()

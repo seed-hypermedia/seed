@@ -430,7 +430,7 @@ describe('Main assistant visibility', () => {
   it('keeps the document page mounted while navigating between document routes', async () => {
     mockState.currentRoute = {
       key: 'document',
-      id: {uid: 'site-1', path: ['page-a']},
+      id: {uid: 'space-1', path: ['page-a']},
     }
 
     const {container, root} = renderMain()
@@ -443,7 +443,7 @@ describe('Main assistant visibility', () => {
 
     mockState.currentRoute = {
       key: 'document',
-      id: {uid: 'site-1', path: ['page-b']},
+      id: {uid: 'space-1', path: ['page-b']},
     }
 
     act(() => {

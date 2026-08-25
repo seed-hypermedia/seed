@@ -13,7 +13,7 @@ import {getNavigationChanges} from '@shm/shared/utils/navigation-changes'
 import {toast} from '@shm/ui/toast'
 import {useMutation} from '@tanstack/react-query'
 
-export function useSiteRegistration(accountUid: string) {
+export function useSpaceRegistration(accountUid: string) {
   const accountId = hmId(accountUid)
   const entity = useResource(accountId)
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
@@ -25,14 +25,14 @@ export function useSiteRegistration(accountUid: string) {
       const siteUrl = `${url.protocol}//${url.host}`
       const registerUrl = `${siteUrl}/hm/api/register`
       console.log('registerUrl', registerUrl)
-      const siteConfig = await client.sites.getConfig.mutate(siteUrl)
-      console.log('siteConfig', siteConfig)
-      if (!siteConfig) throw new Error('Site is not set up.')
+      const spaceConfig = await client.spaces.getConfig.mutate(siteUrl)
+      console.log('spaceConfig', spaceConfig)
+      if (!spaceConfig) throw new Error('Space is not set up.')
 
-      if (siteConfig.registeredAccountUid && siteConfig.registeredAccountUid !== accountUid) {
-        throw new Error('Site already registered to another account')
+      if (spaceConfig.registeredAccountUid && spaceConfig.registeredAccountUid !== accountUid) {
+        throw new Error('Space already registered to another account')
       }
-      if (!siteConfig.registeredAccountUid) {
+      if (!spaceConfig.registeredAccountUid) {
         const daemonInfo = await grpcClient.daemon.getInfo({})
         const peerInfo = await grpcClient.networking.getPeerInfo({
           deviceId: daemonInfo.peerId,
@@ -44,18 +44,18 @@ export function useSiteRegistration(accountUid: string) {
           addrs: peerInfo.addrs,
         }
         console.log(JSON.stringify(registerPayload, null, 2))
-        const registerResult = await client.sites.registerSite.mutate({
+        const registerResult = await client.spaces.registerSpace.mutate({
           url: registerUrl,
           payload: registerPayload,
         })
         console.log('registerResult', registerResult)
-        console.log('connecting to site...')
+        console.log('connecting to space...')
         await grpcClient.networking.connect({
-          addrs: siteConfig.addrs,
+          addrs: spaceConfig.addrs,
         })
         console.log('doing force sync from this node...')
         const pushProgress = grpcClient.resources.pushResourcesToPeer({
-          addrs: siteConfig.addrs,
+          addrs: spaceConfig.addrs,
           resources: [packHmId(accountId)],
         })
         try {
@@ -65,10 +65,10 @@ export function useSiteRegistration(accountUid: string) {
           console.log('push progress: done')
         } catch (error) {
           // error is not a dealbreaker for this workflow, we still want to move to the next step
-          console.error('Failed pushing resources to site', error)
-          toast.error('Failed to push resources to the new site. Sync can be attempted again later.')
+          console.error('Failed pushing resources to space', error)
+          toast.error('Failed to push resources to the new space. Sync can be attempted again later.')
           reportError(error, {
-            feature: 'site-registration',
+            feature: 'space-registration',
             operation: 'push-resources',
             siteUrl,
             accountUid,
@@ -95,7 +95,7 @@ export function useSiteRegistration(accountUid: string) {
 }
 
 /**
- * Publish a new version of a site's home document from site settings page,
+ * Publish a new version of a space's home document from space settings page,
  * which edits the published home doc without going through the draft editor.
  */
 export function useUpdateHomeDocument(accountUid: string) {
@@ -126,7 +126,7 @@ export function useUpdateHomeDocument(accountUid: string) {
   })
 }
 
-export function useRemoveSite(id: UnpackedHypermediaId) {
+export function useRemoveSpace(id: UnpackedHypermediaId) {
   const entity = useResource(id)
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
   return useMutation({

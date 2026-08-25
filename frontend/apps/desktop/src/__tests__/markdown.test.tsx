@@ -59,7 +59,7 @@ describe('Markdown', () => {
             type: 'document',
             document: {
               metadata: {
-                siteUrl: 'https://site.seed.test',
+                siteUrl: 'https://space.seed.test',
               },
             },
           },
@@ -73,14 +73,14 @@ describe('Markdown', () => {
     document.body.innerHTML = ''
   })
 
-  it('renders site-backed hm links as https hrefs and keeps raw hm navigation on click', () => {
+  it('renders space-backed hm links as https hrefs and keeps raw hm navigation on click', () => {
     const rawHref = 'hm://z6MkSite/notes/:comments/z6MkAuthor/tsid123?panel=activity#blk1+'
     const {container, root} = renderMarkdown(`[Discussion](${rawHref})`)
     const link = container.querySelector('a')
 
     expect(link?.textContent).toBe('Discussion')
     expect(link?.getAttribute('href')).toBe(
-      'https://site.seed.test/notes/:comments/z6MkAuthor/tsid123?panel=activity#blk1+',
+      'https://space.seed.test/notes/:comments/z6MkAuthor/tsid123?panel=activity#blk1+',
     )
 
     act(() => {

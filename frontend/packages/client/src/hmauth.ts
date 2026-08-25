@@ -18,13 +18,15 @@ import * as cbor from './cbor'
 export interface HypermediaAuthConfig {
   /** The URL of the Vault application. e.g. "https://example.com/vault" */
   vaultUrl: string
-  /** The client ID (origin of this site). Usually `window.location.origin`. */
+  /** The client ID (origin of this space). Usually `window.location.origin`. */
   clientId?: string
   /** The redirect URI. Defaults to current page URL (without search params). */
   redirectUri?: string
   /** Optional email to pre-fill in the vault's login/registration form. */
   email?: string
-  /** Optional display name of this site, shown in the vault's consent UI. */
+  /** Optional display name of this space, shown in the vault's consent UI. */
+  spaceName?: string
+  /** @deprecated Renamed to {@link HypermediaAuthConfig.spaceName}; still honored. */
   siteName?: string
 }
 
@@ -65,7 +67,7 @@ export interface AuthResult {
   notifyServerUrl?: string
 }
 
-/** URL parameter name for the client ID (origin of the requesting site). */
+/** URL parameter name for the client ID (origin of the requesting space). */
 export const PARAM_CLIENT_ID = 'client_id'
 
 /** URL parameter name for the redirect URI. */
@@ -92,7 +94,15 @@ export const PARAM_ERROR = 'error'
 /** Optional URL parameter for pre-filling the user's email in the vault. */
 export const PARAM_EMAIL = 'email'
 
-/** Optional URL parameter with the requesting site's display name, for vault UI copy. Claimed by the client — display only. */
+/** Optional URL parameter with the requesting space's display name, for vault UI copy. Claimed by the client — display only. */
+export const PARAM_SPACE_NAME = 'space_name'
+
+/**
+ * Pre-rename spelling of {@link PARAM_SPACE_NAME}. Still read when parsing, so
+ * delegation links built by older clients keep their display name.
+ *
+ * @deprecated Send {@link PARAM_SPACE_NAME} instead.
+ */
 export const PARAM_SITE_NAME = 'site_name'
 
 /** Vault route path for handling delegation requests. */
@@ -178,13 +188,13 @@ function decodeProofSignature(proof: string): Uint8Array {
 export interface DelegationRequest {
   /** Original delegation request URL as received by the vault, including `proof`. */
   originalUrl: string
-  /** The origin of the requesting site (must be HTTPS). e.g. "https://example.com". */
+  /** The origin of the requesting space (must be HTTPS). e.g. "https://example.com". */
   clientId: string
   /** Where to redirect after delegation. Must be a strict extension of clientId. */
   redirectUri: string
   /** Base58btc-encoded principal of the session key to delegate to. */
   sessionKeyPrincipal: string
-  /** Opaque callback correlation state from the requesting site. */
+  /** Opaque callback correlation state from the requesting space. */
   state: string
   /** Request timestamp (unix ms) signed by the session key. */
   requestTs: number
@@ -192,9 +202,11 @@ export interface DelegationRequest {
   proof: string
   /** Inferred vault origin where this request was received. */
   vaultOrigin: string
-  /** Optional pre-filled email from the requesting site. */
+  /** Optional pre-filled email from the requesting space. */
   email?: string
-  /** Optional display name of the requesting site. Claimed by the client — display only. */
+  /** Optional display name of the requesting space. Claimed by the client — display only. */
+  spaceName?: string
+  /** @deprecated Renamed to {@link DelegationRequest.spaceName}; kept in sync with it. */
   siteName?: string
 }
 
@@ -332,7 +344,8 @@ export function parseDelegationRequest(url: URL | string): DelegationRequest | n
   const requestTs = validateRequestTimestamp(ts)
 
   const email = parsedUrl.searchParams.get(PARAM_EMAIL) || undefined
-  const siteName = parsedUrl.searchParams.get(PARAM_SITE_NAME) || undefined
+  const spaceName =
+    parsedUrl.searchParams.get(PARAM_SPACE_NAME) || parsedUrl.searchParams.get(PARAM_SITE_NAME) || undefined
 
   return {
     originalUrl,
@@ -344,7 +357,8 @@ export function parseDelegationRequest(url: URL | string): DelegationRequest | n
     proof,
     vaultOrigin: parsedUrl.origin,
     email,
-    siteName,
+    spaceName,
+    siteName: spaceName,
   }
 }
 
@@ -402,7 +416,7 @@ export async function verifyDelegationRequestProof(
   }
 }
 
-/** Callback data passed back to the requesting site after authorization. */
+/** Callback data passed back to the requesting space after authorization. */
 export interface CallbackData {
   /** Account principal (the issuer of the capability). */
   account: blobs.Principal

@@ -1,9 +1,9 @@
 import {HMDocURLInput} from '@/components/edit-navigation-popover'
-import {useUpdateHomeDocument} from '@/models/site'
+import {useUpdateHomeDocument} from '@/models/space'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import type {HMDocument, HMMetadata, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {useIsSpaceOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
@@ -52,11 +52,11 @@ function readPublishedNav(document: HMDocument): HMNavigationItem[] {
   )
 }
 
-export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
-  const resource = useResource(siteId)
+export function NavigationSettings({spaceId}: {spaceId: UnpackedHypermediaId}) {
+  const resource = useResource(spaceId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(siteId.uid)
-  const updateHome = useUpdateHomeDocument(siteId.uid)
+  const {isSpaceOwner, isLoading: isOwnerLoading} = useIsSpaceOwner(spaceId.uid)
+  const updateHome = useUpdateHomeDocument(spaceId.uid)
 
   const [navItems, setNavItems] = useState<HMNavigationItem[] | null>(null)
   const [headerLayout, setHeaderLayout] = useState<string | null>(null)
@@ -73,15 +73,15 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
     )
   }
   if (!document) {
-    return <SizableText color="muted">This account doesn't have a site yet.</SizableText>
+    return <SizableText color="muted">This account doesn't have a space yet.</SizableText>
   }
-  if (!isSiteOwner) {
+  if (!isSpaceOwner) {
     return (
       <>
         <SizableText size="2xl" weight="bold">
           Navigation
         </SizableText>
-        <SizableText color="muted">Only the site owner can edit these settings.</SizableText>
+        <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
       </>
     )
   }
@@ -148,9 +148,9 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
 
       {/* Header preview */}
       <div className="flex flex-col gap-2">
-        <SizableText weight="medium">Header site preview</SizableText>
+        <SizableText weight="medium">Space header preview</SizableText>
         <HeaderPreview
-          siteId={siteId}
+          spaceId={spaceId}
           name={metadata.name}
           icon={metadata.icon}
           items={navValue}
@@ -202,7 +202,7 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
           <div className="bg-muted flex h-9 w-72 items-center justify-between gap-4 rounded-md px-4">
             <div className="flex items-center gap-1.5">
               <SizableText>Show activity tabs</SizableText>
-              <Tooltip content="Show the People, Comments, and Citations tabs on your site's pages.">
+              <Tooltip content="Show the People, Comments, and Citations tabs on your space's pages.">
                 <HelpCircle className="text-muted-foreground size-3.5" />
               </Tooltip>
             </div>
@@ -215,7 +215,7 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
         <NavItemDialog
           item={dialogItem}
           isNew={dialogIsNew}
-          homeId={siteId}
+          homeId={spaceId}
           filterPresets={(candidate) => !navValue.some((i) => i.id !== dialogItem.id && i.link === candidate.link)}
           onSubmit={submitDialog}
           onClose={() => setDialogItem(null)}
@@ -225,15 +225,15 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   )
 }
 
-// Preview of the site header, reflecting the selected layout.
+// Preview of the space header, reflecting the selected layout.
 function HeaderPreview({
-  siteId,
+  spaceId,
   name,
   icon,
   items,
   isCenter,
 }: {
-  siteId: UnpackedHypermediaId
+  spaceId: UnpackedHypermediaId
   name?: string
   icon?: string
   items: HMNavigationItem[]
@@ -241,14 +241,14 @@ function HeaderPreview({
 }) {
   const labelItems = useMemo(() => items.filter((i) => i.text.trim()).map((i) => ({key: i.id, text: i.text})), [items])
   // Overflow items collapse into a caret dropdown instead of wrapping, mirroring
-  // the real site header.
+  // the real space header.
   const {containerRef, itemRefs, visibleItems, overflowItems} = useResponsiveItems({
     items: labelItems,
     gapWidth: 16,
     reservedWidth: 36,
   })
 
-  const iconEl = <HMIcon id={siteId} name={name} icon={icon} size={40} className="shrink-0" />
+  const iconEl = <HMIcon id={spaceId} name={name} icon={icon} size={40} className="shrink-0" />
 
   const navRow =
     labelItems.length === 0 ? (

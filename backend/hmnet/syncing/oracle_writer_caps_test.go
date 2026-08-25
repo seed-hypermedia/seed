@@ -48,7 +48,7 @@ func TestMaintainRBSRIndex_WriterCapsAfterMaterialize(t *testing.T) {
 		exec(conn, `INSERT INTO resources (id, iri) VALUES (102, ?)`, "hm://"+bob.String())
 
 		// Stage 0: the home document, then materialize — the state a serving
-		// site's scope is in once a subscriber has synced and gone quiet.
+		// space's scope is in once a subscriber has synced and gone quiet.
 		exec(conn, `INSERT INTO blobs (id, multihash, codec, size) VALUES (10, X'10', 113, 1)`)
 		exec(conn, `INSERT INTO structural_blobs (id, type, resource, author) VALUES (10, 'Ref', 100, 1)`)
 		exec(conn, `INSERT INTO blobs (id, multihash, codec, size) VALUES (11, X'11', 113, 1)`)

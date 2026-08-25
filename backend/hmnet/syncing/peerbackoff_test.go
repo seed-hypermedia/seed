@@ -120,7 +120,7 @@ func TestSamplePeersAlwaysIncludesAuthoritative(t *testing.T) {
 }
 
 // TestSamplePeersNarrowKeepsAuthoritative pins the steady-state shape: once a
-// scope resolves to a site server, the speculative sample drops but the
+// scope resolves to a space server, the speculative sample drops but the
 // authoritative peers are all still there. Getting this backwards — narrowing
 // the always-set instead of the sample — is what makes a page render blank.
 func TestSamplePeersNarrowKeepsAuthoritative(t *testing.T) {
@@ -147,9 +147,9 @@ func TestSamplePeersNarrowKeepsAuthoritative(t *testing.T) {
 // because bootstrap guarantees gateways; two daemons paired directly do not.
 func TestSampleWidthNeverStrandsANode(t *testing.T) {
 	for _, tt := range []struct {
-		name                            string
-		haveLocally, hasSite, hasGwyway bool
-		want                            int
+		name                             string
+		haveLocally, hasSpace, hasGwyway bool
+		want                             int
 	}{
 		{"nothing known, nothing held", false, false, false, maxSampledPeers},
 		{"missing, host known", false, true, false, narrowSampledPeers},
@@ -159,10 +159,10 @@ func TestSampleWidthNeverStrandsANode(t *testing.T) {
 		{"held, but NOBODY to ask", true, false, false, maxSampledPeers},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := sampleWidth(tt.haveLocally, tt.hasSite, tt.hasGwyway)
+			got := sampleWidth(tt.haveLocally, tt.hasSpace, tt.hasGwyway)
 			require.Equal(t, tt.want, got)
 			if got == 0 {
-				require.True(t, tt.hasSite || tt.hasGwyway,
+				require.True(t, tt.hasSpace || tt.hasGwyway,
 					"a zero sample is only safe when somebody authoritative can answer")
 			}
 		})

@@ -1,7 +1,7 @@
 import {AgentsPage} from '@/agents-page'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
-import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
-import {defaultSiteIcon} from '@/meta'
+import {loadSpaceHeaderData, SpaceHeaderPayload} from '@/loaders'
+import {defaultSpaceIcon} from '@/meta'
 import {getOptimizedImageUrl} from '@/providers'
 import {parseRequest} from '@/request'
 import {unwrap} from '@/wrapping'
@@ -11,13 +11,13 @@ import {MetaDescriptor} from '@remix-run/react'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 
 export const meta: MetaFunction = ({data}) => {
-  const {homeMetadata} = unwrap<SiteHeaderPayload>(data)
+  const {homeMetadata} = unwrap<SpaceHeaderPayload>(data)
   const meta: MetaDescriptor[] = []
   const homeIcon = homeMetadata?.icon ? getOptimizedImageUrl(extractIpfsUrlCid(homeMetadata.icon), 'S') : null
   meta.push({
     tagName: 'link',
     rel: 'icon',
-    href: homeIcon || defaultSiteIcon,
+    href: homeIcon || defaultSpaceIcon,
     type: 'image/png',
   })
   meta.push({title: 'Agents'})
@@ -28,8 +28,8 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, async () => {
-    const headerData = await loadSiteHeaderData(parsedRequest)
-    return wrapJSON(headerData satisfies SiteHeaderPayload)
+    const headerData = await loadSpaceHeaderData(parsedRequest)
+    return wrapJSON(headerData satisfies SpaceHeaderPayload)
   })
 }
 

@@ -50,7 +50,7 @@ export function useCreateSpaceDialog() {
 /**
  * The form with its web commit: upload cover/logo to IPFS, write a home draft
  * under the signed-in account, and open the editor. Publishing that draft
- * creates the space. Same path as the `/hm/create-site` route.
+ * creates the space. Same path as the `/hm/create-space` route.
  */
 function CreateSpaceFlow({onClose}: {onClose: () => void}) {
   const navigate = useNavigate()

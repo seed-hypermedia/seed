@@ -348,7 +348,7 @@ describe('input-querystring', () => {
         contextSize: 44,
         searchType: 0,
         pageSize: 20,
-        iriFilter: 'hm://site*',
+        iriFilter: 'hm://space*',
         contentTypeFilter: [0],
       }
 
@@ -360,7 +360,7 @@ describe('input-querystring', () => {
       expect(deserialized.contextSize).toBe(44)
       expect(deserialized.searchType).toBe(0)
       expect(deserialized.pageSize).toBe(20)
-      expect(deserialized.iriFilter).toBe('hm://site*')
+      expect(deserialized.iriFilter).toBe('hm://space*')
       expect(deserialized.contentTypeFilter).toEqual([0])
     })
   })

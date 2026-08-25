@@ -6,7 +6,7 @@ import {
   createDocumentNavRoute,
   createInspectIpfsNavRoute,
   createInspectNavRoute,
-  type SiteSettingsTab,
+  type SpaceSettingsTab,
 } from '../routes'
 import {
   activitySlugToFilter,
@@ -61,7 +61,7 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
       query?.sort && (EXPLORE_SORTS as readonly string[]).includes(query.sort) ? (query.sort as ExploreSort) : undefined
     return {
       key: 'explore',
-      context: {type: 'site', id},
+      context: {type: 'space', id},
       q: query?.q || undefined,
       sort,
     }
@@ -87,8 +87,8 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
         filterEventType: activitySlugToFilter(activityFilter),
       }
     }
-    if (route.key === 'site-settings' && settingsTab) {
-      return {...route, tab: settingsTab as SiteSettingsTab}
+    if (route.key === 'space-settings' && settingsTab) {
+      return {...route, tab: settingsTab as SpaceSettingsTab}
     }
     return route
   }

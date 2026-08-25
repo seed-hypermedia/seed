@@ -1,11 +1,11 @@
 import downloadBg from '@/assets/download-bg.png'
-import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
+import {loadSpaceResource, SpaceDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
+import {NavigationLoadingContent, WebSpaceProvider} from '@/providers'
 import {parseRequest} from '@/request'
-import {getConfig} from '@/site-config.server'
-import {WebSiteHeader} from '@/web-site-header'
+import {getConfig} from '@/space-config.server'
+import {WebSpaceHeader} from '@/web-space-header'
 import {unwrap} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {useLoaderData} from '@remix-run/react'
@@ -89,7 +89,7 @@ export const loader = async ({request}: {request: Request}) => {
   const stableRelease = await loadUpstreamRelease()
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, () =>
-    loadSiteResource(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
+    loadSpaceResource(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
       stableRelease,
     }),
   )
@@ -98,8 +98,8 @@ export const loader = async ({request}: {request: Request}) => {
 export const meta = defaultPageMeta('Download Seed Hypermedia')
 
 export default function DownloadPage() {
-  const data = unwrap<SiteDocumentPayload & {stableRelease: z.infer<typeof releaseSchema>}>(useLoaderData())
-  const {stableRelease, originHomeId, siteHost, homeMetadata, id, document, origin} = data
+  const data = unwrap<SpaceDocumentPayload & {stableRelease: z.infer<typeof releaseSchema>}>(useLoaderData())
+  const {stableRelease, originHomeId, spaceHost, homeMetadata, id, document, origin} = data
   //   const os = getOS();
   const [platform, setPlatform] = useState<Awaited<ReturnType<typeof getPlatform>> | undefined>(undefined)
   useEffect(() => {
@@ -130,17 +130,17 @@ export default function DownloadPage() {
     )
   }
   return (
-    <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost}>
+    <WebSpaceProvider origin={origin} originHomeId={originHomeId} spaceHost={spaceHost}>
       <div className="bg-cover bg-top" style={{backgroundImage: `url(${downloadBg})`}}>
-        <WebSiteHeader
+        <WebSpaceHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
-          siteHomeId={originHomeId}
+          spaceHomeId={originHomeId}
           docId={id}
           document={document}
           origin={origin}
         />
-        <NavigationLoadingContent className="flex flex-1 flex-col pt-[var(--site-header-h)] sm:pt-0">
+        <NavigationLoadingContent className="flex flex-1 flex-col pt-[var(--space-header-h)] sm:pt-0">
           <div className="flex min-h-[45vh] flex-col items-center justify-center py-8">
             <Container className="gap-4 px-6">
               <h1 className="text-center text-4xl font-bold md:text-5xl">Download Seed Hypermedia Today!</h1>
@@ -171,7 +171,7 @@ export default function DownloadPage() {
         </NavigationLoadingContent>
         <PageFooter />
       </div>
-    </WebSiteProvider>
+    </WebSpaceProvider>
   )
 }
 

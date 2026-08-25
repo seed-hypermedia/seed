@@ -227,10 +227,10 @@ export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
   return url
 }
 
-export function WebSiteProvider(props: {
+export function WebSpaceProvider(props: {
   originHomeId: UnpackedHypermediaId
   children: React.ReactNode
-  siteHost?: string
+  spaceHost?: string
   origin?: string
   prefersLanguages?: (keyof typeof languagePacks)[]
   dehydratedState?: DehydratedState

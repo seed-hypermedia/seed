@@ -17,7 +17,7 @@ import {SizableText} from './text'
 import {cn} from './utils'
 
 export interface AllDocumentsPageProps {
-  siteId: UnpackedHypermediaId
+  spaceId: UnpackedHypermediaId
   scopeId?: UnpackedHypermediaId
   onNavigateToDocument: (id: UnpackedHypermediaId, opts?: {newWindow?: boolean}) => void
 }
@@ -85,8 +85,8 @@ function CitationCell({docId}: {docId: UnpackedHypermediaId}) {
   )
 }
 
-export function AllDocumentsPage({siteId, scopeId, onNavigateToDocument}: AllDocumentsPageProps) {
-  const queryScopeId = scopeId ?? hmId(siteId.uid)
+export function AllDocumentsPage({spaceId, scopeId, onNavigateToDocument}: AllDocumentsPageProps) {
+  const queryScopeId = scopeId ?? hmId(spaceId.uid)
   const directory = useDirectory(queryScopeId, {mode: 'AllDescendants'})
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
@@ -287,7 +287,7 @@ export function AllDocumentsPage({siteId, scopeId, onNavigateToDocument}: AllDoc
           <SizableText size="3xl" weight="bold">
             All Documents
           </SizableText>
-          <p className="text-muted-foreground text-xs">{directory.data?.length ?? 0} documents in this site</p>
+          <p className="text-muted-foreground text-xs">{directory.data?.length ?? 0} documents in this space</p>
         </div>
         {/* Bulk selection is hidden until bulk actions exist.
         {selectedPaths.size > 0 ? (

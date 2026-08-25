@@ -6,8 +6,8 @@ function makeDoc(path: string[], name?: string): HMDocumentInfo {
   return {
     type: 'document',
     id: {
-      id: `hm://site/${path.join('/')}`,
-      uid: 'site',
+      id: `hm://space/${path.join('/')}`,
+      uid: 'space',
       path,
       scheme: null,
       hostname: null,

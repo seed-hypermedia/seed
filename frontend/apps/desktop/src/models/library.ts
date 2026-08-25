@@ -55,25 +55,25 @@ function isSubscribedBy(id: UnpackedHypermediaId, sub: HMSubscription): boolean 
   return false
 }
 
-export type ClassicLibrarySite = {
+export type ClassicLibrarySpace = {
   entityUid: string
   items: HMDocumentInfo[]
   homeItem: HMDocumentInfo | null
 }
 
-export type LibrarySite = HMAccount & {
-  type: 'site'
+export type LibrarySpace = HMAccount & {
+  type: 'space'
   latestComment?: HMComment | null
   activitySummary?: HMActivitySummary
 }
 
-export type LibraryItem = LibrarySite | HMLibraryDocument
+export type LibraryItem = LibrarySpace | HMLibraryDocument
 
 export function useLibrary({
   grouping,
   displayMode,
 }: {
-  grouping: 'site' | 'none'
+  grouping: 'space' | 'none'
   displayMode: 'all' | 'subscribed' | 'bookmarks'
 }) {
   const accounts = useContactList()
@@ -125,7 +125,7 @@ export function useLibrary({
       const plainAccount = toPlainMessage(account)
       return {
         ...plainAccount,
-        type: 'site' as const,
+        type: 'space' as const,
         latestComment: account.activitySummary?.latestCommentId
           ? comments.data?.find((c) => c?.id === account.activitySummary?.latestCommentId)
           : undefined,
@@ -155,14 +155,14 @@ function useAllDocuments(enabled: boolean) {
   return allDocuments
 }
 
-export function useSiteLibrary(siteUid: string | null | undefined, enabled: boolean) {
-  const siteDocuments = useQuery({
-    queryKey: [queryKeys.SITE_LIBRARY, siteUid],
+export function useSpaceLibrary(spaceUid: string | null | undefined, enabled: boolean) {
+  const spaceDocuments = useQuery({
+    queryKey: [queryKeys.SPACE_LIBRARY, spaceUid],
     enabled,
     queryFn: async () => {
-      if (!siteUid) return {documents: []}
+      if (!spaceUid) return {documents: []}
       const res = await grpcClient.documents.listDocuments({
-        account: siteUid,
+        account: spaceUid,
         pageSize: BIG_INT,
       })
       res.documents?.forEach((d) => {
@@ -173,7 +173,7 @@ export function useSiteLibrary(siteUid: string | null | undefined, enabled: bool
       }
     },
   })
-  const commentIds = siteDocuments.data?.documents
+  const commentIds = spaceDocuments.data?.documents
     .map((doc) => doc.activitySummary?.latestCommentId)
     .filter((commentId) => commentId != null)
     .filter((commentId) => commentId.length)
@@ -181,7 +181,7 @@ export function useSiteLibrary(siteUid: string | null | undefined, enabled: bool
   const comments = useComments(commentIds || [])
 
   const data =
-    siteDocuments.data?.documents.map(
+    spaceDocuments.data?.documents.map(
       (doc) =>
         ({
           ...doc,
@@ -190,18 +190,18 @@ export function useSiteLibrary(siteUid: string | null | undefined, enabled: bool
     ) || []
 
   return {
-    ...siteDocuments,
+    ...spaceDocuments,
     data,
   }
 }
 
 export function useChildrenActivity(docId: UnpackedHypermediaId | null | undefined, opts?: {enabled?: boolean}) {
-  const siteLibrary = useSiteLibrary(docId?.uid, !!docId && opts?.enabled !== false)
+  const spaceLibrary = useSpaceLibrary(docId?.uid, !!docId && opts?.enabled !== false)
   const path = docId?.path
   const pathPrefix = docId?.path?.join('/') || ''
   return {
-    ...siteLibrary,
-    data: siteLibrary.data?.filter((item) => {
+    ...spaceLibrary,
+    data: spaceLibrary.data?.filter((item) => {
       if (!item.path?.length) return false
       if (item.path.length !== (path?.length || 0) + 1) return false
       const pathStr = item.path.join('/')

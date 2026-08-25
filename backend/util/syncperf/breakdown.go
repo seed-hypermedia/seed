@@ -32,7 +32,7 @@ var kindIndex = func() map[string]int {
 }()
 
 const (
-	// maxBreakdownSites bounds the per-space map. Sites beyond the cap are
+	// maxBreakdownSpaces bounds the per-space map. Spaces beyond the cap are
 	// folded into a single overflow bucket rather than dropped, so the totals
 	// stay exact even for a node subscribed to more spaces than anyone wants to
 	// scroll.
@@ -42,7 +42,7 @@ const (
 	// far above the number of spaces a real node touches (a long tail of spaces
 	// contributing a single 244-byte Contact blob is normal) rather than at a
 	// tight bound.
-	maxBreakdownSites = 20000
+	maxBreakdownSpaces = 20000
 
 	// maxBreakdownDocs bounds the per-document map used for blobs whose space
 	// isn't known when they're indexed (Changes — see docs on Tracker.docs).
@@ -53,21 +53,21 @@ const (
 	maxBreakdownDocs = 100000
 )
 
-// OverflowSite is the label the overflow bucket renders under.
-const OverflowSite = "(other sites)"
+// OverflowSpace is the label the overflow bucket renders under.
+const OverflowSpace = "(other spaces)"
 
-// UnattributedSite is the label for bytes that could not be pinned to a space.
-const UnattributedSite = "(unattributed)"
+// UnattributedSpace is the label for bytes that could not be pinned to a space.
+const UnattributedSpace = "(unattributed)"
 
 // KindSample is one persisted blob's contribution to the breakdown. Callers
 // accumulate these inside a write transaction and hand the slice over only
 // after it commits, so a rolled-back batch contributes nothing.
 type KindSample struct {
-	// Site is the space this blob belongs to, empty when not known at index
+	// Space is the space this blob belongs to, empty when not known at index
 	// time.
-	Site string
+	Space string
 
-	// Doc is the multihash of the document's genesis blob, used when Site is
+	// Doc is the multihash of the document's genesis blob, used when Space is
 	// empty. A Change carries no resource IRI (it is only tied to a document by
 	// the Refs pointing at it) but it does carry its genesis, and the genesis is
 	// enough to recover the space later — see Tracker.docs.
@@ -109,7 +109,7 @@ func (c *counts) totals() (bytes, blobs int64) {
 var (
 	mWrittenBytesByKind = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "seed_sync_written_bytes_by_kind_total",
-		Help: "Persisted network bytes by blob kind. Site is deliberately not a label (unbounded cardinality); see /debug/network for the per-site split.",
+		Help: "Persisted network bytes by blob kind. Space is deliberately not a label (unbounded cardinality); see /debug/network for the per-space split.",
 	}, []string{"kind"})
 
 	mWrittenBlobsByKind = prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -132,14 +132,14 @@ func (t *Tracker) RecordKinds(samples []KindSample) {
 			continue
 		}
 		switch {
-		case s.Site != "":
-			t.siteCountsLocked(s.Site).add(ki, s.Bytes)
+		case s.Space != "":
+			t.spaceCountsLocked(s.Space).add(ki, s.Bytes)
 		case s.Doc != "":
 			// Space unknown now; parked under the document's genesis and
 			// resolved at render time once a Ref ties that genesis to a space.
 			t.docCountsLocked(s.Doc).add(ki, s.Bytes)
 		default:
-			t.siteCountsLocked(UnattributedSite).add(ki, s.Bytes)
+			t.spaceCountsLocked(UnattributedSpace).add(ki, s.Bytes)
 		}
 	}
 	t.bmu.Unlock()
@@ -150,23 +150,23 @@ func (t *Tracker) RecordKinds(samples []KindSample) {
 	}
 }
 
-// siteCountsLocked returns the bucket for a space, folding into the overflow
+// spaceCountsLocked returns the bucket for a space, folding into the overflow
 // bucket once the cap is reached. Caller must hold bmu.
-func (t *Tracker) siteCountsLocked(site string) *counts {
-	if t.sites == nil {
-		t.sites = make(map[string]*counts, 16)
+func (t *Tracker) spaceCountsLocked(space string) *counts {
+	if t.spaces == nil {
+		t.spaces = make(map[string]*counts, 16)
 	}
-	if c, ok := t.sites[site]; ok {
+	if c, ok := t.spaces[space]; ok {
 		return c
 	}
-	if len(t.sites) >= maxBreakdownSites {
-		site = OverflowSite
-		if c, ok := t.sites[site]; ok {
+	if len(t.spaces) >= maxBreakdownSpaces {
+		space = OverflowSpace
+		if c, ok := t.spaces[space]; ok {
 			return c
 		}
 	}
 	c := &counts{}
-	t.sites[site] = c
+	t.spaces[space] = c
 	return c
 }
 
@@ -181,16 +181,16 @@ func (t *Tracker) docCountsLocked(doc string) *counts {
 		return c
 	}
 	if len(t.docs) >= maxBreakdownDocs {
-		return t.siteCountsLocked(UnattributedSite)
+		return t.spaceCountsLocked(UnattributedSpace)
 	}
 	c := &counts{}
 	t.docs[doc] = c
 	return c
 }
 
-// SiteBreakdown is one row of the write breakdown.
-type SiteBreakdown struct {
-	Site       string
+// SpaceBreakdown is one row of the write breakdown.
+type SpaceBreakdown struct {
+	Space      string
 	Bytes      map[string]int64
 	Blobs      map[string]int64
 	TotalBytes int64
@@ -199,12 +199,12 @@ type SiteBreakdown struct {
 
 // BreakdownSnapshot is the whole write breakdown, ready to render.
 type BreakdownSnapshot struct {
-	Kinds []string
-	Sites []SiteBreakdown
-	Total SiteBreakdown
+	Kinds  []string
+	Spaces []SpaceBreakdown
+	Total  SpaceBreakdown
 
 	// PendingDocs are genesis multihashes holding bytes whose space is not yet
-	// known. Pass them through ResolveDocs to fold them into Sites.
+	// known. Pass them through ResolveDocs to fold them into Spaces.
 	PendingDocs []string
 
 	// UnclassifiedBytes is the gap between the authoritative global counter and
@@ -225,9 +225,9 @@ func (t *Tracker) Breakdown() BreakdownSnapshot {
 	out := BreakdownSnapshot{Kinds: Kinds, docs: make(map[string]*counts)}
 
 	t.bmu.Lock()
-	for site, c := range t.sites {
+	for space, c := range t.spaces {
 		cp := *c
-		out.Sites = append(out.Sites, siteBreakdownFrom(site, &cp))
+		out.Spaces = append(out.Spaces, spaceBreakdownFrom(space, &cp))
 	}
 	for doc, c := range t.docs {
 		cp := *c
@@ -245,12 +245,12 @@ func (t *Tracker) Breakdown() BreakdownSnapshot {
 // still unresolved (no Ref indexed for it yet) lands in the unattributed
 // bucket. Call once, then Finish.
 func (b *BreakdownSnapshot) ResolveDocs(spaces map[string]string) {
-	byName := make(map[string]*counts, len(b.Sites))
-	order := make([]string, 0, len(b.Sites))
-	for i := range b.Sites {
-		c := countsFromBreakdown(&b.Sites[i])
-		byName[b.Sites[i].Site] = c
-		order = append(order, b.Sites[i].Site)
+	byName := make(map[string]*counts, len(b.Spaces))
+	order := make([]string, 0, len(b.Spaces))
+	for i := range b.Spaces {
+		c := countsFromBreakdown(&b.Spaces[i])
+		byName[b.Spaces[i].Space] = c
+		order = append(order, b.Spaces[i].Space)
 	}
 
 	get := func(name string) *counts {
@@ -266,28 +266,28 @@ func (b *BreakdownSnapshot) ResolveDocs(spaces map[string]string) {
 	for doc, c := range b.docs {
 		name := spaces[doc]
 		if name == "" {
-			name = UnattributedSite
+			name = UnattributedSpace
 		}
 		get(name).addAll(c)
 	}
 	b.docs = nil
 	b.PendingDocs = nil
 
-	b.Sites = b.Sites[:0]
+	b.Spaces = b.Spaces[:0]
 	for _, name := range order {
-		b.Sites = append(b.Sites, siteBreakdownFrom(name, byName[name]))
+		b.Spaces = append(b.Spaces, spaceBreakdownFrom(name, byName[name]))
 	}
 }
 
 // Finish sorts the rows, computes totals, and works out how much of the
 // authoritative byte count this breakdown failed to classify.
 func (b *BreakdownSnapshot) Finish() {
-	b.Total = SiteBreakdown{
-		Site:  "TOTAL",
+	b.Total = SpaceBreakdown{
+		Space: "TOTAL",
 		Bytes: make(map[string]int64, numKinds),
 		Blobs: make(map[string]int64, numKinds),
 	}
-	for _, s := range b.Sites {
+	for _, s := range b.Spaces {
 		for _, k := range Kinds {
 			b.Total.Bytes[k] += s.Bytes[k]
 			b.Total.Blobs[k] += s.Blobs[k]
@@ -296,27 +296,27 @@ func (b *BreakdownSnapshot) Finish() {
 		b.Total.TotalBlobs += s.TotalBlobs
 	}
 
-	// Biggest consumer first — that's the site worth looking at.
-	slices.SortFunc(b.Sites, func(x, y SiteBreakdown) int {
+	// Biggest consumer first — that's the space worth looking at.
+	slices.SortFunc(b.Spaces, func(x, y SpaceBreakdown) int {
 		if c := cmp.Compare(y.TotalBytes, x.TotalBytes); c != 0 {
 			return c
 		}
-		return cmp.Compare(x.Site, y.Site)
+		return cmp.Compare(x.Space, y.Space)
 	})
 
 	b.UnclassifiedBytes = max(b.UnclassifiedBytes-b.Total.TotalBytes, 0)
 	b.UnclassifiedBlobs = max(b.UnclassifiedBlobs-b.Total.TotalBlobs, 0)
 }
 
-// Bytes is the total persisted bytes for one kind across every site.
+// Bytes is the total persisted bytes for one kind across every space.
 func (b BreakdownSnapshot) Bytes(kind string) int64 { return b.Total.Bytes[kind] }
 
-// Blobs is the total persisted blobs for one kind across every site.
+// Blobs is the total persisted blobs for one kind across every space.
 func (b BreakdownSnapshot) Blobs(kind string) int64 { return b.Total.Blobs[kind] }
 
-func siteBreakdownFrom(site string, c *counts) SiteBreakdown {
-	row := SiteBreakdown{
-		Site:  site,
+func spaceBreakdownFrom(space string, c *counts) SpaceBreakdown {
+	row := SpaceBreakdown{
+		Space: space,
 		Bytes: make(map[string]int64, numKinds),
 		Blobs: make(map[string]int64, numKinds),
 	}
@@ -328,7 +328,7 @@ func siteBreakdownFrom(site string, c *counts) SiteBreakdown {
 	return row
 }
 
-func countsFromBreakdown(s *SiteBreakdown) *counts {
+func countsFromBreakdown(s *SpaceBreakdown) *counts {
 	c := &counts{}
 	for i, k := range Kinds {
 		c.bytes[i] = s.Bytes[k]

@@ -59,17 +59,17 @@ export async function loader({request}: LoaderFunctionArgs) {
 
   const domain = process.env.MONITORING_DOMAIN || runtimeDomain
 
-  // Get siteHost for window.ENV injection
-  const siteHost = url.hostname
+  // Get spaceHost for window.ENV injection
+  const spaceHost = url.hostname
 
-  const result = {isProd, enableStats, domain, siteHost}
+  const result = {isProd, enableStats, domain, spaceHost}
 
   return json(result)
 }
 
 export function Layout({children}: {children: React.ReactNode}) {
   const data = useRouteLoaderData<typeof loader>('root')
-  const {isProd = false, enableStats = false, domain = '', siteHost = ''} = data || {}
+  const {isProd = false, enableStats = false, domain = '', spaceHost = ''} = data || {}
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -88,7 +88,7 @@ export function Layout({children}: {children: React.ReactNode}) {
           dangerouslySetInnerHTML={{
             __html: `window.ENV = ${JSON.stringify({
               LIGHTNING_API_URL,
-              SITE_BASE_URL: siteHost || SITE_BASE_URL,
+              SITE_BASE_URL: spaceHost || SITE_BASE_URL,
               WEB_IDENTITY_ORIGIN,
               WEB_IDENTITY_ENABLED,
               WEB_IS_GATEWAY,

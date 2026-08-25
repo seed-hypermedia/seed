@@ -8,7 +8,7 @@ import {
   packHmId,
 } from '@shm/shared'
 import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
-import {defaultSiteIcon} from './meta'
+import {defaultSpaceIcon} from './meta'
 import {getOptimizedImageUrl} from './providers'
 
 export type HypermediaResourceMetadata = {
@@ -75,17 +75,19 @@ export function metadataToPageMeta(
   display: {
     origin: string
     id: UnpackedHypermediaId
-    siteHomeIcon?: string | null
+    spaceHomeIcon?: string | null
   },
 ): ReturnType<MetaFunction> {
   const meta: ReturnType<MetaFunction> = []
 
-  const siteHomeIcon = display.siteHomeIcon ? getOptimizedImageUrl(extractIpfsUrlCid(display.siteHomeIcon), 'S') : null
+  const spaceHomeIcon = display.spaceHomeIcon
+    ? getOptimizedImageUrl(extractIpfsUrlCid(display.spaceHomeIcon), 'S')
+    : null
 
   meta.push({
     tagName: 'link',
     rel: 'icon',
-    href: siteHomeIcon || defaultSiteIcon,
+    href: spaceHomeIcon || defaultSpaceIcon,
     type: 'image/png',
   })
 

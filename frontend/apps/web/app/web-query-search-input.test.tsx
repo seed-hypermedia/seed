@@ -40,7 +40,7 @@ describe('WebQuerySearchInput', () => {
     request = vi.fn(async () => ({
       entities: [
         {
-          id: makeId('site', ['alpha']),
+          id: makeId('space', ['alpha']),
           title: 'Alpha Document',
           icon: '',
           parentNames: ['Home'],
@@ -70,7 +70,7 @@ describe('WebQuerySearchInput', () => {
       root.render(
         <QueryClientProvider client={queryClient}>
           <UniversalAppProvider
-            originHomeId={makeId('site')}
+            originHomeId={makeId('space')}
             openRoute={vi.fn()}
             openUrl={vi.fn()}
             universalClient={{request} as any}
@@ -98,7 +98,7 @@ describe('WebQuerySearchInput', () => {
       'Search',
       expect.objectContaining({
         query: 'alpha',
-        iriFilter: 'hm://site*',
+        iriFilter: 'hm://space*',
         contentTypeFilter: undefined,
       }),
       expect.anything(),
@@ -112,8 +112,8 @@ describe('WebQuerySearchInput', () => {
     })
 
     expect(onSelect).toHaveBeenCalledWith({
-      id: makeId('site', ['alpha']),
-      route: {key: 'document', id: makeId('site', ['alpha'])},
+      id: makeId('space', ['alpha']),
+      route: {key: 'document', id: makeId('space', ['alpha'])},
     })
     expect(onClose).toHaveBeenCalled()
   })

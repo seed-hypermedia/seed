@@ -105,7 +105,7 @@ describe('web agents platform', () => {
 
   it('points agent hm:// links at this deployment, not the default gateway', async () => {
     // Without this the shared markdown renderer falls back to DEFAULT_GATEWAY_URL, so a
-    // self-hosted site would hand out hyper.media hrefs for the agent's links.
+    // self-hosted space would hand out hyper.media hrefs for the agent's links.
     mocks.appContext.origin = 'https://mysite.example'
     const platform = await loadPlatform()
 

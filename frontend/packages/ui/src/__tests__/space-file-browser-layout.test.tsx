@@ -4,7 +4,7 @@ import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {renderToString} from 'react-dom/server'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {SiteFileBrowserLayout} from '../site-file-browser-layout'
+import {SpaceFileBrowserLayout} from '../space-file-browser-layout'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const mediaMock = vi.hoisted(() => ({value: {xs: false}}))
@@ -12,10 +12,10 @@ const fileBrowserPropsMock = vi.hoisted(() => ({
   value: null as null | {onPrefetch?: (id: ReturnType<typeof hmId>) => void},
 }))
 vi.mock('../use-media', () => ({useMedia: () => mediaMock.value}))
-vi.mock('../site-file-browser', () => ({
-  SiteFileBrowser: (props: {onPrefetch?: (id: ReturnType<typeof hmId>) => void}) => {
+vi.mock('../space-file-browser', () => ({
+  SpaceFileBrowser: (props: {onPrefetch?: (id: ReturnType<typeof hmId>) => void}) => {
     fileBrowserPropsMock.value = props
-    return <div data-testid="site-file-browser" />
+    return <div data-testid="space-file-browser" />
   },
 }))
 vi.mock('../components/scroll-area', () => ({
@@ -59,36 +59,36 @@ afterEach(() => {
 function renderLayout() {
   act(() => {
     root.render(
-      <SiteFileBrowserLayout
-        siteId={hmId('site')}
-        activeDocumentId={hmId('site')}
-        siteName="Site"
+      <SpaceFileBrowserLayout
+        spaceId={hmId('space')}
+        activeDocumentId={hmId('space')}
+        spaceName="Space"
         mobileOpen={false}
         onMobileOpenChange={vi.fn()}
         onNavigate={vi.fn()}
       >
         <div data-testid="document-body">Document body</div>
-      </SiteFileBrowserLayout>,
+      </SpaceFileBrowserLayout>,
     )
   })
 }
 
-describe('SiteFileBrowserLayout', () => {
+describe('SpaceFileBrowserLayout', () => {
   it('passes document prefetch intent to the file browser', () => {
     const onPrefetch = vi.fn()
     act(() => {
       root.render(
-        <SiteFileBrowserLayout
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site')}
-          siteName="Site"
+        <SpaceFileBrowserLayout
+          spaceId={hmId('space')}
+          activeDocumentId={hmId('space')}
+          spaceName="Space"
           mobileOpen={false}
           onMobileOpenChange={vi.fn()}
           onNavigate={vi.fn()}
           onPrefetch={onPrefetch}
         >
           <div>Document body</div>
-        </SiteFileBrowserLayout>,
+        </SpaceFileBrowserLayout>,
       )
     })
 
@@ -97,16 +97,16 @@ describe('SiteFileBrowserLayout', () => {
 
   it('server-renders a static 288px file explorer before client sizing is known', () => {
     const html = renderToString(
-      <SiteFileBrowserLayout
-        siteId={hmId('site')}
-        activeDocumentId={hmId('site')}
-        siteName="Site"
+      <SpaceFileBrowserLayout
+        spaceId={hmId('space')}
+        activeDocumentId={hmId('space')}
+        spaceName="Space"
         mobileOpen={false}
         onMobileOpenChange={vi.fn()}
         onNavigate={vi.fn()}
       >
         <div>Document body</div>
-      </SiteFileBrowserLayout>,
+      </SpaceFileBrowserLayout>,
     )
 
     expect(html).toContain('Document body')
@@ -126,7 +126,7 @@ describe('SiteFileBrowserLayout', () => {
       container.querySelector<HTMLButtonElement>('[aria-label="Collapse file browser"]')?.click()
     })
 
-    expect(container.querySelector('[data-panel-id="site-file-browser"]')).toBeNull()
+    expect(container.querySelector('[data-panel-id="space-file-browser"]')).toBeNull()
     expect(container.querySelector('[data-panel-resize-handle-id]')).toBeNull()
     const reopenControl = container.querySelector('[data-tooltip-content="Show file explorer"]')
     expect(reopenControl?.parentElement?.className).toContain('absolute')
@@ -138,7 +138,7 @@ describe('SiteFileBrowserLayout', () => {
       container.querySelector<HTMLButtonElement>('[aria-label="Open file browser"]')?.click()
     })
 
-    expect(container.querySelector('[data-panel-id="site-file-browser"]')).toBeTruthy()
+    expect(container.querySelector('[data-panel-id="space-file-browser"]')).toBeTruthy()
     expect(container.querySelector('[data-tooltip-content="Show file explorer"]')).toBeNull()
   })
 
@@ -155,16 +155,16 @@ describe('SiteFileBrowserLayout', () => {
 
     act(() => {
       root.render(
-        <SiteFileBrowserLayout
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site')}
-          siteName="Site"
+        <SpaceFileBrowserLayout
+          spaceId={hmId('space')}
+          activeDocumentId={hmId('space')}
+          spaceName="Space"
           mobileOpen={true}
           onMobileOpenChange={vi.fn()}
           onNavigate={vi.fn()}
         >
           <div>Document body</div>
-        </SiteFileBrowserLayout>,
+        </SpaceFileBrowserLayout>,
       )
     })
 

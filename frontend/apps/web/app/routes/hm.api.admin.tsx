@@ -3,11 +3,11 @@ import {
   getServiceConfig,
   rmCustomDomain,
   rmService,
-  siteConfigSchema,
+  spaceConfigSchema,
   writeConfig,
   writeCustomDomainConfig,
   type ServiceConfig,
-} from '@/site-config.server'
+} from '@/space-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {randomBytes} from 'crypto'
 import {z} from 'zod'
@@ -51,7 +51,7 @@ const AdminActionConfigureService = z
   .object({
     type: z.literal('configure-service'),
     name: z.string(),
-    config: siteConfigSchema,
+    config: spaceConfigSchema,
   })
   .strict()
 

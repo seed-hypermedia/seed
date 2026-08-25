@@ -42,7 +42,7 @@ export interface WXRMedia {
 }
 
 export interface WXRParseResult {
-  siteTitle: string
+  spaceTitle: string
   siteUrl: string
   authors: WXRAuthor[]
   posts: WXRPost[]
@@ -58,7 +58,7 @@ export function parseWXR(xml: string): WXRParseResult {
 
   const channel = $('channel')
 
-  const siteTitle = channel.children('title').first().text().trim()
+  const spaceTitle = channel.children('title').first().text().trim()
   const siteUrl = channel.children('link').first().text().trim()
 
   // Parse authors from wp:author elements using filter instead of CSS selector.
@@ -158,7 +158,7 @@ export function parseWXR(xml: string): WXRParseResult {
   })
 
   return {
-    siteTitle,
+    spaceTitle,
     siteUrl,
     authors,
     posts,

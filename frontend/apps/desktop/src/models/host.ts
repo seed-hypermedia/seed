@@ -39,30 +39,31 @@ export const SignInResponseSchema = z.discriminatedUnion('status', [
 ])
 export type SignInResponse = z.infer<typeof SignInResponseSchema>
 
-export const CreateSiteRequestSchema = z.object({
+export const CreateSpaceRequestSchema = z.object({
   subdomain: z.string(),
 })
-export type CreateSiteRequest = z.infer<typeof CreateSiteRequestSchema>
+export type CreateSpaceRequest = z.infer<typeof CreateSpaceRequestSchema>
 
-export const CreateSiteResponseSchema = z.object({
+export const CreateSpaceResponseSchema = z.object({
   subdomain: z.string(),
   host: z.string(),
   registrationSecret: z.string(),
   setupUrl: z.string(),
 })
-export type CreateSiteResponse = z.infer<typeof CreateSiteResponseSchema>
+export type CreateSpaceResponse = z.infer<typeof CreateSpaceResponseSchema>
 
-export const CreateSiteDomainRequestSchema = z.object({
+export const CreateSpaceDomainRequestSchema = z.object({
   hostname: z.string(),
+  // Wire field names below are the Seed Host API contract and stay as `site*`.
   currentSiteUrl: z.string(),
 })
-export type CreateSiteDomainRequest = z.infer<typeof CreateSiteDomainRequestSchema>
+export type CreateSpaceDomainRequest = z.infer<typeof CreateSpaceDomainRequestSchema>
 
-export const CreateSiteDomainResponseSchema = z.object({
+export const CreateSpaceDomainResponseSchema = z.object({
   hostname: z.string(),
   domainId: z.string(),
 })
-export type CreateSiteDomainResponse = z.infer<typeof CreateSiteDomainResponseSchema>
+export type CreateSpaceDomainResponse = z.infer<typeof CreateSpaceDomainResponseSchema>
 
 export const HostInfoResponseSchema = z.object({
   serviceErrorMessage: z.string().optional(),
@@ -181,12 +182,12 @@ export function useHostSession({
     }
     wasAuthenticated.current = !!sessionToken
   }, [sessionToken])
-  const createSite = useMutation({
+  const createSpace = useMutation({
     mutationFn: async ({subdomain}: {subdomain: string}) => {
       const respJson = await hostAPI('sites', 'POST', {
         subdomain,
-      } satisfies CreateSiteRequest)
-      const result = CreateSiteResponseSchema.parse(respJson)
+      } satisfies CreateSpaceRequest)
+      const result = CreateSpaceResponseSchema.parse(respJson)
       return result
     },
   })
@@ -211,18 +212,18 @@ export function useHostSession({
   const createDomain = useMutation({
     mutationFn: async ({
       hostname,
-      currentSiteUrl,
+      currentSpaceUrl,
       id,
     }: {
       hostname: string
-      currentSiteUrl: string
+      currentSpaceUrl: string
       id: UnpackedHypermediaId
     }) => {
       const respJson = await hostAPI(`domains`, 'POST', {
-        currentSiteUrl,
+        currentSiteUrl: currentSpaceUrl,
         hostname,
-      } satisfies CreateSiteDomainRequest)
-      const result = CreateSiteDomainResponseSchema.parse(respJson)
+      } satisfies CreateSpaceDomainRequest)
+      const result = CreateSpaceDomainResponseSchema.parse(respJson)
       if (!hostState) throw new Error('No host state')
       setHostState.mutate({
         ...hostState,
@@ -280,7 +281,7 @@ export function useHostSession({
       })
     },
     hostInfo,
-    createSite,
+    createSpace,
     createDomain,
     cancelPendingDomain,
     logout,

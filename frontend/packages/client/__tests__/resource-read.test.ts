@@ -44,10 +44,10 @@ describe('resolveIdWithClient', () => {
 
   it('passes domain resolver options through for non-comment web URLs', async () => {
     const result = await resolveIdWithClient('https://site.example/doc', {
-      domainResolver: async (hostname) => (hostname === 'site.example' ? 'site-account' : null),
+      domainResolver: async (hostname) => (hostname === 'site.example' ? 'space-account' : null),
     })
 
-    expect(packedResolvedId(result)).toBe('hm://site-account/doc')
+    expect(packedResolvedId(result)).toBe('hm://space-account/doc')
     expect(result.serverUrl).toBe('https://site.example')
   })
 })

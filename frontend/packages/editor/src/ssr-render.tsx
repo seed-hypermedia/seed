@@ -60,7 +60,7 @@ export type SSRRenderOpts = {
   cacheKey?: string
   /** Children type for the document root group. */
   rootChildrenType?: HMBlockChildrenType
-  /** Rewrites hm:// hrefs in the output to site-relative URLs (SEO / no-JS
+  /** Rewrites hm:// hrefs in the output to space-relative URLs (SEO / no-JS
    * usability; does not affect visual parity). */
   renderHref?: (url: string) => string | null | undefined
   /** The loader's prefetched React Query cache; block components read from

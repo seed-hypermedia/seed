@@ -26,14 +26,18 @@ export function buildVaultConnectionURL(
   vaultUrl: string,
   connectToken: string,
   callbackBase: string,
-  siteName?: string,
+  spaceName?: string,
 ): string {
   const vaultOrigin = normalizeVaultOriginURL(vaultUrl, 'vault URL')
   normalizeVaultOriginURL(callbackBase, 'callback URL')
   const connectionURL = new URL(vaultOrigin)
   connectionURL.pathname = connectionURL.pathname ? `${connectionURL.pathname}/connect` : '/connect'
   const fragmentParams = new URLSearchParams({token: connectToken})
-  if (siteName) fragmentParams.set('siteName', siteName)
+  if (spaceName) {
+    fragmentParams.set('spaceName', spaceName)
+    // Pre-rename key, still sent for vaults on an older build.
+    fragmentParams.set('siteName', spaceName)
+  }
   connectionURL.hash = fragmentParams.toString()
   return connectionURL.toString()
 }

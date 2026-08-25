@@ -154,7 +154,7 @@ func cadenceLabel(task *taskHandle) string {
 //
 // Reconcile counts as progress, not just download: a recursive discovery spends
 // its first seconds reconciling want-lists with peers before any block arrives,
-// and the foreground site sync was being preempted in exactly that window (cut
+// and the foreground space sync was being preempted in exactly that window (cut
 // with ok=0 downloaded=0, then a full re-cycle). MaxReconciledWants is monotonic,
 // so it advances only while new peers are still reconciling — once that settles,
 // download progress takes over the protection. A task with no progress tracker,
@@ -807,9 +807,9 @@ func (s *scheduler) preemptSubscriptionLocked(now time.Time) bool {
 		}
 		// Never preempt a subscription that is actively downloading — the same
 		// protection preemptOldestHotLocked gives hot tasks (672a978cb), which was
-		// never applied here. The foreground site sync is a recursive subscription;
+		// never applied here. The foreground space sync is a recursive subscription;
 		// when a freshly-rendered card (a new hot task) needs a slot, killing the
-		// site sync mid-download throws away thousands of in-flight blobs AND
+		// space sync mid-download throws away thousands of in-flight blobs AND
 		// reschedules it a full Interval later — the exact multi-cycle cold-sync
 		// stall (measured: connected_sync "context canceled" at 18s, then a ~1.7min
 		// dead gap). A stalled/idle subscription is still fair game; if every

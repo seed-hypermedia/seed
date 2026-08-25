@@ -20,29 +20,29 @@ vi.mock('@shm/ui/components/dropdown-menu', () => ({
 vi.mock('@shm/ui/components/sidebar', () => ({
   SidebarMenuAction: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
 }))
-import {isSiteDocumentsActiveRoute} from '../sidebar-active'
+import {isSpaceDocumentsActiveRoute} from '../sidebar-active'
 
-describe('isSiteDocumentsActiveRoute', () => {
-  const siteId = hmId('site')
+describe('isSpaceDocumentsActiveRoute', () => {
+  const spaceId = hmId('space')
 
-  it('marks child documents for the site active', () => {
-    expect(isSiteDocumentsActiveRoute({key: 'document', id: hmId('site', {path: ['docs', 'intro']})}, siteId)).toBe(
+  it('marks child documents for the space active', () => {
+    expect(isSpaceDocumentsActiveRoute({key: 'document', id: hmId('space', {path: ['docs', 'intro']})}, spaceId)).toBe(
       true,
     )
   })
 
-  it('marks document views for the site active', () => {
-    expect(isSiteDocumentsActiveRoute({key: 'all-documents', id: siteId}, siteId)).toBe(true)
-    expect(isSiteDocumentsActiveRoute({key: 'comments', id: hmId('site', {path: ['docs']})}, siteId)).toBe(true)
-    expect(isSiteDocumentsActiveRoute({key: 'activity', id: hmId('site', {path: ['docs']})}, siteId)).toBe(true)
-    expect(isSiteDocumentsActiveRoute({key: 'directory', id: hmId('site', {path: ['docs']})}, siteId)).toBe(true)
-    expect(isSiteDocumentsActiveRoute({key: 'collaborators', id: hmId('site', {path: ['docs']})}, siteId)).toBe(true)
-    expect(isSiteDocumentsActiveRoute({key: 'feed', id: hmId('site', {path: ['docs']})}, siteId)).toBe(true)
+  it('marks document views for the space active', () => {
+    expect(isSpaceDocumentsActiveRoute({key: 'all-documents', id: spaceId}, spaceId)).toBe(true)
+    expect(isSpaceDocumentsActiveRoute({key: 'comments', id: hmId('space', {path: ['docs']})}, spaceId)).toBe(true)
+    expect(isSpaceDocumentsActiveRoute({key: 'activity', id: hmId('space', {path: ['docs']})}, spaceId)).toBe(true)
+    expect(isSpaceDocumentsActiveRoute({key: 'directory', id: hmId('space', {path: ['docs']})}, spaceId)).toBe(true)
+    expect(isSpaceDocumentsActiveRoute({key: 'collaborators', id: hmId('space', {path: ['docs']})}, spaceId)).toBe(true)
+    expect(isSpaceDocumentsActiveRoute({key: 'feed', id: hmId('space', {path: ['docs']})}, spaceId)).toBe(true)
   })
 
-  it('does not mark unrelated sites or non-document routes active', () => {
-    expect(isSiteDocumentsActiveRoute({key: 'document', id: hmId('other', {path: ['docs']})}, siteId)).toBe(false)
-    expect(isSiteDocumentsActiveRoute({key: 'profile', id: siteId}, siteId)).toBe(false)
-    expect(isSiteDocumentsActiveRoute({key: 'library'}, siteId)).toBe(false)
+  it('does not mark unrelated spaces or non-document routes active', () => {
+    expect(isSpaceDocumentsActiveRoute({key: 'document', id: hmId('other', {path: ['docs']})}, spaceId)).toBe(false)
+    expect(isSpaceDocumentsActiveRoute({key: 'profile', id: spaceId}, spaceId)).toBe(false)
+    expect(isSpaceDocumentsActiveRoute({key: 'library'}, spaceId)).toBe(false)
   })
 })

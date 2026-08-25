@@ -78,11 +78,11 @@ describe('web-draft-db', () => {
   })
 
   it('lists drafts filtered by account uid, newest first', async () => {
-    await putWebDocDraft(makeDraft({draftId: 'loc-old', locationUid: 'site', updatedAt: 1}))
-    await putWebDocDraft(makeDraft({draftId: 'edit-new', editUid: 'site', updatedAt: 3}))
+    await putWebDocDraft(makeDraft({draftId: 'loc-old', locationUid: 'space', updatedAt: 1}))
+    await putWebDocDraft(makeDraft({draftId: 'edit-new', editUid: 'space', updatedAt: 3}))
     await putWebDocDraft(makeDraft({draftId: 'other', locationUid: 'other', editUid: 'other', updatedAt: 4}))
 
-    const drafts = await listWebDocDraftsForAccount('site')
+    const drafts = await listWebDocDraftsForAccount('space')
 
     expect(drafts.map((d) => d.draftId)).toEqual(['edit-new', 'loc-old'])
   })

@@ -19,7 +19,7 @@ import (
 // TestIndexedHook_OffWritePath guards the decoupling of the indexed hook from
 // the foreground write path: a Put must commit and return even while the hook
 // is stuck, because hook work extending write transactions is what delayed
-// comment visibility on busy site daemons.
+// comment visibility on busy space daemons.
 func TestIndexedHook_OffWritePath(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	db := storage.MakeTestDB(t)

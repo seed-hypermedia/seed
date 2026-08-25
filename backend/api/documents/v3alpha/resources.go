@@ -267,18 +267,18 @@ func (srv *Server) PushResourcesToPeer(req *documents.PushResourcesToPeerRequest
 	}
 
 	// Determine which spaces' private blobs we can share with the target peer.
-	// We only include private blobs for spaces where the target peer is the siteURL server.
+	// We only include private blobs for spaces where the target peer is the spaceURL server.
 	// For other spaces, only public blobs are included.
 	var authorizedSpaces []core.Principal
 	for x := range spaces {
 		space := x.Unwrap()
-		siteURL, err := srv.idx.GetSiteURL(ctx, space)
-		if err != nil || siteURL == "" {
+		spaceURL, err := srv.idx.GetSpaceURL(ctx, space)
+		if err != nil || spaceURL == "" {
 			continue
 		}
-		// Check if the target peer matches the siteURL server.
-		// We need to resolve siteURL to peer ID via HTTP.
-		resolvedInfo, err := srv.idx.ResolveSiteURL(ctx, siteURL)
+		// Check if the target peer matches the spaceURL server.
+		// We need to resolve spaceURL to peer ID via HTTP.
+		resolvedInfo, err := srv.idx.ResolveSpaceURL(ctx, spaceURL)
 		if err != nil {
 			continue
 		}
@@ -372,17 +372,17 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 			u.Host = accountID
 			u.Path = remainingPath
 		} else {
-			// Resolve account ID via site config endpoint.
-			siteURL := u.Scheme + "://" + u.Host
-			siteConfig, err := srv.idx.ResolveSiteConfig(ctx, siteURL)
+			// Resolve account ID via space config endpoint.
+			spaceURL := u.Scheme + "://" + u.Host
+			spaceConfig, err := srv.idx.ResolveSpaceConfig(ctx, spaceURL)
 			if err != nil {
-				return nil, status.Errorf(codes.NotFound, "failed to resolve site config for '%s': %v", siteURL, err)
+				return nil, status.Errorf(codes.NotFound, "failed to resolve space config for '%s': %v", spaceURL, err)
 			}
-			if siteConfig.RegisteredAccountUID == "" {
-				return nil, status.Errorf(codes.NotFound, "site '%s' has no registered account", siteURL)
+			if spaceConfig.RegisteredAccountUID == "" {
+				return nil, status.Errorf(codes.NotFound, "space '%s' has no registered account", spaceURL)
 			}
 			u.Scheme = "hm"
-			u.Host = siteConfig.RegisteredAccountUID
+			u.Host = spaceConfig.RegisteredAccountUID
 		}
 	}
 

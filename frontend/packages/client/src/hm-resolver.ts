@@ -133,11 +133,11 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
     if (id) {
       const hmId = unpackHmId(id)
       const resolvedVersion = version ?? hmId?.version ?? null
-      let siteHostname: string | null = null
+      let spaceHostname: string | null = null
       try {
         const inputUrl = new URL(url)
         if (!inputUrl.pathname.startsWith('/hm/')) {
-          siteHostname = inputUrl.origin
+          spaceHostname = inputUrl.origin
         }
       } catch {
         // ignore parse errors
@@ -153,7 +153,7 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
           latest,
           blockRef,
           blockRange,
-          hostname: siteHostname || hmId.hostname,
+          hostname: spaceHostname || hmId.hostname,
         },
         version,
         title,
@@ -169,7 +169,7 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
 }
 
 /**
- * Resolve a string that may be an hm:// ID, a gateway URL, or a site web URL
+ * Resolve a string that may be an hm:// ID, a gateway URL, or a space web URL
  * into an UnpackedHypermediaId. Tries synchronous parsing first, then falls
  * back to an OPTIONS request for web URLs.
  */
@@ -202,7 +202,7 @@ async function resolveFromDomainResolver(
   if (!uid) return null
 
   // Only gateway domains treat /hm/* paths as embedded canonical HM ids;
-  // on ordinary custom domains /hm/... is a normal site path.
+  // on ordinary custom domains /hm/... is a normal space path.
   const isGateway = typeof domainResolution === 'object' && !!domainResolution?.isGateway
   const gatewayHmId = isGateway && parsedUrl.pathname.startsWith('/hm/') ? unpackHmId(url) : null
   if (gatewayHmId) {
@@ -242,7 +242,7 @@ function buildResolvedUrlFromDomainUid(
   const path = profilePath?.path || (pathSegments.length > 0 ? pathSegments : null)
   const version = parsedUrl.searchParams.get('v') || null
   const pathStr = path ? '/' + path.join('/') : ''
-  const siteHostname = parsedUrl.origin
+  const spaceHostname = parsedUrl.origin
 
   return {
     id: `hm://${resolvedUid}${pathStr}`,
@@ -253,7 +253,7 @@ function buildResolvedUrlFromDomainUid(
       version,
       blockRef,
       blockRange,
-      hostname: siteHostname,
+      hostname: spaceHostname,
       scheme: 'hm',
       latest,
     } as UnpackedHypermediaId,
@@ -266,10 +266,10 @@ function buildResolvedUrlFromDomainUid(
   }
 }
 
-function resolveProfilePath(siteUid: string, pathSegments: string[]): {uid: string; path: string[]} | null {
+function resolveProfilePath(spaceUid: string, pathSegments: string[]): {uid: string; path: string[]} | null {
   if (pathSegments[0] !== ':profile') return null
   return {
-    uid: pathSegments[1] || siteUid,
+    uid: pathSegments[1] || spaceUid,
     path: [':profile'],
   }
 }

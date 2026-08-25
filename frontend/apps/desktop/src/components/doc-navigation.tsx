@@ -1,5 +1,5 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
-import {useCreateDraft, useDocumentEmbeds, useListSite} from '@/models/documents'
+import {useCreateDraft, useDocumentEmbeds, useListSpace} from '@/models/documents'
 import {useNavigate} from '@/utils/useNavigate'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -23,8 +23,8 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
     locationPath: id.path || undefined,
   })
   const capability = useSelectedAccountCapability(id)
-  const siteList = useListSite(id)
-  const siteListQuery = siteList?.data ? {in: id, results: siteList.data} : null
+  const spaceList = useListSpace(id)
+  const spaceListQuery = spaceList?.data ? {in: id, results: spaceList.data} : null
 
   const embeds = useDocumentEmbeds(document)
 
@@ -41,7 +41,7 @@ export function DocNavigation({showCollapsed}: {showCollapsed: boolean}) {
   }
   const outline = useNodesOutline(document, id, embeds)
 
-  if (!document || !siteListQuery || !outline.length) return null
+  if (!document || !spaceListQuery || !outline.length) return null
 
   // if (outline.length <= 1) return null
 

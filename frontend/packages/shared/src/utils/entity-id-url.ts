@@ -32,11 +32,11 @@ export function activitySlugToFilter(slug: string): string[] | undefined {
   return ACTIVITY_FILTER_SLUGS[slug]
 }
 
-export const SITE_PROFILE_TABS = ['profile', 'membership', 'followers', 'following'] as const
-export type SiteProfileTab = (typeof SITE_PROFILE_TABS)[number]
+export const SPACE_PROFILE_TABS = ['profile', 'membership', 'followers', 'following'] as const
+export type SpaceProfileTab = (typeof SPACE_PROFILE_TABS)[number]
 
-const SITE_PROFILE_VIEW_TERMS = [':profile', ':membership', ':followers', ':following'] as const
-type SiteProfileViewTerm = (typeof SITE_PROFILE_VIEW_TERMS)[number]
+const SPACE_PROFILE_VIEW_TERMS = [':profile', ':membership', ':followers', ':following'] as const
+type SpaceProfileViewTerm = (typeof SPACE_PROFILE_VIEW_TERMS)[number]
 
 // View terms for URL paths (e.g., /:activity, /:directory)
 // ':discussions' and ':comment' kept for backward compat URL parsing
@@ -53,7 +53,7 @@ export const VIEW_TERMS = [
   ':settings',
   ':attributes',
   ':metadata', // backward compat: the metadata view is now surfaced as :attributes
-  ...SITE_PROFILE_VIEW_TERMS,
+  ...SPACE_PROFILE_VIEW_TERMS,
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
@@ -66,9 +66,9 @@ export type ViewRouteKey =
   | 'feed'
   | 'all-documents'
   | 'explore'
-  | 'site-settings'
+  | 'space-settings'
   | 'metadata'
-  | SiteProfileTab
+  | SpaceProfileTab
 
 // Panel keys that can be encoded in URL query param
 export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
@@ -84,9 +84,9 @@ function extractInspectPrefixFromUrl(url: string): {url: string; isInspect: bool
     return {url: `${gatewayInspectMatch[1]}${gatewayInspectMatch[2] || ''}`, isInspect: true}
   }
 
-  const siteInspectMatch = url.match(/^((?:https?:\/\/[^/]+)?)\/inspect(?=\/|[?#]|$)(.*)$/)
-  if (siteInspectMatch) {
-    return {url: `${siteInspectMatch[1]}${siteInspectMatch[2] || ''}` || '/', isInspect: true}
+  const spaceInspectMatch = url.match(/^((?:https?:\/\/[^/]+)?)\/inspect(?=\/|[?#]|$)(.*)$/)
+  if (spaceInspectMatch) {
+    return {url: `${spaceInspectMatch[1]}${spaceInspectMatch[2] || ''}` || '/', isInspect: true}
   }
 
   return {url, isInspect: false}
@@ -132,7 +132,7 @@ export function extractViewTermFromUrl(url: string): {
     }
   }
 
-  // Check for site settings patterns like /:settings or /:settings/<tab>.
+  // Check for space settings patterns like /:settings or /:settings/<tab>.
   const settingsPattern = /\/\:settings(?:\/(identity|navigation|members|writers|email-subscribers))?(?=[?#]|$)/
   const settingsMatch = inspectCleanUrl.match(settingsPattern)
   if (settingsMatch) {
@@ -151,7 +151,7 @@ export function extractViewTermFromUrl(url: string): {
     return {
       url: inspectCleanUrl.replace(profileFamilyMatch[0], ''),
       isInspect,
-      viewTerm: `:${profileFamilyMatch[1]}` as SiteProfileViewTerm,
+      viewTerm: `:${profileFamilyMatch[1]}` as SpaceProfileViewTerm,
       accountUid: profileFamilyMatch[2],
     }
   }
@@ -185,7 +185,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':feed': 'feed',
     ':all-documents': 'all-documents',
     ':explore': 'explore',
-    ':settings': 'site-settings',
+    ':settings': 'space-settings',
     ':attributes': 'metadata',
     ':metadata': 'metadata', // backward compat
     ':profile': 'profile',
@@ -196,11 +196,11 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
   return mapping[viewTerm] ?? null
 }
 
-export function isSiteProfileTab(value: string | null | undefined): value is SiteProfileTab {
-  return !!value && (SITE_PROFILE_TABS as readonly string[]).includes(value)
+export function isSpaceProfileTab(value: string | null | undefined): value is SpaceProfileTab {
+  return !!value && (SPACE_PROFILE_TABS as readonly string[]).includes(value)
 }
 
-export function createSiteUrl({
+export function createSpaceUrl({
   path,
   hostname,
   version,
@@ -235,7 +235,7 @@ export function createSiteUrl({
 
 /**
  * Build a comment URL relative to a document context.
- * Produces site-style URLs when siteUrl is provided, gateway URLs otherwise.
+ * Produces space-style URLs when siteUrl is provided, gateway URLs otherwise.
  *
  * For `:comments` main view → `.../path/:comments/COMMENT_ID`
  * For document with panel   → `.../path?panel=comments/COMMENT_ID`
@@ -261,7 +261,7 @@ export function createCommentUrl({
 }): string {
   const viewTermWithComment = `:comments/${commentId}`
   if (siteUrl) {
-    return createSiteUrl({
+    return createSpaceUrl({
       path: docId.path,
       hostname: siteUrl,
       latest: latest ?? undefined,
@@ -288,8 +288,8 @@ export function createCommentUrl({
  * itself. All other link parameters (version, blockRef, blockRange, latest,
  * hostname) are read from the respective ids.
  *
- * `id.hostname` acts as the site-vs-gateway flag: when set the URL is built in
- * site-style (`<hostname>/<path>`); when null/undefined it falls back to the
+ * `id.hostname` acts as the space-vs-gateway flag: when set the URL is built in
+ * space-style (`<hostname>/<path>`); when null/undefined it falls back to the
  * gateway-style `<gatewayUrl>/hm/<uid>/<path>` form. Callers with a custom
  * gateway (e.g. the desktop app's user-configurable gateway) can override the
  * default gateway via `gatewayUrl`.
@@ -303,10 +303,10 @@ export type CopyLinkInput = {
 /**
  * Build a shareable URL for a document, block, fragment, comment, or a
  * block/fragment inside a comment — a single entry point that replaces the
- * scattered site/gateway/comment URL-building used for "Copy link" actions.
+ * scattered space/gateway/comment URL-building used for "Copy link" actions.
  *
  * Behavior:
- * - `input.id.hostname` set → site-style URL via `createSiteUrl`.
+ * - `input.id.hostname` set → space-style URL via `createSpaceUrl`.
  * - `input.id.hostname` unset → gateway URL via `createWebHMUrl`.
  * - `input.commentId` present → delegates to `createCommentUrl` using the
  *   comment's uid+tsid as the comment identifier and the comment id's own
@@ -319,7 +319,7 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
   const {id, commentId, gatewayUrl} = input
   const effectiveRange: BlockRange | null | undefined =
     id.blockRef && (id.blockRange === undefined || id.blockRange === null) ? {expanded: true} : id.blockRange
-  const siteHostname =
+  const spaceHostname =
     id.hostname &&
     gatewayUrl &&
     /^https?:\/\/localhost(?::\d+)?(?:\/|$)/.test(gatewayUrl) &&
@@ -333,17 +333,17 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
     return createCommentUrl({
       docId: id,
       commentId: packedCommentId,
-      siteUrl: siteHostname ?? null,
+      siteUrl: spaceHostname ?? null,
       blockRef: id.blockRef,
       blockRange: effectiveRange,
       latest: id.latest ?? null,
     })
   }
 
-  if (siteHostname) {
-    return createSiteUrl({
+  if (spaceHostname) {
+    return createSpaceUrl({
       path: id.path,
-      hostname: siteHostname,
+      hostname: spaceHostname,
       version: id.version,
       latest: id.latest ?? undefined,
       blockRef: id.blockRef,
@@ -415,7 +415,7 @@ export function createOSProtocolUrl({uid, path, version, latest, blockRef, block
 function getInspectTargetPath(route: Extract<NavRoute, {key: 'inspect'}>): string {
   if (!route.targetView) return ''
 
-  if (isSiteProfileTab(route.targetView)) {
+  if (isSpaceProfileTab(route.targetView)) {
     const accountSuffix = route.targetAccountUid ? `/${route.targetAccountUid}` : ''
     return `/:${route.targetView}${accountSuffix}`
   }
@@ -462,8 +462,8 @@ function createWebInspectUrl(
   },
 ) {
   const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
-  const sameOriginSite = opts?.originHomeId?.uid === route.id.uid
-  let res = sameOriginSite ? `${urlHost}/inspect` : `${urlHost}/hm/inspect/${route.id.uid}`
+  const sameOriginSpace = opts?.originHomeId?.uid === route.id.uid
+  let res = sameOriginSpace ? `${urlHost}/inspect` : `${urlHost}/hm/inspect/${route.id.uid}`
   if (route.id.path?.length) {
     res += `/${route.id.path.join('/')}`
   }
@@ -580,11 +580,11 @@ export function routeToUrl(
   }
 
   if (route.key === 'explore') {
-    if (route.context.type !== 'site') return null
-    const siteId = route.context.id
+    if (route.context.type !== 'space') return null
+    const spaceId = route.context.id
     return appendExploreQuery(
-      createWebHMUrl(siteId.uid, {
-        ...siteId,
+      createWebHMUrl(spaceId.uid, {
+        ...spaceId,
         hostname: opts?.hostname,
         originHomeId: opts?.originHomeId,
         viewTerm: ':explore',
@@ -639,29 +639,29 @@ export function routeToUrl(
       panel: effectivePanelParam,
     })
   }
-  if (route.key === 'site-settings') {
+  if (route.key === 'space-settings') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
-    const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
+    const spaceBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
     const tabPath = route.tab ? `/${route.tab}` : ''
-    return `${urlHost}${siteBase}/:settings${tabPath}`
+    return `${urlHost}${spaceBase}/:settings${tabPath}`
   }
-  if (route.key === 'site-profile') {
+  if (route.key === 'space-profile') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
-    const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
+    const spaceBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
     const accountSuffix = route.accountUid && route.accountUid !== route.id.uid ? `/${route.accountUid}` : ''
-    return `${urlHost}${siteBase}/:${route.tab}${accountSuffix}`
+    return `${urlHost}${spaceBase}/:${route.tab}${accountSuffix}`
   }
   if (route.key === 'profile') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
-    const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
+    const spaceBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
     const tab = route.tab || 'profile'
-    return `${urlHost}${siteBase}/:${tab}`
+    return `${urlHost}${spaceBase}/:${tab}`
   }
-  if (route.key === 'site-settings-emails') {
+  if (route.key === 'space-settings-emails') {
     if (!route.accountUid) return null
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
-    const siteBase = opts?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`
-    return `${urlHost}${siteBase}/:settings/email-subscribers`
+    const spaceBase = opts?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`
+    return `${urlHost}${spaceBase}/:settings/email-subscribers`
   }
   if (route.key === 'contact') {
     const urlHost = opts?.hostname ?? DEFAULT_GATEWAY_URL
@@ -684,9 +684,9 @@ export function routeToHmUrl(route: NavRoute): string | null {
   }
 
   if (route.key === 'explore') {
-    if (route.context.type !== 'site') return null
-    const siteId = route.context.id
-    return appendExploreQuery(`${packBaseId(siteId.uid, siteId.path)}/:explore`, route.q, route.sort)
+    if (route.context.type !== 'space') return null
+    const spaceId = route.context.id
+    return appendExploreQuery(`${packBaseId(spaceId.uid, spaceId.path)}/:explore`, route.q, route.sort)
   }
 
   if (route.key === 'document') {
@@ -738,12 +738,12 @@ export function routeToHmUrl(route: NavRoute): string | null {
     return url
   }
 
-  if (route.key === 'site-settings') {
+  if (route.key === 'space-settings') {
     const tabPath = route.tab ? `/${route.tab}` : ''
     return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}`
   }
 
-  if (route.key === 'site-profile') {
+  if (route.key === 'space-profile') {
     const accountSuffix = route.accountUid && route.accountUid !== route.id.uid ? `/${route.accountUid}` : ''
     return `${packBaseId(route.id.uid)}/:${route.tab}${accountSuffix}`
   }
@@ -778,13 +778,13 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     const term = route.key === 'metadata' ? 'attributes' : route.key
     return `${packBaseId(route.id.uid, route.id.path)}/:${term}`
   }
-  if (route.key === 'site-settings') {
+  if (route.key === 'space-settings') {
     return `${packBaseId(route.id.uid, route.id.path)}/:settings`
   }
   if (route.key === 'profile') {
     return `${packBaseId(route.id.uid)}/:${route.tab || 'profile'}`
   }
-  if (route.key === 'site-profile') {
+  if (route.key === 'space-profile') {
     const accountSuffix = route.accountUid && route.accountUid !== route.id.uid ? `/${route.accountUid}` : ''
     return `${packBaseId(route.id.uid)}/:${route.tab}${accountSuffix}`
   }
@@ -883,7 +883,7 @@ export function packHmId(hmId: UnpackedHypermediaId): string {
 
 /**
  * Serializes a reference target using the canonical account/profile URL.
- * Root site documents are referenced through `/:profile` so references still
+ * Root space documents are referenced through `/:profile` so references still
  * resolve when the account has no home document.
  */
 export function packReferenceUrl(hmId: UnpackedHypermediaId): string {

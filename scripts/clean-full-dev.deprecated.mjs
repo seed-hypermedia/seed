@@ -14,7 +14,7 @@ if (platform() !== "darwin") {
 }
 
 const seedDir = join(home, "Library", "Application Support", "Seed-local");
-const seedSiteDir = join(home, "Library", "Application Support", "Seed-server");
+const seedSpaceDir = join(home, "Library", "Application Support", "Seed-server");
 
 const seedArchive = join(home, "SeedArchive");
 mkdirpSync(seedArchive);
@@ -35,9 +35,9 @@ if (existsSync(seedDir)) {
   console.log(`Seed App Exists. Moving to Seed`);
   moveSync(seedDir, join(seedArchive, `Seed-local.${nowLabel}`));
 }
-if (existsSync(seedSiteDir)) {
-  console.log(`Seed Site Exists. Moving to SeedArchive`);
-  moveSync(seedSiteDir, join(seedArchive, `Seed.site.${nowLabel}`));
+if (existsSync(seedSpaceDir)) {
+  console.log(`Seed Space Exists. Moving to SeedArchive`);
+  moveSync(seedSpaceDir, join(seedArchive, `Seed.space.${nowLabel}`));
 }
 
 const TESTNET_NAME = "";
@@ -53,14 +53,14 @@ const desktopProcess = spawn("./dev", ["run-desktop"], {
 
 const BASE_PORT = 63000;
 
-// site cmd
-// SEED_P2P_TESTNET_NAME="dev" go run ./backend/cmd/seed-site -data-dir=~/.mttsite -p2p.port=61000 --http.port=61001 -p2p.no-relay -grpc.port=61002 http://127.0.0.1:61001
-const siteDaemonProcess = spawn(
+// space cmd
+// SEED_P2P_TESTNET_NAME="dev" go run ./backend/cmd/seed-space -data-dir=~/.mttsite -p2p.port=61000 --http.port=61001 -p2p.no-relay -grpc.port=61002 http://127.0.0.1:61001
+const spaceDaemonProcess = spawn(
   "go",
   [
     "run",
-    "./backend/cmd/seed-site",
-    `-data-dir=${seedSiteDir}`,
+    "./backend/cmd/seed-space",
+    `-data-dir=${seedSpaceDir}`,
     `-p2p.port=${BASE_PORT}`,
     `--http.port=${BASE_PORT + 1}`,
     `-p2p.no-relay`,
@@ -77,9 +77,9 @@ const siteDaemonProcess = spawn(
   }
 );
 
-// HM_BASE_URL="http://localhost:3000" GRPC_HOST="http://localhost:61001" PORT=3000 yarn site
+// HM_BASE_URL="http://localhost:3000" GRPC_HOST="http://localhost:61001" PORT=3000 yarn space
 
-const siteProcess = spawn("yarn", ["site"], {
+const spaceProcess = spawn("yarn", ["space"], {
   cwd: cwd(),
   env: {
     ...process.env,
@@ -101,8 +101,8 @@ farm, image, almost, ignore, adapt, host, broom, oil, minute, food, combine, hos
 ==============`);
 
 function cleanUp() {
-  if (!siteDaemonProcess.killed) siteDaemonProcess.kill();
-  if (!siteProcess.killed) siteProcess.kill();
+  if (!spaceDaemonProcess.killed) spaceDaemonProcess.kill();
+  if (!spaceProcess.killed) spaceProcess.kill();
   if (!desktopProcess.killed) desktopProcess.kill();
 }
 

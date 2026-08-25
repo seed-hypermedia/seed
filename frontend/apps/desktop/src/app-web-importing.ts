@@ -117,7 +117,7 @@ type ImportStatus =
 
 let importingStatus: Record<string, (ScrapeStatus & {mode: 'scraping'}) | ImportStatus> = {}
 
-async function importSite(url: string, importId: string) {
+async function importSpace(url: string, importId: string) {
   return await scrapeUrl(url, importId, (status) => {
     importingStatus[importId] = {...status, mode: 'scraping'}
   })
@@ -125,12 +125,12 @@ async function importSite(url: string, importId: string) {
 
 async function startImport(url: string, importId: string) {
   importingStatus[importId] = {mode: 'importing'}
-  importSite(url, importId)
+  importSpace(url, importId)
     .then((result) => {
       importingStatus[importId] = {mode: 'ready', result}
     })
     .catch((error) => {
-      console.error('Error importing site', url, error)
+      console.error('Error importing space', url, error)
       importingStatus[importId] = {mode: 'error', error: error.message}
     })
 }
@@ -173,7 +173,7 @@ async function importPost({
       // console.log('~~ relative link', href)
     } else if (href[0] === '/') {
       // handling absolute links
-      // console.log('~~ absolute site link', href)
+      // console.log('~~ absolute space link', href)
       const path = href.split('/').filter((s) => !!s)
       const resultLink = packHmId(
         hmId(destinationHmId.uid, {
@@ -272,7 +272,10 @@ export const webImportingApi = t.router({
       const charset = charsetPart ? charsetPart.split('=')[1] : null
       const headers = Object.fromEntries(res.headers.entries())
       let metaTags = {}
-      if (headers['x-hypermedia-site'] && mimeType === 'text/html') {
+      // `x-hypermedia-site` is the header already-deployed Seed servers send; the
+      // space-named one is accepted so newer servers can move to it.
+      const isHypermedia = headers['x-hypermedia-space'] || headers['x-hypermedia-site']
+      if (isHypermedia && mimeType === 'text/html') {
         const res = await fetch(input, {})
         const html = await res.text()
         metaTags = extractMetaTags(html)
@@ -313,7 +316,7 @@ export const webImportingApi = t.router({
       })
 
     return {
-      siteTitle: result.siteTitle,
+      spaceTitle: result.spaceTitle,
       siteUrl: result.siteUrl,
       authorCount: result.authors.length,
       postCount: result.posts.length,

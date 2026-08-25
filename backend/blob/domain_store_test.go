@@ -28,7 +28,7 @@ func TestDomainStoreSavesGatewayFlagFromConfig(t *testing.T) {
 	}))
 	defer server.Close()
 
-	resolver := newSitePeerResolver(1, time.Minute)
+	resolver := newSpacePeerResolver(1, time.Minute)
 	client := server.Client()
 	transport, ok := client.Transport.(*http.Transport)
 	require.True(t, ok)
@@ -80,7 +80,7 @@ func TestDomainStoreCloseCancelsBackgroundChecks(t *testing.T) {
 	}))
 	defer server.Close()
 
-	resolver := newSitePeerResolver(1, time.Minute)
+	resolver := newSpacePeerResolver(1, time.Minute)
 	client := server.Client()
 	transport, ok := client.Transport.(*http.Transport)
 	require.True(t, ok)
@@ -101,7 +101,7 @@ func TestDomainStoreCloseCancelsBackgroundChecks(t *testing.T) {
 		require.NoError(t, ds.Close())
 	})
 
-	ds.TrackSiteURL(context.Background(), "https://127.0.0.1")
+	ds.TrackSpaceURL(context.Background(), "https://127.0.0.1")
 
 	select {
 	case <-requestStarted:

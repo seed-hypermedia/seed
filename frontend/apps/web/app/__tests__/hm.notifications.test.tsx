@@ -51,7 +51,7 @@ describe('WebNotificationsPage', () => {
     mocks.useWebAccountUidMock.mockReturnValue('account-1')
     mocks.useUniversalAppContextMock.mockReturnValue({
       origin: 'https://seed.example.com',
-      originHomeId: {uid: 'site-1'},
+      originHomeId: {uid: 'space-1'},
     })
     mocks.useWebNotificationReadStateMock.mockReturnValue({
       data: undefined,
@@ -111,7 +111,7 @@ describe('WebNotificationsPage', () => {
     expect(markup).not.toContain('No notifications yet')
   })
 
-  it('passes the current site uid into notification hooks', () => {
+  it('passes the current space uid into notification hooks', () => {
     mocks.useLocalKeyPairMock.mockReturnValue({
       id: 'session-key',
       delegatedAccountUid: 'account-1',
@@ -130,10 +130,10 @@ describe('WebNotificationsPage', () => {
 
     renderToStaticMarkup(<WebNotificationsPage />)
 
-    expect(mocks.useWebNotificationInboxMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebNotificationReadStateMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebMarkNotificationEventReadMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebMarkNotificationEventUnreadMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebMarkAllNotificationsReadMock).toHaveBeenCalledWith('site-1')
+    expect(mocks.useWebNotificationInboxMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebNotificationReadStateMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebMarkNotificationEventReadMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebMarkNotificationEventUnreadMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebMarkAllNotificationsReadMock).toHaveBeenCalledWith('space-1')
   })
 })

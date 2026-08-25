@@ -74,7 +74,7 @@ func NewTree(vclock *VectorClock) *Tree {
 // in terms of node IDs using the current state of the tree.
 // The position of a node is defined by it's parent node ID, and it's left sibling node ID.
 // If the node is already where it should be, no new operations will be produced.
-func (d *Tree) SetNodePosition(site, nodeID, parentID, leftID string) error {
+func (d *Tree) SetNodePosition(space, nodeID, parentID, leftID string) error {
 	if parentID == "" {
 		parentID = RootNodeID
 	}
@@ -88,19 +88,19 @@ func (d *Tree) SetNodePosition(site, nodeID, parentID, leftID string) error {
 		ref = leftPos.id
 	}
 
-	return d.Integrate(d.newID(site), nodeID, parentID, ref)
+	return d.Integrate(d.newID(space), nodeID, parentID, ref)
 }
 
 // MoveNode from it's current position to the new one. ID of the node MUST exist in the tree.
-func (d *Tree) MoveNode(site, nodeID, parentID string, leftPos ID) error {
-	return d.Integrate(d.newID(site), nodeID, parentID, leftPos)
+func (d *Tree) MoveNode(space, nodeID, parentID string, leftPos ID) error {
+	return d.Integrate(d.newID(space), nodeID, parentID, leftPos)
 }
 
 // DeleteNode from the tree. In reality the node is moved under a designated "trash" node.
 // So the ID of the Node will still be known to the tree. To undo the deletion, move
 // the node to another position. ID of the node MUST exist in the tree.
-func (d *Tree) DeleteNode(site, nodeID string) error {
-	return d.MoveNode(site, nodeID, TrashNodeID, listEnd)
+func (d *Tree) DeleteNode(space, nodeID string) error {
+	return d.MoveNode(space, nodeID, TrashNodeID, listEnd)
 }
 
 // Iterator creates a new TreeIterator to walk the current
@@ -347,8 +347,8 @@ func (d *Tree) isAncestor(a, b string) bool {
 	}
 }
 
-func (d *Tree) newID(site string) ID {
-	return d.vclock.NewID(site)
+func (d *Tree) newID(space string) ID {
+	return d.vclock.NewID(space)
 }
 
 func (d *Tree) findSubtree(id string) (*list, error) {

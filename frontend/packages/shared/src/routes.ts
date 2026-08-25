@@ -5,8 +5,8 @@ import {
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
-import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
-import {activityFilterToSlug, activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS} from './utils/entity-id-url'
+import type {SpaceProfileTab, ViewRouteKey} from './utils/entity-id-url'
+import {activityFilterToSlug, activitySlugToFilter, isSpaceProfileTab, SPACE_PROFILE_TABS} from './utils/entity-id-url'
 
 export const PROFILE_TABS = [
   'profile', //default tab
@@ -36,13 +36,13 @@ export const profileRouteSchema = z.object({
   id: unpackedHmIdSchema,
 })
 
-export const siteProfileRouteSchema = z.object({
-  key: z.literal('site-profile'),
+export const spaceProfileRouteSchema = z.object({
+  key: z.literal('space-profile'),
   id: unpackedHmIdSchema,
   accountUid: z.string().optional(),
-  tab: z.enum(SITE_PROFILE_TABS),
+  tab: z.enum(SPACE_PROFILE_TABS),
 })
-export type SiteProfileRoute = z.infer<typeof siteProfileRouteSchema>
+export type SpaceProfileRoute = z.infer<typeof spaceProfileRouteSchema>
 export type ProfileRoute = z.infer<typeof profileRouteSchema>
 
 const INSPECT_TARGET_VIEW_KEYS = [
@@ -53,7 +53,7 @@ const INSPECT_TARGET_VIEW_KEYS = [
   'feed',
   'all-documents',
   'metadata',
-  ...SITE_PROFILE_TABS,
+  ...SPACE_PROFILE_TABS,
 ] as const
 const inspectTargetViewSchema = z.enum(INSPECT_TARGET_VIEW_KEYS).optional()
 /** Supported tabs for the inspector UI. */
@@ -291,15 +291,15 @@ export const accountSettingsRouteSchema = z.object({
 /** Navigation route for the desktop Account Settings page. */
 export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>
 
-export const siteSettingsTabSchema = z.enum(['identity', 'navigation', 'members', 'writers', 'email-subscribers'])
-export type SiteSettingsTab = z.infer<typeof siteSettingsTabSchema>
+export const spaceSettingsTabSchema = z.enum(['identity', 'navigation', 'members', 'writers', 'email-subscribers'])
+export type SpaceSettingsTab = z.infer<typeof spaceSettingsTabSchema>
 
-export const siteSettingsRouteSchema = z.object({
-  key: z.literal('site-settings'),
+export const spaceSettingsRouteSchema = z.object({
+  key: z.literal('space-settings'),
   id: unpackedHmIdSchema,
-  tab: siteSettingsTabSchema.optional(),
+  tab: spaceSettingsTabSchema.optional(),
 })
-export type SiteSettingsRoute = z.infer<typeof siteSettingsRouteSchema>
+export type SpaceSettingsRoute = z.infer<typeof spaceSettingsRouteSchema>
 
 export const notificationsRouteSchema = z.object({
   key: z.literal('notifications'),
@@ -308,14 +308,14 @@ export const notificationsRouteSchema = z.object({
 export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
 
 /**
- * Route for the site owner's email subscribers page. On web this is the
- * current site; on desktop accountUid selects which owned site to show.
+ * Route for the space owner's email subscribers page. On web this is the
+ * current space; on desktop accountUid selects which owned space to show.
  */
-export const siteSettingsEmailsRouteSchema = z.object({
-  key: z.literal('site-settings-emails'),
+export const spaceSettingsEmailsRouteSchema = z.object({
+  key: z.literal('space-settings-emails'),
   accountUid: z.string().optional(),
 })
-export type SiteSettingsEmailsRoute = z.infer<typeof siteSettingsEmailsRouteSchema>
+export type SpaceSettingsEmailsRoute = z.infer<typeof spaceSettingsEmailsRouteSchema>
 
 export const deletedContentRouteSchema = z.object({
   key: z.literal('deleted-content'),
@@ -379,7 +379,7 @@ export const exploreRouteSchema = z.object({
   key: z.literal('explore'),
   context: z.discriminatedUnion('type', [
     z.object({type: z.literal('node')}),
-    z.object({type: z.literal('site'), id: unpackedHmIdSchema}),
+    z.object({type: z.literal('space'), id: unpackedHmIdSchema}),
   ]),
   q: z.string().optional(),
   sort: z.enum(['relevance', 'recently_updated', 'newest', 'oldest', 'title']).optional(),
@@ -398,7 +398,7 @@ export const libraryRouteSchema = z.object({
   key: z.literal('library'),
   expandedIds: z.array(z.string()).optional(),
   displayMode: z.enum(['all', 'subscribed', 'bookmarks']).optional(),
-  grouping: z.enum(['site', 'none']).optional(),
+  grouping: z.enum(['space', 'none']).optional(),
 })
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
@@ -407,13 +407,13 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   libraryRouteSchema,
   contactsRouteSchema,
   profileRouteSchema,
-  siteProfileRouteSchema,
+  spaceProfileRouteSchema,
   contactRouteSchema,
   settingsRouteSchema,
   accountSettingsRouteSchema,
-  siteSettingsRouteSchema,
+  spaceSettingsRouteSchema,
   notificationsRouteSchema,
-  siteSettingsEmailsRouteSchema,
+  spaceSettingsEmailsRouteSchema,
   documentRouteSchema,
   draftRouteSchema,
   draftRebaseRouteSchema,
@@ -438,6 +438,34 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   metadataRouteSchema,
 ])
 export type NavRoute = z.infer<typeof navRouteSchema>
+
+/**
+ * Route discriminators persisted before the site→space rename. Windows saved by
+ * an older build still carry them, so restored state is upgraded on load rather
+ * than dropping the user on an unknown route.
+ */
+const LEGACY_ROUTE_KEYS: Record<string, NavRoute['key']> = {
+  'site-profile': 'space-profile',
+  'site-settings': 'space-settings',
+  'site-settings-emails': 'space-settings-emails',
+}
+
+/** Upgrades a route persisted by an older build to the current shape. */
+export function migrateLegacyRoute<T>(route: T): T {
+  if (!route || typeof route !== 'object') return route
+  const raw = route as Record<string, unknown>
+  let next = raw
+  const mappedKey = typeof raw.key === 'string' ? LEGACY_ROUTE_KEYS[raw.key] : undefined
+  if (mappedKey) next = {...next, key: mappedKey}
+  const context = next.context as {type?: unknown} | undefined
+  if (next.key === 'explore' && context && context.type === 'site') {
+    next = {...next, context: {...context, type: 'space'}}
+  }
+  if (next.key === 'library' && next.grouping === 'site') {
+    next = {...next, grouping: 'space'}
+  }
+  return (next === raw ? route : next) as T
+}
 
 export function getRecentsRouteEntityUrl(route: NavRoute) {
   // this is used to uniquely identify an item for the recents list. So it references the entity without specifying version
@@ -538,13 +566,13 @@ export function replaceRouteDocumentId(route: NavRoute, targetId: UnpackedHyperm
         id: targetId,
       }
     case 'explore':
-      return route.context.type === 'site'
+      return route.context.type === 'space'
         ? {
             ...route,
             context: {...route.context, id: targetId},
           }
         : route
-    case 'site-profile':
+    case 'space-profile':
       return {
         ...route,
         id: targetId,
@@ -620,8 +648,8 @@ export function createDocumentNavRoute(
   // Same pattern used in document-tools.tsx panelFor().
   const panel = (panelParam ? createPanelRoute(panelParam, docId) : null) as any
 
-  if (isSiteProfileTab(viewTerm)) {
-    return {key: 'site-profile', id: docId, accountUid: accountUid || undefined, tab: viewTerm as SiteProfileTab}
+  if (isSpaceProfileTab(viewTerm)) {
+    return {key: 'space-profile', id: docId, accountUid: accountUid || undefined, tab: viewTerm as SpaceProfileTab}
   }
 
   switch (viewTerm) {
@@ -660,9 +688,9 @@ export function createDocumentNavRoute(
     case 'all-documents':
       return {key: 'all-documents', id: docId}
     case 'explore':
-      return {key: 'explore', context: {type: 'site', id: docId}}
-    case 'site-settings':
-      return {key: 'site-settings', id: docId}
+      return {key: 'explore', context: {type: 'space', id: docId}}
+    case 'space-settings':
+      return {key: 'space-settings', id: docId}
     case 'metadata':
       return {key: 'metadata', id: docId, panel}
     default: {
@@ -690,10 +718,10 @@ export function createInspectNavRoute(
     key: 'inspect',
     id: docId,
   }
-  if (targetView && targetView !== 'site-settings' && targetView !== 'explore') route.targetView = targetView
+  if (targetView && targetView !== 'space-settings' && targetView !== 'explore') route.targetView = targetView
   if (targetActivityFilter) route.targetActivityFilter = targetActivityFilter
   if (targetView === 'comments' && openComment) route.targetOpenComment = openComment
-  if (isSiteProfileTab(targetView) && accountUid) route.targetAccountUid = accountUid
+  if (isSpaceProfileTab(targetView) && accountUid) route.targetAccountUid = accountUid
   if (inspectTab && inspectTab !== 'document') route.inspectTab = inspectTab
   return route
 }
@@ -770,7 +798,7 @@ export function createRouteFromInspectNavRoute(route: InspectRoute, inspectTab?:
     case 'followers':
     case 'following':
       return {
-        key: 'site-profile',
+        key: 'space-profile',
         id: route.id,
         accountUid: route.targetAccountUid,
         tab: route.targetView,
@@ -813,7 +841,7 @@ export function createInspectNavRouteFromRoute(route: NavRoute): InspectRoute | 
       const activitySlug = activityFilterToSlug(route.filterEventType)
       return createInspectNavRoute(route.id, 'activity', activitySlug ? `activity/${activitySlug}` : null)
     }
-    case 'site-profile':
+    case 'space-profile':
       return createInspectNavRoute(route.id, route.tab, null, null, route.accountUid)
     default:
       return null

@@ -10,15 +10,15 @@ import {PageWrapper} from '../resource-page-common'
 
 vi.mock('../use-media', () => ({useMedia: () => ({xs: false})}))
 
-vi.mock('../site-header', () => ({
-  SiteHeader: ({
+vi.mock('../space-header', () => ({
+  SpaceHeader: ({
     editNavPane,
     editNavPanePortalRef,
   }: {
     editNavPane?: React.ReactNode
     editNavPanePortalRef?: (node: HTMLDivElement | null) => void
   }) => (
-    <div data-testid="site-header">
+    <div data-testid="space-header">
       <div data-testid="edit-nav-pane-target" ref={editNavPanePortalRef}>
         {editNavPane}
       </div>
@@ -26,10 +26,10 @@ vi.mock('../site-header', () => ({
   ),
 }))
 
-vi.mock('../site-file-browser-layout', () => {
+vi.mock('../space-file-browser-layout', () => {
   let nextMountId = 0
   return {
-    SiteFileBrowserLayout: ({
+    SpaceFileBrowserLayout: ({
       children,
       onPrefetch,
     }: {
@@ -78,14 +78,14 @@ describe('PageWrapper', () => {
       homeNavigationItems: [],
       directoryItems: [],
       isCenterLayout: false,
-      siteHomeDocument: null,
+      spaceHomeDocument: null,
     }
 
     act(() => {
       root.render(
         <PageWrapper
-          siteHomeId={hmId('site')}
-          docId={hmId('site')}
+          spaceHomeId={hmId('space')}
+          docId={hmId('space')}
           headerData={headerData}
           onPrefetchDocument={vi.fn()}
         >
@@ -100,18 +100,18 @@ describe('PageWrapper', () => {
   })
 
   it('keeps the file browser layout mounted when keyed route content changes', () => {
-    const siteHomeId = hmId('site')
+    const spaceHomeId = hmId('space')
     const headerData = {
       items: [],
       homeNavigationItems: [],
       directoryItems: [],
       isCenterLayout: false,
-      siteHomeDocument: null,
+      spaceHomeDocument: null,
     }
 
     act(() => {
       root.render(
-        <PageWrapper siteHomeId={siteHomeId} docId={hmId('site', {path: ['one']})} headerData={headerData}>
+        <PageWrapper spaceHomeId={spaceHomeId} docId={hmId('space', {path: ['one']})} headerData={headerData}>
           <div key="one">Document one</div>
         </PageWrapper>,
       )
@@ -120,7 +120,7 @@ describe('PageWrapper', () => {
 
     act(() => {
       root.render(
-        <PageWrapper siteHomeId={siteHomeId} docId={hmId('site', {path: ['two']})} headerData={headerData}>
+        <PageWrapper spaceHomeId={spaceHomeId} docId={hmId('space', {path: ['two']})} headerData={headerData}>
           <div key="two">Document two</div>
         </PageWrapper>,
       )
@@ -143,17 +143,22 @@ function ContextReader() {
 
 function PortalHarness() {
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
-  const siteHomeId = hmId('site')
+  const spaceHomeId = hmId('space')
   const headerData = {
     items: [],
     homeNavigationItems: [],
     directoryItems: [],
     isCenterLayout: false,
-    siteHomeDocument: null,
+    spaceHomeDocument: null,
   }
 
   return (
-    <PageWrapper siteHomeId={siteHomeId} docId={hmId('site')} headerData={headerData} editNavPanePortalRef={setTarget}>
+    <PageWrapper
+      spaceHomeId={spaceHomeId}
+      docId={hmId('space')}
+      headerData={headerData}
+      editNavPanePortalRef={setTarget}
+    >
       <TestContext.Provider value="edit nav context">
         {target ? createPortal(<ContextReader />, target) : null}
         <div>Document body</div>

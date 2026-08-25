@@ -495,7 +495,7 @@ async function createImportData(wxr: WXRParseResult, mode: string): Promise<Seed
   return {
     source: {
       type: 'wordpress-wxr',
-      siteTitle: wxr.siteTitle,
+      spaceTitle: wxr.spaceTitle,
       siteUrl: wxr.siteUrl,
       exportDate: new Date().toISOString(),
     },

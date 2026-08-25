@@ -8,18 +8,18 @@ import {
 import {createResourceMetadata, metadataToPageMeta} from '@/hypermedia-metadata'
 import {
   GRPCError,
-  loadSiteHeaderData,
-  loadSiteResource,
+  loadSpaceHeaderData,
+  loadSpaceResource,
   loadWebDraftPlaceholderResource,
-  SiteDocumentPayload,
+  SpaceDocumentPayload,
 } from '@/loaders'
-import {SiteSettingsEmailsScreen, type SiteSettingsEmailsPayload} from '@/site-settings-emails-content'
+import {SpaceSettingsEmailsScreen, type SpaceSettingsEmailsPayload} from '@/space-settings-emails-content'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {defaultPageMeta} from '@/meta'
-import {NoSitePage, NotRegisteredPage} from '@/not-registered'
-import {WebSiteProvider} from '@/providers'
+import {NoSpacePage, NotRegisteredPage} from '@/not-registered'
+import {WebSpaceProvider} from '@/providers'
 import {parseRequest} from '@/request'
-import {getConfig} from '@/site-config.server'
+import {getConfig} from '@/space-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
@@ -42,7 +42,7 @@ import {
   hypermediaUrlToRoute,
   hmId,
   InspectTab,
-  isSiteProfileTab,
+  isSpaceProfileTab,
   VIEW_TERMS,
   viewTermToRouteKey,
   ViewRouteKey,
@@ -54,7 +54,7 @@ import {SizableText} from '@shm/ui/text'
 import {shouldRevalidateDocumentRoute} from './revalidation'
 
 // Extended payload with view term and panel param for page routing
-type ExtendedSitePayload = SiteDocumentPayload & {
+type ExtendedSpacePayload = SpaceDocumentPayload & {
   isInspect?: boolean
   viewTerm?: ViewRouteKey | null
   exploreQ?: string | null
@@ -70,10 +70,15 @@ type InspectIpfsPayload = {
   kind: 'inspect-ipfs'
   ipfsPath: string
   originHomeId: UnpackedHypermediaId
-  siteHost: string
+  spaceHost: string
 }
 
-type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | SiteSettingsEmailsPayload | 'unregistered' | 'no-site'
+type DocumentPayload =
+  | ExtendedSpacePayload
+  | InspectIpfsPayload
+  | SpaceSettingsEmailsPayload
+  | 'unregistered'
+  | 'no-space'
 
 function isInspectIpfsPayload(data: DocumentPayload): data is InspectIpfsPayload {
   return typeof data === 'object' && 'kind' in data && data.kind === 'inspect-ipfs'
@@ -150,7 +155,7 @@ function extractViewTermFromPath(pathParts: string[]): {
     const lastPart = pathParts[pathParts.length - 1]
     if (secondToLast && lastPart) {
       const tab = secondToLast.startsWith(':') ? secondToLast.slice(1) : null
-      if (isSiteProfileTab(tab)) {
+      if (isSpaceProfileTab(tab)) {
         return {
           path: pathParts.slice(0, -2),
           viewTerm: tab,
@@ -206,36 +211,36 @@ const unregisteredMeta = defaultPageMeta('Welcome to Seed Hypermedia')
 
 // export const links = () => [...documentLinks()]
 
-export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): ReturnType<MetaFunction> => {
-  const siteDocument = unwrap<SiteDocumentPayload>(data)
-  if (!siteDocument?.document) {
-    if (siteDocument?.discoveryPending) {
+export const documentPageMeta = ({data}: {data: Wrapped<SpaceDocumentPayload>}): ReturnType<MetaFunction> => {
+  const spaceDocument = unwrap<SpaceDocumentPayload>(data)
+  if (!spaceDocument?.document) {
+    if (spaceDocument?.discoveryPending) {
       return [{title: 'Looking for this document…'}]
     }
-    return siteDocument
-      ? [{title: siteDocument.daemonError?.code === Code.PermissionDenied ? 'Private Document' : 'Not Found'}]
+    return spaceDocument
+      ? [{title: spaceDocument.daemonError?.code === Code.PermissionDenied ? 'Private Document' : 'Not Found'}]
       : []
   }
   const metadata = createResourceMetadata({
-    id: siteDocument.comment ? commentIdToHmId(siteDocument.comment.id) : siteDocument.metadataId,
-    document: siteDocument.document,
-    comment: siteDocument.comment,
+    id: spaceDocument.comment ? commentIdToHmId(spaceDocument.comment.id) : spaceDocument.metadataId,
+    document: spaceDocument.document,
+    comment: spaceDocument.comment,
   })
   return metadataToPageMeta(metadata, {
-    origin: siteDocument.origin,
-    id: siteDocument.id,
-    siteHomeIcon: siteDocument.siteHomeIcon,
+    origin: spaceDocument.origin,
+    id: spaceDocument.id,
+    spaceHomeIcon: spaceDocument.spaceHomeIcon,
   })
 }
 
 export const meta: MetaFunction<typeof loader> = (args) => {
   const payload = unwrap<DocumentPayload>(args.data)
   if (payload === 'unregistered') return unregisteredMeta()
-  if (payload === 'no-site') return unregisteredMeta()
+  if (payload === 'no-space') return unregisteredMeta()
   if ('kind' in payload && payload.kind === 'inspect-ipfs') {
     return [{title: `ipfs://${payload.ipfsPath}`}]
   }
-  if ('kind' in payload && payload.kind === 'site-settings-emails') {
+  if ('kind' in payload && payload.kind === 'space-settings-emails') {
     return [{title: 'Email Subscribers'}]
   }
   return documentPageMeta({
@@ -303,7 +308,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (isDataRequest && ctx.enabled) {
       printInstrumentationSummary(ctx)
     }
-    return wrapJSON('no-site', {status: 404})
+    return wrapJSON('no-space', {status: 404})
   }
   const {registeredAccountUid} = serviceConfig
   if (!registeredAccountUid) {
@@ -313,36 +318,36 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     return wrapJSON('unregistered', {status: 404})
   }
 
-  // Site settings pages use a `:settings` view term: /:settings/email-subscribers
-  // on the site's own origin, or /hm/<uid>/:settings/email-subscribers on the gateway.
-  const rawSitePath = params['*'] ? params['*'].split('/').filter(Boolean) : []
-  let settingsSiteAccountUid: string | null = null
-  if (rawSitePath.length === 2 && rawSitePath[0] === ':settings' && rawSitePath[1] === 'email-subscribers') {
-    settingsSiteAccountUid = registeredAccountUid
+  // Space settings pages use a `:settings` view term: /:settings/email-subscribers
+  // on the space's own origin, or /hm/<uid>/:settings/email-subscribers on the gateway.
+  const rawSpacePath = params['*'] ? params['*'].split('/').filter(Boolean) : []
+  let settingsSpaceAccountUid: string | null = null
+  if (rawSpacePath.length === 2 && rawSpacePath[0] === ':settings' && rawSpacePath[1] === 'email-subscribers') {
+    settingsSpaceAccountUid = registeredAccountUid
   } else if (
-    rawSitePath.length === 4 &&
-    rawSitePath[0] === 'hm' &&
-    rawSitePath[2] === ':settings' &&
-    rawSitePath[3] === 'email-subscribers'
+    rawSpacePath.length === 4 &&
+    rawSpacePath[0] === 'hm' &&
+    rawSpacePath[2] === ':settings' &&
+    rawSpacePath[3] === 'email-subscribers'
   ) {
-    settingsSiteAccountUid = rawSitePath[1] || null
+    settingsSpaceAccountUid = rawSpacePath[1] || null
   }
-  if (settingsSiteAccountUid) {
-    const headerData = await instrument(ctx, 'loadSiteHeaderData', () => loadSiteHeaderData(parsedRequest))
+  if (settingsSpaceAccountUid) {
+    const headerData = await instrument(ctx, 'loadSpaceHeaderData', () => loadSpaceHeaderData(parsedRequest))
     if (isDataRequest && ctx.enabled) {
       printInstrumentationSummary(ctx)
     }
     return wrapJSON({
-      kind: 'site-settings-emails',
+      kind: 'space-settings-emails',
       ...headerData,
-      siteAccountUid: settingsSiteAccountUid,
+      spaceAccountUid: settingsSpaceAccountUid,
       notifyServiceHost: NOTIFY_SERVICE_HOST || null,
-    } satisfies SiteSettingsEmailsPayload)
+    } satisfies SpaceSettingsEmailsPayload)
   }
 
   const gatewayInspectIpfsPath = pathParts[0] === 'hm' ? extractInspectIpfsPathFromPath(pathParts, true) : null
-  const siteInspectIpfsPath = gatewayInspectIpfsPath ? null : extractInspectIpfsPathFromPath(pathParts, false)
-  const inspectIpfsPath = gatewayInspectIpfsPath || siteInspectIpfsPath
+  const spaceInspectIpfsPath = gatewayInspectIpfsPath ? null : extractInspectIpfsPathFromPath(pathParts, false)
+  const inspectIpfsPath = gatewayInspectIpfsPath || spaceInspectIpfsPath
   if (inspectIpfsPath) {
     if (isDataRequest && ctx.enabled) {
       printInstrumentationSummary(ctx)
@@ -351,7 +356,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
       kind: 'inspect-ipfs',
       ipfsPath: inspectIpfsPath,
       originHomeId: hmId(registeredAccountUid),
-      siteHost: hostname,
+      spaceHost: hostname,
     } satisfies InspectIpfsPayload)
   }
 
@@ -368,7 +373,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   let accountUid: string | null = null
 
   // Determine document type based on URL pattern
-  if (pathParts[0] === 'hm' && isSiteProfileTab(pathParts[1])) {
+  if (pathParts[0] === 'hm' && isSpaceProfileTab(pathParts[1])) {
     // Backward-compatible utility profile URLs: /hm/profile/:accountUid.
     viewTerm = pathParts[1]
     accountUid = pathParts[2] || registeredAccountUid
@@ -399,7 +404,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
       latest: isCommentPermalink ? true : latest,
     })
   } else {
-    // Site document (regular path) or inspector document (/inspect/path...)
+    // Space document (regular path) or inspector document (/inspect/path...)
     const rawPath = params['*'] ? params['*'].split('/').filter(Boolean) : []
     const inspectResult = extractInspectPrefixFromPath(rawPath, false)
     isInspect = inspectResult.isInspect
@@ -420,7 +425,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     })
   }
 
-  const siteResourceData = {
+  const spaceResourceData = {
     prefersLanguages: parsedRequest.prefersLanguages,
     viewTerm,
     exploreQ,
@@ -442,11 +447,11 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
 
   const result = await instrument(
     ctx,
-    shouldLoadLocalDraftShell ? 'loadWebDraftPlaceholderResource' : 'loadSiteResource',
+    shouldLoadLocalDraftShell ? 'loadWebDraftPlaceholderResource' : 'loadSpaceResource',
     () =>
       shouldLoadLocalDraftShell
-        ? loadWebDraftPlaceholderResource(parsedRequest, documentId, siteResourceData)
-        : loadSiteResource(parsedRequest, documentId, siteResourceData),
+        ? loadWebDraftPlaceholderResource(parsedRequest, documentId, spaceResourceData)
+        : loadSpaceResource(parsedRequest, documentId, spaceResourceData),
   )
 
   // For data requests (client-side nav), print summary here since there's no SSR phase
@@ -463,85 +468,85 @@ export default function UnifiedDocumentPage() {
   if (data === 'unregistered') {
     return <NotRegisteredPage />
   }
-  if (data === 'no-site') {
-    return <NoSitePage />
+  if (data === 'no-space') {
+    return <NoSpacePage />
   }
-  if ('kind' in data && data.kind === 'site-settings-emails') {
-    return <SiteSettingsEmailsScreen payload={data} />
+  if ('kind' in data && data.kind === 'space-settings-emails') {
+    return <SpaceSettingsEmailsScreen payload={data} />
   }
   if (isInspectIpfsPayload(data)) {
     return (
-      <WebSiteProvider
+      <WebSpaceProvider
         originHomeId={data.originHomeId}
-        siteHost={data.siteHost}
+        spaceHost={data.spaceHost}
         initialRoute={createInspectIpfsNavRoute(data.ipfsPath)}
       >
         <InnerInspectIpfsPage ipfsPath={data.ipfsPath} />
-      </WebSiteProvider>
+      </WebSpaceProvider>
     )
   }
-  const siteData: ExtendedSitePayload = data
+  const spaceData: ExtendedSpacePayload = data
 
   // The resource isn't available locally yet; discovery is running in the
   // background. Render a fast shim page that polls until it arrives.
-  if (siteData.discoveryPending && siteData.id) {
-    return <DiscoveryPendingPage id={siteData.id} />
+  if (spaceData.discoveryPending && spaceData.id) {
+    return <DiscoveryPendingPage id={spaceData.id} />
   }
 
   // The not found error is handled by the DocumentPage component,
   // and here we handle the rest of the errors.
   // For profile views, skip error handling since we don't need the document to exist
   if (
-    siteData.daemonError &&
-    siteData.daemonError.code !== Code.NotFound &&
-    siteData.daemonError.code !== Code.PermissionDenied &&
-    !['profile', 'membership', 'followers', 'following'].includes(siteData.viewTerm || '')
+    spaceData.daemonError &&
+    spaceData.daemonError.code !== Code.NotFound &&
+    spaceData.daemonError.code !== Code.PermissionDenied &&
+    !['profile', 'membership', 'followers', 'following'].includes(spaceData.viewTerm || '')
   ) {
-    return <DaemonErrorPage message={siteData.daemonError.message} code={siteData.daemonError.code} />
+    return <DaemonErrorPage message={spaceData.daemonError.message} code={spaceData.daemonError.code} />
   }
 
-  // Render unified ResourcePage or FeedPage with WebSiteProvider for navigation context
+  // Render unified ResourcePage or FeedPage with WebSpaceProvider for navigation context
   const initialRoute = createDocumentNavRoute(
-    siteData.id,
-    siteData.viewTerm,
-    siteData.panelParam,
-    siteData.openComment,
-    siteData.accountUid,
-    siteData.commentVersion,
+    spaceData.id,
+    spaceData.viewTerm,
+    spaceData.panelParam,
+    spaceData.openComment,
+    spaceData.accountUid,
+    spaceData.commentVersion,
   )
   const initialRouteWithExploreParams =
     initialRoute.key === 'explore'
       ? {
           ...initialRoute,
-          q: siteData.exploreQ || undefined,
-          sort: siteData.exploreSort || undefined,
+          q: spaceData.exploreQ || undefined,
+          sort: spaceData.exploreSort || undefined,
         }
       : initialRoute
   const initialInspectRoute = createInspectNavRoute(
-    siteData.id,
-    siteData.viewTerm,
-    siteData.panelParam,
-    siteData.openComment,
-    siteData.accountUid,
-    siteData.inspectTab,
+    spaceData.id,
+    spaceData.viewTerm,
+    spaceData.panelParam,
+    spaceData.openComment,
+    spaceData.accountUid,
+    spaceData.inspectTab,
   )
 
   return (
-    <WebSiteProvider
-      origin={siteData.origin}
-      originHomeId={siteData.originHomeId}
-      siteHost={siteData.siteHost}
-      dehydratedState={siteData.dehydratedState}
-      initialRoute={siteData.isInspect ? initialInspectRoute : initialRouteWithExploreParams}
+    <WebSpaceProvider
+      origin={spaceData.origin}
+      originHomeId={spaceData.originHomeId}
+      spaceHost={spaceData.spaceHost}
+      dehydratedState={spaceData.dehydratedState}
+      initialRoute={spaceData.isInspect ? initialInspectRoute : initialRouteWithExploreParams}
     >
-      {siteData.viewTerm === 'feed' && !siteData.isInspect ? (
-        <WebFeedPage docId={siteData.id} />
-      ) : siteData.isInspect ? (
-        <InnerInspectorPage docId={siteData.id} />
+      {spaceData.viewTerm === 'feed' && !spaceData.isInspect ? (
+        <WebFeedPage docId={spaceData.id} />
+      ) : spaceData.isInspect ? (
+        <InnerInspectorPage docId={spaceData.id} />
       ) : (
-        <InnerResourcePage docId={siteData.id} ssrContentHTML={siteData.ssrContentHTML} />
+        <InnerResourcePage docId={spaceData.id} ssrContentHTML={spaceData.ssrContentHTML} />
       )}
-    </WebSiteProvider>
+    </WebSpaceProvider>
   )
 }
 
@@ -573,7 +578,7 @@ function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
       : previousRoute
   }, [navState])
 
-  // On web the current site is the gateway serving the file.
+  // On web the current space is the gateway serving the file.
   const gatewayUrl = typeof window !== 'undefined' ? window.location.origin : undefined
   return (
     <InspectIpfsPage

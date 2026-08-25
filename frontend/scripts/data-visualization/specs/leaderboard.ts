@@ -48,7 +48,7 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
     const summary = computeSummary(rows);
     const totalSubscribers = summary.totalSubscribers ?? 0;
     const totalDisplay = numberFormatter.format(totalSubscribers);
-    const totalSitesDisplay = numberFormatter.format(rows.length);
+    const totalSpacesDisplay = numberFormatter.format(rows.length);
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -97,15 +97,15 @@ export const leaderboardSpec: AnalyticsSpec<LeaderboardRow> = {
       <div class="card">
         <p class="card-title">Total Subscribers</p>
         <p class="card-value">${escapeHtml(totalDisplay)}</p>
-        <p class="card-subtitle">Combined across displayed sites</p>
+        <p class="card-subtitle">Combined across displayed spaces</p>
       </div>
       <div class="card">
-        <p class="card-title">Total Sites</p>
-        <p class="card-value">${escapeHtml(totalSitesDisplay)}</p>
-        <p class="card-subtitle">Displayed sites</p>
+        <p class="card-title">Total Spaces</p>
+        <p class="card-value">${escapeHtml(totalSpacesDisplay)}</p>
+        <p class="card-subtitle">Displayed spaces</p>
       </div>
       <div class="card">
-        <p class="card-title">Top Site</p>
+        <p class="card-title">Top Space</p>
         <p class="card-value">${escapeHtml(summary.topTitle ?? summary.topId ?? "—")}</p>
         <p class="card-subtitle">${escapeHtml(summary.topPctLabel ?? "—")} · ${escapeHtml(formatNumber(summary.topCount ?? 0))} subscribers</p>
       </div>
@@ -323,7 +323,7 @@ function computeSummary(rows: LeaderboardRow[]) {
   const top = rows[0];
   return {
     totalSubscribers,
-    totalSites: rows.length,
+    totalSpaces: rows.length,
     topId: top?.id ?? null,
     topTitle: top?.title ?? null,
     topCount: top?.subscriber_count ?? null,

@@ -1093,7 +1093,7 @@ describe('CLI Full Integration Tests', () => {
     )
 
     test(
-      'document create --site-url sets site URL',
+      'document create --space-url sets space URL',
       async () => {
         const slug = `meta-siteurl-${Date.now()}`
         const hmId = `hm://${writeAccount.accountId}/${slug}`
@@ -1109,7 +1109,7 @@ describe('CLI Full Integration Tests', () => {
               slug,
               '--name',
               'SiteUrl Test',
-              '--site-url',
+              '--space-url',
               'https://example.com',
               '-f',
               mdFile,

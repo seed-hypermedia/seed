@@ -16,7 +16,7 @@ import {Button} from './button'
 import {Input} from './components/input'
 import {DocumentListItem} from './document-list-item'
 import {DraftBadge} from './draft-badge'
-import {getSiteNavDirectory} from './navigation'
+import {getSpaceNavDirectory} from './navigation'
 import {PageLayout} from './page-layout'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -123,7 +123,7 @@ function DirectoryNoResults({searchQuery}: {searchQuery: string}) {
   )
 }
 
-export type DirectoryItem = ReturnType<typeof getSiteNavDirectory>[number]
+export type DirectoryItem = ReturnType<typeof getSpaceNavDirectory>[number]
 
 export function DirectoryEmpty({canCreate}: {canCreate?: boolean}) {
   return (
@@ -148,7 +148,7 @@ export function useDirectoryData(docId: UnpackedHypermediaId) {
   })
   const canSeePrivate = useCanSeePrivateDocs(docId)
 
-  const directoryItems = getSiteNavDirectory({
+  const directoryItems = getSpaceNavDirectory({
     id: docId,
     directory,
     drafts,

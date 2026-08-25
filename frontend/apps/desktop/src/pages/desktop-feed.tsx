@@ -28,12 +28,12 @@ export default function DesktopFeedPage() {
   const docId = route.id
 
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
+  const spaceHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteUrl =
-    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+    spaceHomeResource.data?.type === 'document' ? spaceHomeResource.data.document?.metadata?.siteUrl : undefined
 
   const [copyGatewayContent, onCopyGateway] = useCopyReferenceUrl(gwUrl)
-  const [copySiteUrlContent, onCopySiteUrl] = useCopyReferenceUrl(
+  const [copySpaceUrlContent, onCopySpaceUrl] = useCopyReferenceUrl(
     siteUrl || gwUrl,
     siteUrl ? hmId(docId.uid) : undefined,
   )
@@ -45,7 +45,7 @@ export default function DesktopFeedPage() {
         canonical: siteUrl
           ? {
               label: `Copy ${displayHostname(siteUrl)} Link`,
-              copy: () => onCopySiteUrl(route),
+              copy: () => onCopySpaceUrl(route),
             }
           : null,
         gateway: {
@@ -57,7 +57,7 @@ export default function DesktopFeedPage() {
         },
       }),
     ]
-  }, [siteUrl, gwUrl, route, onCopySiteUrl, onCopyGateway, experiments?.advancedCopyLinkOptions, docId])
+  }, [siteUrl, gwUrl, route, onCopySpaceUrl, onCopyGateway, experiments?.advancedCopyLinkOptions, docId])
 
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
@@ -138,11 +138,11 @@ export default function DesktopFeedPage() {
         showDeletedContent
       >
         <DesktopDocumentActionsProvider>
-          <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<JoinButton siteUid={docId.uid} />} />
+          <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<JoinButton spaceUid={docId.uid} />} />
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {copyGatewayContent}
-      {copySiteUrlContent}
+      {copySpaceUrlContent}
     </div>
   )
 }

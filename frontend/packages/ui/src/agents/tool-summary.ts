@@ -281,7 +281,7 @@ function readSummary(item: ChatToolPart, parsed: ParsedToolAddress): ToolRowSumm
       return {...base, label: title || parsed.display, target: {type: 'url', url: resourceUrl}, title: resourceUrl}
     }
     case 'web': {
-      // Seed sites resolve as hypermedia first: the output, not the URL, says which it turned out to be.
+      // Seed spaces resolve as hypermedia first: the output, not the URL, says which it turned out to be.
       if (getToolString(output, 'type') === 'hypermedia_document') {
         const title = getFirstToolString(output, ['title', 'metadata.name'])
         const resourceUrl = getFirstToolString(output, ['id']) ?? parsed.address

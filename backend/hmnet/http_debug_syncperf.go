@@ -15,7 +15,7 @@ import (
 
 // buildSyncThroughputSection renders one table: the byte counts and rates
 // disaggregated across blob kinds, the timings and stage shares that only exist
-// in aggregate, and a collapsible per-site breakdown.
+// in aggregate, and a collapsible per-space breakdown.
 //
 // Rows that don't disaggregate leave the kind columns blank rather than living
 // in a second table, so a rate can be read against its composition without
@@ -44,15 +44,15 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 
 	m := &matrixTable{RowHeader: "", Columns: cols}
 
-	// Per-site rows are attached to every metric that has a per-space meaning,
+	// Per-space rows are attached to every metric that has a per-space meaning,
 	// so the biggest consumers are one click away from any figure. The tracker
-	// keeps every site regardless; this only bounds what's rendered.
+	// keeps every space regardless; this only bounds what's rendered.
 	global := syncperf.Default.GlobalStats()
-	siteStats := syncperf.Default.SiteStats()
-	names := n.siteNames(ctx)
-	shown := b.Sites
-	if len(shown) > maxSiteRows {
-		shown = shown[:maxSiteRows]
+	spaceStats := syncperf.Default.SpaceStats()
+	names := n.spaceNames(ctx)
+	shown := b.Spaces
+	if len(shown) > maxSpaceRows {
+		shown = shown[:maxSpaceRows]
 	}
 
 	// scalar adds a metric that exists only in aggregate: no kind columns, and
@@ -64,8 +64,8 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 	}
 
 	// split adds a metric disaggregated across kinds, plus one child row per
-	// site carrying the same metric. f is applied identically to the totals and
-	// to each site, so a child row is directly comparable to its parent.
+	// space carrying the same metric. f is applied identically to the totals and
+	// to each space, so a child row is directly comparable to its parent.
 	split := func(label string, f func(bytes, blobs int64) string) {
 		cells := func(bytes, blobs func(kind string) int64, totalBytes, totalBlobs int64) []string {
 			out := make([]string, 0, len(cols))
@@ -81,13 +81,13 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 			Cells: cells(b.Bytes, b.Blobs, b.Total.TotalBytes, b.Total.TotalBlobs),
 			Class: "num",
 		}}
-		for _, site := range shown {
+		for _, space := range shown {
 			g.Children = append(g.Children, matrixRow{
-				Label: siteLabel(site.Site, names),
+				Label: spaceLabel(space.Space, names),
 				Cells: cells(
-					func(k string) int64 { return site.Bytes[k] },
-					func(k string) int64 { return site.Blobs[k] },
-					site.TotalBytes, site.TotalBlobs,
+					func(k string) int64 { return space.Bytes[k] },
+					func(k string) int64 { return space.Blobs[k] },
+					space.TotalBytes, space.TotalBlobs,
 				),
 			})
 		}
@@ -108,7 +108,7 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 		return fmt.Sprintf("%.1f%%", float64(by)/float64(b.Total.TotalBytes)*100)
 	})
 	// These decompose the scalar wall/transfer throughputs below: the kind cells
-	// sum to the total cell, and expanding shows which site the rate came from.
+	// sum to the total cell, and expanding shows which space the rate came from.
 	split("wall throughput", func(by, _ int64) string {
 		if by <= 0 || s.Uptime <= 0 {
 			return "—"
@@ -133,7 +133,7 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 
 	// timed adds a row computed from the session/stage figures, which exist both
 	// globally and per space. f runs against the daemon-wide Stats for the
-	// parent and each site's own for the children, so "gabo.es was 40 KiB/s"
+	// parent and each space's own for the children, so "gabo.es was 40 KiB/s"
 	// becomes answerable: was that little time spent, or a slow pipe?
 	//
 	// The value sits in the total column only — these have no per-kind split.
@@ -144,14 +144,14 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 			return cells
 		}
 		g := matrixGroup{Row: matrixRow{Label: label, Cells: mk(global), Class: class}}
-		for _, site := range shown {
-			ss, ok := siteStats[site.Site]
+		for _, space := range shown {
+			ss, ok := spaceStats[space.Space]
 			if !ok {
 				// A space with bytes but no session of its own: its blobs
 				// arrived via another space's sync (a cross-space link walk).
 				continue
 			}
-			g.Children = append(g.Children, matrixRow{Label: siteLabel(site.Site, names), Cells: mk(ss)})
+			g.Children = append(g.Children, matrixRow{Label: spaceLabel(space.Space, names), Cells: mk(ss)})
 		}
 		m.Groups = append(m.Groups, g)
 	}
@@ -170,7 +170,7 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 		return humanRate(float64(n) / d.Seconds())
 	}
 
-	// Uptime is the one figure with no per-site meaning — it's the wall clock,
+	// Uptime is the one figure with no per-space meaning — it's the wall clock,
 	// the same for every space — so it stays a plain row.
 	scalar("uptime", dur(s.Uptime), "num")
 
@@ -196,36 +196,36 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 	timed("any fetch open", "num", func(st syncperf.Stats) string { return share(st, st.AnyTransfer) })
 
 	// The throughput rows need bytes as well as time, so they close over the
-	// site's byte total rather than going through timed().
-	perSite := func(label, class string, f func(bytes int64, st syncperf.Stats) string) {
+	// space's byte total rather than going through timed().
+	perSpace := func(label, class string, f func(bytes int64, st syncperf.Stats) string) {
 		cells := func(bytes int64, st syncperf.Stats) []string {
 			out := make([]string, len(cols))
 			out[0] = f(bytes, st)
 			return out
 		}
 		g := matrixGroup{Row: matrixRow{Label: label, Cells: cells(b.Total.TotalBytes, global), Class: class}}
-		for _, site := range shown {
-			if ss, ok := siteStats[site.Site]; ok {
+		for _, space := range shown {
+			if ss, ok := spaceStats[space.Space]; ok {
 				g.Children = append(g.Children, matrixRow{
-					Label: siteLabel(site.Site, names),
-					Cells: cells(site.TotalBytes, ss),
+					Label: spaceLabel(space.Space, names),
+					Cells: cells(space.TotalBytes, ss),
 				})
 			}
 		}
 		m.Groups = append(m.Groups, g)
 	}
 
-	perSite("wall throughput", "num", func(by int64, st syncperf.Stats) string { return rate(by, st.Uptime) })
-	perSite("active throughput (session busy)", "num", func(by int64, st syncperf.Stats) string {
+	perSpace("wall throughput", "num", func(by int64, st syncperf.Stats) string { return rate(by, st.Uptime) })
+	perSpace("active throughput (session busy)", "num", func(by int64, st syncperf.Stats) string {
 		return rate(by, st.BusyTime)
 	})
-	perSite("productive throughput (exchange+transfer)", "num", func(by int64, st syncperf.Stats) string {
+	perSpace("productive throughput (exchange+transfer)", "num", func(by int64, st syncperf.Stats) string {
 		return rate(by, st.WeightedExchange+st.WeightedTransfer)
 	})
-	perSite("transfer throughput (real ceiling)", "num", func(by int64, st syncperf.Stats) string {
+	perSpace("transfer throughput (real ceiling)", "num", func(by int64, st syncperf.Stats) string {
 		return rate(by, st.WeightedTransfer)
 	})
-	perSite("per-session throughput", "num", func(by int64, st syncperf.Stats) string {
+	perSpace("per-session throughput", "num", func(by int64, st syncperf.Stats) string {
 		return rate(by, st.SumSessionTime)
 	})
 
@@ -244,9 +244,9 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 	notes := []string{"media is credited to the space whose sync pulled it; a Change to the space of any Ref sharing its genesis. Either stays unattributed until that link exists"}
 	// The expanders show a subset, so say so — otherwise the child rows look
 	// like they should add up to the parent and don't.
-	if len(b.Sites) > len(shown) {
-		notes = append(notes, fmt.Sprintf("expanded rows show the top %d of %d sites by bytes; parent rows are the full total",
-			len(shown), len(b.Sites)))
+	if len(b.Spaces) > len(shown) {
+		notes = append(notes, fmt.Sprintf("expanded rows show the top %d of %d spaces by bytes; parent rows are the full total",
+			len(shown), len(b.Spaces)))
 	}
 	// Says outright how much of (unattributed) is a backlog rather than a
 	// failure: a document with no indexed Ref yet cannot be placed, and will be
@@ -269,22 +269,22 @@ func (n *Node) buildSyncThroughputSection(ctx context.Context) section {
 	}
 }
 
-// maxSiteRows caps how many sites each expandable metric row reveals. The
+// maxSpaceRows caps how many spaces each expandable metric row reveals. The
 // tracker keeps far more so the parent totals stay exact; this only bounds what
 // a single expansion renders, and it applies to every expandable row.
-const maxSiteRows = 25
+const maxSpaceRows = 25
 
-// siteLabel renders a space as its published domain when it has one, since
+// spaceLabel renders a space as its published domain when it has one, since
 // "gabo.es" is what anyone actually recognizes. Falls back to a shortened
-// principal for spaces that publish no site URL.
-func siteLabel(space string, names map[string]string) string {
+// principal for spaces that publish no space URL.
+func spaceLabel(space string, names map[string]string) string {
 	if strings.HasPrefix(space, "(") {
 		return space
 	}
 	if name := names[space]; name != "" {
 		return name
 	}
-	return shortSite(space)
+	return shortSpace(space)
 }
 
 // docSpaces resolves document genesis multihashes to the space that owns them.
@@ -342,10 +342,10 @@ func (n *Node) docSpaces(ctx context.Context, docs []string) map[string]string {
 	return out
 }
 
-// siteNames maps space principals to their published domain, read once per page
+// spaceNames maps space principals to their published domain, read once per page
 // fetch from the home document's siteUrl metadata. One read query on a debug
 // page render — never on the sync path.
-func (n *Node) siteNames(ctx context.Context) map[string]string {
+func (n *Node) spaceNames(ctx context.Context) map[string]string {
 	out := make(map[string]string)
 	conn, release, err := n.db.ReadConn(ctx)
 	if err != nil {
@@ -540,9 +540,9 @@ func buildSchedulerSection() section {
 // labels instead.
 var dispatchEndReasons = []string{"not_due", "saturated", "preempted", "queue_drained"}
 
-// shortSite trims a space principal to something scannable while staying
-// unambiguous. The bracketed pseudo-sites are passed through untouched.
-func shortSite(s string) string {
+// shortSpace trims a space principal to something scannable while staying
+// unambiguous. The bracketed pseudo-spaces are passed through untouched.
+func shortSpace(s string) string {
 	if strings.HasPrefix(s, "(") || len(s) <= 20 {
 		return s
 	}
@@ -690,16 +690,16 @@ const helpSyncThroughput template.HTML = `
 <dt>sqlite bytes written</dt><dd>WAL frames checkpointed into the main DB file, for every writer in the process. Divided by the logical figure it gives write amplification from indexes and derived tables.</dd>
 </dl>
 <p>In Prometheus these compose directly, since the time denominators are exported as counters: <code>rate(seed_sync_written_bytes_total[5m]) / rate(seed_sync_busy_seconds_total[5m])</code> is windowed active throughput, and <code>rate(seed_sync_busy_seconds_total[5m])</code> is the windowed duty cycle.</p>
-<p>The lower table splits the same bytes two ways: by blob kind across the columns, and by space in the expandable per-site rows. Only blobs that actually reached the disk are counted — ones a peer sent that we already had wrote nothing. The per-kind <em>wall throughput</em> row decomposes the overall figure, so those cells sum to the total.</p>
+<p>The lower table splits the same bytes two ways: by blob kind across the columns, and by space in the expandable per-space rows. Only blobs that actually reached the disk are counted — ones a peer sent that we already had wrote nothing. The per-kind <em>wall throughput</em> row decomposes the overall figure, so those cells sum to the total.</p>
 <p>What to read from it:</p>
 <dl>
 <dt>media dominating</dt><dd>Expected. Media is raw bytes with no derived-table rows, so it also drags write amplification down. If catch-up feels slow and media is most of the volume, the win is in media fetch scheduling, not structural sync.</dd>
-<dt>one site dominating</dt><dd>The catch-up is really about that space. Worth checking whether it's a space you actually care about being current.</dd>
+<dt>one space dominating</dt><dd>The catch-up is really about that space. Worth checking whether it's a space you actually care about being current.</dd>
 <dt>Ref ≫ Change</dt><dd>Lots of version pointers relative to actual content — a sign of re-reconciling heads rather than pulling new material.</dd>
 <dt>(unattributed)</dt><dd>Media and DagPB. These are reached by walking links out of a document, and that document is no longer in scope by the time the block lands in the blockstore, so no space can be assigned without extra plumbing.</dd>
-<dt>(other sites)</dt><dd>Sites beyond the 500-row cap, folded together so the totals stay exact.</dd>
+<dt>(other spaces)</dt><dd>Spaces beyond the 500-row cap, folded together so the totals stay exact.</dd>
 </dl>
-<p>Kind and site totals come from the indexer, which knows both; the authoritative byte total comes from the blockstore. If those disagree the gap is reported as <em>unclassified</em> rather than silently absorbed — normally zero, non-zero when blobs are stashed awaiting a dependency.</p>`
+<p>Kind and space totals come from the indexer, which knows both; the authoritative byte total comes from the blockstore. If those disagree the gap is reported as <em>unclassified</em> rather than silently absorbed — normally zero, non-zero when blobs are stashed awaiting a dependency.</p>`
 
 const helpSchedulerOccupancy template.HTML = `
 <p>Wall throughput factors exactly into <code>per-session × concurrency × dutyCycle</code>. Per-session speed is network physics; the other two are <strong>your scheduling policy</strong>. When pool utilization is low this section says which policy is responsible.</p>

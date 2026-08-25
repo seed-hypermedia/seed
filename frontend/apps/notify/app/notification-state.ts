@@ -36,7 +36,7 @@ const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/
 type NotificationStatePageOptions = {
   beforeMs?: number
   limit?: number
-  siteUid?: string
+  spaceUid?: string
 }
 
 function normalizeEmail(email: string) {
@@ -133,7 +133,7 @@ function isReadStateMutation(action: NotificationMutationAction) {
   )
 }
 
-function markSiteNotificationsRead(
+function markSpaceNotificationsRead(
   readState: NotificationStateSnapshot['readState'],
   notifications: NotificationPayload[],
 ): NotificationStateSnapshot['readState'] {
@@ -236,9 +236,9 @@ export async function applyNotificationActionsForAccount(
     if (action.type === 'mark-site-read') {
       nextState = {
         ...nextState,
-        readState: markSiteNotificationsRead(
+        readState: markSpaceNotificationsRead(
           nextState.readState,
-          getAllNotifications(accountId, {siteUid: action.siteUid}),
+          getAllNotifications(accountId, {spaceUid: action.siteUid}),
         ),
       }
       hasReadStateChanges = true

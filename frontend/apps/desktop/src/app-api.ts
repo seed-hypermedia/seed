@@ -4,7 +4,7 @@ import type {AppWindowEvent} from '@/utils/window-events'
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
-import {HMHostConfigSchema, SiteDiscoverRequest} from '@seed-hypermedia/client/hm-types'
+import {HMHostConfigSchema, SpaceDiscoverRequest} from '@seed-hypermedia/client/hm-types'
 import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {app, BrowserWindow, dialog, ipcMain, NativeImage} from 'electron'
@@ -34,7 +34,7 @@ import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
 import {getAgentsServerState, getLocalAgentsServerUrl} from './agents-server-process'
 import {appSettingsApi, getStoredNetworkConfig, networkConfigSchema, writeNetworkConfig} from './app-settings'
-import {sitesApi} from './app-sites'
+import {spacesApi} from './app-spaces'
 import {syncApi} from './app-sync'
 import {t} from './app-trpc'
 import {extractMetaTags, uploadFile, webImportingApi} from './app-web-importing'
@@ -273,7 +273,7 @@ export const router = t.router({
           signal: AbortSignal.timeout(timeout),
         })
         if (res.status !== 200) {
-          let message = `Site returned status ${res.status}`
+          let message = `Space returned status ${res.status}`
           try {
             const error = await res.json()
             if (error.message) message = error.message
@@ -286,7 +286,7 @@ export const router = t.router({
         try {
           config = await res.json()
         } catch {
-          throw new Error(`Site returned invalid response`)
+          throw new Error(`Space returned invalid response`)
         }
         return HMHostConfigSchema.parse(config)
       }),
@@ -309,7 +309,7 @@ export const router = t.router({
               uid: input.uid,
               path: input.path || [],
               version: input.version || undefined,
-            } as SiteDiscoverRequest),
+            } as SpaceDiscoverRequest),
             headers: {
               'Content-Type': 'application/json',
             },
@@ -334,7 +334,7 @@ export const router = t.router({
   gatewaySettings: gatewaySettingsApi,
   secureStorage: secureStorageApi,
   recents: recentsApi,
-  sites: sitesApi,
+  spaces: spacesApi,
   prompting: promptingApi,
   appSettings: appSettingsApi,
   /** Reports the local agents server the desktop spawned or attached to, if any. */

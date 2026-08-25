@@ -478,7 +478,7 @@ func contactToProto(tsid blob.TSID, v *blob.Contact) *documents.Contact {
 	// Add subscribe preferences to metadata if present.
 	if v.Subscribe != nil {
 		subscribeData := map[string]any{}
-		if v.Subscribe.Site {
+		if v.Subscribe.Space {
 			subscribeData["site"] = true
 		}
 		if v.Subscribe.Profile {

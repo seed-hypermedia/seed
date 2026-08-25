@@ -11,7 +11,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import type {SiteMetaFields} from '@shm/ui/edit-profile-form'
+import type {SpaceMetaFields} from '@shm/ui/edit-profile-form'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useCallback, useState} from 'react'
@@ -23,7 +23,7 @@ export function useCreateAccount() {
   const [isCreating, setIsCreating] = useState(false)
 
   const createAccount = useCallback(
-    async (profile: SiteMetaFields) => {
+    async (profile: SpaceMetaFields) => {
       if (isCreating) return null
 
       setIsCreating(true)

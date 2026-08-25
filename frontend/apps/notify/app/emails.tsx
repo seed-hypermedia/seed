@@ -25,11 +25,11 @@ export async function sendNotificationWelcomeEmail(
     return // no notifications enabled
   }
 
-  const siteHost = NOTIFY_SERVICE_HOST.replace(/\/$/, '')
+  const spaceHost = NOTIFY_SERVICE_HOST.replace(/\/$/, '')
   const {subject, text, html} = await createWelcomeEmail({
     recipientName: accountMeta?.name,
-    siteName: 'Seed Hypermedia',
-    siteUrl: siteHost,
+    spaceName: 'Seed Hypermedia',
+    siteUrl: spaceHost,
   })
 
   await sendEmail(

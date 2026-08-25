@@ -18,7 +18,7 @@ import {
   agentTriggerUrl,
   agentUrl,
   resolveOmnibarUrlToRoute,
-  selectValidatedOmnibarSiteUrl,
+  selectValidatedOmnibarSpaceUrl,
 } from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
@@ -76,7 +76,7 @@ import {BookmarksPopover} from './bookmarks-popover'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
-import {usePublishSite} from './publish-site'
+import {usePublishSpace} from './publish-space'
 import {SearchInput, SearchInputHandle} from './search-input'
 import {TitleBarProps} from './titlebar'
 
@@ -111,7 +111,7 @@ function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOption
 }
 
 export function DocOptionsButton(_props: {
-  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
+  onPublishSpace: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
 }) {
   return null
 }
@@ -412,7 +412,7 @@ export function AccountProfileButton() {
           </DropdownMenuItem>
           {/* <DropdownMenuItem disabled>
             <Monitor className="size-4" />
-            Site settings
+            Space settings
           </DropdownMenuItem> */}
           <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
             <Settings className="size-4" />
@@ -462,22 +462,22 @@ export function PageActionButtons(props: TitleBarProps) {
 function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
   const {id} = route
 
-  const publishSite = usePublishSite()
+  const publishSpace = usePublishSpace()
   const isHomeDoc = !id.path?.length
   const capability = useSelectedAccountCapability(id)
   const canEditDoc = roleCanWrite(capability?.role)
   const entity = useResource(id)
-  const showPublishSiteButton =
+  const showPublishSpaceButton =
     isHomeDoc && canEditDoc && entity.data?.type == 'document' && !entity.data.document?.metadata.siteUrl
   return (
     <TitlebarSection>
-      {showPublishSiteButton ? (
-        <Button variant="default" onClick={() => publishSite.open({id})} size="sm">
+      {showPublishSpaceButton ? (
+        <Button variant="default" onClick={() => publishSpace.open({id})} size="sm">
           Publish to Web Domain
           <UploadCloud className="size-4" />
         </Button>
       ) : null}
-      {publishSite.content}
+      {publishSpace.content}
     </TitlebarSection>
   )
 }
@@ -699,22 +699,22 @@ function useCurrentRouteUrl(): {
   // Resolve uid for siteUrl lookup: route > draft fields
   const lookupUid = routeId?.uid || draft?.editUid || draft?.locationUid
   const accountEntity = useResource(lookupUid ? hmId(lookupUid) : null)
-  const entitySiteUrl = accountEntity.data?.type === 'document' ? accountEntity.data.document?.metadata?.siteUrl : null
+  const entitySpaceUrl = accountEntity.data?.type === 'document' ? accountEntity.data.document?.metadata?.siteUrl : null
   // Entity metadata is authoritative; otherwise consider the hostname from the current route.
-  const candidateSiteUrl = entitySiteUrl || routeId?.hostname || null
-  const candidateSiteHostname = getUrlHostname(candidateSiteUrl)
+  const candidateSpaceUrl = entitySpaceUrl || routeId?.hostname || null
+  const candidateSpaceHostname = getUrlHostname(candidateSpaceUrl)
   const gatewayHostname = getUrlHostname(gwUrl)
-  const shouldValidateSiteUrl =
-    !!candidateSiteHostname && !!lookupUid && candidateSiteHostname !== gatewayHostname && candidateSiteUrl !== gwUrl
-  const domainInfo = useDomain(shouldValidateSiteUrl ? candidateSiteHostname : null, {
-    enabled: shouldValidateSiteUrl,
+  const shouldValidateSpaceUrl =
+    !!candidateSpaceHostname && !!lookupUid && candidateSpaceHostname !== gatewayHostname && candidateSpaceUrl !== gwUrl
+  const domainInfo = useDomain(shouldValidateSpaceUrl ? candidateSpaceHostname : null, {
+    enabled: shouldValidateSpaceUrl,
     forceCheck: true,
     retry: false,
     staleTime: OMNIBAR_DOMAIN_STALE_TIME_MS,
     refetchOnWindowFocus: false,
   })
-  const validatedSiteUrl = selectValidatedOmnibarSiteUrl({
-    candidateSiteUrl,
+  const validatedSpaceUrl = selectValidatedOmnibarSpaceUrl({
+    candidateSpaceUrl,
     gatewayUrl: gwUrl,
     accountUid: lookupUid,
     registeredAccountUid: domainInfo.data?.registeredAccountUid,
@@ -737,12 +737,12 @@ function useCurrentRouteUrl(): {
 
   return useMemo(() => {
     if (route.key === 'draft') {
-      const hostname = validatedSiteUrl || gwUrl
+      const hostname = validatedSpaceUrl || gwUrl
       if (route.editUid) {
         const url = createWebHMUrl(route.editUid, {
           path: route.editPath,
           hostname,
-          originHomeId: validatedSiteUrl ? hmId(route.editUid) : undefined,
+          originHomeId: validatedSpaceUrl ? hmId(route.editUid) : undefined,
         })
         return {displayUrl: url, copyableUrl: url}
       }
@@ -752,7 +752,7 @@ function useCurrentRouteUrl(): {
         const url = createWebHMUrl(route.locationUid, {
           path: newPath,
           hostname,
-          originHomeId: validatedSiteUrl ? hmId(route.locationUid) : undefined,
+          originHomeId: validatedSpaceUrl ? hmId(route.locationUid) : undefined,
         })
         return {displayUrl: url, copyableUrl: null}
       }
@@ -788,14 +788,14 @@ function useCurrentRouteUrl(): {
       // Unpublished new doc with a location-only draft attached — show
       // slugified preview URL, never copyable.
       if (!hasPublishedResource && isLocationOnlyDraft && draft) {
-        const hostname = validatedSiteUrl || gwUrl
+        const hostname = validatedSpaceUrl || gwUrl
         const pathSegment = draftTitle?.trim() ? pathNameify(draftTitle) : draft.id
         const parentPath = routeId.path?.slice(0, -1) ?? []
         const newPath = [...parentPath, pathSegment]
         const url = createWebHMUrl(routeId.uid, {
           path: newPath,
           hostname,
-          originHomeId: validatedSiteUrl ? hmId(routeId.uid) : undefined,
+          originHomeId: validatedSpaceUrl ? hmId(routeId.uid) : undefined,
         })
         return {displayUrl: url, copyableUrl: null}
       }
@@ -804,14 +804,14 @@ function useCurrentRouteUrl(): {
       // document exists at this id — guards against copying placeholder URLs
       // while drafts/resources are still loading.
       const url = routeToUrl(route, {
-        hostname: validatedSiteUrl || gwUrl,
-        originHomeId: validatedSiteUrl ? hmId(routeId.uid) : undefined,
+        hostname: validatedSpaceUrl || gwUrl,
+        originHomeId: validatedSpaceUrl ? hmId(routeId.uid) : undefined,
       })
       return {displayUrl: url, copyableUrl: hasPublishedResource ? url : null}
     }
 
     if (route.key === 'inspect-ipfs') {
-      const url = routeToUrl(route, {hostname: validatedSiteUrl || gwUrl})
+      const url = routeToUrl(route, {hostname: validatedSpaceUrl || gwUrl})
       return {displayUrl: url, copyableUrl: url}
     }
 
@@ -819,7 +819,7 @@ function useCurrentRouteUrl(): {
   }, [
     routeId,
     route,
-    validatedSiteUrl,
+    validatedSpaceUrl,
     gwUrl,
     draftTitle,
     draft,
@@ -848,15 +848,15 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'metadata' ||
     route.key === 'profile' ||
     route.key === 'contact' ||
-    route.key === 'site-profile' ||
-    route.key === 'site-settings'
+    route.key === 'space-profile' ||
+    route.key === 'space-settings'
   ) {
     return route.id
   }
   if (route.key === 'explore') {
-    return route.context.type === 'site' ? route.context.id : null
+    return route.context.type === 'space' ? route.context.id : null
   }
-  if (route.key === 'site-settings-emails') {
+  if (route.key === 'space-settings-emails') {
     return route.accountUid ? hmId(route.accountUid) : null
   }
   return null
@@ -877,10 +877,10 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'comments' ||
     route.key === 'all-documents' ||
     route.key === 'metadata' ||
-    (route.key === 'explore' && route.context.type === 'site') ||
-    route.key === 'site-profile' ||
-    route.key === 'site-settings-emails' ||
-    route.key === 'site-settings'
+    (route.key === 'explore' && route.context.type === 'space') ||
+    route.key === 'space-profile' ||
+    route.key === 'space-settings-emails' ||
+    route.key === 'space-settings'
   )
 }
 
@@ -967,7 +967,7 @@ export function Omnibar() {
   const localAgentServerUrl = useLocalAgentServerUrl()
   // Mirrors useCurrentRouteUrl: these routes yield no URL, so the idle bar shows a token instead.
   const isLocalAgentsRoute = isLocalAgentServer(agentRouteServerUrl(route) || '', localAgentServerUrl.data)
-  const publishSite = usePublishSite()
+  const publishSpace = usePublishSpace()
   const searchInputRef = useRef<SearchInputHandle>(null)
   const [isSearchLoading, setIsSearchLoading] = useState(false)
 
@@ -1139,7 +1139,7 @@ export function Omnibar() {
             )}
           </div>
         ) : null}
-        {publishSite.content}
+        {publishSpace.content}
       </div>
     )
   }

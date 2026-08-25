@@ -85,7 +85,7 @@ export interface Account {
   delegations: DelegatedSession[]
 }
 
-/** Record of a delegation issued to a third-party site's session key. */
+/** Record of a delegation issued to a third-party space's session key. */
 export interface DelegatedSession {
   /** The origin (client_id) the delegation was issued to, e.g. "https://example.com". */
   clientId: string

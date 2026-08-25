@@ -739,7 +739,7 @@ export const Comment = memo(function Comment({
                       id: authorHmId,
                       metadata: authorMetadata ?? undefined,
                     }}
-                    siteUid={docId?.uid}
+                    spaceUid={docId?.uid}
                   />
                 ) : (
                   <span>Someone</span>
@@ -941,7 +941,7 @@ export function CommentContent({
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   // Same destination as "Copy Comment Link": the target document's comments
-  // view focused on this comment, staying within the site context. The id
+  // view focused on this comment, staying within the space context. The id
   // drops the comment's targetVersion so the URL matches the copied link.
   const destRoute: NavRoute | null = targetId
     ? {

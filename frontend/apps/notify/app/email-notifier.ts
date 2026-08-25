@@ -78,7 +78,7 @@ const handleImmediateEmailNotificationsIntervalSeconds = 15
 
 const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
 const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
-const fallbackSiteBaseUrl = SITE_BASE_URL.replace(/\/$/, '')
+const fallbackSpaceBaseUrl = SITE_BASE_URL.replace(/\/$/, '')
 const notifDebugEnabled = process.env.NOTIFY_DEBUG === '1' || process.env.NODE_ENV !== 'production'
 const notifVerboseEnabled = process.env.VERBOSE === 'true'
 
@@ -752,7 +752,7 @@ async function buildImmediateNotificationEmail(
   const unsubscribeUrl = `${notificationEmailHost}/hm/email-notifications?token=${adminToken}`
   const authorName = notif.authorMeta?.name || 'Someone'
   const documentName = notif.targetMeta?.name || 'Untitled Document'
-  const siteUrl = extractSiteOrigin(notif.url)
+  const siteUrl = extractSpaceOrigin(notif.url)
 
   if (notif.reason === 'mention') {
     const subjectName = notification.accountMeta?.name || 'you'
@@ -797,7 +797,7 @@ async function buildImmediateNotificationEmail(
 }
 
 /** Extract the origin (protocol + host) from a URL. */
-function extractSiteOrigin(url: string): string | undefined {
+function extractSpaceOrigin(url: string): string | undefined {
   try {
     return new URL(url).origin
   } catch {
@@ -1236,15 +1236,15 @@ async function evaluateDocUpdateForNotifications(
   }
 }
 
-/** Returns the account's configured site URL, or null if none is configured. */
-async function getAccountSiteUrl(accountId: string): Promise<string | null> {
+/** Returns the account's configured space URL, or null if none is configured. */
+async function getAccountSpaceUrl(accountId: string): Promise<string | null> {
   try {
     const accountResult = await requestAPI('Account', accountId)
     if (accountResult.type === 'account') {
-      return normalizeSiteBaseUrl(accountResult.metadata?.siteUrl)
+      return normalizeSpaceBaseUrl(accountResult.metadata?.siteUrl)
     }
   } catch (error: any) {
-    reportError(`Error getting account site url ${accountId}: ${error.message}`)
+    reportError(`Error getting account space url ${accountId}: ${error.message}`)
   }
   return null
 }
@@ -1314,7 +1314,7 @@ async function resolveContentReferenceName(id: UnpackedHypermediaId): Promise<st
   return id.path?.at(-1)?.trim() || 'Untitled Document'
 }
 
-function normalizeSiteBaseUrl(siteUrl?: string | null): string | null {
+function normalizeSpaceBaseUrl(siteUrl?: string | null): string | null {
   const normalized = siteUrl?.replace(/\/$/, '') || null
   return normalized || null
 }
@@ -1323,7 +1323,7 @@ function normalizeSiteBaseUrl(siteUrl?: string | null): string | null {
 const domainVerifier = createDomainVerifier(grpcClient)
 
 /**
- * Extracts the hostname (without protocol) from a full site URL.
+ * Extracts the hostname (without protocol) from a full space URL.
  * e.g. "https://example.com" → "example.com"
  */
 function extractDomain(siteUrl: string): string | null {
@@ -1338,7 +1338,7 @@ function extractDomain(siteUrl: string): string | null {
  * Builds the correct URL for a resource, using the custom domain when it is
  * verified for the expected account, or falling back to a gateway-style URL.
  *
- * When verified and uid matches siteOwnerUid:
+ * When verified and uid matches spaceOwnerUid:
  *   `https://custom-domain.com/path`  (clean, no /hm/{uid})
  * When verified but uid differs (e.g. comment by another author):
  *   `https://custom-domain.com/hm/{uid}/path`  (still on the right domain)
@@ -1349,7 +1349,7 @@ async function buildVerifiedResourceUrl(
   uid: string,
   opts: {
     siteUrl: string | null
-    siteOwnerUid: string
+    spaceOwnerUid: string
     path?: string[] | null
     viewTerm?: string | null
     blockRef?: string | null
@@ -1358,21 +1358,21 @@ async function buildVerifiedResourceUrl(
   if (opts.siteUrl) {
     const domain = extractDomain(opts.siteUrl)
     if (domain) {
-      const verified = await domainVerifier.isVerified(domain, opts.siteOwnerUid)
+      const verified = await domainVerifier.isVerified(domain, opts.spaceOwnerUid)
       if (verified) {
         return createWebHMUrl(uid, {
           hostname: opts.siteUrl,
           path: opts.path,
           viewTerm: opts.viewTerm,
           blockRef: opts.blockRef,
-          originHomeId: hmId(opts.siteOwnerUid),
+          originHomeId: hmId(opts.spaceOwnerUid),
         })
       }
     }
   }
   // Fallback: gateway URL
   return createWebHMUrl(uid, {
-    hostname: fallbackSiteBaseUrl,
+    hostname: fallbackSpaceBaseUrl,
     path: opts.path,
     viewTerm: opts.viewTerm,
     blockRef: opts.blockRef,
@@ -1449,9 +1449,9 @@ async function evaluateMentionEventForNotifications(
     reportError(`Error getting mention author ${authorAccountId}: ${error.message}`)
   }
 
-  let siteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
+  let siteUrl = normalizeSpaceBaseUrl(targetMeta?.siteUrl)
   if (!siteUrl) {
-    siteUrl = await getAccountSiteUrl(sourceDocId.uid)
+    siteUrl = await getAccountSpaceUrl(sourceDocId.uid)
   }
 
   let mentionUrl: string
@@ -1465,7 +1465,7 @@ async function evaluateMentionEventForNotifications(
     }
     mentionUrl = await buildVerifiedResourceUrl(sourceCommentId.uid, {
       siteUrl,
-      siteOwnerUid: sourceDocId.uid,
+      spaceOwnerUid: sourceDocId.uid,
       path: [commentPath],
     })
     try {
@@ -1484,7 +1484,7 @@ async function evaluateMentionEventForNotifications(
   } else {
     mentionUrl = await buildVerifiedResourceUrl(sourceDocId.uid, {
       siteUrl,
-      siteOwnerUid: sourceDocId.uid,
+      spaceOwnerUid: sourceDocId.uid,
       path: sourceDocId.path,
     })
   }
@@ -1554,8 +1554,8 @@ async function evaluateNewCommentForNotifications(
   let commentAuthorUid = comment.author
   let targetMeta: HMMetadata | null = null
   let targetAuthorUids: string[] = []
-  let targetDocumentSiteUrl: string | null = null
-  let targetAccountSiteUrl: string | null = null
+  let targetDocumentSpaceUrl: string | null = null
+  let targetAccountSpaceUrl: string | null = null
   const targetDocId = hmId(comment.targetAccount, {
     path: entityQueryPathToHmIdPath(comment.targetPath),
   })
@@ -1575,7 +1575,7 @@ async function evaluateNewCommentForNotifications(
     targetAuthorUids = Array.isArray(targetDocument.authors)
       ? targetDocument.authors.filter((author): author is string => typeof author === 'string' && author.length > 0)
       : []
-    targetDocumentSiteUrl = normalizeSiteBaseUrl(targetMeta?.siteUrl)
+    targetDocumentSpaceUrl = normalizeSpaceBaseUrl(targetMeta?.siteUrl)
   } catch (error: any) {
     reportError(`Error getting target document for ${targetDocId.id}: ${error.message}`)
   }
@@ -1590,11 +1590,11 @@ async function evaluateNewCommentForNotifications(
     }
   }
 
-  if (!targetDocumentSiteUrl) {
+  if (!targetDocumentSpaceUrl) {
     try {
       const targetAccountResult = await requestAPI('Account', comment.targetAccount)
       if (targetAccountResult.type === 'account') {
-        targetAccountSiteUrl = normalizeSiteBaseUrl(targetAccountResult.metadata?.siteUrl)
+        targetAccountSpaceUrl = normalizeSpaceBaseUrl(targetAccountResult.metadata?.siteUrl)
       }
     } catch (error: any) {
       reportError(`Error getting target account ${comment.targetAccount}: ${error.message}`)
@@ -1609,10 +1609,10 @@ async function evaluateNewCommentForNotifications(
   if (!commentTSID) {
     throw new Error('Invalid comment ID format: ' + comment.id)
   }
-  const commentSiteUrl = targetDocumentSiteUrl || targetAccountSiteUrl
+  const commentSpaceUrl = targetDocumentSpaceUrl || targetAccountSpaceUrl
   const commentUrl = await buildVerifiedResourceUrl(comment.author, {
-    siteUrl: commentSiteUrl,
-    siteOwnerUid: comment.targetAccount,
+    siteUrl: commentSpaceUrl,
+    spaceOwnerUid: comment.targetAccount,
     path: [commentTSID],
   })
 
@@ -1961,18 +1961,18 @@ async function loadRefEvent(event: PlainMessage<Event>) {
   const changedDoc = await getDocument(id)
   if (!changedDoc) return null
 
-  const documentSiteUrl = normalizeSiteBaseUrl(changedDoc.metadata?.siteUrl)
-  let accountSiteUrl: string | null = null
-  if (!documentSiteUrl) {
+  const documentSpaceUrl = normalizeSpaceBaseUrl(changedDoc.metadata?.siteUrl)
+  let accountSpaceUrl: string | null = null
+  if (!documentSpaceUrl) {
     const homeAccountResult = await requestAPI('Account', id.uid)
-    accountSiteUrl =
-      homeAccountResult.type === 'account' ? normalizeSiteBaseUrl(homeAccountResult.metadata?.siteUrl) : null
+    accountSpaceUrl =
+      homeAccountResult.type === 'account' ? normalizeSpaceBaseUrl(homeAccountResult.metadata?.siteUrl) : null
   }
-  const siteUrl = documentSiteUrl || accountSiteUrl
+  const siteUrl = documentSpaceUrl || accountSpaceUrl
 
   const openUrl = await buildVerifiedResourceUrl(id.uid, {
     siteUrl,
-    siteOwnerUid: id.uid,
+    spaceOwnerUid: id.uid,
     path: id.path,
   })
 

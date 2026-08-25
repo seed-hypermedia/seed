@@ -1,19 +1,19 @@
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {afterEach, describe, expect, test, vi} from 'vitest'
 import * as blobs from './blobs'
-import {defaultJoinedSiteUid, publishDefaultJoinedSite} from './publish-default-joined-site'
+import {defaultJoinedSpaceUid, publishDefaultJoinedSpace} from './publish-default-joined-space'
 
-describe('publishDefaultJoinedSite', () => {
+describe('publishDefaultJoinedSpace', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  test('publishes a site subscription contact for the default joined site', async () => {
+  test('publishes a space subscription contact for the default joined space', async () => {
     const keyPair = blobs.generateNobleKeyPair()
     const accountUid = blobs.principalToString(keyPair.principal)
     const publishedInputs: Array<{blobs: Array<{cid?: string; data: Uint8Array}>}> = []
 
-    const didPublish = await publishDefaultJoinedSite(
+    const didPublish = await publishDefaultJoinedSpace(
       {
         accountUid,
       },
@@ -41,7 +41,7 @@ describe('publishDefaultJoinedSite', () => {
     }
 
     expect(decoded.type).toBe('Contact')
-    expect(blobs.principalToString(decoded.subject)).toBe(defaultJoinedSiteUid)
+    expect(blobs.principalToString(decoded.subject)).toBe(defaultJoinedSpaceUid)
     expect(blobs.principalToString(decoded.account!)).toBe(accountUid)
     expect(decoded.subscribe).toEqual({site: true})
   })
@@ -53,7 +53,7 @@ describe('publishDefaultJoinedSite', () => {
     const accountUid = blobs.principalToString(keyPair.principal)
 
     await expect(
-      publishDefaultJoinedSite(
+      publishDefaultJoinedSpace(
         {
           accountUid,
         },

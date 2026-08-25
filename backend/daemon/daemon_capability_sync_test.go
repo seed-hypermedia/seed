@@ -20,8 +20,8 @@ import (
 )
 
 // This file holds the end-to-end regression tests for capability propagation
-// through a relay (the "site shows N collaborators, a synced peer shows fewer"
-// class of bugs). Shared topology: Alice (owner) -> Site (relay) -> Bob
+// through a relay (the "space shows N collaborators, a synced peer shows fewer"
+// class of bugs). Shared topology: Alice (owner) -> Space (relay) -> Bob
 // (subscriber); Bob never connects to Alice, so everything he sees must come
 // out of the relay's advertised reconciliation set.
 
@@ -49,14 +49,14 @@ func fastSyncConfig(t *testing.T) config.Config {
 // applyIndexedHook retries the chunk, so the capabilities are advertised within
 // milliseconds and the subscriber's next wave fetches them.
 //
-// Topology: Alice (owner) -> Site (relay) -> Bob (subscriber). Bob never
+// Topology: Alice (owner) -> Space (relay) -> Bob (subscriber). Bob never
 // connects to Alice. The assertion window is deliberately shorter than the
 // shadow-verify tick so the sweep cannot mask the dropped chunk.
 func TestCapabilitySyncRecoversFromHookFailure(t *testing.T) {
 	t.Parallel()
 
 	alice := makeTestApp(t, "alice", fastSyncConfig(t), true)
-	site := makeTestApp(t, "bob", fastSyncConfig(t), true)
+	space := makeTestApp(t, "bob", fastSyncConfig(t), true)
 	bob := makeTestApp(t, "carol", fastSyncConfig(t), true)
 
 	aliceIdentity := coretest.NewTester("alice")
@@ -87,11 +87,11 @@ func TestCapabilitySyncRecoversFromHookFailure(t *testing.T) {
 	// Phase 2: the relay connects to Alice and subscribes to her space; Bob
 	// connects ONLY to the relay and subscribes too. Serving Bob materializes
 	// the relay's maintained scope for this discovery key.
-	_, err = site.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+	_, err = space.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
-	_, err = site.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+	_, err = space.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   aliceAccount,
 		Path:      "",
 		Recursive: true,
@@ -99,7 +99,7 @@ func TestCapabilitySyncRecoversFromHookFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: hmnet.AddrInfoToStrings(site.Net.AddrInfo()),
+		Addrs: hmnet.AddrInfoToStrings(space.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
@@ -125,7 +125,7 @@ func TestCapabilitySyncRecoversFromHookFailure(t *testing.T) {
 	// the one carrying the fresh capability — fails once. Everything else
 	// (including any retry of that same batch) behaves normally.
 	var failNext atomic.Bool
-	site.Index.SetIndexedHook(func(conn *sqlite.Conn, ids []int64) error {
+	space.Index.SetIndexedHook(func(conn *sqlite.Conn, ids []int64) error {
 		if failNext.CompareAndSwap(true, false) {
 			return errTransientHook
 		}
@@ -143,12 +143,12 @@ func TestCapabilitySyncRecoversFromHookFailure(t *testing.T) {
 		Role:           documents.Role_WRITER,
 	})
 	require.NoError(t, err)
-	pushDocuments(t, alice, site, "hm://"+aliceAccount)
+	pushDocuments(t, alice, space, "hm://"+aliceAccount)
 
 	// The relay itself holds the capability either way: structural indexing is
 	// unaffected by the hook — only the ADVERTISED set is at stake.
 	require.Eventually(t, func() bool {
-		list, err := site.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
+		list, err := space.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
 			Account: aliceAccount,
 			Path:    "",
 		})
@@ -187,7 +187,7 @@ func TestCapabilitiesSyncAfterScopeQuiesced(t *testing.T) {
 	t.Parallel()
 
 	alice := makeTestApp(t, "alice", fastSyncConfig(t), true)
-	site := makeTestApp(t, "bob", fastSyncConfig(t), true)
+	space := makeTestApp(t, "bob", fastSyncConfig(t), true)
 	bob := makeTestApp(t, "carol", fastSyncConfig(t), true)
 
 	aliceIdentity := coretest.NewTester("alice")
@@ -235,18 +235,18 @@ func TestCapabilitiesSyncAfterScopeQuiesced(t *testing.T) {
 	require.NoError(t, err)
 
 	// Phase 2: the relay connects to Alice and subscribes to her whole space.
-	_, err = site.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
+	_, err = space.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
 		Addrs: hmnet.AddrInfoToStrings(alice.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
-	_, err = site.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
+	_, err = space.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
 		Account:   aliceAccount,
 		Path:      "",
 		Recursive: true,
 	})
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		_, err := site.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
+		_, err := space.RPC.DocumentsV3.GetDocument(ctx, &documents.GetDocumentRequest{
 			Account: aliceNotes.Account,
 			Path:    aliceNotes.Path,
 		})
@@ -257,7 +257,7 @@ func TestCapabilitiesSyncAfterScopeQuiesced(t *testing.T) {
 	// Serving Bob is what materializes the relay's maintained scope for this
 	// discovery key.
 	_, err = bob.RPC.Networking.Connect(ctx, &networking.ConnectRequest{
-		Addrs: hmnet.AddrInfoToStrings(site.Net.AddrInfo()),
+		Addrs: hmnet.AddrInfoToStrings(space.Net.AddrInfo()),
 	})
 	require.NoError(t, err)
 	_, err = bob.RPC.Activity.Subscribe(ctx, &activity.SubscribeRequest{
@@ -299,10 +299,10 @@ func TestCapabilitiesSyncAfterScopeQuiesced(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-	pushDocuments(t, alice, site, "hm://"+aliceAccount)
-	pushDocuments(t, alice, site, "hm://"+aliceAccount+aliceNotes.Path)
+	pushDocuments(t, alice, space, "hm://"+aliceAccount)
+	pushDocuments(t, alice, space, "hm://"+aliceAccount+aliceNotes.Path)
 
-	list, err := site.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
+	list, err := space.RPC.DocumentsV3.ListCapabilities(ctx, &documents.ListCapabilitiesRequest{
 		Account: aliceAccount,
 		Path:    "",
 	})

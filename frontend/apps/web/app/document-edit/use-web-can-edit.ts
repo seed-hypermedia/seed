@@ -60,9 +60,9 @@ export function resolveWebCanEdit(args: {
 
   if (!capability) return {canEdit: false, signingAccountId, capability: null}
 
-  const isExternalSite =
+  const isExternalSpace =
     !args.isGateway && !!args.origin && !!args.originHomeId && args.originHomeId.uid !== args.docId.uid
-  if (isExternalSite) return {canEdit: false, signingAccountId, capability}
+  if (isExternalSpace) return {canEdit: false, signingAccountId, capability}
 
   return {canEdit: true, signingAccountId, capability}
 }
@@ -75,7 +75,7 @@ export function resolveWebCanEdit(args: {
  *  - Local-only browser keys (no `delegatedAccountUid`) are V1-comment-only — `canEdit: false`.
  *  - Vault-delegated user is the doc owner -> canEdit (synthetic owner capability).
  *  - Vault-delegated user holds a WRITER/OWNER capability whose `accountUid` matches -> canEdit.
- *  - Site-scope filter: on a custom-domain site (`originHomeId.uid !== docId.uid`), edits are blocked.
+ *  - Space-scope filter: on a custom-domain space (`originHomeId.uid !== docId.uid`), edits are blocked.
  *    On the gateway (`WEB_IS_GATEWAY`) any authorized doc is editable.
  *
  * The check runs entirely in the browser. The capability lookup is cached via the existing

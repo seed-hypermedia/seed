@@ -42,7 +42,7 @@ const Translations = {
   Save: 'Guardar',
   'Save Account': 'Guardar Cuenta',
   'Account Name': 'Nombre de la cuenta',
-  'Site Icon': 'Icono del sitio',
+  'Space Icon': 'Icono del sitio',
   'Profile Icon': 'Icono del perfil',
   'Log out?': '¿Cerrar sesión?',
   'Log out': 'Cerrar sesión',
@@ -79,8 +79,8 @@ const Translations = {
   create_account_description:
     'Cuentas de Hypermedia utilizan cryptografía asimétrica. La clave privada de tu cuenta será almacenada de forma segura en este navegador, y nadie más podrá acceder a ella. La identidad será accesible solo en este dominio, pero puedes vincularla a otros dominios y dispositivos más tarde.',
   add: (args: {what: string}) => `Añadir ${args.what}`,
-  create_account_title: (args: {siteName: string}) => `Crear cuenta en ${args.siteName}`,
-  create_account_submit: (args: {siteName: string}) => `Crear ${args.siteName} cuenta`,
+  create_account_title: (args: {spaceName: string}) => `Crear cuenta en ${args.spaceName}`,
+  create_account_submit: (args: {spaceName: string}) => `Crear ${args.spaceName} cuenta`,
   publish_comment_as: (args: {name: string | undefined}) =>
     args.name ? `Publicar comentario de ${args.name}` : 'Publicar comentario',
   looking_for_document: 'Buscando un documento…',

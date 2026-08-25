@@ -1,7 +1,7 @@
 /**
  * URL-aware ID resolution for CLI commands.
  *
- * Accepts hm:// IDs, gateway URLs, or plain site web URLs and returns
+ * Accepts hm:// IDs, gateway URLs, or plain space web URLs and returns
  * a resolved UnpackedHypermediaId together with an appropriately configured
  * API client.
  */

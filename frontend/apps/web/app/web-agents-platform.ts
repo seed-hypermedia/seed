@@ -83,7 +83,7 @@ function useWebAgentsOpenUrl() {
  * Public host for hm:// links the agent writes into chat.
  *
  * `origin` is this deployment's own web URL, which is what a reader should land on; without it the
- * shared renderer falls back to the default gateway and a self-hosted site would hand out
+ * shared renderer falls back to the default gateway and a self-hosted space would hand out
  * hyper.media hrefs. Only the href is affected — clicks are intercepted and routed in-app either
  * way — so this matters for hover, copy-link, and open-in-new-tab.
  */

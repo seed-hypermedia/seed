@@ -4,9 +4,9 @@ import {act} from 'react-dom/test-utils'
 import {describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 
-const {deleteMutateAsyncMock, listSiteDataMock, toastErrorMock, toastPromiseMock} = vi.hoisted(() => ({
+const {deleteMutateAsyncMock, listSpaceDataMock, toastErrorMock, toastPromiseMock} = vi.hoisted(() => ({
   deleteMutateAsyncMock: vi.fn(),
-  listSiteDataMock: [] as any[],
+  listSpaceDataMock: [] as any[],
   toastErrorMock: vi.fn(),
   toastPromiseMock: vi.fn(),
 }))
@@ -25,7 +25,7 @@ vi.mock('@/models/daemon', () => ({
 }))
 
 vi.mock('@/models/documents', () => ({
-  useListSite: () => ({data: listSiteDataMock}),
+  useListSpace: () => ({data: listSpaceDataMock}),
 }))
 
 vi.mock('../../models/entities', () => ({
@@ -143,9 +143,9 @@ describe('DeleteDocumentDialog', () => {
     const onClose = vi.fn()
     const id = {...hmId('alice'), path: null}
 
-    listSiteDataMock.splice(
+    listSpaceDataMock.splice(
       0,
-      listSiteDataMock.length,
+      listSpaceDataMock.length,
       {
         id: hmId('alice', {path: ['child']}),
         path: ['child'],
@@ -181,6 +181,6 @@ describe('DeleteDocumentDialog', () => {
     })
 
     cleanupRendered(root, container)
-    listSiteDataMock.splice(0, listSiteDataMock.length)
+    listSpaceDataMock.splice(0, listSpaceDataMock.length)
   })
 })

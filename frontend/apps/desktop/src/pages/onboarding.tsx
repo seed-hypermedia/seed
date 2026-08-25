@@ -2,7 +2,7 @@ import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
 import {useDesktopAccountIntent} from '@/components/desktop-intents'
 import {MainWrapper} from '@/components/main-wrapper'
 import {useSelectedAccountId} from '@/selected-account'
-import {getOrCreateSiteHome} from '@/utils/create-site'
+import {getOrCreateSpaceHome} from '@/utils/create-space'
 import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {useResource} from '@shm/shared/models/entity'
@@ -17,26 +17,26 @@ import {useState} from 'react'
 export default function OnboardingPage() {
   const createAccountDialog = useDesktopAuthDialog()
   const selectedAccountId = useSelectedAccountId()
-  const selectedSite = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
-  const hasSelectedSite = selectedSite.data?.type === 'document' && selectedSite.data.document
+  const selectedSpace = useResource(selectedAccountId ? hmId(selectedAccountId) : undefined)
+  const hasSelectedSpace = selectedSpace.data?.type === 'document' && selectedSpace.data.document
   const triggerWindowEvent = useTriggerWindowEvent()
   const navigate = useNavigate()
-  const createSiteIntent = useDesktopAccountIntent()
-  const [isCreatingSite, setIsCreatingSite] = useState(false)
+  const createSpaceIntent = useDesktopAccountIntent()
+  const [isCreatingSpace, setIsCreatingSpace] = useState(false)
 
-  const createSite = async (accountUid: string) => {
-    setIsCreatingSite(true)
+  const createSpace = async (accountUid: string) => {
+    setIsCreatingSpace(true)
     try {
-      const homeId = await getOrCreateSiteHome(accountUid)
+      const homeId = await getOrCreateSpaceHome(accountUid)
       navigate({
         key: 'document',
         id: homeId,
       })
     } catch (error) {
-      console.error('Failed to verify site before creating draft:', error)
-      toast.error('Could not verify whether your site already exists. Please try again.')
+      console.error('Failed to verify space before creating draft:', error)
+      toast.error('Could not verify whether your space already exists. Please try again.')
     } finally {
-      setIsCreatingSite(false)
+      setIsCreatingSpace(false)
     }
   }
 
@@ -46,7 +46,7 @@ export default function OnboardingPage() {
         <GeneralPageSurface>
           <div className="mx-auto flex h-full max-w-3xl flex-col justify-center gap-6 p-8">
             <h1 className="text-3xl font-semibold tracking-tight">Welcome to Seed Hypermedia 👋</h1>
-            <p>A place where people build sites to share knowledge freely. Where would you like to start?</p>
+            <p>A place where people build spaces to share knowledge freely. Where would you like to start?</p>
 
             <div className="flex gap-2">
               <div className="flex flex-1 flex-col justify-between gap-4 rounded-lg border p-4 shadow-sm">
@@ -55,8 +55,8 @@ export default function OnboardingPage() {
                     <Search className="size-6" />
                   </div>
                   <div className="flex flex-col items-start gap-1">
-                    <h3 className="font-bold">Find and Join a Site</h3>
-                    <p className="text-muted-foreground">Paste a site link in the bar above</p>
+                    <h3 className="font-bold">Find and Join a Space</h3>
+                    <p className="text-muted-foreground">Paste a space link in the bar above</p>
                   </div>
                 </div>
                 <Button
@@ -65,27 +65,27 @@ export default function OnboardingPage() {
                   onClick={() => triggerWindowEvent({type: 'focus_omnibar', mode: 'search'})}
                 >
                   <Search className="size-4" />
-                  Input a Site URL
+                  Input a Space URL
                 </Button>
               </div>
-              {!hasSelectedSite ? (
+              {!hasSelectedSpace ? (
                 <div className="flex flex-1 flex-col justify-between gap-4 rounded-lg border p-4 shadow-sm">
                   <div className="flex items-start gap-4">
                     <div className="bg-brand-12 flex min-h-12 min-w-12 items-center justify-center rounded-xl">
                       <Plus className="size-6" />
                     </div>
                     <div className="flex flex-col items-start gap-1">
-                      <h3 className="font-bold">Create a Site</h3>
+                      <h3 className="font-bold">Create a Space</h3>
                       <p className="text-muted-foreground">Start your own space to share knowledge</p>
                     </div>
                   </div>
                   <Button
                     variant="outline"
                     className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950 dark:hover:text-emerald-300"
-                    disabled={isCreatingSite}
-                    onClick={() => createSiteIntent.requireAccount(createSite)}
+                    disabled={isCreatingSpace}
+                    onClick={() => createSpaceIntent.requireAccount(createSpace)}
                   >
-                    Create my Site
+                    Create my Space
                   </Button>
                 </div>
               ) : null}
@@ -118,7 +118,7 @@ export default function OnboardingPage() {
         </GeneralPageSurface>
       </MainWrapper>
       {createAccountDialog.content}
-      {createSiteIntent.content}
+      {createSpaceIntent.content}
     </PanelContainer>
   )
 }

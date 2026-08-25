@@ -20,7 +20,7 @@ type ID struct {
 
 // Less compares if i is less than ii.
 // It uses the common comparison scheme for CRDT IDs:
-// first compare the clock, break ties (if any) by comparing site IDs.
+// first compare the clock, break ties (if any) by comparing space IDs.
 func (i ID) Less(ii ID) bool {
 	if i.Clock < ii.Clock {
 		return true
@@ -41,7 +41,7 @@ func (i ID) Less(ii ID) bool {
 	return i.Idx < ii.Idx
 }
 
-// VectorClock tracks IDs for each site and maximal
+// VectorClock tracks IDs for each space and maximal
 // lamport timestamp for the whole document.
 type VectorClock struct {
 	maxClock int
@@ -55,15 +55,15 @@ func NewVectorClock() *VectorClock {
 	}
 }
 
-// NewID produces a new ID for a given site, without tracking it.
-func (f *VectorClock) NewID(site string) ID {
-	return ID{Origin: site, Clock: f.maxClock + 1}
+// NewID produces a new ID for a given space, without tracking it.
+func (f *VectorClock) NewID(space string) ID {
+	return ID{Origin: space, Clock: f.maxClock + 1}
 }
 
 // Track the ID of a new operation. Will fail for outdated IDs.
 func (f *VectorClock) Track(id ID) error {
 	if l, ok := f.lastSeen[id.Origin]; ok && id.Less(l) {
-		return fmt.Errorf("out of date operation for site %s: incoming clock=%v, last=%v", id.Origin, id.Clock, l)
+		return fmt.Errorf("out of date operation for space %s: incoming clock=%v, last=%v", id.Origin, id.Clock, l)
 	}
 
 	f.lastSeen[id.Origin] = id

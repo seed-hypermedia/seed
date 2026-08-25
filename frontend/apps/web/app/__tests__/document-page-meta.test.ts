@@ -11,11 +11,11 @@ vi.mock('@shm/editor/comment-editor', () => ({
 }))
 
 vi.mock('@/loaders', () => ({
-  loadSiteResource: vi.fn(),
+  loadSpaceResource: vi.fn(),
   loadWebDraftPlaceholderResource: vi.fn(),
 }))
 
-vi.mock('@/site-config.server', () => ({
+vi.mock('@/space-config.server', () => ({
   getConfig: vi.fn(),
 }))
 

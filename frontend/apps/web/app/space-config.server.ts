@@ -14,12 +14,12 @@ console.log('~~ process.env.DATA_DIR cwd', process.cwd())
 const configPath = join(webDataDir, 'config.json')
 const serviceConfigPath = join(webDataDir, 'service-config.json')
 
-export const siteConfigSchema = z.object({
+export const spaceConfigSchema = z.object({
   availableRegistrationSecret: z.string().optional(),
   sourcePeerId: z.string().optional(),
   registeredAccountUid: z.string().optional(),
 })
-export type SiteConfig = z.infer<typeof siteConfigSchema>
+export type SpaceConfig = z.infer<typeof spaceConfigSchema>
 
 const customDomainConfigSchema = z.object({
   service: z.string(),
@@ -28,22 +28,22 @@ export type CustomDomainConfig = z.infer<typeof customDomainConfigSchema>
 
 const serviceConfigSchema = z.object({
   rootHostname: z.string(),
-  rootConfig: siteConfigSchema,
-  namedServices: z.record(z.string(), siteConfigSchema),
+  rootConfig: spaceConfigSchema,
+  namedServices: z.record(z.string(), spaceConfigSchema),
   customDomains: z.record(z.string(), customDomainConfigSchema).optional(),
 })
 export type ServiceConfig = z.infer<typeof serviceConfigSchema>
 
 export {customDomainConfigSchema, serviceConfigSchema}
 
-let singleSiteConfig: SiteConfig | null = null
-let singleSiteConfigError: string | null = null
+let singleSpaceConfig: SpaceConfig | null = null
+let singleSpaceConfigError: string | null = null
 try {
   const configData = readFileSync(configPath, 'utf-8')
   const configJSON = JSON.parse(configData)
-  singleSiteConfig = siteConfigSchema.parse(configJSON)
+  singleSpaceConfig = spaceConfigSchema.parse(configJSON)
 } catch (e: any) {
-  singleSiteConfigError = e.message
+  singleSpaceConfigError = e.message
 }
 
 let serviceConfig: ServiceConfig | null = null
@@ -55,10 +55,10 @@ try {
 
 if (serviceConfig) {
   console.log('Service config loaded.')
-} else if (singleSiteConfig) {
-  console.log('Single site config loaded.')
+} else if (singleSpaceConfig) {
+  console.log('Single space config loaded.')
 } else {
-  console.error('Config error: ', singleSiteConfigError)
+  console.error('Config error: ', singleSpaceConfigError)
   throw new Error('Failed to load configuration. Set DATA_DIR/config.json or DATA_DIR/service-config.json')
 }
 
@@ -83,7 +83,7 @@ export async function getConfig(hostname: string) {
     // @ts-expect-error
     return serviceConfig.namedServices[subdomain] || null
   } else {
-    return singleSiteConfig
+    return singleSpaceConfig
   }
 }
 
@@ -91,7 +91,7 @@ export async function getServiceConfig() {
   return serviceConfig
 }
 
-export async function writeConfig(hostname: string, newConfig: SiteConfig) {
+export async function writeConfig(hostname: string, newConfig: SpaceConfig) {
   if (serviceConfig) {
     if (hostname === serviceConfig.rootHostname) {
       const newServiceConfig = {
@@ -132,21 +132,21 @@ export async function writeConfig(hostname: string, newConfig: SiteConfig) {
 }
 
 export async function applyConfigSubscriptions() {
-  const siteAccounts = new Set<string>()
+  const spaceAccounts = new Set<string>()
   if (serviceConfig) {
-    Object.values(serviceConfig.namedServices).forEach((config: SiteConfig) => {
-      if (config.registeredAccountUid) siteAccounts.add(config.registeredAccountUid)
+    Object.values(serviceConfig.namedServices).forEach((config: SpaceConfig) => {
+      if (config.registeredAccountUid) spaceAccounts.add(config.registeredAccountUid)
     })
-    if (serviceConfig.rootConfig.registeredAccountUid) siteAccounts.add(serviceConfig.rootConfig.registeredAccountUid)
-  } else if (singleSiteConfig) {
-    if (singleSiteConfig.registeredAccountUid) siteAccounts.add(singleSiteConfig.registeredAccountUid)
+    if (serviceConfig.rootConfig.registeredAccountUid) spaceAccounts.add(serviceConfig.rootConfig.registeredAccountUid)
+  } else if (singleSpaceConfig) {
+    if (singleSpaceConfig.registeredAccountUid) spaceAccounts.add(singleSpaceConfig.registeredAccountUid)
   } else {
-    throw new Error('No site config loaded!')
+    throw new Error('No space config loaded!')
   }
   const subs = await grpcClient.subscriptions.listSubscriptions({})
   const toUnsubscribe: {account: string; path: string}[] = []
   subs.subscriptions.forEach((sub) => {
-    if (!siteAccounts.has(sub.account) || sub.path !== '') toUnsubscribe.push({account: sub.account, path: sub.path})
+    if (!spaceAccounts.has(sub.account) || sub.path !== '') toUnsubscribe.push({account: sub.account, path: sub.path})
   })
   await Promise.all(
     toUnsubscribe.map(async ({account, path}) => {
@@ -158,7 +158,7 @@ export async function applyConfigSubscriptions() {
     }),
   )
   const toSubscribe: {account: string}[] = []
-  siteAccounts.forEach((account) => {
+  spaceAccounts.forEach((account) => {
     if (!subs.subscriptions.some((sub) => sub.account === account && sub.path === '')) toSubscribe.push({account})
   })
   await Promise.all(
@@ -211,9 +211,9 @@ export async function rmService(name: string) {
   })
 }
 
-export async function writeSoloConfig(newConfig: SiteConfig) {
+export async function writeSoloConfig(newConfig: SpaceConfig) {
   await fs.writeFile(configPath, JSON.stringify(newConfig))
-  singleSiteConfig = newConfig
+  singleSpaceConfig = newConfig
 }
 
 export async function writeServiceConfig(newConfig: ServiceConfig) {

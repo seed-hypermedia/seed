@@ -566,8 +566,8 @@ func TestContactSubscribeMetadata(t *testing.T) {
 	bob := coretest.NewTester("bob")
 
 	// Create a contact with subscribe metadata directly using the blob API.
-	subscribe := &blob.ContactSubscribe{Site: true}
-	eb := mustCreateContactWithSubscribe(ctx, t, alice.idx, &alice.me, "", bob.Account.Principal(), "Bob Site", subscribe, time.Now())
+	subscribe := &blob.ContactSubscribe{Space: true}
+	eb := mustCreateContactWithSubscribe(ctx, t, alice.idx, &alice.me, "", bob.Account.Principal(), "Bob Space", subscribe, time.Now())
 
 	contactID := blob.RecordID{
 		Authority: alice.me.Account.Principal(),
@@ -580,7 +580,7 @@ func TestContactSubscribeMetadata(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, contact)
-		require.Equal(t, "Bob Site", contact.Name)
+		require.Equal(t, "Bob Space", contact.Name)
 
 		// Verify subscribe metadata is present.
 		require.NotNil(t, contact.Metadata, "Metadata should be present")
@@ -589,9 +589,9 @@ func TestContactSubscribeMetadata(t *testing.T) {
 
 		subscribeStruct := subscribeMeta.GetStructValue()
 		require.NotNil(t, subscribeStruct, "subscribe should be a struct")
-		site := subscribeStruct.Fields["site"]
-		require.NotNil(t, site, "site field should be present")
-		require.True(t, site.GetBoolValue(), "site should be true")
+		space := subscribeStruct.Fields["site"]
+		require.NotNil(t, space, "space field should be present")
+		require.True(t, space.GetBoolValue(), "space should be true")
 	})
 
 	t.Run("ListContacts returns subscribe metadata", func(t *testing.T) {
@@ -605,7 +605,7 @@ func TestContactSubscribeMetadata(t *testing.T) {
 		require.Len(t, resp.Contacts, 1)
 
 		contact := resp.Contacts[0]
-		require.Equal(t, "Bob Site", contact.Name)
+		require.Equal(t, "Bob Space", contact.Name)
 
 		// Verify subscribe metadata is present.
 		require.NotNil(t, contact.Metadata, "Metadata should be present")
@@ -614,9 +614,9 @@ func TestContactSubscribeMetadata(t *testing.T) {
 
 		subscribeStruct := subscribeMeta.GetStructValue()
 		require.NotNil(t, subscribeStruct, "subscribe should be a struct")
-		site := subscribeStruct.Fields["site"]
-		require.NotNil(t, site, "site field should be present")
-		require.True(t, site.GetBoolValue(), "site should be true")
+		space := subscribeStruct.Fields["site"]
+		require.NotNil(t, space, "space field should be present")
+		require.True(t, space.GetBoolValue(), "space should be true")
 	})
 }
 

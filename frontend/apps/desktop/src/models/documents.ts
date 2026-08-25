@@ -209,7 +209,7 @@ export function useDocumentEmbeds(
     .filter((e) => !!e)
 }
 
-// TODO: Duplicate (apps/site/server/routers/_app.ts#~187)
+// TODO: Duplicate (apps/space/server/routers/_app.ts#~187)
 export function sortDocuments(a?: Timestamp, b?: Timestamp) {
   let dateA = a ? a.toDate().getTime() : 0
   let dateB = b ? b.toDate().getTime() : 1
@@ -489,7 +489,7 @@ export function usePublishResource(
           invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
         })
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-        invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
+        invalidateQueries([queryKeys.SPACE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.DOC_CITATIONS])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, resultDocId.id])
@@ -512,7 +512,7 @@ export function useDocumentRead(id: UnpackedHypermediaId | undefined | false) {
         isRead: true,
       })
       .then(() => {
-        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
+        invalidateQueries([queryKeys.SPACE_LIBRARY, id.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       })
       .catch((error) => {
@@ -532,7 +532,7 @@ export function useMarkAsRead() {
           isRecursive: true,
           isRead: true,
         })
-        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
+        invalidateQueries([queryKeys.SPACE_LIBRARY, id.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       }),
     )
@@ -650,9 +650,9 @@ export async function pushResource(
   onStatusChange?: (status: PushResourceStatus) => void,
 ): Promise<boolean> {
   const resource = await universalClient.request('Resource', id)
-  // step 1. find all the site IDs that will be affected by this resource.
+  // step 1. find all the space IDs that will be affected by this resource.
   // console.log('== publish 1', id, resource, gwUrl)
-  let destinationSiteUids = new Set<string>()
+  let destinationSpaceUids = new Set<string>()
 
   function extractBNReferences(blockNodes: HMBlockNode[]) {
     blockNodes.forEach(async (node) => {
@@ -660,55 +660,55 @@ export async function pushResource(
       if (node.block.type === 'Query') {
         const query = node.block.attributes.query
         query.includes.forEach((include) => {
-          destinationSiteUids.add(include.space)
+          destinationSpaceUids.add(include.space)
         })
       }
       if (node.block.type === 'Embed') {
         const id = unpackHmId(node.block.link)
         if (id) {
-          destinationSiteUids.add(id.uid)
+          destinationSpaceUids.add(id.uid)
         }
       }
       const annotations = getAnnotations(node.block)
       annotations?.forEach((annotation: HMAnnotation) => {
         const id = unpackHmId(annotation.link)
         if (id) {
-          destinationSiteUids.add(id.uid)
+          destinationSpaceUids.add(id.uid)
         }
       })
     })
   }
 
   // for documents:
-  // - the site that the document is in
+  // - the space that the document is in
   // - each author of the document
-  // - all the sites that the document directly references through embeds,links,mentions, and queries
+  // - all the spaces that the document directly references through embeds,links,mentions, and queries
 
   if (resource.type === 'document') {
-    destinationSiteUids.add(resource.id.uid)
+    destinationSpaceUids.add(resource.id.uid)
     resource.document.authors.forEach((authorUid: string) => {
-      destinationSiteUids.add(authorUid)
+      destinationSpaceUids.add(authorUid)
     })
     extractBNReferences(resource.document.content)
   }
 
   // for comments:
-  // - the site that the comment's target document is in
+  // - the space that the comment's target document is in
   // - the author of the comment
-  // - all the sites that the comment's target document directly references through embeds,links,mentions, and queries
+  // - all the spaces that the comment's target document directly references through embeds,links,mentions, and queries
 
   if (resource.type === 'comment') {
-    destinationSiteUids.add(resource.comment.targetAccount)
+    destinationSpaceUids.add(resource.comment.targetAccount)
 
     // in theory, these two are the same, but we'll add both to be safe and because it doesn't cost anything:
-    destinationSiteUids.add(resource.comment.author)
-    destinationSiteUids.add(resource.id.uid)
+    destinationSpaceUids.add(resource.comment.author)
+    destinationSpaceUids.add(resource.id.uid)
 
     extractBNReferences(resource.comment.content)
   }
 
-  // step 2. find all the hosts for these destination sites
-  // console.log('== publish 2', destinationSiteUids)
+  // step 2. find all the hosts for these destination spaces
+  // console.log('== publish 2', destinationSpaceUids)
 
   let destinationHosts = new Set<string>([
     // always push to the gateway url
@@ -722,7 +722,7 @@ export async function pushResource(
   }
 
   await Promise.all(
-    Array.from(destinationSiteUids).map(async (uid) => {
+    Array.from(destinationSpaceUids).map(async (uid) => {
       try {
         const resource = await universalClient.request('Resource', hmId(uid))
         if (resource.type === 'document') {
@@ -730,10 +730,10 @@ export async function pushResource(
           if (siteUrl) destinationHosts.add(siteUrl)
         }
       } catch (error) {
-        console.error('Error loading site resource for pushing to the siteUrl', uid, error)
+        console.error('Error loading space resource for pushing to the siteUrl', uid, error)
         reportError(error, {
           feature: 'push-resource',
-          operation: 'resolve-site-host',
+          operation: 'resolve-space-host',
           uid,
           resourceId: id.id,
           onlyPushToHost,
@@ -797,7 +797,7 @@ export async function pushResource(
   }
 
   const addrsForPeer = new Map<string, string[]>()
-  // step 3. gather all the peerIds for these sites.
+  // step 3. gather all the peerIds for these spaces.
   await Promise.all(
     Array.from(destinationHosts).map(async (host) => {
       try {
@@ -825,7 +825,7 @@ export async function pushResource(
     }),
   )
 
-  // step 4. push this resource to all the sites.
+  // step 4. push this resource to all the spaces.
   // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
   // console.log('== publish 4 == pushing to peers', peerIds)
   const resourceIdToPush = resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
@@ -845,7 +845,7 @@ export async function pushResource(
       destinationHosts,
     })
     const hostStatuses = status.hosts.map(({host, status, message}) => ({host, status, message}))
-    reportError(new Error('Failed to connect to any sites.'), {
+    reportError(new Error('Failed to connect to any spaces.'), {
       feature: 'push-resource',
       operation: 'no-peers',
       resourceId: id.id,
@@ -853,7 +853,7 @@ export async function pushResource(
       destinationHosts: Array.from(destinationHosts),
       hostStatuses,
     })
-    throw new Error('Failed to connect to any sites.')
+    throw new Error('Failed to connect to any spaces.')
   }
 
   const pushResourceUrl = hmIdToURL({
@@ -899,7 +899,7 @@ export async function pushResource(
       }
       // console.log(`== publish ${syncDebugId} == lastProgress`, lastProgress)
       // if (lastProgress?.peersFailed ?? 0 > 0) {
-      //   updatePeerStatus(peerId, 'error', 'Failed to push to site.')
+      //   updatePeerStatus(peerId, 'error', 'Failed to push to space.')
       // }
     }),
   )
@@ -925,7 +925,7 @@ export {
 } from './auto-link-parent'
 export type {AutoLinkParentResult} from './auto-link-parent'
 
-export function useListSite(id?: UnpackedHypermediaId) {
+export function useListSpace(id?: UnpackedHypermediaId) {
   return useQuery({
     queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, 'ALL'],
     queryFn: async () => {
@@ -1586,8 +1586,8 @@ export function useMoveDocument() {
       })
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-      invalidateQueries([queryKeys.SITE_LIBRARY, from.uid])
-      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
+      invalidateQueries([queryKeys.SPACE_LIBRARY, from.uid])
+      invalidateQueries([queryKeys.SPACE_LIBRARY, to.uid])
     },
   })
 }
@@ -1657,7 +1657,7 @@ export function useRepublishDocument() {
       })
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
+      invalidateQueries([queryKeys.SPACE_LIBRARY, to.uid])
     },
   })
 }
@@ -1681,11 +1681,11 @@ export function getDraftEditId(
   }
 }
 
-export function useSiteNavigationItems(
-  siteHomeEntity: HMResourceFetchResult | undefined | null,
+export function useSpaceNavigationItems(
+  spaceHomeEntity: HMResourceFetchResult | undefined | null,
 ): DocNavigationItem[] | null {
-  if (!siteHomeEntity) return null
-  const navNode = siteHomeEntity.document?.detachedBlocks?.navigation
+  if (!spaceHomeEntity) return null
+  const navNode = spaceHomeEntity.document?.detachedBlocks?.navigation
   const navItems: DocNavigationItem[] = navNode
     ? navNode.children
         ?.map((itemBlock) => {

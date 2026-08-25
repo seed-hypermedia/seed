@@ -5,12 +5,12 @@ import {createContext, ReactNode, useContext, useEffect, useMemo, useRef, useSta
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {Button} from './button'
-import {SiteFileBrowser} from './site-file-browser'
+import {SpaceFileBrowser} from './space-file-browser'
 import {Tooltip} from './tooltip'
 import {useMedia} from './use-media'
 
 /** Collapse state of the inline file browser, shared with the page chrome below it. */
-export interface SiteFileBrowserControls {
+export interface SpaceFileBrowserControls {
   collapsed: boolean
   setCollapsed: (collapsed: boolean) => void
   /**
@@ -20,18 +20,18 @@ export interface SiteFileBrowserControls {
   claimRevealButton: () => () => void
 }
 
-const SiteFileBrowserContext = createContext<SiteFileBrowserControls | null>(null)
+const SpaceFileBrowserContext = createContext<SpaceFileBrowserControls | null>(null)
 
-/** Returns the inline file browser controls, or null outside a site layout (Electron, embeds). */
-export function useSiteFileBrowserControls(): SiteFileBrowserControls | null {
-  return useContext(SiteFileBrowserContext)
+/** Returns the inline file browser controls, or null outside a space layout (Electron, embeds). */
+export function useSpaceFileBrowserControls(): SpaceFileBrowserControls | null {
+  return useContext(SpaceFileBrowserContext)
 }
 
-/** Props for the responsive site file browser layout. */
-export interface SiteFileBrowserLayoutProps {
-  siteId: UnpackedHypermediaId
+/** Props for the responsive space file browser layout. */
+export interface SpaceFileBrowserLayoutProps {
+  spaceId: UnpackedHypermediaId
   activeDocumentId: UnpackedHypermediaId | null
-  siteName: string
+  spaceName: string
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
   onNavigate: (id: UnpackedHypermediaId) => void
@@ -39,17 +39,17 @@ export interface SiteFileBrowserLayoutProps {
   children: ReactNode
 }
 
-/** Places the site file browser inline on wide layouts and in a left drawer on mobile. */
-export function SiteFileBrowserLayout({
-  siteId,
+/** Places the space file browser inline on wide layouts and in a left drawer on mobile. */
+export function SpaceFileBrowserLayout({
+  spaceId,
   activeDocumentId,
-  siteName,
+  spaceName,
   mobileOpen,
   onMobileOpenChange,
   onNavigate,
   onPrefetch,
   children,
-}: SiteFileBrowserLayoutProps) {
+}: SpaceFileBrowserLayoutProps) {
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
   const [isClient, setIsClient] = useState(false)
@@ -60,16 +60,16 @@ export function SiteFileBrowserLayout({
   const [revealClaims, setRevealClaims] = useState(0)
   const didSetInitialWidth = useRef(false)
   const browser = (
-    <SiteFileBrowser
-      siteId={siteId}
+    <SpaceFileBrowser
+      spaceId={spaceId}
       activeDocumentId={activeDocumentId}
       onNavigate={onNavigate}
       onPrefetch={onPrefetch}
     />
   )
   // Only the inline (wide) layout has a collapse affordance; the mobile drawer is
-  // opened from the site header, so page chrome below gets no controls there.
-  const controls = useMemo<SiteFileBrowserControls>(
+  // opened from the space header, so page chrome below gets no controls there.
+  const controls = useMemo<SpaceFileBrowserControls>(
     () => ({
       collapsed,
       setCollapsed,
@@ -150,7 +150,7 @@ export function SiteFileBrowserLayout({
                   <div className="border-border flex shrink-0 items-center border-b px-3 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2">
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold">Files</p>
-                      <p className="text-muted-foreground truncate text-xs">{siteName}</p>
+                      <p className="text-muted-foreground truncate text-xs">{spaceName}</p>
                     </div>
                     <Button
                       variant="ghost"
@@ -178,13 +178,13 @@ export function SiteFileBrowserLayout({
   }
 
   return (
-    <SiteFileBrowserContext.Provider value={controls}>
+    <SpaceFileBrowserContext.Provider value={controls}>
       <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
         <PanelGroup direction="horizontal" className="min-h-0 flex-1">
           {!collapsed ? (
             <>
               <Panel
-                id="site-file-browser"
+                id="space-file-browser"
                 ref={browserPanelRef}
                 order={1}
                 defaultSize={24}
@@ -211,7 +211,7 @@ export function SiteFileBrowserLayout({
               <PanelResizeHandle className="panel-resize-handle" />
             </>
           ) : null}
-          <Panel id="site-main-content" order={2} minSize={60}>
+          <Panel id="space-main-content" order={2} minSize={60}>
             <div className="dark:bg-background relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
               {collapsed && revealClaims === 0 ? (
                 <div className="absolute top-2 left-2 z-50 md:top-4 md:left-4">
@@ -232,6 +232,6 @@ export function SiteFileBrowserLayout({
           </Panel>
         </PanelGroup>
       </div>
-    </SiteFileBrowserContext.Provider>
+    </SpaceFileBrowserContext.Provider>
   )
 }

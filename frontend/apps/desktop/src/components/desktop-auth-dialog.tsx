@@ -7,7 +7,7 @@ import {
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useOpenUrl} from '@/open-url'
 import {client} from '@/trpc'
-import {syncRemoteSignInSiteHomes} from '@/utils/create-site'
+import {syncRemoteSignInSpaceHomes} from '@/utils/create-space'
 import {buildVaultConnectionURL, normalizeVaultOriginURL} from '@/utils/vault-connection'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
@@ -26,7 +26,7 @@ type DesktopAuthDialogInput = {
   onReady?: (accountUid: string) => void | Promise<void>
   title?: string
   introDescription?: string
-  siteName?: string
+  spaceName?: string
 }
 
 /** Turns a raw daemon Vault Connect error into user-facing recovery guidance. */
@@ -99,7 +99,7 @@ function DesktopAuthDialogContent({
       if (browserUrl && accountIds.data?.length) {
         const toastId = toast.loading('Preparing your account…')
         try {
-          await syncRemoteSignInSiteHomes(accountIds.data)
+          await syncRemoteSignInSpaceHomes(accountIds.data)
           toast.dismiss(toastId)
         } catch (error) {
           toast.error('Could not sync your content. Connect to the internet and try again.', {id: toastId})
@@ -143,7 +143,7 @@ function DesktopAuthDialogContent({
           vaultConnect.vaultUrl,
           vaultConnect.connectToken,
           DAEMON_HTTP_URL,
-          input.siteName,
+          input.spaceName,
         )
         setBrowserUrl(nextBrowserUrl)
         openUrl(nextBrowserUrl)
@@ -151,7 +151,7 @@ function DesktopAuthDialogContent({
         toast.error('Failed to start identity sign-in: ' + (error instanceof Error ? error.message : String(error)))
       }
     },
-    [defaultVaultUrl, input.siteName, openUrl, startVaultConnection],
+    [defaultVaultUrl, input.spaceName, openUrl, startVaultConnection],
   )
 
   useEffect(() => {

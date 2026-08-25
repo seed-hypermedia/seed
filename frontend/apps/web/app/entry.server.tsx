@@ -34,7 +34,7 @@ import {ParsedRequest, parseRequest} from './request'
 import {extractCommentId, parseResourceExportPath} from './resource-export-path'
 import {EXPOSED_HYPERMEDIA_HEADERS, handleResourceExportRequest} from './resource-export.server'
 import {getOrCreateServerSignerAccountUid} from './server-signing'
-import {applyConfigSubscriptions, getConfig} from './site-config.server'
+import {applyConfigSubscriptions, getConfig} from './space-config.server'
 
 configDotenv() // we need this so dotenv config stays in the imports.
 

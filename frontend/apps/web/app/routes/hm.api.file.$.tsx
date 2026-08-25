@@ -7,7 +7,7 @@ import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
  * Unlike the image route, this does not process/resize the file.
  * Streams the response to avoid loading large files into memory.
  * This avoids the need for clients to construct localhost daemon URLs,
- * which break on hosted sites.
+ * which break on hosted spaces.
  */
 export const loader: LoaderFunction = async ({params, request}) => {
   const authToken = await getDaemonAuthToken(request)

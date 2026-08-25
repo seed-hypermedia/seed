@@ -5,7 +5,7 @@ import {
   buildCopyLinkUrl,
   createCommentUrl,
   createOSProtocolUrl,
-  createSiteUrl,
+  createSpaceUrl,
   createWebHMUrl,
   extractViewTermFromUrl,
   hmId,
@@ -497,20 +497,20 @@ describe('createWebHMUrl', () => {
   })
 })
 
-describe('createSiteUrl', () => {
-  test('basic site URL', () => {
-    expect(createSiteUrl({hostname: 'https://mysite.com', path: null})).toBe('https://mysite.com')
+describe('createSpaceUrl', () => {
+  test('basic space URL', () => {
+    expect(createSpaceUrl({hostname: 'https://mysite.com', path: null})).toBe('https://mysite.com')
   })
 
-  test('site URL with path', () => {
-    expect(createSiteUrl({hostname: 'https://mysite.com', path: ['docs', 'intro']})).toBe(
+  test('space URL with path', () => {
+    expect(createSpaceUrl({hostname: 'https://mysite.com', path: ['docs', 'intro']})).toBe(
       'https://mysite.com/docs/intro',
     )
   })
 
-  test('site URL with version', () => {
+  test('space URL with version', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['page'],
         version: 'v1hash',
@@ -518,9 +518,9 @@ describe('createSiteUrl', () => {
     ).toBe('https://mysite.com/page?v=v1hash')
   })
 
-  test('site URL with latest', () => {
+  test('space URL with latest', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['page'],
         latest: true,
@@ -528,9 +528,9 @@ describe('createSiteUrl', () => {
     ).toBe('https://mysite.com/page')
   })
 
-  test('site URL with blockRef + expanded', () => {
+  test('space URL with blockRef + expanded', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['page'],
         blockRef: 'blk1',
@@ -539,9 +539,9 @@ describe('createSiteUrl', () => {
     ).toBe('https://mysite.com/page#blk1+')
   })
 
-  test('site URL with blockRef + range', () => {
+  test('space URL with blockRef + range', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['page'],
         blockRef: 'blk1',
@@ -676,7 +676,7 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/uid1/:feed')
   })
 
-  test('document route with originHomeId for site URL', () => {
+  test('document route with originHomeId for space URL', () => {
     const originHome = hmId('uid1')
     const url = routeToUrl(
       {
@@ -700,7 +700,7 @@ describe('routeToUrl', () => {
     expect(url).not.toContain('?v=')
   })
 
-  test('document route with originHomeId and no version produces site URL without version param', () => {
+  test('document route with originHomeId and no version produces space URL without version param', () => {
     const originHome = hmId('uid1')
     const url = routeToUrl(
       {
@@ -725,7 +725,7 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/inspect/uid1/docs')
   })
 
-  test('inspect route on origin site produces site inspect URL', () => {
+  test('inspect route on origin space produces space inspect URL', () => {
     const url = routeToUrl(
       {
         key: 'inspect',
@@ -802,12 +802,12 @@ describe('routeToHmUrl', () => {
     expect(url).toBe('hm://uid1/:activity/citations')
   })
 
-  test('site-settings route produces a :settings view url', () => {
-    expect(routeToHmUrl({key: 'site-settings', id: hmId('uid1')})).toBe('hm://uid1/:settings')
+  test('space-settings route produces a :settings view url', () => {
+    expect(routeToHmUrl({key: 'space-settings', id: hmId('uid1')})).toBe('hm://uid1/:settings')
   })
 
-  test('site-settings route with a tab produces a :settings subpath url', () => {
-    expect(routeToHmUrl({key: 'site-settings', id: hmId('uid1'), tab: 'email-subscribers'})).toBe(
+  test('space-settings route with a tab produces a :settings subpath url', () => {
+    expect(routeToHmUrl({key: 'space-settings', id: hmId('uid1'), tab: 'email-subscribers'})).toBe(
       'hm://uid1/:settings/email-subscribers',
     )
   })
@@ -864,19 +864,19 @@ describe('idToUrl', () => {
 
 describe('extractViewTermFromUrl', () => {
   test('extracts :comments view term', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:comments')
-    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':comments'})
+    const result = extractViewTermFromUrl('https://space.com/path/:comments')
+    expect(result).toEqual({url: 'https://space.com/path', isInspect: false, viewTerm: ':comments'})
   })
 
   test('extracts :metadata view term', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:metadata')
-    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':metadata'})
+    const result = extractViewTermFromUrl('https://space.com/path/:metadata')
+    expect(result).toEqual({url: 'https://space.com/path', isInspect: false, viewTerm: ':metadata'})
   })
 
   test('extracts :comments/UID/TSID pattern', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:comments/z6Mk123/z6FC456')
+    const result = extractViewTermFromUrl('https://space.com/path/:comments/z6Mk123/z6FC456')
     expect(result).toEqual({
-      url: 'https://site.com/path',
+      url: 'https://space.com/path',
       isInspect: false,
       viewTerm: ':comments',
       commentId: 'z6Mk123/z6FC456',
@@ -884,9 +884,9 @@ describe('extractViewTermFromUrl', () => {
   })
 
   test('extracts :comments with a single-segment comment id', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:comments/comment123')
+    const result = extractViewTermFromUrl('https://space.com/path/:comments/comment123')
     expect(result).toEqual({
-      url: 'https://site.com/path',
+      url: 'https://space.com/path',
       isInspect: false,
       viewTerm: ':comments',
       commentId: 'comment123',
@@ -894,9 +894,9 @@ describe('extractViewTermFromUrl', () => {
   })
 
   test('extracts :comments/UID/TSID with query params', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:comments/z6Mk123/z6FC456?panel=comments/other')
+    const result = extractViewTermFromUrl('https://space.com/path/:comments/z6Mk123/z6FC456?panel=comments/other')
     expect(result).toEqual({
-      url: 'https://site.com/path?panel=comments/other',
+      url: 'https://space.com/path?panel=comments/other',
       isInspect: false,
       viewTerm: ':comments',
       commentId: 'z6Mk123/z6FC456',
@@ -904,9 +904,9 @@ describe('extractViewTermFromUrl', () => {
   })
 
   test('extracts :activity with slug', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:activity/versions')
+    const result = extractViewTermFromUrl('https://space.com/path/:activity/versions')
     expect(result).toEqual({
-      url: 'https://site.com/path',
+      url: 'https://space.com/path',
       isInspect: false,
       viewTerm: ':activity',
       activityFilter: 'versions',
@@ -914,19 +914,19 @@ describe('extractViewTermFromUrl', () => {
   })
 
   test('returns null for no view term', () => {
-    const result = extractViewTermFromUrl('https://site.com/path')
-    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: null})
+    const result = extractViewTermFromUrl('https://space.com/path')
+    expect(result).toEqual({url: 'https://space.com/path', isInspect: false, viewTerm: null})
   })
 
   test('backward compat: :discussions maps to :discussions', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:discussions')
-    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':discussions'})
+    const result = extractViewTermFromUrl('https://space.com/path/:discussions')
+    expect(result).toEqual({url: 'https://space.com/path', isInspect: false, viewTerm: ':discussions'})
   })
 
   test('backward compat: :comment/UID/TSID maps to :comments with commentId', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:comment/z6Mk123/z6FC456')
+    const result = extractViewTermFromUrl('https://space.com/path/:comment/z6Mk123/z6FC456')
     expect(result).toEqual({
-      url: 'https://site.com/path',
+      url: 'https://space.com/path',
       isInspect: false,
       viewTerm: ':comments',
       commentId: 'z6Mk123/z6FC456',
@@ -934,14 +934,14 @@ describe('extractViewTermFromUrl', () => {
   })
 
   test('backward compat: bare :comment maps to :comment', () => {
-    const result = extractViewTermFromUrl('https://site.com/path/:comment')
-    expect(result).toEqual({url: 'https://site.com/path', isInspect: false, viewTerm: ':comment'})
+    const result = extractViewTermFromUrl('https://space.com/path/:comment')
+    expect(result).toEqual({url: 'https://space.com/path', isInspect: false, viewTerm: ':comment'})
   })
 
   test('extracts profile-family view term without account uid', () => {
-    const result = extractViewTermFromUrl('https://site.com/:profile')
+    const result = extractViewTermFromUrl('https://space.com/:profile')
     expect(result).toEqual({
-      url: 'https://site.com',
+      url: 'https://space.com',
       isInspect: false,
       viewTerm: ':profile',
       accountUid: undefined,
@@ -949,9 +949,9 @@ describe('extractViewTermFromUrl', () => {
   })
 
   test('extracts profile-family view term with account uid', () => {
-    const result = extractViewTermFromUrl('https://site.com/:followers/personUid')
+    const result = extractViewTermFromUrl('https://space.com/:followers/personUid')
     expect(result).toEqual({
-      url: 'https://site.com',
+      url: 'https://space.com',
       isInspect: false,
       viewTerm: ':followers',
       accountUid: 'personUid',
@@ -959,28 +959,28 @@ describe('extractViewTermFromUrl', () => {
   })
 
   test('extracts inspect gateway prefix before the view term', () => {
-    const result = extractViewTermFromUrl('https://site.com/hm/inspect/siteUid/path/:comments/comment123')
+    const result = extractViewTermFromUrl('https://space.com/hm/inspect/spaceUid/path/:comments/comment123')
     expect(result).toEqual({
-      url: 'https://site.com/hm/siteUid/path',
+      url: 'https://space.com/hm/spaceUid/path',
       isInspect: true,
       viewTerm: ':comments',
       commentId: 'comment123',
     })
   })
 
-  test('extracts inspect site prefix without a nested view', () => {
-    const result = extractViewTermFromUrl('https://site.com/inspect/path')
+  test('extracts inspect space prefix without a nested view', () => {
+    const result = extractViewTermFromUrl('https://space.com/inspect/path')
     expect(result).toEqual({
-      url: 'https://site.com/path',
+      url: 'https://space.com/path',
       isInspect: true,
       viewTerm: null,
     })
   })
 
   test('extracts inspect hm prefix before the view term', () => {
-    const result = extractViewTermFromUrl('hm://inspect/siteUid/:activity/versions')
+    const result = extractViewTermFromUrl('hm://inspect/spaceUid/:activity/versions')
     expect(result).toEqual({
-      url: 'hm://siteUid',
+      url: 'hm://spaceUid',
       isInspect: true,
       viewTerm: ':activity',
       activityFilter: 'versions',
@@ -995,65 +995,65 @@ describe('bookmarkUrlFromRoute', () => {
     )
   })
 
-  test('preserves account uid for site profile bookmarks', () => {
+  test('preserves account uid for space profile bookmarks', () => {
     expect(
-      bookmarkUrlFromRoute({key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'followers'}),
-    ).toBe('hm://siteUid/:followers/personUid')
+      bookmarkUrlFromRoute({key: 'space-profile', id: hmId('spaceUid'), accountUid: 'personUid', tab: 'followers'}),
+    ).toBe('hm://spaceUid/:followers/personUid')
   })
 })
 
-describe('routeToUrl - site-profile', () => {
+describe('routeToUrl - space-profile', () => {
   test('self profile generates :profile URL', () => {
-    const url = routeToUrl({key: 'site-profile', id: hmId('siteUid'), tab: 'profile'}, {hostname: 'https://gw.com'})
-    expect(url).toBe('https://gw.com/hm/siteUid/:profile')
+    const url = routeToUrl({key: 'space-profile', id: hmId('spaceUid'), tab: 'profile'}, {hostname: 'https://gw.com'})
+    expect(url).toBe('https://gw.com/hm/spaceUid/:profile')
   })
 
-  test('self profile on origin site omits /hm/ prefix', () => {
+  test('self profile on origin space omits /hm/ prefix', () => {
     const url = routeToUrl(
-      {key: 'site-profile', id: hmId('siteUid'), tab: 'profile'},
-      {hostname: 'https://mysite.com', originHomeId: hmId('siteUid')},
+      {key: 'space-profile', id: hmId('spaceUid'), tab: 'profile'},
+      {hostname: 'https://mysite.com', originHomeId: hmId('spaceUid')},
     )
     expect(url).toBe('https://mysite.com/:profile')
   })
 
-  test('other person profile on gateway includes /hm/siteUid/:profile/personUid', () => {
+  test('other person profile on gateway includes /hm/spaceUid/:profile/personUid', () => {
     const url = routeToUrl(
-      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'profile'},
+      {key: 'space-profile', id: hmId('spaceUid'), accountUid: 'personUid', tab: 'profile'},
       {hostname: 'https://gw.com'},
     )
-    expect(url).toBe('https://gw.com/hm/siteUid/:profile/personUid')
+    expect(url).toBe('https://gw.com/hm/spaceUid/:profile/personUid')
   })
 
-  test('other person profile on origin site uses /:profile/personUid', () => {
+  test('other person profile on origin space uses /:profile/personUid', () => {
     const url = routeToUrl(
-      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'profile'},
-      {hostname: 'https://mysite.com', originHomeId: hmId('siteUid')},
+      {key: 'space-profile', id: hmId('spaceUid'), accountUid: 'personUid', tab: 'profile'},
+      {hostname: 'https://mysite.com', originHomeId: hmId('spaceUid')},
     )
     expect(url).toBe('https://mysite.com/:profile/personUid')
   })
 
   test('other tabs follow the same route pattern', () => {
     const url = routeToUrl(
-      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'followers'},
-      {hostname: 'https://mysite.com', originHomeId: hmId('siteUid')},
+      {key: 'space-profile', id: hmId('spaceUid'), accountUid: 'personUid', tab: 'followers'},
+      {hostname: 'https://mysite.com', originHomeId: hmId('spaceUid')},
     )
     expect(url).toBe('https://mysite.com/:followers/personUid')
   })
 
   test('double /hm/ profile URLs are not emitted', () => {
     const url = routeToUrl(
-      {key: 'site-profile', id: hmId('siteUid'), accountUid: 'personUid', tab: 'membership'},
+      {key: 'space-profile', id: hmId('spaceUid'), accountUid: 'personUid', tab: 'membership'},
       {hostname: 'https://gw.com'},
     )
-    expect(url).toBe('https://gw.com/hm/siteUid/:membership/personUid')
-    expect(url?.includes('/hm/siteUid/hm/personUid')).toBe(false)
+    expect(url).toBe('https://gw.com/hm/spaceUid/:membership/personUid')
+    expect(url?.includes('/hm/spaceUid/hm/personUid')).toBe(false)
   })
 })
 
-describe('createSiteUrl with viewTerm and panel', () => {
-  test('site URL with viewTerm', () => {
+describe('createSpaceUrl with viewTerm and panel', () => {
+  test('space URL with viewTerm', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['doc'],
         viewTerm: ':comments',
@@ -1061,9 +1061,9 @@ describe('createSiteUrl with viewTerm and panel', () => {
     ).toBe('https://mysite.com/doc/:comments')
   })
 
-  test('site URL with panel param', () => {
+  test('space URL with panel param', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['doc'],
         panel: 'comments/z6Mk/abc',
@@ -1071,9 +1071,9 @@ describe('createSiteUrl with viewTerm and panel', () => {
     ).toBe('https://mysite.com/doc?panel=comments/z6Mk/abc')
   })
 
-  test('site URL with viewTerm + panel + latest', () => {
+  test('space URL with viewTerm + panel + latest', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['doc'],
         viewTerm: ':comments',
@@ -1083,9 +1083,9 @@ describe('createSiteUrl with viewTerm and panel', () => {
     ).toBe('https://mysite.com/doc/:comments?panel=comments/z6Mk/abc')
   })
 
-  test('site URL with viewTerm + panel + blockRef', () => {
+  test('space URL with viewTerm + panel + blockRef', () => {
     expect(
-      createSiteUrl({
+      createSpaceUrl({
         hostname: 'https://mysite.com',
         path: ['doc'],
         viewTerm: ':comments',
@@ -1351,7 +1351,7 @@ describe('buildCopyLinkUrl', () => {
     ).toBe(`${GW}/hm/z6MkOwner/doc-path?v=v1hash#blk1[10:20]`)
   })
 
-  test('site-style URL when hostname is set', () => {
+  test('space-style URL when hostname is set', () => {
     expect(
       buildCopyLinkUrl({
         id: hmId('z6MkOwner', {
@@ -1364,7 +1364,7 @@ describe('buildCopyLinkUrl', () => {
     ).toBe('https://example.com/doc-path?v=v1hash#blk1+')
   })
 
-  test('localhost site-style copy links use the provided development origin', () => {
+  test('localhost space-style copy links use the provided development origin', () => {
     expect(
       buildCopyLinkUrl({
         id: hmId('z6MkOwner', {
@@ -1472,11 +1472,11 @@ describe('all documents view urls', () => {
     })
   })
 
-  test('serializes all-documents route to site and gateway urls', () => {
+  test('serializes all-documents route to space and gateway urls', () => {
     expect(
       routeToUrl(
-        {key: 'all-documents', id: hmId('site')},
-        {hostname: 'https://example.com', originHomeId: hmId('site')},
+        {key: 'all-documents', id: hmId('space')},
+        {hostname: 'https://example.com', originHomeId: hmId('space')},
       ),
     ).toBe('https://example.com/:all-documents')
     expect(routeToUrl({key: 'all-documents', id: hmId('abc')})).toBe(`${DEFAULT_GATEWAY_URL}/hm/abc/:all-documents`)

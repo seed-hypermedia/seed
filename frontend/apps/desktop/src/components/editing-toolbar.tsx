@@ -3,7 +3,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNavigate} from '@/utils/useNavigate'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getDraftPlaceholderParentId} from '@shm/shared/utils/breadcrumbs'
-import {createSiteUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
+import {createSpaceUrl, createWebHMUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
@@ -23,18 +23,18 @@ import {useDeleteDraftDialog} from './delete-draft-dialog'
 
 export {PublishPopoverBody} from '@shm/ui/editing-toolbar'
 
-/** Resolve the public URL for a document, including site URL from the site home resource. */
-function useDocumentUrlWithSite(ownerUid: string): (docId: UnpackedHypermediaId) => string | null {
+/** Resolve the public URL for a document, including space URL from the space home resource. */
+function useDocumentUrlWithSpace(ownerUid: string): (docId: UnpackedHypermediaId) => string | null {
   const gatewayUrl = useGatewayUrl()
-  const siteHomeResource = useResource(hmId(ownerUid))
+  const spaceHomeResource = useResource(hmId(ownerUid))
   const siteUrl =
-    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+    spaceHomeResource.data?.type === 'document' ? spaceHomeResource.data.document?.metadata?.siteUrl : undefined
 
   return useCallback(
     (docId: UnpackedHypermediaId) => {
       if (!gatewayUrl.data) return null
       if (siteUrl) {
-        return createSiteUrl({path: docId.path, hostname: siteUrl})
+        return createSpaceUrl({path: docId.path, hostname: siteUrl})
       }
       return createWebHMUrl(docId.uid, {path: docId.path, hostname: gatewayUrl.data})
     },
@@ -76,7 +76,7 @@ export function useDesktopToolbarCallbacks(docId: UnpackedHypermediaId): {
   const deleteDraftDialog = useDeleteDraftDialog()
   const navigate = useNavigate('replace')
   const route = useNavRoute()
-  const getDocumentUrl = useDocumentUrlWithSite(docId.uid)
+  const getDocumentUrl = useDocumentUrlWithSpace(docId.uid)
 
   const callbacks: EditingToolbarCallbacks = useMemo(
     () => ({

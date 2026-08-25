@@ -3,7 +3,7 @@ import React from 'react'
 import type {
   HMCapability,
   HMListDocumentCollaboratorsOutput,
-  HMSiteMember,
+  HMSpaceMember,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {act} from 'react-dom/test-utils'
@@ -16,12 +16,12 @@ const mocks = vi.hoisted(() => ({
   successToast: vi.fn(),
 }))
 
-const siteMembersState = vi.hoisted(() => ({
+const spaceMembersState = vi.hoisted(() => ({
   value: {
     accounts: {} as HMListDocumentCollaboratorsOutput['accounts'],
-    grantedMembers: [] as HMSiteMember[],
+    grantedMembers: [] as HMSpaceMember[],
     isInitialLoading: false,
-    members: [] as HMSiteMember[],
+    members: [] as HMSpaceMember[],
   },
 }))
 
@@ -57,7 +57,7 @@ vi.mock('@shm/shared/models/entity', () => ({
   }),
   useResource: () => ({data: null}),
   useSelectedAccountId: () => 'publisher',
-  useSiteMembers: () => siteMembersState.value,
+  useSpaceMembers: () => spaceMembersState.value,
 }))
 
 vi.mock('@shm/shared/models/search', () => ({
@@ -91,7 +91,7 @@ beforeEach(() => {
   mocks.successToast.mockReset()
   mocks.errorToast.mockReset()
   selectedCapabilityState.value = null
-  siteMembersState.value = {
+  spaceMembersState.value = {
     accounts: {},
     grantedMembers: [],
     isInitialLoading: false,
@@ -136,7 +136,7 @@ function capability(accountUid: string, grantId: UnpackedHypermediaId): HMCapabi
   }
 }
 
-function member(accountUid: string): HMSiteMember {
+function member(accountUid: string): HMSpaceMember {
   return {
     account: id(accountUid),
     role: 'member',
@@ -170,13 +170,13 @@ describe('getRenderedCollaboratorsCount', () => {
         collaborators({
           parentCapabilities: [capability('parent-writer', parentGrant)],
           grantedCapabilities: [capability('direct-writer', directGrant)],
-          grantedMembers: [member('site-member')],
+          grantedMembers: [member('space-member')],
           members: [member('subscriber')],
           accounts: {
             publisher: account('publisher'),
             'parent-writer': account('parent-writer'),
             'direct-writer': account('direct-writer'),
-            'site-member': account('site-member'),
+            'space-member': account('space-member'),
             subscriber: account('subscriber'),
           },
         }),
@@ -185,19 +185,19 @@ describe('getRenderedCollaboratorsCount', () => {
     ).toBe(3)
   })
 
-  it('counts the publisher and visible member rows for site root pages', () => {
+  it('counts the publisher and visible member rows for space root pages', () => {
     expect(
       getRenderedCollaboratorsCount(
         collaborators({
           parentCapabilities: [capability('parent-writer', id('publisher'))],
           grantedCapabilities: [capability('direct-writer', id('publisher'))],
-          grantedMembers: [member('site-writer')],
+          grantedMembers: [member('space-writer')],
           members: [member('subscriber')],
           accounts: {
             publisher: account('publisher'),
             'parent-writer': account('parent-writer'),
             'direct-writer': account('direct-writer'),
-            'site-writer': account('site-writer'),
+            'space-writer': account('space-writer'),
             subscriber: account('subscriber'),
           },
         }),
@@ -215,13 +215,13 @@ describe('getRenderedCollaboratorsCount', () => {
             capability('missing-parent', id('publisher')),
           ],
           grantedCapabilities: [capability('visible-direct', id('publisher', ['guide']))],
-          grantedMembers: [member('visible-site-writer'), member('missing-site-writer')],
+          grantedMembers: [member('visible-space-writer'), member('missing-space-writer')],
           members: [member('visible-subscriber'), member('missing-subscriber')],
           accounts: {
             publisher: account('publisher'),
             'visible-parent': account('visible-parent'),
             'visible-direct': account('visible-direct'),
-            'visible-site-writer': account('visible-site-writer'),
+            'visible-space-writer': account('visible-space-writer'),
             'visible-subscriber': account('visible-subscriber'),
           },
         }),
@@ -231,10 +231,10 @@ describe('getRenderedCollaboratorsCount', () => {
   })
 })
 
-describe('site member writer promotion', () => {
-  it('renders a visible owner-only Add as writer button for regular site members', () => {
+describe('space member writer promotion', () => {
+  it('renders a visible owner-only Add as writer button for regular space members', () => {
     selectedCapabilityState.value = capability('publisher', id('publisher'))
-    siteMembersState.value = {
+    spaceMembersState.value = {
       accounts: {
         publisher: account('publisher'),
         member: account('member'),
@@ -257,7 +257,7 @@ describe('site member writer promotion', () => {
 
   it('does not render Add as writer for non-owners', () => {
     selectedCapabilityState.value = null
-    siteMembersState.value = {
+    spaceMembersState.value = {
       accounts: {
         publisher: account('publisher'),
         member: account('member'),
@@ -277,7 +277,7 @@ describe('site member writer promotion', () => {
 
   it('promotes the member to writer and shows a success toast after capability creation succeeds', () => {
     selectedCapabilityState.value = capability('publisher', id('publisher'))
-    siteMembersState.value = {
+    spaceMembersState.value = {
       accounts: {
         publisher: account('publisher'),
         member: account('member'),
@@ -311,7 +311,7 @@ describe('site member writer promotion', () => {
 
   it('keeps the row link on the profile name instead of wrapping the whole row', () => {
     selectedCapabilityState.value = capability('publisher', id('publisher'))
-    siteMembersState.value = {
+    spaceMembersState.value = {
       accounts: {
         publisher: account('publisher'),
         member: account('member'),
@@ -332,7 +332,7 @@ describe('site member writer promotion', () => {
 
   it('places the Add as writer button before the capability label and keeps the profile name truncatable', () => {
     selectedCapabilityState.value = capability('publisher', id('publisher'))
-    siteMembersState.value = {
+    spaceMembersState.value = {
       accounts: {
         publisher: account('publisher'),
         member: account('member'),

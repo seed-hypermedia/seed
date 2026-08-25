@@ -4,17 +4,17 @@
  * Manages subscriptions automatically based on local keys and their contacts.
  * Subscriptions are "derived" from:
  * 1. All local keys (always subscribed)
- * 2. Contacts with subscribe.site === true (joined sites)
+ * 2. Contacts with subscribe.site === true (joined spaces)
  * 3. Contacts with subscribe.profile === true (followed profiles)
  * 4. Legacy contacts with no subscribe field (implicit profile subscription)
- * 5. The default joined site before any local account exists
+ * 5. The default joined space before any local account exists
  *
  * When contacts or keys change, subscriptions are automatically updated.
  */
 
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {grpcClient} from './app-grpc'
-import {defaultJoinedSiteUid} from '@shm/shared/publish-default-joined-site'
+import {defaultJoinedSpaceUid} from '@shm/shared/publish-default-joined-space'
 import {BIG_INT} from '@shm/shared/constants'
 import {onQueryInvalidation} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -58,10 +58,10 @@ async function fetchContactsForAccount(accountUid: string): Promise<ParsedContac
 
 /**
  * Determines if a contact should trigger a subscription to its subject.
- * Returns true if the contact has site or profile subscription, or is a legacy contact.
+ * Returns true if the contact has space or profile subscription, or is a legacy contact.
  */
 function shouldSubscribeToContact(contact: ParsedContact): boolean {
-  // Explicit site subscription
+  // Explicit space subscription
   if (contact.subscribe?.site) return true
   // Explicit profile subscription
   if (contact.subscribe?.profile) return true
@@ -72,7 +72,7 @@ function shouldSubscribeToContact(contact: ParsedContact): boolean {
 
 /**
  * Computes the set of account IDs that should have active subscriptions.
- * This includes all local keys and all contacts with site/profile subscriptions.
+ * This includes all local keys and all contacts with space/profile subscriptions.
  */
 async function computeDesiredSubscriptions(): Promise<Set<string>> {
   const desired = new Set<string>()
@@ -80,7 +80,7 @@ async function computeDesiredSubscriptions(): Promise<Set<string>> {
   // Add all local keys
   const keys = await grpcClient.daemon.listKeys({})
   if (keys.keys.length === 0) {
-    desired.add(defaultJoinedSiteUid)
+    desired.add(defaultJoinedSpaceUid)
   }
   for (const key of keys.keys) {
     desired.add(key.accountId)

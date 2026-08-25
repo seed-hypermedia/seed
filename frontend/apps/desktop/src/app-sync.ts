@@ -350,7 +350,7 @@ export function getUnconditionalInvalidations(event: Event): Array<string[]> {
     invalidations.push([queryKeys.ACTIVITY_FEED])
     invalidations.push([queryKeys.FEED])
     invalidations.push([queryKeys.LIBRARY])
-    invalidations.push([queryKeys.SITE_LIBRARY])
+    invalidations.push([queryKeys.SPACE_LIBRARY])
     invalidations.push([queryKeys.LIST_ROOT_DOCUMENTS])
     invalidations.push([queryKeys.ROOT_DOCUMENTS])
   }
@@ -454,7 +454,7 @@ function processEventsInner(events: Event[]) {
     appInvalidateQueries([queryKeys.ACTIVITY_FEED])
     appInvalidateQueries([queryKeys.FEED])
     appInvalidateQueries([queryKeys.LIBRARY])
-    appInvalidateQueries([queryKeys.SITE_LIBRARY])
+    appInvalidateQueries([queryKeys.SPACE_LIBRARY])
     appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
     appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
   }
@@ -514,17 +514,17 @@ function processEventsInner(events: Event[]) {
   // Contact changes: invalidate contact caches + search/library (contacts carry
   // display-name aliases shown in mention pickers and library author columns) +
   // async subject lookup. Feed is already invalidated via `feedTypes` below.
-  // Also blanket-invalidate collaborator lists because site membership is derived from contacts.
+  // Also blanket-invalidate collaborator lists because space membership is derived from contacts.
   //
-  // Blanket [CONTACTS_SUBJECT] covers site members (useSiteMembers reads
-  // useContactListOfSubject(siteUid)) and follower lists (useContactListOfSubject(accountUid))
+  // Blanket [CONTACTS_SUBJECT] covers space members (useSpaceMembers reads
+  // useContactListOfSubject(spaceUid)) and follower lists (useContactListOfSubject(accountUid))
   // without depending on the async getContact below — extraAttrs carries the subject as
   // an internal pubkey row ID, not a usable uid, so we can't target sync.
   if (seenBlobTypes.has('contact')) {
     appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS])
     appInvalidateQueries([queryKeys.SEARCH])
     appInvalidateQueries([queryKeys.LIBRARY])
-    appInvalidateQueries([queryKeys.SITE_LIBRARY])
+    appInvalidateQueries([queryKeys.SPACE_LIBRARY])
     appInvalidateQueries([queryKeys.CONTACTS_SUBJECT])
     for (const {author, extraAttrs} of contactData) {
       appInvalidateQueries([queryKeys.CONTACTS_ACCOUNT, author])
@@ -552,21 +552,21 @@ function processEventsInner(events: Event[]) {
   }
 
   // Document update changes: invalidate listing/library caches. Global library has
-  // no account argument, but site-library and root-document caches can be targeted
+  // no account argument, but space-library and root-document caches can be targeted
   // from the Ref resource safely.
   if (seenBlobTypes.has('ref')) {
     appInvalidateQueries([queryKeys.LIBRARY])
 
-    const siteUids = new Set<string>()
+    const spaceUids = new Set<string>()
     let hasRootRef = false
     for (const id of refIds) {
-      siteUids.add(id.uid)
+      spaceUids.add(id.uid)
       if ((id.path || []).length === 0) hasRootRef = true
     }
-    if (siteUids.size > 0) {
-      siteUids.forEach((uid) => appInvalidateQueries([queryKeys.SITE_LIBRARY, uid]))
+    if (spaceUids.size > 0) {
+      spaceUids.forEach((uid) => appInvalidateQueries([queryKeys.SPACE_LIBRARY, uid]))
     } else {
-      appInvalidateQueries([queryKeys.SITE_LIBRARY])
+      appInvalidateQueries([queryKeys.SPACE_LIBRARY])
       hasRootRef = true
     }
 

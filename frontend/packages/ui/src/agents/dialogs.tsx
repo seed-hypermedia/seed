@@ -475,7 +475,7 @@ export function ManageAgentAccountsDialog({
           Hypermedia accounts that can be used by your agents on this server to write content.
         </DialogDescription>
         <DialogDescription>
-          To give an agent access to write content, invite these accounts as collaborators on your sites or documents.
+          To give an agent access to write content, invite these accounts as collaborators on your spaces or documents.
         </DialogDescription>
       </div>
       <div className="grid gap-3">

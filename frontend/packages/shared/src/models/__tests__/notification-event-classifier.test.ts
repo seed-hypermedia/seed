@@ -48,8 +48,8 @@ describe('classifyCommentNotificationForAccount', () => {
     const reason = classifyCommentNotificationForAccount({
       subscriptionAccountUid: 'alice',
       commentAuthorUid: 'bob',
-      targetAccountUid: 'site-owner',
-      targetAuthorUids: ['site-owner', 'alice'],
+      targetAccountUid: 'space-owner',
+      targetAuthorUids: ['space-owner', 'alice'],
       isTopLevelComment: true,
       parentCommentAuthorUid: null,
       mentionedAccountUids: new Set(),
@@ -61,8 +61,8 @@ describe('classifyCommentNotificationForAccount', () => {
     const reason = classifyCommentNotificationForAccount({
       subscriptionAccountUid: 'alice',
       commentAuthorUid: 'bob',
-      targetAccountUid: 'site-owner',
-      targetAuthorUids: ['site-owner', 'alice'],
+      targetAccountUid: 'space-owner',
+      targetAuthorUids: ['space-owner', 'alice'],
       isTopLevelComment: false,
       parentCommentAuthorUid: null,
       mentionedAccountUids: new Set(),
@@ -80,8 +80,8 @@ describe('getMentionedAccountUid', () => {
     expect(getMentionedAccountUid('hm://alice/:profile')).toBe('alice')
   })
 
-  it('returns the profile account uid for site profile mentions', () => {
-    expect(getMentionedAccountUid('hm://site-owner/:profile/alice')).toBe('alice')
+  it('returns the profile account uid for space profile mentions', () => {
+    expect(getMentionedAccountUid('hm://space-owner/:profile/alice')).toBe('alice')
   })
 
   it('ignores document references', () => {

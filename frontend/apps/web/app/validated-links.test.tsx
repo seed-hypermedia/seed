@@ -75,7 +75,7 @@ function renderHarness(node: React.ReactNode) {
     root.render(
       <QueryClientProvider client={queryClient}>
         <UniversalAppProvider
-          originHomeId={hmId('origin-site')}
+          originHomeId={hmId('origin-space')}
           openUrl={vi.fn()}
           openRoute={vi.fn()}
           universalClient={createUniversalClient()}

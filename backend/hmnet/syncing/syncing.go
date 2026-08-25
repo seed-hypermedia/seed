@@ -118,7 +118,7 @@ var (
 	// on every dial, so this is the dial that controls dial cost.
 	//
 	// Read it together with seed_discover_peers_source_total. A wave that
-	// resolves its site server should now be small — site + gateways + 2 — and a
+	// resolves its space server should now be small — space + gateways + 2 — and a
 	// steady stream of 20s means we are searching for scopes we ought to know
 	// the host of.
 	MDiscoverPeersSampled = promauto.NewHistogram(prometheus.HistogramOpts{
@@ -479,8 +479,8 @@ type Index interface {
 	// see the preflight_has phase in syncResources.
 	Has(context.Context, cid.Cid) (bool, error)
 	GetAuthorizedSpacesForPeer(ctx context.Context, peerID peer.ID, requestedResources []blob.IRI) ([]core.Principal, error)
-	GetSiteURL(ctx context.Context, space core.Principal) (string, error)
-	ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error)
+	GetSpaceURL(ctx context.Context, space core.Principal) (string, error)
+	ResolveSpaceURL(ctx context.Context, spaceURL string) (peer.AddrInfo, error)
 	GetSpacesByAccount(ctx context.Context, accounts []core.Principal) (map[core.PrincipalUnsafeString][]core.Principal, error)
 	// ReindexInfo lets the shadow-verify trickle pause while the derived
 	// tables are being torn down and rebuilt by a full reindex.
@@ -544,10 +544,10 @@ type Service struct {
 }
 
 // authInfo holds pre-computed authentication information for syncing.
-// It maps siteURL peer IDs to the keypairs that should authenticate with them.
+// It maps spaceURL peer IDs to the keypairs that should authenticate with them.
 type authInfo struct {
 	// peerKeys maps peer IDs to keypairs that should authenticate with that peer.
-	// A keypair is included only if the peer is a siteURL server for a space
+	// A keypair is included only if the peer is a spaceURL server for a space
 	// that the keypair has access to.
 	peerKeys  map[peer.ID][]*core.KeyPair
 	addrInfos map[peer.ID]peer.AddrInfo
@@ -810,7 +810,7 @@ const maxPeerConcurrency = 20
 // Named with a peerTier prefix to stay clear of the scheduler's queue tiers
 // (tierHot/tierCold in scheduler.go), which are a different axis entirely.
 const (
-	// peerTierAuthority: the space's own site server, and the gateways. Already
+	// peerTierAuthority: the space's own space server, and the gateways. Already
 	// connected, and between them they hold essentially everything.
 	peerTierAuthority = iota
 	// peerTierConnected: any other peer we already have a live connection to.
@@ -1087,10 +1087,10 @@ type persistJob struct {
 	blocks []blocks.Block
 	wg     *sync.WaitGroup
 	pid    peer.ID
-	// site is the space whose sync pulled this batch, used to attribute media
+	// space is the space whose sync pulled this batch, used to attribute media
 	// bytes that carry no space of their own. Empty when the batch spans more
 	// than one space.
-	site string
+	space string
 }
 
 // persistFeeder serializes ALL synced-block persistence — across every concurrent
@@ -1117,8 +1117,8 @@ func startPersistFeeder(persistCtx context.Context, idx Index, log *zap.Logger) 
 	go func() {
 		for job := range pf.ch {
 			putmanyStart := time.Now()
-			leaveStage := syncperf.Default.EnterStage(syncperf.StageTransfer, job.site)
-			perr := idx.PutMany(blob.ContextWithSyncSite(persistCtx, job.site), job.blocks)
+			leaveStage := syncperf.Default.EnterStage(syncperf.StageTransfer, job.space)
+			perr := idx.PutMany(blob.ContextWithSyncSpace(persistCtx, job.space), job.blocks)
 			leaveStage()
 			MSyncPeerPhaseSeconds.WithLabelValues("putmany").Observe(time.Since(putmanyStart).Seconds())
 			if perr != nil {
@@ -1139,9 +1139,9 @@ func startPersistFeeder(persistCtx context.Context, idx Index, log *zap.Logger) 
 // submit queues a batch and registers it on wg (the caller's per-tier barrier).
 // It blocks while the queue is full; the feeder drains continuously, so this is
 // backpressure, not a deadlock.
-func (pf *persistFeeder) submit(wg *sync.WaitGroup, pid peer.ID, site string, batch []blocks.Block) {
+func (pf *persistFeeder) submit(wg *sync.WaitGroup, pid peer.ID, space string, batch []blocks.Block) {
 	wg.Add(1)
-	pf.ch <- persistJob{blocks: batch, wg: wg, pid: pid, site: site}
+	pf.ch <- persistJob{blocks: batch, wg: wg, pid: pid, space: space}
 }
 
 // globalPersistFeeder returns the daemon-wide persist feeder, starting it on first
@@ -1372,8 +1372,8 @@ func (s *Service) syncWithPeer(ctx context.Context, pid peer.ID, eids map[string
 	}
 
 	dialStart := time.Now()
-	// Auto-authenticate if this peer is a siteURL server for a space we have access to.
-	// We only authenticate with keys that have access to spaces where this peer is the siteURL server.
+	// Auto-authenticate if this peer is a spaceURL server for a space we have access to.
+	// We only authenticate with keys that have access to spaces where this peer is the spaceURL server.
 	if auth != nil {
 		if keys, ok := auth.peerKeys[pid]; ok {
 			for _, kp := range keys {
@@ -1484,7 +1484,7 @@ func syncResources(
 	// which carry no space of their own, and to break the stage timings down
 	// per space. Empty when the scope spans more than one space, in which case
 	// both stay unattributed rather than being credited to an arbitrary one.
-	syncSite := commonSpace(eids)
+	syncSpace := commonSpace(eids)
 
 	mSyncsInFlight.Inc()
 	defer func() {
@@ -1552,7 +1552,7 @@ func syncResources(
 		// the user-visible discovery wall-clock.
 		const reconcileRoundTimeout = 15 * time.Second
 		rpcStart := time.Now()
-		leaveStage := syncperf.Default.EnterStage(syncperf.StageExchange, syncSite)
+		leaveStage := syncperf.Default.EnterStage(syncperf.StageExchange, syncSpace)
 		roundCtx, roundCancel := context.WithTimeout(ctx, reconcileRoundTimeout)
 		res, rerr := c.ReconcileBlobs(roundCtx, &p2p.ReconcileBlobsRequest{
 			Ranges:  msg,
@@ -1656,7 +1656,7 @@ func syncResources(
 	// fetchElapsed is computed so the stage window is exactly the bitswap_fetch
 	// phase window; the defer is only a guard for early returns (leave is
 	// idempotent).
-	leaveTransfer := syncperf.Default.EnterStage(syncperf.StageTransfer, syncSite)
+	leaveTransfer := syncperf.Default.EnterStage(syncperf.StageTransfer, syncSpace)
 	defer leaveTransfer()
 
 	// Bitswap is IO-bound (network); persistence is CPU/disk-bound (SQLite write
@@ -1731,7 +1731,7 @@ func syncResources(
 			if len(batch) == 0 {
 				return
 			}
-			pf.submit(&persistWG, pid, syncSite, batch)
+			pf.submit(&persistWG, pid, syncSpace, batch)
 			batch = make([]blocks.Block, 0, persistBatchSize)
 		}
 
@@ -2071,20 +2071,20 @@ func (s *Service) computeAuthInfo(ctx context.Context, eids map[string]entitySco
 	}
 	hosts := make(map[core.PrincipalUnsafeString]peer.ID, len(spaces))
 	for key, space := range spaces {
-		siteURL, err := s.index.GetSiteURL(ctx, space)
-		if err != nil || siteURL == "" {
-			// No siteURL known locally, skip.
+		spaceURL, err := s.index.GetSpaceURL(ctx, space)
+		if err != nil || spaceURL == "" {
+			// No spaceURL known locally, skip.
 			continue
 		}
 
-		addrInfo, err := s.index.ResolveSiteURL(ctx, siteURL)
+		addrInfo, err := s.index.ResolveSpaceURL(ctx, spaceURL)
 		if err != nil {
 			continue
 		}
 
-		// We are the site server for this space. Syncing with ourselves is a
+		// We are the space server for this space. Syncing with ourselves is a
 		// no-op, and worse, counting it as an authority narrows the speculative
-		// sample away — so a site daemon would stop syncing its own space and
+		// sample away — so a space daemon would stop syncing its own space and
 		// never see anyone else's contributions to it.
 		if addrInfo.ID == self {
 			continue

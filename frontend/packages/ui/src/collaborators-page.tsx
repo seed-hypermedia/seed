@@ -5,7 +5,7 @@ import {
   HMListDocumentCollaboratorsOutput,
   HMMetadata,
   HMMetadataPayload,
-  HMSiteMember,
+  HMSpaceMember,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
@@ -17,7 +17,7 @@ import {
   useCollaborators,
   useResource,
   useSelectedAccountId,
-  useSiteMembers,
+  useSpaceMembers,
 } from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
@@ -42,12 +42,12 @@ export type SearchResult = {
 /** Returns the number of people rows rendered by the document People tab. */
 export function getRenderedCollaboratorsCount(
   collaborators: HMListDocumentCollaboratorsOutput | null | undefined,
-  isSiteRoot: boolean,
+  isSpaceRoot: boolean,
 ) {
   if (!collaborators) return 0
 
   const {accounts} = collaborators
-  if (isSiteRoot) {
+  if (isSpaceRoot) {
     return (
       1 +
       collaborators.grantedMembers.filter((member) => accounts[member.account.uid]).length +
@@ -279,12 +279,12 @@ function getRoleDisplayName(role: string | undefined): string {
 }
 
 /** Publisher/Owner display component */
-function PublisherCollaborator({uid, siteUid, account}: {uid: string; siteUid: string; account?: HMMetadataPayload}) {
+function PublisherCollaborator({uid, spaceUid, account}: {uid: string; spaceUid: string; account?: HMMetadataPayload}) {
   const publisherId = hmId(uid)
   const linkProps = useRouteLink({
-    key: 'site-profile',
-    id: hmId(siteUid),
-    accountUid: uid !== siteUid ? uid : undefined,
+    key: 'space-profile',
+    id: hmId(spaceUid),
+    accountUid: uid !== spaceUid ? uid : undefined,
     tab: 'profile',
   })
 
@@ -316,7 +316,7 @@ function CollaboratorListItem({
 }) {
   const collaboratorId = hmId(capability.accountUid)
   const linkProps = useRouteLink({
-    key: 'site-profile',
+    key: 'space-profile',
     id: hmId(docId.uid),
     accountUid: capability.accountUid !== docId.uid ? capability.accountUid : undefined,
     tab: 'profile',
@@ -351,12 +351,12 @@ export function CollaboratorsPage({
   if (docId.path?.length) {
     return <DocumentCollaborators docId={docId} domainResolver={domainResolver} />
   } else {
-    return <SiteMembers docId={docId} domainResolver={domainResolver} />
+    return <SpaceMembers docId={docId} domainResolver={domainResolver} />
   }
 }
 
-function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
-  const {accounts, grantedMembers, isInitialLoading, members} = useSiteMembers(docId)
+function SpaceMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; domainResolver?: DomainResolverFn}) {
+  const {accounts, grantedMembers, isInitialLoading, members} = useSpaceMembers(docId)
   const myCapability = useSelectedAccountCapability(docId, 'owner')
   const addCapabilities = useAddCapabilities(docId)
   const [promotingAccountUid, setPromotingAccountUid] = useState<string | null>(null)
@@ -394,13 +394,13 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
   return (
     <div className="flex flex-col gap-4">
       <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
-      <PublisherCollaborator uid={docId.uid} siteUid={docId.uid} account={accounts[docId.uid]} />
+      <PublisherCollaborator uid={docId.uid} spaceUid={docId.uid} account={accounts[docId.uid]} />
       {grantedMembers.length > 0 && (
         <div className="flex flex-col gap-1">
           {grantedMembers.map((member) => (
             <MemberListItem
               member={member}
-              siteUid={docId.uid}
+              spaceUid={docId.uid}
               account={accounts[member.account.uid]}
               key={member.account.uid}
               canAddAsWriter={false}
@@ -413,7 +413,7 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
           {members.map((member) => (
             <MemberListItem
               member={member}
-              siteUid={docId.uid}
+              spaceUid={docId.uid}
               account={accounts[member.account.uid]}
               key={member.account.uid}
               canAddAsWriter={!!myCapability}
@@ -434,23 +434,23 @@ function SiteMembers({docId, domainResolver}: {docId: UnpackedHypermediaId; doma
 
 function MemberListItem({
   member,
-  siteUid,
+  spaceUid,
   account,
   canAddAsWriter,
   isPromoting,
   onAddAsWriter,
 }: {
-  member: HMSiteMember
-  siteUid: string
+  member: HMSpaceMember
+  spaceUid: string
   account?: HMMetadataPayload
   canAddAsWriter?: boolean
   isPromoting?: boolean
   onAddAsWriter?: (accountUid: string) => void
 }) {
   const linkProps = useRouteLink({
-    key: 'site-profile',
-    id: hmId(siteUid),
-    accountUid: member.account.uid !== siteUid ? member.account.uid : undefined,
+    key: 'space-profile',
+    id: hmId(spaceUid),
+    accountUid: member.account.uid !== spaceUid ? member.account.uid : undefined,
     tab: 'profile',
   })
 
@@ -515,7 +515,7 @@ function DocumentCollaborators({
       <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
 
       {/* Publisher always shown first */}
-      <PublisherCollaborator uid={publisherUid} siteUid={docId.uid} account={accounts[publisherUid]} />
+      <PublisherCollaborator uid={publisherUid} spaceUid={docId.uid} account={accounts[publisherUid]} />
 
       {/* Parent capabilities section */}
       {parentCapabilities.length > 0 && (

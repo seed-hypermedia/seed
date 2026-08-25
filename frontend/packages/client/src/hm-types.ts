@@ -605,17 +605,17 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
-  layout: 'Legacy site header layout setting.',
+  layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',
-  seedExperimentalLogo: 'Logo shown in the site header.',
+  seedExperimentalLogo: 'Logo shown in the space header.',
   seedExperimentalHomeOrder: 'Legacy ordering preference for a space home page.',
   showOutline: 'Whether to show the document outline.',
   showActivity: 'Whether to show document activity and tools.',
   contentWidth: 'Width of the document content area.',
   childrenType: 'Layout of the document’s root-level blocks.',
-  theme: 'Visual settings for a site.',
-  'theme.headerLayout': 'Alignment of the site header.',
+  theme: 'Visual settings for a space.',
+  'theme.headerLayout': 'Alignment of the space header.',
   importCategories: 'Categories retained from an imported document.',
   importTags: 'Tags retained from an imported document.',
   title: 'Legacy document title; new documents use name.',
@@ -792,11 +792,16 @@ export type HMAccountNotFound = z.infer<typeof HMAccountNotFoundSchema>
 export const HMAccountResultSchema = z.discriminatedUnion('type', [HMAccountPayloadSchema, HMAccountNotFoundSchema])
 export type HMAccountResult = z.infer<typeof HMAccountResultSchema>
 
-export const HMSiteMemberSchema = z.object({
+export const HMSpaceMemberSchema = z.object({
   account: unpackedHmIdSchema,
   role: z.enum(['owner', 'writer', 'member']),
 })
-export type HMSiteMember = z.infer<typeof HMSiteMemberSchema>
+export type HMSpaceMember = z.infer<typeof HMSpaceMemberSchema>
+
+/** @deprecated Renamed to {@link HMSpaceMemberSchema}. */
+export const HMSiteMemberSchema = HMSpaceMemberSchema
+/** @deprecated Renamed to {@link HMSpaceMember}. */
+export type HMSiteMember = HMSpaceMember
 
 export type HMAccount = {
   id: string
@@ -1181,14 +1186,19 @@ export const HMCapabilitySchema = z.object({
 })
 export type HMCapability = z.infer<typeof HMCapabilitySchema>
 
-export const siteDiscoverRequestSchema = z.object({
+export const spaceDiscoverRequestSchema = z.object({
   uid: z.string(),
   path: z.array(z.string()),
   version: z.string().optional(),
   media: z.boolean().optional(),
 })
 
-export type SiteDiscoverRequest = z.infer<typeof siteDiscoverRequestSchema>
+export type SpaceDiscoverRequest = z.infer<typeof spaceDiscoverRequestSchema>
+
+/** @deprecated Renamed to {@link spaceDiscoverRequestSchema}. */
+export const siteDiscoverRequestSchema = spaceDiscoverRequestSchema
+/** @deprecated Renamed to {@link SpaceDiscoverRequest}. */
+export type SiteDiscoverRequest = SpaceDiscoverRequest
 
 export const HMPeerConnectionRequestSchema = z.object({
   a: z.array(z.string()), // addrs
@@ -1723,8 +1733,8 @@ export const HMListDocumentCollaboratorsOutputSchema = z.object({
   publisherUid: z.string(),
   parentCapabilities: z.array(HMCapabilitySchema),
   grantedCapabilities: z.array(HMCapabilitySchema),
-  grantedMembers: z.array(HMSiteMemberSchema),
-  members: z.array(HMSiteMemberSchema),
+  grantedMembers: z.array(HMSpaceMemberSchema),
+  members: z.array(HMSpaceMemberSchema),
   accounts: HMAccountsMetadataSchema,
 })
 export type HMListDocumentCollaboratorsOutput = z.infer<typeof HMListDocumentCollaboratorsOutputSchema>

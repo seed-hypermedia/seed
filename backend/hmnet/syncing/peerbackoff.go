@@ -212,7 +212,7 @@ func (s *Service) recordWaveYield(entityID blob.IRI, recursive bool, blobs int32
 
 // Quiet-narrowing and the tier short-circuit each assume the peers they keep
 // (the authority set) advertise everything that exists. When that assumption
-// breaks — a serving site whose maintained RBSR set is short, or a blob held
+// breaks — a serving space whose maintained RBSR set is short, or a blob held
 // only by a peer outside the authority set — both mechanisms lock the miss in:
 // the narrow wave asks nobody else, and the satisfied authority tier skips the
 // tiers that would have. The exhaustive wave is the bounded escape hatch: a
@@ -317,16 +317,16 @@ func (s *Service) noteUserInterest(entityID blob.IRI, now time.Time) {
 // the wave is a liveness check and one authoritative peer answers it.
 //
 // The invariant that matters more than the tuning: NEVER return 0 without an
-// authority to ask instead. Zero sample plus no site server plus no gateway is
+// authority to ask instead. Zero sample plus no space server plus no gateway is
 // an empty peer set — a node that syncs with nobody, forever, and silently.
 // Production hides this, because bootstrap guarantees gateways exist; two
 // daemons paired directly with neither do not, and the sample is the only thing
 // connecting them.
-func sampleWidth(haveLocally, hasSite, hasGateway bool) int {
+func sampleWidth(haveLocally, hasSpace, hasGateway bool) int {
 	switch {
-	case haveLocally && (hasSite || hasGateway):
+	case haveLocally && (hasSpace || hasGateway):
 		return 0
-	case hasSite:
+	case hasSpace:
 		return narrowSampledPeers
 	default:
 		return maxSampledPeers

@@ -173,9 +173,9 @@ describe('Explore document filter compilation', () => {
     ).toEqual(['spaceMatch', 'spaceMatch'])
   })
 
-  test('adds site context as an outer subtree constraint', () => {
+  test('adds space context as an outer subtree constraint', () => {
     const filter = compileExploreQuery(parseExploreQuery('status:active has:owner'), {
-      type: 'site',
+      type: 'space',
       id: hmId('alice', {path: ['docs']}),
     }).filter
     expect(filter?.filter.case).toBe('and')

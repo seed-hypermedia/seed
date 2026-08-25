@@ -54,20 +54,20 @@ type Tracker struct {
 	bytes atomic.Int64
 	blobs atomic.Int64
 
-	// bmu guards the per-site write breakdown. Separate from mu because it is
+	// bmu guards the per-space write breakdown. Separate from mu because it is
 	// touched once per committed batch (not per session boundary) and read only
 	// when the debug page is fetched.
 	//
-	// sites is the only structure here that grows with traffic rather than
-	// being fixed-size, so it is explicitly capped: at maxBreakdownSites new
+	// spaces is the only structure here that grows with traffic rather than
+	// being fixed-size, so it is explicitly capped: at maxBreakdownSpaces new
 	// spaces fold into one overflow bucket instead of adding entries. Worst
-	// case is maxBreakdownSites * (2 maps * len(Kinds)) counters — single-digit
+	// case is maxBreakdownSpaces * (2 maps * len(Kinds)) counters — single-digit
 	// megabytes — no matter how long the daemon runs or how many blobs it
 	// ingests. Everything else in the Tracker is a scalar or a fixed-size
 	// array, and the Prometheus metrics all use closed label sets (blob types,
 	// skip reasons, stages).
-	bmu   sync.Mutex
-	sites map[string]*counts
+	bmu    sync.Mutex
+	spaces map[string]*counts
 
 	// docs holds bytes for blobs whose space wasn't known when they were
 	// indexed, keyed by the document's genesis multihash. Changes are the case:
@@ -91,13 +91,13 @@ type Tracker struct {
 	stageSince     time.Time
 
 	// stmu guards the per-space mirror of the session and stage bookkeeping
-	// above, so every row of the throughput table can be broken down by site.
+	// above, so every row of the throughput table can be broken down by space.
 	//
 	// Its own lock, and never held together with mu or smu: the session and
 	// stage paths each take their global lock, release it, then take this one.
 	// Same cap as the byte breakdown, ~120 bytes per space.
-	stmu       sync.Mutex
-	siteStates map[string]*siteState
+	stmu        sync.Mutex
+	spaceStates map[string]*spaceState
 }
 
 // Default is the process-wide tracker. Its session start defaults to process
@@ -123,9 +123,9 @@ func (t *Tracker) SetSessionStart(start time.Time) {
 // ends it. The returned func is idempotent, so `defer end()` is safe even on
 // paths that also end the session explicitly.
 //
-// site is the space this session is syncing, used to break the session figures
+// space is the space this session is syncing, used to break the session figures
 // down per space. Empty is fine — those land under the unattributed bucket.
-func (t *Tracker) SessionStart(site string) (end func()) {
+func (t *Tracker) SessionStart(space string) (end func()) {
 	started := time.Now()
 
 	t.mu.Lock()
@@ -135,7 +135,7 @@ func (t *Tracker) SessionStart(site string) (end func()) {
 		t.busySince = started
 	}
 	t.mu.Unlock()
-	t.sessionStart(site, started)
+	t.sessionStart(space, started)
 
 	var once sync.Once
 	return func() {
@@ -153,7 +153,7 @@ func (t *Tracker) SessionStart(site string) (end func()) {
 				t.busyNanos += ended.Sub(t.busySince).Nanoseconds()
 			}
 			t.mu.Unlock()
-			t.sessionEnd(site, started, ended)
+			t.sessionEnd(space, started, ended)
 		})
 	}
 }

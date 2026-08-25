@@ -5,7 +5,7 @@ import {GRPCClient} from './grpc-client'
 import {
   HMCapability,
   HMListDocumentCollaboratorsRequest,
-  HMSiteMember,
+  HMSpaceMember,
   unpackedHmIdSchema,
 } from '@seed-hypermedia/client/hm-types'
 import {hmId, packHmId, unpackHmId} from './utils'
@@ -60,19 +60,19 @@ function canonicalizeCapability(capability: HMCapability, accounts: AccountsByUi
   }
 }
 
-/** Deduplicates site member rows by canonical/root account, keeping writer rows over member rows. */
-export function dedupeSiteMembersByCanonicalAccount({
+/** Deduplicates space member rows by canonical/root account, keeping writer rows over member rows. */
+export function dedupeSpaceMembersByCanonicalAccount({
   accounts,
   capabilities,
   members,
 }: {
   accounts: AccountsByUid
   capabilities: HMCapability[]
-  members: HMSiteMember[]
+  members: HMSpaceMember[]
 }) {
   const seenMembers = new Set<string>()
-  const grantedMembers: HMSiteMember[] = []
-  const dedupedMembers: HMSiteMember[] = []
+  const grantedMembers: HMSpaceMember[] = []
+  const dedupedMembers: HMSpaceMember[] = []
 
   capabilities.forEach((capability) => {
     const accountUid = getCanonicalAccountUid(accounts, capability.accountUid)
@@ -128,7 +128,7 @@ export const ListDocumentCollaborators: HMRequestImplementation<HMListDocumentCo
           (capability) => capability.role !== 'agent' && capability.role !== 'owner' && capability.role !== 'none',
         )
 
-      const contactMembers: HMSiteMember[] = []
+      const contactMembers: HMSpaceMember[] = []
 
       contactsResult?.contacts.forEach((contact) => {
         const plain = toPlainMessage(contact)
@@ -164,7 +164,7 @@ export const ListDocumentCollaborators: HMRequestImplementation<HMListDocumentCo
         canonicalCapabilities.filter((capability) => capability.grantId.id === input.targetId.id),
       )
 
-      const {grantedMembers, members} = dedupeSiteMembersByCanonicalAccount({
+      const {grantedMembers, members} = dedupeSpaceMembersByCanonicalAccount({
         accounts,
         capabilities: canonicalCapabilities,
         members: contactMembers,

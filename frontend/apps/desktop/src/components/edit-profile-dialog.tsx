@@ -4,7 +4,7 @@ import {queryKeys} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {EditProfileForm, SiteMetaFields} from '@shm/ui/edit-profile-form'
+import {EditProfileForm, SpaceMetaFields} from '@shm/ui/edit-profile-form'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -18,7 +18,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   const account = useAccount(accountUid)
   const metadata = account.data?.metadata ?? undefined
 
-  async function handleSubmit(updates: SiteMetaFields) {
+  async function handleSubmit(updates: SpaceMetaFields) {
     let iconUri = ''
     if (updates.icon instanceof Blob) {
       const cid = await fileUpload(new File([updates.icon], 'icon'))

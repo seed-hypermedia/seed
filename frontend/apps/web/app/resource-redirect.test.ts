@@ -2,9 +2,9 @@ import {hmId} from '@shm/shared'
 import {describe, expect, it} from 'vitest'
 import {createResourceRedirectUrl} from './resource-redirect'
 
-const SITE_UID = 'z6MkvSiteAccountUid'
-const originHomeId = hmId(SITE_UID)
-const target = hmId(SITE_UID, {path: ['notes', 'high-network-usage-in-activity-monitor']})
+const SPACE_UID = 'z6MkvSiteAccountUid'
+const originHomeId = hmId(SPACE_UID)
+const target = hmId(SPACE_UID, {path: ['notes', 'high-network-usage-in-activity-monitor']})
 
 describe('createResourceRedirectUrl', () => {
   it('redirects a plain document URL to the new path', () => {

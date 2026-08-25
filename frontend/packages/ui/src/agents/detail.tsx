@@ -1478,7 +1478,7 @@ function AuthorIdentityChip({
   onEdit: () => void
 }) {
   const profileRoute = identity.accountId
-    ? ({key: 'site-profile', id: hmId(identity.accountId), tab: 'profile'} as const)
+    ? ({key: 'space-profile', id: hmId(identity.accountId), tab: 'profile'} as const)
     : null
   const linkProps = useRouteLink(profileRoute)
   const content = (

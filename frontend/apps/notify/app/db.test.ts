@@ -105,7 +105,7 @@ describe('Database', () => {
   })
 
   describe('subscription operations', () => {
-    it('should create and read a site subscription', () => {
+    it('should create and read a space subscription', () => {
       const subscriptionData = {
         id: 'test-id',
         email: 'test@example.com',
@@ -170,13 +170,13 @@ describe('Database', () => {
 
     it('should list email subscribers for an account without leaking admin tokens', () => {
       createSubscription({
-        id: 'site-account',
+        id: 'space-account',
         email: 'subscriber1@example.com',
         notifyOwnedDocChange: true,
         notifySiteDiscussions: false,
       })
       createSubscription({
-        id: 'site-account',
+        id: 'space-account',
         email: 'subscriber2@example.com',
         notifySiteDiscussions: true,
       })
@@ -192,7 +192,7 @@ describe('Database', () => {
       db.close()
       setEmailUnsubscribed(adminToken.adminToken, true)
 
-      const subscribers = getEmailSubscribersForAccount('site-account')
+      const subscribers = getEmailSubscribersForAccount('space-account')
       expect(subscribers).toHaveLength(2)
       expect(subscribers.map((s) => s.email).sort()).toEqual(['subscriber1@example.com', 'subscriber2@example.com'])
 

@@ -102,7 +102,7 @@ export function MobilePanelSheet({isOpen, title, onClose, children}: MobilePanel
     setDragY(0)
   }, [dragY, isDragging, onClose])
 
-  // Portal to document.body to escape ancestor transforms (e.g. transform-gpu on SiteHeader)
+  // Portal to document.body to escape ancestor transforms (e.g. transform-gpu on SpaceHeader)
   // which break position:fixed by creating a new containing block.
   return createPortal(
     <div

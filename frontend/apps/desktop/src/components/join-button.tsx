@@ -1,12 +1,12 @@
-import {useJoinSite} from '@shm/shared/models/join-site'
+import {useJoinSpace} from '@shm/shared/models/join-space'
 import {JoinButton as JoinButtonUI} from '@shm/ui/join-button'
-import {useJoinSiteIntent} from './desktop-intents'
+import {useJoinSpaceIntent} from './desktop-intents'
 
-export function JoinButton({siteUid}: {siteUid: string}) {
-  const {isJoined, isPending, siteName} = useJoinSite({
-    siteUid,
+export function JoinButton({spaceUid}: {spaceUid: string}) {
+  const {isJoined, isPending, spaceName} = useJoinSpace({
+    spaceUid,
   })
-  const joinIntent = useJoinSiteIntent(siteUid, siteName)
+  const joinIntent = useJoinSpaceIntent(spaceUid, spaceName)
 
   if (isJoined) return null
 

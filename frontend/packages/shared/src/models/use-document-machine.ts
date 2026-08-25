@@ -602,7 +602,7 @@ export function selectMetadata(snapshot: DocumentMachineSnapshot): HMMetadata {
   return snapshot.context.metadata
 }
 
-/** Pending site-header navigation changes set during this editing session (home doc only). */
+/** Pending space-header navigation changes set during this editing session (home doc only). */
 export function selectNavigation(snapshot: DocumentMachineSnapshot): HMNavigationItem[] | undefined {
   return snapshot.context.navigation
 }
@@ -744,7 +744,7 @@ export function useDocumentSend(actorRef?: DocumentMachineActorRef) {
 }
 
 /**
- * Read the in-flight site-header navigation from the document machine, safely.
+ * Read the in-flight space-header navigation from the document machine, safely.
  * Returns `undefined` when outside a `DocumentMachineProvider` or when no
  * navigation edits are pending — callers should fall back to the published
  * navigation block in that case.

@@ -1,4 +1,4 @@
-// Package server is the serve to monitor site status.
+// Package server is the serve to monitor space status.
 package server
 
 import (
@@ -24,8 +24,8 @@ import (
 
 // Srv is the server type.
 type Srv struct {
-	// MonitorStatus is a map where the key is the site hostname and the value the status.
-	MonitorStatus *map[string]*siteStatus
+	// MonitorStatus is a map where the key is the space hostname and the value the status.
+	MonitorStatus *map[string]*spaceStatus
 	discordClient *discord.BotClient
 	mu            sync.Mutex
 	node          host.Host
@@ -38,7 +38,7 @@ type Srv struct {
 	sitesCSV      string
 }
 
-type siteStatus struct {
+type spaceStatus struct {
 	StatusDNS              string
 	LastDNSError           string
 	LastCheck              string
@@ -60,14 +60,14 @@ func NewServer(portHTTP, portP2P int, log *zap.Logger, sitesCSVPath, discordToke
 		return nil, err
 	}
 
-	monitorStatus := make(map[string]*siteStatus)
+	monitorStatus := make(map[string]*spaceStatus)
 	srv := &Srv{
 		MonitorStatus: &monitorStatus,
 		node:          node,
 		log:           log,
 		sitesCSV:      sitesCSVPath,
 	}
-	if err := srv.updateSiteList(); err != nil {
+	if err := srv.updateSpaceList(); err != nil {
 		return nil, err
 	}
 
@@ -112,19 +112,19 @@ func (s *Srv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Srv) updateSiteList() error {
+func (s *Srv) updateSpaceList() error {
 	f, err := os.Open(s.sitesCSV)
 	if err != nil {
-		return fmt.Errorf("Unable to read sites file [%s]:%w ", s.sitesCSV, err)
+		return fmt.Errorf("Unable to read spaces file [%s]:%w ", s.sitesCSV, err)
 	}
 	defer f.Close()
 	csvReader := csv.NewReader(f)
 	records, err := csvReader.ReadAll()
 	if err != nil {
-		return fmt.Errorf("Unable to parse sites reader as CSV for: %w", err)
+		return fmt.Errorf("Unable to parse spaces reader as CSV for: %w", err)
 	}
 
-	newSitesList := []string{}
+	newSpacesList := []string{}
 	for idx, row := range records {
 		if idx == 0 && strings.ToLower(strings.Replace(row[0], " ", "", -1)) != "hostname" {
 			return fmt.Errorf("First row First column of the CSV must be hostname")
@@ -133,33 +133,33 @@ func (s *Srv) updateSiteList() error {
 			continue
 		}
 
-		newSitesList = append(newSitesList, strings.Replace(strings.Replace(row[0], " ", "", -1), ",", "", -1))
+		newSpacesList = append(newSpacesList, strings.Replace(strings.Replace(row[0], " ", "", -1), ",", "", -1))
 	}
-	sort.Strings(newSitesList)
+	sort.Strings(newSpacesList)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	currentSiteList := make([]string, len(*s.MonitorStatus))
+	currentSpaceList := make([]string, len(*s.MonitorStatus))
 	i := 0
 	for k := range *s.MonitorStatus {
-		currentSiteList[i] = k
+		currentSpaceList[i] = k
 		i++
 	}
 
-	sort.Strings(currentSiteList)
-	if !reflect.DeepEqual(currentSiteList, newSitesList) {
-		newMonitorStatus := make(map[string]*siteStatus)
-		for _, site := range newSitesList {
-			if _, ok := (*s.MonitorStatus)[site]; !ok {
-				newMonitorStatus[site] = &siteStatus{
+	sort.Strings(currentSpaceList)
+	if !reflect.DeepEqual(currentSpaceList, newSpacesList) {
+		newMonitorStatus := make(map[string]*spaceStatus)
+		for _, space := range newSpacesList {
+			if _, ok := (*s.MonitorStatus)[space]; !ok {
+				newMonitorStatus[space] = &spaceStatus{
 					StatusDNS: "N/A",
 					StatusP2P: "N/A",
 				}
 			} else {
-				newMonitorStatus[site] = (*s.MonitorStatus)[site]
+				newMonitorStatus[space] = (*s.MonitorStatus)[space]
 			}
 		}
 		s.MonitorStatus = &newMonitorStatus
-		s.log.Info("Updated Site list", zap.Int("Sites to monitor", len(newSitesList)))
+		s.log.Info("Updated Space list", zap.Int("Spaces to monitor", len(newSpacesList)))
 	}
 	return nil
 }
@@ -170,28 +170,28 @@ func (s *Srv) scan(timeout time.Duration) {
 		case <-s.chScan:
 			return
 		case <-s.ticker.C:
-			if err := s.updateSiteList(); err != nil {
-				s.log.Warn("Failed to update site list from CSV", zap.Error(err))
+			if err := s.updateSpaceList(); err != nil {
+				s.log.Warn("Failed to update space list from CSV", zap.Error(err))
 			}
 			var wg sync.WaitGroup
-			for site, stat := range *s.MonitorStatus {
+			for space, stat := range *s.MonitorStatus {
 				wg.Add(1)
-				go func(site string, stat *siteStatus) {
+				go func(space string, stat *spaceStatus) {
 					var err error
 					ctx, cancel := context.WithTimeout(context.Background(), timeout)
 					defer wg.Done()
 					defer cancel()
 					lastCheck := time.Now().UTC()
 					stat.LastCheck = lastCheck.Format("2006-01-02 15:04:05")
-					info, err := s.checkSeedAddrs(ctx, site, "")
+					info, err := s.checkSeedAddrs(ctx, space, "")
 					if err != nil {
-						checkError := fmt.Errorf("Could not get site [%s] address from seed config page: %w", site, err)
+						checkError := fmt.Errorf("Could not get space [%s] address from seed config page: %w", space, err)
 						stat.StatusDNS = err.Error()
 						stat.StatusP2P = "N/A"
 						stat.LastDNSError = lastCheck.Format("2006-01-02 15:04:05") + " " + err.Error()
 						s.log.Warn("CheckSeedAddrs error", zap.Error(checkError))
 						if !stat.LastOKNotificationSent.Before(stat.LastKONotificationSent) && s.discordClient != nil {
-							if err := s.discordClient.SendMessage(site + " has DNS problems: ```" + err.Error() + "```"); err != nil {
+							if err := s.discordClient.SendMessage(space + " has DNS problems: ```" + err.Error() + "```"); err != nil {
 								s.log.Warn("Could not send KO Discord notification", zap.Error(err))
 							} else {
 								stat.LastKONotificationSent = lastCheck
@@ -204,12 +204,12 @@ func (s *Srv) scan(timeout time.Duration) {
 
 					duration, err := s.checkP2P(ctx, info, s.numPings)
 					if err != nil {
-						checkError := fmt.Errorf("P2P error [%s]: %w", site, err)
+						checkError := fmt.Errorf("P2P error [%s]: %w", space, err)
 						stat.StatusP2P = "KO"
 						stat.LastP2PError = lastCheck.Format("2006-01-02 15:04:05") + " " + err.Error()
 						s.log.Warn("CheckP2P error", zap.Error(checkError))
 						if !stat.LastOKNotificationSent.Before(stat.LastKONotificationSent) && s.discordClient != nil {
-							if err := s.discordClient.SendMessage("Server " + site + " has P2P problems: ```" + err.Error() + "```"); err != nil {
+							if err := s.discordClient.SendMessage("Server " + space + " has P2P problems: ```" + err.Error() + "```"); err != nil {
 								s.log.Warn("Could not send KO Discord notification", zap.Error(err))
 							} else {
 								stat.LastKONotificationSent = lastCheck
@@ -220,7 +220,7 @@ func (s *Srv) scan(timeout time.Duration) {
 					stat.StatusP2P = "OK Avg. Ping:" + duration.Round(time.Millisecond).String()
 
 					if stat.LastOKNotificationSent.Before(stat.LastKONotificationSent) && s.discordClient != nil {
-						if err := s.discordClient.SendMessage("Server " + site + " is back up again. P2P Ping time: " + duration.Round(time.Millisecond).String()); err != nil {
+						if err := s.discordClient.SendMessage("Server " + space + " is back up again. P2P Ping time: " + duration.Round(time.Millisecond).String()); err != nil {
 							s.log.Warn("Could not send Discord OK notification", zap.Error(err))
 						} else {
 							stat.LastOKNotificationSent = lastCheck
@@ -238,7 +238,7 @@ func (s *Srv) scan(timeout time.Duration) {
 							return includedAddress, nil
 						}
 					*/
-				}(site, stat)
+				}(space, stat)
 			}
 			wg.Wait()
 

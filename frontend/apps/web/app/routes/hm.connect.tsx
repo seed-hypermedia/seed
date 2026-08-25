@@ -1,9 +1,9 @@
-import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
-import {defaultSiteIcon} from '@/meta'
+import {loadSpaceHeaderData, SpaceHeaderPayload} from '@/loaders'
+import {defaultSpaceIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {getOptimizedImageUrl, NavigationLoadingContent, WebSiteProvider} from '@/providers'
+import {getOptimizedImageUrl, NavigationLoadingContent, WebSpaceProvider} from '@/providers'
 import {parseRequest} from '@/request'
-import {WebSiteHeader} from '@/web-site-header'
+import {WebSpaceHeader} from '@/web-space-header'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
@@ -18,7 +18,7 @@ import {ArrowUpRight} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {useEffect, useState} from 'react'
 
-type ConnectPagePayload = SiteHeaderPayload
+type ConnectPagePayload = SpaceHeaderPayload
 
 export const meta: MetaFunction = ({data}) => {
   const {homeMetadata} = unwrap<ConnectPagePayload>(data)
@@ -27,7 +27,7 @@ export const meta: MetaFunction = ({data}) => {
   meta.push({
     tagName: 'link',
     rel: 'icon',
-    href: homeIcon || defaultSiteIcon,
+    href: homeIcon || defaultSpaceIcon,
     type: 'image/png',
   })
   meta.push({
@@ -40,34 +40,39 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, async () => {
-    const headerData = await loadSiteHeaderData(parsedRequest)
+    const headerData = await loadSpaceHeaderData(parsedRequest)
     return wrapJSON(headerData satisfies ConnectPagePayload)
   })
 }
 
 export default function ConnectPage() {
-  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} = unwrap<ConnectPagePayload>(useLoaderData())
+  const {originHomeId, spaceHost, origin, homeMetadata, dehydratedState} = unwrap<ConnectPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }
   return (
-    <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost} dehydratedState={dehydratedState}>
+    <WebSpaceProvider
+      origin={origin}
+      originHomeId={originHomeId}
+      spaceHost={spaceHost}
+      dehydratedState={dehydratedState}
+    >
       <div className="flex min-h-screen flex-1 flex-col items-center">
-        <WebSiteHeader
+        <WebSpaceHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
-          siteHomeId={originHomeId}
+          spaceHomeId={originHomeId}
           docId={null}
           origin={origin}
         />
-        <NavigationLoadingContent className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--site-header-h)] sm:pt-0">
+        <NavigationLoadingContent className="flex w-full max-w-lg flex-1 flex-col gap-3 px-0 pt-[var(--space-header-h)] sm:pt-0">
           <div className="px-4">
             <HMConnectPage />
           </div>
         </NavigationLoadingContent>
         <PageFooter />
       </div>
-    </WebSiteProvider>
+    </WebSpaceProvider>
   )
 }
 

@@ -1,12 +1,12 @@
-import {MembersSettings} from '@/components/site-settings-members'
-import {NavigationSettings} from '@/components/site-settings-navigation'
-import {useUpdateHomeDocument} from '@/models/site'
+import {MembersSettings} from '@/components/space-settings-members'
+import {NavigationSettings} from '@/components/space-settings-navigation'
+import {useUpdateHomeDocument} from '@/models/space'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {useIsSpaceOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
-import type {SiteSettingsTab} from '@shm/shared/routes'
+import type {SpaceSettingsTab} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -20,34 +20,34 @@ import {cn} from '@shm/ui/utils'
 import {Image as ImageIcon, Navigation as NavigationIcon, Plus, Users} from 'lucide-react'
 import {type ReactNode, useState} from 'react'
 
-// Tabs of the site settings page
-type SiteSettingsSection = 'identity' | 'navigation' | 'members'
+// Tabs of the space settings page
+type SpaceSettingsSection = 'identity' | 'navigation' | 'members'
 
-type SiteSettingsTabConfig = {
-  key: SiteSettingsSection
+type SpaceSettingsTabConfig = {
+  key: SpaceSettingsSection
   icon: any
   label: string
 }
 
-const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
+const SPACE_SETTINGS_TAB_CONFIG: SpaceSettingsTabConfig[] = [
   {key: 'identity', icon: ImageIcon, label: 'Identity'},
   {key: 'navigation', icon: NavigationIcon, label: 'Navigation'},
   {key: 'members', icon: Users, label: 'Members'},
 ]
 
 /** Map a URL subpath to its tab. */
-function sectionForTab(tab: SiteSettingsTab | undefined): SiteSettingsSection {
+function sectionForTab(tab: SpaceSettingsTab | undefined): SpaceSettingsSection {
   if (tab === 'navigation') return 'navigation'
   if (tab === 'members' || tab === 'writers' || tab === 'email-subscribers') return 'members'
   return 'identity'
 }
 
-export default function SiteSettings() {
+export default function SpaceSettings() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
-  if (route.key !== 'site-settings') return null
+  if (route.key !== 'space-settings') return null
   const activeSection = sectionForTab(route.tab)
-  const setActiveTab = (tab: SiteSettingsTab) => navigate({key: 'site-settings', id: route.id, tab})
+  const setActiveTab = (tab: SpaceSettingsTab) => navigate({key: 'space-settings', id: route.id, tab})
   return (
     <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
@@ -56,9 +56,9 @@ export default function SiteSettings() {
             {/* Sidebar */}
             <div className="border-border flex w-[220px] shrink-0 flex-col gap-1 border-r p-2">
               <SizableText size="xs" weight="bold" color="muted" className="px-3 py-2 uppercase">
-                Site Settings
+                Space Settings
               </SizableText>
-              {SITE_SETTINGS_TAB_CONFIG.map((tab) => (
+              {SPACE_SETTINGS_TAB_CONFIG.map((tab) => (
                 <SidebarTab
                   key={tab.key}
                   active={activeSection === tab.key}
@@ -71,9 +71,9 @@ export default function SiteSettings() {
             {/* Content */}
             <ScrollArea className="flex-1">
               <div className="flex flex-col gap-6 p-6">
-                {activeSection === 'identity' && <IdentityTab siteId={route.id} />}
-                {activeSection === 'navigation' && <NavigationSettings siteId={route.id} />}
-                {activeSection === 'members' && <MembersSettings siteId={route.id} activeTab={route.tab} />}
+                {activeSection === 'identity' && <IdentityTab spaceId={route.id} />}
+                {activeSection === 'navigation' && <NavigationSettings spaceId={route.id} />}
+                {activeSection === 'members' && <MembersSettings spaceId={route.id} activeTab={route.tab} />}
               </div>
             </ScrollArea>
           </div>
@@ -86,11 +86,11 @@ export default function SiteSettings() {
 /** A picked image is either an existing metadata value or a freshly selected file. */
 type ImageValue = string | File | null
 
-function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
-  const accountUid = siteId.uid
-  const resource = useResource(siteId)
+function IdentityTab({spaceId}: {spaceId: UnpackedHypermediaId}) {
+  const accountUid = spaceId.uid
+  const resource = useResource(spaceId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(accountUid)
+  const {isSpaceOwner, isLoading: isOwnerLoading} = useIsSpaceOwner(accountUid)
   const updateHome = useUpdateHomeDocument(accountUid)
 
   // Form state, seeded from the published metadata once loaded.
@@ -106,15 +106,15 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
     )
   }
   if (!document) {
-    return <SizableText color="muted">This account doesn't have a site yet.</SizableText>
+    return <SizableText color="muted">This account doesn't have a space yet.</SizableText>
   }
-  if (!isSiteOwner) {
+  if (!isSpaceOwner) {
     return (
       <>
         <SizableText size="2xl" weight="bold">
           Identity
         </SizableText>
-        <SizableText color="muted">Only the site owner can edit these settings.</SizableText>
+        <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
       </>
     )
   }
@@ -138,12 +138,12 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
         cover: cover !== undefined ? await resolveImageValue(cover) : metadata.cover,
       }
       await updateHome.mutateAsync({metadata: nextMetadata})
-      toast.success('Site identity updated')
+      toast.success('Space identity updated')
       setName(null)
       setLogo(undefined)
       setCover(undefined)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update site identity')
+      toast.error(error instanceof Error ? error.message : 'Failed to update space identity')
     }
   }
 
@@ -158,11 +158,11 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
         </Button>
       </div>
 
-      <SettingsField label="Site name">
-        <Input value={nameValue} onChange={(e) => setName(e.target.value)} placeholder="Your site name" />
+      <SettingsField label="Space name">
+        <Input value={nameValue} onChange={(e) => setName(e.target.value)} placeholder="Your space name" />
       </SettingsField>
 
-      <SettingsField label="Site logo" hint="100px height JPG or PNG.">
+      <SettingsField label="Space logo" hint="100px height JPG or PNG.">
         <ImagePicker
           value={logoValue}
           onChange={setLogo}

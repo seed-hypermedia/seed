@@ -228,7 +228,7 @@ function CommentBoxImpl(props: {
 
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
       invalidateQueries([queryKeys.LIBRARY])
-      invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
+      invalidateQueries([queryKeys.SPACE_LIBRARY, docId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.DOC_CITATIONS])
       invalidateQueries([queryKeys.SEARCH])
@@ -315,8 +315,8 @@ function CommentBoxImpl(props: {
       try {
         const targetDoc = targetEntity.data?.type === 'document' ? targetEntity.data.document : undefined
         const signer = getSigner(accountUid)
-        const joinedSite = accountUid !== docId.uid
-        if (joinedSite) {
+        const joinedSpace = accountUid !== docId.uid
+        if (joinedSpace) {
           await subscribeContact({accountUid, subjectUid: docId.uid, subscribe: 'site'})
         }
         const commentPayload = await createComment(
@@ -343,7 +343,7 @@ function CommentBoxImpl(props: {
         navigateToComment(navigate, route, recordId)
         pushAfterAction({id: docId, trigger: 'publish'})
         reset()
-        toast.success(joinedSite ? 'Joined site and posted comment' : 'Comment posted')
+        toast.success(joinedSpace ? 'Joined space and posted comment' : 'Comment posted')
       } catch (err) {
         console.error('Failed to submit pending comment:', err)
         reportError(err, {feature: 'comment', operation: 'submit-pending', docId: docId.id})

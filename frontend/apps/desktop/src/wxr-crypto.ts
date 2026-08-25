@@ -70,7 +70,7 @@ export interface SeedImportData {
   // Source information.
   source: {
     type: 'wordpress-wxr'
-    siteTitle: string
+    spaceTitle: string
     siteUrl: string
     exportDate: string
   }

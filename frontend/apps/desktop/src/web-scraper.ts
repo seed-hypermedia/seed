@@ -559,17 +559,17 @@ export type PostsFile = {
   wordpressMetadataFile?: string
 }[]
 
-export async function scrapeUrl(targetSite: string, scrapeId: string, onStatus: (status: ScrapeStatus) => void) {
+export async function scrapeUrl(targetSpace: string, scrapeId: string, onStatus: (status: ScrapeStatus) => void) {
   const cacheDays = 7
   const outputDir = path.join(userDataPath, 'importer', 'scrapes', scrapeId)
 
-  if (!targetSite) {
+  if (!targetSpace) {
     console.log('Please provide a WordPress site URL as an argument')
     process.exit(1)
   }
 
-  console.log(`Starting crawler for ${targetSite} (cache: ${cacheDays} days)`)
-  const crawler = await crawl(targetSite, onStatus)
+  console.log(`Starting crawler for ${targetSpace} (cache: ${cacheDays} days)`)
+  const crawler = await crawl(targetSpace, onStatus)
   // console.log('\nCrawl complete!')
 
   const metadata = Array.from(crawler.storage.metadata.entries())

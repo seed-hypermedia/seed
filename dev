@@ -412,7 +412,7 @@ def main():
     @cmd(cmds, "build-web", "Build web app for production.")
     def build_web(args):
         run("./scripts/cleanup-frontend.sh")
-        run("./scripts/cleanup-site.sh")
+        run("./scripts/cleanup-space.sh")
         run("pnpm install")
         run("plz build //:pnpm")
         return run(

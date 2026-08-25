@@ -45,7 +45,7 @@ describe('createWebDocumentDraft', () => {
   it('creates a public child draft at a placeholder path and navigates to it', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraft({
-      locationId: makeDocId('site', ['parent']),
+      locationId: makeDocId('space', ['parent']),
       signingAccountId: 'author',
       visibility: 'PUBLIC',
       capabilityCid: 'cap-1',
@@ -62,7 +62,7 @@ describe('createWebDocumentDraft', () => {
       docId: routeId.id,
       signingAccountId: 'author',
       capabilityCid: 'cap-1',
-      locationUid: 'site',
+      locationUid: 'space',
       locationPath: ['parent'],
       editUid: null,
       editPath: null,
@@ -73,7 +73,7 @@ describe('createWebDocumentDraft', () => {
   it('creates a private draft at an opaque random path', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraft({
-      locationId: makeDocId('site', ['parent']),
+      locationId: makeDocId('space', ['parent']),
       signingAccountId: 'author',
       visibility: 'PRIVATE',
       navigate,
@@ -82,7 +82,7 @@ describe('createWebDocumentDraft', () => {
     })
 
     expect(routeId.path).toEqual(['random-path-21'])
-    expect(getDraftReturnParentId('draft-2')).toMatchObject({uid: 'site', path: []})
+    expect(getDraftReturnParentId('draft-2')).toMatchObject({uid: 'space', path: []})
 
     const draft = await getWebDocDraft('draft-2')
     expect(draft).toMatchObject({
@@ -95,7 +95,7 @@ describe('createWebDocumentDraft', () => {
 
   it('removes leading dashes from generated private draft paths', async () => {
     const {routeId} = await createWebDocumentDraft({
-      locationId: makeDocId('site', ['parent']),
+      locationId: makeDocId('space', ['parent']),
       signingAccountId: 'author',
       visibility: 'PRIVATE',
       generateDraftId: () => 'draft-3',
@@ -108,7 +108,7 @@ describe('createWebDocumentDraft', () => {
   it('can navigate to a public child draft route without persisting an empty draft', async () => {
     const navigate = vi.fn()
     const {routeId, draftId} = await createWebDocumentDraft({
-      locationId: makeDocId('site', ['parent']),
+      locationId: makeDocId('space', ['parent']),
       signingAccountId: 'author',
       visibility: 'PUBLIC',
       navigate,
@@ -126,7 +126,7 @@ describe('createWebDocumentDraft', () => {
   it('persists private draft routes even when lazy navigation is requested', async () => {
     const navigate = vi.fn()
     const {routeId, draftId} = await createWebDocumentDraft({
-      locationId: makeDocId('site', ['parent']),
+      locationId: makeDocId('space', ['parent']),
       signingAccountId: 'author',
       visibility: 'PRIVATE',
       navigate,
@@ -149,7 +149,7 @@ describe('createWebDocumentDraft', () => {
   it('stores imported content and metadata when provided', async () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraft({
-      locationId: makeDocId('site', []),
+      locationId: makeDocId('space', []),
       signingAccountId: 'author',
       metadata: {name: 'Imported Title'},
       content: [{block: {id: 'b1', type: 'Paragraph', text: 'Hello import'} as any}],
@@ -167,7 +167,7 @@ describe('createWebDocumentDraft', () => {
     const navigate = vi.fn()
     const {routeId} = await createWebDocumentDraftFromMarkdownFile({
       file: new File(['# Imported Title\n\nHello import'], 'fallback.md', {type: 'text/markdown'}),
-      locationId: makeDocId('site', []),
+      locationId: makeDocId('space', []),
       signingAccountId: 'author',
       navigate,
     })
@@ -183,7 +183,7 @@ describe('createWebDocumentDraft', () => {
       file: new File(['---\ntitle: Frontmatter Title\nsummary: Imported summary\n---\n\nBody text'], 'fallback.md', {
         type: 'text/markdown',
       }),
-      locationId: makeDocId('site', []),
+      locationId: makeDocId('space', []),
       signingAccountId: 'author',
       navigate: vi.fn(),
     })

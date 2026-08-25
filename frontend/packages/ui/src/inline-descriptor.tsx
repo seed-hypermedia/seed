@@ -37,7 +37,7 @@ export function InlineDescriptor({children}: {children: React.ReactNode}) {
   return <p className="text-muted-foreground font-sans text-sm">{children}</p>
 }
 
-function getSiteContextUid(route: NavRoute | null): string | null {
+function getSpaceContextUid(route: NavRoute | null): string | null {
   if (!route) return null
 
   switch (route.key) {
@@ -48,7 +48,7 @@ function getSiteContextUid(route: NavRoute | null): string | null {
     case 'directory':
     case 'collaborators':
     case 'metadata':
-    case 'site-profile':
+    case 'space-profile':
     case 'profile':
     case 'contact':
       return route.id.uid
@@ -57,29 +57,29 @@ function getSiteContextUid(route: NavRoute | null): string | null {
   }
 }
 
-/** Builds a profile route that prefers the current site context when one exists. */
+/** Builds a profile route that prefers the current space context when one exists. */
 export function getContextualProfileRoute(
   currentRoute: NavRoute | null,
   accountId: UnpackedHypermediaId | null,
-  siteUid?: string | null,
+  spaceUid?: string | null,
 ): NavRoute | null {
   if (!accountId) return null
 
-  const effectiveSiteUid = siteUid || getSiteContextUid(currentRoute)
-  if (!effectiveSiteUid) {
+  const effectiveSpaceUid = spaceUid || getSpaceContextUid(currentRoute)
+  if (!effectiveSpaceUid) {
     return {key: 'profile', id: accountId}
   }
 
   return {
-    key: 'site-profile',
-    id: hmId(effectiveSiteUid),
-    accountUid: accountId.uid !== effectiveSiteUid ? accountId.uid : undefined,
+    key: 'space-profile',
+    id: hmId(effectiveSpaceUid),
+    accountUid: accountId.uid !== effectiveSpaceUid ? accountId.uid : undefined,
     tab: 'profile',
   }
 }
 
 /** Inline link to an author's profile, with a spinner while the account is still loading. */
-export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null; siteUid?: string}) {
+export function AuthorNameLink({author, spaceUid}: {author: HMContactItem | null; spaceUid?: string}) {
   const currentRoute = useNavRoute()
   // Use the account query to get fresh cache data and distinguish loading from settled.
   // When useHackyAuthorsSubscriptions discovers the account, this query gets invalidated
@@ -87,7 +87,7 @@ export function AuthorNameLink({author, siteUid}: {author: HMContactItem | null;
   const account = useAccount(author?.id?.uid, {subscribe: true})
   const resolvedName = account.data?.metadata?.name || author?.metadata?.name
   const authorName = resolvedName || abbreviateUid(author?.id?.uid)
-  const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, author?.id || null, siteUid))
+  const linkProps = useRouteLink(getContextualProfileRoute(currentRoute, author?.id || null, spaceUid))
   return (
     <a
       className={`font-sans text-sm font-bold ${resolvedName ? 'text-foreground' : 'text-muted-foreground'}`}

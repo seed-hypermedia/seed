@@ -1,6 +1,6 @@
 import {fetchResource} from '@/models/entities'
 import {HostInfoResponse, useHostSession} from '@/models/host'
-import {useRemoveSite, useSiteRegistration} from '@/models/site'
+import {useRemoveSpace, useSpaceRegistration} from '@/models/space'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -35,24 +35,24 @@ import {cn} from '@shm/ui/utils'
 import {AlertTriangle, ArrowLeft, Plus} from 'lucide-react'
 import {CelebrationDotsLeft, CelebrationDotsRight, CongratsGraphic, WebPublishedGraphic} from './publish-graphics'
 
-export function usePublishSite() {
-  return useAppDialog(PublishSiteDialog, {
+export function usePublishSpace() {
+  return useAppDialog(PublishSpaceDialog, {
     className: 'h-[90vh] max-h-[900px] min-h-[500px] w-[90vw] max-w-[900px]',
     contentClassName: 'p-0 overflow-hidden',
   })
 }
 
-export function useRemoveSiteDialog() {
-  return useAppDialog(RemoveSiteDialog, {isAlert: true})
+export function useRemoveSpaceDialog() {
+  return useAppDialog(RemoveSpaceDialog, {isAlert: true})
 }
 
-function RemoveSiteDialog({onClose, input}: {onClose: () => void; input: UnpackedHypermediaId}) {
-  const removeSite = useRemoveSite(input)
+function RemoveSpaceDialog({onClose, input}: {onClose: () => void; input: UnpackedHypermediaId}) {
+  const removeSpace = useRemoveSpace(input)
   return (
     <div className="flex flex-col gap-4 rounded-lg p-4">
-      <AlertDialogTitle>Remove Site</AlertDialogTitle>
+      <AlertDialogTitle>Remove Space</AlertDialogTitle>
       <AlertDialogDescription>
-        Remove this site URL from the entity? Your site will still exist until you delete the server.
+        Remove this space URL from the entity? Your space will still exist until you delete the server.
       </AlertDialogDescription>
 
       <div className="flex justify-end gap-3">
@@ -69,21 +69,21 @@ function RemoveSiteDialog({onClose, input}: {onClose: () => void; input: Unpacke
         <AlertDialogAction
           variant="destructive"
           onClick={() => {
-            removeSite.mutate()
+            removeSpace.mutate()
             onClose()
           }}
         >
-          Remove Site
+          Remove Space
         </AlertDialogAction>
       </div>
     </div>
   )
 }
 
-const publishSiteSchema = z.object({
+const publishSpaceSchema = z.object({
   url: z.string(),
 })
-type PublishSiteFields = z.infer<typeof publishSiteSchema>
+type PublishSpaceFields = z.infer<typeof publishSpaceSchema>
 
 function PublishDialogContainer({
   children,
@@ -178,7 +178,7 @@ function SeedHostCongratsContainer({
   )
 }
 
-function PublishSiteDialog({
+function PublishSpaceDialog({
   input,
   onClose,
 }: {
@@ -306,7 +306,7 @@ function SeedHostInfo({info, onSubmit}: {info: HostInfoResponse; onSubmit: () =>
           <PlanFeatures>
             <PlanFeature label={`${info.pricing.free.gbStorage} GB Storage`} />
             <PlanFeature label={`${info.pricing.free.gbBandwidth} GB Bandwidth`} />
-            <PlanFeature label={siteCountLabel(info.pricing.free.siteCount)} />
+            <PlanFeature label={spaceCountLabel(info.pricing.free.siteCount)} />
           </PlanFeatures>
           <OverageWarning />
           <SelectPlanButton active onClick={onSubmit} />
@@ -326,8 +326,8 @@ function SeedHostInfo({info, onSubmit}: {info: HostInfoResponse; onSubmit: () =>
               plus={`${formatPriceUSDCents(info.pricing.premium.gbBandwidthOverageUSDCents)}/GB extra`}
             />
             <PlanFeature
-              label={siteCountLabel(info.pricing.premium.siteCount)}
-              plus={`${formatPriceUSDCents(info.pricing.premium.siteCountOverageUSDCents)}/mo extra site`}
+              label={spaceCountLabel(info.pricing.premium.siteCount)}
+              plus={`${formatPriceUSDCents(info.pricing.premium.siteCountOverageUSDCents)}/mo extra space`}
             />
           </PlanFeatures>
           <SelectPlanButton comingSoon />
@@ -389,11 +389,11 @@ function OverageWarning() {
   )
 }
 
-function siteCountLabel(count: number) {
+function spaceCountLabel(count: number) {
   if (count === 1) {
-    return '1 Site'
+    return '1 Space'
   }
-  return `${count} Sites`
+  return `${count} Spaces`
 }
 
 const PlanHeading = ({className, ...props}: React.HTMLAttributes<HTMLDivElement>) => {
@@ -637,8 +637,8 @@ function SeedHostRegisterSubdomain({
   id: UnpackedHypermediaId
   info?: HostInfoResponse
 }) {
-  const {loggedIn, email, createSite, logout} = useHostSession({})
-  const register = useSiteRegistration(id.uid)
+  const {loggedIn, email, createSpace, logout} = useHostSession({})
+  const register = useSpaceRegistration(id.uid)
 
   const {
     control,
@@ -656,10 +656,10 @@ function SeedHostRegisterSubdomain({
   }, [setFocus])
   if (!loggedIn) return null
   function onSubmit({subdomain}: RegisterSubdomainFields) {
-    createSite
+    createSpace
       .mutateAsync({subdomain})
       .then(async ({subdomain, registrationSecret, setupUrl, host}) => {
-        const siteRegistration = await register.mutateAsync({
+        const spaceRegistration = await register.mutateAsync({
           url: setupUrl,
         })
         return {host}
@@ -668,10 +668,10 @@ function SeedHostRegisterSubdomain({
         onPublished(host)
       })
   }
-  const isSubmitting = register.isLoading || createSite.isLoading
+  const isSubmitting = register.isLoading || createSpace.isLoading
 
   // @ts-expect-error
-  const errorText = register.error?.message || createSite.error?.message
+  const errorText = register.error?.message || createSpace.error?.message
   return (
     <SeedHostContainer
       heading="Register Hyper.Media Subdomain"
@@ -734,7 +734,7 @@ function SeedHostRegisterSubdomain({
           <FormInput
             control={control}
             name="subdomain"
-            placeholder="my-site-name"
+            placeholder="my-space-name"
             transformInput={(text) =>
               text
                 .replace(/[ _]/g, '-')
@@ -747,7 +747,7 @@ function SeedHostRegisterSubdomain({
 
         <BlueButton type="submit">
           <UploadCloud className="size-4" />
-          Publish Site
+          Publish Space
         </BlueButton>
 
         <AnimatedSpinner isVisible={isSubmitting} />
@@ -787,7 +787,7 @@ function SeedHostSubdomainPublished({
       graphic={<WebPublishedGraphic />}
       footer={
         <div className="flex flex-col gap-3">
-          <SizableText className="text-white/80">Now you can publish the site to your own domain.</SizableText>
+          <SizableText className="text-white/80">Now you can publish the space to your own domain.</SizableText>
 
           <div className="flex gap-3">
             <Button onClick={onClose}>
@@ -802,7 +802,7 @@ function SeedHostSubdomainPublished({
         </div>
       }
     >
-      <SizableText className="text-white/80">Here is the link to your new site.</SizableText>
+      <SizableText className="text-white/80">Here is the link to your new space.</SizableText>
       <PublishedUrl url={host} />
     </SeedHostCongratsContainer>
   )
@@ -864,7 +864,7 @@ export function useSeedHostDialog() {
   const watchingDomainsInProgress = useRef<
     {
       domainId: string
-      siteUid: string
+      spaceUid: string
       hostname: string
     }[]
   >([])
@@ -874,7 +874,7 @@ export function useSeedHostDialog() {
       if (!watchingDomainsInProgress.current.find((d) => d.domainId === p.id)) {
         watchingDomainsInProgress.current.push({
           domainId: p.id,
-          siteUid: p.siteUid,
+          spaceUid: p.siteUid,
           hostname: p.hostname,
         })
       }
@@ -887,13 +887,13 @@ export function useSeedHostDialog() {
         if (activelyWatchedDomainIds.has(watchingDomain.domainId)) {
           return
         }
-        fetchResource(hmId(watchingDomain.siteUid))
+        fetchResource(hmId(watchingDomain.spaceUid))
           .then((entity: Awaited<ReturnType<typeof fetchResource>>) => {
-            const siteDocument = entity?.type === 'document' ? entity.document : undefined
-            const siteUrl = siteDocument?.metadata?.siteUrl
+            const spaceDocument = entity?.type === 'document' ? entity.document : undefined
+            const siteUrl = spaceDocument?.metadata?.siteUrl
             if (siteUrl && siteUrl === `https://${watchingDomain.hostname}`) {
               open({
-                id: hmId(watchingDomain.siteUid),
+                id: hmId(watchingDomain.spaceUid),
                 host: watchingDomain.hostname,
               })
             }
@@ -923,7 +923,7 @@ function SeedHostDomainPublishedDialog({
 function SeedHostDomainPublished({onClose, host, id}: {onClose: () => void; host: string; id: UnpackedHypermediaId}) {
   return (
     <SeedHostCongratsContainer heading={`Now Published to ${host}!`} graphic={<CongratsGraphic />}>
-      <SizableText className="text-white/80">Here is the link for your site.</SizableText>
+      <SizableText className="text-white/80">Here is the link for your space.</SizableText>
       <PublishedUrl url={`https://${host}`} />
       <div className="flex">
         <BlueButton onClick={onClose}>
@@ -968,11 +968,11 @@ function SeedHostRegisterCustomDomain({
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
   const siteUrl = document?.metadata?.siteUrl
   function onSubmit({domain}: RegisterCustomDomainFields) {
-    if (!siteUrl) throw new Error('Site URL not found')
+    if (!siteUrl) throw new Error('Space URL not found')
     createDomain
       .mutateAsync({
         hostname: domain,
-        currentSiteUrl: siteUrl,
+        currentSpaceUrl: siteUrl,
         id,
       })
       .then((d) => {
@@ -1072,7 +1072,7 @@ function SeedHostRegisterCustomDomain({
           </DialogInner>
         </>
       ) : (
-        <SizableText className="text-white/80">You need to publish your site first.</SizableText>
+        <SizableText className="text-white/80">You need to publish your space first.</SizableText>
       )}
     </SeedHostContainer>
   )
@@ -1215,12 +1215,12 @@ function PublishWithUrl({
   const entity = useResource(id)
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
   const replace = useNavigate('replace')
-  const register = useSiteRegistration(id.uid)
-  const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {
+  const register = useSpaceRegistration(id.uid)
+  const onSubmit: SubmitHandler<PublishSpaceFields> = (data) => {
     register.mutateAsync({url: data.url}).then((publishedUrl) => {
       onComplete()
-      toast.success(`Site published to ${publishedUrl}`)
-      // make sure the user is seeing the latest version of the site that now includes the url
+      toast.success(`Space published to ${publishedUrl}`)
+      // make sure the user is seeing the latest version of the space that now includes the url
       replace({key: 'document', id: {...id, version: null, latest: true}})
     })
   }
@@ -1229,8 +1229,8 @@ function PublishWithUrl({
     handleSubmit,
     setFocus,
     formState: {errors},
-  } = useForm<PublishSiteFields>({
-    resolver: zodResolver(publishSiteSchema),
+  } = useForm<PublishSpaceFields>({
+    resolver: zodResolver(publishSpaceSchema),
     defaultValues: {
       url: '',
     },
@@ -1261,7 +1261,7 @@ function PublishWithUrl({
         will output a setup URL for you to paste here.
       </SizableText>
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col items-center gap-4">
-        <FormField name="url" label="Site Setup URL" errors={errors}>
+        <FormField name="url" label="Space Setup URL" errors={errors}>
           <FormInput control={control} name="url" placeholder="https://mysite.com/hm/register?..." width={500} />
         </FormField>
         {/* @ts-expect-error */}
@@ -1269,7 +1269,7 @@ function PublishWithUrl({
 
         <GreenButton type="submit">
           <UploadCloud className="size-4" />
-          Publish Site
+          Publish Space
         </GreenButton>
 
         {register.isLoading ? (

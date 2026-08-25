@@ -172,7 +172,7 @@ describe('computeEntityBreadcrumbs', () => {
     const id = makeId('abc123')
     const items = computeEntityBreadcrumbs({
       entityIds: [id],
-      entityContents: [makeEntityContent(id, {metadata: {name: 'My Site'}})],
+      entityContents: [makeEntityContent(id, {metadata: {name: 'My Space'}})],
       contacts: [],
     })
     expect(items).toHaveLength(1)
@@ -187,7 +187,7 @@ describe('computeEntityBreadcrumbs', () => {
     const items = computeEntityBreadcrumbs({
       entityIds: [rootId, childId],
       entityContents: [
-        makeEntityContent(rootId, {metadata: {name: 'My Site'}}),
+        makeEntityContent(rootId, {metadata: {name: 'My Space'}}),
         makeEntityContent(childId, {metadata: {name: 'Docs Page'}}),
       ],
       contacts: [],

@@ -17,7 +17,7 @@ import type {SearchResultItem} from './models/search'
 import {packHmId} from './utils/entity-id-url'
 
 /** Context that defines where Explore should search. */
-export type HMExploreContext = {type: 'site'; id: UnpackedHypermediaId} | {type: 'node'}
+export type HMExploreContext = {type: 'space'; id: UnpackedHypermediaId} | {type: 'node'}
 /** Supported result type filters in the Explore query string. */
 export type HMExploreResultType = 'document' | 'block' | 'comment'
 /** A matched field surfaced by an Explore result. */
@@ -346,7 +346,7 @@ class ExploreParser {
       return {kind: 'predicate', predicate: {kind: 'attribute', key: token.value, operator: 'contains', value}}
     }
     if (operator.value === ':' && token.value === 'in') {
-      if (value === 'site' || value === 'node') return null
+      if (value === 'space' || value === 'node') return null
       return {
         kind: 'predicate',
         predicate: value.startsWith('hm://')
@@ -575,7 +575,7 @@ function compileNode(node: ExploreQueryNode | null): CompiledNode {
   }
 }
 function contextFilter(context: HMExploreContext): DocumentFilter | null {
-  if (context.type !== 'site') return null
+  if (context.type !== 'space') return null
   const url = packHmId({...context.id, version: null, blockRef: null, blockRange: null, latest: null})
   return new DocumentFilter({filter: {case: 'urlMatch', value: new DocumentFilter_URLMatch({url, prefix: true})}})
 }

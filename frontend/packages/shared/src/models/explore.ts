@@ -188,12 +188,12 @@ function searchIriFilter(context: HMExploreContext, parsed: ParsedExploreQuery) 
     if (scope.scope === 'space') return `hm://${scope.value}*`
     if (scope.scope === 'path') {
       const pathScope = scope as Extract<typeof scope, {scope: 'path'}>
-      return context.type === 'site'
+      return context.type === 'space'
         ? `hm://${context.id.uid}/${pathScope.value.replace(/^\/+/, '')}${pathScope.prefix ? '*' : ''}`
         : undefined
     }
   }
-  return context.type === 'site'
+  return context.type === 'space'
     ? `hm://${context.id.uid}${context.id.path?.length ? `/${context.id.path.join('/')}*` : '*'}`
     : undefined
 }

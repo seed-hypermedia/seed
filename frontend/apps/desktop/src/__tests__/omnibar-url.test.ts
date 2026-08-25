@@ -16,7 +16,7 @@ import {
   agentUrl,
   resolveOmnibarUrlToHypermediaUrl,
   resolveOmnibarUrlToRoute,
-  selectValidatedOmnibarSiteUrl,
+  selectValidatedOmnibarSpaceUrl,
 } from '../omnibar-url'
 
 describe('omnibar url resolution', () => {
@@ -188,11 +188,11 @@ describe('omnibar url resolution', () => {
   })
 })
 
-describe('selectValidatedOmnibarSiteUrl', () => {
+describe('selectValidatedOmnibarSpaceUrl', () => {
   it('returns the custom domain when the check succeeds and account matches', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://alice.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
@@ -203,8 +203,8 @@ describe('selectValidatedOmnibarSiteUrl', () => {
 
   it('optimistically returns the candidate URL while the domain lookup is still loading', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://alice.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         isDomainLoading: true,
@@ -214,8 +214,8 @@ describe('selectValidatedOmnibarSiteUrl', () => {
 
   it('returns null when the domain check succeeds but resolves to a different account', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://alice.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'bob',
@@ -226,8 +226,8 @@ describe('selectValidatedOmnibarSiteUrl', () => {
 
   it('returns null for the gateway host even when the account matches', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://gateway.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://gateway.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
@@ -238,8 +238,8 @@ describe('selectValidatedOmnibarSiteUrl', () => {
 
   it('keeps the candidate domain when the domain check status is error', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://alice.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
@@ -250,8 +250,8 @@ describe('selectValidatedOmnibarSiteUrl', () => {
 
   it('keeps the candidate domain when the domain check status is unreachable', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://alice.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
@@ -262,8 +262,8 @@ describe('selectValidatedOmnibarSiteUrl', () => {
 
   it('keeps the candidate domain when domain query returned null (no data)', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://alice.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
@@ -274,8 +274,8 @@ describe('selectValidatedOmnibarSiteUrl', () => {
 
   it('returns null when domain check succeeds but no account is registered', () => {
     expect(
-      selectValidatedOmnibarSiteUrl({
-        candidateSiteUrl: 'https://alice.example',
+      selectValidatedOmnibarSpaceUrl({
+        candidateSpaceUrl: 'https://alice.example',
         gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,

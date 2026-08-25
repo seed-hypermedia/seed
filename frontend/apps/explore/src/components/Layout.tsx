@@ -15,7 +15,7 @@ export default function Layout() {
 
         <nav className="flex gap-x-2 text-sm font-medium text-gray-700">
           <NavLink to="/list" className={({isActive}) => getNavClassName(isActive)}>
-            All Sites
+            All Spaces
           </NavLink>
           <NavLink to="/feed" className={({isActive}) => getNavClassName(isActive)}>
             Feed

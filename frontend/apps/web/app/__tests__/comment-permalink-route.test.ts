@@ -2,7 +2,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(),
-  loadSiteResource: vi.fn(),
+  loadSpaceResource: vi.fn(),
 }))
 
 vi.mock('@/client-lazy', () => ({
@@ -23,13 +23,13 @@ vi.mock('@/hypermedia-metadata', () => ({
 
 vi.mock('@/loaders', () => ({
   GRPCError: class GRPCError extends Error {},
-  loadSiteHeaderData: vi.fn(),
-  loadSiteResource: mocks.loadSiteResource,
+  loadSpaceHeaderData: vi.fn(),
+  loadSpaceResource: mocks.loadSpaceResource,
   loadWebDraftPlaceholderResource: vi.fn(),
 }))
 
-vi.mock('@/site-settings-emails-content', () => ({
-  SiteSettingsEmailsScreen: () => null,
+vi.mock('@/space-settings-emails-content', () => ({
+  SpaceSettingsEmailsScreen: () => null,
 }))
 
 vi.mock('@/meta', () => ({
@@ -37,15 +37,15 @@ vi.mock('@/meta', () => ({
 }))
 
 vi.mock('@/not-registered', () => ({
-  NoSitePage: () => null,
+  NoSpacePage: () => null,
   NotRegisteredPage: () => null,
 }))
 
 vi.mock('@/providers', () => ({
-  WebSiteProvider: ({children}: {children: unknown}) => children,
+  WebSpaceProvider: ({children}: {children: unknown}) => children,
 }))
 
-vi.mock('@/site-config.server', () => ({
+vi.mock('@/space-config.server', () => ({
   getConfig: mocks.getConfig,
 }))
 
@@ -96,9 +96,9 @@ import {loader} from '../routes/$'
 describe('comment permalink route loading', () => {
   beforeEach(() => {
     mocks.getConfig.mockReset()
-    mocks.loadSiteResource.mockReset()
-    mocks.getConfig.mockResolvedValue({registeredAccountUid: 'site-account'})
-    mocks.loadSiteResource.mockResolvedValue({ok: true})
+    mocks.loadSpaceResource.mockReset()
+    mocks.getConfig.mockResolvedValue({registeredAccountUid: 'space-account'})
+    mocks.loadSpaceResource.mockResolvedValue({ok: true})
   })
 
   it('treats ?v on a comment permalink as the comment version, not the document version', async () => {
@@ -109,8 +109,8 @@ describe('comment permalink route loading', () => {
       ),
     })
 
-    expect(mocks.loadSiteResource).toHaveBeenCalledTimes(1)
-    const [, documentId, extraData] = mocks.loadSiteResource.mock.calls[0]!
+    expect(mocks.loadSpaceResource).toHaveBeenCalledTimes(1)
+    const [, documentId, extraData] = mocks.loadSpaceResource.mock.calls[0]!
 
     expect(documentId).toMatchObject({
       uid: 'doc-account',
@@ -131,8 +131,8 @@ describe('comment permalink route loading', () => {
       request: new Request('https://seed.example/hm/doc-account/docs?v=doc-version-cid'),
     })
 
-    expect(mocks.loadSiteResource).toHaveBeenCalledTimes(1)
-    const [, documentId, extraData] = mocks.loadSiteResource.mock.calls[0]!
+    expect(mocks.loadSpaceResource).toHaveBeenCalledTimes(1)
+    const [, documentId, extraData] = mocks.loadSpaceResource.mock.calls[0]!
 
     expect(documentId).toMatchObject({
       uid: 'doc-account',
@@ -149,8 +149,8 @@ describe('comment permalink route loading', () => {
       request: new Request('https://seed.example/hm/doc-account/docs/:comments/comment-author/comment-tsid'),
     })
 
-    expect(mocks.loadSiteResource).toHaveBeenCalledTimes(1)
-    const [, documentId, extraData] = mocks.loadSiteResource.mock.calls[0]!
+    expect(mocks.loadSpaceResource).toHaveBeenCalledTimes(1)
+    const [, documentId, extraData] = mocks.loadSpaceResource.mock.calls[0]!
 
     expect(documentId).toMatchObject({version: null, latest: true})
     expect(extraData).toMatchObject({

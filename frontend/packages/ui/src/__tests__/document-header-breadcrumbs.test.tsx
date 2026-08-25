@@ -68,9 +68,9 @@ function renderBreadcrumbs(breadcrumbs: BreadcrumbEntry[], openRoute = vi.fn()) 
 
 describe('DocumentHeader Breadcrumbs', () => {
   it('links ancestor documents and renders the current document as aria-current text', () => {
-    const homeId = hmId('site')
-    const parentId = hmId('site', {path: ['parent']})
-    const currentId = hmId('site', {path: ['parent', 'child']})
+    const homeId = hmId('space')
+    const parentId = hmId('space', {path: ['parent']})
+    const currentId = hmId('space', {path: ['parent', 'child']})
     const {openRoute} = renderBreadcrumbs([
       {id: homeId, metadata: {name: 'Home'}},
       {id: parentId, metadata: {name: 'Parent'}},
@@ -90,8 +90,8 @@ describe('DocumentHeader Breadcrumbs', () => {
   })
 
   it('links draft ancestor breadcrumbs to the draft route', () => {
-    const homeId = hmId('site')
-    const draftSectionId = hmId('site', {path: ['-draft-1']})
+    const homeId = hmId('space')
+    const draftSectionId = hmId('space', {path: ['-draft-1']})
     const {openRoute} = renderBreadcrumbs([
       {id: homeId, metadata: {name: 'Home'}},
       {
@@ -114,8 +114,8 @@ describe('DocumentHeader Breadcrumbs', () => {
   })
 
   it('does not link the current draft breadcrumb', () => {
-    const homeId = hmId('site')
-    const draftSectionId = hmId('site', {path: ['-draft-1']})
+    const homeId = hmId('space')
+    const draftSectionId = hmId('space', {path: ['-draft-1']})
     renderBreadcrumbs([
       {id: homeId, metadata: {name: 'Home'}},
       {
@@ -131,8 +131,8 @@ describe('DocumentHeader Breadcrumbs', () => {
   })
 
   it('does not show the path fallback while a breadcrumb title is loading', () => {
-    const homeId = hmId('site')
-    const loadingId = hmId('site', {path: ['path-slug']})
+    const homeId = hmId('space')
+    const loadingId = hmId('space', {path: ['path-slug']})
     renderBreadcrumbs([
       {id: homeId, metadata: {name: 'Home'}},
       {id: loadingId, metadata: {}, fallbackName: 'path-slug', isLoading: true},
@@ -144,8 +144,8 @@ describe('DocumentHeader Breadcrumbs', () => {
   })
 
   it('uses the path fallback only after the loaded title is empty', () => {
-    const homeId = hmId('site')
-    const untitledId = hmId('site', {path: ['path-slug']})
+    const homeId = hmId('space')
+    const untitledId = hmId('space', {path: ['path-slug']})
     renderBreadcrumbs([
       {id: homeId, metadata: {name: 'Home'}},
       {id: untitledId, metadata: {}, fallbackName: 'path-slug'},
@@ -163,7 +163,7 @@ describe('DocumentHeader Breadcrumbs', () => {
     try {
       renderWithProvider(
         <DocumentHeader
-          docId={hmId('site', {path: ['doc']})}
+          docId={hmId('space', {path: ['doc']})}
           docMetadata={{name: 'Doc'} as any}
           authors={[{id: authorId, metadata: null} as any, {id: authorId, metadata: null} as any]}
           updateTime={null}
@@ -187,7 +187,7 @@ describe('DocumentHeader Breadcrumbs', () => {
 
     renderWithProvider(
       <DocumentHeader
-        docId={hmId('site', {path: ['doc']})}
+        docId={hmId('space', {path: ['doc']})}
         docMetadata={{name: 'Doc', icon: 'ipfs://icon-cid'} as any}
         authors={[]}
         updateTime={null}
@@ -206,7 +206,7 @@ describe('DocumentHeader Breadcrumbs', () => {
   })
 
   it('renders the optional mobile byline action without adding one to read-only headers', () => {
-    const docId = hmId('site', {path: ['doc']})
+    const docId = hmId('space', {path: ['doc']})
     renderWithProvider(
       <DocumentHeader
         docId={docId}
@@ -235,7 +235,7 @@ describe('DocumentHeader Breadcrumbs', () => {
   it('leaves document status badges to the top bar', () => {
     renderWithProvider(
       <DocumentHeader
-        docId={hmId('site', {path: ['doc']})}
+        docId={hmId('space', {path: ['doc']})}
         docMetadata={{name: 'Doc'} as any}
         authors={[]}
         updateTime={null}

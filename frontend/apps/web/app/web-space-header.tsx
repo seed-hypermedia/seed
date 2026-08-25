@@ -3,8 +3,8 @@ import {unpackHmId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
-import {DocNavigationItem, isValidSiteHeaderItem} from '@shm/ui/navigation'
-import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
+import {DocNavigationItem, isValidSpaceHeaderItem} from '@shm/ui/navigation'
+import {AutoHideSpaceHeaderClassName, SpaceHeader} from '@shm/ui/space-header'
 
 /** Picks explicit top-navigation items, returning [] while the home resource is still loading to prevent flash. */
 export function resolveNavigationItems({
@@ -18,21 +18,21 @@ export function resolveNavigationItems({
   return homeNavigationItems
 }
 
-export type WebSiteHeaderProps = {
+export type WebSpaceHeaderProps = {
   noScroll?: boolean
   homeMetadata: HMMetadata | null
   originHomeId: UnpackedHypermediaId
-  siteHomeId: UnpackedHypermediaId
+  spaceHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
   document?: HMDocument
   origin?: string
   isLatest?: boolean
-  hideSiteBarClassName?: AutoHideSiteHeaderClassName
+  hideSpaceBarClassName?: AutoHideSpaceHeaderClassName
   rightActions?: React.ReactNode
 }
 
-export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSiteHeaderProps>) {
-  const homeResourceQuery = useResource(props.siteHomeId)
+export function WebSpaceHeader({origin, ...props}: React.PropsWithChildren<WebSpaceHeaderProps>) {
+  const homeResourceQuery = useResource(props.spaceHomeId)
 
   const isCenterLayout =
     props.homeMetadata?.theme?.headerLayout === 'Center' || props.homeMetadata?.layout === 'Seed/Experimental/Newspaper'
@@ -57,7 +57,7 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
           return item
         })
         .filter((item): item is DocNavigationItem => item !== null)
-        .filter(isValidSiteHeaderItem) || []
+        .filter(isValidSpaceHeaderItem) || []
     : []
 
   const items = resolveNavigationItems({
@@ -67,13 +67,13 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
 
   return (
     <>
-      {origin && props.siteHomeId && props.siteHomeId.uid !== props.originHomeId.uid ? (
+      {origin && props.spaceHomeId && props.spaceHomeId.uid !== props.originHomeId.uid ? (
         <HypermediaHostBanner origin={origin} />
       ) : null}
-      <SiteHeader
+      <SpaceHeader
         {...props}
-        siteHomeDocument={homeDocFromQuery}
-        hideSiteBarClassName={props.hideSiteBarClassName}
+        spaceHomeDocument={homeDocFromQuery}
+        hideSpaceBarClassName={props.hideSpaceBarClassName}
         isCenterLayout={isCenterLayout}
         items={items}
         homeNavigationItems={homeNavigationItems}

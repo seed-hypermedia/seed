@@ -41,7 +41,7 @@ func TestWithTxRecordsCaller(t *testing.T) {
 
 // TestWithTxRecordsBeginBusy verifies that when BEGIN IMMEDIATE fails with
 // SQLITE_BUSY (busy_timeout expires), we (a) return ErrBeginImmediateTx and
-// (b) increment the begin_busy counter for the calling site.
+// (b) increment the begin_busy counter for the calling space.
 func TestWithTxRecordsBeginBusy(t *testing.T) {
 	// Use a file-backed pool so the two connections actually compete on a
 	// real file lock — shared-cache in-memory pools go through unlock_notify
@@ -1522,7 +1522,7 @@ func sliceSection(t *testing.T, body, startMarker, stopMarker string) string {
 // (a) carries one of the new outcome subcode labels (begin_busy,
 // begin_busy_timeout, begin_busy_snapshot, or begin_busy_recovery)
 // AND (b) carries a non-empty SQLite errmsg captured at the failure
-// site. Both are surfaced on /debug/sqlite's Slowest begin_busy
+// space. Both are surfaced on /debug/sqlite's Slowest begin_busy
 // events ring and load-bearing for diagnosing "held_by empty but
 // BEGIN failed for 10 s" mystery cases.
 func TestBeginBusyExposesExtendedCodeAndErrMsg(t *testing.T) {

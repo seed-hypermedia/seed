@@ -77,6 +77,8 @@ const RESERVED_HM_SUBROUTES = new Set([
   'agents',
   'auth',
   'connect',
+  'create-space',
+  // Pre-rename alias route, still served as a redirect.
   'create-site',
   'download',
   'embed',

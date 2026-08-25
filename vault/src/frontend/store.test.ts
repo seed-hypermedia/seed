@@ -8,7 +8,7 @@ import {afterEach, beforeEach, describe, expect, mock, spyOn, test} from 'bun:te
 import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
 import type {SaveVaultRequest} from '@/api'
-import * as joinedSite from '@shm/shared/publish-default-joined-site'
+import * as joinedSpace from '@shm/shared/publish-default-joined-space'
 import {APIError} from './api-client'
 import * as localCrypto from './crypto'
 import * as notificationApi from './notification-api'
@@ -771,7 +771,7 @@ describe('Store', () => {
 
   describe('createAccount', () => {
     test('creates an account when description is omitted', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const saveVaultDataCalls: unknown[] = []
       const publishCalls: Array<{cid: unknown; data: Uint8Array}> = []
       const client = createMockClient({
@@ -806,15 +806,15 @@ describe('Store', () => {
       expect(state.error).toBe('')
       expect(saveVaultDataCalls.length).toBe(1)
       expect(publishCalls.length).toBe(1)
-      expect(publishDefaultJoinedSiteSpy).toHaveBeenCalledTimes(1)
-      expect(publishDefaultJoinedSiteSpy.mock.calls[0]?.[0]).toEqual({
+      expect(publishDefaultJoinedSpaceSpy).toHaveBeenCalledTimes(1)
+      expect(publishDefaultJoinedSpaceSpy.mock.calls[0]?.[0]).toEqual({
         accountUid: expect.any(String),
       })
-      publishDefaultJoinedSiteSpy.mockRestore()
+      publishDefaultJoinedSpaceSpy.mockRestore()
     })
 
     test('creates an account when the vault payload has not loaded yet', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const saveVaultDataCalls: unknown[] = []
       const client = createMockClient({
         getVault: async () => ({
@@ -845,11 +845,11 @@ describe('Store', () => {
       expect(state.error).toBe('')
       expect(saveVaultDataCalls.length).toBe(1)
 
-      publishDefaultJoinedSiteSpy.mockRestore()
+      publishDefaultJoinedSpaceSpy.mockRestore()
     })
 
     test('waits for the initial vault load before saving a new account', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const saveVaultDataCalls: Array<{version: number}> = []
       let resolveGetVault: (value: {encryptedData: string; version: number; credentials: []}) => void = () => {}
       const client = createMockClient({
@@ -888,11 +888,11 @@ describe('Store', () => {
       expect(vaultData?.accounts).toHaveLength(1)
       expect(state.error).toBe('')
 
-      publishDefaultJoinedSiteSpy.mockRestore()
+      publishDefaultJoinedSpaceSpy.mockRestore()
     })
 
     test('does not save a new account when the initial vault load fails', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const saveVault = mock(async () => ({success: true}))
       const client = createMockClient({
         getVault: async () => {
@@ -914,13 +914,13 @@ describe('Store', () => {
       expect(state.selectedAccountIndex).toBe(-1)
       expect(state.creatingAccount).toBe(true)
       expect(state.error).toBe('vault load failed')
-      expect(publishDefaultJoinedSiteSpy).not.toHaveBeenCalled()
+      expect(publishDefaultJoinedSpaceSpy).not.toHaveBeenCalled()
 
-      publishDefaultJoinedSiteSpy.mockRestore()
+      publishDefaultJoinedSpaceSpy.mockRestore()
     })
 
     test('refetches and retries account creation after a version conflict', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const saveVaultDataCalls: number[] = []
       const client = createMockClient({
         getVault: mock(async () => ({
@@ -959,11 +959,11 @@ describe('Store', () => {
       expect(state.creatingAccount).toBe(false)
       expect(state.error).toBe('')
 
-      publishDefaultJoinedSiteSpy.mockRestore()
+      publishDefaultJoinedSpaceSpy.mockRestore()
     })
 
     test('rolls back local state without publishing when vault save fails', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const client = createMockClient({
         saveVault: async () => ({success: true}),
       })
@@ -995,10 +995,10 @@ describe('Store', () => {
       expect(state.creatingAccount).toBe(true)
       expect(state.error).toContain('dag-cbor failed')
       expect(publishCalls.length).toBe(0)
-      expect(publishDefaultJoinedSiteSpy).not.toHaveBeenCalled()
+      expect(publishDefaultJoinedSpaceSpy).not.toHaveBeenCalled()
       serializeSpy.mockRestore()
       consoleErrorSpy.mockRestore()
-      publishDefaultJoinedSiteSpy.mockRestore()
+      publishDefaultJoinedSpaceSpy.mockRestore()
     })
 
     test('surfaces a backend-unavailable error when saving the new account fails over the network', async () => {
@@ -1079,9 +1079,9 @@ describe('Store', () => {
     })
 
     test('uploads an avatar block before publishing the new profile', async () => {
-      // publishDefaultJoinedSite publishes an extra Contact blob for the SHM site.
+      // publishDefaultJoinedSpace publishes an extra Contact blob for the SHM space.
       // That's not relevant to this test (avatar → profile order), so mock it out.
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockImplementation(
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockImplementation(
         async () => true,
       )
 
@@ -1121,11 +1121,11 @@ describe('Store', () => {
       expect(decoded.decoded.avatar).toBe(`ipfs://${published[0]!.cid}`)
       expect(decoded.decoded.description).toBe('Description')
 
-      publishDefaultJoinedSiteSpy.mockRestore()
+      publishDefaultJoinedSpaceSpy.mockRestore()
     })
 
     test('registers the new account on the notification server by default without an email', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
       const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
         accountId: 'account-default',
@@ -1173,12 +1173,12 @@ describe('Store', () => {
       } finally {
         registerNotificationInboxSpy.mockRestore()
         setNotificationConfigSpy.mockRestore()
-        publishDefaultJoinedSiteSpy.mockRestore()
+        publishDefaultJoinedSpaceSpy.mockRestore()
       }
     })
 
     test('registers the new account on the notification server with the user email when requested', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
       const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
         accountId: 'account-1',
@@ -1237,12 +1237,12 @@ describe('Store', () => {
       } finally {
         registerNotificationInboxSpy.mockRestore()
         setNotificationConfigSpy.mockRestore()
-        publishDefaultJoinedSiteSpy.mockRestore()
+        publishDefaultJoinedSpaceSpy.mockRestore()
       }
     })
 
     test('registers the new account on the notification server without an email when requested', async () => {
-      const publishDefaultJoinedSiteSpy = spyOn(joinedSite, 'publishDefaultJoinedSite').mockResolvedValue(true)
+      const publishDefaultJoinedSpaceSpy = spyOn(joinedSpace, 'publishDefaultJoinedSpace').mockResolvedValue(true)
       const registerNotificationInboxSpy = spyOn(notificationApi, 'registerNotificationInbox').mockResolvedValue(true)
       const setNotificationConfigSpy = spyOn(notificationApi, 'setNotificationConfig').mockResolvedValue({
         accountId: 'account-2',
@@ -1294,7 +1294,7 @@ describe('Store', () => {
       } finally {
         registerNotificationInboxSpy.mockRestore()
         setNotificationConfigSpy.mockRestore()
-        publishDefaultJoinedSiteSpy.mockRestore()
+        publishDefaultJoinedSpaceSpy.mockRestore()
       }
     })
   })

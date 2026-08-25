@@ -17,7 +17,7 @@ function safeIsEditing(snapshot: DocumentMachineSnapshot | undefined): boolean {
 
 /**
  * Shared editor-affordance gate used by block-level controls (options panel,
- * query-block pencil, media controls, site header nav editor).
+ * query-block pencil, media controls, space header nav editor).
  *
  * Returns:
  * - `canEdit`: whether the current user has write permission on the document.

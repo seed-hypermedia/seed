@@ -17,18 +17,18 @@ import {MembershipContent} from './membership'
 import {PageLayout} from './page-layout'
 import {PageTabItem, PageTabs} from './page-tabs'
 
-export type SiteAccountTab = 'profile' | 'membership' | 'followers' | 'following'
+export type SpaceAccountTab = 'profile' | 'membership' | 'followers' | 'following'
 
-const SITE_ACCOUNT_TABS: {label: string; value: SiteAccountTab; icon: LucideIcon}[] = [
+const SPACE_ACCOUNT_TABS: {label: string; value: SpaceAccountTab; icon: LucideIcon}[] = [
   {label: 'Activity', value: 'profile', icon: ActivityIcon},
-  {label: 'Site Membership', value: 'membership', icon: Users},
+  {label: 'Space Membership', value: 'membership', icon: Users},
   {label: 'Followers', value: 'followers', icon: UserCheck},
   {label: 'Following', value: 'following', icon: Rss},
 ]
 
 const DOMAIN_LINK_STALE_TIME_MS = 3 * 60 * 60 * 1000
 
-function getSiteHostname(siteUrl?: string | null): string | null {
+function getSpaceHostname(siteUrl?: string | null): string | null {
   if (!siteUrl) return null
   try {
     return new URL(siteUrl).hostname || null
@@ -39,22 +39,22 @@ function getSiteHostname(siteUrl?: string | null): string | null {
 
 /**
  * Resolves whether the profile header should link to the verified custom domain
- * or keep the legacy in-app site navigation.
+ * or keep the legacy in-app space navigation.
  */
-export function getAccountSiteLinkState(params: {
+export function getAccountSpaceLinkState(params: {
   accountUid?: string | null
   hasSite: boolean
   siteUrl?: string | null
   registeredAccountUid?: string | null
   isDomainLoading?: boolean
 }) {
-  const hostname = getSiteHostname(params.siteUrl)
-  const domainLabel = params.siteUrl ? hostnameStripProtocol(params.siteUrl) : 'Open Site'
+  const hostname = getSpaceHostname(params.siteUrl)
+  const domainLabel = params.siteUrl ? hostnameStripProtocol(params.siteUrl) : 'Open Space'
 
   if (!params.hasSite) {
     return {
       kind: 'hidden' as const,
-      label: 'Open Site',
+      label: 'Open Space',
       status: 'default' as const,
       hostname,
     }
@@ -63,7 +63,7 @@ export function getAccountSiteLinkState(params: {
   if (!params.siteUrl) {
     return {
       kind: 'internal' as const,
-      label: 'Open Site',
+      label: 'Open Space',
       status: 'default' as const,
       hostname,
     }
@@ -72,7 +72,7 @@ export function getAccountSiteLinkState(params: {
   if (!hostname) {
     return {
       kind: 'internal' as const,
-      label: 'Open Site',
+      label: 'Open Space',
       status: 'default' as const,
       hostname,
     }
@@ -104,7 +104,7 @@ export function getAccountSiteLinkState(params: {
 
   return {
     kind: 'internal' as const,
-    label: 'Open Site',
+    label: 'Open Space',
     status: 'warning' as const,
     hostname,
     warningMessage: `${domainLabel} is not resolving to this profile account.`,
@@ -112,14 +112,14 @@ export function getAccountSiteLinkState(params: {
 }
 
 export function AccountPage({
-  siteUid,
+  spaceUid,
   accountUid,
   tab,
   onEditProfile,
   headerButtons,
   onFollowClick,
 }: {
-  siteUid?: string | null
+  spaceUid?: string | null
   accountUid: string
   tab: ProfileTab
   /** Callback to open edit profile dialog (only shown for own account) */
@@ -158,7 +158,7 @@ export function AccountPage({
               />
               <div className="min-w-0 flex-1 space-y-1">
                 <h1 className="truncate text-2xl font-bold">{account.data?.metadata?.name || accountUid}</h1>
-                <SiteLink account={account.data} />
+                <SpaceLink account={account.data} />
               </div>
               <div className="flex items-center gap-2">
                 {isOwnAccount && onEditProfile && (
@@ -177,19 +177,19 @@ export function AccountPage({
                 )}
               </div>
             </div>
-            <AccountPageTabs siteUid={siteUid} accountUid={accountUid} tab={tab} />
+            <AccountPageTabs spaceUid={spaceUid} accountUid={accountUid} tab={tab} />
           </div>
-          <ActiveTabContent siteUid={siteUid} accountUid={accountUid} />
+          <ActiveTabContent spaceUid={spaceUid} accountUid={accountUid} />
         </div>
       </PageLayout>
     </ScrollArea>
   )
 }
 
-function SiteLink({account}: {account?: HMMetadataPayload | null}) {
+function SpaceLink({account}: {account?: HMMetadataPayload | null}) {
   const homeId = account?.id?.uid ? hmId(account.id.uid) : null
   const siteUrl = account?.metadata?.siteUrl || null
-  const hostname = getSiteHostname(siteUrl)
+  const hostname = getSpaceHostname(siteUrl)
   const homeDocument = useResource(homeId, {subscribed: true})
   const homeDocData = homeDocument.data?.type === 'document' ? homeDocument.data.document : null
   const hasSite = !!siteUrl || !!homeDocData
@@ -199,7 +199,7 @@ function SiteLink({account}: {account?: HMMetadataPayload | null}) {
     staleTime: DOMAIN_LINK_STALE_TIME_MS,
     refetchOnWindowFocus: false,
   })
-  const linkState = getAccountSiteLinkState({
+  const linkState = getAccountSpaceLinkState({
     accountUid: account?.id?.uid,
     hasSite,
     siteUrl,
@@ -272,7 +272,7 @@ function SiteLink({account}: {account?: HMMetadataPayload | null}) {
   )
 }
 
-function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid?: string | null; accountUid: string}) {
+function ProfileContent({spaceUid: _spaceUid, accountUid}: {spaceUid?: string | null; accountUid: string}) {
   return (
     <div className="flex flex-col gap-4">
       <Feed filterAuthors={[accountUid]} filterResource={undefined} />
@@ -281,23 +281,23 @@ function ProfileContent({siteUid: _siteUid, accountUid}: {siteUid?: string | nul
 }
 
 function AccountPageTabs({
-  siteUid,
+  spaceUid,
   accountUid,
   tab,
 }: {
-  siteUid?: string | null
+  spaceUid?: string | null
   accountUid: string
-  tab: SiteAccountTab
+  tab: SpaceAccountTab
 }) {
-  const tabs: PageTabItem[] = SITE_ACCOUNT_TABS.map((t) => ({
+  const tabs: PageTabItem[] = SPACE_ACCOUNT_TABS.map((t) => ({
     key: t.value,
     label: t.label,
     icon: t.icon,
-    route: siteUid
+    route: spaceUid
       ? {
-          key: 'site-profile',
-          id: hmId(siteUid),
-          accountUid: accountUid !== siteUid ? accountUid : undefined,
+          key: 'space-profile',
+          id: hmId(spaceUid),
+          accountUid: accountUid !== spaceUid ? accountUid : undefined,
           tab: t.value,
         }
       : {

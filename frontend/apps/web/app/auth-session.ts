@@ -19,6 +19,7 @@ import {
   PARAM_REDIRECT_URI,
   PARAM_SESSION_KEY,
   PARAM_SITE_NAME,
+  PARAM_SPACE_NAME,
   PARAM_STATE,
   PARAM_TS,
   validateClientId,
@@ -126,8 +127,11 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
   if (config.email) {
     url.searchParams.set(PARAM_EMAIL, config.email)
   }
-  if (config.siteName) {
-    url.searchParams.set(PARAM_SITE_NAME, config.siteName)
+  if (config.spaceName) {
+    url.searchParams.set(PARAM_SPACE_NAME, config.spaceName)
+    // Also sent under the pre-rename key so a vault on an older build still
+    // shows the space name on its consent screen.
+    url.searchParams.set(PARAM_SITE_NAME, config.spaceName)
   }
   const signedUrl = url.toString()
   const proofPayload = new TextEncoder().encode(signedUrl)

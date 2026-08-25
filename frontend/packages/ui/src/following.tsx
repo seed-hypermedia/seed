@@ -6,7 +6,7 @@ import {Spinner} from './spinner'
 import {SizableText} from './text'
 
 /** Shows accounts that this account is following (contacts with profile subscription). */
-export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null; accountUid: string}) {
+export function FollowingContent({spaceUid, accountUid}: {spaceUid?: string | null; accountUid: string}) {
   const allContacts = useContactListOfAccount(accountUid)
   // Filter to only show contacts with profile subscription (explicit or implicit for legacy)
   // Deduplicate by subject (account being followed)
@@ -45,7 +45,7 @@ export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null
             key={contact.id}
             accountUid={contact.subject}
             metadata={accountData?.metadata}
-            siteUid={siteUid}
+            spaceUid={spaceUid}
           />
         )
       })}
@@ -57,18 +57,18 @@ export function FollowingContent({siteUid, accountUid}: {siteUid?: string | null
 function FollowingItem({
   accountUid,
   metadata,
-  siteUid,
+  spaceUid,
 }: {
   accountUid: string
   metadata?: {name?: string; icon?: string} | null
-  siteUid?: string | null
+  spaceUid?: string | null
 }) {
   const linkProps = useRouteLink(
-    siteUid
+    spaceUid
       ? {
-          key: 'site-profile',
-          id: hmId(siteUid),
-          accountUid: accountUid !== siteUid ? accountUid : undefined,
+          key: 'space-profile',
+          id: hmId(spaceUid),
+          accountUid: accountUid !== spaceUid ? accountUid : undefined,
           tab: 'profile',
         }
       : {

@@ -1,6 +1,6 @@
-import type {HMCapability, HMListDocumentCollaboratorsOutput, HMSiteMember} from '@seed-hypermedia/client/hm-types'
+import type {HMCapability, HMListDocumentCollaboratorsOutput, HMSpaceMember} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {dedupeSiteMembersByCanonicalAccount} from '../api-document-collaborators'
+import {dedupeSpaceMembersByCanonicalAccount} from '../api-document-collaborators'
 import {hmId} from '../utils/entity-id-url'
 
 function account(rawUid: string, canonicalUid: string = rawUid): HMListDocumentCollaboratorsOutput['accounts'][string] {
@@ -15,21 +15,21 @@ function capability(accountUid: string): HMCapability {
     id: `cap-${accountUid}`,
     accountUid,
     role: 'writer',
-    grantId: hmId('site'),
+    grantId: hmId('space'),
     createTime: {seconds: 0, nanos: 0},
   }
 }
 
-function member(accountUid: string): HMSiteMember {
+function member(accountUid: string): HMSpaceMember {
   return {
     account: hmId(accountUid),
     role: 'member',
   }
 }
 
-describe('dedupeSiteMembersByCanonicalAccount', () => {
+describe('dedupeSpaceMembersByCanonicalAccount', () => {
   it('keeps the writer row when the same account is also a regular member', () => {
-    const result = dedupeSiteMembersByCanonicalAccount({
+    const result = dedupeSpaceMembersByCanonicalAccount({
       accounts: {
         writer: account('writer'),
       },
@@ -42,7 +42,7 @@ describe('dedupeSiteMembersByCanonicalAccount', () => {
   })
 
   it('collapses delegate accounts to the canonical root account', () => {
-    const result = dedupeSiteMembersByCanonicalAccount({
+    const result = dedupeSpaceMembersByCanonicalAccount({
       accounts: {
         delegate: account('delegate', 'root'),
         root: account('root'),

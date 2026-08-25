@@ -21,7 +21,7 @@ type DomainEntry struct {
 	LastCheck   time.Time
 	LastStatus  string // "success" | "unreachable" | "error" | "unknown"
 	LastSuccess time.Time
-	LastConfig  *SiteConfigResponse
+	LastConfig  *SpaceConfigResponse
 	LastError   string
 }
 
@@ -29,7 +29,7 @@ type DomainEntry struct {
 // It periodically polls /hm/api/config for tracked domains.
 type DomainStore struct {
 	db       *sqlitex.Pool
-	resolver *sitePeerResolver
+	resolver *spacePeerResolver
 	log      *zap.Logger
 
 	// checkSem caps how many background domain checks can run their HTTP
@@ -50,8 +50,8 @@ type DomainStore struct {
 }
 
 // NewDomainStore creates a new domain store backed by the given database pool.
-// It reuses the sitePeerResolver for fetching configs from remote servers.
-func NewDomainStore(db *sqlitex.Pool, resolver *sitePeerResolver, log *zap.Logger) *DomainStore {
+// It reuses the spacePeerResolver for fetching configs from remote servers.
+func NewDomainStore(db *sqlitex.Pool, resolver *spacePeerResolver, log *zap.Logger) *DomainStore {
 	backgroundCtx, cancelBackground := context.WithCancel(context.Background())
 
 	return &DomainStore{
@@ -139,10 +139,10 @@ func (ds *DomainStore) ListDomains(ctx context.Context) ([]DomainEntry, error) {
 // CheckDomain fetches the /hm/api/config endpoint for the given domain
 // and updates the cached entry. The domain is added if not already tracked.
 func (ds *DomainStore) CheckDomain(ctx context.Context, domain string) (DomainEntry, error) {
-	siteURL := "https://" + domain
+	spaceURL := "https://" + domain
 	now := time.Now()
 
-	config, err := ds.resolver.fetchConfig(ctx, siteURL)
+	config, err := ds.resolver.fetchConfig(ctx, spaceURL)
 
 	var entry DomainEntry
 	entry.Domain = domain
@@ -228,25 +228,25 @@ func (ds *DomainStore) Start(ctx context.Context) error {
 
 // LookupCachedConfig returns the cached config for a domain, if available.
 // This is used as a fallback when the network is unavailable.
-func (ds *DomainStore) LookupCachedConfig(ctx context.Context, siteURL string) (SiteConfigResponse, bool) {
-	domain, err := extractDomain(siteURL)
+func (ds *DomainStore) LookupCachedConfig(ctx context.Context, spaceURL string) (SpaceConfigResponse, bool) {
+	domain, err := extractDomain(spaceURL)
 	if err != nil {
-		return SiteConfigResponse{}, false
+		return SpaceConfigResponse{}, false
 	}
 
 	entry, err := ds.GetDomain(ctx, domain)
 	if err != nil || entry.LastConfig == nil {
-		return SiteConfigResponse{}, false
+		return SpaceConfigResponse{}, false
 	}
 
 	return *entry.LastConfig, true
 }
 
-// TrackSiteURL extracts the domain from a site URL and schedules a background check.
+// TrackSpaceURL extracts the domain from a space URL and schedules a background check.
 // It is fully non-blocking: all DB and network work happens in a background goroutine,
-// so the caller (e.g. GetSiteURL) is never delayed by domain store operations.
-func (ds *DomainStore) TrackSiteURL(_ context.Context, siteURL string) {
-	domain, err := extractDomain(siteURL)
+// so the caller (e.g. GetSpaceURL) is never delayed by domain store operations.
+func (ds *DomainStore) TrackSpaceURL(_ context.Context, spaceURL string) {
+	domain, err := extractDomain(spaceURL)
 	if err != nil {
 		return
 	}
@@ -347,7 +347,7 @@ func scanDomainEntry(stmt *sqlite.Stmt) DomainEntry {
 	}
 
 	if configStr := stmt.ColumnText(4); configStr != "" {
-		var config SiteConfigResponse
+		var config SpaceConfigResponse
 		if err := json.Unmarshal([]byte(configStr), &config); err == nil {
 			entry.LastConfig = &config
 		}
@@ -356,14 +356,14 @@ func scanDomainEntry(stmt *sqlite.Stmt) DomainEntry {
 	return entry
 }
 
-func extractDomain(siteURL string) (string, error) {
-	u, err := url.Parse(siteURL)
+func extractDomain(spaceURL string) (string, error) {
+	u, err := url.Parse(spaceURL)
 	if err != nil {
 		return "", err
 	}
 	host := u.Hostname()
 	if host == "" {
-		return "", fmt.Errorf("no hostname in URL: %s", siteURL)
+		return "", fmt.Errorf("no hostname in URL: %s", spaceURL)
 	}
 	return host, nil
 }

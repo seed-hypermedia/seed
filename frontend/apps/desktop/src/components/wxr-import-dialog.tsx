@@ -36,7 +36,7 @@ function WXRImportDialog({input, onClose}: {input: WXRImportDialogInput; onClose
   const [step, setStep] = useState<ImportStep>('upload')
   const [wxrContent, setWxrContent] = useState<string | null>(null)
   const [parseResult, setParseResult] = useState<{
-    siteTitle: string
+    spaceTitle: string
     siteUrl: string
     authorCount: number
     postCount: number
@@ -207,7 +207,7 @@ function PreviewStep({
   onBack,
 }: {
   result: {
-    siteTitle: string
+    spaceTitle: string
     siteUrl: string
     authorCount: number
     postCount: number
@@ -226,12 +226,12 @@ function PreviewStep({
   return (
     <div className="flex flex-col gap-4">
       <DialogTitle>Preview Import</DialogTitle>
-      <DialogDescription>Review the content that will be imported from {result.siteTitle}.</DialogDescription>
+      <DialogDescription>Review the content that will be imported from {result.spaceTitle}.</DialogDescription>
 
       <div className="space-y-3 rounded-lg border p-4">
         <div className="flex justify-between">
-          <SizableText color="muted">Site</SizableText>
-          <SizableText>{result.siteTitle}</SizableText>
+          <SizableText color="muted">Space</SizableText>
+          <SizableText>{result.spaceTitle}</SizableText>
         </div>
         <div className="flex justify-between">
           <SizableText color="muted">URL</SizableText>
@@ -402,7 +402,7 @@ function OptionsStep({
             <Label>Author Keys Password</Label>
             <SizableText size="xs" color="muted">
               Encrypts the author keys file. Share this password with authors so they can import their identity, or use
-              it to load keys into a site vault.
+              it to load keys into a space vault.
             </SizableText>
             <input
               type="password"

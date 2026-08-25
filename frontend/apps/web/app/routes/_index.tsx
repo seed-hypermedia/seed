@@ -1,7 +1,7 @@
 import {WebCommenting} from '@/client-lazy'
-import type {SiteDocumentPayload} from '@/loaders'
-import {NoSitePage, NotRegisteredPage} from '@/not-registered'
-import {WebSiteProvider} from '@/providers'
+import type {SpaceDocumentPayload} from '@/loaders'
+import {NoSpacePage, NotRegisteredPage} from '@/not-registered'
+import {WebSpaceProvider} from '@/providers'
 import {unwrap} from '@/wrapping'
 import {WebResourcePage} from '@/web-resource-page'
 import {Code} from '@connectrpc/connect'
@@ -30,13 +30,13 @@ export function shouldRevalidate({
   return shouldRevalidateDocumentRoute({currentUrl, nextUrl, defaultShouldRevalidate})
 }
 
-type ExtendedSitePayload = SiteDocumentPayload & {
+type ExtendedSpacePayload = SpaceDocumentPayload & {
   viewTerm?: ViewRouteKey | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   openComment?: string | null
 }
 
-type DocumentPayload = ExtendedSitePayload | 'unregistered' | 'no-site'
+type DocumentPayload = ExtendedSpacePayload | 'unregistered' | 'no-space'
 
 export default function IndexPage() {
   const unwrappedData = useLoaderData()
@@ -45,8 +45,8 @@ export default function IndexPage() {
   if (data === 'unregistered') {
     return <NotRegisteredPage />
   }
-  if (data === 'no-site') {
-    return <NoSitePage />
+  if (data === 'no-space') {
+    return <NoSpacePage />
   }
 
   // Handle errors
@@ -54,17 +54,17 @@ export default function IndexPage() {
     return <DaemonErrorPage message={data.daemonError.message} code={data.daemonError.code} />
   }
 
-  // Render unified ResourcePage with WebSiteProvider for navigation context
+  // Render unified ResourcePage with WebSpaceProvider for navigation context
   return (
-    <WebSiteProvider
+    <WebSpaceProvider
       origin={data.origin}
       originHomeId={data.originHomeId}
-      siteHost={data.siteHost}
+      spaceHost={data.spaceHost}
       dehydratedState={data.dehydratedState}
       initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam, data.openComment)}
     >
       <InnerResourcePage docId={data.id} ssrContentHTML={data.ssrContentHTML} />
-    </WebSiteProvider>
+    </WebSpaceProvider>
   )
 }
 

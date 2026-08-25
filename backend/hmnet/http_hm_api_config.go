@@ -10,9 +10,9 @@ import (
 )
 
 // HMAPIConfigResponse is the response returned by the /hm/api/config endpoint.
-// It embeds blob.SiteConfigResponse and adds protocol-specific fields.
+// It embeds blob.SpaceConfigResponse and adds protocol-specific fields.
 type HMAPIConfigResponse struct {
-	blob.SiteConfigResponse
+	blob.SpaceConfigResponse
 	ProtocolID protocol.ID `json:"protocolId"`
 }
 
@@ -32,7 +32,7 @@ func (n *Node) HMAPIConfigHandler() http.Handler {
 		}
 
 		resp := HMAPIConfigResponse{
-			SiteConfigResponse: blob.SiteConfigResponse{
+			SpaceConfigResponse: blob.SpaceConfigResponse{
 				PeerID: n.p2p.ID().String(),
 				Addrs:  mas,
 			},

@@ -79,18 +79,18 @@ export function useWebAccountUid(): string | undefined {
 function getNotificationStateQueryKey(
   notifyServiceHost: string | undefined,
   accountId: string | undefined,
-  siteUid?: string,
+  spaceUid?: string,
 ) {
-  return [queryKeys.NOTIFICATION_STATE, notifyServiceHost, accountId, siteUid ?? null]
+  return [queryKeys.NOTIFICATION_STATE, notifyServiceHost, accountId, spaceUid ?? null]
 }
 
-function useApplyWebNotificationActions(siteUid?: string) {
+function useApplyWebNotificationActions(spaceUid?: string) {
   const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
   const accountId = useWebAccountUid()
   const queryClient = useQueryClient()
-  const state = useSharedNotificationState(notifyServiceHost, signer, {siteUid})
-  const notificationStateQueryKey = getNotificationStateQueryKey(notifyServiceHost, accountId, siteUid)
+  const state = useSharedNotificationState(notifyServiceHost, signer, {spaceUid})
+  const notificationStateQueryKey = getNotificationStateQueryKey(notifyServiceHost, accountId, spaceUid)
   const notificationStateQueryKeyPrefix = [queryKeys.NOTIFICATION_STATE, notifyServiceHost, accountId]
 
   return useMutation({
@@ -98,7 +98,7 @@ function useApplyWebNotificationActions(siteUid?: string) {
       if (!notifyServiceHost || !signer) {
         throw new Error('Missing notifyServiceHost or signer')
       }
-      return applyNotificationActions(notifyServiceHost, signer, {actions: input.actions, siteUid})
+      return applyNotificationActions(notifyServiceHost, signer, {actions: input.actions, spaceUid})
     },
     onMutate: (input) => {
       const previousState = queryClient.getQueryData<NotificationStateSnapshot>(notificationStateQueryKey) ?? state.data
@@ -124,24 +124,24 @@ function useApplyWebNotificationActions(siteUid?: string) {
 // -- Inbox --------------------------------------------------------------------
 
 /** Fetches the notification inbox from the server. */
-export function useWebNotificationInbox(siteUid?: string) {
+export function useWebNotificationInbox(spaceUid?: string) {
   const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedNotificationInbox(notifyServiceHost, signer, {siteUid})
+  return useSharedNotificationInbox(notifyServiceHost, signer, {spaceUid})
 }
 
 // -- Read state ---------------------------------------------------------------
 
 /** Fetches the notification read state from the server. */
-export function useWebNotificationReadState(siteUid?: string) {
+export function useWebNotificationReadState(spaceUid?: string) {
   const notifyServiceHost = useWebNotifyServiceHost()
   const signer = useWebNotificationSigner()
-  return useSharedNotificationReadState(notifyServiceHost, signer, {siteUid})
+  return useSharedNotificationReadState(notifyServiceHost, signer, {spaceUid})
 }
 
 /** Marks a single notification event as read. */
-export function useWebMarkNotificationEventRead(siteUid?: string) {
-  const applyActions = useApplyWebNotificationActions(siteUid)
+export function useWebMarkNotificationEventRead(spaceUid?: string) {
+  const applyActions = useApplyWebNotificationActions(spaceUid)
   return useMutation({
     mutationFn: async (input: {accountUid: string; eventId: string; eventAtMs: number}) => {
       return applyActions.mutateAsync({
@@ -159,8 +159,8 @@ export function useWebMarkNotificationEventRead(siteUid?: string) {
 }
 
 /** Marks a single notification event as unread. */
-export function useWebMarkNotificationEventUnread(siteUid?: string) {
-  const applyActions = useApplyWebNotificationActions(siteUid)
+export function useWebMarkNotificationEventUnread(spaceUid?: string) {
+  const applyActions = useApplyWebNotificationActions(spaceUid)
   return useMutation({
     mutationFn: async (input: {
       accountUid: string
@@ -183,20 +183,20 @@ export function useWebMarkNotificationEventUnread(siteUid?: string) {
   })
 }
 
-/** Marks all notifications for the current site as read on the notify service. */
-export function useWebMarkAllNotificationsRead(siteUid?: string) {
-  const applyActions = useApplyWebNotificationActions(siteUid)
+/** Marks all notifications for the current space as read on the notify service. */
+export function useWebMarkAllNotificationsRead(spaceUid?: string) {
+  const applyActions = useApplyWebNotificationActions(spaceUid)
   return useMutation({
     mutationFn: async (input: {accountUid: string}) => {
-      if (!siteUid) {
-        throw new Error('Missing siteUid')
+      if (!spaceUid) {
+        throw new Error('Missing spaceUid')
       }
       return applyActions.mutateAsync({
         accountUid: input.accountUid,
         actions: [
           {
             type: 'mark-site-read',
-            siteUid,
+            siteUid: spaceUid,
           },
         ],
       })

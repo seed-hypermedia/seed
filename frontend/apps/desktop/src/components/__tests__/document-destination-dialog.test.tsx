@@ -152,7 +152,7 @@ describe('DocumentDestinationDialog', () => {
     writableDocumentsMock.splice(0, writableDocumentsMock.length, {
       entity: {
         id: hmId('alice'),
-        document: {metadata: {name: 'Alice Site'}, visibility: 'PUBLIC'},
+        document: {metadata: {name: 'Alice Space'}, visibility: 'PUBLIC'},
       },
       accountsWithWrite: ['alice'],
     })
@@ -160,7 +160,7 @@ describe('DocumentDestinationDialog', () => {
     useResourceMock.mockImplementation((id?: ReturnType<typeof hmId> | null) => {
       if (!id) return emptyResource()
       const pathKey = id.path?.join('/') || ''
-      if (id.uid === 'alice' && pathKey === '') return resource(id, 'Alice Site')
+      if (id.uid === 'alice' && pathKey === '') return resource(id, 'Alice Space')
       if (id.uid === 'alice' && pathKey === 'docs') return resource(id, 'Docs')
       if (id.uid === 'alice' && pathKey === 'docs/api') return resource(id, 'API')
       return emptyResource()
@@ -168,7 +168,7 @@ describe('DocumentDestinationDialog', () => {
     useResourcesMock.mockImplementation((ids: ReturnType<typeof hmId>[]) =>
       ids.map((id) => {
         const pathKey = id.path?.join('/') || ''
-        if (pathKey === '') return resource(id, 'Alice Site')
+        if (pathKey === '') return resource(id, 'Alice Space')
         if (pathKey === 'docs') return resource(id, 'Docs')
         return resource(id, id.path?.at(-1) || id.uid)
       }),
@@ -202,7 +202,7 @@ describe('DocumentDestinationDialog', () => {
     const {container, root} = renderDialog({id: hmId('alice', {path: ['docs', 'api']}), mode: 'republish'})
     try {
       expect(container.textContent).toContain('Location')
-      expect(container.textContent).toContain('Alice Site')
+      expect(container.textContent).toContain('Alice Space')
       expect(container.textContent).toContain('Docs')
       expect(container.textContent).toContain('Guide')
       expect(findButtonExact(container, 'Back')).toBeTruthy()
@@ -213,11 +213,11 @@ describe('DocumentDestinationDialog', () => {
     }
   })
 
-  it('opens top-level documents at the site root instead of the writable-root chooser', () => {
+  it('opens top-level documents at the space root instead of the writable-root chooser', () => {
     const {container, root} = renderDialog({id: hmId('alice', {path: ['docs']}), mode: 'move'})
     try {
       expect(container.textContent).toContain('Location')
-      expect(container.textContent).not.toContain('Choose a site')
+      expect(container.textContent).not.toContain('Choose a space')
       expect(findButtonExact(container, 'Back')).toBeTruthy()
       expect(container.querySelector('input[placeholder="url-path"]')).toHaveProperty('value', 'docs')
       expect(container.textContent).toContain('Choose a new location or URL path.')

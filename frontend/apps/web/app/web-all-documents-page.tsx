@@ -3,12 +3,12 @@ import {routeToHref, useUniversalAppContext} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {AllDocumentsPage} from '@shm/ui/all-documents-page'
 
-export function WebAllDocumentsPage({siteId}: {siteId: UnpackedHypermediaId}) {
+export function WebAllDocumentsPage({spaceId}: {spaceId: UnpackedHypermediaId}) {
   const navigate = useNavigate()
   const {originHomeId} = useUniversalAppContext()
   return (
     <AllDocumentsPage
-      siteId={siteId}
+      spaceId={spaceId}
       onNavigateToDocument={(id, opts) => {
         const route = {key: 'document' as const, id}
         if (opts?.newWindow) {

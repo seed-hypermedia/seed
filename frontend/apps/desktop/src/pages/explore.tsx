@@ -10,7 +10,7 @@ import {useMemo} from 'react'
 function contextLabel(route: Extract<ReturnType<typeof useNavRoute>, {key: 'explore'}>) {
   if (route.context.type === 'node') return 'Node'
   const path = route.context.id.path?.join('/')
-  return path ? `Site: ${route.context.id.uid}/${path}` : `Site: ${route.context.id.uid}`
+  return path ? `Space: ${route.context.id.uid}/${path}` : `Space: ${route.context.id.uid}`
 }
 
 export default function ExploreDesktopPage() {
@@ -59,7 +59,7 @@ export default function ExploreDesktopPage() {
           isLoading={explore.isLoading}
           error={explore.error instanceof Error ? explore.error.message : null}
           onQueryChange={updateRoute}
-          accountUid={exploreRoute.context?.type === 'site' ? exploreRoute.context.id.uid : undefined}
+          accountUid={exploreRoute.context?.type === 'space' ? exploreRoute.context.id.uid : undefined}
           context={context}
           onScopeChange={(nextContext) => {
             if (exploreRoute) replace({...exploreRoute, context: nextContext, sort: undefined})

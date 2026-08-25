@@ -87,7 +87,7 @@ describe('app notification inbox', () => {
               reason: 'reply',
               eventType: 'comment',
               author: {uid: 'author-b', name: 'Other', icon: null},
-              target: {uid: 'site-b', path: ['post'], name: 'Post'},
+              target: {uid: 'space-b', path: ['post'], name: 'Post'},
               commentId: 'comment-version',
               sourceId: null,
               citationType: null,

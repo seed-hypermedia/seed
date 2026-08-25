@@ -139,7 +139,7 @@ func (srv *Server) ListCapabilities(ctx context.Context, in *documents.ListCapab
 	}
 
 	if in.Path == "*" {
-		// Site-wide listing: return all capabilities for this account across all document paths.
+		// Space-wide listing: return all capabilities for this account across all document paths.
 		accountIRI, err := makeIRI(acc, "")
 		if err != nil {
 			return nil, err

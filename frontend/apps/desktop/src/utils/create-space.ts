@@ -35,15 +35,15 @@ function waitForRemoteSignInHomeDiscovery(accountUid: string) {
   return task
 }
 
-/** Discovers account home documents once after remote vault sign-in, before any pending create-site intent runs. */
-export function syncRemoteSignInSiteHomes(accountUids: string[]) {
+/** Discovers account home documents once after remote vault sign-in, before any pending create-space intent runs. */
+export function syncRemoteSignInSpaceHomes(accountUids: string[]) {
   return Promise.all(
     Array.from(new Set(accountUids)).map((accountUid) => waitForRemoteSignInHomeDiscovery(accountUid)),
   ).then(() => {})
 }
 
 /** Returns the account home document id, creating a home draft immediately except right after remote sign-in discovery. */
-export async function getOrCreateSiteHome(accountUid: string) {
+export async function getOrCreateSpaceHome(accountUid: string) {
   const homeId = hmId(accountUid, {path: []})
   if (remoteSignInHomeDiscoveryCompleted.has(accountUid)) {
     const homeResource = await fetchResource(homeId)

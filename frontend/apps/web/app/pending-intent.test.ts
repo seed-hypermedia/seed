@@ -63,7 +63,7 @@ vi.mock('./universal-client', () => ({
   },
 }))
 
-import {getSiteMembershipStatus, processPendingIntent} from './pending-intent'
+import {getSpaceMembershipStatus, processPendingIntent} from './pending-intent'
 
 const docId = {
   id: 'hm://doc-1',
@@ -139,13 +139,13 @@ describe('pending-intent', () => {
     expect(mocks.clearPendingIntentMock).toHaveBeenCalledTimes(1)
   })
 
-  it('returns joined when a join intent creates the site membership', async () => {
-    mocks.getPendingIntentMock.mockResolvedValue({type: 'join', subjectUid: 'site-1'})
+  it('returns joined when a join intent creates the space membership', async () => {
+    mocks.getPendingIntentMock.mockResolvedValue({type: 'join', subjectUid: 'space-1'})
 
     await expect(processPendingIntent()).resolves.toEqual({type: 'join', joinStatus: 'joined'})
     expect(mocks.createContactMock).toHaveBeenCalledWith(
       {
-        subjectUid: 'site-1',
+        subjectUid: 'space-1',
         accountUid: 'account-1',
         subscribe: {site: true},
       },
@@ -153,29 +153,29 @@ describe('pending-intent', () => {
     )
   })
 
-  it('returns already-joined when a join intent targets an existing site membership', async () => {
-    mocks.getPendingIntentMock.mockResolvedValue({type: 'join', subjectUid: 'site-1'})
-    mocks.requestMock.mockResolvedValue([{id: 'contact-1', subject: 'site-1', subscribe: {site: true}}])
+  it('returns already-joined when a join intent targets an existing space membership', async () => {
+    mocks.getPendingIntentMock.mockResolvedValue({type: 'join', subjectUid: 'space-1'})
+    mocks.requestMock.mockResolvedValue([{id: 'contact-1', subject: 'space-1', subscribe: {site: true}}])
 
     await expect(processPendingIntent()).resolves.toEqual({type: 'join', joinStatus: 'already-joined'})
     expect(mocks.createContactMock).not.toHaveBeenCalled()
     expect(mocks.updateContactMock).not.toHaveBeenCalled()
   })
 
-  it('returns own-site when a join intent targets the site account itself', async () => {
+  it('returns own-space when a join intent targets the space account itself', async () => {
     mocks.getPendingIntentMock.mockResolvedValue({type: 'join', subjectUid: 'account-1'})
 
-    await expect(processPendingIntent()).resolves.toEqual({type: 'join', joinStatus: 'own-site'})
+    await expect(processPendingIntent()).resolves.toEqual({type: 'join', joinStatus: 'own-space'})
     expect(mocks.requestMock).not.toHaveBeenCalled()
   })
 
-  it('reports site membership status for non-members, members, and the site account', async () => {
+  it('reports space membership status for non-members, members, and the space account', async () => {
     mocks.requestMock.mockResolvedValueOnce([])
-    await expect(getSiteMembershipStatus('site-1')).resolves.toBe('not-member')
+    await expect(getSpaceMembershipStatus('space-1')).resolves.toBe('not-member')
 
-    mocks.requestMock.mockResolvedValueOnce([{id: 'contact-1', subject: 'site-1', subscribe: {site: true}}])
-    await expect(getSiteMembershipStatus('site-1')).resolves.toBe('already-joined')
+    mocks.requestMock.mockResolvedValueOnce([{id: 'contact-1', subject: 'space-1', subscribe: {site: true}}])
+    await expect(getSpaceMembershipStatus('space-1')).resolves.toBe('already-joined')
 
-    await expect(getSiteMembershipStatus('account-1')).resolves.toBe('own-site')
+    await expect(getSpaceMembershipStatus('account-1')).resolves.toBe('own-space')
   })
 })

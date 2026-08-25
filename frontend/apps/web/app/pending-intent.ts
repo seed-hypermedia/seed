@@ -9,11 +9,11 @@ import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
 import {webUniversalClient} from './universal-client'
 
-export type SiteMembershipStatus = 'not-member' | 'already-joined' | 'own-site'
-export type JoinSiteResult = SiteMembershipStatus | 'joined'
+export type SpaceMembershipStatus = 'not-member' | 'already-joined' | 'own-space'
+export type JoinSpaceResult = SpaceMembershipStatus | 'joined'
 export type PendingIntentResult =
   | {type: 'none'}
-  | {type: 'join'; joinStatus: JoinSiteResult}
+  | {type: 'join'; joinStatus: JoinSpaceResult}
   | {type: 'follow'}
   | {type: 'comment'; commentUrl: string}
   | {type: 'publish-draft'; spaceUrl: string}
@@ -21,41 +21,41 @@ export type PendingIntentResult =
 
 let pendingIntentProcessingPromise: Promise<PendingIntentResult> | null = null
 
-export async function getSiteMembershipStatus(siteUid: string): Promise<SiteMembershipStatus> {
+export async function getSpaceMembershipStatus(spaceUid: string): Promise<SpaceMembershipStatus> {
   const accountUid = await getCurrentAccountUidWithDelegation()
   if (!accountUid) {
-    throw new Error('No account UID available to check site membership')
+    throw new Error('No account UID available to check space membership')
   }
-  if (accountUid === siteUid) {
-    return 'own-site'
+  if (accountUid === spaceUid) {
+    return 'own-space'
   }
 
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
-  const existingContact = contacts.find((c) => c.subject === siteUid)
+  const existingContact = contacts.find((c) => c.subject === spaceUid)
   return existingContact?.subscribe?.site ? 'already-joined' : 'not-member'
 }
 
-async function joinSite(signer: HMSigner, siteUid: string): Promise<JoinSiteResult> {
-  console.log('[joinSite] Joining site', {siteUid})
-  const membershipStatus = await getSiteMembershipStatus(siteUid)
+async function joinSpace(signer: HMSigner, spaceUid: string): Promise<JoinSpaceResult> {
+  console.log('[joinSpace] Joining space', {spaceUid})
+  const membershipStatus = await getSpaceMembershipStatus(spaceUid)
   if (membershipStatus !== 'not-member') {
-    console.log('[joinSite] Site already joined or owned', {siteUid, membershipStatus})
+    console.log('[joinSpace] Space already joined or owned', {spaceUid, membershipStatus})
     return membershipStatus
   }
 
   const accountUid = await getCurrentAccountUidWithDelegation()
   if (!accountUid) {
-    throw new Error('No account UID available to join site')
+    throw new Error('No account UID available to join space')
   }
   const contacts = await webUniversalClient.request('AccountContacts', accountUid)
-  console.log('[joinSite] Existing Contacts', contacts)
-  const existingContact = contacts.find((c) => c.subject === siteUid)
+  console.log('[joinSpace] Existing Contacts', contacts)
+  const existingContact = contacts.find((c) => c.subject === spaceUid)
   if (existingContact) {
-    console.log('[joinSite] Updating existing contact to add site subscription', {existingContact})
+    console.log('[joinSpace] Updating existing contact to add space subscription', {existingContact})
     const contactPayload = await updateContact(
       {
         contactId: existingContact.id,
-        subjectUid: siteUid,
+        subjectUid: spaceUid,
         accountUid,
         name: existingContact.name,
         subscribe: {...existingContact.subscribe, site: true},
@@ -64,10 +64,10 @@ async function joinSite(signer: HMSigner, siteUid: string): Promise<JoinSiteResu
     )
     await webUniversalClient.publish(contactPayload)
   } else {
-    console.log('[joinSite] Creating contact for site', {siteUid, accountUid})
+    console.log('[joinSpace] Creating contact for space', {spaceUid, accountUid})
     const contactPayload = await createContact(
       {
-        subjectUid: siteUid,
+        subjectUid: spaceUid,
         accountUid,
         subscribe: {site: true},
       },
@@ -77,7 +77,7 @@ async function joinSite(signer: HMSigner, siteUid: string): Promise<JoinSiteResu
   }
 
   invalidateQueries([queryKeys.CONTACTS_ACCOUNT, accountUid])
-  invalidateQueries([queryKeys.CONTACTS_SUBJECT, siteUid])
+  invalidateQueries([queryKeys.CONTACTS_SUBJECT, spaceUid])
   return 'joined'
 }
 
@@ -156,7 +156,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
 
   if (intent.type === 'join') {
     console.log('[processPendingIntent] Join intent', intent)
-    const joinStatus = await joinSite(signer, intent.subjectUid)
+    const joinStatus = await joinSpace(signer, intent.subjectUid)
     await clearPendingIntent()
     return {type: 'join', joinStatus}
   }
@@ -224,9 +224,9 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
 
   if (intent.type === 'comment') {
     console.log('[processPendingIntent] Comment intent', intent)
-    const targetSiteUid = intent.docId.uid
-    if (targetSiteUid) {
-      await joinSite(signer, targetSiteUid)
+    const targetSpaceUid = intent.docId.uid
+    if (targetSpaceUid) {
+      await joinSpace(signer, targetSpaceUid)
     }
     console.log('[processPendingIntent] Creating comment')
     try {

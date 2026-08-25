@@ -202,7 +202,7 @@ test.describe('Copy and Paste', () => {
 
       const text = await editorHelpers.getEditorText()
       expect(text).toContain('Visit')
-      expect(text).toContain('Example Site')
+      expect(text).toContain('Example Space')
 
       // Check link mark exists in the ProseMirror document
       const hasLink = await editorHelpers.hasMarkType('link')
@@ -212,7 +212,7 @@ test.describe('Copy and Paste', () => {
       const linkMarks = await editorHelpers.getMarksOfType('link')
       expect(linkMarks.length).toBeGreaterThan(0)
       expect(linkMarks[0].attrs.href).toContain('https://example.com')
-      expect(linkMarks[0].text).toBe('Example Site')
+      expect(linkMarks[0].text).toBe('Example Space')
     })
 
     test('Should paste HTML headings', async ({editorHelpers, page}) => {
@@ -474,7 +474,7 @@ test.describe('Copy and Paste', () => {
       const linkMarks = await editorHelpers.getMarksOfType('link')
       expect(linkMarks.length).toBeGreaterThan(0)
       expect(linkMarks[0].attrs.href).toContain('https://example.com')
-      expect(linkMarks[0].text).toBe('our site')
+      expect(linkMarks[0].text).toBe('our space')
     })
   })
 

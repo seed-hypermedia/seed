@@ -213,10 +213,10 @@ export function useImporting(parentId: UnpackedHypermediaId) {
     mutationFn: (url: string) => client.webImporting.checkWebUrl.mutate(url),
   })
 
-  // Private documents require a site URL and must be at the home doc level
-  const siteHomeResource = useResource(hmId(parentId.uid), {subscribed: true})
+  // Private documents require a space URL and must be at the home doc level
+  const spaceHomeResource = useResource(hmId(parentId.uid), {subscribed: true})
   const siteUrl =
-    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+    spaceHomeResource.data?.type === 'document' ? spaceHomeResource.data.document?.metadata?.siteUrl : undefined
   const isHomeDoc = !parentId.path?.length
   const canCreatePrivateDoc = Boolean(siteUrl) && isHomeDoc
 

@@ -26,7 +26,7 @@ describe('notification routing', () => {
     ).toBe('discussion')
   })
 
-  it('uses site discussion reason for batch subscriptions', () => {
+  it('uses space discussion reason for batch subscriptions', () => {
     expect(
       getDiscussionNotificationReason({
         notifyAllDiscussions: false,

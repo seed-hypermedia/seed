@@ -48,12 +48,12 @@ const NOTIFICATIONS_VIEW_KEY = 'seed-notifications-view'
 
 function WebNotificationsForAccount({accountUid}: {accountUid: string}) {
   const {origin, originHomeId} = useUniversalAppContext()
-  const siteUid = originHomeId?.uid
-  const inbox = useWebNotificationInbox(siteUid)
-  const readState = useWebNotificationReadState(siteUid)
-  const markEventRead = useWebMarkNotificationEventRead(siteUid)
-  const markEventUnread = useWebMarkNotificationEventUnread(siteUid)
-  const markAllRead = useWebMarkAllNotificationsRead(siteUid)
+  const spaceUid = originHomeId?.uid
+  const inbox = useWebNotificationInbox(spaceUid)
+  const readState = useWebNotificationReadState(spaceUid)
+  const markEventRead = useWebMarkNotificationEventRead(spaceUid)
+  const markEventUnread = useWebMarkNotificationEventUnread(spaceUid)
+  const markAllRead = useWebMarkAllNotificationsRead(spaceUid)
 
   const notifications = inbox.data?.notifications ?? []
   const [searchParams, setSearchParams] = useSearchParams()

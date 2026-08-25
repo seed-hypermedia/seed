@@ -5,26 +5,26 @@ import {
   canShowRepublishDocumentAction,
   canUseDocumentAsDestinationParent,
   isMoveTargetParentBlocked,
-  isMoveTargetSameSite,
+  isMoveTargetSameSpace,
   canUseMoveTargetParent,
 } from './document-actions'
 
 describe('document action visibility', () => {
   it('hides move and republish for home documents', () => {
-    const homeId = hmId('site-a')
+    const homeId = hmId('space-a')
 
-    expect(canShowMoveDocumentAction({id: homeId, selectedAccountUid: 'site-a', canWriteSource: true})).toBe(false)
-    expect(canShowRepublishDocumentAction({id: homeId, selectedAccountUid: 'site-a'})).toBe(false)
+    expect(canShowMoveDocumentAction({id: homeId, selectedAccountUid: 'space-a', canWriteSource: true})).toBe(false)
+    expect(canShowRepublishDocumentAction({id: homeId, selectedAccountUid: 'space-a'})).toBe(false)
   })
 
   it('shows republish for signed-in users without requiring source write access', () => {
-    const docId = hmId('site-a', {path: ['docs', 'api']})
+    const docId = hmId('space-a', {path: ['docs', 'api']})
 
     expect(canShowRepublishDocumentAction({id: docId, selectedAccountUid: 'writer-b'})).toBe(true)
   })
 
   it('shows move only for non-root documents when the selected account can write the source', () => {
-    const docId = hmId('site-a', {path: ['docs', 'api']})
+    const docId = hmId('space-a', {path: ['docs', 'api']})
 
     expect(canShowMoveDocumentAction({id: docId, selectedAccountUid: 'writer-b', canWriteSource: true})).toBe(true)
     expect(canShowMoveDocumentAction({id: docId, selectedAccountUid: 'writer-b', canWriteSource: false})).toBe(false)
@@ -34,22 +34,22 @@ describe('document action visibility', () => {
 
 describe('move target validation', () => {
   it('blocks moving a document into itself or one of its descendants', () => {
-    const sourceId = hmId('site-a', {path: ['specs']})
+    const sourceId = hmId('space-a', {path: ['specs']})
 
-    expect(isMoveTargetParentBlocked(sourceId, hmId('site-a', {path: ['specs']}))).toBe(true)
-    expect(isMoveTargetParentBlocked(sourceId, hmId('site-a', {path: ['specs', 'api']}))).toBe(true)
-    expect(isMoveTargetParentBlocked(sourceId, hmId('site-a', {path: ['design']}))).toBe(false)
-    expect(isMoveTargetParentBlocked(sourceId, hmId('site-b', {path: ['specs', 'api']}))).toBe(false)
+    expect(isMoveTargetParentBlocked(sourceId, hmId('space-a', {path: ['specs']}))).toBe(true)
+    expect(isMoveTargetParentBlocked(sourceId, hmId('space-a', {path: ['specs', 'api']}))).toBe(true)
+    expect(isMoveTargetParentBlocked(sourceId, hmId('space-a', {path: ['design']}))).toBe(false)
+    expect(isMoveTargetParentBlocked(sourceId, hmId('space-b', {path: ['specs', 'api']}))).toBe(false)
   })
 
-  it('keeps move targets inside the source site', () => {
-    const sourceId = hmId('site-a', {path: ['docs', 'api']})
+  it('keeps move targets inside the source space', () => {
+    const sourceId = hmId('space-a', {path: ['docs', 'api']})
 
-    expect(isMoveTargetSameSite(sourceId, hmId('site-a', {path: ['docs']}))).toBe(true)
-    expect(isMoveTargetSameSite(sourceId, hmId('site-b', {path: ['docs']}))).toBe(false)
-    expect(canUseMoveTargetParent(sourceId, hmId('site-a', {path: ['docs']}))).toBe(true)
-    expect(canUseMoveTargetParent(sourceId, hmId('site-a', {path: ['docs', 'api']}))).toBe(false)
-    expect(canUseMoveTargetParent(sourceId, hmId('site-b', {path: ['docs']}))).toBe(false)
+    expect(isMoveTargetSameSpace(sourceId, hmId('space-a', {path: ['docs']}))).toBe(true)
+    expect(isMoveTargetSameSpace(sourceId, hmId('space-b', {path: ['docs']}))).toBe(false)
+    expect(canUseMoveTargetParent(sourceId, hmId('space-a', {path: ['docs']}))).toBe(true)
+    expect(canUseMoveTargetParent(sourceId, hmId('space-a', {path: ['docs', 'api']}))).toBe(false)
+    expect(canUseMoveTargetParent(sourceId, hmId('space-b', {path: ['docs']}))).toBe(false)
   })
 
   it('excludes private documents as destination parents', () => {

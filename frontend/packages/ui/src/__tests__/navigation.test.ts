@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getSiteNavDirectory, isValidSiteHeaderItem} from '../navigation'
+import {getSpaceNavDirectory, isValidSpaceHeaderItem} from '../navigation'
 
 function makeId(uid: string, path?: string[]): UnpackedHypermediaId {
   return {
@@ -47,7 +47,7 @@ function makeDocInfo(
   }
 }
 
-describe('getSiteNavDirectory', () => {
+describe('getSpaceNavDirectory', () => {
   const homeId = makeId('alice')
 
   it('returns public documents as navigation items', () => {
@@ -56,7 +56,7 @@ describe('getSiteNavDirectory', () => {
       makeDocInfo('alice', ['about'], 'About'),
     ]
 
-    const result = getSiteNavDirectory({id: homeId, directory})
+    const result = getSpaceNavDirectory({id: homeId, directory})
 
     expect(result).toHaveLength(2)
     expect(result.map((r) => r.metadata.name)).toEqual(['About', 'Docs'])
@@ -70,7 +70,7 @@ describe('getSiteNavDirectory', () => {
       makeDocInfo('alice', ['about'], 'About', 'PUBLIC'),
     ]
 
-    const result = getSiteNavDirectory({id: homeId, directory})
+    const result = getSpaceNavDirectory({id: homeId, directory})
 
     expect(result).toHaveLength(2)
     const names = result.map((r) => r.metadata.name)
@@ -85,7 +85,7 @@ describe('getSiteNavDirectory', () => {
       makeDocInfo('alice', ['secret'], 'Secret Notes', 'PRIVATE'),
     ]
 
-    const result = getSiteNavDirectory({id: homeId, directory, includePrivate: false})
+    const result = getSpaceNavDirectory({id: homeId, directory, includePrivate: false})
 
     expect(result).toHaveLength(1)
     expect(result[0]!.metadata.name).toBe('Docs')
@@ -98,7 +98,7 @@ describe('getSiteNavDirectory', () => {
       makeDocInfo('alice', ['about'], 'About', 'PUBLIC'),
     ]
 
-    const result = getSiteNavDirectory({id: homeId, directory, includePrivate: true})
+    const result = getSpaceNavDirectory({id: homeId, directory, includePrivate: true})
 
     expect(result).toHaveLength(3)
     const names = result.map((r) => r.metadata.name)
@@ -113,7 +113,7 @@ describe('getSiteNavDirectory', () => {
       makeDocInfo('alice', ['secret2'], 'Secret 2', 'PRIVATE'),
     ]
 
-    const result = getSiteNavDirectory({id: homeId, directory})
+    const result = getSpaceNavDirectory({id: homeId, directory})
 
     expect(result).toHaveLength(0)
   })
@@ -124,34 +124,34 @@ describe('getSiteNavDirectory', () => {
       makeDocInfo('alice', ['secret2'], 'Secret 2', 'PRIVATE'),
     ]
 
-    const result = getSiteNavDirectory({id: homeId, directory, includePrivate: true})
+    const result = getSpaceNavDirectory({id: homeId, directory, includePrivate: true})
 
     expect(result).toHaveLength(2)
   })
 
   it('returns empty array when directory is undefined', () => {
-    const result = getSiteNavDirectory({id: homeId, directory: undefined})
+    const result = getSpaceNavDirectory({id: homeId, directory: undefined})
     expect(result).toHaveLength(0)
   })
 
   it('returns empty array when directory is empty', () => {
-    const result = getSiteNavDirectory({id: homeId, directory: []})
+    const result = getSpaceNavDirectory({id: homeId, directory: []})
     expect(result).toHaveLength(0)
   })
 
   it('preserves visibility field on returned items', () => {
     const directory: HMDocumentInfo[] = [makeDocInfo('alice', ['docs'], 'Docs', 'PUBLIC')]
 
-    const result = getSiteNavDirectory({id: homeId, directory})
+    const result = getSpaceNavDirectory({id: homeId, directory})
 
     expect(result[0]!.visibility).toBe('PUBLIC')
   })
 })
 
-describe('isValidSiteHeaderItem', () => {
+describe('isValidSpaceHeaderItem', () => {
   it('accepts labeled items with a document destination', () => {
     expect(
-      isValidSiteHeaderItem({
+      isValidSpaceHeaderItem({
         key: 'docs',
         metadata: {name: 'Docs'},
         id: makeId('alice', ['docs']),
@@ -161,7 +161,7 @@ describe('isValidSiteHeaderItem', () => {
 
   it('rejects items without a visible label', () => {
     expect(
-      isValidSiteHeaderItem({
+      isValidSpaceHeaderItem({
         key: 'untitled',
         metadata: {name: ''},
         id: makeId('alice', ['docs']),
@@ -171,7 +171,7 @@ describe('isValidSiteHeaderItem', () => {
 
   it('rejects items without a destination', () => {
     expect(
-      isValidSiteHeaderItem({
+      isValidSpaceHeaderItem({
         key: 'empty-link',
         metadata: {name: 'Docs'},
       }),

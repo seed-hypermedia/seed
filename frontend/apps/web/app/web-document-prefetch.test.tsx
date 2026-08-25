@@ -25,13 +25,13 @@ afterEach(() => {
 
 describe('WebDocumentPrefetch', () => {
   it('prefetches each intended document route once', () => {
-    const guide = hmId('site', {path: ['guide']})
-    const about = hmId('site', {path: ['about']})
+    const guide = hmId('space', {path: ['guide']})
+    const about = hmId('space', {path: ['about']})
     let prefetch!: (id: typeof guide) => void
 
     act(() => {
       root.render(
-        <WebDocumentPrefetch originHomeId={hmId('site')}>
+        <WebDocumentPrefetch originHomeId={hmId('space')}>
           {(onPrefetch) => {
             prefetch = onPrefetch
             return null

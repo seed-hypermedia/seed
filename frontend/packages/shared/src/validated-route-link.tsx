@@ -169,7 +169,7 @@ export function getValidatedWebSeedLinkState(params: {
 
 /**
  * Returns link props that keep Seed links on the current web domain unless the
- * destination hostname is verified for the target site/account.
+ * destination hostname is verified for the target space/account.
  */
 export function useValidatedWebRouteLink(route: NavRoute | string | null, opts?: ValidatedRouteLinkOpts) {
   const context = useUniversalAppContext()

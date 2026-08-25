@@ -42,7 +42,7 @@ import {getComment, resolveResource} from './loaders'
 import type {ParsedRequest} from './request'
 import {extractExportView, getHmIdOfRequest, ResourceExportFormat, ResourceExportPath} from './resource-export-path'
 import {serverUniversalClient} from './server-universal-client'
-import {getConfig} from './site-config.server'
+import {getConfig} from './space-config.server'
 
 export {parseResourceExportPath} from './resource-export-path'
 

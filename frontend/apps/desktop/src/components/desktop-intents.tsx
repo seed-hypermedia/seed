@@ -12,7 +12,7 @@ import {useDesktopAuthDialog} from './desktop-auth-dialog'
 export type RequireAccountOptions = {
   title?: string
   introDescription?: string
-  siteName?: string
+  spaceName?: string
 }
 
 /** Dialog content and account gate callback returned by desktop intent hooks. */
@@ -36,7 +36,7 @@ export function useDesktopAccountIntent(): DesktopIntentResult {
         onReady: action,
         title: options?.title,
         introDescription: options?.introDescription,
-        siteName: options?.siteName,
+        spaceName: options?.spaceName,
       })
     },
     [authDialog, selectedAccountId],
@@ -45,7 +45,7 @@ export function useDesktopAccountIntent(): DesktopIntentResult {
   return {content: authDialog.content, requireAccount}
 }
 
-/** Adds a site/profile subscription contact for the supplied account. */
+/** Adds a space/profile subscription contact for the supplied account. */
 export function useContactSubscribeIntent() {
   const universalClient = useUniversalClient()
 
@@ -94,8 +94,8 @@ export function useContactSubscribeIntent() {
   )
 }
 
-/** Joins a site now or after desktop identity setup, then shows the standard success/error toast. */
-export function useJoinSiteIntent(siteUid: string, siteName?: string) {
+/** Joins a space now or after desktop identity setup, then shows the standard success/error toast. */
+export function useJoinSpaceIntent(spaceUid: string, spaceName?: string) {
   const {content, requireAccount} = useDesktopAccountIntent()
   const subscribeContact = useContactSubscribeIntent()
   const setSubscription = useSetSubscription()
@@ -103,23 +103,23 @@ export function useJoinSiteIntent(siteUid: string, siteName?: string) {
   const join = useCallback(() => {
     requireAccount(
       async (accountUid) => {
-        if (accountUid === siteUid) return
+        if (accountUid === spaceUid) return
         try {
-          await subscribeContact({accountUid, subjectUid: siteUid, subscribe: 'site'})
-          setSubscription.mutate({id: hmId(siteUid), subscribed: true, recursive: true})
-          toast.success(`Joined ${siteName || 'site'}`)
+          await subscribeContact({accountUid, subjectUid: spaceUid, subscribe: 'site'})
+          setSubscription.mutate({id: hmId(spaceUid), subscribed: true, recursive: true})
+          toast.success(`Joined ${spaceName || 'space'}`)
         } catch (error) {
           console.error('Failed to join:', error)
           toast.error('Failed to join')
         }
       },
       {
-        title: `Join ${siteName || 'this site'}`,
+        title: `Join ${spaceName || 'this space'}`,
         introDescription: 'Create your identity to participate, it takes two minutes.',
-        siteName,
+        spaceName,
       },
     )
-  }, [requireAccount, setSubscription, siteName, siteUid, subscribeContact])
+  }, [requireAccount, setSubscription, spaceName, spaceUid, subscribeContact])
 
   return {content, join, isPending: setSubscription.isPending}
 }

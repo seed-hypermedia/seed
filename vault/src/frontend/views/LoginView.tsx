@@ -59,7 +59,7 @@ export function LoginView() {
     <Card>
       <CardHeader>
         <CardTitle className="text-center">
-          {vaultConnectionRequest && !vaultConnectionRequest.siteName ? (
+          {vaultConnectionRequest && !vaultConnectionRequest.spaceName ? (
             'Connect your desktop app'
           ) : (
             <>
@@ -68,7 +68,7 @@ export function LoginView() {
           )}
         </CardTitle>
         <CardDescription className="text-center">
-          {vaultConnectionRequest && !vaultConnectionRequest.siteName ? (
+          {vaultConnectionRequest && !vaultConnectionRequest.spaceName ? (
             `Sign in to ${email} to continue connecting this vault.`
           ) : (
             <>

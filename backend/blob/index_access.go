@@ -36,15 +36,15 @@ func (idx *Index) isAuthenticated(peerID peer.ID, account core.Principal) bool {
 	return idx.peerAuth.isAuthenticated(peerID, account)
 }
 
-// ResolveSiteURL resolves a site URL to peer.ID using the cache.
-func (idx *Index) ResolveSiteURL(ctx context.Context, siteURL string) (peer.AddrInfo, error) {
-	return idx.sitePeerResolver.getAddrInfo(ctx, siteURL)
+// ResolveSpaceURL resolves a space URL to peer.ID using the cache.
+func (idx *Index) ResolveSpaceURL(ctx context.Context, spaceURL string) (peer.AddrInfo, error) {
+	return idx.spacePeerResolver.getAddrInfo(ctx, spaceURL)
 }
 
-// ResolveSiteConfig resolves a site URL to its full config using the cache.
+// ResolveSpaceConfig resolves a space URL to its full config using the cache.
 // This includes the registered account ID if available.
-func (idx *Index) ResolveSiteConfig(ctx context.Context, siteURL string) (SiteConfigResponse, error) {
-	return idx.sitePeerResolver.getConfig(ctx, siteURL)
+func (idx *Index) ResolveSpaceConfig(ctx context.Context, spaceURL string) (SpaceConfigResponse, error) {
+	return idx.spacePeerResolver.getConfig(ctx, spaceURL)
 }
 
 // CanPeerAccessCID checks if a peer can access a specific CID.
@@ -109,14 +109,14 @@ func (idx *Index) canPeerAccessSpace(ctx context.Context, peerID peer.ID, spaceA
 		return true, nil
 	}
 
-	// Check if peer is the siteURL server for this space.
-	isSiteURLServer, err := idx.checkSiteURLPeer(ctx, peerID, spaceAccount)
+	// Check if peer is the spaceURL server for this space.
+	isSpaceURLServer, err := idx.checkSpaceURLPeer(ctx, peerID, spaceAccount)
 	if err != nil {
-		// Log error but don't fail on siteURL check.
+		// Log error but don't fail on spaceURL check.
 		_ = err
 	}
 
-	if isSiteURLServer {
+	if isSpaceURLServer {
 		return true, nil
 	}
 
@@ -138,16 +138,16 @@ func (idx *Index) canPeerAccessSpace(ctx context.Context, peerID peer.ID, spaceA
 	return false, nil
 }
 
-// checkSiteURLPeer checks if the peer is the siteURL server for a space.
-func (idx *Index) checkSiteURLPeer(ctx context.Context, peerID peer.ID, spaceAccount core.Principal) (bool, error) {
-	// Get the siteURL from the space's home document.
-	siteURL, err := idx.GetSiteURL(ctx, spaceAccount)
-	if err != nil || siteURL == "" {
+// checkSpaceURLPeer checks if the peer is the spaceURL server for a space.
+func (idx *Index) checkSpaceURLPeer(ctx context.Context, peerID peer.ID, spaceAccount core.Principal) (bool, error) {
+	// Get the spaceURL from the space's home document.
+	spaceURL, err := idx.GetSpaceURL(ctx, spaceAccount)
+	if err != nil || spaceURL == "" {
 		return false, err
 	}
 
-	// Resolve siteURL to peer ID using cache.
-	resolvedPeerID, err := idx.sitePeerResolver.getPeerID(ctx, siteURL)
+	// Resolve spaceURL to peer ID using cache.
+	resolvedPeerID, err := idx.spacePeerResolver.getPeerID(ctx, spaceURL)
 	if err != nil {
 		return false, err
 	}
@@ -355,10 +355,10 @@ func encodePrincipalHexJSON(accounts []core.Principal) (string, error) {
 // It considers:
 //  1. Spaces the peer owns (authenticated accounts).
 //  2. Spaces the peer has capability access to.
-//  3. Spaces where the peer is the siteURL server (for given resources).
+//  3. Spaces where the peer is the spaceURL server (for given resources).
 //
-// The requestedResources parameter is used for siteURL checking — if the peer
-// is the siteURL server for a space, they can access that space's private content.
+// The requestedResources parameter is used for spaceURL checking — if the peer
+// is the spaceURL server for a space, they can access that space's private content.
 func (idx *Index) GetAuthorizedSpacesForPeer(ctx context.Context, pid peer.ID, requestedResources []IRI) ([]core.Principal, error) {
 	// Get accounts this peer has authenticated with.
 	accounts := idx.peerAuth.accountsForPeer(pid)
@@ -383,7 +383,7 @@ func (idx *Index) GetAuthorizedSpacesForPeer(ctx context.Context, pid peer.ID, r
 		}
 	}
 
-	// Check if the peer is the siteURL server for any of the requested resources.
+	// Check if the peer is the spaceURL server for any of the requested resources.
 	for _, iri := range requestedResources {
 		space, _, err := iri.SpacePath()
 		if err != nil {
@@ -395,9 +395,9 @@ func (idx *Index) GetAuthorizedSpacesForPeer(ctx context.Context, pid peer.ID, r
 			continue
 		}
 
-		// Check if this peer is the siteURL server for this space.
-		isSiteURL, err := idx.checkSiteURLPeer(ctx, pid, space)
-		if err == nil && isSiteURL {
+		// Check if this peer is the spaceURL server for this space.
+		isSpaceURL, err := idx.checkSpaceURLPeer(ctx, pid, space)
+		if err == nil && isSpaceURL {
 			spaces = append(spaces, space)
 			seenSpaces[space.UnsafeString()] = struct{}{}
 		}

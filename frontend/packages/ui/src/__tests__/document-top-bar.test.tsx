@@ -31,8 +31,8 @@ const fileBrowserControls = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../site-file-browser-layout', () => ({
-  useSiteFileBrowserControls: () => fileBrowserControls.current,
+vi.mock('../space-file-browser-layout', () => ({
+  useSpaceFileBrowserControls: () => fileBrowserControls.current,
 }))
 
 import {DocumentTopBar} from '../document-top-bar'
@@ -73,8 +73,8 @@ describe('DocumentTopBar', () => {
     render(
       <DocumentTopBar
         breadcrumbs={[
-          {id: hmId('site'), metadata: {name: 'Home'}},
-          {id: hmId('site', {path: ['doc']}), metadata: {name: 'Doc'}},
+          {id: hmId('space'), metadata: {name: 'Home'}},
+          {id: hmId('space', {path: ['doc']}), metadata: {name: 'Doc'}},
         ]}
         actions={<button type="button">Publish</button>}
         isMobile
@@ -89,7 +89,7 @@ describe('DocumentTopBar', () => {
   it('renders document status beside breadcrumbs and before page actions', () => {
     render(
       <DocumentTopBar
-        breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]}
+        breadcrumbs={[{id: hmId('space'), metadata: {name: 'Space'}}]}
         status={<span>Private</span>}
         actions={<button type="button">Publish</button>}
       />,
@@ -106,7 +106,7 @@ describe('DocumentTopBar', () => {
   })
 
   it('renders a home document as its own single crumb', () => {
-    render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} isMobile />)
+    render(<DocumentTopBar breadcrumbs={[{id: hmId('space'), metadata: {name: 'Space'}}]} isMobile />)
 
     expect(container.querySelector('nav[aria-label="Breadcrumb"]')).not.toBeNull()
     expect(container.querySelectorAll('a')).toHaveLength(0)
@@ -118,7 +118,7 @@ describe('DocumentTopBar', () => {
     const claimRevealButton = vi.fn(() => release)
     fileBrowserControls.current = {collapsed: true, setCollapsed, claimRevealButton}
 
-    render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} />)
+    render(<DocumentTopBar breadcrumbs={[{id: hmId('space'), metadata: {name: 'Space'}}]} />)
 
     expect(claimRevealButton).toHaveBeenCalledOnce()
     const revealButton = container.querySelector<HTMLButtonElement>('button[aria-label="Open file browser"]')
@@ -133,7 +133,7 @@ describe('DocumentTopBar', () => {
   it('omits the reveal button when the file browser is already visible', () => {
     fileBrowserControls.current = {collapsed: false, setCollapsed: vi.fn(), claimRevealButton: vi.fn(() => vi.fn())}
 
-    render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} />)
+    render(<DocumentTopBar breadcrumbs={[{id: hmId('space'), metadata: {name: 'Space'}}]} />)
 
     expect(container.querySelector('button[aria-label="Open file browser"]')).toBeNull()
     expect(fileBrowserControls.current.claimRevealButton).not.toHaveBeenCalled()

@@ -2,7 +2,7 @@ import {MjmlColumn, MjmlSection, MjmlText} from '@faire/mjml-react'
 
 /** Props for the unified email footer. */
 export interface EmailFooterProps {
-  /** Site URL shown in the "With 💚" line (e.g. "https://seedteamtalks.hyper.media"). When omitted the line is not rendered. */
+  /** Space URL shown in the "With 💚" line (e.g. "https://seedteamtalks.hyper.media"). When omitted the line is not rendered. */
   siteUrl?: string
   /** URL for the "Unsubscribe" link. When omitted the link is not rendered (e.g. transactional emails). */
   unsubscribeUrl?: string

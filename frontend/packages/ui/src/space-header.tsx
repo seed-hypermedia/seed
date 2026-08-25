@@ -23,7 +23,7 @@ import {useHighlighter} from './highlight-context'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {Separator} from './separator'
-import {SiteLogo} from './site-logo'
+import {SpaceLogo} from './space-logo'
 import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
@@ -31,19 +31,19 @@ import {cn} from './utils'
 // Stable width estimator functions
 const getNavItemWidth = () => 150
 
-export function SiteHeader({
-  siteHomeId,
+export function SpaceHeader({
+  spaceHomeId,
   docId,
   items,
   directoryItems: _directoryItems,
   isCenterLayout = false,
   document,
   draftMetadata,
-  siteHomeDocument,
+  spaceHomeDocument,
   embeds,
   onBlockFocus,
   onShowMobileMenu,
-  hideSiteBarClassName,
+  hideSpaceBarClassName,
   isLatest: _isLatest,
   editNavPane,
   editNavPanePortalRef,
@@ -54,7 +54,7 @@ export function SiteHeader({
   rightActions,
   onOpenFileBrowser,
 }: {
-  siteHomeId: UnpackedHypermediaId
+  spaceHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId | null
   items?: DocNavigationItem[] | null
   homeNavigationItems?: DocNavigationItem[]
@@ -62,11 +62,11 @@ export function SiteHeader({
   isCenterLayout?: boolean
   document?: HMDocument | undefined
   draftMetadata?: HMMetadata
-  siteHomeDocument?: HMDocument | null
+  spaceHomeDocument?: HMDocument | null
   embeds?: HMResourceFetchResult[]
   onBlockFocus?: (blockId: string) => void
   onShowMobileMenu?: (isOpen: boolean) => void
-  hideSiteBarClassName?: AutoHideSiteHeaderClassName
+  hideSpaceBarClassName?: AutoHideSpaceHeaderClassName
   isLatest?: boolean
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
@@ -88,12 +88,12 @@ export function SiteHeader({
     }
   }
   // Determine the home document for logo/branding
-  // Priority: current doc if on home page, otherwise siteHomeDocument.
+  // Priority: current doc if on home page, otherwise spaceHomeDocument.
   const homeDraftOverride = useIsHomeDraftOverride()
   const isHomeView = homeDraftOverride ?? !!(docId && !docId.path?.length)
   const homeDoc = isHomeView
     ? {document, id: docId} // On home page — document IS the home doc
-    : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
+    : {document: spaceHomeDocument ?? undefined, id: spaceHomeId} // Non-home: use space home (may be undefined while loading)
   const headerSearch = (
     <>
       {onOpenFileBrowser ? (
@@ -120,9 +120,9 @@ export function SiteHeader({
       >
         <Menu size={20} />
       </Button>
-      {siteHomeId && !IS_DESKTOP ? (
+      {spaceHomeId && !IS_DESKTOP ? (
         <div className="hidden md:block">
-          <HeaderSearch siteHomeId={siteHomeId} />
+          <HeaderSearch spaceHomeId={spaceHomeId} />
         </div>
       ) : null}
     </>
@@ -134,8 +134,8 @@ export function SiteHeader({
     const updateHeaderHeight = () => {
       const headerHeight = headerRef.current?.offsetHeight || 60
 
-      window.document.documentElement.style.setProperty('--site-header-h', `${headerHeight}px`)
-      window.document.documentElement.style.setProperty('--site-header-live-h', `${headerHeight}px`)
+      window.document.documentElement.style.setProperty('--space-header-h', `${headerHeight}px`)
+      window.document.documentElement.style.setProperty('--space-header-live-h', `${headerHeight}px`)
     }
 
     // Initial measurement
@@ -150,8 +150,8 @@ export function SiteHeader({
     // Cleanup
     return () => {
       resizeObserver.disconnect()
-      window.document.documentElement.style.setProperty('--site-header-h', '0px')
-      window.document.documentElement.style.removeProperty('--site-header-live-h')
+      window.document.documentElement.style.setProperty('--space-header-h', '0px')
+      window.document.documentElement.style.removeProperty('--space-header-live-h')
     }
   }, [headerRef.current])
 
@@ -167,7 +167,7 @@ export function SiteHeader({
           'flex-col': isCenterLayout,
           'flex-row items-center': !isCenterLayout,
         },
-        hideSiteBarClassName,
+        hideSpaceBarClassName,
         'sm:translate-y-0',
         wrapperClassName,
       )}
@@ -179,7 +179,7 @@ export function SiteHeader({
         })}
       >
         <div className="flex flex-1 justify-center overflow-hidden">
-          <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
+          <SpaceLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
         </div>
         {routeType != 'draft' && isCenterLayout ? (
           <div className="flex items-center gap-2 md:absolute md:right-0">
@@ -194,14 +194,14 @@ export function SiteHeader({
           flex: !isCenterLayout,
         })}
       >
-        <SiteHeaderMenu
+        <SpaceHeaderMenu
           items={items}
           docId={docId}
           isCenterLayout={isCenterLayout}
           editNavPane={editNavPane}
           editNavPanePortalRef={editNavPanePortalRef}
           isMainFeedVisible={isMainFeedVisible}
-          siteHomeId={siteHomeId}
+          spaceHomeId={spaceHomeId}
         />
       </div>
 
@@ -216,7 +216,7 @@ export function SiteHeader({
           <div className="flex min-h-full flex-col">
             {!IS_DESKTOP && (
               <MobileSearch
-                siteHomeId={siteHomeId}
+                spaceHomeId={spaceHomeId}
                 onSearchActiveChange={setIsMobileSearchActive}
                 // @ts-expect-error
                 onSelect={(item: SearchResult) => {
@@ -239,7 +239,7 @@ export function SiteHeader({
                         setIsMobileMenuOpen(false)
                       }}
                     />
-                    <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
+                    <MobileFeedLink spaceHomeId={spaceHomeId} onClick={() => setIsMobileMenuOpen(false)} />
                   </div>
                 )}
                 {/* 
@@ -330,10 +330,10 @@ function MobileMenuOutline({
   )
 }
 
-function MobileFeedLink({siteHomeId, onClick}: {siteHomeId: UnpackedHypermediaId; onClick?: () => void}) {
+function MobileFeedLink({spaceHomeId, onClick}: {spaceHomeId: UnpackedHypermediaId; onClick?: () => void}) {
   const feedLinkProps = useRouteLink({
     key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
+    id: {...spaceHomeId, latest: true, version: null},
   })
 
   return (
@@ -427,10 +427,10 @@ function HeaderLinkItem({
   )
 }
 
-export function SiteHeaderMenu({
+export function SpaceHeaderMenu({
   items,
   docId,
-  siteHomeId,
+  spaceHomeId,
   isCenterLayout = false,
   editNavPane,
   editNavPanePortalRef,
@@ -438,7 +438,7 @@ export function SiteHeaderMenu({
 }: {
   items?: DocNavigationItem[] | null
   docId: UnpackedHypermediaId | null
-  siteHomeId: UnpackedHypermediaId
+  spaceHomeId: UnpackedHypermediaId
   isCenterLayout?: boolean
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
@@ -478,7 +478,7 @@ export function SiteHeaderMenu({
 
   const feedLinkProps = useRouteLink({
     key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
+    id: {...spaceHomeId, latest: true, version: null},
   })
 
   return (
@@ -620,9 +620,9 @@ export function MobileMenu({
   )
 }
 
-export type AutoHideSiteHeaderClassName = 'translate-y-0' | '-translate-y-full'
+export type AutoHideSpaceHeaderClassName = 'translate-y-0' | '-translate-y-full'
 
-export function useAutoHideSiteHeader(scrollContainerRef?: React.RefObject<HTMLElement>) {
+export function useAutoHideSpaceHeader(scrollContainerRef?: React.RefObject<HTMLElement>) {
   const media = useMedia()
   const prevScrollPos = useRef(0)
   const [isHidden, setIsHidden] = useState(false)
@@ -680,7 +680,7 @@ export function useAutoHideSiteHeader(scrollContainerRef?: React.RefObject<HTMLE
   }, [media.gtSm, scrollContainerRef])
 
   return {
-    hideSiteHeaderClassName: isHidden ? '-translate-y-full' : ('translate-y-0' as AutoHideSiteHeaderClassName),
+    hideSpaceHeaderClassName: isHidden ? '-translate-y-full' : ('translate-y-0' as AutoHideSpaceHeaderClassName),
     hideMobileBarClassName: isHidden ? 'opacity-40' : '',
     onScroll: () => {}, // Keep for backward compatibility
   }

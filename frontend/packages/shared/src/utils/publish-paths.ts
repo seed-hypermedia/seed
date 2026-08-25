@@ -6,7 +6,7 @@ import {pathNameify} from './path'
  * `untitled-${draftId}` keeps multiple untitled drafts collision-free.
  * An empty `currentEditPath` means a home-document edit; the root path
  * is preserved as-is so callers cannot accidentally publish a sibling
- * `untitled-*` document at the site root.
+ * `untitled-*` document at the space root.
  */
 export function computeInlineDraftPublishPath(currentEditPath: string[], docName: string, draftId: string): string[] {
   if (currentEditPath.length === 0) return []

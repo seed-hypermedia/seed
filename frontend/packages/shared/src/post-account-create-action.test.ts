@@ -3,14 +3,14 @@ import {afterEach, describe, expect, test, vi} from 'vitest'
 import * as blobs from './blobs'
 import * as queryClient from './models/query-client'
 import {queryKeys} from './models/query-keys'
-import {defaultJoinedSiteUid, postAccountCreateAction} from './post-account-create-action'
+import {defaultJoinedSpaceUid, postAccountCreateAction} from './post-account-create-action'
 
 describe('postAccountCreateAction', () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  test('publishes a site subscription contact for the default joined site', async () => {
+  test('publishes a space subscription contact for the default joined space', async () => {
     const keyPair = blobs.generateNobleKeyPair()
     const accountUid = blobs.principalToString(keyPair.principal)
     const publishedInputs: Array<{blobs: Array<{cid?: string; data: Uint8Array}>}> = []
@@ -43,11 +43,11 @@ describe('postAccountCreateAction', () => {
     }
 
     expect(decoded.type).toBe('Contact')
-    expect(blobs.principalToString(decoded.subject)).toBe(defaultJoinedSiteUid)
+    expect(blobs.principalToString(decoded.subject)).toBe(defaultJoinedSpaceUid)
     expect(blobs.principalToString(decoded.account!)).toBe(accountUid)
     expect(decoded.subscribe).toEqual({site: true})
     expect(invalidateQueriesSpy).toHaveBeenCalledWith([queryKeys.CONTACTS_ACCOUNT, accountUid])
-    expect(invalidateQueriesSpy).toHaveBeenCalledWith([queryKeys.CONTACTS_SUBJECT, defaultJoinedSiteUid])
+    expect(invalidateQueriesSpy).toHaveBeenCalledWith([queryKeys.CONTACTS_SUBJECT, defaultJoinedSpaceUid])
   })
 
   test('does not invalidate contact queries when the publish step fails', async () => {

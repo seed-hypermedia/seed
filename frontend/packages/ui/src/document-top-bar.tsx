@@ -2,7 +2,7 @@ import {FolderTree} from 'lucide-react'
 import {ReactNode, useEffect} from 'react'
 import {Button} from './button'
 import {Breadcrumbs, type BreadcrumbEntry} from './document-header'
-import {useSiteFileBrowserControls} from './site-file-browser-layout'
+import {useSpaceFileBrowserControls} from './space-file-browser-layout'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -10,7 +10,7 @@ import {cn} from './utils'
  * Persistent bar above the document content: where you are on the left, what you
  * can do on the right, both at the edges of the pane. It is a sibling of the
  * scroll container on desktop, and sticks to the top of the viewport on mobile
- * once the site header scrolls away.
+ * once the space header scrolls away.
  */
 export function DocumentTopBar({
   breadcrumbs,
@@ -23,7 +23,7 @@ export function DocumentTopBar({
   actions?: ReactNode
   isMobile?: boolean
 }) {
-  const fileBrowser = useSiteFileBrowserControls()
+  const fileBrowser = useSpaceFileBrowserControls()
   const canRevealFileBrowser = !!fileBrowser?.collapsed
 
   useEffect(() => {

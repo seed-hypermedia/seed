@@ -4,7 +4,7 @@ import {agentRouteSchema, createDocumentNavRoute, createInspectNavRoute, type Na
 import {
   activitySlugToFilter,
   extractViewTermFromUrl,
-  isSiteProfileTab,
+  isSpaceProfileTab,
   routeToHmUrl,
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
@@ -21,44 +21,44 @@ function getUrlHostname(url?: string | null): string | null {
 }
 
 /**
- * Returns the current site's custom domain only when it is actively resolving
+ * Returns the current space's custom domain only when it is actively resolving
  * to the same account as the page shown in the desktop omnibar.
  */
-export function selectValidatedOmnibarSiteUrl(params: {
-  candidateSiteUrl?: string | null
+export function selectValidatedOmnibarSpaceUrl(params: {
+  candidateSpaceUrl?: string | null
   gatewayUrl: string
   accountUid?: string | null
   registeredAccountUid?: string | null
   domainStatus?: string | null
   isDomainLoading?: boolean
 }): string | null {
-  const candidateHostname = getUrlHostname(params.candidateSiteUrl)
+  const candidateHostname = getUrlHostname(params.candidateSpaceUrl)
   const gatewayHostname = getUrlHostname(params.gatewayUrl)
 
-  if (!params.candidateSiteUrl || !candidateHostname) return null
+  if (!params.candidateSpaceUrl || !candidateHostname) return null
   if (gatewayHostname && candidateHostname === gatewayHostname) return null
 
   // Domain check still in flight — optimistically show what the user typed.
-  if (params.isDomainLoading) return params.candidateSiteUrl
+  if (params.isDomainLoading) return params.candidateSpaceUrl
 
   // Domain check did not succeed (error, unreachable, unknown, or query
   // returned null). Keep showing the candidate — we only rewrite to gateway
   // when the check *successfully* resolves to the wrong account.
-  if (params.domainStatus !== 'success') return params.candidateSiteUrl
+  if (params.domainStatus !== 'success') return params.candidateSpaceUrl
 
   // Domain check succeeded. Verify the account matches.
   if (!params.accountUid || !params.registeredAccountUid) return null
   if (params.registeredAccountUid !== params.accountUid) return null
 
-  return params.candidateSiteUrl
+  return params.candidateSpaceUrl
 }
 
 /**
  * Resolves a URL using the same routing rules as the desktop omnibar.
  */
 export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOptions): Promise<NavRoute | null> {
-  const siteSettingsEmailsRoute = await siteSettingsEmailsUrlToRoute(url, opts)
-  if (siteSettingsEmailsRoute) return siteSettingsEmailsRoute
+  const spaceSettingsEmailsRoute = await spaceSettingsEmailsUrlToRoute(url, opts)
+  if (spaceSettingsEmailsRoute) return spaceSettingsEmailsRoute
 
   const directRoute = hypermediaUrlToRoute(url)
   if (directRoute) return directRoute
@@ -123,9 +123,9 @@ export function agentTriggerUrl(serverUrl: string, agentId: string, triggerId: s
 /**
  * Resolves <siteUrl>/:settings/email-subscribers (or the gateway form
  * <gatewayUrl>/hm/<uid>/:settings/email-subscribers) to the
- * site-settings-emails route.
+ * space-settings-emails route.
  */
-async function siteSettingsEmailsUrlToRoute(input: string, opts?: ResolveOptions): Promise<NavRoute | null> {
+async function spaceSettingsEmailsUrlToRoute(input: string, opts?: ResolveOptions): Promise<NavRoute | null> {
   try {
     const url = new URL(input.trim())
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
@@ -136,7 +136,7 @@ async function siteSettingsEmailsUrlToRoute(input: string, opts?: ResolveOptions
       segments[2] === ':settings' &&
       segments[3] === 'email-subscribers'
     ) {
-      return {key: 'site-settings-emails', accountUid: segments[1]}
+      return {key: 'space-settings-emails', accountUid: segments[1]}
     }
     if (segments.length !== 2 || segments[0] !== ':settings' || segments[1] !== 'email-subscribers') return null
     url.pathname = '/'
@@ -144,7 +144,7 @@ async function siteSettingsEmailsUrlToRoute(input: string, opts?: ResolveOptions
     url.hash = ''
     const result = await resolveHypermediaUrl(url.toString(), opts)
     if (!result?.hmId) return null
-    return {key: 'site-settings-emails', accountUid: result.hmId.uid}
+    return {key: 'space-settings-emails', accountUid: result.hmId.uid}
   } catch {
     return null
   }
@@ -226,8 +226,8 @@ function applyResolvedViewTerm(
     }
   }
 
-  if (isSiteProfileTab(routeKey)) {
-    return {key: 'site-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
+  if (isSpaceProfileTab(routeKey)) {
+    return {key: 'space-profile', id: route.id, accountUid: accountUid || undefined, tab: routeKey}
   }
 
   if (routeKey === 'activity') {
@@ -239,7 +239,7 @@ function applyResolvedViewTerm(
   }
 
   if (routeKey === 'explore') {
-    return {key: 'explore', context: {type: 'site', id: route.id}}
+    return {key: 'explore', context: {type: 'space', id: route.id}}
   }
 
   return {key: routeKey, id: route.id}

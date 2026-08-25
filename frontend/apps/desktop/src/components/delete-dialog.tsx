@@ -1,6 +1,6 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useDeleteKey} from '@/models/daemon'
-import {useListSite} from '@/models/documents'
+import {useListSpace} from '@/models/documents'
 
 import {hmId} from '@shm/shared'
 import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
@@ -34,7 +34,7 @@ export function DeleteDocumentDialog({
   input: {id: UnpackedHypermediaId; onSuccess?: () => void}
   onClose?: () => void
 }) {
-  const list = useListSite(id)
+  const list = useListSpace(id)
   const parentPath = id.path ?? []
   const childDocs =
     list.data?.filter((item) => {

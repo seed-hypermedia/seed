@@ -1,10 +1,10 @@
 import {describe, expect, it} from 'vitest'
-import {getAccountSiteLinkState} from '../account-page'
+import {getAccountSpaceLinkState} from '../account-page'
 
-describe('getAccountSiteLinkState', () => {
-  it('hides the link when the account has no site', () => {
+describe('getAccountSpaceLinkState', () => {
+  it('hides the link when the account has no space', () => {
     expect(
-      getAccountSiteLinkState({
+      getAccountSpaceLinkState({
         accountUid: 'alice',
         hasSite: false,
         siteUrl: null,
@@ -12,13 +12,13 @@ describe('getAccountSiteLinkState', () => {
     ).toMatchObject({
       kind: 'hidden',
       status: 'default',
-      label: 'Open Site',
+      label: 'Open Space',
     })
   })
 
   it('keeps the legacy internal link when only the home document exists', () => {
     expect(
-      getAccountSiteLinkState({
+      getAccountSpaceLinkState({
         accountUid: 'alice',
         hasSite: true,
         siteUrl: null,
@@ -26,13 +26,13 @@ describe('getAccountSiteLinkState', () => {
     ).toMatchObject({
       kind: 'internal',
       status: 'default',
-      label: 'Open Site',
+      label: 'Open Space',
     })
   })
 
   it('uses the external domain link when the domain is verified for the profile account', () => {
     expect(
-      getAccountSiteLinkState({
+      getAccountSpaceLinkState({
         accountUid: 'alice',
         hasSite: true,
         siteUrl: 'https://alice.example',
@@ -47,9 +47,9 @@ describe('getAccountSiteLinkState', () => {
     })
   })
 
-  it('falls back to the internal site route when the verified domain belongs to another account', () => {
+  it('falls back to the internal space route when the verified domain belongs to another account', () => {
     expect(
-      getAccountSiteLinkState({
+      getAccountSpaceLinkState({
         accountUid: 'alice',
         hasSite: true,
         siteUrl: 'https://alice.example',
@@ -58,7 +58,7 @@ describe('getAccountSiteLinkState', () => {
     ).toMatchObject({
       kind: 'internal',
       status: 'warning',
-      label: 'Open Site',
+      label: 'Open Space',
       hostname: 'alice.example',
       warningMessage: 'alice.example is not resolving to this profile account.',
     })
@@ -66,7 +66,7 @@ describe('getAccountSiteLinkState', () => {
 
   it('waits for the domain lookup before showing a warning', () => {
     expect(
-      getAccountSiteLinkState({
+      getAccountSpaceLinkState({
         accountUid: 'alice',
         hasSite: true,
         siteUrl: 'https://alice.example',

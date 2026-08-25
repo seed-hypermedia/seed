@@ -112,9 +112,9 @@ type Index struct {
 	mu sync.Mutex // protects from concurrent reindexing
 
 	// Peer access control fields.
-	peerAuth         *peerAuthStore
-	sitePeerResolver *sitePeerResolver
-	Domains          *DomainStore
+	peerAuth          *peerAuthStore
+	spacePeerResolver *spacePeerResolver
+	Domains           *DomainStore
 
 	// Allowlist for temporary blob access during push operations.
 	// Maps peer ID -> request ID -> set of CIDs.
@@ -348,18 +348,18 @@ func OpenIndexPendingReindex(db *sqlitex.Pool, log *zap.Logger) *Index {
 }
 
 func newIndex(db *sqlitex.Pool, log *zap.Logger) *Index {
-	resolver := newSitePeerResolver(500, 5*time.Minute)
+	resolver := newSpacePeerResolver(500, 5*time.Minute)
 	domains := NewDomainStore(db, resolver, log)
 	resolver.domainStore = domains
 	idx := &Index{
-		bs:               newBlockstore(db, log),
-		db:               db,
-		log:              log,
-		peerAuth:         newPeerAuthStore(),
-		sitePeerResolver: resolver,
-		Domains:          domains,
-		allowlistEntries: make(map[peer.ID]map[string]map[cid.Cid]struct{}),
-		hookNotify:       make(chan struct{}, 1),
+		bs:                newBlockstore(db, log),
+		db:                db,
+		log:               log,
+		peerAuth:          newPeerAuthStore(),
+		spacePeerResolver: resolver,
+		Domains:           domains,
+		allowlistEntries:  make(map[peer.ID]map[string]map[cid.Cid]struct{}),
+		hookNotify:        make(chan struct{}, 1),
 	}
 	idx.hookCond = sync.NewCond(&idx.hookQueueMu)
 	return idx
@@ -399,11 +399,11 @@ type indexOpts struct {
 	// Distinct from ObservedAt: the unstash cascade clears ObservedAt because a
 	// stashed blob's true arrival time is lost, but the blob is still network
 	// traffic and still belongs in the write breakdown. Gating attribution on
-	// ObservedAt dropped every stashed blob from the per-site table.
+	// ObservedAt dropped every stashed blob from the per-space table.
 	FromNetwork bool
 
 	// Kinds, if non-nil, accumulates one sample per indexed blob for the
-	// per-site write breakdown. Threaded like hookIDs and for the same reason:
+	// per-space write breakdown. Threaded like hookIDs and for the same reason:
 	// the caller flushes it only after the transaction commits, so a rolled-back
 	// batch contributes nothing. May be nil (no accounting).
 	Kinds *[]syncperf.KindSample
@@ -1575,7 +1575,7 @@ func (idx *Index) WalkCapabilitiesForDelegate(ctx context.Context, delegate core
 }
 
 // WalkAllAccountCapabilities walks through all capabilities for a given account across all document paths.
-// This is used when the caller wants to list site-wide collaborators.
+// This is used when the caller wants to list space-wide collaborators.
 func (idx *Index) WalkAllAccountCapabilities(ctx context.Context, accountIRI IRI, author core.Principal, fn func(cid.Cid, *Capability) error) error {
 	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
@@ -1660,7 +1660,7 @@ type indexingCtx struct {
 	fromNetwork bool
 
 	// blobSize is the uncompressed byte length of the blob being indexed, used
-	// to attribute bytes to a site and kind in SaveBlob.
+	// to attribute bytes to a space and kind in SaveBlob.
 	blobSize int
 
 	// kinds accumulates write-breakdown samples for the enclosing transaction.
@@ -1818,7 +1818,7 @@ func (idx *indexingCtx) SaveBlob(sb structuralBlob) error {
 	syncperf.Default.RecordDelay(string(sb.Type), idx.observedAt, sb.Ts)
 
 	// Same funnel, and the only place that knows a blob's kind AND the space it
-	// belongs to, so it's where the per-site write breakdown is attributed.
+	// belongs to, so it's where the per-space write breakdown is attributed.
 	// Gated on observedAt for the same reason as the delay: a local publish
 	// isn't synced traffic. Buffered, not recorded — the caller flushes after
 	// the transaction commits.
@@ -1829,17 +1829,17 @@ func (idx *indexingCtx) SaveBlob(sb structuralBlob) error {
 			// media rather than giving it a column of its own.
 			kind = syncperf.KindMedia
 		}
-		var site string
+		var space string
 		if sb.Resource.ID != "" {
-			if space, _, err := sb.Resource.ID.SpacePath(); err == nil {
-				site = space.String()
+			if p, _, err := sb.Resource.ID.SpacePath(); err == nil {
+				space = p.String()
 			}
 		}
 		// When the space isn't known (a Change carries no resource IRI), the
 		// genesis lets the debug page recover it later from any Ref that shares
 		// the same genesis.
 		*idx.kinds = append(*idx.kinds, syncperf.KindSample{
-			Site:  site,
+			Space: space,
 			Doc:   genesisKey,
 			Kind:  kind,
 			Bytes: int64(idx.blobSize),
@@ -2433,30 +2433,30 @@ var qLoadStashedBlobs = dqb.Str(`
 	)
 `)
 
-// GetSiteURL returns the siteURL metadata from the home document of a space.
-// When a valid siteURL is found, it is automatically tracked in the domain store.
-func (idx *Index) GetSiteURL(ctx context.Context, space core.Principal) (string, error) {
+// GetSpaceURL returns the spaceURL metadata from the home document of a space.
+// When a valid spaceURL is found, it is automatically tracked in the domain store.
+func (idx *Index) GetSpaceURL(ctx context.Context, space core.Principal) (string, error) {
 	conn, release, err := idx.db.ReadConn(ctx)
 	if err != nil {
 		return "", err
 	}
 
 	homeIRI := "hm://" + space.String()
-	siteURL, err := sqlitex.QueryOne[string](conn, qGetSiteURL(), homeIRI)
-	release() // Release before TrackSiteURL to avoid nested pool acquisition deadlock.
+	spaceURL, err := sqlitex.QueryOne[string](conn, qGetSpaceURL(), homeIRI)
+	release() // Release before TrackSpaceURL to avoid nested pool acquisition deadlock.
 	if err != nil {
 		return "", err
 	}
 
 	// Auto-track discovered domains.
-	if siteURL != "" && idx.Domains != nil {
-		idx.Domains.TrackSiteURL(ctx, siteURL)
+	if spaceURL != "" && idx.Domains != nil {
+		idx.Domains.TrackSpaceURL(ctx, spaceURL)
 	}
 
-	return siteURL, nil
+	return spaceURL, nil
 }
 
-var qGetSiteURL = dqb.Str(`
+var qGetSpaceURL = dqb.Str(`
 	SELECT site_url
 	FROM (
 		SELECT

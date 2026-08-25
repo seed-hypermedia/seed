@@ -342,7 +342,7 @@ describe('SessionRunCard (pinned)', () => {
         status: 'failed',
         kind: 'workflow',
         title: 'Dry-run and publish',
-        error: {code: 'quota-exceeded', message: 'Site quota exceeded', tool: 'publish', callSeq: 2},
+        error: {code: 'quota-exceeded', message: 'Space quota exceeded', tool: 'publish', callSeq: 2},
       }),
     ]
     mockState.journal = [
@@ -361,7 +361,7 @@ describe('SessionRunCard (pinned)', () => {
     ]
     render(<SessionRunCard {...baseProps} />)
     const errorSpan = Array.from(container.querySelectorAll('span')).find(
-      (span) => span.getAttribute('role') === 'button' && span.textContent === 'Site quota exceeded',
+      (span) => span.getAttribute('role') === 'button' && span.textContent === 'Space quota exceeded',
     )
     click(errorSpan)
     // The popover names the exact call the run died on — not just the message.

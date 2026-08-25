@@ -70,7 +70,7 @@ function createReplyEvent(overrides: Partial<LoadedEventWithNotifMeta> = {}) {
       id: 'comment-version-cid',
     },
     target: {
-      id: hmId('site', ['post']),
+      id: hmId('space', ['post']),
       metadata: {name: 'Post'},
     },
     replyingComment: null,
@@ -102,7 +102,7 @@ function createReplyPayload(overrides: Partial<NotificationPayload> = {}): Notif
     reason: 'reply',
     eventType: 'comment',
     author: {uid: 'author-2', name: 'Bob', icon: null},
-    target: {uid: 'site', path: ['post'], name: 'Post'},
+    target: {uid: 'space', path: ['post'], name: 'Post'},
     commentId: 'comment-version-cid',
     sourceId: null,
     citationType: null,
@@ -168,7 +168,7 @@ describe('notifications page helpers', () => {
     const event = createReplyEvent({
       replyParentAuthor: null,
       target: {
-        id: hmId('site-owner', ['post']),
+        id: hmId('space-owner', ['post']),
         metadata: {name: 'Post'},
       } as any,
       targetAuthorUids: ['target-account'],
@@ -184,7 +184,7 @@ describe('notifications page helpers', () => {
     const event = createMentionEvent({
       citationType: 'c',
       target: {
-        id: hmId('site-owner', ['post']),
+        id: hmId('space-owner', ['post']),
         metadata: {name: 'Post'},
       } as any,
       targetAuthorUids: ['target-account'],
@@ -241,7 +241,7 @@ describe('notifications page helpers', () => {
     const route = notificationRouteForPayload(payload)
     expect(route).toEqual({
       key: 'comments',
-      id: expect.objectContaining({uid: 'site', path: ['post']}),
+      id: expect.objectContaining({uid: 'space', path: ['post']}),
       openComment: 'comment-version-cid',
     })
   })
@@ -287,7 +287,7 @@ describe('notifications page helpers', () => {
 
     expect(navigate).toHaveBeenCalledWith({
       key: 'comments',
-      id: expect.objectContaining({uid: 'site', path: ['post']}),
+      id: expect.objectContaining({uid: 'space', path: ['post']}),
       openComment: 'comment-version-cid',
     })
 
@@ -315,7 +315,7 @@ describe('notifications page helpers', () => {
   it('prefers resolved author and target metadata when building notification titles', () => {
     const payload = createReplyPayload({
       author: {uid: 'author-2', name: 'Old Name', icon: null},
-      target: {uid: 'site', path: ['post'], name: 'Old Post'},
+      target: {uid: 'space', path: ['post'], name: 'Old Post'},
     })
     expect(
       notificationTitle(payload, {
@@ -328,7 +328,7 @@ describe('notifications page helpers', () => {
   it('falls back to payload metadata when resolved notification metadata is unavailable', () => {
     const payload = createReplyPayload({
       author: {uid: 'author-2', name: 'Stored Name', icon: null},
-      target: {uid: 'site', path: ['post'], name: 'Stored Post'},
+      target: {uid: 'space', path: ['post'], name: 'Stored Post'},
     })
     expect(
       notificationTitle(payload, {
@@ -344,14 +344,14 @@ describe('notifications page helpers', () => {
     expect(getMaxLoadedNotificationEventAtMs([], 99)).toBe(99)
   })
 
-  it('creates route for ref (site-doc-update) notifications', () => {
+  it('creates route for ref (space-doc-update) notifications', () => {
     const payload: NotificationPayload = {
       feedEventId: 'ref-event-1',
       eventAtMs: 3_000,
       reason: 'site-doc-update',
       eventType: 'ref',
       author: {uid: 'author', name: 'Alice', icon: null},
-      target: {uid: 'site-owner', path: ['updated-page'], name: 'Updated Page'},
+      target: {uid: 'space-owner', path: ['updated-page'], name: 'Updated Page'},
       commentId: null,
       sourceId: null,
       citationType: null,
@@ -359,7 +359,7 @@ describe('notifications page helpers', () => {
     const route = notificationRouteForPayload(payload)
     expect(route).toEqual({
       key: 'document',
-      id: expect.objectContaining({uid: 'site-owner', path: ['updated-page']}),
+      id: expect.objectContaining({uid: 'space-owner', path: ['updated-page']}),
     })
   })
 
@@ -424,7 +424,7 @@ describe('notifications page helpers', () => {
       reason: 'mention',
       eventType: 'citation',
       author: {uid: 'author', name: 'Alice', icon: null},
-      target: {uid: 'site-owner', path: ['blog-post'], name: 'Blog Post'},
+      target: {uid: 'space-owner', path: ['blog-post'], name: 'Blog Post'},
       commentId: 'comment-abc',
       sourceId: null,
       citationType: 'c',
@@ -432,7 +432,7 @@ describe('notifications page helpers', () => {
     const route = notificationRouteForPayload(payload)
     expect(route).toEqual({
       key: 'comments',
-      id: expect.objectContaining({uid: 'site-owner', path: ['blog-post']}),
+      id: expect.objectContaining({uid: 'space-owner', path: ['blog-post']}),
       openComment: 'comment-abc',
     })
   })

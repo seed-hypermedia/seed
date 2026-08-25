@@ -65,7 +65,7 @@ describe('notification state requests', () => {
     expect(payload.beforeMs).toBeUndefined()
   })
 
-  it('includes siteUid in site-scoped inbox requests', async () => {
+  it('includes spaceUid in space-scoped inbox requests', async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -102,7 +102,7 @@ describe('notification state requests', () => {
         publicKey: new Uint8Array([1, 2, 3]),
         sign: async () => new Uint8Array([4, 5, 6]),
       },
-      {siteUid: 'site-1'},
+      {spaceUid: 'space-1'},
     )
 
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit]
@@ -112,10 +112,10 @@ describe('notification state requests', () => {
     }
 
     expect(payload.action).toBe('get-notification-state')
-    expect(payload.siteUid).toBe('site-1')
+    expect(payload.siteUid).toBe('space-1')
   })
 
-  it('encodes site-scoped mark-all actions on the unified notifications route', async () => {
+  it('encodes space-scoped mark-all actions on the unified notifications route', async () => {
     fetchMock.mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -153,8 +153,8 @@ describe('notification state requests', () => {
         sign: async () => new Uint8Array([4, 5, 6]),
       },
       {
-        siteUid: 'site-1',
-        actions: [{type: 'mark-site-read', siteUid: 'site-1'}],
+        spaceUid: 'space-1',
+        actions: [{type: 'mark-site-read', siteUid: 'space-1'}],
       },
     )
 
@@ -166,7 +166,7 @@ describe('notification state requests', () => {
     }
 
     expect(payload.action).toBe('apply-notification-actions')
-    expect(payload.siteUid).toBe('site-1')
-    expect(payload.actions).toEqual([{type: 'mark-site-read', siteUid: 'site-1'}])
+    expect(payload.siteUid).toBe('space-1')
+    expect(payload.actions).toEqual([{type: 'mark-site-read', siteUid: 'space-1'}])
   })
 })

@@ -6,7 +6,7 @@ import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import * as hmauth from '@shm/shared/hmauth'
-import * as joinedSite from '@shm/shared/publish-default-joined-site'
+import * as joinedSpace from '@shm/shared/publish-default-joined-space'
 import * as webauthn from '@simplewebauthn/browser'
 import {CID} from 'multiformats/cid'
 import {code as rawCodec} from 'multiformats/codecs/raw'
@@ -33,7 +33,7 @@ export interface SessionInfo {
 
 type VaultConnectionRequest = {
   connectToken: string
-  siteName?: string
+  spaceName?: string
   pendingCredential?: {
     credentialId: string
     secret: string
@@ -264,11 +264,13 @@ function parseVaultConnectionRequest(urlLike: URL | string): VaultConnectionRequ
     throw new Error('Invalid vault connection fragment')
   }
 
-  const siteName = (params.get('siteName') ?? '').trim().slice(0, 100)
+  // `siteName` is the pre-rename key, still read so links built by older desktop
+  // builds keep showing the space name.
+  const spaceName = (params.get('spaceName') ?? params.get('siteName') ?? '').trim().slice(0, 100)
 
   return {
     connectToken,
-    ...(siteName ? {siteName} : {}),
+    ...(spaceName ? {spaceName} : {}),
   }
 }
 
@@ -1382,7 +1384,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         // Import the pure shared publisher directly so account creation keeps the
         // auto-join behavior without pulling React Query and other broader shared
         // side effects into the client bundle.
-        await joinedSite.publishDefaultJoinedSite(
+        await joinedSpace.publishDefaultJoinedSpace(
           {
             accountUid,
           },

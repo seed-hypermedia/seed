@@ -37,7 +37,7 @@ const filesToRefactor = [
   "frontend/packages/ui/src/blocks-content.tsx",
   "frontend/packages/editor/src/hm-link-form.tsx",
   "frontend/packages/editor/src/autocomplete.tsx",
-  "frontend/packages/ui/src/site-header.tsx",
+  "frontend/packages/ui/src/space-header.tsx",
   "frontend/apps/desktop/src/components/titlebar-common.tsx",
   "frontend/apps/desktop/src/components/sidebar-base.tsx",
   "frontend/apps/desktop/src/utils/navigation-container.tsx",

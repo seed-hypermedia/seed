@@ -88,7 +88,7 @@ function assertNever(value: never): never {
 function NotificationContent({notification}: {notification: Notification}) {
   switch (notification.reason) {
     case 'site-doc-update':
-      return <SiteDocUpdateContent notification={notification} />
+      return <SpaceDocUpdateContent notification={notification} />
     case 'mention':
       return <MentionContent notification={notification} />
     case 'reply':
@@ -104,7 +104,7 @@ function NotificationContent({notification}: {notification: Notification}) {
   }
 }
 
-function SiteDocUpdateContent({notification}: {notification: Extract<Notification, {reason: 'site-doc-update'}>}) {
+function SpaceDocUpdateContent({notification}: {notification: Extract<Notification, {reason: 'site-doc-update'}>}) {
   return renderChange({
     targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
     isNewDocument: notification.isNewDocument,

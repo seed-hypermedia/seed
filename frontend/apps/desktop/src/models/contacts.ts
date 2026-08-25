@@ -95,13 +95,13 @@ export function useConnectPeer(
         addrs = connectPayload.a.map((shortAddr: string) => `${shortAddr}/p2p/${connectPayload.d}`)
       }
       if (!addrs && peer.match(/^(https?:\/\/)/)) {
-        // in this case, the "peer" input is not https://site/hm/connect#x url, but it is a web url. So lets try to connect to this site via its well known peer id.
+        // in this case, the "peer" input is not https://space/hm/connect#x url, but it is a web url. So lets try to connect to this space via its well known peer id.
         const peerUrl = new URL(peer)
         let baseUrl = `${peerUrl.protocol}//${peerUrl.hostname}`
         if (peerUrl.port) baseUrl += `:${peerUrl.port}`
-        const siteConfigData = await client.sites.getConfig.mutate(baseUrl)
-        if (siteConfigData?.addrs) {
-          addrs = siteConfigData.addrs
+        const spaceConfigData = await client.spaces.getConfig.mutate(baseUrl)
+        if (spaceConfigData?.addrs) {
+          addrs = spaceConfigData.addrs
         } else {
           throw new Error('Failed to connet to web url: ' + peer)
         }

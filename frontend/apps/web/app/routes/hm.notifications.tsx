@@ -1,9 +1,9 @@
-import {loadSiteHeaderData, SiteHeaderPayload} from '@/loaders'
-import {defaultSiteIcon} from '@/meta'
+import {loadSpaceHeaderData, SpaceHeaderPayload} from '@/loaders'
+import {defaultSpaceIcon} from '@/meta'
 import {PageFooter} from '@/page-footer'
-import {getOptimizedImageUrl, NavigationLoadingContent, WebSiteProvider} from '@/providers'
+import {getOptimizedImageUrl, NavigationLoadingContent, WebSpaceProvider} from '@/providers'
 import {parseRequest} from '@/request'
-import {WebSiteHeader} from '@/web-site-header'
+import {WebSpaceHeader} from '@/web-space-header'
 import {unwrap} from '@/wrapping'
 import {wrapJSON} from '@/wrapping.server'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
@@ -17,7 +17,7 @@ import {Suspense} from 'react'
 import {GeneralPageSurface} from '@shm/ui/general-page'
 import {Spinner} from '@shm/ui/spinner'
 
-type NotificationsPagePayload = SiteHeaderPayload
+type NotificationsPagePayload = SpaceHeaderPayload
 
 export const meta: MetaFunction = ({data}) => {
   const {homeMetadata} = unwrap<NotificationsPagePayload>(data)
@@ -26,7 +26,7 @@ export const meta: MetaFunction = ({data}) => {
   meta.push({
     tagName: 'link',
     rel: 'icon',
-    href: homeIcon || defaultSiteIcon,
+    href: homeIcon || defaultSpaceIcon,
     type: 'image/png',
   })
   meta.push({title: 'Notifications'})
@@ -37,29 +37,34 @@ export const loader = async ({request}: LoaderFunctionArgs) => {
   const parsedRequest = parseRequest(request)
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, async () => {
-    const headerData = await loadSiteHeaderData(parsedRequest)
+    const headerData = await loadSpaceHeaderData(parsedRequest)
     return wrapJSON(headerData satisfies NotificationsPagePayload)
   })
 }
 
 export default function NotificationsRoute() {
-  const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} =
+  const {originHomeId, spaceHost, origin, homeMetadata, dehydratedState} =
     unwrap<NotificationsPagePayload>(useLoaderData())
   if (!originHomeId) {
     return <h2>Invalid origin home id</h2>
   }
   return (
-    <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost} dehydratedState={dehydratedState}>
+    <WebSpaceProvider
+      origin={origin}
+      originHomeId={originHomeId}
+      spaceHost={spaceHost}
+      dehydratedState={dehydratedState}
+    >
       <GeneralPageSurface className="min-h-screen items-center">
-        <WebSiteHeader
+        <WebSpaceHeader
           homeMetadata={homeMetadata}
           originHomeId={originHomeId}
-          siteHomeId={originHomeId}
+          spaceHomeId={originHomeId}
           docId={null}
           origin={origin}
-          rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
+          rightActions={<WebHeaderActions spaceUid={originHomeId.uid} />}
         />
-        <NavigationLoadingContent className="flex w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
+        <NavigationLoadingContent className="flex w-full flex-1 flex-col gap-4 pt-[var(--space-header-h)] sm:pt-0">
           <ClientOnly>
             <Suspense fallback={<Spinner />}>
               <WebNotificationsPage />
@@ -68,6 +73,6 @@ export default function NotificationsRoute() {
         </NavigationLoadingContent>
         <PageFooter className="w-full" />
       </GeneralPageSurface>
-    </WebSiteProvider>
+    </WebSpaceProvider>
   )
 }

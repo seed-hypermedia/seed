@@ -1,4 +1,4 @@
-import {HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMSpaceMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useAccountsMetadata} from '@shm/shared/models/entity'
 import {useRouteLink} from '@shm/shared/routing'
 import {useMemo} from 'react'
@@ -8,13 +8,13 @@ import {cn} from './utils'
 const MAX_AVATARS = 3
 
 interface MembersFacepileProps {
-  members: HMSiteMember[]
-  siteId: UnpackedHypermediaId
+  members: HMSpaceMember[]
+  spaceId: UnpackedHypermediaId
   description?: string
   className?: string
 }
 
-export function MembersFacepile({members, siteId, description, className}: MembersFacepileProps) {
+export function MembersFacepile({members, spaceId, description, className}: MembersFacepileProps) {
   const totalCount = members.length
 
   const displayUids = useMemo(() => members.slice(0, MAX_AVATARS).map((m) => m.account.uid), [members])
@@ -23,7 +23,7 @@ export function MembersFacepile({members, siteId, description, className}: Membe
 
   const peopleLinkProps = useRouteLink({
     key: 'collaborators',
-    id: {...siteId, latest: true, version: null},
+    id: {...spaceId, latest: true, version: null},
   })
 
   if (totalCount === 0) return null

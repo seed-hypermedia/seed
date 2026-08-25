@@ -66,7 +66,7 @@ export function useUnpublishedChangeCount(): number {
 
   return useMemo(() => {
     const metadataChangeCount = Object.keys(metadata ?? {}).length
-    // Site-header nav edits don't touch the editor or metadata, so count
+    // Space-header nav edits don't touch the editor or metadata, so count
     // them via the same diff used at publish time. `navigation === undefined`
     // means no nav edits this session — return 0 ops.
     const navigationChangeCount = getNavigationChanges(navigation, publishedDoc?.detachedBlocks?.navigation).length

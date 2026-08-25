@@ -456,7 +456,7 @@ export function pasteHandler(options: PasteHandlerOptions): Plugin {
                 handleWebUrl(view, link, options)
               }
             } catch (err) {
-              console.log('Error checking for hypermedia site:', err)
+              console.log('Error checking for hypermedia space:', err)
               insertWebUrl()
               handleWebUrl(view, link, options)
             }

@@ -707,7 +707,7 @@ export function useCollaborators(docId: UnpackedHypermediaId) {
   }
 }
 
-export function useSiteMembers(id: UnpackedHypermediaId | null | undefined) {
+export function useSpaceMembers(id: UnpackedHypermediaId | null | undefined) {
   const collaborators = useDocumentCollaborators(id)
   const accounts = collaborators.data?.accounts || {}
 
@@ -801,7 +801,7 @@ export async function search(input: string): Promise<HypermediaSearchResult> {
     return {destination: `/ipfs/${cid}`}
   }
 
-  // Strip any trailing site view term (e.g. /:comments, /:profile) so the
+  // Strip any trailing space view term (e.g. /:comments, /:profile) so the
   // underlying resource resolves cleanly, then re-attach it to the destination
   // so the explorer opens the matching view. `unpackHmId` already resolves the
   // `/:comments/<id>` form into the comment resource, so keep the raw input in
@@ -811,8 +811,8 @@ export async function search(input: string): Promise<HypermediaSearchResult> {
   const passViewTerm = commentId ? null : viewTerm
 
   // A profile-family view term can name the account it applies to
-  // (e.g. site.com/:profile/<accountUid>). That targets the named account's
-  // profile directly — not the site host it happened to be viewed on — so it
+  // (e.g. space.com/:profile/<accountUid>). That targets the named account's
+  // profile directly — not the space host it happened to be viewed on — so it
   // must win over resolving the hostname below.
   if (accountUid) {
     return {

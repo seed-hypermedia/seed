@@ -56,11 +56,11 @@ func TestGetResource(t *testing.T) {
 			Iri: "http://example.com/test",
 		})
 
-		// Now we attempt to resolve web URLs, but unreachable sites fail with NotFound.
+		// Now we attempt to resolve web URLs, but unreachable spaces fail with NotFound.
 		require.Error(t, err)
 		st := status.Convert(err)
 		require.Equal(t, codes.NotFound, st.Code())
-		require.Contains(t, st.Message(), "failed to resolve site config")
+		require.Contains(t, st.Message(), "failed to resolve space config")
 	})
 
 	t.Run("HTTPSSchemeNotImplemented", func(t *testing.T) {
@@ -71,11 +71,11 @@ func TestGetResource(t *testing.T) {
 			Iri: "https://example.com/test",
 		})
 
-		// Now we attempt to resolve web URLs, but unreachable sites fail with NotFound.
+		// Now we attempt to resolve web URLs, but unreachable spaces fail with NotFound.
 		require.Error(t, err)
 		st := status.Convert(err)
 		require.Equal(t, codes.NotFound, st.Code())
-		require.Contains(t, st.Message(), "failed to resolve site config")
+		require.Contains(t, st.Message(), "failed to resolve space config")
 	})
 	t.Run("InvalidAccount", func(t *testing.T) {
 		t.Parallel()

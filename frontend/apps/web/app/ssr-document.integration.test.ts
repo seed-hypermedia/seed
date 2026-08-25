@@ -215,7 +215,7 @@ function createHydratedQueryClient(docId: ReturnType<typeof hmId>, document: HMD
   const homeQueryKey = [queryKeys.ENTITY, homeId.id, homeId.version || undefined, homeId.latest || false]
   queryClient.setQueryData(homeQueryKey, createDocumentResource(document, homeId))
 
-  // Feed pages read the site home document without the `latest` flag.
+  // Feed pages read the space home document without the `latest` flag.
   const bareHomeId = hmId(docId.uid)
   const bareHomeQueryKey = [
     queryKeys.ENTITY,
@@ -313,7 +313,7 @@ describe('SSR Document Rendering with React Query Hydration', () => {
     expect(html).not.toContain('animate-spin')
   })
 
-  it('should render the host banner on WebFeedPage when viewing a remote site feed', async () => {
+  it('should render the host banner on WebFeedPage when viewing a remote space feed', async () => {
     const {WebFeedPage} = await import('@/web-feed-page')
 
     const testDocument = createTestDocument('Feed page hydration test content')

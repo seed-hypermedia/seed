@@ -19,7 +19,7 @@ const contactNameMaxLength = 256
 
 // ContactSubscribe represents the subscription preferences for a contact.
 type ContactSubscribe struct {
-	Site    bool `refmt:"site,omitempty"`
+	Space   bool `refmt:"site,omitempty"`
 	Profile bool `refmt:"profile,omitempty"`
 }
 
@@ -158,7 +158,7 @@ func indexContact(ictx *indexingCtx, id int64, eb Encoded[*Contact]) error {
 		extraAttrs["name"] = v.Name
 		if v.Subscribe != nil {
 			subscribe := map[string]any{}
-			if v.Subscribe.Site {
+			if v.Subscribe.Space {
 				subscribe["site"] = true
 			}
 			if v.Subscribe.Profile {

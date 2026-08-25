@@ -1,15 +1,15 @@
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
-import type {HMMetadataPayload, HMSiteMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMMetadataPayload, HMSpaceMember, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
-import {useAddCapabilities, useIsSiteOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
-import {useResource, useSiteMembers} from '@shm/shared/models/entity'
+import {useAddCapabilities, useIsSpaceOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
+import {useResource, useSpaceMembers} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import type {SiteSettingsTab} from '@shm/shared/routes'
+import type {SpaceSettingsTab} from '@shm/shared/routes'
 import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {SiteEmailSubscribersList} from '@shm/ui/site-email-subscribers'
+import {SpaceEmailSubscribersList} from '@shm/ui/space-email-subscribers'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -32,26 +32,26 @@ function roleLabel(role: string): string {
   return 'Member'
 }
 
-export function MembersSettings({siteId, activeTab}: {siteId: UnpackedHypermediaId; activeTab?: SiteSettingsTab}) {
+export function MembersSettings({spaceId, activeTab}: {spaceId: UnpackedHypermediaId; activeTab?: SpaceSettingsTab}) {
   const navigate = useNavigate('replace')
-  const resource = useResource(siteId)
+  const resource = useResource(spaceId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(siteId.uid)
-  const {accounts, grantedMembers, members, isInitialLoading} = useSiteMembers(siteId)
+  const {isSpaceOwner, isLoading: isOwnerLoading} = useIsSpaceOwner(spaceId.uid)
+  const {accounts, grantedMembers, members, isInitialLoading} = useSpaceMembers(spaceId)
   const signAs = useSelectedAccountId()
-  const metadataSiteUrl = document?.metadata?.siteUrl
+  const metadataSpaceUrl = document?.metadata?.siteUrl
 
   // Only query when the siteUrl exists
   const subscribers = useQuery({
-    queryKey: [queryKeys.SITE_EMAIL_SUBSCRIBERS, metadataSiteUrl ?? null, siteId.uid, signAs],
+    queryKey: [queryKeys.SPACE_EMAIL_SUBSCRIBERS, metadataSpaceUrl ?? null, spaceId.uid, signAs],
     queryFn: () =>
-      client.sites.getEmailSubscribers.query({siteUrl: metadataSiteUrl, accountUid: siteId.uid, signAs: signAs!}),
-    enabled: !!signAs && isSiteOwner && !!metadataSiteUrl,
+      client.spaces.getEmailSubscribers.query({siteUrl: metadataSpaceUrl, accountUid: spaceId.uid, signAs: signAs!}),
+    enabled: !!signAs && isSpaceOwner && !!metadataSpaceUrl,
     retry: false,
   })
 
   const {membersList, writersList} = useMemo(() => {
-    const owner: HMSiteMember = {account: hmId(siteId.uid), role: 'owner'}
+    const owner: HMSpaceMember = {account: hmId(spaceId.uid), role: 'owner'}
     const seen = new Set<string>()
     const deduped = [owner, ...grantedMembers, ...members].filter((m) => {
       if (seen.has(m.account.uid)) return false
@@ -62,7 +62,7 @@ export function MembersSettings({siteId, activeTab}: {siteId: UnpackedHypermedia
       membersList: deduped.filter((m) => m.role === 'member'),
       writersList: deduped.filter((m) => m.role === 'writer' || m.role === 'owner'),
     }
-  }, [grantedMembers, members, siteId.uid])
+  }, [grantedMembers, members, spaceId.uid])
 
   const subTab: MemberSubTab = activeTab === 'writers' || activeTab === 'email-subscribers' ? activeTab : 'members'
 
@@ -74,15 +74,15 @@ export function MembersSettings({siteId, activeTab}: {siteId: UnpackedHypermedia
     )
   }
   if (!document) {
-    return <SizableText color="muted">This account doesn't have a site yet.</SizableText>
+    return <SizableText color="muted">This account doesn't have a space yet.</SizableText>
   }
-  if (!isSiteOwner) {
+  if (!isSpaceOwner) {
     return (
       <>
         <SizableText size="2xl" weight="bold">
           People with access
         </SizableText>
-        <SizableText color="muted">Only the site owner can view members.</SizableText>
+        <SizableText color="muted">Only the space owner can view members.</SizableText>
       </>
     )
   }
@@ -107,7 +107,7 @@ export function MembersSettings({siteId, activeTab}: {siteId: UnpackedHypermedia
           return (
             <button
               key={t.key}
-              onClick={() => navigate({key: 'site-settings', id: siteId, tab: t.key})}
+              onClick={() => navigate({key: 'space-settings', id: spaceId, tab: t.key})}
               className={cn(
                 '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm transition-colors',
                 active
@@ -125,20 +125,20 @@ export function MembersSettings({siteId, activeTab}: {siteId: UnpackedHypermedia
       </div>
 
       {subTab === 'members' && (
-        <MembersList siteId={siteId} people={membersList} accounts={accounts} isLoading={isInitialLoading} />
+        <MembersList spaceId={spaceId} people={membersList} accounts={accounts} isLoading={isInitialLoading} />
       )}
       {subTab === 'writers' && <WritersPane people={writersList} accounts={accounts} isLoading={isInitialLoading} />}
       {subTab === 'email-subscribers' && (
         <div className="py-2">
-          {metadataSiteUrl ? (
-            <SiteEmailSubscribersList
+          {metadataSpaceUrl ? (
+            <SpaceEmailSubscribersList
               subscribers={subscribers.data?.subscribers}
               isLoading={subscribers.isLoading}
               errorMessage={subscribers.error instanceof Error ? subscribers.error.message : null}
             />
           ) : (
             <SizableText color="muted" className="py-4">
-              This site doesn't have a notification service configured, so it can't collect email subscribers yet.
+              This space doesn't have a notification service configured, so it can't collect email subscribers yet.
             </SizableText>
           )}
         </div>
@@ -148,18 +148,18 @@ export function MembersSettings({siteId, activeTab}: {siteId: UnpackedHypermedia
 }
 
 function MembersList({
-  siteId,
+  spaceId,
   people,
   accounts,
   isLoading,
 }: {
-  siteId: UnpackedHypermediaId
-  people: HMSiteMember[]
+  spaceId: UnpackedHypermediaId
+  people: HMSpaceMember[]
   accounts: Record<string, HMMetadataPayload>
   isLoading: boolean
 }) {
-  const myCapability = useSelectedAccountCapability(siteId, 'owner')
-  const addCapabilities = useAddCapabilities(siteId)
+  const myCapability = useSelectedAccountCapability(spaceId, 'owner')
+  const addCapabilities = useAddCapabilities(spaceId)
   const [promotingUid, setPromotingUid] = useState<string | null>(null)
 
   const promote = (accountUid: string) => {
@@ -208,7 +208,7 @@ function WritersPane({
   accounts,
   isLoading,
 }: {
-  people: HMSiteMember[]
+  people: HMSpaceMember[]
   accounts: Record<string, HMMetadataPayload>
   isLoading: boolean
 }) {
@@ -223,7 +223,15 @@ function WritersPane({
   )
 }
 
-function MemberRow({member, account, action}: {member: HMSiteMember; account?: HMMetadataPayload; action?: ReactNode}) {
+function MemberRow({
+  member,
+  account,
+  action,
+}: {
+  member: HMSpaceMember
+  account?: HMMetadataPayload
+  action?: ReactNode
+}) {
   const metadata = account?.metadata
   const name = metadata?.name || `${member.account.uid.slice(0, 10)}…`
   return (
