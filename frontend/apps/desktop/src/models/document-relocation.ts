@@ -91,7 +91,11 @@ export function createRepublishRefOperation({
     space: destinationId.uid,
     path: hmIdPathToEntityQueryPath(destinationId.path),
     genesis: sourceDocument.generationInfo.genesis,
-    generation: Number(sourceDocument.generationInfo.generation),
+    // A fresh generation (the same choice the daemon's CreateRef makes) puts the redirect in its
+    // own generation row, so any later publish at the destination path supersedes it cleanly —
+    // reusing the source document's generation could land below an existing Ref at the
+    // destination and be silently shadowed.
+    generation: Date.now(),
     targetSpace: sourceId.uid,
     targetPath: hmIdPathToEntityQueryPath(sourceId.path),
     republish: true,

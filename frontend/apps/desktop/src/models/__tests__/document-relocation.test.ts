@@ -28,26 +28,29 @@ describe('republish ref operation', () => {
     const sourceId = hmId('source-site', {path: ['specs', 'api']})
     const destinationId = hmId('target-site', {path: ['library', 'api-copy']})
 
-    expect(
-      createRepublishRefOperation({
-        sourceId,
-        destinationId,
-        sourceDocument: {
-          version: 'bafy-version',
-          generationInfo: {genesis: 'bafy-genesis', generation: 7},
-        } as any,
-        capabilityId: 'bafy-capability',
-      }),
-    ).toEqual({
+    const before = Date.now()
+    const operation = createRepublishRefOperation({
+      sourceId,
+      destinationId,
+      sourceDocument: {
+        version: 'bafy-version',
+        generationInfo: {genesis: 'bafy-genesis', generation: 7},
+      } as any,
+      capabilityId: 'bafy-capability',
+    })
+    expect(operation).toEqual({
       space: 'target-site',
       path: '/library/api-copy',
       genesis: 'bafy-genesis',
-      generation: 7,
+      generation: operation.generation,
       targetSpace: 'source-site',
       targetPath: '/specs/api',
       republish: true,
       capability: 'bafy-capability',
     })
+    // A fresh generation — not the source document's — so the redirect occupies its own
+    // generation row and any later publish at the destination supersedes it.
+    expect(operation.generation).toBeGreaterThanOrEqual(before)
   })
 })
 

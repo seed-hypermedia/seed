@@ -1,4 +1,4 @@
-import {createRedirectRef, createVersionRef} from '@seed-hypermedia/client'
+import {createRedirectRef, createVersionRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocumentInfo, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useUniversalClient} from '@shm/shared'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -159,11 +159,12 @@ export async function moveWebDocuments(
   const moves = [{from: input.from, to: input.to}, ...childMoves]
 
   for (const move of moves) {
-    const resource = await client.request('Resource', move.from)
-    if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
-    const doc = resource.document
+    // Follows redirects so an already-redirected source can be moved again: the destination
+    // receives the content the source currently presents. Fresh generations let both refs
+    // supersede any redirect Refs already sitting at their paths.
+    const {document: doc} = await followToDocument(client as unknown as SeedClient, move.from)
     if (!doc.generationInfo) throw new Error('No generation info for document')
-    const generation = Number(doc.generationInfo.generation)
+    const generation = Date.now()
     const genesis = doc.generationInfo.genesis
     await client.publish(
       await createVersionRef(
@@ -215,9 +216,10 @@ export async function republishWebDocument(
 ): Promise<{from: UnpackedHypermediaId; to: UnpackedHypermediaId}> {
   if (!client.getSigner) throw new Error('Signing not available')
   const signer = client.getSigner(input.signingAccountId) as HMSigner
-  const resource = await client.request('Resource', input.from)
-  if (resource.type !== 'document') throw new Error(`Cannot republish: resource is ${resource.type}`)
-  const doc = resource.document
+  // Follows redirects so an already-republished doc can be republished elsewhere too. A fresh
+  // generation (the same choice the daemon's CreateRef makes) puts the redirect in its own
+  // generation row, so any later publish at the destination path supersedes it cleanly.
+  const {document: doc} = await followToDocument(client as unknown as SeedClient, input.from)
   if (!doc.generationInfo) throw new Error('No generation info for document')
   await client.publish(
     await createRedirectRef(
@@ -225,7 +227,7 @@ export async function republishWebDocument(
         space: input.to.uid,
         path: hmIdPathToEntityQueryPath(input.to.path),
         genesis: doc.generationInfo.genesis,
-        generation: Number(doc.generationInfo.generation),
+        generation: Date.now(),
         targetSpace: input.from.uid,
         targetPath: hmIdPathToEntityQueryPath(input.from.path),
         republish: true,

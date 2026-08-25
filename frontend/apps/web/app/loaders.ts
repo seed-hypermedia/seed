@@ -525,6 +525,29 @@ export async function loadResource(
   } as InstrumentationContext
 
   const resource = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () => fetchResource(id))
+  if (resource.type === 'redirect' && resource.republish) {
+    // A republish redirect renders the target's latest content at THIS route — matching the
+    // client-side queryResource behavior — instead of bouncing the browser to the target URL.
+    const followed = await instrument(ctx || noopCtx, `followRepublish(${packHmId(resource.redirectTarget)})`, () =>
+      resolveResource(resource.redirectTarget),
+    )
+    if (followed.type === 'document') {
+      const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(followed.id)})`, () =>
+        getLatestDocument(followed.id),
+      )
+      return await loadResourcePayload(
+        id,
+        parsedRequest,
+        {
+          document: followed.document,
+          latestDocument,
+        },
+        ctx,
+        options,
+      )
+    }
+    // The chain does not end at a live document — fall through to the plain-redirect handling.
+  }
   if (resource.type === 'redirect') {
     const destRedirectUrl = createWebHMUrl(resource.redirectTarget.uid, {
       path: resource.redirectTarget.path,

@@ -169,7 +169,8 @@ describe('moveWebDocuments', () => {
         path: '/old-parent/renamed',
         genesis: 'genesis-cid',
         version: 'doc-version',
-        generation: 5,
+        // Fresh generation so the ref supersedes anything already at the destination path.
+        generation: expect.any(Number),
         capability: 'cap-cid',
       },
       expect.anything(),
@@ -179,7 +180,7 @@ describe('moveWebDocuments', () => {
         space: 'site',
         path: '/old-parent/doc',
         genesis: 'genesis-cid',
-        generation: 5,
+        generation: expect.any(Number),
         targetSpace: 'site',
         targetPath: '/old-parent/renamed',
         capability: 'cap-cid',
@@ -258,7 +259,9 @@ describe('republishWebDocument', () => {
         space: 'site',
         path: '/parent/copy',
         genesis: 'genesis-cid',
-        generation: 8,
+        // Fresh generation — not the source document's — so any later publish at the
+        // destination supersedes the republish redirect.
+        generation: expect.any(Number),
         targetSpace: 'source',
         targetPath: '/doc',
         republish: true,
