@@ -106,8 +106,8 @@ export {
   shouldAutoLinkParent,
 } from './auto-link'
 export type {AutoLinkChildToParentOptions} from './auto-link'
-export {resolveDocumentState, resolveEditableDocument} from './document-state'
-export type {DocumentState, EditableDocumentBase} from './document-state'
+export {followToDocument, resolveDocumentState, resolveEditableDocument} from './document-state'
+export type {DocumentState, EditableDocumentBase, FollowedDocument} from './document-state'
 
 export {editorBlockToHMBlock, editorBlocksToHMBlockNodes} from './editorblock-to-hmblock'
 export {hmBlocksToEditorContent, hmBlockToEditorBlock, annotationContains} from './hmblock-to-editorblock'

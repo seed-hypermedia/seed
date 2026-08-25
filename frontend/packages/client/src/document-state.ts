@@ -91,16 +91,14 @@ export async function resolveDocumentState(client: SeedClient, targetId: string)
 /** Maximum redirect hops {@link resolveEditableDocument} follows before giving up. */
 const MAX_REDIRECT_HOPS = 5
 
-/** The baseline needed to edit (or take over) a document address. */
-export type EditableDocumentBase = {
-  /** The address being edited — where a new Ref should be published. */
+/** A document address resolved through redirects to the document it currently presents. */
+export type FollowedDocument = {
+  /** The address that was resolved — where a new Ref should be published to affect this path. */
   id: UnpackedHypermediaId
-  /** Where the content baseline lives after following redirects (same as `id` for a plain document). */
+  /** Where the document actually lives after following redirects (same as `id` for a plain document). */
   targetId: UnpackedHypermediaId
-  /** The current document at the target — the content baseline for edits. */
+  /** The current document at the target — the content baseline for edits, forks, and moves. */
   document: HMDocument
-  /** Change-DAG state of the target (genesis/heads/depth) for building the next Change. */
-  state: DocumentState
   /**
    * Non-null when `id` currently holds a redirect Ref. Publishing a Version Ref at `id` with the
    * target's genesis and a fresh (current-timestamp) generation replaces the redirect: the path
@@ -109,27 +107,28 @@ export type EditableDocumentBase = {
   redirect: {republish: boolean; target: UnpackedHypermediaId} | null
 }
 
+/** The full baseline needed to build a new Change at an address: {@link FollowedDocument} plus DAG state. */
+export type EditableDocumentBase = FollowedDocument & {
+  /** Change-DAG state of the target (genesis/heads/depth) for building the next Change. */
+  state: DocumentState
+}
+
 /**
- * Resolves an address to the state needed to edit the document there, following redirects.
+ * Resolves an address to the document it currently presents, following redirect Refs.
  *
  * A path that holds a redirect Ref (including a "republish" redirect, which re-publishes the
- * target's latest content at this path) has no change DAG of its own — `ListChanges` returns
- * nothing for it. The editable content lives at the redirect target, so edits at the source
- * address must build a Change on the target's DAG and publish a Version Ref at the source path
- * with a fresh generation, which supersedes the redirect Ref.
+ * target's latest content at this path) has no document of its own: the `Resource` API reports
+ * `type: 'redirect'`. Operations on such a path (edit, fork, move, delete) act on the redirect
+ * target's document, so this follows the chain (bounded, cycle-safe) to that document.
  */
-export async function resolveEditableDocument(
-  client: SeedClient,
-  id: UnpackedHypermediaId,
-): Promise<EditableDocumentBase> {
+export async function followToDocument(client: SeedClient, id: UnpackedHypermediaId): Promise<FollowedDocument> {
   const seen = new Set<string>([packHmId(id)])
   let current = id
-  let firstRedirect: EditableDocumentBase['redirect'] = null
+  let firstRedirect: FollowedDocument['redirect'] = null
   for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
     const resource = await client.request('Resource', current)
     if (resource.type === 'document') {
-      const state = await resolveDocumentState(client, packHmId(current))
-      return {id, targetId: current, document: resource.document, state, redirect: firstRedirect}
+      return {id, targetId: current, document: resource.document, redirect: firstRedirect}
     }
     if (resource.type === 'redirect') {
       firstRedirect ??= {republish: resource.republish === true, target: resource.redirectTarget}
@@ -145,6 +144,22 @@ export async function resolveEditableDocument(
     )
   }
   throw new Error(`Too many redirects while resolving ${packHmId(id)} (limit ${MAX_REDIRECT_HOPS})`)
+}
+
+/**
+ * Resolves an address to the state needed to edit the document there, following redirects.
+ *
+ * Edits at a redirected address must build the Change on the redirect target's DAG (the source
+ * path has no changes of its own — `ListChanges` returns nothing for it) and publish a Version
+ * Ref at the source path with a fresh generation, which supersedes the redirect Ref.
+ */
+export async function resolveEditableDocument(
+  client: SeedClient,
+  id: UnpackedHypermediaId,
+): Promise<EditableDocumentBase> {
+  const followed = await followToDocument(client, id)
+  const state = await resolveDocumentState(client, packHmId(followed.targetId))
+  return {...followed, state}
 }
 
 /**

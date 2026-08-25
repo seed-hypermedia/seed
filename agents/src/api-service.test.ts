@@ -4734,6 +4734,267 @@ describe('api service', () => {
     }
   })
 
+  test('write takes over a republished address: update rebases on the redirect target, delete tombstones it, and unauthorized writes fail loudly', async () => {
+    // Live incident (session b44d4d81): a path holding a republish redirect could not be updated
+    // ("Resource is redirect, not a document"), deleted ("Cannot delete redirect"), and an update
+    // signed without a capability on the target space "succeeded" without ever becoming latest.
+    // Editing a republished address must build the Change on the redirect target's DAG and publish
+    // a Version Ref at the address with a fresh generation, which supersedes the redirect.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const otherSpace = 'z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS'
+      const targetGenesis = 'bafyreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku'
+      const targetHead = 'bafyreibnw7dfl23nougcud3jtdsc3v2ems3wymk3x4eiup2jo2qzzdhkbq'
+      let openAICallCount = 0
+      let signerPublicKey = ''
+      const publishedBodies: Uint8Array[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishedBodies.push(new Uint8Array(init?.body as ArrayBuffer))
+          return Response.json(serialize({cids: [`published-${publishedBodies.length}`]}))
+        }
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(
+            serialize({
+              changes: [
+                {id: targetGenesis, deps: [], author: otherSpace},
+                {id: targetHead, deps: [targetGenesis], author: otherSpace},
+              ],
+            }),
+          )
+        }
+        if (href.includes('/api/ListCapabilities')) {
+          return Response.json(serialize({capabilities: []}))
+        }
+        if (href.includes('/api/Resource')) {
+          const requestedId = new URL(href).searchParams.get('id') ?? ''
+          const targetDoc = {
+            type: 'document',
+            id: unpackHmId(`hm://${otherSpace}/resources/guide`),
+            document: {
+              content: [{block: {id: 'b1', type: 'Paragraph', text: 'Canonical guide body'}, children: []}],
+              version: targetHead,
+              account: otherSpace,
+              authors: [otherSpace],
+              path: '/resources/guide',
+              createTime: '',
+              updateTime: '',
+              metadata: {name: 'Agent Guide'},
+              genesis: targetGenesis,
+              generationInfo: {genesis: targetGenesis, generation: 1000},
+              visibility: 'PUBLIC',
+            },
+          }
+          if (requestedId.includes('/agent-guide') || requestedId.includes('/old-link')) {
+            return Response.json(
+              serialize({
+                type: 'redirect',
+                id: unpackHmId(requestedId),
+                redirectTarget: unpackHmId(`hm://${otherSpace}/resources/guide`),
+                republish: true,
+              }),
+            )
+          }
+          return Response.json(serialize(targetDoc))
+        }
+        if (!href.includes('/chat/completions') && !href.includes('/responses')) {
+          throw new Error(`Unexpected fetch: ${href}`)
+        }
+        openAICallCount += 1
+        if (openAICallCount === 1) {
+          return openAIStreamResponse([
+            {
+              id: 'chat-1',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-1',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}/agent-guide`,
+                            content: '# Agent Guide\n\nUpdated with PDF import lessons.',
+                            options: {action: 'update', signer: {publicKey: signerPublicKey}},
+                          }),
+                        },
+                      },
+                      {
+                        index: 1,
+                        id: 'call-2',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${signerPublicKey}/old-link`,
+                            options: {action: 'delete', signer: {publicKey: signerPublicKey}},
+                          }),
+                        },
+                      },
+                      {
+                        index: 2,
+                        id: 'call-3',
+                        type: 'function',
+                        function: {
+                          name: 'write',
+                          arguments: JSON.stringify({
+                            address: `hm://${otherSpace}/resources/guide`,
+                            content: '# Agent Guide\n\nUnauthorized revision.',
+                            options: {action: 'update', signer: {publicKey: signerPublicKey}},
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: `chat-${openAICallCount}`, choices: [{delta: {content: 'Done.'}}]},
+          {id: `chat-${openAICallCount}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSigningIdentity', label: 'Starlight', clientRequestId: 'starlight'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {
+              name: 'Starlight',
+              systemPrompt: 'Maintain docs.',
+              modelProvider: 'openai',
+              model: 'gpt-test',
+              tools: ['publish'],
+              signingKeys: [identity.identity.name],
+            },
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateSession', agentId: createdAgent.agentId}}),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const publishesBeforeMessage = publishedBodies.length
+      const response = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'MessageSession',
+            sessionId: createdSession.sessionId,
+            content: [{type: 'text', text: 'Update the republished guide'}],
+          },
+        }),
+      )
+      expect(response._).toBe('MessageSessionResponse')
+
+      const loadedSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetSession', sessionId: createdSession.sessionId},
+        }),
+      )
+      if (loadedSession._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const writeResults = loadedSession.events
+        .map(
+          (event) =>
+            event.event as {
+              type?: string
+              name?: string
+              error?: string
+              output?: {
+                command?: string
+                id?: string
+                version?: string
+                replacedRedirect?: {target?: string; republish?: boolean}
+              }
+            },
+        )
+        .filter((event) => event.type === 'tool_result' && event.name === 'write')
+      expect(writeResults).toHaveLength(3)
+
+      const takeover = writeResults.find((result) => result.output?.id === `hm://${signerPublicKey}/agent-guide`)
+      expect(takeover?.error).toBeUndefined()
+      expect(takeover?.output?.command).toBe('document.update')
+      expect(takeover?.output?.replacedRedirect).toEqual({
+        target: `hm://${otherSpace}/resources/guide`,
+        republish: true,
+      })
+
+      const deletion = writeResults.find((result) => result.output?.id === `hm://${signerPublicKey}/old-link`)
+      expect(deletion?.error).toBeUndefined()
+      expect(deletion?.output?.command).toBe('document.delete')
+
+      const unauthorized = writeResults.find(
+        (result) => !result.output?.id?.startsWith(`hm://${signerPublicKey}`) || result.error,
+      )
+      expect(unauthorized?.error).toContain('no write access')
+
+      // Two publishes: the takeover update and the tombstone. The unauthorized write never publishes.
+      const messagePublishes = publishedBodies.slice(publishesBeforeMessage)
+      expect(messagePublishes).toHaveLength(2)
+      const decodedRefs = messagePublishes.map((body) => {
+        const {blobs: published} = cbor.decode<{blobs: {data: Uint8Array}[]}>(body)
+        return published.map((blob) => cbor.decode<Record<string, unknown>>(new Uint8Array(blob.data)))
+      })
+      const updateBlobs = decodedRefs.find((blobsInBody) => blobsInBody.some((blob) => blob.type === 'Change'))
+      expect(updateBlobs).toBeDefined()
+      const change = updateBlobs!.find((blob) => blob.type === 'Change') as {deps: unknown[]; genesis: unknown}
+      // The takeover Change continues the redirect target's DAG.
+      expect(String(change.deps[0])).toBe(targetHead)
+      expect(String(change.genesis)).toBe(targetGenesis)
+      const updateRef = updateBlobs!.find((blob) => blob.type === 'Ref') as {
+        heads: unknown[]
+        generation: number
+        redirect?: unknown
+      }
+      expect(updateRef.heads).toHaveLength(1)
+      expect(updateRef.redirect).toBeUndefined()
+      // A fresh generation strictly above the redirect's is what supersedes it.
+      expect(updateRef.generation).toBeGreaterThan(1000)
+      const tombstoneBlobs = decodedRefs.find((blobsInBody) => blobsInBody.every((blob) => blob.type === 'Ref'))
+      expect(tombstoneBlobs).toBeDefined()
+      const tombstone = tombstoneBlobs![0] as {heads: unknown[]; generation: number}
+      expect(tombstone.heads).toHaveLength(0)
+      expect(tombstone.generation).toBeGreaterThan(1000)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('a provider outage on a delegated child retries itself and succeeds without human action', async () => {
     // Live incident: a child's turn died on a Codex 503 and the parent was left parked. Retryable
     // failures on background runs must ride out the outage on the queue's backoff.
