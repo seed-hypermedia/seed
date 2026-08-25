@@ -24,7 +24,7 @@
  * create-identity-name-input, create-identity-submit, identity-publish-profile,
  * publish-status. Additional selectors this test relies on (navigation /
  * error-surface points the plan describes without naming testIDs):
- * - testID "open-vault": HomeScreen entry point to the Vault screen
+ * - testID "open-vault": document-page entry point to the Vault screen
  * - testID "vault-create-identity": VaultScreen button opening CreateIdentityScreen
  * - visible text "Invalid vault URL" after starting a connection with a
  *   malformed URL (the normalizeVaultOriginURL error message)
@@ -272,7 +272,7 @@ async function openApp(): Promise<{context: BrowserContext; page: Page}> {
 async function connectToServer(page: Page, serverUrl: string): Promise<void> {
   await page.getByTestId('server-url-input').fill(serverUrl)
   await page.getByTestId('server-connect').click()
-  await page.getByTestId('home-doc-title').waitFor({timeout: 30_000})
+  await page.getByTestId('site-home').waitFor({timeout: 30_000})
 }
 
 // The vault opens from the sidebar's account row. Waits on the identities
@@ -700,7 +700,6 @@ describe('Mobile Remote Vault Connect e2e', () => {
       await expect
         .poll(async () => mobilePage.getByTestId('notif-status').textContent(), {timeout: 30_000})
         .toBe(`Verified: ${email}`)
-
     },
     TEST_TIMEOUT,
   )

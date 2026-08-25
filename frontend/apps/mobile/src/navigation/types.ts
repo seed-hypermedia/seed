@@ -1,8 +1,5 @@
 export type RootStackParamList = {
   ServerSelect: undefined
-  Home: {
-    serverUrl: string
-  }
   MnemonicInput: undefined
   Account: {
     mnemonic: string
@@ -14,12 +11,35 @@ export type RootStackParamList = {
     accountId: string
   }
   Notifications: undefined
-  /** Any hypermedia document page (home docs included). */
+  /** The agents index: the configured agent server and its agents. */
+  Agents: undefined
+  /** One agent: its configuration and its conversations. */
+  Agent: {
+    agentId: string
+    serverUrl: string
+    /** Optional agent name for the header while the detail loads. */
+    title?: string
+  }
+  /** One agent conversation (the shared log). */
+  AgentSession: {
+    sessionId: string
+    serverUrl: string
+    agentId?: string
+    /** Optional agent name for the header while the session loads. */
+    title?: string
+  }
+  /**
+   * Any hypermedia document page. This is the app's only content screen — the
+   * server's own site home is just this route with the site's uid and an empty
+   * path, so it gets the same tabs, sidebar and rendering as every other page.
+   */
   Document: {
     uid: string
     path: string[]
     /** Optional title for the header while the document loads. */
     title?: string
+    /** True for the server's site home, which is the root of the stack. */
+    isSiteHome?: boolean
   }
 }
 

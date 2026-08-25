@@ -56,11 +56,25 @@ beforeAll(async () => {
   //   section stays active) rendering child docs as cards
   // - an Embed card referencing the hierarchy doc
   // - an orphan child doc referenced by nothing -> unreferenced children
-  await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, 'blog/post-one', [
-    {type: 'SetAttributes', attrs: [{key: ['name'], value: BLOG_POST_TITLE}]},
-  ])
   await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, 'orphan-page', [
     {type: 'SetAttributes', attrs: [{key: ['name'], value: ORPHAN_TITLE}]},
+  ])
+  await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, 'blog/post-one', [
+    {type: 'SetAttributes', attrs: [{key: ['name'], value: BLOG_POST_TITLE}]},
+    // A card inside a document, so the e2e can follow a link from a document
+    // page onto another document page (each one a new screen on the stack).
+    {
+      type: 'ReplaceBlock',
+      block: {
+        type: 'Embed',
+        id: 'postembed',
+        text: '',
+        annotations: [],
+        link: `hm://${FIXTURE_ACCOUNT_ID}/orphan-page`,
+        attributes: {view: 'Card'},
+      },
+    },
+    {type: 'MoveBlocks', parent: '', blocks: ['postembed']},
   ])
   await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, '', [
     {
@@ -165,11 +179,17 @@ async function openApp(): Promise<Page> {
   return page
 }
 
-// Connecting lands directly on the server's home document page.
+// Connecting resolves the server's registered site and lands on that
+// document's page - the same Document screen every other page uses.
 async function connectToServer(page: Page, serverUrl: string): Promise<void> {
   await page.getByTestId('server-url-input').fill(serverUrl)
   await page.getByTestId('server-connect').click()
-  await page.getByTestId('home-doc-title').waitFor({timeout: 30_000})
+  await page.getByTestId('site-home').waitFor({timeout: 30_000})
+}
+
+/** The document title of the site home (bottom of the stack). */
+function siteHomeTitle(page: Page) {
+  return page.getByTestId('site-home').getByTestId('document-title')
 }
 
 /** Open the sidebar and tap one of its entries. */
@@ -186,10 +206,8 @@ describe('Mobile app (web) e2e', () => {
       await connectToServer(page, env.web.baseUrl)
 
       // The home document is resolved via /hm/api/config -> registeredAccountUid
-      await expect
-        .poll(async () => page.getByTestId('home-doc-title').textContent(), {timeout: 30_000})
-        .toBe(FIXTURE_ACCOUNT_NAME)
-      expect(await page.getByTestId('home-doc-content').textContent()).toContain(FIXTURE_HOME_CONTENT.trim())
+      await expect.poll(async () => siteHomeTitle(page).textContent(), {timeout: 30_000}).toBe(FIXTURE_ACCOUNT_NAME)
+      expect(await page.getByTestId('site-home').textContent()).toContain(FIXTURE_HOME_CONTENT.trim())
       await page.context().close()
     },
     TEST_TIMEOUT,
@@ -254,14 +272,47 @@ describe('Mobile app (web) e2e', () => {
       await card.waitFor({timeout: 30_000})
       await card.click()
 
-      // The document page opens on the Content tab
-      await page.getByTestId('document-title').waitFor({timeout: 30_000})
-      expect(await page.getByTestId('document-title').textContent()).toBe(BLOG_POST_TITLE)
+      // A new document page is pushed on top of the site home, on the Content tab
+      const doc = page.getByTestId('document-screen')
+      await doc.waitFor({timeout: 30_000})
+      await expect
+        .poll(async () => doc.getByTestId('document-title').textContent(), {timeout: 30_000})
+        .toBe(BLOG_POST_TITLE)
 
       // The Comments tab shows the comment posted in setup
-      await page.getByTestId('tab-comments').click()
-      await page.getByTestId('discussion-comment').first().waitFor({timeout: 30_000})
-      expect(await page.getByTestId('discussions-list').textContent()).toContain(COMMENT_TEXT)
+      await doc.getByTestId('tab-comments').click()
+      await doc.getByTestId('discussion-comment').first().waitFor({timeout: 30_000})
+      expect(await doc.getByTestId('discussions-list').textContent()).toContain(COMMENT_TEXT)
+      await page.context().close()
+    },
+    TEST_TIMEOUT,
+  )
+
+  it(
+    'stacks a new screen for every link followed, so back returns to the previous document',
+    async () => {
+      const page = await openApp()
+      await connectToServer(page, env.web.baseUrl)
+
+      // Site home -> blog post
+      await page.getByTestId('query-block-card-press').first().click()
+      const firstDoc = page.getByTestId('document-screen').last()
+      await expect
+        .poll(async () => firstDoc.getByTestId('document-title').textContent(), {timeout: 30_000})
+        .toBe(BLOG_POST_TITLE)
+
+      // Blog post -> the document its embed card points at. This must PUSH a
+      // second document screen; navigating to the already-mounted Document
+      // route instead would swap this screen's params and lose the way back.
+      await firstDoc.getByTestId('embed-card-press').first().click()
+      await expect.poll(async () => page.getByTestId('document-screen').count(), {timeout: 30_000}).toBe(2)
+      const secondDoc = page.getByTestId('document-screen').last()
+      await expect
+        .poll(async () => secondDoc.getByTestId('document-title').textContent(), {timeout: 30_000})
+        .toBe(ORPHAN_TITLE)
+
+      // The site home is still underneath both of them
+      expect(await page.getByTestId('site-home').count()).toBe(1)
       await page.context().close()
     },
     TEST_TIMEOUT,
@@ -271,12 +322,13 @@ describe('Mobile app (web) e2e', () => {
     'shows a connection error for an unreachable server',
     async () => {
       const page = await openApp()
-      // Nothing listens on this port; the home page shows the error state
+      // Nothing listens on this port: connecting resolves the site config, so
+      // the failure surfaces on the server picker instead of a broken page.
       await page.getByTestId('server-url-input').fill('http://localhost:59999')
       await page.getByTestId('server-connect').click()
       await expect
         .poll(async () => page.getByTestId('connection-status').textContent(), {timeout: 30_000})
-        .toBe('Connection error')
+        .toContain('Failed to connect')
       await page.context().close()
     },
     TEST_TIMEOUT,

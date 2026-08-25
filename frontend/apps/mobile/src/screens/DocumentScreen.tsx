@@ -4,10 +4,13 @@ import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import React, {useCallback, useEffect, useLayoutEffect, useState} from 'react'
 import {ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View} from 'react-native'
 import {getSeedClient} from '../client/seed-client'
+import {resolveSiteHomeUid} from '../client/site-home'
 import {BlockNodeView} from '../components/BlockNodeView'
 import {Discussions} from '../components/Discussions'
+import {Sidebar} from '../components/Sidebar'
 import {UnreferencedChildren} from '../components/UnreferencedChildren'
 import type {RootStackParamList} from '../navigation/types'
+import {getCurrentServer} from '../store/server-store'
 import {radius, theme} from '../theme'
 import {hmId} from '../utils/hm-id'
 
@@ -20,13 +23,20 @@ type DocState = {status: 'loading'} | {status: 'error'; message: string} | {stat
 
 type Tab = 'content' | 'comments'
 
-/** A hypermedia document page with the web's Content / Comments tabs. */
+/**
+ * The one document page, used for every hypermedia document — the server's own
+ * site home included. There is no separate "server" screen: connecting to a
+ * server resolves its registered site and opens that document here, so the home
+ * document gets the same content rendering, the same Comments tab and the same
+ * sidebar as any other page.
+ */
 export function DocumentScreen({navigation, route}: Props) {
-  const {uid, path, title} = route.params
+  const {uid, path, title, isSiteHome} = route.params
   const targetId = hmId(uid, path)
   const [state, setState] = useState<DocState>({status: 'loading'})
   const [tab, setTab] = useState<Tab>('content')
   const [commentCount, setCommentCount] = useState<number | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const load = useCallback(async () => {
     setState({status: 'loading'})
@@ -64,11 +74,33 @@ export function DocumentScreen({navigation, route}: Props) {
 
   const documentName = state.status === 'loaded' ? state.document.metadata?.name : undefined
   useLayoutEffect(() => {
-    navigation.setOptions({title: documentName || title || 'Document'})
+    navigation.setOptions({
+      title: documentName || title || 'Document',
+      // The sidebar lives in the header of every document page, so the current
+      // account and the app's navigation are one tap away wherever you are.
+      headerRight: () => (
+        <TouchableOpacity testID="open-sidebar" style={styles.menuButton} onPress={() => setSidebarOpen(true)}>
+          <Text style={styles.menuButtonGlyph}>☰</Text>
+        </TouchableOpacity>
+      ),
+    })
   }, [navigation, documentName, title])
 
+  const goToSiteHome = useCallback(async () => {
+    const server = getCurrentServer()
+    try {
+      const homeUid = await resolveSiteHomeUid(server.url)
+      navigation.reset({
+        index: 1,
+        routes: [{name: 'ServerSelect'}, {name: 'Document', params: {uid: homeUid, path: [], isSiteHome: true}}],
+      })
+    } catch {
+      navigation.navigate('ServerSelect')
+    }
+  }, [navigation])
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container} testID={isSiteHome ? 'site-home' : 'document-screen'}>
       <View style={styles.tabBar}>
         <TabButton label="Content" active={tab === 'content'} onPress={() => setTab('content')} testID="tab-content" />
         <TabButton
@@ -80,7 +112,7 @@ export function DocumentScreen({navigation, route}: Props) {
         />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} testID="document-content">
         {tab === 'content' ? (
           <>
             {state.status === 'loading' && <ActivityIndicator size="large" color={theme.brand} style={styles.loader} />}
@@ -111,6 +143,15 @@ export function DocumentScreen({navigation, route}: Props) {
           <Discussions targetId={targetId} />
         )}
       </ScrollView>
+
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        navigate={(screen) => {
+          if (screen === 'SiteHome') void goToSiteHome()
+          else navigation.navigate(screen)
+        }}
+      />
     </View>
   )
 }
@@ -142,6 +183,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1F3838',
+  },
+  menuButton: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.lg,
+    backgroundColor: '#2a5555',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuButtonGlyph: {
+    color: '#8fd5d5',
+    fontSize: 16,
   },
   tabBar: {
     flexDirection: 'row',

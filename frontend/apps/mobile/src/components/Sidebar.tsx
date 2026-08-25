@@ -6,7 +6,13 @@ import {Avatar} from './Avatar'
 
 const SIDEBAR_WIDTH = Math.min(300, Dimensions.get('window').width * 0.82)
 
-export type SidebarNavigate = (screen: 'Home' | 'Vault' | 'Notifications' | 'MnemonicInput' | 'ServerSelect') => void
+/**
+ * 'SiteHome' is not a route: the site home is the Document route for the
+ * server's registered site, so the host screen resolves it and resets the stack.
+ */
+export type SidebarNavigate = (
+  screen: 'SiteHome' | 'Vault' | 'Notifications' | 'MnemonicInput' | 'ServerSelect' | 'Agents',
+) => void
 
 function abbreviateUid(uid: string): string {
   return `?${uid.slice(-8)}`
@@ -100,13 +106,14 @@ export function Sidebar({open, onClose, navigate}: {open: boolean; onClose: () =
 
             <View style={styles.separator} />
 
-            <SidebarItem testID="sidebar-home" label="Home" glyph="⌂" onPress={() => go('Home')} />
+            <SidebarItem testID="sidebar-home" label="Home" glyph="⌂" onPress={() => go('SiteHome')} />
             <SidebarItem
               testID="sidebar-notifications"
               label="Notifications"
               glyph="🔔"
               onPress={() => go('Notifications')}
             />
+            <SidebarItem testID="sidebar-agents" label="Agents" glyph="✷" onPress={() => go('Agents')} />
 
             <View style={styles.separator} />
 

@@ -1,7 +1,6 @@
 import React from 'react'
 import {createNativeStackNavigator} from '@react-navigation/native-stack'
 import {ServerSelectScreen} from '../screens/ServerSelectScreen'
-import {HomeScreen} from '../screens/HomeScreen'
 import {MnemonicInputScreen} from '../screens/MnemonicInputScreen'
 import {AccountScreen} from '../screens/AccountScreen'
 import {VaultScreen} from '../screens/VaultScreen'
@@ -9,6 +8,9 @@ import {VaultConnectScreen} from '../screens/VaultConnectScreen'
 import {CreateIdentityScreen} from '../screens/CreateIdentityScreen'
 import {IdentityScreen} from '../screens/IdentityScreen'
 import {DocumentScreen} from '../screens/DocumentScreen'
+import {AgentsScreen} from '../agents/screens/AgentsScreen'
+import {AgentScreen} from '../agents/screens/AgentScreen'
+import {AgentSessionScreen} from '../agents/screens/AgentSessionScreen'
 import {NotificationsScreen} from '../screens/NotificationsScreen'
 import type {RootStackParamList} from './types'
 
@@ -34,14 +36,6 @@ export function RootNavigator() {
       <Stack.Screen
         name="ServerSelect"
         component={ServerSelectScreen}
-        options={{
-          title: 'Seed',
-          headerShown: false,
-        }}
-      />
-      <Stack.Screen
-        name="Home"
-        component={HomeScreen}
         options={{
           title: 'Seed',
           headerShown: false,
@@ -98,10 +92,34 @@ export function RootNavigator() {
       <Stack.Screen
         name="Document"
         component={DocumentScreen}
+        options={({route}) => ({
+          title: route.params?.title || 'Document',
+          headerBackTitle: 'Back',
+        })}
+      />
+      <Stack.Screen
+        name="Agents"
+        component={AgentsScreen}
         options={{
-          title: 'Document',
+          title: 'Agents',
           headerBackTitle: 'Back',
         }}
+      />
+      <Stack.Screen
+        name="Agent"
+        component={AgentScreen}
+        options={({route}) => ({
+          title: route.params?.title || 'Agent',
+          headerBackTitle: 'Agents',
+        })}
+      />
+      <Stack.Screen
+        name="AgentSession"
+        component={AgentSessionScreen}
+        options={({route}) => ({
+          title: route.params?.title || 'Conversation',
+          headerBackTitle: 'Back',
+        })}
       />
       <Stack.Screen
         name="Notifications"

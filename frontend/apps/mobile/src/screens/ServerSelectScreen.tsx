@@ -21,6 +21,7 @@ import {
   removeKnownServer,
 } from '../store/server-store'
 import {resetSeedClient} from '../client/seed-client'
+import {resolveSiteHomeUid} from '../client/site-home'
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ServerSelect'>
@@ -45,15 +46,18 @@ export function ServerSelectScreen({navigation}: Props) {
       setError(null)
 
       try {
-        // Set as current server; the Home screen verifies connectivity
         setCurrentServer(server)
         resetSeedClient()
 
         setCurrentServerState(server)
         setKnownServers(getKnownServers())
 
-        // Navigate to home/main screen
-        navigation.navigate('Home', {serverUrl: server.url})
+        // Connecting IS resolving the server's site: its registered account's
+        // home document is what we open, on the same document screen used for
+        // every other page. A server we cannot reach fails here, where the user
+        // can pick another one, rather than on a half-loaded screen.
+        const homeUid = await resolveSiteHomeUid(server.url)
+        navigation.navigate('Document', {uid: homeUid, path: [], isSiteHome: true})
       } catch (err) {
         setError(`Failed to connect: ${err instanceof Error ? err.message : 'Unknown error'}`)
       } finally {
@@ -125,7 +129,11 @@ export function ServerSelectScreen({navigation}: Props) {
           </TouchableOpacity>
         </View>
 
-        {error && <Text style={styles.errorText}>{error}</Text>}
+        {error && (
+          <Text testID="connection-status" style={styles.errorText}>
+            {error}
+          </Text>
+        )}
 
         <Text style={styles.sectionTitle}>Saved Servers</Text>
 
