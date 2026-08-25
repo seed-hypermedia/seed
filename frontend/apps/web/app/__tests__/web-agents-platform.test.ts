@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   keyPairFromStore: null as CryptoKeyPair | null,
   localKeyPair: null as {id: string; delegatedAccountUid?: string} | null,
   appContext: {origin: undefined as string | undefined},
-  sendAgentAction: vi.fn(),
 }))
 
 vi.mock('@shm/shared', () => ({
@@ -38,10 +37,6 @@ vi.mock('@/auth', () => ({
 
 vi.mock('@/local-db', () => ({
   getStoredLocalKeys: async () => (mocks.storedKeyPair ? {keyPair: mocks.storedKeyPair, ...mocks.storedExtras} : null),
-}))
-
-vi.mock('@shm/ui/agents/client', () => ({
-  sendAgentAction: (input: unknown) => mocks.sendAgentAction(input),
 }))
 
 // The rich editor drags in the whole ProseMirror stack; the adapter only passes it through.
@@ -78,7 +73,6 @@ beforeEach(() => {
   mocks.keyPairFromStore = null
   mocks.localKeyPair = null
   mocks.appContext.origin = undefined
-  mocks.sendAgentAction.mockReset()
 })
 
 afterEach(() => {
@@ -220,31 +214,48 @@ describe('web agents platform', () => {
     await expect(platform.getSigner('z6MkSomeoneElse')).rejects.toThrow(/local web identity/)
   })
 
-  it('registers the delegation with a self-signed envelope carrying the stored capability', async () => {
-    const {devicePrincipal, keyPair} = await makeDeviceIdentity()
+  it('hands the shared client the stored delegation, bytes included, for the delegated account', async () => {
+    const {keyPair} = await makeDeviceIdentity()
     const capability = new Uint8Array([1, 2, 3, 4])
     mocks.storedKeyPair = keyPair
-    mocks.storedExtras = {delegatedAccountUid: 'z6MkVaultAccount', capabilityBlob: capability}
+    mocks.storedExtras = {delegatedAccountUid: 'z6MkVaultAccount', capabilityCid: 'bafycap', capabilityBlob: capability}
     const platform = await loadPlatform()
 
-    await platform.registerSigner!('https://agents.example.com')
-
-    expect(mocks.sendAgentAction).toHaveBeenCalledWith({
-      serverUrl: 'https://agents.example.com',
-      // The registration proves itself: the envelope is signed by the device key AS the device
-      // key, and the capability inside is the account's own signature over the delegation.
-      accountUid: devicePrincipal,
-      action: {_: 'RegisterSigner', capability},
+    await expect(platform.getDelegation!('z6MkVaultAccount')).resolves.toEqual({
+      capabilityCid: 'bafycap',
+      capabilityBlob: capability,
     })
   })
 
-  it('refuses to register when there is no delegation to prove', async () => {
+  it('hands out the CID alone for sessions delegated before the blob was stored, without fetching', async () => {
+    // The agent server resolves the published blob from its own HM node; a fetch from the browser
+    // through this site's file proxy would fail for any visitor whose auth cookie the daemon rejects.
     const {keyPair} = await makeDeviceIdentity()
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy)
     mocks.storedKeyPair = keyPair
+    mocks.storedExtras = {delegatedAccountUid: 'z6MkVaultAccount', capabilityCid: 'bafycap'}
     const platform = await loadPlatform()
 
-    await expect(platform.registerSigner!('https://agents.example.com')).rejects.toThrow(/No account delegation/)
-    expect(mocks.sendAgentAction).not.toHaveBeenCalled()
+    await expect(platform.getDelegation!('z6MkVaultAccount')).resolves.toEqual({
+      capabilityCid: 'bafycap',
+      capabilityBlob: undefined,
+    })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('holds no delegation for other accounts, or when the identity was never delegated', async () => {
+    const {keyPair, devicePrincipal} = await makeDeviceIdentity()
+    mocks.storedKeyPair = keyPair
+    mocks.storedExtras = {delegatedAccountUid: 'z6MkVaultAccount', capabilityCid: 'bafycap'}
+    const platform = await loadPlatform()
+
+    await expect(platform.getDelegation!('z6MkSomeoneElse')).resolves.toBeNull()
+    // The device key is its own account: no delegation needed or held.
+    await expect(platform.getDelegation!(devicePrincipal)).resolves.toBeNull()
+
+    mocks.storedExtras = {}
+    await expect(platform.getDelegation!('z6MkVaultAccount')).resolves.toBeNull()
   })
 })
 

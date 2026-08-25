@@ -6,8 +6,7 @@ import * as blobs from '@shm/shared/blobs'
 import {SEED_AGENT_SERVER_URL} from '@shm/shared/constants'
 import type {NavRoute} from '@shm/shared/routes'
 import type {NavMode} from '@shm/shared/utils/navigation'
-import {sendAgentAction} from '@shm/ui/agents/client'
-import {setAgentsPlatform} from '@shm/ui/agents/platform'
+import {setAgentsPlatform, type AgentsSignerDelegation} from '@shm/ui/agents/platform'
 import React, {useCallback} from 'react'
 
 /**
@@ -15,9 +14,9 @@ import React, {useCallback} from 'react'
  *
  * Signing uses the local web identity (non-extractable WebCrypto Ed25519 device key in IndexedDB).
  * When the vault delegated an account to this device key, the device signs envelopes *as that
- * account* — so web and desktop see the same agents — and {@link registerWebSigner} proves the
- * delegation to each agent server with the vault-issued Capability blob. Without a delegation the
- * device key is its own account, as before.
+ * account* — so web and desktop see the same agents — and {@link getWebAgentsDelegation} names the
+ * vault-issued Capability in every envelope so any agent server can verify the delegation itself.
+ * Without a delegation the device key is its own account, as before.
  */
 async function getWebAgentsSigner(accountUid: string): Promise<blobs.Signer> {
   const stored = await getStoredLocalKeys()
@@ -33,32 +32,19 @@ async function getWebAgentsSigner(accountUid: string): Promise<blobs.Signer> {
 }
 
 /**
- * Proves this device key's delegation to an agent server (see the platform seam's registerSigner).
+ * The vault-issued delegation this device key holds for `accountUid` (see the platform seam's
+ * getDelegation).
  *
- * Sends a self-signed RegisterSigner action carrying the vault-issued Capability blob. The bytes
- * are stored at sign-in; sessions delegated before that was stored fall back to fetching the
- * published blob by CID through this site's own IPFS proxy.
+ * The CID has been stored at sign-in since web auth shipped; the blob bytes only since agents
+ * came to web, so older sessions hand out the CID alone and the agent server fetches the published
+ * blob from its own HM node. Nothing here touches the network.
  */
-async function registerWebSigner(serverUrl: string): Promise<void> {
+async function getWebAgentsDelegation(accountUid: string): Promise<AgentsSignerDelegation | null> {
   const stored = await getStoredLocalKeys()
-  if (!stored?.delegatedAccountUid) {
-    throw new Error('No account delegation is available for this web identity')
+  if (!stored?.delegatedAccountUid || stored.delegatedAccountUid !== accountUid || !stored.capabilityCid) {
+    return null
   }
-  let capability = stored.capabilityBlob ?? null
-  if (!capability && stored.capabilityCid) {
-    const res = await fetch(`/hm/api/file/${stored.capabilityCid}`)
-    if (res.ok) capability = new Uint8Array(await res.arrayBuffer())
-  }
-  if (!capability) {
-    throw new Error('The delegation capability for this web identity is not available')
-  }
-  const rawPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', stored.keyPair.publicKey))
-  const devicePrincipal = blobs.principalToString(blobs.principalFromEd25519(rawPublicKey))
-  await sendAgentAction({
-    serverUrl,
-    accountUid: devicePrincipal,
-    action: {_: 'RegisterSigner', capability},
-  })
+  return {capabilityCid: stored.capabilityCid, capabilityBlob: stored.capabilityBlob}
 }
 
 const SETTING_STORAGE_PREFIX = 'seed.agents.setting.'
@@ -130,6 +116,7 @@ export function registerWebAgentsPlatform() {
   setAgentsPlatform({
     defaultServerUrl: () => SEED_AGENT_SERVER_URL ?? null,
     getSigner: getWebAgentsSigner,
+    getDelegation: getWebAgentsDelegation,
     getSetting: async (key: string) => {
       if (typeof window === 'undefined') return null
       const raw = window.localStorage.getItem(settingStorageKey(key))
@@ -148,7 +135,6 @@ export function registerWebAgentsPlatform() {
       }
       window.localStorage.setItem(settingStorageKey(key), JSON.stringify(value))
     },
-    registerSigner: registerWebSigner,
     // The vault-delegated account when one exists — the same identity desktop signs as, so both
     // surfaces see the same agents — else the device key is its own account.
     useAccountUid: () => {

@@ -587,6 +587,7 @@ export class Service {
   readonly #onEvent?: (event: ServiceEvent) => void
   readonly #hmServerUrl: string
   readonly #ipfsServerUrl: string
+  readonly #fetchCapability: auth.CapabilityFetcher
   readonly #web: WebToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
@@ -632,6 +633,8 @@ export class Service {
       hmServerUrl?: string
       /** Endpoint serving `/ipfs/*`; defaults to hmServerUrl for hosted all-in-one servers. */
       ipfsServerUrl?: string
+      /** Resolves a delegation Capability blob by CID; defaults to the IPFS endpoint above. */
+      fetchCapability?: auth.CapabilityFetcher
       web?: WebToolsConfig
       exec?: CodeExecConfig
       codeExecutor?: CodeExecutor
@@ -648,6 +651,7 @@ export class Service {
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
     this.#hmServerUrl = options.hmServerUrl || 'https://hyper.media'
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
+    this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
     this.#web = options.web ?? {}
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
@@ -734,15 +738,19 @@ export class Service {
     return await this.#codeExec.availability()
   }
 
-  /** Verifies and dispatches a signed action envelope. */
-  async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
-    let verified: auth.VerifiedEnvelope
+  /** Verifies an envelope's signature and delegation, mapping every failure to 401. */
+  async #verifyEnvelope(envelope: api.SignedActionEnvelope): Promise<auth.VerifiedEnvelope> {
     try {
-      verified = auth.verifyEnvelope(this.#db, envelope)
+      return await auth.verifyEnvelope(this.#db, envelope, {fetchCapability: this.#fetchCapability})
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid signed envelope'
       throw new APIError(401, message)
     }
+  }
+
+  /** Verifies and dispatches a signed action envelope. */
+  async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
+    const verified = await this.#verifyEnvelope(envelope)
 
     const accountId = this.#actionAccountId(verified.accountId, envelope.action)
 
@@ -1116,6 +1124,7 @@ export class Service {
     return {ownerAccountId: row.owner_account_id, role, viaPublic}
   }
 
+  /** @deprecated Delegations ride in every envelope now; kept one release for older web clients. */
   #registerSigner(envelopeSigner: Uint8Array, capabilityBytes: Uint8Array): api.RegisterSignerResponse {
     let registered: {accountId: string; signerId: string}
     try {
@@ -6299,13 +6308,7 @@ export class Service {
     /** Snapshot + durable journal replay for `runs/<rootRunId>` subscriptions. */
     runsReplay?: {runs: api.RunInfo[]; entries: api.RunJournalEntryInfo[]}
   }> {
-    let verified: auth.VerifiedEnvelope
-    try {
-      verified = auth.verifyEnvelope(this.#db, envelope)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid signed envelope'
-      throw new APIError(401, message)
-    }
+    const verified = await this.#verifyEnvelope(envelope)
     if (envelope.action._ !== 'Subscribe') throw new APIError(400, 'Expected Subscribe action')
     const key = envelope.action.key
     if (key === `account/${verified.accountId}`) return {accountId: verified.accountId, key}
@@ -6988,6 +6991,14 @@ async function publishSigningIdentityProfile(
 ): Promise<void> {
   const profile = await blobs.createProfile(keyPair, {name, avatar}, Date.now())
   await createSeedClient(hmServerUrl).publish({blobs: [{cid: profile.cid.toString(), data: profile.data}]})
+}
+
+/** Reads a published blob's raw bytes from the IPFS gateway; null when the gateway does not have it. */
+async function fetchBlobFromGateway(ipfsServerUrl: string, cid: string): Promise<Uint8Array | null> {
+  const res = await fetch(`${ipfsServerUrl.replace(/\/$/, '')}/ipfs/${encodeURIComponent(cid)}`)
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return new Uint8Array(await res.arrayBuffer())
 }
 
 /** Extracts a bare CID from a bare CID, an ipfs://<cid> URI, or a gateway URL containing /ipfs/<cid>. */
@@ -11732,13 +11743,22 @@ function normalizeBoundedString(value: unknown, label: string, maxBytes: number)
 /** Creates a signed envelope for tests and future local clients. */
 export async function createSignedEnvelope(
   signer: blobs.Signer,
-  input: {account?: blobs.Principal; action: api.UnsignedAgentAction; ts?: number},
+  input: {
+    account?: blobs.Principal
+    /** CID of the Capability by which `account` delegated to the signer (see the envelope type). */
+    capability?: string
+    capabilityBlob?: Uint8Array
+    action: api.UnsignedAgentAction
+    ts?: number
+  },
 ): Promise<api.SignedActionEnvelope> {
   const envelope: api.SignedActionEnvelope = {
     type: 'AgentsAction',
     signer: signer.principal,
     sig: new Uint8Array(blobs.ED25519_SIGNATURE_SIZE),
     account: input.account ?? signer.principal,
+    ...(input.capability !== undefined ? {capability: input.capability} : {}),
+    ...(input.capabilityBlob !== undefined ? {capabilityBlob: input.capabilityBlob} : {}),
     action: {...input.action, ts: input.ts ?? Date.now()} as api.AgentAction,
   }
   return (await blobs.sign(signer, envelope as unknown as blobs.Blob)) as unknown as api.SignedActionEnvelope

@@ -13,6 +13,10 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Delegations are proven per envelope by the CID of the account's Capability blob; a verified
+  // one is remembered here so later envelopes skip the blob fetch. Rows from the old RegisterSigner
+  // flow have no CID and stay valid.
+  `ALTER TABLE account_authorizations ADD COLUMN capability_cid TEXT;`,
   // Optionally-public agents: when set, any signed account can read the agent by id (the same view
   // an invited reader gets). Owners toggle it from the collaborators panel via SetAgentPublicRead.
   `ALTER TABLE agents ADD COLUMN public_read INTEGER NOT NULL DEFAULT 0;`,
