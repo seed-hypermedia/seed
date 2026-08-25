@@ -41,6 +41,14 @@ export type RootStackParamList = {
     /** True for the server's site home, which is the root of the stack. */
     isSiteHome?: boolean
   }
+  /** One comment thread on a document, with a reply box. */
+  Comment: {
+    uid: string
+    path: string[]
+    commentId: string
+    /** Version of the document the thread hangs off, for signing replies. */
+    docVersion: string
+  }
 }
 
 declare global {

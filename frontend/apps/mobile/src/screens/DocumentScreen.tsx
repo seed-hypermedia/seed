@@ -36,6 +36,8 @@ export function DocumentScreen({navigation, route}: Props) {
   const [state, setState] = useState<DocState>({status: 'loading'})
   const [tab, setTab] = useState<Tab>('content')
   const [commentCount, setCommentCount] = useState<number | null>(null)
+  // Bumped after posting a comment so the tab badge counts it.
+  const [summaryToken, setSummaryToken] = useState(0)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const load = useCallback(async () => {
@@ -70,7 +72,7 @@ export function DocumentScreen({navigation, route}: Props) {
     return () => {
       cancelled = true
     }
-  }, [targetId.id])
+  }, [targetId.id, summaryToken])
 
   const documentName = state.status === 'loaded' ? state.document.metadata?.name : undefined
   useLayoutEffect(() => {
@@ -140,7 +142,20 @@ export function DocumentScreen({navigation, route}: Props) {
             )}
           </>
         ) : (
-          <Discussions targetId={targetId} />
+          <Discussions
+            targetId={targetId}
+            docVersion={state.status === 'loaded' ? state.document.version : undefined}
+            onPosted={() => setSummaryToken((token) => token + 1)}
+            onOpenComment={(comment) => {
+              if (state.status !== 'loaded') return
+              navigation.navigate('Comment', {
+                uid,
+                path,
+                commentId: comment.id,
+                docVersion: state.document.version,
+              })
+            }}
+          />
         )}
       </ScrollView>
 

@@ -1,11 +1,12 @@
 import type {HMComment, HMCommentGroup, HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import React, {useEffect, useState} from 'react'
-import {ActivityIndicator, StyleSheet, Text, View} from 'react-native'
+import React, {useCallback, useEffect, useState} from 'react'
+import {ActivityIndicator, StyleSheet, Text, TouchableOpacity, View} from 'react-native'
 import {getSeedClient} from '../client/seed-client'
 import {radius, theme} from '../theme'
 import {formattedDateShort} from '../utils/dates'
 import {Avatar} from './Avatar'
 import {BlockNodeView} from './BlockNodeView'
+import {CommentComposer} from './CommentComposer'
 
 type DiscussionsState =
   | {status: 'loading'}
@@ -16,15 +17,35 @@ type DiscussionsState =
  * The Discussions list for a document — the web's Discussions component
  * (frontend/packages/ui/src/comments.tsx): comment groups (linear threads)
  * with author, short timestamp, and the comment's block content.
+ *
+ * Pass `commentId` to show a single thread instead of every discussion; in that
+ * mode the composer posts replies into the thread rather than new discussions.
  */
-export function Discussions({targetId}: {targetId: UnpackedHypermediaId}) {
+export function Discussions({
+  targetId,
+  docVersion,
+  commentId,
+  onOpenComment,
+  onPosted,
+}: {
+  targetId: UnpackedHypermediaId
+  /** Version of the document being commented on; omit to hide the composer. */
+  docVersion?: string
+  /** Show only this comment's thread. */
+  commentId?: string
+  /** Called when a comment row is tapped (opens its thread). */
+  onOpenComment?: (comment: HMComment) => void
+  /** Called after a comment is published, for counters kept outside this list. */
+  onPosted?: () => void
+}) {
   const [state, setState] = useState<DiscussionsState>({status: 'loading'})
+  const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
     let cancelled = false
     setState({status: 'loading'})
     getSeedClient()
-      .request('ListDiscussions', {targetId})
+      .request('ListDiscussions', {targetId, ...(commentId ? {commentId} : {})})
       .then((payload) => {
         if (cancelled) return
         setState({status: 'loaded', groups: payload.discussions ?? [], authors: payload.authors ?? {}})
@@ -36,32 +57,68 @@ export function Discussions({targetId}: {targetId: UnpackedHypermediaId}) {
     return () => {
       cancelled = true
     }
-  }, [targetId.id])
+  }, [targetId.id, commentId, reloadToken])
+
+  const reload = useCallback(() => setReloadToken((token) => token + 1), [])
+
+  // In thread mode the reply lands under the thread's root comment.
+  const threadRoot = commentId && state.status === 'loaded' ? state.groups[0]?.comments[0] : undefined
+
+  const composer = docVersion ? (
+    <CommentComposer
+      docId={targetId}
+      docVersion={docVersion}
+      replyTo={threadRoot}
+      onPosted={() => {
+        reload()
+        onPosted?.()
+      }}
+      placeholder={commentId ? 'Write a reply…' : 'Write a comment…'}
+      testID={commentId ? 'reply-composer' : 'comment-composer'}
+    />
+  ) : null
 
   if (state.status === 'loading') {
-    return <ActivityIndicator color={theme.brand} style={styles.loader} testID="discussions-loading" />
+    return (
+      <View>
+        {composer}
+        <ActivityIndicator color={theme.brand} style={styles.loader} testID="discussions-loading" />
+      </View>
+    )
   }
   if (state.status === 'error') {
     return (
-      <Text testID="discussions-error" style={styles.errorText}>
-        Failed to load discussions: {state.message}
-      </Text>
+      <View>
+        {composer}
+        <Text testID="discussions-error" style={styles.errorText}>
+          Failed to load discussions: {state.message}
+        </Text>
+      </View>
     )
   }
   if (state.groups.length === 0) {
     return (
-      <View style={styles.empty} testID="discussions-empty">
-        <Text style={styles.emptyGlyph}>💬</Text>
-        <Text style={styles.emptyText}>No comments here, yet!</Text>
+      <View>
+        {composer}
+        <View style={styles.empty} testID="discussions-empty">
+          <Text style={styles.emptyGlyph}>💬</Text>
+          <Text style={styles.emptyText}>No comments here, yet!</Text>
+        </View>
       </View>
     )
   }
   return (
     <View testID="discussions-list">
+      {composer}
       {state.groups.map((group) => (
         <View key={group.id} style={styles.group} testID="discussion-group">
           {group.comments.map((comment) => (
-            <CommentRow key={comment.id} comment={comment} authors={state.authors} />
+            <CommentRow
+              key={comment.id}
+              comment={comment}
+              authors={state.authors}
+              onPress={onOpenComment ? () => onOpenComment(comment) : undefined}
+            />
           ))}
           {group.moreCommentsCount > 0 && (
             <Text style={styles.moreReplies}>
@@ -74,10 +131,18 @@ export function Discussions({targetId}: {targetId: UnpackedHypermediaId}) {
   )
 }
 
-function CommentRow({comment, authors}: {comment: HMComment; authors: Record<string, HMMetadataPayload>}) {
+function CommentRow({
+  comment,
+  authors,
+  onPress,
+}: {
+  comment: HMComment
+  authors: Record<string, HMMetadataPayload>
+  onPress?: () => void
+}) {
   const author = authors[comment.author]?.metadata
   const authorName = author?.name || `?${comment.author.slice(-8)}`
-  return (
+  const body = (
     <View style={styles.commentRow} testID="discussion-comment">
       <Avatar id={comment.author} name={author?.name} icon={author?.icon} size={20} />
       <View style={styles.commentBody}>
@@ -90,6 +155,12 @@ function CommentRow({comment, authors}: {comment: HMComment; authors: Record<str
         ))}
       </View>
     </View>
+  )
+  if (!onPress) return body
+  return (
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress} testID="discussion-comment-press">
+      {body}
+    </TouchableOpacity>
   )
 }
 

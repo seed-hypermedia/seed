@@ -765,4 +765,45 @@ describe('Mobile Remote Vault Connect e2e', () => {
     },
     TEST_TIMEOUT,
   )
+
+  it(
+    'signs and publishes a comment, then a reply, with the current vault identity',
+    async () => {
+      // A second page in the SAME browser context sees the identities created
+      // earlier in this ceremony, so the composer signs with a real vault key
+      // and publishes through the daemon.
+      const page = await mobileContext.newPage()
+      try {
+        await page.goto(expo.baseUrl, {waitUntil: 'domcontentloaded'})
+        await page.getByTestId('server-url-input').waitFor({timeout: 60_000})
+        await connectToServer(page, env.web.baseUrl)
+        await page.getByTestId('tab-comments').click()
+
+        const commentText = `mobile comment ${Date.now()}`
+        await page.getByTestId('comment-composer-input').waitFor({timeout: 30_000})
+        await page.getByTestId('comment-composer-input').fill(commentText)
+        await page.getByTestId('comment-composer-submit').click()
+
+        // Published means the server hands it back on the next ListDiscussions.
+        await expect
+          .poll(async () => page.getByTestId('discussions-list').textContent(), {timeout: 60_000})
+          .toContain(commentText)
+
+        // Opening the comment shows its thread with a reply box.
+        await page.getByTestId('discussion-comment-press').filter({hasText: commentText}).first().click()
+        await page.getByTestId('comment-thread').waitFor({timeout: 30_000})
+
+        const replyText = `mobile reply ${Date.now()}`
+        await page.getByTestId('reply-composer-input').waitFor({timeout: 30_000})
+        await page.getByTestId('reply-composer-input').fill(replyText)
+        await page.getByTestId('reply-composer-submit').click()
+        await expect
+          .poll(async () => page.getByTestId('comment-thread').textContent(), {timeout: 60_000})
+          .toContain(replyText)
+      } finally {
+        await page.close()
+      }
+    },
+    TEST_TIMEOUT,
+  )
 })

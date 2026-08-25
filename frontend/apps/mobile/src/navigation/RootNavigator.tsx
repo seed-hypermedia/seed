@@ -7,6 +7,7 @@ import {VaultScreen} from '../screens/VaultScreen'
 import {VaultConnectScreen} from '../screens/VaultConnectScreen'
 import {CreateIdentityScreen} from '../screens/CreateIdentityScreen'
 import {IdentityScreen} from '../screens/IdentityScreen'
+import {CommentScreen} from '../screens/CommentScreen'
 import {DocumentScreen} from '../screens/DocumentScreen'
 import {AgentsScreen} from '../agents/screens/AgentsScreen'
 import {AgentScreen} from '../agents/screens/AgentScreen'
@@ -96,6 +97,14 @@ export function RootNavigator() {
           title: route.params?.title || 'Document',
           headerBackTitle: 'Back',
         })}
+      />
+      <Stack.Screen
+        name="Comment"
+        component={CommentScreen}
+        options={{
+          title: 'Comment',
+          headerBackTitle: 'Back',
+        }}
       />
       <Stack.Screen
         name="Agents"
