@@ -1,10 +1,10 @@
+import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
+import {HMBlockChildrenTypeSchema} from '@seed-hypermedia/client/hm-types'
 import type {BlockSchema} from '@shm/editor/blocknote'
 import type {Block as BNBlock} from '@shm/editor/blocknote/core/extensions/Blocks/api/blockTypes'
-import {HMBlockChildrenTypeSchema} from '@seed-hypermedia/client/hm-types'
-import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
-import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {Block, BlockNode} from '@shm/shared/client/grpc-types'
-import {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {toast} from '@shm/ui/toast'
 import {Editor} from '@tiptap/core'
 import {Node as TipTapNode} from '@tiptap/pm/model'
@@ -60,10 +60,22 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<BNBlock<Bloc
         node.descendants((child: TipTapNode, childPos: number) => {
           if (child.type.name === 'blockChildren') {
             setTimeout(() => {
+              const targetPos = pos + childPos + 1
+              const currentNode = tiptap.state.doc.nodeAt(targetPos)
+              // Skip the dispatch when the group is already correct.
+              // Each dispatch is a separate undo step, so skipping keeps paste
+              // undoable in CMD + Z one press.
+              const isCorrectGroupType =
+                currentNode?.type.name === 'blockChildren' &&
+                currentNode.attrs.listType === block.props?.childrenType &&
+                !block.props?.start &&
+                block.props?.childrenType !== 'Grid'
+              if (isCorrectGroupType) {
+                return
+              }
               let tr = tiptap.state.tr
               const attrs: Record<string, any> = {
                 listType: block.props?.childrenType,
-                listLevel: block.props?.listLevel,
               }
               if (block.props?.start) {
                 attrs.start = parseInt(block.props.start)
@@ -71,7 +83,7 @@ export function setGroupTypes(tiptap: Editor, blocks: Array<Partial<BNBlock<Bloc
               if (block.props?.childrenType === 'Grid' && (block.props as any)?.columnCount) {
                 attrs.columnCount = (block.props as any).columnCount
               }
-              tr = tr.setNodeMarkup(pos + childPos + 1, null, attrs)
+              tr = tr.setNodeMarkup(targetPos, null, attrs)
               tiptap.view.dispatch(tr)
             })
             return false
@@ -102,11 +114,11 @@ export function getNodesInSelection(view: EditorView) {
 export function getBlockGroup(
   editor: BlockNoteEditor,
   blockId: BlockIdentifier,
-): undefined | {type: string; listLevel: string; start?: number; columnCount?: string} {
+): undefined | {type: string; start?: number; columnCount?: string} {
   const tiptap = editor?._tiptapEditor
   if (tiptap) {
     const id = typeof blockId === 'string' ? blockId : blockId.id
-    let group: {type: string; listLevel: string; start?: number; columnCount?: string} | undefined
+    let group: {type: string; start?: number; columnCount?: string} | undefined
     tiptap.state.doc.firstChild!.descendants((node: TipTapNode) => {
       if (typeof group !== 'undefined') {
         return false
@@ -121,7 +133,6 @@ export function getBlockGroup(
           group = {
             type: child.attrs.listType,
             start: child.attrs.start,
-            listLevel: child.attrs.listLevel,
             columnCount: child.attrs.columnCount,
           } as const
           return false
@@ -137,7 +148,7 @@ export function getBlockGroup(
   return undefined
 }
 
-type BlockGroupInfo = {type: string; listLevel: string; start?: number; columnCount?: string}
+type BlockGroupInfo = {type: string; start?: number; columnCount?: string}
 
 // Single-pass equivalent of calling getBlockGroup for every block: each block id
 // maps to the first blockChildren descendant (in document order) with a listType.
@@ -152,7 +163,6 @@ export function buildBlockGroupsById(doc: TipTapNode): Map<string, BlockGroupInf
           groups.set(id, {
             type: node.attrs.listType,
             start: node.attrs.start,
-            listLevel: node.attrs.listLevel,
             columnCount: node.attrs.columnCount,
           })
         }

@@ -18,7 +18,6 @@ const IGNORED_ATTRS = new Set([
   'textFamily',
   'childrenType',
   'listType',
-  'listLevel',
   'start',
   'columnCount',
   'colwidth',

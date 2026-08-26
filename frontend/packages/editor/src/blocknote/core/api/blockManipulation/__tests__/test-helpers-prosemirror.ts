@@ -18,16 +18,27 @@ export function createMinimalSchema(): Schema {
         content: 'blockNode+',
         attrs: {
           listType: {default: 'Group'},
-          listLevel: {default: '1'},
           columnCount: {default: null},
         },
       },
       blockNode: {
-        content: 'paragraph blockChildren?',
+        content: 'block blockChildren?',
         group: 'blockNodeChild',
         attrs: {id: {default: null}},
       },
       paragraph: {
+        content: 'text*',
+        group: 'block',
+      },
+      slot: {
+        content: '',
+        group: 'block',
+        attrs: {
+          childrenType: {default: 'Group'},
+          columnCount: {default: ''},
+        },
+      },
+      table: {
         content: 'text*',
         group: 'block',
       },
@@ -72,7 +83,6 @@ export type BlockDef = {
   text: string
   children?: {
     listType?: string
-    listLevel?: string
     columnCount?: string | null
     blocks: BlockDef[]
   }
@@ -84,7 +94,7 @@ export type BlockDef = {
 export function buildDoc(
   schema: Schema,
   blocks: BlockDef[],
-  opts?: {listType?: string; listLevel?: string; columnCount?: string | null},
+  opts?: {listType?: string; columnCount?: string | null},
 ): PMNode {
   function buildBlockNode(def: BlockDef): PMNode {
     const paragraph = def.text
@@ -97,14 +107,10 @@ export function buildDoc(
     return schema.nodes['blockNode']!.create({id: def.id ?? null}, content)
   }
 
-  function buildBlockChildren(
-    defs: BlockDef[],
-    groupOpts?: {listType?: string; listLevel?: string; columnCount?: string | null},
-  ): PMNode {
+  function buildBlockChildren(defs: BlockDef[], groupOpts?: {listType?: string; columnCount?: string | null}): PMNode {
     return schema.nodes['blockChildren']!.create(
       {
         listType: groupOpts?.listType ?? 'Group',
-        listLevel: groupOpts?.listLevel ?? '1',
         columnCount: groupOpts?.columnCount ?? null,
       },
       defs.map(buildBlockNode),

@@ -163,10 +163,6 @@ export const HMHeadingBlockContent = createTipTapBlock<'heading'>({
 })
 
 export const Heading = {
-  propSchema: {
-    listLevel: {
-      default: '1',
-    },
-  },
+  propSchema: {},
   node: HMHeadingBlockContent,
 }

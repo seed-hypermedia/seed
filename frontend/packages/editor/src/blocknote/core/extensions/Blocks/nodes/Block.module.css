@@ -39,6 +39,14 @@ BASIC STYLES
   /*margin: 0px;*/
 }
 
+.blockContent[data-content-type='slot'] {
+  display: none;
+}
+
+.blockNode:has(> .blockContent[data-content-type='slot']) > .blockChildren {
+  margin-left: 0;
+}
+
 /*
 NESTED BLOCKS
 */
@@ -142,11 +150,14 @@ NESTED BLOCKS
   list-style-type: disc;
 }
 
-.blockChildren[data-list-level='2'] {
+/* Bullet marker cycles with real nesting depth. */
+.blockChildren[data-list-type='Unordered'] .blockChildren[data-list-type='Unordered'] {
   list-style-type: circle;
 }
 
-.blockChildren[data-list-level='3'] {
+.blockChildren[data-list-type='Unordered']
+  .blockChildren[data-list-type='Unordered']
+  .blockChildren[data-list-type='Unordered'] {
   list-style-type: square;
 }
 

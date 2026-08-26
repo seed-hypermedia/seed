@@ -37,6 +37,7 @@ function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   if (hmBlockType === 'Table') return 'table'
   if (hmBlockType === 'TableRow') return 'tableRow'
   if (hmBlockType === 'TableColumn') return 'tableColumn'
+  if (hmBlockType === 'Slot') return 'slot'
   return 'unknown'
 }
 
@@ -48,7 +49,6 @@ export function hmBlocksToEditorContent(
   blocks: HMBlockNode[],
   opts: ServerToEditorRecursiveOpts & {
     childrenType?: HMBlockChildrenType
-    listLevel?: string
     start?: string
     parentType?: HMBlockType
   } = {level: 1},

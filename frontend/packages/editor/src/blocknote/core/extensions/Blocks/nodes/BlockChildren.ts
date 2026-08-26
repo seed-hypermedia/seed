@@ -17,15 +17,6 @@ export const BlockChildren = Node.create<{
 
   addAttributes() {
     return {
-      listLevel: {
-        default: '1',
-        parseHTML: (element) => element.getAttribute('data-list-level'),
-        renderHTML: (attributes) => {
-          return {
-            'data-list-level': attributes.listLevel,
-          }
-        },
-      },
       listType: {
         default: 'Group',
         parseHTML: (element) => element.getAttribute('data-list-type'),

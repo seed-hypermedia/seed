@@ -237,11 +237,7 @@ function compareUniqueBlocksWithMap(blocksMap: BlocksMap, blocks: Array<EditorBl
     // const childGroup = getBlockGroup(editor, block.id) // TODO: do this with no editor
     let currentBlockState = editorBlockToHMBlock(block)
 
-    type BlockWithAttributes = {attributes?: {listLevel?: unknown}}
-    const prevAttrs = prevBlockState?.block as BlockWithAttributes | undefined
-    const currAttrs = currentBlockState as BlockWithAttributes
-
-    if (!prevBlockState || prevAttrs?.attributes?.listLevel !== currAttrs.attributes?.listLevel) {
+    if (!prevBlockState) {
       const serverBlock = editorBlockToHMBlock(block)
 
       // add moveBlock change by default to all blocks

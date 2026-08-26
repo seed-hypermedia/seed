@@ -301,7 +301,6 @@ function createBlock(
       textAlignment: 'left',
       diff: 'null',
       childrenType: 'Group',
-      listLevel: '1',
       ...props,
     },
     content,
