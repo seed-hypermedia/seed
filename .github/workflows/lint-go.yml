@@ -27,6 +27,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          # Full history so golangci-lint can diff against the base branch
+          # itself (--new-from-rev below).
+          fetch-depth: 0
 
       # backend/llm/backends/llamacpp/llamacpp.go has `//go:embed models/*.gguf`.
       # That directive requires *some* file matching the glob to exist at
@@ -38,8 +41,13 @@ jobs:
           mkdir -p backend/llm/backends/llamacpp/models
           printf 'lint-stub\n' > backend/llm/backends/llamacpp/models/lint-stub.gguf
 
+      # Report only issues introduced by the PR. The action's own
+      # `only-new-issues` fetches the PR diff through the GitHub API, which
+      # refuses PRs with more than 300 changed files ("diff exceeded the
+      # maximum number of files") and then silently falls back to reporting
+      # every pre-existing issue in the repo. Diffing against the base branch
+      # with git has no such limit.
       - uses: golangci/golangci-lint-action@v9.2.1
         with:
           version: v2.12.2
-          only-new-issues: true
-          args: --timeout=5m
+          args: --timeout=5m --new-from-rev=origin/${{ github.base_ref }}
