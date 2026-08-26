@@ -131,7 +131,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
   }
 })
 
-import {AssistantPanel} from '../components/assistant-panel'
+import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
 
 let root: Root
 let container: HTMLDivElement

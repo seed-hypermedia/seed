@@ -26,7 +26,7 @@ import {
   addOptimisticSessionToCaches,
   type AgentSessionListEntry,
 } from '@shm/ui/agents/models'
-import {resolveAssistantSelection, type AssistantAgentOption} from '@/models/assistant-selection'
+import {resolveAssistantSelection, type AssistantAgentOption} from '@shm/ui/agents/assistant-selection'
 import {queryClient} from '@shm/shared/models/query-client'
 
 const SERVER = 'http://localhost:3050'

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import type {AgentInfo} from '@shm/ui/agents/client'
 import type {AgentSessionListEntry} from '@shm/ui/agents/models'
-import {resolveAssistantSelection, type AssistantAgentOption} from '../models/assistant-selection'
+import {resolveAssistantSelection, type AssistantAgentOption} from '@shm/ui/agents/assistant-selection'
 
 /**
  * Selection rules for the agent-scoped assistant sidebar.

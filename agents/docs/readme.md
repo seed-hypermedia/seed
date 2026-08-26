@@ -184,8 +184,11 @@ Desktop:
 - `frontend/apps/desktop/src/pages/agents/` — separate Agents list, server, detail, session, memory-tab, tools, and
   shared dialog modules, plus `user-tool-palette.tsx` (the composer's wrench palette, which runs verbs as the user
   through `InvokeSessionTool`) and `run-parked-actions.tsx` (answering a parked run).
-- `frontend/apps/desktop/src/components/assistant-panel.tsx` — desktop assistant panel, also using shared chat
-  rendering.
+- `frontend/packages/ui/src/agents/assistant-panel.tsx` — the assistant sidebar (agent picker, session picker, draft and
+  session chat), shared by desktop (`pages/main.tsx`, toggled from the footer) and web
+  (`frontend/apps/web/app/web-assistant-host.tsx`, toggled from the account menu's "Agents" item; open/session state in
+  `assistant-panel-state.tsx`, body lazy-loaded so it stays out of the initial bundle). Its selection resolver,
+  session-ref codec, and window-context derivation live beside it.
 - `frontend/apps/desktop/src/components/assistant-message-rendering.tsx` — shared user/assistant message, markdown,
   streaming cursor, raw-markdown info dialog, and tool-call bubble rendering used by both desktop assistant and Agents
   chat.

@@ -30,7 +30,7 @@ import React, {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, u
 import {ErrorBoundary} from 'react-error-boundary'
 import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
-import {AssistantPanel} from '../components/assistant-panel'
+import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'

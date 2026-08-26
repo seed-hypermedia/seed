@@ -182,7 +182,7 @@ vi.mock('../components/app-error', async () => {
   }
 })
 
-vi.mock('../components/assistant-panel', async () => {
+vi.mock('@shm/ui/agents/assistant-panel', async () => {
   const React = await import('react')
 
   return {

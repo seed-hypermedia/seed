@@ -4,7 +4,9 @@ The desktop app is the primary user-facing UI for Agents; the server itself has 
 
 Two surfaces read the same sessions: the **Agents pages** (full-window) and the **Assistant sidebar** (a compact session
 view over the same service). Both render from the shared message renderer and the shared tool registry, so a tool row
-looks the same wherever it is read.
+looks the same wherever it is read. Both surfaces are shared code in `frontend/packages/ui/src/agents/` and also ship in
+the web app: the pages under `/hm/agents`, and the sidebar beside every site page, opened from the account menu's
+"Agents" item (a bottom sheet on narrow screens).
 
 ## Main files
 

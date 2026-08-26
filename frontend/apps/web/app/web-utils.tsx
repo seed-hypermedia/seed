@@ -29,6 +29,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
+import {useAssistantPanel} from '@/assistant-panel-state'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {toast} from '@shm/ui/toast'
@@ -38,6 +39,7 @@ import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
 import {
   Bell,
+  Bot,
   ExternalLink,
   FilePlus2,
   Globe,
@@ -296,6 +298,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const media = useMedia()
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const assistantPanel = useAssistantPanel()
 
   // Show the join button if not joined the site
   if (!keyPair) {
@@ -359,6 +362,17 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
       >
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
+      </button>
+      <div className="bg-border mx-4 h-px" />
+      <button
+        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        onClick={() => {
+          setMobileMenuOpen(false)
+          assistantPanel.toggle()
+        }}
+      >
+        <Bot className="size-5" />
+        <span className="text-sm">{assistantPanel.isOpen ? 'Close Agents' : 'Agents'}</span>
       </button>
       <div className="bg-border mx-4 h-px" />
       {canCreateSpace ? (
@@ -457,6 +471,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
               >
                 <UserCog className="size-4" />
                 Manage account
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              <DropdownMenuItem onClick={assistantPanel.toggle}>
+                <Bot className="size-4" />
+                {assistantPanel.isOpen ? 'Close Agents' : 'Agents'}
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               {canCreateSpace ? (
