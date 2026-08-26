@@ -27,6 +27,7 @@ import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/w
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
 import {extractRawBlobRouteFromPath, WebRawBlobPage} from '@/web-raw-blob'
 import {extractOnyxRouteFromPath, WebOnyxPage} from '@/web-onyx'
+import {extractSchemaRouteFromPath, WebSchemaPage} from '@/web-schema'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
@@ -46,6 +47,7 @@ import {
   InspectTab,
   OnyxRoute,
   RawBlobRoute,
+  SchemaRoute,
   isSiteProfileTab,
   VIEW_TERMS,
   viewTermToRouteKey,
@@ -91,12 +93,20 @@ type OnyxPayload = {
   siteHost: string
 }
 
+type SchemaPayload = {
+  kind: 'schema'
+  route: SchemaRoute
+  originHomeId: UnpackedHypermediaId
+  siteHost: string
+}
+
 type DocumentPayload =
   | ExtendedSitePayload
   | InspectIpfsPayload
   | SiteSettingsEmailsPayload
   | RawBlobPayload
   | OnyxPayload
+  | SchemaPayload
   | 'unregistered'
   | 'no-site'
 
@@ -270,6 +280,9 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'onyx') {
     return [{title: payload.route.slug ? `Onyx · ${payload.route.slug}` : 'Onyx — the schema tour'}]
   }
+  if ('kind' in payload && payload.kind === 'schema') {
+    return [{title: `Schema · ${payload.route.cid.slice(0, 12)}…`}]
+  }
   return documentPageMeta({
     // @ts-ignore
     data: args.data,
@@ -406,6 +419,20 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   // The Onyx schema explorer / tour (reserved `/hm/onyx/…` URLs). Client-side
   // only — the bundled schemas + engine live in the browser — so the loader just
   // hands the parsed route to the provider; no server fetch.
+  // A schema blob by CID (reserved `/hm/schema/<cid>`): the client-side schema browser.
+  const schemaRoute = extractSchemaRouteFromPath(pathParts)
+  if (schemaRoute) {
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON({
+      kind: 'schema',
+      route: schemaRoute,
+      originHomeId: hmId(registeredAccountUid),
+      siteHost: hostname,
+    } satisfies SchemaPayload)
+  }
+
   const onyxRoute = extractOnyxRouteFromPath(pathParts)
   if (onyxRoute) {
     if (isDataRequest && ctx.enabled) {
@@ -555,6 +582,13 @@ export default function UnifiedDocumentPage() {
     return (
       <WebSiteProvider originHomeId={data.originHomeId} siteHost={data.siteHost} initialRoute={data.route}>
         <WebOnyxPage />
+      </WebSiteProvider>
+    )
+  }
+  if ('kind' in data && data.kind === 'schema') {
+    return (
+      <WebSiteProvider originHomeId={data.originHomeId} siteHost={data.siteHost} initialRoute={data.route}>
+        <WebSchemaPage />
       </WebSiteProvider>
     )
   }
