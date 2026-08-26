@@ -106,8 +106,17 @@ export function mergeExtend(parent, ext) {
   if (items) merged.items = items;
   const en = ext.enum ?? parent.enum;
   if (en) merged.enum = en;
+  // Leaf refinements are inherited by a subtype (a `{ref: date, …}` stays a
+  // date; `{ref: ipfs, target}` keeps its format and gains a target).
+  for (const k of LEAF_KEYS) {
+    const v = ext[k] ?? parent[k];
+    if (v !== undefined) merged[k] = v;
+  }
   return merged;
 }
+
+// Refinements that describe a leaf value or a reference; inherited through extension.
+const LEAF_KEYS = ["format", "pattern", "minLength", "maxLength", "minimum", "maximum", "minItems", "maxItems", "target"];
 
 // Resolve a node to a concrete schema (map/list/scalar/link/union), following:
 //   var    -> the schema bound to a type parameter        {var:"B"}
@@ -140,7 +149,11 @@ export function resolveSchema(schema, env = {}) {
       if (parent.schema.anyOf || parent.schema.__unbound) return parent; // can't extend a union/var
       return { schema: mergeExtend(parent.schema, schema), env: parent.env };
     }
-    return parent; // bare include
+    // A bare include — but an include may still name the schema its
+    // reference should point at (`{ref: hm-url, target: place}`); carry it.
+    if (schema.target !== undefined && !parent.schema.anyOf)
+      return { schema: { ...parent.schema, target: schema.target }, env: parent.env };
+    return parent;
   }
   return { schema, env };
 }
@@ -194,7 +207,12 @@ export function validate(schema0, data, path = "$", env0 = {}) {
     if (typeof schema.pattern === "string") {
       let re = null;
       try { re = new RegExp(schema.pattern); } catch { re = null; } // uncompilable pattern is ignored
-      if (re && !re.test(data)) errors.push(`${path}: does not match pattern`);
+      if (re && !re.test(data))
+        errors.push(
+          typeof schema.format === "string"
+            ? `${path}: does not match pattern for format "${schema.format}"`
+            : `${path}: does not match pattern`,
+        );
     }
   }
   if (kind === "integer" || kind === "float") {
