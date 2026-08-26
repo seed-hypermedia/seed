@@ -110,6 +110,21 @@ describe('document collection helpers', () => {
 
     expect(writeDraft).not.toHaveBeenCalled()
   })
+
+  it('converts a collection back to a normal document in a local draft', async () => {
+    const actor = createTestActor().start()
+    const collection = {
+      ...mockDocument,
+      metadata: {type: 'Collection'},
+      content: [],
+    } as HMDocument
+
+    loadDocument(actor, collection)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('editing')).toBe(true))
+    actor.send({type: 'collection.convertToDocument'})
+
+    expect(actor.getSnapshot().context.metadata.type).toBeNull()
+  })
 })
 
 /** Create an actor with test-friendly provided actors. */

@@ -247,4 +247,19 @@ describe('DocumentHeader Breadcrumbs', () => {
     expect(container.textContent).not.toContain('Private')
     expect(container.textContent).not.toContain('Merged')
   })
+
+  it('removes the byline divider and bottom padding for collection headers', () => {
+    renderWithProvider(
+      <DocumentHeader
+        docId={hmId('site', {path: ['collection']})}
+        docMetadata={{name: 'Collection'} as any}
+        authors={[]}
+        updateTime={null}
+        flushByline
+      />,
+    )
+
+    expect(container.querySelector('.border-b')).toBeNull()
+    expect(container.querySelector('.pb-2')).toBeNull()
+  })
 })

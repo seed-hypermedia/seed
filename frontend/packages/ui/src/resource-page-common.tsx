@@ -105,7 +105,7 @@ import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
-import {FilePen, Info, Quote, Search} from 'lucide-react'
+import {FilePen, FileText, Info, Quote, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
@@ -125,7 +125,11 @@ import {
 import {DocumentMetadataView} from './document-metadata-view'
 import {DocumentTools} from './document-tools'
 import {DocumentTopBar} from './document-top-bar'
-import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
+import {
+  createDocumentVersionsPanelRoute,
+  DocumentVersionsPanel,
+  isDocumentVersionsPanelRoute,
+} from './document-versions-panel'
 import {ExplorePage} from './explore-page'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
@@ -351,6 +355,18 @@ function CitationFragmentPopover({
 function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   const {panel, width, ...params} = route as any
   return params as DocumentPanelRoute
+}
+
+/** Returns the right-panel destination for a collection-aware document menu item. */
+export function getCollectionMenuPanelRoute(key: string, docId: UnpackedHypermediaId): DocumentPanelRoute | null {
+  if (key === 'versions') return createDocumentVersionsPanelRoute(docId)
+  if (key === 'options') return {key: 'options'}
+  if (key === 'metadata') return {key: 'metadata', id: docId}
+  if (key === 'directory') return {key: 'directory', id: docId}
+  if (key === 'collaborators') return {key: 'collaborators', id: docId}
+  if (key === 'activity') return {key: 'activity', id: docId}
+  if (key === 'comments') return {key: 'comments', id: docId}
+  return null
 }
 
 /** Returns a stable key for the exact document resource being viewed, including version state. */
@@ -1743,6 +1759,18 @@ function DocumentBody({
   const isDocumentCollection = useDocumentSelector(selectIsDocumentCollection)
   const collectionQueryBlock = useDocumentSelector(selectCollectionQueryBlock)
   const send = useDocumentSend()
+  const previousIsDocumentCollection = useRef(isDocumentCollection)
+  useEffect(() => {
+    if (!previousIsDocumentCollection.current && isDocumentCollection) {
+      toast.success('Converted to Document Collection', {
+        action: {
+          label: 'Undo',
+          onClick: () => send({type: 'collection.convertToDocument'}),
+        },
+      })
+    }
+    previousIsDocumentCollection.current = isDocumentCollection
+  }, [isDocumentCollection, send])
   const {beginEditIfNeeded} = useEditorGate()
   // Draft metadata (partial) overrides published metadata, same as the options panel.
   const metadata = useMemo(
@@ -2397,12 +2425,41 @@ function DocumentBody({
     }
   }, [docId, navigate, route.key])
 
+  const convertToDocumentMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!isDocumentCollection || !canEditCurrentRoute) return null
+    return {
+      key: 'convert-to-document',
+      label: 'Convert to normal document',
+      icon: <FileText className="size-4" />,
+      onClick: () => {
+        send({type: 'collection.convertToDocument'})
+        toast.success('Converted to normal document')
+      },
+    }
+  }, [canEditCurrentRoute, isDocumentCollection, send])
+
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
     unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     if (metadataMenuItem) unorderedItems.push(metadataMenuItem)
+    if (convertToDocumentMenuItem) unorderedItems.push(convertToDocumentMenuItem)
+    if (isDocumentCollection) {
+      unorderedItems = unorderedItems.map((item) => {
+        const panel = getCollectionMenuPanelRoute(item.key, docId)
+        if (!panel) return item
+        return {
+          ...item,
+          onClick: () =>
+            navigate({
+              key: 'document',
+              id: {...docId, blockRef: null, blockRange: null},
+              panel,
+            }),
+        }
+      })
+    }
     // Drop share/copy-link entries while the doc is an unpublished draft —
     // its URL won't resolve for anyone else, so any "share" action is a footgun.
     if (isUnpublishedDraft) {
@@ -2415,6 +2472,7 @@ function DocumentBody({
       'versions',
       'options',
       'metadata',
+      'convert-to-document',
       'copy-link',
       'link-site',
       'link',
@@ -2450,7 +2508,11 @@ function DocumentBody({
     inspectMenuItem,
     documentOptionsMenuItem,
     metadataMenuItem,
+    convertToDocumentMenuItem,
     isUnpublishedDraft,
+    isDocumentCollection,
+    docId,
+    navigate,
   ])
 
   const hasOptions = allMenuItems.length > 0
@@ -2512,17 +2574,15 @@ function DocumentBody({
             !showSidebars && 'justify-center',
             isDocumentCollection && '!block w-full',
           )}
+          style={isDocumentCollection ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
         >
           {showSidebars && !isDocumentCollection && (
             <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />
           )}
           <div
             {...mainContentProps}
-            className={cn(
-              mainContentProps.className,
-              'flex flex-col',
-              isDocumentCollection && '!w-full !max-w-none px-5',
-            )}
+            className={cn(mainContentProps.className, 'flex flex-col', isDocumentCollection && '!w-full !max-w-none')}
+            style={isDocumentCollection ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
             {isHomeDoc &&
               activeView !== 'all-documents' &&
@@ -2542,6 +2602,7 @@ function DocumentBody({
                   visibility={headerVisibility}
                   version={document.version}
                   fileUpload={fileUpload}
+                  flushByline={isDocumentCollection}
                 />
               ) : (
                 <DocumentHeader
@@ -2551,6 +2612,7 @@ function DocumentBody({
                   updateTime={document.updateTime}
                   visibility={headerVisibility}
                   version={document.version}
+                  flushByline={isDocumentCollection}
                 />
               ))}
           </div>
@@ -2581,6 +2643,7 @@ function DocumentBody({
                 visibility={headerVisibility}
                 version={document.version}
                 fileUpload={fileUpload}
+                flushByline={isDocumentCollection}
               />
             ) : (
               <DocumentHeader
@@ -2590,6 +2653,7 @@ function DocumentBody({
                 updateTime={document.updateTime}
                 visibility={headerVisibility}
                 version={document.version}
+                flushByline={isDocumentCollection}
               />
             ))}
         </div>
@@ -2845,6 +2909,7 @@ function EditableDocumentHeader({
   visibility,
   version,
   fileUpload,
+  flushByline,
 }: {
   docId: UnpackedHypermediaId
   docMetadata: HMDocument['metadata']
@@ -2853,6 +2918,7 @@ function EditableDocumentHeader({
   visibility?: string
   version?: HMDocument['version'] | null
   fileUpload?: (file: File) => Promise<string>
+  flushByline?: boolean
 }) {
   const ctx = useDocumentSelector(selectContext)
   const isEditing = useDocumentSelector(selectIsEditing)
@@ -2873,6 +2939,7 @@ function EditableDocumentHeader({
       updateTime={updateTime}
       visibility={visibility as any}
       version={version}
+      flushByline={flushByline}
       mobileBylineAction={
         <DocumentMetadataAffordanceButtons
           metadata={metadata}

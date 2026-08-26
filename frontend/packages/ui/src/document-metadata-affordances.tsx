@@ -343,7 +343,7 @@ export function EditableDocumentMetadataFields({
 
   return (
     <div
-      className={cn('relative flex flex-col gap-2', className)}
+      className={cn('relative flex flex-col gap-2', metadata?.cover && 'pt-8', className)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -351,7 +351,7 @@ export function EditableDocumentMetadataFields({
         metadata={metadata}
         visible={showAffordances}
         fileUpload={fileUpload}
-        className="absolute bottom-full left-0 z-10 mb-1 -ml-2 max-md:hidden"
+        className={cn('absolute left-0 z-10 -ml-2 pb-1 max-md:hidden', metadata?.cover ? 'top-0' : 'bottom-full')}
         onBeforeMetadataChange={onBeginEdit}
         onMetadata={onMetadata}
         onRequestSummary={requestSummary}

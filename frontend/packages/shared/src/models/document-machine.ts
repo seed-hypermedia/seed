@@ -314,6 +314,7 @@ export type DocumentMachineEvent =
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
   | {type: 'collection.query.change'; props: Partial<EditorQueryBlock['props']>}
+  | {type: 'collection.convertToDocument'}
   | {
       type: 'publish.start'
       /**
@@ -491,6 +492,9 @@ export const documentMachine = setup({
     }),
     markCollectionRepairAttempted: assign({
       collectionRepairAttempted: true,
+    }),
+    convertCollectionToDocument: assign({
+      metadata: ({context}) => ({...context.metadata, type: null}) as HMMetadata,
     }),
     setNavigation: assign({
       navigation: ({event}) => {
@@ -1265,6 +1269,16 @@ export const documentMachine = setup({
           guard: 'canTransitionToEditing',
           actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'updateCollectionQuery'],
         },
+        'collection.convertToDocument': {
+          target: 'editing',
+          guard: 'canTransitionToEditing',
+          actions: [
+            'setDepsFromPublished',
+            'snapshotBaseBlocks',
+            'convertCollectionToDocument',
+            raise({type: 'change'}),
+          ],
+        },
         'draft.existing': [
           {
             target: 'editing',
@@ -1305,6 +1319,9 @@ export const documentMachine = setup({
         {type: 'setEditorReadOnly'},
       ],
       on: {
+        'collection.convertToDocument': {
+          actions: ['convertCollectionToDocument', raise({type: 'change'})],
+        },
         // Already editing: only move the cursor when the event explicitly asks
         // for a position (e.g. the click-below-content affordance sends 'end').
         // A bare edit.start re-entry must not clobber the user's current

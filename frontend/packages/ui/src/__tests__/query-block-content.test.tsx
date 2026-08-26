@@ -90,6 +90,16 @@ describe('QueryBlockContent loading state', () => {
 })
 
 describe('QueryBlockContent table view', () => {
+  it('stretches columns across the available table width while preserving horizontal overflow', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
+    })
+
+    const table = container.querySelector('table')
+    expect(table?.style.width).toBe('100%')
+    expect(table?.style.minWidth).toMatch(/px$/)
+  })
+
   it('renders discovered custom attributes in the default column order', () => {
     const items = makeItems(1)
     items[0].metadata.status = 'Ready'
