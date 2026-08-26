@@ -291,7 +291,14 @@ export const accountSettingsRouteSchema = z.object({
 /** Navigation route for the desktop Account Settings page. */
 export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>
 
-export const siteSettingsTabSchema = z.enum(['identity', 'navigation', 'members', 'writers', 'email-subscribers'])
+export const siteSettingsTabSchema = z.enum([
+  'identity',
+  'navigation',
+  'members',
+  'writers',
+  'email-subscribers',
+  'agents',
+])
 export type SiteSettingsTab = z.infer<typeof siteSettingsTabSchema>
 
 export const siteSettingsRouteSchema = z.object({

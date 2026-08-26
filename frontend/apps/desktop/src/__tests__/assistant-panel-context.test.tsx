@@ -36,6 +36,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   useAgentDetail: () => ({data: undefined, isLoading: false}),
   useRun: () => ({data: undefined}),
   useAgentLists: () => mockState.agentLists,
+  useSpaceAgents: () => ({agents: [], isLoading: false}),
   useAgentServerUrls: () => ({data: mockState.serverUrls, isSuccess: true, isLoading: false}),
   useAgentSession: () => ({data: undefined}),
   useAgentWebSocketSubscription: () => ({text: ''}),

@@ -1,3 +1,4 @@
+import {SpaceAgentsSettings} from '@/components/site-settings-agents'
 import {MembersSettings} from '@/components/site-settings-members'
 import {NavigationSettings} from '@/components/site-settings-navigation'
 import {useUpdateHomeDocument} from '@/models/site'
@@ -17,11 +18,11 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Image as ImageIcon, Navigation as NavigationIcon, Plus, Users} from 'lucide-react'
+import {Bot, Image as ImageIcon, Navigation as NavigationIcon, Plus, Users} from 'lucide-react'
 import {type ReactNode, useState} from 'react'
 
 // Tabs of the site settings page
-type SiteSettingsSection = 'identity' | 'navigation' | 'members'
+type SiteSettingsSection = 'identity' | 'navigation' | 'members' | 'agents'
 
 type SiteSettingsTabConfig = {
   key: SiteSettingsSection
@@ -33,12 +34,14 @@ const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
   {key: 'identity', icon: ImageIcon, label: 'Identity'},
   {key: 'navigation', icon: NavigationIcon, label: 'Navigation'},
   {key: 'members', icon: Users, label: 'Members'},
+  {key: 'agents', icon: Bot, label: 'Agents'},
 ]
 
 /** Map a URL subpath to its tab. */
 function sectionForTab(tab: SiteSettingsTab | undefined): SiteSettingsSection {
   if (tab === 'navigation') return 'navigation'
   if (tab === 'members' || tab === 'writers' || tab === 'email-subscribers') return 'members'
+  if (tab === 'agents') return 'agents'
   return 'identity'
 }
 
@@ -74,6 +77,7 @@ export default function SiteSettings() {
                 {activeSection === 'identity' && <IdentityTab siteId={route.id} />}
                 {activeSection === 'navigation' && <NavigationSettings siteId={route.id} />}
                 {activeSection === 'members' && <MembersSettings siteId={route.id} activeTab={route.tab} />}
+                {activeSection === 'agents' && <SpaceAgentsSettings siteId={route.id} />}
               </div>
             </ScrollArea>
           </div>

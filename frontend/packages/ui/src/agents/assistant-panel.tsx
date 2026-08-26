@@ -10,6 +10,7 @@ import {
   useSessionRuns,
   useAgentWebSocketSubscription,
   useAllAgentSessions,
+  useSpaceAgents,
   useCreateAgentSessionOnServer,
   useDeleteAgentSession,
   useLocalAgentServerUrl,
@@ -28,7 +29,12 @@ import {
   frozenRunIds,
   retryableErrorRowKey,
 } from './agent-session-rows'
-import {resolveAssistantSelection, type AssistantAgentKey, type AssistantAgentOption} from './assistant-selection'
+import {
+  orderAssistantAgents,
+  resolveAssistantSelection,
+  type AssistantAgentKey,
+  type AssistantAgentOption,
+} from './assistant-selection'
 import {CreateAgentDialog} from './dialogs'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
@@ -103,12 +109,17 @@ export function AssistantPanel({
   const sessions = useAllAgentSessions(serverUrls.data, accountUid)
   const navigate = useNavigate()
 
+  const spaceAgents = useSpaceAgents(accountUid)
+
   const agents: AssistantAgentOption[] = useMemo(
     () =>
-      (serverUrls.data || []).flatMap((serverUrl, index) =>
-        (agentQueries[index]?.data || []).map((agent) => ({serverUrl, agent})),
+      orderAssistantAgents(
+        spaceAgents.agents,
+        (serverUrls.data || []).flatMap((serverUrl, index) =>
+          (agentQueries[index]?.data || []).map((agent) => ({serverUrl, agent})),
+        ),
       ),
-    [serverUrls.data, agentQueries],
+    [serverUrls.data, agentQueries, spaceAgents.agents],
   )
 
   const [stored, setStoredRaw] = useState<AssistantSessionRef | null>(() => decodeAssistantSessionRef(initialSessionId))

@@ -214,12 +214,15 @@ Clients (desktop, web, the web gateway) can talk to any number of agents servers
 server. The list a client uses is the union of three sources, in this order (order matters: the assistant panel's
 default agent context is the first agent of the first server):
 
-1. **The app's own local server** — desktop only (`getLocalServerUrl` on the platform seam).
-2. **The server advertised by the site on screen** — the `agentServerUrl` field in the site's home-document metadata
-   (`HMDocumentMetadataSchema`, set from the home document's options panel as "Agents Server"). While any document of
-   that site is open, its server joins the list (ahead of the user's own servers, labeled "This site" in the panel's
-   agent picker) and leaves it again when the user navigates elsewhere; it is never written into the user's configured
-   list. This is what lets the gateway, which shows many sites, use a different agents backend per site.
+1. **The app's own local server** — desktop only (`getLocalServerUrl` on the platform seam). A client connects to it; a
+   space never advertises it, since it is reachable only from the computer running it.
+2. **The server advertised by the space on screen** — the `agentServerUrl` field in the space's home-document metadata
+   (`HMDocumentMetadataSchema`, set on the Agents tab of desktop's Space Settings). While any document of that space is
+   open, its server joins the list (ahead of the user's own servers, labeled "This site" in the panel's agent picker)
+   and leaves it again when the user navigates elsewhere; it is never written into the user's configured list. This is
+   what lets the gateway, which shows many sites, use a different agents backend per site. Where the app is itself
+   served by a space — the web app and the gateway — that space also applies on pages that name no document, so
+   `/hm/agents` is still "in" the space hosting it.
 3. **The user's configured servers** — persisted per client (`agent-server-urls` setting: electron-store on desktop,
    `localStorage` under `seed.agents.setting.` on web). On first run this list is seeded with the deployment default:
    `SEED_AGENT_SERVER_URL` for the web server (read on the server, injected into `window.ENV` for the client, e.g.
@@ -229,3 +232,24 @@ default agent context is the first agent of the first server):
 
 The agents server itself needs no per-client configuration for this: it answers signed requests from any origin
 (`Access-Control-Allow-Origin: *`) and identifies callers by their signed account, not by where the page was served.
+
+### Which agents a reader of a space sees
+
+Naming a server is only half of reaching a reader. `ListAgents` returns agents the caller owns or accepted an invitation
+to and nothing else, so a visitor asking a space's server for a list gets an empty one. A space therefore names its
+agents too, in `spaceAgents` on the home document: `{[agentId]: order}`, written from the same Space Settings tab —
+where both the server and the agent are picked from dropdowns (the servers this app talks to, then that server's public
+agents) rather than typed. Given an id, the server resolves the owning account itself and answers `GetAgent` for any
+signed account once the agent is public-read — so clients fetch each published agent by id and put them at the head of
+the assistant panel's picker, where the first one becomes the default context. Because the default is the first
+published agent, someone arriving at a space can open the panel and start chatting without configuring anything,
+provided the agent has public chat enabled (`SetAgentPublicChat`, offered per agent on that same settings tab).
+
+Public read is a precondition rather than something publishing arranges: only an already-public agent can be published,
+because opening an agent to the world is a decision made on the agent (`SetAgentPublicRead`), not a side effect of
+listing it on a space. The order carries exactly one meaning — the first published agent is the default — so the
+settings tab offers a "make default" button rather than a way to arrange the list.
+
+Only ids and order live in the document. An agent's name, icon, and status are read from the agent itself, so renaming
+one never strands a stale copy in a signed document. Document metadata attributes have no array encoding, which is why
+the ordered list is a map to positions rather than a list.

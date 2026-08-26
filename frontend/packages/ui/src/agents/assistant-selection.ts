@@ -41,6 +41,32 @@ export type AssistantSelection = {
   session: AssistantSessionRef | null
 }
 
+/**
+ * Orders the agents offered in the context dropdown.
+ *
+ * The space in view leads, because the default context is the first option (see
+ * {@link resolveAssistantSelection}): a reader who opens the panel on a space should land in the
+ * agent that space put first, without picking one. The user's own agents follow in server order,
+ * with the app's local server first, so a desktop user away from any space still opens on the
+ * built-in Assistant. An agent reachable both ways appears once, in the leading position.
+ *
+ * This only sets the default. An agent the user explicitly chose outranks it.
+ */
+export function orderAssistantAgents(
+  spaceAgents: AssistantAgentOption[],
+  ownAgents: AssistantAgentOption[],
+): AssistantAgentOption[] {
+  const options: AssistantAgentOption[] = []
+  const seen = new Set<string>()
+  for (const option of [...spaceAgents, ...ownAgents]) {
+    const key = `${option.serverUrl}:${option.agent.id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    options.push(option)
+  }
+  return options
+}
+
 function findAgent(agents: AssistantAgentOption[], key: {serverUrl: string; agentId: string}) {
   return agents.find((option) => option.serverUrl === key.serverUrl && option.agent.id === key.agentId) ?? null
 }

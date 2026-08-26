@@ -32,6 +32,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   useLocalAgentServerUrl: () => ({data: mockState.localServerUrl}),
   useAgentServerHealths: () => mockState.healths,
   useAgentLists: () => mockState.serverUrls.map(() => ({data: [], isFetching: false, isError: false})),
+  useSpaceAgents: () => ({agents: [], isLoading: false}),
   useAgentInviteLists: () =>
     mockState.serverUrls.map((_, index) => ({
       data: index === 0 ? mockState.invites : [],
