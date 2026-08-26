@@ -1,0 +1,7 @@
+{
+  "name": "Date",
+  "description": "A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date` so an editor renders a date picker rather than a text box, and a pattern so a validator can check the shape without parsing.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+  "format": "date",
+  "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+}

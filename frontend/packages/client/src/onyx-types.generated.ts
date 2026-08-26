@@ -67,6 +67,32 @@ export type ExampleBlob = {
 }
 
 /**
+ * Character
+ * A world-builder kit type: a page about a character. Extends the base document; its metadata requires a `born` date and a `role`, and links the character to a home place, a faction, a portrait file, and a stats object (an `ipfs://` object that must conform to `example-stats`). `notes` is an untyped object link — any DAG-CBOR value.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-character-doc
+ */
+export type ExampleCharacterDoc = HMDocument & {
+  metadata?: HMMetadata & {
+    /** Birth date (ISO 8601 `YYYY-MM-DD`) — rendered as a date picker. */
+    born: OnyxDate
+    /** Death date, if any. */
+    died?: OnyxDate
+    /** Narrative role. */
+    role: 'hero' | 'villain' | 'ally' | 'neutral'
+    /** The place this character calls home — a page conforming to the Place type. */
+    home?: HMHmUrl
+    /** The faction this character belongs to. */
+    faction?: HMHmUrl
+    /** A portrait image file on IPFS. */
+    portrait?: HMIpfs
+    /** An `ipfs://` object that must conform to Character stats (a required target schema). */
+    stats?: HMIpfs
+    /** An `ipfs://` object with no declared schema — free-form data. */
+    notes?: HMIpfs
+  }
+}
+
+/**
  * Comment
  * A comment with an author and replies, which are themselves comments.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-comment
@@ -121,6 +147,47 @@ export type ExampleEmployee = ExamplePerson & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-entry
  */
 export type ExampleEntry = ExampleFolder | ExampleFile
+
+/**
+ * Event
+ * A world-builder kit type: a page about something that happened. Requires a `date` and links the event to a location (a Place), a protagonist (a Character), and optionally an `ends` date for spans.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-event-doc
+ */
+export type ExampleEventDoc = HMDocument & {
+  metadata?: HMMetadata & {
+    /** When it happened (or began). */
+    date: OnyxDate
+    /** When it ended, for a span. */
+    ends?: OnyxDate
+    /** Where it happened. */
+    location?: HMHmUrl
+    /** The central character. */
+    protagonist?: HMHmUrl
+    /** The faction chiefly involved. */
+    faction?: HMHmUrl
+    outcome?: 'victory' | 'defeat' | 'stalemate' | 'unknown'
+  }
+}
+
+/**
+ * Faction
+ * A world-builder kit type: a page about a faction, order, house, or guild. Requires a `founded` date; links to its seat (a Place) and leader (a Character), and a banner image.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-faction-doc
+ */
+export type ExampleFactionDoc = HMDocument & {
+  metadata?: HMMetadata & {
+    /** Founding date. */
+    founded: OnyxDate
+    /** Dissolution date, if any. */
+    dissolved?: OnyxDate
+    /** Where the faction is based. */
+    seat?: HMHmUrl
+    /** Who leads it. */
+    leader?: HMHmUrl
+    /** A banner or crest image file on IPFS. */
+    banner?: HMIpfs
+  }
+}
 
 /**
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-file
@@ -204,6 +271,27 @@ export type ExamplePersonDoc = HMDocument & {
 }
 
 /**
+ * Place
+ * A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links to a coordinates object (an `ipfs://` object conforming to Geo point).
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-place-doc
+ */
+export type ExamplePlaceDoc = HMDocument & {
+  metadata?: HMMetadata & {
+    kind: 'city' | 'town' | 'village' | 'fortress' | 'ruin' | 'wilderness' | 'realm'
+    /** Founding date. */
+    founded?: OnyxDate
+    /** The larger place this one lies within. */
+    region?: HMHmUrl
+    /** The faction that holds this place. */
+    ruler?: HMHmUrl
+    /** An `ipfs://` object conforming to Geo point. */
+    coordinates?: HMIpfs
+    /** A map image file on IPFS. */
+    map?: HMIpfs
+  }
+}
+
+/**
  * Poll block (custom)
  * An example third-party block type: a poll with a question and options. It extends the shared block base, exactly like a core block.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-poll-block
@@ -225,6 +313,23 @@ export type ExamplePollBlock = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-registry
  */
 export type ExampleRegistry = {[key: string]: ExamplePerson}
+
+/**
+ * Character stats
+ * A character's attribute block — the object a character page links to from its `stats` field. Lives as its own DAG-CBOR blob (an `ipfs://` reference), so it can hold integers and enums that document metadata cannot.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-stats
+ */
+export type ExampleStats = {
+  /** 1–10 · minimum: 1 · maximum: 10 */
+  strength: number
+  /** 1–10 · minimum: 1 · maximum: 10 */
+  intellect: number
+  /** 1–10 · minimum: 1 · maximum: 10 */
+  charisma: number
+  alignment?: 'lawful' | 'neutral' | 'chaotic'
+  /** Free-form descriptors. */
+  traits?: string[]
+}
 
 /**
  * Status
@@ -256,6 +361,20 @@ export type ExampleTree = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-value
  */
 export type ExampleValue = string | number | boolean | null
+
+/**
+ * World
+ * A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events; its metadata names the genre and the date the chronicle begins.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-world-doc
+ */
+export type ExampleWorldDoc = HMDocument & {
+  metadata?: HMMetadata & {
+    genre: 'fantasy' | 'science-fiction' | 'historical' | 'contemporary' | 'mythic'
+    /** The in-world date the chronicle begins. */
+    epoch?: OnyxDate
+    tagline?: string
+  }
+}
 
 /**
  * Annotation
@@ -967,6 +1086,20 @@ export type HMValue = string | number | boolean | null
 export type HMVisibility = '' | 'Private'
 
 /**
+ * Date
+ * A calendar date as an ISO 8601 string, `YYYY-MM-DD` (e.g. `2026-08-26`). A refinement of string — the value is still plain text on the wire — with `format: date` so an editor renders a date picker rather than a text box, and a pattern so a validator can check the shape without parsing.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date
+ */
+export type OnyxDate = string
+
+/**
+ * Date-time
+ * An instant as an RFC 3339 / ISO 8601 string, `YYYY-MM-DDTHH:MM:SS[.sss]Z` or with a numeric offset (e.g. `2026-08-26T14:30:00Z`). A refinement of string with `format: date-time` so an editor renders a date-and-time picker, and a pattern that checks the shape.
+ * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date-time
+ */
+export type OnyxDateTime = string
+
+/**
  * Reference schema
  * The variant for a reference: a bare include, or an extension when it carries refinements.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/include-schema
@@ -978,6 +1111,8 @@ export type OnyxIncludeSchema = {
   values?: OnyxSchema
   items?: OnyxSchema
   enum?: unknown[]
+  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
+  target?: string
   name?: string
   description?: string
   params?: {[key: string]: OnyxSchema}
@@ -1029,7 +1164,7 @@ export type OnyxMapSchema = {
 
 /**
  * Scalar schema
- * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum, or given a semantic `format` (hm-url, hm-profile, ipfs) that a UI renders as a richer reference input.
+ * The variant for a scalar value (null, boolean, integer, float, string, bytes), optionally restricted by enum or pattern, or given a semantic `format` (hm-url, hm-profile, ipfs, date, date-time) that a UI renders as a richer input, with an optional `target` naming the schema a reference should point at.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/scalar-schema
  */
 export type OnyxScalarSchema = {
@@ -1044,8 +1179,10 @@ export type OnyxScalarSchema = {
   minLength?: number
   maxLength?: number
   pattern?: string
-  /** A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> file reference). */
+  /** A semantic hint for editors/renderers — the value is still a plain string. Known: `hm-url` (a Hypermedia document reference), `hm-profile` (an account reference), `ipfs` (an ipfs://<cid> reference to a file or DAG-CBOR object), `date` (an ISO 8601 `YYYY-MM-DD` calendar date), `date-time` (an RFC 3339 instant). */
   format?: string
+  /** For a reference-valued string (`format: hm-url` or `format: ipfs`): the schema the referenced document or object is expected to conform to — an `hm://` schema-document URL or `ipfs://<cid>`. Advisory: an editor pre-seeds and validates the target against it; a validator does not dereference the reference. */
+  target?: string
   minimum?: number
   maximum?: number
   name?: string
