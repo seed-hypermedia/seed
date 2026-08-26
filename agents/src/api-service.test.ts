@@ -639,7 +639,7 @@ describe('api service', () => {
       ).rejects.toThrow('Write access is required')
       await expect(
         svc.message(await apisvc.createSignedEnvelope(collaborator, {action: {_: 'CreateSession', agentId}})),
-      ).rejects.toThrow('Write access is required')
+      ).rejects.toThrow('Chat access is required')
 
       const promoted = await svc.message(
         await apisvc.createSignedEnvelope(owner, {
@@ -5374,6 +5374,7 @@ describe('api service', () => {
         }),
       )
       if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
       signerPublicKey = identity.identity.accountId
       const createdAgent = await svc.message(
         await apisvc.createSignedEnvelope(account, {
