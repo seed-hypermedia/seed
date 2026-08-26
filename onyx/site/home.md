@@ -16,6 +16,7 @@ New to Onyx? These four pages explain the system from the top down before the re
 - [Why Onyx](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/why) — the problem it solves, what it makes possible, and what it deliberately is not.
 - [How Onyx works](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/how-it-works) — the whole pipeline, from a schema file to a signed blob, a browsable document, a resolved reference, a generated type, and a typed API call.
 - [Typed documents](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/typed-documents) — how a document declares what it is with `schema`, `childrenSchema`, and `schemaDefinition`, and what the editor does about it.
+- [The World Builder](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/world-builder) — a worked demo: scaffold an ontology of types that reference each other, with date pickers, title pills, and linked objects in every page.
 - [The typed API](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/api) — every read method of the Seed API as a published schema, and the console generated from them.
 
 ## In one minute

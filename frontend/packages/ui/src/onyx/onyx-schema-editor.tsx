@@ -21,7 +21,7 @@ import {toast} from '../toast'
 import {Tooltip} from '../tooltip'
 import {cn} from '../utils'
 import {OnyxDataEditor} from './onyx-data-editor'
-import {kindOf, kindUrl, MAP_URL, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
+import {kindOf, kindUrl, MAP_URL, nameToUrl, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
 
 const DAG_CBOR_CODE = 0x71
 
@@ -29,7 +29,9 @@ const DAG_CBOR_CODE = 0x71
 const FIELD_KINDS: {kind: string; label: string}[] = [
   {kind: 'string', label: 'Text'},
   {kind: 'hm-url', label: 'HM link'},
-  {kind: 'ipfs', label: 'IPFS file'},
+  {kind: 'ipfs', label: 'IPFS file / object'},
+  {kind: 'date', label: 'Date'},
+  {kind: 'date-time', label: 'Date & time'},
   {kind: 'integer', label: 'Whole number'},
   {kind: 'float', label: 'Number'},
   {kind: 'boolean', label: 'Toggle'},
@@ -44,6 +46,8 @@ function propKind(ps: any): string {
   const refName = typeof ps?.ref === 'string' ? refToName(ps.ref) : null
   if (ps?.format === 'hm-url' || refName === 'hypermedia-hm-url') return 'hm-url'
   if (ps?.format === 'ipfs' || refName === 'hypermedia-ipfs') return 'ipfs'
+  if (ps?.format === 'date' || refName === 'onyx-date') return 'date'
+  if (ps?.format === 'date-time' || refName === 'onyx-date-time') return 'date-time'
   if (ps?.type) return kindOf(ps.type)
   if (refName?.startsWith('onyx-')) return refName.slice(5)
   return 'string'
@@ -53,10 +57,17 @@ function propKind(ps: any): string {
 function kindSchema(kind: string): OnyxSchema {
   if (kind === 'hm-url') return {type: kindUrl('string'), format: 'hm-url'}
   if (kind === 'ipfs') return {type: kindUrl('string'), format: 'ipfs'}
+  // The built-in date types are includes of the library schemas, which carry
+  // the format (→ a date picker) and the pattern (→ validation).
+  if (kind === 'date') return {ref: nameToUrl('onyx-date')!}
+  if (kind === 'date-time') return {ref: nameToUrl('onyx-date-time')!}
   if (kind === 'list') return {type: kindUrl('list'), items: {}}
   if (kind === 'map') return {type: MAP_URL, values: {}}
   return {type: kindUrl(kind)}
 }
+
+/** Kinds whose value references something else, and so may carry a `target` type. */
+const isReferenceKind = (kind: string) => kind === 'hm-url' || kind === 'ipfs'
 
 /** An empty starter struct schema. */
 export const emptyStructSchema = (): OnyxSchema => ({type: MAP_URL, name: '', properties: {}, required: []})
@@ -81,6 +92,12 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
     commit(nextProps, nextRequired)
   }
   const setFieldKind = (name: string, kind: string) => commit({...properties, [name]: kindSchema(kind)}, required)
+  // A reference field (HM link / IPFS) may name the type its target should
+  // conform to — this is how one type points at another (character.home → place).
+  const setFieldTarget = (name: string, target: string) => {
+    const {target: _old, ...rest} = properties[name] ?? {}
+    commit({...properties, [name]: target.trim() ? {...rest, target: target.trim()} : rest}, required)
+  }
   const setRequired = (name: string, on: boolean) => {
     const next = new Set(required)
     if (on) next.add(name)
@@ -147,6 +164,17 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
                   ))}
                 </SelectContent>
               </Select>
+              {isReferenceKind(propKind(ps)) && (
+                <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
+                  <Input
+                    value={typeof ps?.target === 'string' ? ps.target : ''}
+                    placeholder="target type (hm:// or ipfs://)"
+                    aria-label={`Target type for ${name}`}
+                    className="w-52 shrink-0 font-mono text-xs"
+                    onChange={(e) => setFieldTarget(name, e.target.value)}
+                  />
+                </Tooltip>
+              )}
               <Tooltip content="Required — a value of this type must include this field">
                 <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
                   <Checkbox checked={required.has(name)} onCheckedChange={(on) => setRequired(name, on === true)} />
