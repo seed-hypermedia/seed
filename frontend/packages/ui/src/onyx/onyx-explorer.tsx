@@ -54,7 +54,11 @@ function catalogSections(): Section[] {
     ...(other.length ? [{title: 'Library', hint: 'other schemas', names: other}] : []),
     {title: 'Hypermedia blobs', hint: "the network's real DAG-CBOR blob schemas", names: hyper},
     {title: 'Seed API read models', hint: 'derived data the daemon computes for clients', names: seedApi},
-    {title: 'RPC methods', hint: 'the universal-client API — every page has a live call console', names: ['seed-rpc', ...rpc.filter((n) => n !== 'seed-rpc')]},
+    {
+      title: 'RPC methods',
+      hint: 'the universal-client API — every page has a live call console',
+      names: ['seed-rpc', ...rpc.filter((n) => n !== 'seed-rpc')],
+    },
     {title: 'Instances', hint: 'data typed by a schema', names: instances},
   ].filter((s) => s.names.length)
 }
