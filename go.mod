@@ -17,6 +17,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.0.1
+	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0
 	github.com/improbable-eng/grpc-web v0.15.0
 	github.com/invopop/validation v0.8.0
 	github.com/ipfs/boxo v0.38.0
@@ -92,7 +93,6 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.3 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
-	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0 // indirect
 	github.com/ipfs/go-dsqueue v0.2.0 // indirect
 	github.com/jhump/protoreflect v1.17.0 // indirect
 	github.com/libp2p/go-libp2p-record v0.3.1 // indirect
