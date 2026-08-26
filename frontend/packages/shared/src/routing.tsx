@@ -342,6 +342,11 @@ export function routeToHref(
     return route.slug ? `/hm/onyx/${route.slug}` : '/hm/onyx'
   }
 
+  // A schema blob by CID (reserved `/hm/schema/<cid>`): the full-page schema browser.
+  if (typeof route !== 'string' && route.key === 'schema') {
+    return `/hm/schema/${route.cid}`
+  }
+
   // Handle view routes (activity, comments, directory, collaborators, feed, all-documents, metadata)
   if (
     typeof route !== 'string' &&

@@ -78,7 +78,7 @@ There is one validation engine. The dependency-free reference validator proves t
 - the **document integration** — required attributes as fixed rows, red non-blocking validation, and the header actions on a schema-definition document;
 - the **inspector** — recognizes the signed blob types, detects when a blob *is* a schema, and validates a blob against its attached schema.
 
-These live behind Developer Mode in the Seed app (on by default on the web) and at the `/hm/onyx` route.
+These live behind Developer Mode in the Seed app (on by default on the web) and at the `/hm/onyx` route; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time.
 
 ## Layer 7 — Generated code
 

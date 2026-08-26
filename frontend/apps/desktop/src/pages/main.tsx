@@ -53,6 +53,7 @@ var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var RawBlob = lazy(() => import('./raw-blob'))
 var Onyx = lazy(() => import('./onyx'))
+var SchemaBrowser = lazy(() => import('./schema'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
 var Explore = lazy(() => import('./explore'))
@@ -483,6 +484,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'onyx':
       return {
         PageComponent: Onyx,
+        Fallback: BaseLoading,
+      }
+    case 'schema':
+      return {
+        PageComponent: SchemaBrowser,
         Fallback: BaseLoading,
       }
     case 'collaborators':

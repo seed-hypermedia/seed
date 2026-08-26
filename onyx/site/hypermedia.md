@@ -14,7 +14,7 @@ it lives under its own authority, `hm://seed.hyper.media/*` (local files
 
 ## The shared base — extension in action
 
-Every blob embeds a base envelope (`hypermedia-blob`):
+Every blob embeds a base envelope, [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob):
 
 | field | type | meaning |
 | --- | --- | --- |
@@ -37,6 +37,10 @@ Open `hypermedia-change` in the schema explorer: `signer`/`sig`/`ts`
 show as **inherited**, the rest as **added**. That's the "block types are related"
 relationship, made visible — and `hypermedia-blob`'s **Dependents** list is
 exactly those six.
+
+## Define your own signed blob type
+
+The envelope is not reserved for the six built-in types. Any schema that extends [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob) and pins a `type` tag is a signed blob type the app knows how to create: in the schema editor, tick **Signed blob type**, set the tag (say `Vote`), add your fields, and publish the type as a schema-definition page. Its **Create** button then opens the signing form — you fill in only your fields; `signer`, `ts`, and `sig` are added at signing time with the selected account's key, and the blob is published with the same convention the daemon verifies (sign the canonical CBOR with the signature zeroed). The result is a first-class, verifiable blob on the network — with a `type` the built-in indexer ignores but any app that resolves your schema can trust and render. Browse any schema, built-in or yours, at `/hm/schema/<cid>`.
 
 ## The union — one of six
 
