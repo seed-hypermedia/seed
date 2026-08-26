@@ -9,7 +9,7 @@ import {FileCode2, Plus} from 'lucide-react'
 import {Button} from '../button'
 import {Container} from '../container'
 import {Tooltip} from '../tooltip'
-import {nameForCid, ONYX_DID, ONYX_SCHEMAS, schemaCid} from './onyx-engine'
+import {nameForCid, ONYX_SCHEMAS, schemaCid} from './onyx-engine'
 import {OnyxNavContext, OnyxSchemaByCid} from './onyx-explorer'
 import {OnyxRpcConsole, RpcCallPanel, rpcMethodForSlug} from './onyx-rpc-console'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
@@ -72,14 +72,6 @@ export function OnyxSchemaBrowserPage({
             <code className="text-muted-foreground truncate text-xs" title={`ipfs://${cid}`}>
               {cid}
             </code>
-            <span className="text-muted-foreground">·</span>
-            <button
-              type="button"
-              className="text-muted-foreground shrink-0 text-xs hover:underline"
-              onClick={() => openUrl(`hm://${ONYX_DID}`)}
-            >
-              browse the library
-            </button>
           </div>
           {canCreate && (
             <Tooltip
