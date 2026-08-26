@@ -6,7 +6,7 @@
 // and the source dag-json with clickable `ref`/`type` links. Types are
 // documents: clicking a reference navigates to that schema.
 
-import {createContext, useContext, useMemo, useState} from 'react'
+import {createContext, useContext} from 'react'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {isSignedBlobSchema} from './signed-blob'
 import {cn} from '../utils'
@@ -32,39 +32,6 @@ const isPrimitive = (name: string) => KINDS.includes(name.replace(/^onyx-/, '') 
 const primitiveKind = (name: string) => name.replace(/^onyx-/, '')
 const isMetaVariant = (name: string) => name.startsWith('onyx-') && name.endsWith('-schema') && name !== 'onyx-schema'
 const kindPrimitive = (kind: string) => (ONYX_SCHEMAS[`onyx-${kind}`] ? `onyx-${kind}` : null)
-
-type Section = {title: string; hint: string; names: string[]}
-
-function catalogSections(): Section[] {
-  const names = Object.keys(ONYX_SCHEMAS).sort()
-  const meta = names.filter((n) => n === 'onyx-schema' || isMetaVariant(n))
-  const prims = names.filter(isPrimitive)
-  const hyper = names.filter((n) => n.startsWith('hypermedia-'))
-  const rpc = names.filter((n) => n === 'seed-rpc' || n.startsWith('seed-rpc-'))
-  const seedApi = names.filter((n) => n.startsWith('seed-') && !rpc.includes(n))
-  const examples = names.filter((n) => n.startsWith('example-') && !isInstance(ONYX_SCHEMAS[n]))
-  const instances = names.filter((n) => isInstance(ONYX_SCHEMAS[n]))
-  const known = new Set([...meta, ...prims, ...hyper, ...rpc, ...seedApi, ...examples, ...instances])
-  const other = names.filter((n) => !known.has(n))
-  return [
-    {
-      title: 'Meta-schema',
-      hint: 'the type of types — a discriminated union',
-      names: ['onyx-schema', ...meta.filter((n) => n !== 'onyx-schema')],
-    },
-    {title: 'Primitives', hint: 'the standard library — one schema per kind', names: prims},
-    {title: 'Examples', hint: 'feature demos', names: examples},
-    ...(other.length ? [{title: 'Library', hint: 'other schemas', names: other}] : []),
-    {title: 'Hypermedia blobs', hint: "the network's real DAG-CBOR blob schemas", names: hyper},
-    {title: 'Seed API read models', hint: 'derived data the daemon computes for clients', names: seedApi},
-    {
-      title: 'RPC methods',
-      hint: 'the universal-client API — every page has a live call console',
-      names: ['seed-rpc', ...rpc.filter((n) => n !== 'seed-rpc')],
-    },
-    {title: 'Instances', hint: 'data typed by a schema', names: instances},
-  ].filter((s) => s.names.length)
-}
 
 // --- small pieces ----------------------------------------------------------
 
@@ -642,82 +609,6 @@ export function OnyxSchemaByCid({cid, nav}: {cid: string; nav: (slug: string) =>
         Source <span className="text-muted-foreground font-normal">(dag-json — refs are links)</span>
       </h2>
       <SourceJson schema={schema} nav={nav} />
-    </div>
-  )
-}
-
-// --- catalog + top-level explorer ------------------------------------------
-
-export function OnyxCatalog({current, nav}: {current: string; nav: (slug: string) => void}) {
-  const sections = useMemo(catalogSections, [])
-  const [q, setQ] = useState('')
-  const query = q.trim().toLowerCase()
-  return (
-    <div className="flex flex-col gap-3">
-      <input
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-        placeholder="Filter schemas…"
-        className="border-border bg-background rounded-md border px-2 py-1 text-sm"
-      />
-      {sections.map((sec) => {
-        const items = query ? sec.names.filter((n) => n.toLowerCase().includes(query)) : sec.names
-        if (!items.length) return null
-        return (
-          <div key={sec.title}>
-            <div className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">{sec.title}</div>
-            <div className="text-muted-foreground/70 mb-1 text-xs">{sec.hint}</div>
-            <div className="flex flex-col">
-              {items.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => nav(n)}
-                  className={cn(
-                    'rounded px-2 py-0.5 text-left font-mono text-xs',
-                    n === current ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted',
-                  )}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/**
- * The full Onyx Schema Explorer. Self-contained: it owns the selected-schema
- * state, so it can be dropped into any route. `initialSlug` picks the first
- * schema; `onSlugChange` lets a host sync the URL. `belowPage` renders extra
- * content (e.g. the live data editor) under the schema page for the current slug.
- */
-export function OnyxExplorer({
-  initialSlug = 'onyx-schema',
-  onSlugChange,
-  belowPage,
-}: {
-  initialSlug?: string
-  onSlugChange?: (slug: string) => void
-  belowPage?: (slug: string) => React.ReactNode
-}) {
-  const [slug, setSlug] = useState(initialSlug)
-  const nav = (s: string) => {
-    setSlug(s)
-    onSlugChange?.(s)
-  }
-  return (
-    <div className="flex gap-6">
-      <aside className="w-56 shrink-0 overflow-y-auto">
-        <OnyxCatalog current={slug} nav={nav} />
-      </aside>
-      <main className="min-w-0 flex-1">
-        <OnyxSchemaPage slug={slug} nav={nav} />
-        {belowPage?.(slug)}
-      </main>
     </div>
   )
 }

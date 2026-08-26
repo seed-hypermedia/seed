@@ -30,14 +30,9 @@ New to Onyx? These four pages explain the system from the top down before the re
 
 The schema features live behind **Developer Mode** (Settings → Developers on desktop; on by default on web). Once enabled, every document's options menu gains the building-block entries below.
 
-### Browse the schema tour
+### Browse the schemas
 
-Open **Onyx Schema Tour** from any document's options menu (or visit `/hm/onyx`). The tour is a browsable, in-app view of the whole type system:
-
-- A catalog of every schema, grouped into the meta-schema, primitives, examples, and the Hypermedia network's real blob schemas.
-- Each schema renders as a page: its fields (with kinds and required/optional), union variants, extension (inherited vs added fields), generic parameters, its published `hm://` URL and CID, and its source `dag-json`.
-- **Every reference is a link.** Types are documents: click a field's type, a dependency, or an `hm://` value in the source to navigate to that schema. Each page also lists what it *depends on* and what *depends on it*.
-- Under each schema is a **live editor** — build a value of that schema (or, on the meta-schema, build a *schema*) and watch it validate on every keystroke, by the same engine as the reference validator.
+The type system is browsed through its own published documents — this account. Every schema has a page here (this site's navigation, or the links in every chapter), and each schema page's header carries a tag that opens the **schema browser** at `/hm/schema/<cid>`: the schema's fields (kinds, required/optional), union variants, extension (inherited vs added fields), generic parameters, targets, its `hm://` URL and CID, and its source `dag-json`. **Every reference is a link** — a field's type, a dependency, a target, an `hm://` value in the source — so you navigate the graph by clicking. The header's **New** button creates a blob that follows the schema. The same page serves schemas you publish yourself.
 
 ### Create a schema
 
@@ -45,7 +40,7 @@ Choose **New Schema** from the options menu. This opens the editor pointed at th
 
 ### Create typed data
 
-Choose **New Blob** for a blank DAG-CBOR object, or **New Instance** (from a schema's page in the inspector) to start a value pre-seeded to match a schema. The editor is *schema-respecting*: it suggests the schema's fields, offers dropdowns for enums and union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you.
+Choose **New Blob** for a blank DAG-CBOR object, or **New** from a schema's page (or **New Instance** in the inspector) to start a value pre-seeded to match a schema. The editor is *schema-respecting*: it suggests the schema's fields, offers dropdowns for enums and union variants, renders `link` and `bytes` with the right controls, and flags anything that doesn't conform — without blocking you.
 
 ### Type a document's metadata with a schema
 
@@ -74,4 +69,4 @@ The concepts, in reading order:
 
 ## Under the hood
 
-Onyx ships a dependency-free reference validator that proves the meta-schema describes itself, validates every schema against it, and confirms the union *rejects* malformed schemas; a deterministic publisher that hashes each schema to its DAG-CBOR CID; a TypeScript generator that turns every schema into a TS type (maps become interfaces, enums become literal unions, extension becomes intersection, and `Change<Block>` becomes a real TS generic); and a schema explorer that renders every schema as a page. That same validator is ported into the Seed app, so the in-app tour and editors can never disagree with the reference oracle.
+Onyx ships a dependency-free reference validator that proves the meta-schema describes itself, validates every schema against it, and confirms the union *rejects* malformed schemas; a deterministic publisher that hashes each schema to its DAG-CBOR CID; a TypeScript generator that turns every schema into a TS type (maps become interfaces, enums become literal unions, extension becomes intersection, and `Change<Block>` becomes a real TS generic); and a schema explorer that renders every schema as a page. That same validator is ported into the Seed app, so the in-app schema pages and editors can never disagree with the reference oracle.
