@@ -151,7 +151,7 @@ export function registerWebAgentsPlatform() {
     ),
     // Omitted deliberately — the browser has none of these, and every consumer guards on absence:
     // getLocalServerUrl (no app-managed server), discoverEntity / subscribeToEntity /
-    // connectToHmServer (no local HM node), oauthRedirectCatcher (cannot open a loopback socket;
-    // sign-in falls back to pasting the redirect URL).
+    // connectToHmServer (no local HM node), oauthRedirectCatcher (cannot open a loopback socket,
+    // so subscription "Sign in with ChatGPT" is never offered on web — API keys only).
   })
 }

@@ -1,4 +1,4 @@
-import type {ModelProviderType} from './client'
+import type {AgentServerHealth, ModelProviderType} from './client'
 import {
   useCancelProviderOAuth,
   useProviderOAuthStatus,
@@ -18,6 +18,28 @@ import {useEffect, useRef, useState} from 'react'
 import {PROVIDER_METADATA} from './provider-registry'
 
 /**
+ * Whether this app can offer subscription sign-in ("Sign in with ChatGPT") for
+ * `providerType` against the server reporting `health`.
+ *
+ * Three things have to line up: the provider has a subscription flow at all, the
+ * server has opted in (`health.subscriptionAuth`), and this app can catch the
+ * provider's `localhost:1455` redirect — {@link AgentsPlatform.oauthRedirectCatcher},
+ * which only the desktop main process provides. The server flag alone is not
+ * enough: the hosted servers enable it for desktop clients, and a browser tab
+ * pointed at the same server could start a login it can never finish.
+ */
+export function isSubscriptionSignInAvailable(
+  providerType: ModelProviderType,
+  health: Pick<AgentServerHealth, 'subscriptionAuth'> | null | undefined,
+): boolean {
+  return (
+    Boolean(PROVIDER_METADATA[providerType]?.subscription) &&
+    health?.subscriptionAuth === true &&
+    Boolean(getAgentsPlatform().oauthRedirectCatcher)
+  )
+}
+
+/**
  * Drives a subscription OAuth sign-in ("Sign in with ChatGPT") against the
  * agent server: starts the flow, opens the provider's authorization page in the
  * system browser, and polls for completion. The OAuth client redirects to
@@ -25,6 +47,9 @@ import {PROVIDER_METADATA} from './provider-registry'
  * the desktop main process listens there, catches the redirect, and this
  * component forwards it to the server via `SubmitProviderOAuthCode`. A
  * paste-the-redirect-URL fallback covers the port being taken.
+ *
+ * Only rendered where {@link isSubscriptionSignInAvailable} holds; without a
+ * redirect catcher the flow cannot complete, so callers must not offer it.
  *
  * Calls `onConnected` with the server-side credentials secret name once the
  * sign-in completes.

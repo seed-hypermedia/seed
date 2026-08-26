@@ -79,8 +79,8 @@ export type AgentsSignInPrompt = {
  *
  * Provider OAuth clients redirect to a fixed `localhost` port on the user's machine — not to the
  * (possibly remote) agent server — so an app that can open a local socket catches the redirect and
- * hands it back to the agents UI. Apps that cannot (the browser) omit this, and the sign-in falls
- * back to the user pasting the redirect URL.
+ * hands it back to the agents UI. Apps that cannot (the browser) omit this, and subscription
+ * sign-in is then not offered at all — see `isSubscriptionSignInAvailable` in provider-oauth.
  */
 export type AgentsOAuthRedirectCatcher = {
   /** Starts listening; `state` ties a captured redirect to this specific sign-in. */
