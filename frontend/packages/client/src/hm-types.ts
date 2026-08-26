@@ -558,6 +558,12 @@ export const HMDocumentMetadataSchema = z
     thumbnail: z.string().optional(), // DEPRECATED
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
+    /**
+     * Agents server a space advertises for its readers (an http(s) origin). Clients viewing the
+     * space's documents connect to it alongside their own configured servers, so a site can host
+     * agents for its audience — on the gateway, each site brings its own agents backend.
+     */
+    agentServerUrl: z.string().optional(),
     layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
     displayPublishTime: z.string().optional(),
     displayAuthor: z.string().optional(),
@@ -605,6 +611,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
+  agentServerUrl: 'Agents server readers of this space connect to.',
   layout: 'Legacy site header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',

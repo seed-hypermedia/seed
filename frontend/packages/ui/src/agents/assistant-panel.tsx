@@ -205,6 +205,7 @@ export function AssistantPanel({
           agents={agents}
           activeAgent={activeAgent}
           localServerUrl={localServerUrl.data ?? null}
+          advertisedServerUrl={serverUrls.advertisedServerUrl}
           onSelect={(key) => setChosenAgent(key)}
           onCreateAgent={() =>
             createAgentDialog.open({
@@ -359,6 +360,7 @@ function AssistantAgentPicker({
   agents,
   activeAgent,
   localServerUrl,
+  advertisedServerUrl,
   onSelect,
   onCreateAgent,
   onOpenAgentsPage,
@@ -366,6 +368,8 @@ function AssistantAgentPicker({
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
   localServerUrl: string | null
+  /** Server the site on screen advertises; its group is labeled so the user knows why it is here. */
+  advertisedServerUrl?: string | null
   onSelect: (key: AssistantAgentKey) => void
   onCreateAgent: () => void
   onOpenAgentsPage: () => void
@@ -406,6 +410,11 @@ function AssistantAgentPicker({
                 <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
                   {describeAgentServer(group.serverUrl, localServerUrl)}
                 </span>
+                {advertisedServerUrl && group.serverUrl === advertisedServerUrl ? (
+                  <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px] font-medium">
+                    This site
+                  </span>
+                ) : null}
               </div>
               {group.options.map((option) => {
                 const isActive = option.serverUrl === activeAgent?.serverUrl && option.agent.id === activeAgent.agent.id

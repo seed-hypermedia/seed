@@ -177,6 +177,24 @@ export function useNavRoute() {
   return navRoute
 }
 
+const NO_NAV_STATE: StateStream<NavState> = {
+  get: () => ({routes: [], routeIndex: 0, lastAction: 'push'}),
+  subscribe: () => () => {},
+}
+
+/**
+ * The current route, or null when rendered outside a navigation provider (a settings window, a
+ * page shell without routing). For code that adapts to the route when there is one but must not
+ * require it.
+ */
+export function useNavRouteOrNull(): NavRoute | null {
+  const nav = useContext(NavContext)
+  const navRoute = useStreamSelector<NavState, NavRoute | null>(nav?.state ?? NO_NAV_STATE, (state) => {
+    return state.routes[state.routeIndex] ?? null
+  })
+  return nav ? navRoute : null
+}
+
 export function useRouteDocId(): UnpackedHypermediaId | null {
   const route = useNavRoute()
   if (route.key === 'document' || route.key === 'inspect') {

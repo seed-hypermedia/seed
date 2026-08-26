@@ -38,6 +38,10 @@ import {getAgentsPlatform} from './platform'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
+import {useResource} from '@shm/shared/models/entity'
+import type {NavRoute} from '@shm/shared/routes'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 import {queryKeys} from '@shm/shared'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
@@ -251,16 +255,48 @@ export function useConfiguredAgentServerUrls() {
 export function useAgentServerUrls() {
   const localServerUrl = useLocalAgentServerUrl()
   const configured = useConfiguredAgentServerUrls()
+  const advertisedServerUrl = useSiteAdvertisedAgentServerUrl()
 
+  // Order is meaning: the assistant panel's default agent context is the first agent of the first
+  // server. The app's own local server keeps that spot; a server the site in view advertises comes
+  // next, ahead of the user's configured list, so on a site (or the gateway, which shows many) the
+  // panel opens on that site's agents.
   const data = useMemo(() => {
     if (!configured.data) return undefined
     const urls = new Set<string>()
     if (localServerUrl.data) urls.add(localServerUrl.data)
+    if (advertisedServerUrl) urls.add(advertisedServerUrl)
     for (const url of configured.data) urls.add(url)
     return Array.from(urls)
-  }, [configured.data, localServerUrl.data])
+  }, [advertisedServerUrl, configured.data, localServerUrl.data])
 
-  return {...configured, data}
+  return {...configured, data, advertisedServerUrl}
+}
+
+/**
+ * The agents server advertised by the site whose document is on screen, if any.
+ *
+ * Read from the site home document's `agentServerUrl` metadata — the same signed document that
+ * names the site — so it is discoverable wherever the site's content is, with no server config.
+ * The site is the account of the current route's document (a draft's edit target counts); routes
+ * without a document, and code rendered outside a navigation provider, advertise nothing. It is
+ * never persisted into the user's configured list: it applies while viewing that site.
+ */
+export function useSiteAdvertisedAgentServerUrl(): string | null {
+  const route = useNavRouteOrNull()
+  const siteUid = route ? siteUidOfRoute(route) : undefined
+  const home = useResource(siteUid ? hmId(siteUid) : undefined)
+  const raw = home.data?.type === 'document' ? home.data.document?.metadata?.agentServerUrl : undefined
+  return useMemo(() => (typeof raw === 'string' && raw ? tryNormalizeAgentServerUrl(raw) : null), [raw])
+}
+
+/** Account uid of the site a route is looking at, when the route is about a document. */
+export function siteUidOfRoute(route: NavRoute): string | undefined {
+  if (route.key === 'draft') return route.editUid ?? undefined
+  if ('id' in route && route.id && typeof route.id === 'object' && 'uid' in route.id) {
+    return (route.id as {uid?: string}).uid || undefined
+  }
+  return undefined
 }
 
 /** Persists the configured agent server URL list. */

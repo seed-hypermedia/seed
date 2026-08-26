@@ -49,6 +49,38 @@ function renderOptionsPanel(isHomeDoc: boolean) {
 }
 
 describe('OptionsPanel document metadata fields', () => {
+  it('offers the agents server field on the home document only, saving a trimmed URL on blur', () => {
+    const onMetadata = vi.fn()
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <OptionsPanel draftId="draft" metadata={{name: 'Site'}} isHomeDoc onMetadata={onMetadata} />
+        </TooltipProvider>,
+      )
+    })
+    const input = container.querySelector('#agent-server-url') as HTMLInputElement
+    expect(input).not.toBeNull()
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      setter.call(input, '  https://agentic.example.com  ')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    act(() => {
+      // React's onBlur listens to the bubbling focusout event.
+      input.dispatchEvent(new FocusEvent('focusout', {bubbles: true}))
+    })
+    expect(onMetadata).toHaveBeenCalledWith({agentServerUrl: 'https://agentic.example.com'})
+
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <OptionsPanel draftId="draft" metadata={{name: 'Doc'}} isHomeDoc={false} onMetadata={onMetadata} />
+        </TooltipProvider>,
+      )
+    })
+    expect(container.querySelector('#agent-server-url')).toBeNull()
+  })
+
   it('keeps home document title and icon controls but removes summary and cover controls', () => {
     renderOptionsPanel(true)
 
