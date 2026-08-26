@@ -989,7 +989,7 @@ export default function DesktopResourcePage() {
       }
       menuItems.push({
         key: 'remove-site',
-        label: 'Remove Site from Publication',
+        label: 'Remove Space from Publication',
         icon: <CloudOff className="size-4" />,
         variant: 'destructive',
         onClick: () => {
@@ -999,7 +999,7 @@ export default function DesktopResourcePage() {
     } else {
       menuItems.push({
         key: 'publish-site',
-        label: 'Publish Site to Domain',
+        label: 'Publish Space to Domain',
         icon: <UploadCloud className="size-4" />,
         onClick: () => {
           publishSite.open({id: docId})

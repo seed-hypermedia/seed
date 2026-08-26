@@ -343,7 +343,7 @@ function CommentBoxImpl(props: {
         navigateToComment(navigate, route, recordId)
         pushAfterAction({id: docId, trigger: 'publish'})
         reset()
-        toast.success(joinedSite ? 'Joined site and posted comment' : 'Comment posted')
+        toast.success(joinedSite ? 'Joined space and posted comment' : 'Comment posted')
       } catch (err) {
         console.error('Failed to submit pending comment:', err)
         reportError(err, {feature: 'comment', operation: 'submit-pending', docId: docId.id})

@@ -388,7 +388,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
           error: result.error,
         })
         setFileName({
-          name: 'Failed to reach URL — site may be offline or block requests',
+          name: 'Failed to reach URL — space may be offline or block requests',
           color: 'red',
         })
         return

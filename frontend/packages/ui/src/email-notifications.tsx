@@ -60,7 +60,7 @@ export function UIEmailNotificationsForm({
         <FormCheckbox name="notifyOwnedDocChange" label={tx('Someone changes a document I own')} control={control} />
         <FormCheckbox
           name="notifySiteDiscussions"
-          label={tx('Someone creates a discussion in my site')}
+          label={tx('Someone creates a discussion in my space')}
           control={control}
         />
       </div>

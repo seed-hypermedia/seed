@@ -348,7 +348,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         <LogoutButton />
         {hasExistingSpace ? null : (
           <Button variant="default" onClick={openCreateSpaceDialog}>
-            Create my site
+            Create my space
           </Button>
         )}
       </>

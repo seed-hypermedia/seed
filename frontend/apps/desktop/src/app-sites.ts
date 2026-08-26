@@ -7,13 +7,13 @@ import {t} from './app-trpc'
 async function getSiteNotifyServiceHost(siteUrl: string): Promise<string | null> {
   const resp = await fetch(`${siteUrl.replace(/\/$/, '')}/hm/api/config`, {})
   if (resp.status !== 200) {
-    throw new Error(`Site returned status ${resp.status}`)
+    throw new Error(`Space returned status ${resp.status}`)
   }
   let config
   try {
     config = await resp.json()
   } catch {
-    throw new Error('Site returned invalid response')
+    throw new Error('Space returned invalid response')
   }
   return typeof config?.notifyServiceHost === 'string' ? config.notifyServiceHost : null
 }
@@ -30,7 +30,7 @@ export const sitesApi = t.router({
       body: JSON.stringify(input.payload),
     })
     if (resp.status !== 200) {
-      let message = `Site returned status ${resp.status}`
+      let message = `Space returned status ${resp.status}`
       try {
         const error = await resp.json()
         if (error.message) message = error.message
@@ -43,14 +43,14 @@ export const sitesApi = t.router({
     try {
       result = await resp.json()
     } catch {
-      throw new Error('Site returned invalid response')
+      throw new Error('Space returned invalid response')
     }
     return result
   }),
   getConfig: t.procedure.input(z.string()).mutation(async ({input}) => {
     const resp = await fetch(`${input}/hm/api/config`, {})
     if (resp.status !== 200) {
-      let message = `Site returned status ${resp.status}`
+      let message = `Space returned status ${resp.status}`
       try {
         const error = await resp.json()
         if (error.message) message = error.message
@@ -63,7 +63,7 @@ export const sitesApi = t.router({
     try {
       result = await resp.json()
     } catch {
-      throw new Error('Site returned invalid response')
+      throw new Error('Space returned invalid response')
     }
     return result
   }),
@@ -78,7 +78,7 @@ export const sitesApi = t.router({
       const notifyServiceHost =
         (input.siteUrl ? await getSiteNotifyServiceHost(input.siteUrl) : null) ?? getNotifyServiceHostDefault()
       if (!notifyServiceHost) {
-        throw new Error('No notification service is configured for this site')
+        throw new Error('No notification service is configured for this space')
       }
       const signAs = input.signAs ?? input.accountUid
       const signer = buildDesktopSigner(signAs)

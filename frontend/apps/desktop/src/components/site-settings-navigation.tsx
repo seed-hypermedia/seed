@@ -73,7 +73,7 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
     )
   }
   if (!document) {
-    return <SizableText color="muted">This account doesn't have a site yet.</SizableText>
+    return <SizableText color="muted">This account doesn't have a space yet.</SizableText>
   }
   if (!isSiteOwner) {
     return (
@@ -81,7 +81,7 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
         <SizableText size="2xl" weight="bold">
           Navigation
         </SizableText>
-        <SizableText color="muted">Only the site owner can edit these settings.</SizableText>
+        <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
       </>
     )
   }
@@ -148,7 +148,7 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
 
       {/* Header preview */}
       <div className="flex flex-col gap-2">
-        <SizableText weight="medium">Header site preview</SizableText>
+        <SizableText weight="medium">Space header preview</SizableText>
         <HeaderPreview
           siteId={siteId}
           name={metadata.name}
@@ -202,7 +202,7 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
           <div className="bg-muted flex h-9 w-72 items-center justify-between gap-4 rounded-md px-4">
             <div className="flex items-center gap-1.5">
               <SizableText>Show activity tabs</SizableText>
-              <Tooltip content="Show the People, Comments, and Citations tabs on your site's pages.">
+              <Tooltip content="Show the People, Comments, and Citations tabs on your space's pages.">
                 <HelpCircle className="text-muted-foreground size-3.5" />
               </Tooltip>
             </div>

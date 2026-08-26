@@ -412,7 +412,7 @@ function AssistantAgentPicker({
                 </span>
                 {advertisedServerUrl && group.serverUrl === advertisedServerUrl ? (
                   <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px] font-medium">
-                    This site
+                    This space
                   </span>
                 ) : null}
               </div>

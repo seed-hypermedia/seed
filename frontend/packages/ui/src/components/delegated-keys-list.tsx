@@ -22,8 +22,8 @@ export type DelegatedKeyItem = {
  */
 export function DelegatedKeysList({
   items,
-  emptyLabel = 'No Sites Connected',
-  emptyDescription = 'When you log into a Hypermedia site, your session will appear here.',
+  emptyLabel = 'No Spaces Connected',
+  emptyDescription = 'When you log into a Hypermedia space, your session will appear here.',
 }: {
   items: DelegatedKeyItem[]
   emptyLabel?: string

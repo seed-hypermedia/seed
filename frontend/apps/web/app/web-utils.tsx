@@ -329,7 +329,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const mySiteUrl = account?.metadata?.siteUrl || null
   const mySiteLabel = mySiteUrl
     ? mySiteUrl.replace(/^https?:\/\//, '').replace(/\/+$/, '')
-    : account?.metadata?.name || 'My site'
+    : account?.metadata?.name || 'My space'
   const goToMySite = () => {
     if (mySiteUrl) window.open(mySiteUrl, '_blank', 'noopener,noreferrer')
     else if (accountId) navigate({key: 'document', id: hmId(accountId, {latest: true})})
@@ -384,11 +384,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           }}
         >
           <Plus className="size-5" />
-          <span className="text-sm">Create my site</span>
+          <span className="text-sm">Create my space</span>
         </button>
       ) : (
         <>
-          <div className="text-muted-foreground px-4 pt-2 pb-1 text-xs">My site</div>
+          <div className="text-muted-foreground px-4 pt-2 pb-1 text-xs">My space</div>
           <button
             className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
             onClick={() => {
@@ -484,11 +484,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                   className="text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
                 >
                   <Plus className="size-4 text-green-600 dark:text-green-500" />
-                  Create my site
+                  Create my space
                 </DropdownMenuItem>
               ) : (
                 <>
-                  <div className="text-muted-foreground px-2 pt-1 pb-0.5 text-xs">My site</div>
+                  <div className="text-muted-foreground px-2 pt-1 pb-0.5 text-xs">My space</div>
                   <DropdownMenuItem onClick={goToMySite}>
                     <Globe className="size-4" />
                     <span className="flex-1 truncate">{mySiteLabel}</span>
