@@ -1,4 +1,4 @@
-import {FolderTree} from 'lucide-react'
+import {FileSearch2 as FileSearchCorner} from 'lucide-react'
 import {ReactNode, useEffect} from 'react'
 import {Button} from './button'
 import {Breadcrumbs, type BreadcrumbEntry} from './document-header'
@@ -51,7 +51,7 @@ export function DocumentTopBar({
               className="shrink-0"
               onClick={() => fileBrowser?.setCollapsed(false)}
             >
-              <FolderTree className="size-4" />
+              <FileSearchCorner className="size-4" />
             </Button>
           </Tooltip>
         ) : null}

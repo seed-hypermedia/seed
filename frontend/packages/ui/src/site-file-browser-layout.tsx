@@ -1,6 +1,6 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {FolderTree, PanelLeft, X} from 'lucide-react'
+import {FileSearch2 as FileSearchCorner, PanelLeftClose, X} from 'lucide-react'
 import {createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
@@ -201,7 +201,7 @@ export function SiteFileBrowserLayout({
                         aria-label="Collapse file browser"
                         onClick={() => setCollapsed(true)}
                       >
-                        <PanelLeft className="size-4" />
+                        <PanelLeftClose className="size-4" />
                       </Button>
                     </Tooltip>
                   </div>
@@ -222,7 +222,7 @@ export function SiteFileBrowserLayout({
                       aria-label="Open file browser"
                       onClick={() => setCollapsed(false)}
                     >
-                      <FolderTree className="size-4" />
+                      <FileSearchCorner className="size-4" />
                     </Button>
                   </Tooltip>
                 </div>

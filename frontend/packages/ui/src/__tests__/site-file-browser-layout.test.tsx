@@ -29,8 +29,8 @@ vi.mock('../tooltip', () => ({
 vi.mock('lucide-react', async () => {
   const makeIcon = (testId: string) => (props: React.SVGProps<SVGSVGElement>) => <svg data-testid={testId} {...props} />
   return {
-    FolderTree: makeIcon('folder-tree-icon'),
-    PanelLeft: makeIcon('panel-left-icon'),
+    FileSearch2: makeIcon('file-search-corner-icon'),
+    PanelLeftClose: makeIcon('panel-left-close-icon'),
     X: makeIcon('x-icon'),
   }
 })
@@ -120,7 +120,7 @@ describe('SiteFileBrowserLayout', () => {
     renderLayout()
 
     expect(container.querySelector('[data-tooltip-content="Hide file explorer"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="panel-left-icon"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="panel-left-close-icon"]')).toBeTruthy()
 
     act(() => {
       container.querySelector<HTMLButtonElement>('[aria-label="Collapse file browser"]')?.click()
@@ -132,7 +132,7 @@ describe('SiteFileBrowserLayout', () => {
     expect(reopenControl?.parentElement?.className).toContain('absolute')
     expect(reopenControl?.parentElement?.className).toContain('top-2')
     expect(reopenControl?.parentElement?.className).toContain('left-2')
-    expect(container.querySelector('[data-testid="folder-tree-icon"]')).toBeTruthy()
+    expect(container.querySelector('[data-testid="file-search-corner-icon"]')).toBeTruthy()
 
     act(() => {
       container.querySelector<HTMLButtonElement>('[aria-label="Open file browser"]')?.click()

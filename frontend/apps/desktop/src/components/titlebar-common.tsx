@@ -63,7 +63,8 @@ import {
   Lock,
   LogIn,
   LogOut,
-  PanelLeft,
+  PanelLeftClose,
+  PanelRightClose,
   Plus,
   Search,
   Settings,
@@ -512,7 +513,7 @@ export function NavigationButtons() {
 export function NavMenuButton({left}: {left?: ReactNode}) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
-  const icon = <PanelLeft className="size-4" />
+  const icon = isLocked ? <PanelLeftClose className="size-4" /> : <PanelRightClose className="size-4" />
   let tooltip = 'Lock Sidebar Open'
   let onPress = ctx?.onLockSidebarOpen
   let key = 'lock'

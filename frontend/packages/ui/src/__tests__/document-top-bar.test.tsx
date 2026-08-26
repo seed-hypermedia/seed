@@ -123,6 +123,7 @@ describe('DocumentTopBar', () => {
     expect(claimRevealButton).toHaveBeenCalledOnce()
     const revealButton = container.querySelector<HTMLButtonElement>('button[aria-label="Open file browser"]')
     expect(revealButton).not.toBeNull()
+    expect(revealButton?.querySelector('.lucide-file-search-2')).not.toBeNull()
 
     act(() => {
       revealButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
