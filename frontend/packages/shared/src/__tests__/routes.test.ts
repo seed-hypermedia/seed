@@ -12,7 +12,7 @@ import {
 } from '../routes'
 import {routeToHref} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
-import {appRouteOfId, getRouteKey} from '../utils/navigation'
+import {appRouteOfId} from '../utils/navigation'
 import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')

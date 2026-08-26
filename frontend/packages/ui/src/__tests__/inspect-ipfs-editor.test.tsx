@@ -113,7 +113,36 @@ describe('InspectIpfsPage as the blob editor', () => {
     expect(container.querySelector('[data-testid="blob-publish"]')).toBeNull()
     expect(container.textContent).toContain('hello')
     expect(container.textContent).toContain('world')
-    // The resting URL is shown in the omnibar input.
-    expect((container.querySelector('input') as HTMLInputElement | null)?.value ?? container.textContent).toContain(cid)
+    // The header names the blob by its (shortened) CID.
+    expect(container.querySelector('[data-document-top-bar]')!.textContent).toContain(cid.slice(0, 10))
+  })
+
+  it('a blank draft offers a schema picker; a seeded draft does not', async () => {
+    mount('new')
+    await flush()
+    expect(container.querySelector('[data-testid="new-blob-schema-picker"]')).toBeTruthy()
+    expect(container.querySelector('[aria-label="Object schema"]')).toBeTruthy()
+    act(() => root.unmount())
+    root = createRoot(container)
+    mount(`new/${schemaCid('example-employee')!}`)
+    await flush()
+    expect(container.querySelector('[data-testid="new-blob-schema-picker"]')).toBeNull()
+  })
+
+  it('the header is a regular top bar with the title, CID, and top-right actions', async () => {
+    const value = {hello: 'world'}
+    const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(value))).toString()
+    mount(cid, {[cid]: value})
+    await flush()
+    const bar = container.querySelector('[data-document-top-bar]')!
+    expect(bar.textContent).toContain('IPFS blob')
+    expect(bar.textContent).toContain(cid.slice(0, 10))
+    expect(bar.querySelector('[data-testid="blob-edit"]')).toBeTruthy()
+    // No omnibar-style URL input inside the page.
+    expect(container.querySelector('input')).toBeNull()
+    // Edit switches to a draft in place with Publish available.
+    act(() => (bar.querySelector('[data-testid="blob-edit"]') as HTMLButtonElement).click())
+    expect(container.querySelector('[data-testid="blob-publish"]')).toBeTruthy()
+    expect(container.textContent).toContain('Editing blob')
   })
 })
