@@ -9,6 +9,7 @@ import {FileCode2, Plus} from 'lucide-react'
 import {Button} from '../button'
 import {Container} from '../container'
 import {Tooltip} from '../tooltip'
+import {newInstanceRoute} from './blob-menu-items'
 import {nameForCid, ONYX_SCHEMAS, schemaCid} from './onyx-engine'
 import {OnyxNavContext, OnyxSchemaByCid} from './onyx-explorer'
 import {OnyxRpcConsole, RpcCallPanel, rpcMethodForSlug} from './onyx-rpc-console'
@@ -77,11 +78,7 @@ export function OnyxSchemaBrowserPage({
             <Tooltip
               content={`Start a new IPFS blob that follows ${typeName} — the draft is pre-filled with this schema`}
             >
-              <Button
-                size="sm"
-                data-testid="schema-browser-new"
-                onClick={() => navigate({key: 'raw-blob', schemaCid: cid})}
-              >
+              <Button size="sm" data-testid="schema-browser-new" onClick={() => navigate(newInstanceRoute(cid))}>
                 <Plus className="mr-1 size-4" /> New {typeName}
               </Button>
             </Tooltip>

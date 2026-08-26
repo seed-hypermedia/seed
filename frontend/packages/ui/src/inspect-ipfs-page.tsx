@@ -1,28 +1,38 @@
 import {createInspectIpfsNavRoute, NavRoute, useCID} from '@shm/shared'
 import {code as DAG_CBOR_CODE} from '@shm/shared/cbor'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useOpenUrl, useRouteLink, useUniversalClient} from '@shm/shared/routing'
+import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Check, FileEdit, MoreHorizontal, X} from 'lucide-react'
+import {Braces, Check, Copy, FileCode2, FileEdit, X} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
+import {AttachSchemaBar, BlobJsonMode, RawDagJsonView, SchemaStatusRow} from './blob-editor-parts'
 import {Button} from './button'
-import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Textarea} from './components/textarea'
-import {isOnyxSchema} from './onyx/onyx-engine'
+import {copyTextToClipboard} from './copy-to-clipboard'
 import {base64ToBytes, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
 import {useFileProxyUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
+import {blobBuilderMenuItems, META_SCHEMA_CID, NEW_BLOB_PATH, newInstanceRoute} from './onyx/blob-menu-items'
+import {seedValue} from './onyx/onyx-data-editor'
+import {isOnyxSchema, ONYX_SCHEMAS} from './onyx/onyx-engine'
+import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
+import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
+import {type MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {toast} from './toast'
 import {OmnibarUrl} from './url-omnibar'
-import {CBOR_VALUE_RULES, isPlainObject, ValueDisplay, ValueEditor, ValueEditorProvider} from './value-editor'
+import {
+  CBOR_VALUE_RULES,
+  isPlainObject,
+  useValueHistory,
+  ValueDisplay,
+  ValueEditor,
+  ValueEditorProvider,
+} from './value-editor'
 
 type IpfsKind = 'loading' | 'image' | 'cbor' | 'text'
-
-/** Sentinel `ipfsPath` that opens the viewer in "author a new object" mode. */
-const NEW_IPFS_BLOB_PATH = 'new'
 
 /**
  * Probes whether an image URL loads. Returns `null` while testing, `true`/`false`
@@ -78,10 +88,17 @@ function useIpfsText(url: string): {text: string | null; loading: boolean} {
 }
 
 /**
- * Dedicated IPFS file viewer/editor. Shows the read-only `ipfs://` URL in a
- * slim top bar with a copy action and a "…" menu. For DAG-CBOR blobs and plain
- * text files, the menu offers Edit — which turns the view into an unpublished
- * draft (the CID disappears) and lets you Publish a new blob with a new CID.
+ * THE IPFS page: viewer and editor in one. `ipfsPath` is
+ *   - `<cid>[/sub/path]` — view a published blob (image, text, or DAG-CBOR);
+ *     "Edit…" turns a DAG-CBOR or text blob into a draft in place;
+ *   - `new` — a blank DAG-CBOR draft;
+ *   - `new/<schemaCid>` — a draft seeded by that schema, linked via `schema`
+ *     (the bundled meta-schema CID means "New Schema").
+ * Publishing encodes canonical DAG-CBOR, stores the blob, and replaces the route
+ * with the new CID (blobs are immutable). A DAG-CBOR value with a `schema` link
+ * — or that IS a schema — gets advisory validation and schema-driven inputs.
+ * "View raw" / "Edit raw" strips the presentation back to dag-json text: plain
+ * JSON with IPLD links and bytes in their `{"/": …}` envelopes.
  */
 export function InspectIpfsPage({
   ipfsPath,
@@ -92,7 +109,7 @@ export function InspectIpfsPage({
 }: {
   ipfsPath: string
   exitRoute?: NavRoute | null
-  /** Retained for API compatibility; hm:// / ipfs:// links now route via the app openUrl. */
+  /** Retained for API compatibility; hm:// / ipfs:// links route via the app openUrl. */
   getRouteForUrl?: (url: string) => NavRoute | string | null
   /** Desktop-only window controls (e.g. close button on non-macOS) shown at the far right. */
   windowControls?: ReactNode
@@ -102,17 +119,14 @@ export function InspectIpfsPage({
   gatewayUrl?: string
 }) {
   const segments = ipfsPath.split('/').filter(Boolean)
-  // `new` opens a draft: `new` alone is a blank object; `new/<cid>` forks an
-  // existing blob into a draft (so "Edit" leaves the original window alone).
-  const isDraft = segments[0] === NEW_IPFS_BLOB_PATH
-  const forkCid = isDraft ? segments[1] : undefined
+  const isDraft = segments[0] === NEW_BLOB_PATH
+  const seedSchemaCid = isDraft ? segments[1] : undefined
   const cid = isDraft ? undefined : segments[0]
   const pathSegments = isDraft ? [] : segments.slice(1)
   const hasSubpath = pathSegments.length > 0
-  // The blob we fetch — to display (view) or to prefill the draft (fork).
-  const contentCid = isDraft ? forkCid : cid
-  const ipfsData = useCID(contentCid)
+  const ipfsData = useCID(cid)
   const client = useUniversalClient()
+  const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
   const openUrl = useOpenUrl()
 
@@ -120,88 +134,141 @@ export function InspectIpfsPage({
   // (0x71) or a raw UnixFS file (dag-pb / raw) — an image or plain text.
   const codec = useMemo(() => {
     try {
-      return CID.parse(contentCid!).code
+      return CID.parse(cid!).code
     } catch {
       return null
     }
-  }, [contentCid])
+  }, [cid])
   const isDagCbor = codec === DAG_CBOR_CODE
   const isFile = codec != null && !isDagCbor
 
   const getImageUrl = useImageUrl()
-  const imageUrl = !isDraft && isFile && !hasSubpath && contentCid ? getImageUrl(`ipfs://${contentCid}`) : ''
+  const imageUrl = !isDraft && isFile && !hasSubpath && cid ? getImageUrl(`ipfs://${cid}`) : ''
   const isImage = useIsLoadableImage(imageUrl)
-
-  // Proxy URL (/hm/api/file/<cid>) on web so text fetches don't hit a localhost
-  // daemon URL; falls back to the direct daemon URL on desktop.
   const getFileUrl = useFileProxyUrl()
 
-  const preparedData = useMemo(() => {
-    if (ipfsData.data?.value === undefined) return null
-    // Keep IPLD links/bytes in their DAG-JSON shape so ValueDisplay renders them
-    // like the editor; only decode `signer` bytes to a readable hm:// principal.
-    return readInspectIpfsPath(decodeSignerBytes(ipfsData.data.value), pathSegments)
-  }, [ipfsData.data?.value, pathSegments])
+  const rawValue = ipfsData.data?.value
+  const viewValue = useMemo(
+    () => (rawValue === undefined ? null : readInspectIpfsPath(rawValue, pathSegments)),
+    [rawValue, pathSegments],
+  )
+  // Keep IPLD links/bytes in their DAG-JSON shape so ValueDisplay renders them
+  // like the editor; only decode `signer` bytes to a readable hm:// principal.
+  const preparedData = useMemo(() => (viewValue === null ? null : decodeSignerBytes(viewValue)), [viewValue])
 
-  // Resolve what kind of content this is.
   let kind: IpfsKind
-  if (isDraft && !forkCid) {
-    kind = 'cbor' // brand-new empty object
+  if (isDraft) {
+    kind = 'cbor'
   } else if (hasSubpath || isDagCbor) {
     kind = ipfsData.isLoading ? 'loading' : 'cbor'
   } else if (isFile) {
     kind = isImage === null ? 'loading' : isImage ? 'image' : 'text'
   } else {
-    kind = ipfsData.isLoading ? 'loading' : ipfsData.data?.value != null ? 'cbor' : 'text'
+    kind = ipfsData.isLoading ? 'loading' : rawValue != null ? 'cbor' : 'text'
   }
 
-  const textUrl = kind === 'text' && !hasSubpath && contentCid ? getFileUrl(`ipfs://${contentCid}`) : ''
+  const textUrl = kind === 'text' && !hasSubpath && cid ? getFileUrl(`ipfs://${cid}`) : ''
   const {text: rawText, loading: textLoading} = useIpfsText(textUrl)
 
-  // "Edit" is offered on an editable view (not already a draft, not a sub-path).
-  const canEdit = !isDraft && !hasSubpath && (kind === 'cbor' || kind === 'text')
-
-  // Edit/draft state. A draft window opens straight into edit mode; a fork
-  // prefills from the source blob once it loads.
+  // ── draft / edit state ──
   const [mode, setMode] = useState<'view' | 'edit'>(isDraft ? 'edit' : 'view')
-  const [editJson, setEditJson] = useState<unknown>(isDraft && !forkCid ? {} : undefined)
+  const [rawMode, setRawMode] = useState(false)
+  const [editJson, setEditJson] = useState<unknown>(undefined)
   const [editText, setEditText] = useState<string | null>(null)
+  const [attachMode, setAttachMode] = useState(false)
   const [publishing, setPublishing] = useState(false)
   useEffect(() => {
     setMode(isDraft ? 'edit' : 'view')
-    setEditJson(isDraft && !forkCid ? {} : undefined)
+    setRawMode(false)
+    setEditJson(undefined)
     setEditText(null)
+    setAttachMode(false)
     setPublishing(false)
-  }, [ipfsPath, isDraft, forkCid])
+  }, [ipfsPath, isDraft])
 
-  // Fork: seed the draft from the source blob once it has loaded (only if the
-  // user hasn't started editing yet).
+  // A new instance seeds from its schema (bundled ones resolve at once, others
+  // are fetched) and links it via the reserved `schema` key. A new schema is
+  // self-describing and carries no link. A blank draft is `{}`.
+  const isMetaSeed = seedSchemaCid === META_SCHEMA_CID
+  const seedRegistry = useOnyxSchemaRegistry(seedSchemaCid && !isMetaSeed ? [seedSchemaCid] : [])
+  const seedSchema = isMetaSeed
+    ? ONYX_SCHEMAS['onyx-schema']
+    : seedSchemaCid
+      ? seedRegistry.byCid[seedSchemaCid]
+      : undefined
   useEffect(() => {
-    if (!isDraft || !forkCid) return
-    if (kind === 'cbor' && ipfsData.data?.value !== undefined) {
-      setEditJson((cur: unknown) => (cur === undefined ? ipfsData.data!.value : cur))
-    } else if (kind === 'text' && rawText != null) {
-      setEditText((cur) => (cur === null ? rawText : cur))
+    if (!isDraft || editJson !== undefined) return
+    if (!seedSchemaCid) {
+      setEditJson({})
+      return
     }
-  }, [isDraft, forkCid, kind, ipfsData.data?.value, rawText])
+    if (!seedSchema) return
+    const starter = seedValue(seedSchema)
+    if (isMetaSeed) setEditJson(starter)
+    else if (isPlainObject(starter)) setEditJson({...starter, schema: {'/': seedSchemaCid}})
+    else setEditJson(starter !== undefined ? starter : {schema: {'/': seedSchemaCid}})
+  }, [isDraft, editJson, seedSchemaCid, seedSchema, isMetaSeed])
 
-  // "Edit" forks the blob into a draft in a NEW window, leaving this one alone.
-  const editInNewWindow = () => {
-    if (cid) openUrl(`hm://inspect/ipfs/${NEW_IPFS_BLOB_PATH}/${cid}`, true)
+  const history = useValueHistory(editJson)
+  const update = (next: unknown) => {
+    history.record()
+    setEditJson(next)
+  }
+  const undo = () => {
+    const snap = history.undo()
+    if (snap) setEditJson(snap.value)
+  }
+  const redo = () => {
+    const snap = history.redo()
+    if (snap) setEditJson(snap.value)
   }
 
-  // Open a linked IPFS blob (from a native IPLD link) in its own new window.
-  const openLinkedBlob = (linkCid: string) => openUrl(`hm://inspect/ipfs/${linkCid}`, true)
-  // Open an hm:// reference (e.g. a decoded signer) in a new window.
-  const openInNewWindow = (url: string) => openUrl(url, true)
+  // "Edit…" edits in place: the published value becomes the draft.
+  const canEdit = !isDraft && !hasSubpath && (kind === 'cbor' || kind === 'text')
+  const startEdit = () => {
+    if (kind === 'cbor') setEditJson(rawValue)
+    else if (kind === 'text') setEditText(rawText ?? '')
+    setRawMode(false)
+    setMode('edit')
+  }
+  const cancelEdit = () => {
+    setMode('view')
+    setRawMode(false)
+    setEditJson(undefined)
+    setEditText(null)
+    setAttachMode(false)
+  }
+
+  // ── schema advisory (edit: the draft; view: the published value) ──
+  const advisoryTarget = mode === 'edit' ? editJson : hasSubpath ? undefined : rawValue
+  const valueIsSchema = useMemo(() => isOnyxSchema(advisoryTarget), [advisoryTarget])
+  const attachedSchemaCid = useMemo(() => {
+    if (valueIsSchema || !isPlainObject(advisoryTarget) || !isDagJsonLink(advisoryTarget.schema)) return undefined
+    return parseCidString(advisoryTarget.schema['/'])?.code === DAG_CBOR_CODE ? advisoryTarget.schema['/'] : undefined
+  }, [advisoryTarget, valueIsSchema])
+  const schemaRegistry = useOnyxSchemaRegistry(attachedSchemaCid ? [attachedSchemaCid] : [])
+  const schema = valueIsSchema
+    ? ONYX_SCHEMAS['onyx-schema']
+    : attachedSchemaCid
+      ? schemaRegistry.byCid[attachedSchemaCid]
+      : undefined
+  // The reserved `schema` attachment link is app plumbing, not user data — drop
+  // it from advisory validation so a well-formed instance reads as matching.
+  const advisoryValue = useMemo(() => {
+    if (!attachedSchemaCid || !isPlainObject(advisoryTarget)) return advisoryTarget
+    const {schema: _attachment, ...rest} = advisoryTarget
+    return rest
+  }, [advisoryTarget, attachedSchemaCid])
+
+  const isDirty =
+    mode === 'edit' && (isDraft || JSON.stringify(editJson) !== JSON.stringify(rawValue) || editText !== null)
 
   const publish = async () => {
     setPublishing(true)
     try {
       const newCid =
         kind === 'text' ? await publishTextBlob(client, editText ?? '') : await publishCborBlob(client, editJson)
-      toast.success('Published a new blob')
-      setMode('view')
+      toast.success(`Published ipfs://${newCid}`)
       replaceRoute(createInspectIpfsNavRoute(newCid))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to publish')
@@ -210,37 +277,132 @@ export function InspectIpfsPage({
     }
   }
 
+  // Links inside the value: hm:// pills open the document; ipfs:// pills open that blob here.
+  const openLinkedBlob = (linkCid: string) => openUrl(`hm://inspect/ipfs/${linkCid}`)
+  const openHmUrl = (url: string) => openUrl(url)
+
+  // ── the "…" menu ──
+  const menuItems: MenuItemType[] = []
+  if (mode === 'view') {
+    if (canEdit)
+      menuItems.push({key: 'edit', label: 'Edit…', icon: <FileEdit className="size-4" />, onClick: startEdit})
+    if (kind === 'cbor')
+      menuItems.push({
+        key: 'raw',
+        label: rawMode ? 'View fields' : 'View raw',
+        icon: <Braces className="size-4" />,
+        onClick: () => setRawMode((r) => !r),
+      })
+    if (valueIsSchema && cid && !hasSubpath)
+      menuItems.push({
+        key: 'new-instance',
+        label: 'New Instance of this Schema',
+        icon: <Copy className="size-4" />,
+        onClick: () => navigate(newInstanceRoute(cid)),
+      })
+    if (cid)
+      menuItems.push({
+        key: 'copy-url',
+        label: 'Copy ipfs:// URL',
+        icon: <Copy className="size-4" />,
+        onClick: () => {
+          copyTextToClipboard(`ipfs://${cid}`)
+          toast.success('Copied ipfs:// URL')
+        },
+      })
+  } else {
+    if (kind === 'cbor')
+      menuItems.push({
+        key: 'raw',
+        label: rawMode ? 'Edit as fields' : 'Edit raw',
+        icon: <Braces className="size-4" />,
+        onClick: () => setRawMode((r) => !r),
+      })
+    // Attach needs a real map value; hidden in raw mode (the textarea snapshots
+    // the value at open, so a concurrent attach would be reverted by Apply).
+    if (kind === 'cbor' && isPlainObject(editJson) && !isDagJsonLink(editJson) && !isDagJsonBytes(editJson) && !rawMode)
+      menuItems.push({
+        key: 'attach-schema',
+        label: attachedSchemaCid ? 'Change Schema…' : 'Attach Schema…',
+        icon: <FileCode2 className="size-4" />,
+        onClick: () => setAttachMode(true),
+      })
+  }
+  menuItems.push(...blobBuilderMenuItems(navigate))
+  if (exitRoute && mode === 'view')
+    menuItems.push({
+      key: 'exit',
+      label: 'Open Resource',
+      icon: <X className="size-4" />,
+      onClick: () => navigate(exitRoute),
+    })
+
   const gatewayLink = `${gatewayUrl.replace(/\/+$/, '')}/ipfs/${ipfsPath}`
-  const exitLinkProps = useRouteLink(exitRoute || null)
 
   let body: ReactNode
   if (mode === 'edit' && kind === 'cbor') {
-    // A fork is still loading its source until editJson is seeded.
     body =
       editJson === undefined ? (
         <div className="flex items-center justify-center py-8">
           <Spinner />
         </div>
       ) : (
-        <ValueEditorProvider openFile={openLinkedBlob}>
-          <ValueEditor value={editJson} onValue={setEditJson} rules={CBOR_VALUE_RULES} />
+        <ValueEditorProvider onUndo={undo} onRedo={redo} openUrl={openHmUrl} openFile={openLinkedBlob}>
+          <OnyxSchemaProvider schema={schema} registry={{}} value={advisoryValue}>
+            <div className="flex flex-col gap-4">
+              <p className="text-muted-foreground text-xs" data-testid="draft-note">
+                {cid
+                  ? 'Editing a published blob — publishing creates a new blob with a new CID.'
+                  : valueIsSchema
+                    ? 'New schema — publish to store it and create instances from it.'
+                    : 'New blob — publish to encode as DAG-CBOR and store it on your IPFS node.'}
+              </p>
+              <SchemaStatusRow
+                attachedSchemaCid={attachedSchemaCid}
+                valueIsSchema={valueIsSchema}
+                schemaLoaded={!!schema}
+                schemaLoading={!!attachedSchemaCid && schemaRegistry.isLoading && !schema}
+                onOpenSchema={attachedSchemaCid ? () => navigate({key: 'schema', cid: attachedSchemaCid}) : undefined}
+              />
+              {attachMode && (
+                <AttachSchemaBar
+                  replacesUserData={
+                    isPlainObject(editJson) && editJson.schema !== undefined && attachedSchemaCid === undefined
+                  }
+                  onCancel={() => setAttachMode(false)}
+                  onAttach={(schemaBlobCid) => {
+                    if (!isPlainObject(editJson)) return
+                    update({...editJson, schema: {'/': schemaBlobCid}})
+                    setAttachMode(false)
+                  }}
+                />
+              )}
+              {rawMode ? (
+                <BlobJsonMode
+                  value={editJson}
+                  onApply={(next) => {
+                    update(next)
+                    setRawMode(false)
+                  }}
+                  onCancel={() => setRawMode(false)}
+                />
+              ) : (
+                <ValueEditor value={editJson} onValue={update} rules={CBOR_VALUE_RULES} />
+              )}
+            </div>
+          </OnyxSchemaProvider>
         </ValueEditorProvider>
       )
   } else if (mode === 'edit' && kind === 'text') {
-    body =
-      editText === null && forkCid ? (
-        <div className="flex items-center justify-center py-8">
-          <Spinner />
-        </div>
-      ) : (
-        <Textarea
-          autoFocus
-          value={editText ?? ''}
-          onChange={(e) => setEditText(e.target.value)}
-          spellCheck={false}
-          className="min-h-[60vh] font-mono text-sm"
-        />
-      )
+    body = (
+      <Textarea
+        autoFocus
+        value={editText ?? ''}
+        onChange={(e) => setEditText(e.target.value)}
+        spellCheck={false}
+        className="min-h-[60vh] font-mono text-sm"
+      />
+    )
   } else if (kind === 'loading' || (kind === 'text' && textLoading)) {
     body = (
       <div className="flex items-center justify-center py-8">
@@ -268,12 +430,25 @@ export function InspectIpfsPage({
       )
   } else if (preparedData === null || preparedData === undefined) {
     body = <div className="text-muted-foreground text-sm">No IPFS data found.</div>
+  } else if (rawMode) {
+    body = <RawDagJsonView value={viewValue} />
   } else {
     // Render the published blob with the editor's own value renderer so the view
-    // matches the editor (native IPLD links show as tags, opening in a new window).
+    // matches the editor; schema status (attached / is-a-schema) reads the same.
     body = (
-      <ValueEditorProvider openFile={openLinkedBlob} openUrl={openInNewWindow}>
-        <ValueDisplay value={preparedData} rules={CBOR_VALUE_RULES} />
+      <ValueEditorProvider openFile={openLinkedBlob} openUrl={openHmUrl}>
+        <OnyxSchemaProvider schema={schema} registry={{}} value={advisoryValue}>
+          <div className="flex flex-col gap-4">
+            <SchemaStatusRow
+              attachedSchemaCid={attachedSchemaCid}
+              valueIsSchema={valueIsSchema}
+              schemaLoaded={!!schema}
+              schemaLoading={!!attachedSchemaCid && schemaRegistry.isLoading && !schema}
+              onOpenSchema={attachedSchemaCid ? () => navigate({key: 'schema', cid: attachedSchemaCid}) : undefined}
+            />
+            <ValueDisplay value={preparedData} rules={CBOR_VALUE_RULES} />
+          </div>
+        </OnyxSchemaProvider>
       </ValueEditorProvider>
     )
   }
@@ -284,16 +459,16 @@ export function InspectIpfsPage({
         restingUrl={`ipfs://${ipfsPath}`}
         gatewayLink={gatewayLink}
         editing={mode === 'edit'}
-        canEdit={canEdit}
+        draftLabel={valueIsSchema ? 'Unpublished schema' : 'Unpublished draft'}
         publishing={publishing}
-        onEdit={editInNewWindow}
+        canPublish={isDirty && !publishing && editJson !== undefined}
         onPublish={publish}
-        exitRoute={exitRoute}
-        exitLinkProps={exitLinkProps}
+        onCancel={cid ? cancelEdit : undefined}
+        menuItems={menuItems}
         windowControls={windowControls}
         trafficLightInset={trafficLightInset}
       />
-      <div className="flex-1 overflow-y-auto bg-zinc-100">
+      <div className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-900">
         <div className="mx-auto w-full px-4 py-4" style={{maxWidth: 960}}>
           <div className="flex flex-col gap-4">{body}</div>
         </div>
@@ -302,60 +477,33 @@ export function InspectIpfsPage({
   )
 }
 
-/** The slim, non-editable top bar: omnibar-style URL + copy + "…" menu, or draft controls. */
+/** The slim top bar: omnibar-style URL + copy + "…" menu, or draft controls. */
 function IpfsTopBar({
   restingUrl,
   gatewayLink,
   editing,
-  canEdit,
+  draftLabel,
   publishing,
-  onEdit,
+  canPublish,
   onPublish,
-  exitRoute,
-  exitLinkProps,
+  onCancel,
+  menuItems,
   windowControls,
   trafficLightInset,
 }: {
   restingUrl: string
   gatewayLink: string
   editing: boolean
-  canEdit: boolean
+  draftLabel: string
   publishing: boolean
-  onEdit: () => void
+  canPublish: boolean
   onPublish: () => void
-  exitRoute?: NavRoute | null
-  exitLinkProps: ReturnType<typeof useRouteLink>
+  onCancel?: () => void
+  menuItems: MenuItemType[]
   windowControls?: ReactNode
   trafficLightInset?: boolean
 }) {
-  // Only surface the "…" menu when it would contain at least one action.
-  const hasMenu = canEdit || !!exitRoute
-  const menu = hasMenu ? (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="iconSm" aria-label="More actions">
-          <MoreHorizontal className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {canEdit && (
-          <DropdownMenuItem onSelect={onEdit}>
-            <FileEdit className="size-4" />
-            Edit...
-          </DropdownMenuItem>
-        )}
-        {exitRoute && (
-          <DropdownMenuItem asChild>
-            <a {...exitLinkProps}>
-              <X className="size-4" />
-              Open Resource
-            </a>
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  ) : undefined
-
+  const menu = menuItems.length ? <OptionsDropdown menuItems={menuItems} align="end" side="bottom" /> : undefined
   return (
     <div
       className="window-drag border-border bg-background flex h-11 shrink-0 items-center gap-2 border-b px-3"
@@ -364,14 +512,20 @@ function IpfsTopBar({
       {editing ? (
         <>
           <span className="bg-muted text-muted-foreground no-window-drag rounded px-2 py-0.5 text-xs font-medium">
-            Unpublished draft
+            {draftLabel}
           </span>
           <div className="flex-1" />
           <div className="no-window-drag flex items-center gap-2">
-            <Button size="sm" onClick={onPublish} disabled={publishing}>
+            {onCancel && (
+              <Button size="sm" variant="ghost" onClick={onCancel} disabled={publishing}>
+                Cancel
+              </Button>
+            )}
+            <Button size="sm" onClick={onPublish} disabled={!canPublish} data-testid="blob-publish">
               {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
               Publish
             </Button>
+            {menu}
           </div>
         </>
       ) : (
@@ -421,11 +575,9 @@ function readInspectIpfsPath(data: unknown, pathSegments: string[]): unknown {
 
 /**
  * What building-block actions the inspector offers for a blob: whether it can
- * open in the schema/blob editor (a DAG-CBOR blob viewed at its root), whether
- * the value is itself a schema (→ "New Instance"), and whether it carries an
- * attached schema link. Pure so it can be unit-tested without rendering, and
- * reused by the standalone explorer app. Uses the RAW value, before
- * cleanInspectIpfsData rewrites `{"/":cid}` links to `ipfs://` strings.
+ * be edited (a DAG-CBOR blob viewed at its root), whether the value is itself a
+ * schema (→ "New Instance"), and whether it carries an attached schema link.
+ * Pure so it can be unit-tested without rendering. Uses the RAW value.
  */
 export function inspectorBlobActions(
   cid: string | undefined,
@@ -434,9 +586,6 @@ export function inspectorBlobActions(
 ): {canEdit: boolean; valueIsSchema: boolean; hasAttachedSchema: boolean; attachedSchemaCid: string | undefined} {
   const isDagCbor = !!cid && parseCidString(cid)?.code === DAG_CBOR_CODE
   const valueIsSchema = isTopLevel && isOnyxSchema(rawValue)
-  // A non-schema instance's `schema` link, when it's a DAG-CBOR CID we could
-  // fetch and validate against. (A value that IS itself an Onyx schema is
-  // `valueIsSchema`, handled separately, not validated here.)
   const schemaLink =
     isTopLevel && !valueIsSchema && !!rawValue && typeof rawValue === 'object'
       ? (rawValue as Record<string, unknown>).schema
