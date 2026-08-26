@@ -91,6 +91,40 @@ describe('updateGroup command', () => {
     expect(onRootChildrenTypeChange).not.toHaveBeenCalled()
   })
 
+  it('wraps every selected root block into a single Slot list', () => {
+    const doc = buildDoc(schema, [
+      {id: 'parent', text: 'Parent'},
+      {id: 'child1', text: 'Child 1'},
+      {id: 'child2', text: 'Child 2'},
+    ])
+    const state = EditorState.create({
+      doc,
+      schema,
+      selection: TextSelection.create(doc, findPosInBlock(doc, 'child1'), findPosInBlock(doc, 'child2')),
+    })
+    const editor = createMockEditor(state)
+
+    // Turn the selection into a bullet list.
+    const command = updateGroupCommand(findPosInBlock(doc, 'child1'), 'Unordered', false, undefined, true)
+    const newState = runDeferredCommand(state, editor, command)
+
+    const rootGroup = newState.doc.firstChild!
+    expect(rootGroup.childCount).toBe(2)
+
+    // Parent untouched.
+    expect(rootGroup.child(0).attrs.id).toBe('parent')
+
+    // One Slot holding both selected blocks as list items.
+    const slot = rootGroup.child(1)
+    expect(slot.firstChild!.type.name).toBe('slot')
+    expect(slot.firstChild!.attrs.childrenType).toBe('Unordered')
+    const list = slot.lastChild!
+    expect(list.attrs.listType).toBe('Unordered')
+    expect(list.childCount).toBe(2)
+    expect(list.child(0).attrs.id).toBe('child1')
+    expect(list.child(1).attrs.id).toBe('child2')
+  })
+
   // Test 1: Toggle blockChildren from Group to Unordered
   //
   // BEFORE:                                    AFTER:

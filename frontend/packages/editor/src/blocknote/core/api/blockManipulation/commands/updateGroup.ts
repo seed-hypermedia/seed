@@ -56,6 +56,53 @@ function wrapBlockInSlot(
 }
 
 /**
+ * Wrap all top-level blocks the selection touches into a single root-level Slot
+ * list, so setting a list type on a multi-block selection turns every selected
+ * block into a list item.
+ */
+function wrapBlocksInSlot(
+  state: EditorState,
+  dispatch: ((args?: any) => any) | undefined,
+  listType: HMBlockChildrenType,
+): boolean {
+  const slotType = state.schema.nodes['slot']
+  const blockNodeType = state.schema.nodes['blockNode']
+  const blockChildrenType = state.schema.nodes['blockChildren']
+  if (!slotType || !blockNodeType || !blockChildrenType) return false
+
+  const rootGroup = state.doc.firstChild
+  if (!rootGroup || rootGroup.type.name !== 'blockChildren') return false
+
+  // Collect the root-level blockNodes whose range overlaps the selection.
+  const {from, to} = state.selection
+  const selected: PMNode[] = []
+  let firstStart = -1
+  let lastEnd = -1
+  let childStart = 1 // doc content opens at 0. The root group's first child sits at 1
+  rootGroup.forEach((child) => {
+    const childEnd = childStart + child.nodeSize
+    if (child.type.name === 'blockNode' && childStart < to && childEnd > from) {
+      selected.push(child)
+      if (firstStart < 0) firstStart = childStart
+      lastEnd = childEnd
+    }
+    childStart = childEnd
+  })
+  if (!selected.length) return false
+  if (!dispatch) return true
+
+  const slotContent = slotType.create({childrenType: listType})
+  const innerChildren = blockChildrenType.create({listType}, Fragment.fromArray(selected))
+  const wrappingBlock = blockNodeType.create(null, [slotContent, innerChildren])
+
+  const tr = state.tr.replaceWith(firstStart, lastEnd, wrappingBlock)
+  // Cursor into the first wrapped item's content.
+  tr.setSelection(TextSelection.near(tr.doc.resolve(firstStart + 4))).scrollIntoView()
+  dispatch(tr)
+  return true
+}
+
+/**
  * Unwrap a root-level Slot: replace the slot wrapper blockNode with the list
  * items it holds, lifting them back to the root as plain blocks and discarding
  * the slot.
@@ -424,9 +471,9 @@ export const updateGroupCommand = (
 
       if (!dispatch) return true
 
-      // Wrap the block in an invisible Slot.
+      // Wrap every selected root-level block in a single invisible Slot.
       setTimeout(() => {
-        editor.commands.command(({state: s, dispatch: d}) => wrapBlockInSlot(s, d, listType, s.selection.from))
+        editor.commands.command(({state: s, dispatch: d}) => wrapBlocksInSlot(s, d, listType))
       })
       return false
     }
