@@ -18,20 +18,25 @@ vi.mock('@remix-run/react', () => ({
   useLocation: () => ({pathname: mockState.pathname, search: '', hash: '', state: null, key: 'k'}),
 }))
 vi.mock('@shm/ui/use-media', () => ({useMedia: () => ({xs: mockState.isMobile})}))
-vi.mock('@shm/ui/mobile-panel-sheet', () => ({
-  MobilePanelSheet: ({children, title}: {children: React.ReactNode; title: string}) => (
-    <div data-testid="mobile-sheet" data-title={title}>
-      {children}
-    </div>
-  ),
-}))
 // The panel body is the lazy agents chunk; the host's job is where and whether it renders.
 vi.mock('@/client-lazy', () => ({
   clientLazy: () => () => <div data-testid="panel-content">PANEL</div>,
 }))
 
 import {AssistantPanelProvider, useAssistantPanel} from '../assistant-panel-state'
+import {publishSiteContext} from '../site-context-bridge'
 import {WebAssistantHost} from '../web-assistant-host'
+
+/** What a mounted page would publish; the host re-provides it to the panel. */
+function fakeSiteContext(route: string) {
+  return {
+    universal: {} as any,
+    navigation: {
+      state: {get: () => ({routes: [{key: route}], routeIndex: 0}), subscribe: () => () => {}},
+      dispatch: () => {},
+    } as any,
+  }
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -75,6 +80,7 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  publishSiteContext(fakeSiteContext('document'))
 })
 
 afterEach(() => {
@@ -138,14 +144,46 @@ describe('web assistant panel', () => {
     expect(controls!.isOpen).toBe(true)
   })
 
-  it('uses the bottom sheet instead of a side panel on narrow screens', () => {
+  it('waits for a page to publish its contexts before rendering the panel body', () => {
+    publishSiteContext(null)
+    act(() => root.render(<App />))
+    act(() => controls!.open())
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="panel-content"]')).toBeNull()
+    act(() => publishSiteContext(fakeSiteContext('document')))
+    expect(container.querySelector('[data-testid="panel-content"]')).not.toBeNull()
+  })
+
+  it('keeps the same panel element across a page change', () => {
+    act(() => root.render(<App />))
+    act(() => controls!.open())
+    const aside = container.querySelector('[data-testid="web-assistant-panel"]')
+    expect(aside).not.toBeNull()
+    // A route change: a new page publishes fresh contexts and the outlet re-renders.
+    mockState.pathname = '/another-document'
+    act(() => {
+      publishSiteContext(fakeSiteContext('document'))
+      root.render(<App />)
+    })
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBe(aside)
+    expect(container.querySelector('[data-testid="panel-content"]')).not.toBeNull()
+  })
+
+  it('takes the whole screen on narrow viewports, with a way back to the page', () => {
     mockState.isMobile = true
     act(() => root.render(<App />))
     act(() => controls!.open())
     expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
-    const sheet = document.body.querySelector('[data-testid="mobile-sheet"]')
-    expect(sheet).not.toBeNull()
-    expect(sheet?.getAttribute('data-title')).toBe('Agents')
-    expect(sheet?.querySelector('[data-testid="panel-content"]')).not.toBeNull()
+    const full = container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')
+    expect(full).not.toBeNull()
+    expect(full?.querySelector('[data-testid="panel-content"]')).not.toBeNull()
+    expect(document.body.style.overflow).toBe('hidden')
+    const back = full?.querySelector('[aria-label="Back to page"]') as HTMLButtonElement
+    expect(back).not.toBeNull()
+    act(() => back.click())
+    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull()
+    expect(document.body.style.overflow).toBe('')
+    // The page is still there and was never remounted.
+    expect(container.querySelector('[data-testid="page"]')).not.toBeNull()
   })
 })
