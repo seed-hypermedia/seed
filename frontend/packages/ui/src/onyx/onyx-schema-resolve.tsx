@@ -16,7 +16,7 @@ import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, unpackHmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {parseCidString} from '../dag-json'
-import {ONYX_SCHEMAS, refToName, resolveSchema, type OnyxRegistry, type OnyxSchema} from './onyx-engine'
+import {ONYX_SCHEMAS, type OnyxRegistry, type OnyxSchema, refToName, resolveSchema, schemaCid} from './onyx-engine'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
 import {schemaDefinitionCid} from './schema-document'
 
@@ -72,7 +72,12 @@ export function metadataSchemaOf(schema: OnyxSchema | undefined, reg: OnyxRegist
  * `hm-doc` and unbundled-`cid` cases (a network fetch); bundled refs resolve
  * synchronously. Advisory: an unresolvable ref simply yields `schema: undefined`.
  */
-export function useResolvedSchema(ref: string | null | undefined): {schema?: OnyxSchema; isLoading: boolean} {
+export function useResolvedSchema(ref: string | null | undefined): {
+  schema?: OnyxSchema
+  /** The schema blob's CID, when known — what a conforming blob links to via its `schema` key. */
+  cid?: string
+  isLoading: boolean
+} {
   const cls = useMemo(() => classifyRef(ref), [ref])
 
   // hm-doc: fetch the schema-definition document, read its `schemaDefinition`.
@@ -92,7 +97,8 @@ export function useResolvedSchema(ref: string | null | undefined): {schema?: Ony
   const isLoading =
     !schema && ((cls.kind === 'hm-doc' && (resource.isLoading || !!docSchemaCid)) || (cls.kind === 'cid' && cidLoading))
 
-  return {schema, isLoading}
+  const schemaBlobCid = cls.kind === 'hm-bundled' ? schemaCid(cls.name) : cid ?? undefined
+  return {schema, cid: schema ? schemaBlobCid : undefined, isLoading}
 }
 
 /**
