@@ -103,7 +103,8 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQuery} from '@tanstack/react-query'
-import {Braces, Copy, FileCode2, FileInput, History, Layers, LayoutList, Split} from 'lucide-react'
+import {Braces, Copy, FileCode2, FileInput, History, Layers, LayoutList, Split, Globe} from 'lucide-react'
+import {WorldBuilderDialog} from '@/components/world-builder-dialog'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {fromPromise} from 'xstate'
@@ -945,6 +946,7 @@ export default function DesktopResourcePage() {
   const {exportDocument, openDirectory} = useAppContext()
   const deleteEntity = useDeleteDialog()
   const destinationDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
+  const worldBuilderDialog = useAppDialog(WorldBuilderDialog, {className: 'w-full max-w-xl'})
 
   const menuItems: MenuItemType[] = []
 
@@ -1133,6 +1135,17 @@ export default function DesktopResourcePage() {
       icon: <FileCode2 className="size-4" />,
       onClick: () => navigate({key: 'onyx'}),
     })
+
+    // The World Builder: scaffold a typed ontology (types + folders + starter
+    // pages) under this document — the showcase for typed documents.
+    if (canEdit) {
+      menuItems.push({
+        key: 'new-world',
+        label: 'New World…',
+        icon: <Globe className="size-4" />,
+        onClick: () => worldBuilderDialog.open({parentId: docId}),
+      })
+    }
   }
 
   // Publish / Unpublish site options (only for home documents)
@@ -1334,6 +1347,7 @@ export default function DesktopResourcePage() {
       {copySiteUrlContent}
       {deleteEntity.content}
       {destinationDialog.content}
+      {worldBuilderDialog.content}
       {editProfileDialog.content}
       {removeSiteDialog.content}
       {publishSite.content}
