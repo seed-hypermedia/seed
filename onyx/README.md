@@ -154,6 +154,7 @@ narrative pages of the onyx account):
 - **[site/why.md](./site/why.md)** — the purpose of Onyx: the problem, what it makes possible, what it is not.
 - **[site/how-it-works.md](./site/how-it-works.md)** — the system end to end, layer by layer (values → schemas → library → publishing → resolution → engine/app → typegen → typed API).
 - **[site/typed-documents.md](./site/typed-documents.md)** — the document-binding model with a worked example and the editor behaviour.
+- **[site/world-builder.md](./site/world-builder.md)** — the World Builder demo (desktop, Developer Mode → New World…): types that reference each other, date pickers, linked objects.
 - **[site/api.md](./site/api.md)** — the `seed-rpc` catalog and the generated API console.
 
 Then the reference chapters, in order, or jump to what you need:

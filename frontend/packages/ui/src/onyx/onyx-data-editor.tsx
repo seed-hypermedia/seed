@@ -12,6 +12,7 @@
 // Validation, resolution, and kind detection are reused verbatim from
 // onyx-engine.ts — this file only draws the form and synthesizes defaults.
 import {useRef, useState} from 'react'
+import {DateValueField} from './date-field'
 import {Button} from '../button'
 import {Input} from '../components/input'
 import {Switch} from '../components/switch'
@@ -133,6 +134,15 @@ function Node({schema: schema0, value, onChange, env, reg, depth}: NodeProps) {
   if (kind === 'null') return <span className="text-muted-foreground text-sm">null</span>
   if (kind === 'link') return <WrappedNode kind="link" value={value} onChange={onChange} />
   if (kind === 'bytes') return <WrappedNode kind="bytes" value={value} onChange={onChange} />
+  if (kind === 'string' && (schema.format === 'date' || schema.format === 'date-time'))
+    return (
+      <DateValueField
+        mode={schema.format}
+        value={typeof value === 'string' ? value : ''}
+        onValue={onChange}
+        onClear={() => onChange('')}
+      />
+    )
   if (kind === 'string' || kind === 'integer' || kind === 'float')
     return <ScalarNode kind={kind} value={value} onChange={onChange} />
 
