@@ -23,12 +23,15 @@ export function HMEntityField({
   mode,
   onValue,
   onOpen,
+  onClear,
 }: {
   value: string
   mode: 'document' | 'profile'
   onValue: (value: unknown) => void
   /** Navigate to the referenced document/account when the pill is clicked. */
   onOpen?: (url: string) => void
+  /** Offer an ✕ that removes the reference (the field becomes editable text again). */
+  onClear?: () => void
 }) {
   const [editing, setEditing] = useState(false)
   const unpacked = value ? unpackHmId(value) : null
@@ -49,6 +52,19 @@ export function HMEntityField({
             <Pencil className="size-3.5" />
           </Button>
         </Tooltip>
+        {onClear && (
+          <Tooltip content="Remove reference">
+            <Button
+              variant="ghost"
+              size="iconSm"
+              aria-label="Remove reference"
+              className="text-muted-foreground"
+              onClick={onClear}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </Tooltip>
+        )}
       </div>
     )
   }
