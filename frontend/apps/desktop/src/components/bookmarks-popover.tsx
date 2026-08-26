@@ -1,17 +1,17 @@
-import {useBookmarks, useRemoveBookmark, type BookmarkItem} from '@/models/bookmarks'
-import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
-import {getContactMetadata} from '@shm/shared/content'
-import {useResources} from '@shm/shared/models/entity'
-import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
-import {useRouteLink} from '@shm/shared'
-import {viewTermToRouteKey, type ViewTerm} from '@shm/shared/utils/entity-id-url'
-import {Button} from '@shm/ui/button'
-import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
-import {HMIcon} from '@shm/ui/hm-icon'
-import {Tooltip} from '@shm/ui/tooltip'
-import {cn} from '@shm/ui/utils'
-import {AlertCircle, Bookmark, Folder, History, Lock, MessageSquare, Quote, Users, X} from 'lucide-react'
-import React, {useState, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode} from 'react'
+import { useBookmarks, useRemoveBookmark, type BookmarkItem } from '@/models/bookmarks'
+import { useRouteLink } from '@shm/shared'
+import { getContactMetadata } from '@shm/shared/content'
+import { useSelectedAccountContacts } from '@shm/shared/models/contacts'
+import { useResources } from '@shm/shared/models/entity'
+import { createDocumentNavRoute, type ProfileTab } from '@shm/shared/routes'
+import { viewTermToRouteKey, type ViewTerm } from '@shm/shared/utils/entity-id-url'
+import { Button } from '@shm/ui/button'
+import { Popover, PopoverContent, PopoverTrigger } from '@shm/ui/components/popover'
+import { HMIcon } from '@shm/ui/hm-icon'
+import { Tooltip } from '@shm/ui/tooltip'
+import { cn } from '@shm/ui/utils'
+import { AlertCircle, Bookmark, Folder, History, Lock, MessageSquare, Quote, Users, X } from 'lucide-react'
+import { useState, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 
 /** Return a copy of the stored bookmark list ordered from newest to oldest. */
 export function newestBookmarksFirst<T>(bookmarks: readonly T[]): T[] {
@@ -103,7 +103,7 @@ export function BookmarksPopover() {
                 )
               }
 
-              const {id, document} = entity.data
+              const { id, document } = entity.data
               const metadata = id.path?.length
                 ? document?.metadata
                 : getContactMetadata(id.uid, document?.metadata, contacts.data)
@@ -159,10 +159,10 @@ function BookmarkRow({
 }) {
   const route =
     bookmark.key === 'profile'
-      ? {key: 'profile' as const, id: bookmark.id, tab: profileTabFromViewTerm(bookmark.viewTerm)}
+      ? { key: 'profile' as const, id: bookmark.id, tab: profileTabFromViewTerm(bookmark.viewTerm) }
       : bookmark.viewTerm
         ? createDocumentNavRoute(bookmark.id, viewTermToRouteKey(bookmark.viewTerm))
-        : {key: 'document' as const, id: bookmark.id}
+        : { key: 'document' as const, id: bookmark.id }
   const linkProps = useRouteLink(route)
   const ViewTermIcon = bookmark.viewTerm ? VIEW_TERM_ICONS[bookmark.viewTerm] : null
 
@@ -197,7 +197,7 @@ function BookmarkRow({
         <Button
           aria-label={`Remove ${title} from Bookmarks`}
           disabled={deleting}
-          className="text-destructive hover:bg-destructive/10 focus-visible:bg-destructive/10 size-8 shrink-0 rounded-lg bg-transparent p-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
+          className="size-8 shrink-0 rounded-lg bg-transparent p-0 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()

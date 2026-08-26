@@ -1,9 +1,9 @@
-import {describe, expect, it, vi} from 'vitest'
+import {TooltipProvider} from '@shm/ui/tooltip'
 import {readFileSync} from 'node:fs'
 import React from 'react'
 import {createRoot} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
-import {TooltipProvider} from '@shm/ui/tooltip'
+import {describe, expect, it, vi} from 'vitest'
 
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/models/bookmarks', () => ({
