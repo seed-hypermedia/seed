@@ -10,7 +10,6 @@ import {
   Copy,
   CopyPlus,
   Download,
-  ExternalLink,
   FileCode2,
   FilePlus,
   FileText,
@@ -33,6 +32,7 @@ import {Input} from './components/input'
 import {Switch} from './components/switch'
 import {base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
 import {findIpfsUrlCid, gatewayUrlToIpfs} from './get-file-url'
+import {useIpfsObjectLabel} from './ipfs-object-label'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from './select-dropdown'
 import {Spinner} from './spinner'
 import {toast} from './toast'
@@ -1506,26 +1506,39 @@ function IpfsFileTag({
   onClear?: () => void
   variant?: 'file' | 'link' | 'object'
 }) {
-  const short = cid.length > 18 ? `${cid.slice(0, 9)}…${cid.slice(-6)}` : cid
-  const Icon = variant === 'link' ? Link2 : variant === 'object' ? Braces : FileText
+  // A DAG-CBOR target resolves to a readable name: its schema's name when it
+  // IS a schema, its type's name when it links one; otherwise the short CID.
+  const resolved = useIpfsObjectLabel(cid)
+  const short = resolved.label
+  const Icon =
+    variant === 'link'
+      ? Link2
+      : resolved.kind === 'schema'
+        ? FileCode2
+        : resolved.kind === 'instance' || resolved.kind === 'object'
+          ? Braces
+          : FileText
+  const pill = (
+    <span
+      className="bg-accent text-accent-foreground inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full py-0.5 pr-2 pl-2 text-sm"
+      data-testid={variant === 'object' || resolved.kind !== 'file' ? 'ipfs-object-pill' : 'ipfs-file-pill'}
+      data-object-kind={resolved.kind}
+    >
+      <Icon className="text-muted-foreground size-3.5 shrink-0" />
+      <span className={cn('truncate', !resolved.named && 'text-muted-foreground font-mono text-xs')}>{short}</span>
+    </span>
+  )
   return (
-    <div className="flex items-center gap-1">
-      <Tooltip content={onOpen ? `Open ipfs://${cid}` : `ipfs://${cid}`}>
-        <button
-          type="button"
-          data-testid={variant === 'object' ? 'ipfs-object-pill' : 'ipfs-file-pill'}
-          disabled={!onOpen}
-          onClick={onOpen ? () => onOpen(cid) : undefined}
-          className={cn(
-            'border-border bg-muted/60 inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-sm transition-colors',
-            onOpen && 'hover:bg-muted cursor-pointer',
-          )}
-        >
-          <Icon className="text-muted-foreground size-3.5 shrink-0" />
-          <span className="truncate font-mono text-xs">{short}</span>
-          {onOpen && <ExternalLink className="text-muted-foreground size-3 shrink-0" />}
-        </button>
-      </Tooltip>
+    <div className="flex min-w-0 items-center gap-1">
+      {onOpen ? (
+        <Tooltip content={`Open ${resolved.title}`}>
+          <button type="button" className="flex max-w-full min-w-0 hover:opacity-80" onClick={() => onOpen(cid)}>
+            {pill}
+          </button>
+        </Tooltip>
+      ) : (
+        <Tooltip content={resolved.title}>{pill}</Tooltip>
+      )}
       {onClear && (
         <Tooltip
           content={
