@@ -19,7 +19,7 @@ export type OnyxRegistry = Record<string, OnyxSchema>
 // name strips the `onyx-` prefix from primitives/meta (map, string, schema…) and
 // keeps the hypermedia-/example- prefix otherwise. Legacy dev-authority URLs
 // (hyper.media / seed.hyper.media / example.com) still resolve for back-compat.
-const ONYX_DID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
+export const ONYX_DID = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX_DID})/([a-z]+)$`)
 
 /** hm:// URL (or bare name) -> bundled-schema key (basename, no .json). */

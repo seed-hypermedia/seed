@@ -3,7 +3,6 @@
 export * from './onyx-engine'
 export * from './onyx-explorer'
 export * from './onyx-data-editor'
-export * from './onyx-tour'
 export * from './schema-document'
 export * from './onyx-schema-editor'
 export * from './onyx-schema-context'

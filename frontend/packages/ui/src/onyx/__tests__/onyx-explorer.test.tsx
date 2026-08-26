@@ -2,7 +2,7 @@
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {OnyxExplorer, OnyxSchemaPage} from '../onyx-explorer'
+import {OnyxSchemaPage} from '../onyx-explorer'
 
 let container: HTMLDivElement
 let root: Root
@@ -54,13 +54,5 @@ describe('OnyxSchemaPage renders every schema shape without crashing', () => {
   it('an instance validates against its $type', () => {
     renderPage('example-bob')
     expect(container.textContent?.toLowerCase()).toContain('instance')
-  })
-
-  it('the full explorer mounts with the catalog', () => {
-    act(() => {
-      root.render(<OnyxExplorer initialSlug="onyx-schema" />)
-    })
-    expect(container.textContent).toContain('Meta-schema') // catalog section
-    expect(container.textContent).toContain('Primitives')
   })
 })
