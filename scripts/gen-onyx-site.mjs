@@ -73,7 +73,7 @@ function summarize(node) {
       return `${link(b)}⟨${Object.entries(node.args)
         .map(([p, v]) => `${p} = ${summarize(v)}`)
         .join(', ')}⟩`
-    return schemas[b] ? link(b) : `\`${b}\``
+    return (schemas[b] ? link(b) : `\`${b}\``) + refinements(node)
   }
   const k = kindOf(node.type)
   if (k === 'link')
@@ -88,7 +88,22 @@ function summarize(node) {
     return 'map'
   }
   if (node.enum) return (k ? `\`${k}\` ` : '') + 'enum: ' + node.enum.map((v) => `\`${kindOf(v)}\``).join(' ')
-  return k ? `\`${k}\`` : 'any'
+  return (k ? `\`${k}\`` : 'any') + refinements(node)
+}
+
+/** Refinements on a leaf: enum choices, numeric bounds, a semantic format, and
+ * the schema a reference is expected to point at (`target`). */
+function refinements(node) {
+  const bits = []
+  if (node.enum) bits.push('one of ' + node.enum.map((v) => `\`${kindOf(v)}\``).join(', '))
+  if (node.minimum !== undefined || node.maximum !== undefined)
+    bits.push(`${node.minimum ?? '…'}–${node.maximum ?? '…'}`)
+  if (node.format) bits.push(`format \`${node.format}\``)
+  if (node.target) {
+    const t = refToName(node.target)
+    bits.push(`→ must conform to ${schemas[t] ? link(t) : '`' + node.target + '`'}`)
+  }
+  return bits.length ? ' (' + bits.join('; ') + ')' : ''
 }
 
 function category(name, s) {
@@ -100,6 +115,23 @@ function category(name, s) {
   if (name.startsWith('seed-')) return 'a Seed API read-model schema (derived data the daemon computes for clients, not a signed network blob)'
   if (name.startsWith('example-')) return 'an example schema'
   return 'a schema'
+}
+
+/** One bullet per field; a field that is itself a refinement (a nested struct
+ * or an extension adding properties — e.g. a typed document's `metadata`) lists
+ * its own fields indented beneath it. */
+function fieldLines(props, required, indent = '') {
+  const req = new Set(required || [])
+  const out = []
+  for (const [k, v] of Object.entries(props || {})) {
+    out.push(`${indent}- \`${k}\`${req.has(k) ? ' *(required)*' : ''} — ${summarize(v)}`)
+    if (v && typeof v === 'object' && v.properties && !v.anyOf) {
+      const head = v.ref && !v.type ? `${indent}  - *adds to ${summarize({ref: v.ref})}:*` : null
+      if (head) out.push(head)
+      out.push(...fieldLines(v.properties, v.required, indent + (head ? '    ' : '  ')))
+    }
+  }
+  return out
 }
 
 function shapeSection(name, s) {
@@ -117,9 +149,7 @@ function shapeSection(name, s) {
   } else if (hasExt) {
     const parent = refToName(s.ref)
     lines.push(`**Extends** ${schemas[parent] ? link(parent) : '`' + parent + '`'} with these added fields:\n`)
-    const req = new Set(s.required || [])
-    for (const [k, v] of Object.entries(s.properties || {}))
-      lines.push(`- \`${k}\`${req.has(k) ? ' *(required)*' : ''} — ${summarize(v)}`)
+    lines.push(...fieldLines(s.properties || {}, s.required))
   } else if (s.ref && !s.type && s.args) {
     const parent = refToName(s.ref)
     lines.push(
@@ -134,9 +164,7 @@ function shapeSection(name, s) {
     lines.push(`An **alias** of ${schemas[parent] ? link(parent) : '`' + parent + '`'}.`)
   } else if (kindOf(s.type) === 'map' && s.properties) {
     lines.push(`A ${s.values ? 'map' : '**closed struct**'} with these fields:\n`)
-    const req = new Set(s.required || [])
-    for (const [k, v] of Object.entries(s.properties))
-      lines.push(`- \`${k}\`${req.has(k) ? ' *(required)*' : ''} — ${summarize(v)}`)
+    lines.push(...fieldLines(s.properties, s.required))
   } else if (kindOf(s.type) === 'map' && s.values) {
     lines.push(`An **open map** — every value: ${summarize(s.values)}.`)
   } else if (kindOf(s.type) === 'list') {
