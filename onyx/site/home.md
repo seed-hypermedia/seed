@@ -9,6 +9,15 @@ summary: A self-describing type system for content-addressed data — how to bro
 
 This page is a practical guide to *using* Onyx inside the Seed app, and an index to the full reference documentation below.
 
+## Start here
+
+New to Onyx? These four pages explain the system from the top down before the reference chapters go deep:
+
+- [Why Onyx](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/why) — the problem it solves, what it makes possible, and what it deliberately is not.
+- [How Onyx works](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/how-it-works) — the whole pipeline, from a schema file to a signed blob, a browsable document, a resolved reference, a generated type, and a typed API call.
+- [Typed documents](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/typed-documents) — how a document declares what it is with `schema`, `childrenSchema`, and `schemaDefinition`, and what the editor does about it.
+- [The typed API](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/api) — every read method of the Seed API as a published schema, and the console generated from them.
+
 ## In one minute
 
 - Every value is one of **nine kinds**: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map`, `link`.
