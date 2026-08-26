@@ -127,11 +127,12 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
   if (config.email) {
     url.searchParams.set(PARAM_EMAIL, config.email)
   }
-  if (config.spaceName) {
-    url.searchParams.set(PARAM_SPACE_NAME, config.spaceName)
+  const spaceName = config.spaceName ?? config.siteName
+  if (spaceName) {
+    url.searchParams.set(PARAM_SPACE_NAME, spaceName)
     // Also sent under the pre-rename key so a vault on an older build still
     // shows the space name on its consent screen.
-    url.searchParams.set(PARAM_SITE_NAME, config.spaceName)
+    url.searchParams.set(PARAM_SITE_NAME, spaceName)
   }
   const signedUrl = url.toString()
   const proofPayload = new TextEncoder().encode(signedUrl)

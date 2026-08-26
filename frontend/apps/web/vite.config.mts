@@ -109,9 +109,9 @@ export default defineConfig(({isSsrBuild}) => {
         sentryVitePlugin({
           authToken: process.env.SENTRY_AUTH_TOKEN,
           org: 'mintter',
-          project: 'seed-space',
+          project: 'seed-site',
           telemetry: false,
-          applicationKey: 'seed-space',
+          applicationKey: 'seed-site',
           release: {
             name: process.env.SITE_SENTRY_RELEASE || process.env.SENTRY_RELEASE || process.env.COMMIT_HASH || undefined,
             setCommits: {auto: true, ignoreMissing: true, ignoreEmpty: true},

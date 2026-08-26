@@ -346,7 +346,9 @@ class ExploreParser {
       return {kind: 'predicate', predicate: {kind: 'attribute', key: token.value, operator: 'contains', value}}
     }
     if (operator.value === ':' && token.value === 'in') {
-      if (value === 'space' || value === 'node') return null
+      // `in:site` is the pre-rename spelling of `in:space`; both are route-context
+      // hints, and shared URLs still carry the old one.
+      if (value === 'space' || value === 'site' || value === 'node') return null
       return {
         kind: 'predicate',
         predicate: value.startsWith('hm://')

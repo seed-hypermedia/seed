@@ -471,3 +471,19 @@ describe('search result mapping', () => {
     expect(result.counts).toMatchObject({all: 1, comment: 1})
   })
 })
+
+describe('in: route-context hints', () => {
+  test('in:space and the pre-rename in:site both drop out as context hints', () => {
+    for (const token of ['in:space', 'in:site', 'in:node']) {
+      const parsed = parseExploreQuery(`${token} roadmap`)
+      const chips = exploreQueryChips(parsed).filter((chip) => chip.kind === 'scope')
+      expect(chips, `${token} must not compile to a scope predicate`).toHaveLength(0)
+    }
+  })
+
+  test('a real space name in: is still a scope predicate', () => {
+    const chips = exploreQueryChips(parseExploreQuery('in:alice roadmap')).filter((chip) => chip.kind === 'scope')
+    expect(chips).toHaveLength(1)
+    expect(chips[0]?.token).toBe('in:alice')
+  })
+})
