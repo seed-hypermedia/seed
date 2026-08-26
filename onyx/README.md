@@ -148,7 +148,15 @@ cd frontend/apps/cli && bun run src/sync-onyx.ts             # publish to hyper.
 
 ## The knowledge base
 
-Read in order, or jump to what you need:
+Start with the high-level guides in [`site/`](./site/) (published as the
+narrative pages of the onyx account):
+
+- **[site/why.md](./site/why.md)** — the purpose of Onyx: the problem, what it makes possible, what it is not.
+- **[site/how-it-works.md](./site/how-it-works.md)** — the system end to end, layer by layer (values → schemas → library → publishing → resolution → engine/app → typegen → typed API).
+- **[site/typed-documents.md](./site/typed-documents.md)** — the document-binding model with a worked example and the editor behaviour.
+- **[site/api.md](./site/api.md)** — the `seed-rpc` catalog and the generated API console.
+
+Then the reference chapters, in order, or jump to what you need:
 
 1. **[data-model.md](./data-model.md)** — the nine kinds of value (the IPLD data model, incl. `link` and `bytes`).
 2. **[schema-language.md](./schema-language.md)** — the vocabulary: closed maps, unions, generics, extension, and how Onyx describes itself as a discriminated union.
