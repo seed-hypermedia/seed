@@ -7,7 +7,7 @@ summary: The system end to end — from a schema file in the repository to a sig
 
 The system end to end — from a schema file in the repository to a signed blob on the network, a browsable document, a resolved reference in the app, a generated TypeScript type, and a typed API call.
 
-## The tour in one paragraph
+## In one paragraph
 
 A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR CID and records that in a lockfile. A sync uploads the blob and publishes a companion document at an `hm://` URL under the Onyx account, whose metadata points at the blob. Apps bundle the library, resolve any other reference over the network, and run one validation engine — the same one the reference validator uses — to drive explorers, editors, forms, and warnings. A generator turns every schema into a TypeScript type. And the read API is itself described by schemas, so the API console is derived rather than written. Each of those is a layer below.
 
@@ -22,7 +22,7 @@ A schema is written as a small JSON file. A publisher hashes it to its DAG-CBOR 
               ┌─────────────────────────────┼──────────────────────────┐
               ▼                             ▼                          ▼
    bundled registry in the app     resolved over the network     typegen.mjs
-   (tour, editors, inspector)      (schema / childrenSchema)     (TS types)
+   (schema pages, editors, …)      (schema / childrenSchema)     (TS types)
 ```
 
 ## Layer 1 — Values and the codec
@@ -72,13 +72,13 @@ The third form is what makes types extensible by anyone: a schema published unde
 
 There is one validation engine. The dependency-free reference validator proves the meta-schema describes itself, validates every schema in the library against it, checks positive and negative data cases for the examples, and confirms the union rejects malformed schemas. That same engine is ported line-for-line into the app, so nothing the app shows can disagree with the reference oracle. On top of it sit:
 
-- the **schema tour and explorer** — every schema rendered as a page with fields, variants, inherited versus added properties, generic parameters, URL and CID, dependencies and dependents, and a live editor;
+- the **schema browser** (`/hm/schema/<cid>`) — every schema rendered as a page with fields, variants, inherited versus added properties, generic parameters, targets, URL and CID, dependencies and dependents, a New button, and — for API methods — a live call panel;
 - the **schema editor** — a form driven by the meta-schema, so it can only produce valid schemas;
 - the **value editor** — a schema-respecting form for building conforming data: dropdowns for enums and union variants, the right controls for `link` and `bytes`, title pills for document references, file pickers for IPFS references;
 - the **document integration** — required attributes as fixed rows, red non-blocking validation, and the header actions on a schema-definition document;
 - the **inspector** — recognizes the signed blob types, detects when a blob *is* a schema, and validates a blob against its attached schema.
 
-These live behind Developer Mode in the Seed app (on by default on the web) and at the `/hm/onyx` route; any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time.
+These live behind Developer Mode in the Seed app (on by default on the web). The library is browsed through its own published documents (this site); any schema blob, bundled or published, has a full page at `/hm/schema/<cid>` where every reference — a library type, an `hm://` type document, an `ipfs://` schema — is a link, so a schema graph is browsed by clicking. Signed-blob schemas (anything extending [Signed blob](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob)) get a signing form instead of a plain editor: the envelope is filled and signed with the selected account at publish time.
 
 ## Layer 7 — Generated code
 
