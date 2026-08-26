@@ -102,7 +102,7 @@ describe('OnyxSchemaByCid', () => {
     const newButton = container.querySelector('[data-testid="schema-browser-new"]') as HTMLButtonElement
     expect(newButton.textContent).toContain('New Person')
     act(() => newButton.click())
-    expect(navigate).toHaveBeenCalledWith({key: 'raw-blob', schemaCid: cid})
+    expect(navigate).toHaveBeenCalledWith({key: 'inspect-ipfs', ipfsPath: `new/${cid}`})
     expect(container.textContent).not.toContain('browse the library')
   })
 

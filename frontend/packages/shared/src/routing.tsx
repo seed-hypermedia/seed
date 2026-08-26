@@ -326,16 +326,6 @@ export function routeToHref(
     })
   }
 
-  // The raw DAG-CBOR blob / schema editor. Always the reserved `/hm/blob/…`
-  // gateway form (not site-relative) so a site document at `/blob` can't
-  // collide. `new-instance/<schemaCid>` seeds an instance of that schema (the
-  // meta-schema CID here is "New Schema"); `new` is a blank blob.
-  if (typeof route !== 'string' && route.key === 'raw-blob') {
-    if (route.cid) return `/hm/blob/ipfs/${route.cid}`
-    if (route.schemaCid) return `/hm/blob/new-instance/${route.schemaCid}`
-    return '/hm/blob/new'
-  }
-
   // A schema blob by CID (reserved `/hm/schema/<cid>`): the full-page schema browser.
   if (typeof route !== 'string' && route.key === 'schema') {
     return `/hm/schema/${route.cid}`
