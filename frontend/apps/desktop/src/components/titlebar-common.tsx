@@ -66,6 +66,7 @@ import {
   ChevronRight,
   ChevronUp,
   Database,
+  FileCode2,
   Lock,
   LogIn,
   LogOut,
@@ -703,6 +704,19 @@ function LocalAgentsOmnibarToken() {
   )
 }
 
+/** The omnibar for a schema page: a "Schema" tag followed by the schema's CID. */
+function SchemaOmnibarToken({cid}: {cid: string}) {
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2" data-testid="schema-omnibar-token">
+      <div className="bg-muted text-muted-foreground no-select flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs">
+        <FileCode2 className="size-3" />
+        <span>Schema</span>
+      </div>
+      <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">{cid}</span>
+    </div>
+  )
+}
+
 /**
  * Hook to construct displayable URL from current route
  * Priority: validated custom siteUrl > gatewayUrl (never hm://)
@@ -862,6 +876,12 @@ function useCurrentRouteUrl(): {
 
     if (route.key === 'raw-blob') {
       const url = route.cid ? `ipfs://${route.cid}` : null
+      return {displayUrl: url, copyableUrl: url}
+    }
+
+    if (route.key === 'schema') {
+      // Shown as the Schema token (below); copying yields the schema blob's ipfs URL.
+      const url = `ipfs://${route.cid}`
       return {displayUrl: url, copyableUrl: url}
     }
 
@@ -1152,6 +1172,8 @@ export function Omnibar() {
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
           {isLocalAgentsRoute ? (
             <LocalAgentsOmnibarToken />
+          ) : route.key === 'schema' ? (
+            <SchemaOmnibarToken cid={route.cid} />
           ) : route.key === 'account-settings' ? (
             <AccountSettingsOmnibarLabel
               accountUid={route.accountUid}
