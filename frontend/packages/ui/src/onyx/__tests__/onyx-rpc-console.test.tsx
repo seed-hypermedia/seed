@@ -50,7 +50,7 @@ describe('RpcCallPanel', () => {
   })
 
   it('calls the universal client with the edited input and validates the response', async () => {
-    const request = vi.fn(async () => ({state: 'found', version: 'bafyv1'}))
+    const request = vi.fn(async (_method: string, _input: unknown) => ({state: 'found', version: 'bafyv1'}))
     const method = rpcMethodForSlug('seed-rpc-discovery-status')!
     act(() => {
       root.render(
@@ -59,8 +59,8 @@ describe('RpcCallPanel', () => {
         </UniversalAppProvider>,
       )
     })
-    const runButton = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Run DiscoveryStatus'),
+    const runButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Run DiscoveryStatus'),
     )!
     expect(runButton).toBeTruthy()
     await act(async () => {
@@ -77,7 +77,7 @@ describe('RpcCallPanel', () => {
   })
 
   it('surfaces schema warnings when the response does not conform', async () => {
-    const request = vi.fn(async () => ({state: 'exploded'}))
+    const request = vi.fn(async (_method: string, _input: unknown) => ({state: 'exploded'}))
     const method = rpcMethodForSlug('seed-rpc-discovery-status')!
     act(() => {
       root.render(
@@ -86,8 +86,8 @@ describe('RpcCallPanel', () => {
         </UniversalAppProvider>,
       )
     })
-    const runButton = Array.from(container.querySelectorAll('button')).find((b) =>
-      b.textContent?.includes('Run DiscoveryStatus'),
+    const runButton = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent?.includes('Run DiscoveryStatus'),
     )!
     await act(async () => {
       runButton.click()
