@@ -103,10 +103,7 @@ describe('OnyxSchemaByCid', () => {
     expect(newButton.textContent).toContain('New Person')
     act(() => newButton.click())
     expect(navigate).toHaveBeenCalledWith({key: 'raw-blob', schemaCid: cid})
-    // "browse the library" opens the onyx account's documents.
-    const browse = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'browse the library')!
-    act(() => browse.click())
-    expect(openUrl).toHaveBeenCalledWith('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb')
+    expect(container.textContent).not.toContain('browse the library')
   })
 
   it('a union schema page has no New button (no single seed shape)', async () => {
