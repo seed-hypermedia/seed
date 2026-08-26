@@ -23,6 +23,7 @@ import {
   Plus,
   X,
 } from 'lucide-react'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
@@ -1321,8 +1322,20 @@ function StringLeafEditor({
   // Schema-driven presentations take over only when the field isn't actively
   // being edited as free text (a late-arriving schema must not unmount a
   // focused input — blur wouldn't fire and the draft would be lost).
-  if (hmMode && !editingText) {
-    return <HMEntityField value={value} mode={hmMode} onValue={onValue} onOpen={openUrl} />
+  // A hypermedia reference shows as a title pill whether the SCHEMA says so
+  // (format hm-url / hm-profile) or the VALUE simply is an hm:// URL — the same
+  // way an ipfs:// value shows as a file pill. Open by clicking, ✕ to clear.
+  const valueIsHmUrl = !hmMode && !!unpackHmId(value)
+  if ((hmMode || valueIsHmUrl) && !editingText) {
+    return (
+      <HMEntityField
+        value={value}
+        mode={hmMode ?? 'document'}
+        onValue={onValue}
+        onOpen={openUrl}
+        onClear={() => onValue('')}
+      />
+    )
   }
   if (dateMode && !editingText) {
     return <DateValueField value={value} mode={dateMode} onValue={onValue} onClear={() => onValue('')} />
