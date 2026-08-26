@@ -1,32 +1,36 @@
-import { useBookmarks, useRemoveBookmark, type BookmarkItem } from '@/models/bookmarks'
-import { useRouteLink } from '@shm/shared'
-import { getContactMetadata } from '@shm/shared/content'
-import { useSelectedAccountContacts } from '@shm/shared/models/contacts'
-import { useResources } from '@shm/shared/models/entity'
-import { createDocumentNavRoute, type ProfileTab } from '@shm/shared/routes'
-import { viewTermToRouteKey, type ViewTerm } from '@shm/shared/utils/entity-id-url'
-import { Button } from '@shm/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@shm/ui/components/popover'
-import { HMIcon } from '@shm/ui/hm-icon'
-import { Tooltip } from '@shm/ui/tooltip'
-import { cn } from '@shm/ui/utils'
-import { AlertCircle, Bookmark, Folder, History, Lock, MessageSquare, Quote, Users, X } from 'lucide-react'
-import { useState, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import {useBookmarks, useRemoveBookmark, type BookmarkItem} from '@/models/bookmarks'
+import {useRouteLink} from '@shm/shared'
+import {getContactMetadata} from '@shm/shared/content'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
+import {useResources} from '@shm/shared/models/entity'
+import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
+import {viewTermToRouteKey, type ViewTerm} from '@shm/shared/utils/entity-id-url'
+import {Button} from '@shm/ui/button'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {Tooltip} from '@shm/ui/tooltip'
+import {cn} from '@shm/ui/utils'
+import {
+  AlertCircle,
+  Bookmark,
+  FileText,
+  Folder,
+  History,
+  Lock,
+  MessageSquare,
+  Quote,
+  User,
+  Users,
+  X,
+} from 'lucide-react'
+import React, {useState, type ElementType, type KeyboardEvent, type MouseEvent} from 'react'
 
 /** Return a copy of the stored bookmark list ordered from newest to oldest. */
 export function newestBookmarksFirst<T>(bookmarks: readonly T[]): T[] {
   return [...bookmarks].reverse()
 }
 
-/** Human-readable resource and view label shown beneath a bookmark title. */
-export function bookmarkKindLabel(bookmark: Pick<BookmarkItem, 'key' | 'viewTerm'>): string {
-  const kind = bookmark.key === 'profile' ? 'Profile' : 'Document'
-  if (!bookmark.viewTerm || bookmark.viewTerm === ':profile') return kind
-  const view = bookmark.viewTerm.slice(1)
-  return `${kind} · ${view.charAt(0).toUpperCase()}${view.slice(1)}`
-}
-
 const VIEW_TERM_ICONS: Record<string, ElementType> = {
+  ':content': FileText,
   ':comments': MessageSquare,
   ':activity': Quote,
   ':collaborators': Users,
@@ -75,6 +79,7 @@ export function BookmarksPopover() {
       </Tooltip>
       <PopoverContent
         align="end"
+        onOpenAutoFocus={(event) => event.preventDefault()}
         className="w-screen max-w-none overflow-hidden rounded-xl border border-black/8 bg-white p-0 shadow-xl sm:w-[360px] sm:max-w-[360px] dark:border-white/10 dark:bg-black"
       >
         <div className="flex h-14 items-center justify-between border-b px-4">
@@ -95,7 +100,7 @@ export function BookmarksPopover() {
                     bookmark={bookmark}
                     title="Error"
                     titleClassName="text-destructive"
-                    icon={<AlertCircle className="text-destructive size-5" />}
+                    icon={AlertCircle}
                     deleting={deleting}
                     onRemove={() => removeBookmark.mutate(bookmark.url)}
                     onNavigate={() => setOpen(false)}
@@ -103,7 +108,7 @@ export function BookmarksPopover() {
                 )
               }
 
-              const { id, document } = entity.data
+              const {id, document} = entity.data
               const metadata = id.path?.length
                 ? document?.metadata
                 : getContactMetadata(id.uid, document?.metadata, contacts.data)
@@ -113,7 +118,6 @@ export function BookmarksPopover() {
                   key={bookmark.url}
                   bookmark={bookmark}
                   title={metadata?.name || 'Untitled'}
-                  icon={<HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={24} className="shrink-0" />}
                   privateDocument={document?.visibility === 'PRIVATE'}
                   deleting={deleting}
                   onRemove={() => removeBookmark.mutate(bookmark.url)}
@@ -142,7 +146,7 @@ function BookmarkRow({
   bookmark,
   title,
   titleClassName,
-  icon,
+  icon: Icon,
   privateDocument,
   deleting,
   onRemove,
@@ -151,7 +155,7 @@ function BookmarkRow({
   bookmark: BookmarkItem
   title: string
   titleClassName?: string
-  icon: ReactNode
+  icon?: ElementType
   privateDocument?: boolean
   deleting: boolean
   onRemove: () => void
@@ -159,12 +163,15 @@ function BookmarkRow({
 }) {
   const route =
     bookmark.key === 'profile'
-      ? { key: 'profile' as const, id: bookmark.id, tab: profileTabFromViewTerm(bookmark.viewTerm) }
+      ? {key: 'profile' as const, id: bookmark.id, tab: profileTabFromViewTerm(bookmark.viewTerm)}
       : bookmark.viewTerm
         ? createDocumentNavRoute(bookmark.id, viewTermToRouteKey(bookmark.viewTerm))
-        : { key: 'document' as const, id: bookmark.id }
+        : {key: 'document' as const, id: bookmark.id}
   const linkProps = useRouteLink(route)
-  const ViewTermIcon = bookmark.viewTerm ? VIEW_TERM_ICONS[bookmark.viewTerm] : null
+  const LeadingIcon =
+    Icon ||
+    (bookmark.viewTerm ? VIEW_TERM_ICONS[bookmark.viewTerm] : null) ||
+    (bookmark.key === 'profile' ? User : FileText)
 
   const navigate = (event: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => {
     linkProps.onClick?.(event as MouseEvent<HTMLDivElement>)
@@ -175,7 +182,7 @@ function BookmarkRow({
     <div
       role="link"
       tabIndex={0}
-      className="group hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring flex min-h-14 cursor-pointer items-center gap-3 border-b px-4 outline-none last:border-b-0 focus-visible:ring-2 focus-visible:ring-inset"
+      className="group hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:ring-ring flex min-h-12 cursor-pointer items-center gap-3 border-b px-4 outline-none last:border-b-0 focus-visible:ring-2 focus-visible:ring-inset"
       onClick={navigate}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -184,14 +191,12 @@ function BookmarkRow({
         }
       }}
     >
-      {icon}
-      <span className="min-w-0 flex-1">
-        <span className={cn('block truncate text-sm font-medium', titleClassName)} title={title}>
-          {title}
-        </span>
-        <span className="text-muted-foreground block truncate text-xs">{bookmarkKindLabel(bookmark)}</span>
+      <span className="bg-muted-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+        <LeadingIcon className="size-4" />
       </span>
-      {ViewTermIcon ? <ViewTermIcon className="text-muted-foreground size-3.5 shrink-0" /> : null}
+      <span className={cn('min-w-0 flex-1 truncate text-sm font-medium', titleClassName)} title={title}>
+        {title}
+      </span>
       {privateDocument ? <Lock className="text-muted-foreground size-3.5 shrink-0" /> : null}
       <Tooltip content="Remove from Bookmarks">
         <Button

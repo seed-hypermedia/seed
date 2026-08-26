@@ -14,7 +14,7 @@ vi.mock('@shm/shared/models/contacts', () => ({useSelectedAccountContacts: () =>
 vi.mock('@shm/shared/models/entity', () => ({useResources: () => []}))
 vi.mock('@shm/shared', () => ({useRouteLink: () => ({onClick: vi.fn()})}))
 
-import {bookmarkKindLabel, BookmarksPopover, newestBookmarksFirst} from '../bookmarks-popover'
+import {BookmarksPopover, newestBookmarksFirst} from '../bookmarks-popover'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 describe('newestBookmarksFirst', () => {
@@ -23,14 +23,6 @@ describe('newestBookmarksFirst', () => {
 
     expect(newestBookmarksFirst(stored).map((bookmark) => bookmark.url)).toEqual(['latest', 'second', 'first'])
     expect(stored.map((bookmark) => bookmark.url)).toEqual(['first', 'second', 'latest'])
-  })
-})
-
-describe('bookmarkKindLabel', () => {
-  it('describes profiles, documents, and saved views', () => {
-    expect(bookmarkKindLabel({key: 'profile', viewTerm: ':following'})).toBe('Profile · Following')
-    expect(bookmarkKindLabel({key: 'document', viewTerm: ':comments'})).toBe('Document · Comments')
-    expect(bookmarkKindLabel({key: 'document', viewTerm: null})).toBe('Document')
   })
 })
 
@@ -63,5 +55,25 @@ describe('titlebar integration', () => {
       act(() => root.unmount())
       container.remove()
     }
+  })
+})
+
+describe('bookmark row layout', () => {
+  it('renders a leading icon badge without a secondary type label', () => {
+    const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
+
+    expect(popover).toContain('min-h-12')
+    expect(popover).toContain(
+      'bg-muted-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full',
+    )
+    expect(popover).not.toContain('bookmarkKindLabel(bookmark)')
+  })
+})
+
+describe('bookmark popover focus', () => {
+  it('does not auto-focus the first remove button when opened', () => {
+    const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
+
+    expect(popover).toContain('onOpenAutoFocus={(event) => event.preventDefault()}')
   })
 })
