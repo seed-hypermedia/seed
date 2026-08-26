@@ -353,7 +353,7 @@ describe('api service', () => {
       ).rejects.toThrow('Write access is required')
       await expect(
         svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'CreateSession', agentId}})),
-      ).rejects.toThrow('Write access is required')
+      ).rejects.toThrow('Chat access is required')
       await expect(
         svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'DeleteAgent', agentId}})),
       ).rejects.toThrow('Only the agent owner can do this')
@@ -395,6 +395,180 @@ describe('api service', () => {
         ),
       ).rejects.toThrow('Agent not found')
     } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
+  test('public chat lets any signed account create and message sessions without editing the agent', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir)
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const ownerAccountId = blobs.principalToString(owner.principal)
+      const stranger = blobs.generateNobleKeyPair()
+      const strangerAccountId = blobs.principalToString(stranger.principal)
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'SetModelProvider',
+            name: 'openai',
+            provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+          },
+        }),
+      )
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Chatty Agent', systemPrompt: 'Be open.', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = created.agentId
+
+      // Chat rides on top of public read: it cannot be enabled on a private agent.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(owner, {action: {_: 'SetAgentPublicChat', agentId, publicChat: true}}),
+        ),
+      ).rejects.toThrow('Enable public access before enabling public chat')
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'SetAgentPublicRead', agentId, publicRead: true}}),
+      )
+
+      // A public reader cannot chat yet, and cannot flip the flag either.
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'CreateSession', agentId}})),
+      ).rejects.toThrow('Chat access is required')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {action: {_: 'SetAgentPublicChat', agentId, publicChat: true}}),
+        ),
+      ).rejects.toThrow('Only the agent owner can do this')
+
+      const enabled = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'SetAgentPublicChat', agentId, publicChat: true}}),
+      )
+      expect(enabled).toMatchObject({
+        _: 'SetAgentPublicChatResponse',
+        agent: {id: agentId, publicRead: true, publicChat: true, accessRole: 'owner'},
+      })
+      const collaborators = await svc.message(
+        await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListAgentCollaborators', agentId}}),
+      )
+      expect(collaborators).toMatchObject({
+        _: 'ListAgentCollaboratorsResponse',
+        publicRead: true,
+        publicChat: true,
+        collaborators: [{accountId: ownerAccountId, role: 'owner'}],
+      })
+
+      // The stranger is now a chatter: it can open a session and talk to the agent...
+      const read = await svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'GetAgent', agentId}}))
+      expect(read).toMatchObject({
+        _: 'GetAgentResponse',
+        agent: {id: agentId, accessRole: 'chatter', publicRead: true, publicChat: true},
+      })
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(stranger, {action: {_: 'CreateSession', agentId}}),
+      )
+      if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const requestBodies: string[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = String(url)
+        if (href.includes('/api/Account')) {
+          const accountId = href.includes(ownerAccountId) ? ownerAccountId : strangerAccountId
+          return Response.json(
+            serialize({
+              type: 'account',
+              id: unpackHmId(`hm://${accountId}`),
+              metadata: {name: accountId === ownerAccountId ? 'Olivia Owner' : 'Sam Stranger'},
+            }),
+          )
+        }
+        requestBodies.push(String(init?.body))
+        return openAIStreamResponse([
+          {id: 'chat-1', choices: [{delta: {content: 'Hello stranger'}}]},
+          {id: 'chat-1', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+      const turn = await svc.message(
+        await apisvc.createSignedEnvelope(stranger, {
+          action: {
+            _: 'MessageSession',
+            sessionId: session.sessionId,
+            content: [{type: 'text', text: 'Hi from the public'}],
+          },
+        }),
+      )
+      expect(turn).toMatchObject({_: 'MessageSessionResponse'})
+      await svc.awaitQueueIdle()
+      expect(requestBodies).toHaveLength(1)
+      expect(requestBodies[0]).toContain('Hi from the public')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {action: {_: 'StopSession', sessionId: session.sessionId}}),
+        ),
+      ).resolves.toMatchObject({_: 'StopSessionResponse'})
+
+      // ...but nothing that edits the agent or its sessions beyond talking.
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {
+            action: {_: 'WriteAgentMemoryFile', agentId, path: 'x.txt', content: 'no'},
+          }),
+        ),
+      ).rejects.toThrow('Write access is required')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {
+            action: {_: 'UpdateSession', sessionId: session.sessionId, title: 'Renamed'},
+          }),
+        ),
+      ).rejects.toThrow('Write access is required')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {
+            action: {
+              _: 'InvokeSessionTool',
+              sessionId: session.sessionId,
+              verb: 'read',
+              input: {address: '~/memory/x.txt'},
+            },
+          }),
+        ),
+      ).rejects.toThrow('Write access is required')
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(stranger, {action: {_: 'DeleteSession', sessionId: session.sessionId}}),
+        ),
+      ).rejects.toThrow('Write access is required')
+
+      // Closing public read closes chat with it; re-opening read does not silently re-open chat.
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'SetAgentPublicRead', agentId, publicRead: false}}),
+      )
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'GetAgent', agentId}})),
+      ).rejects.toThrow('Agent not found')
+      const reopened = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'SetAgentPublicRead', agentId, publicRead: true}}),
+      )
+      expect(reopened).toMatchObject({agent: {publicRead: true, publicChat: false}})
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'CreateSession', agentId}})),
+      ).rejects.toThrow('Chat access is required')
+    } finally {
+      globalThis.fetch = originalFetch
+      svc.stopRunQueue()
       db.close()
       cleanup()
     }

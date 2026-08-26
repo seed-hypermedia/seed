@@ -1134,7 +1134,7 @@ export function useCreateAgent(serverUrl: string | undefined, accountUid: string
   })
 }
 
-/** Lists everyone with access to one agent, including pending invitations, plus its public-read flag. */
+/** Lists everyone with access to one agent, including pending invitations, plus its public-access flags. */
 export function useAgentCollaborators(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
@@ -1142,11 +1142,19 @@ export function useAgentCollaborators(
 ) {
   return useQuery({
     queryKey: ['agents', 'collaborators', serverUrl, accountUid, agentId],
-    queryFn: async (): Promise<{collaborators: AgentCollaboratorInfo[]; publicRead: boolean}> => {
-      if (!serverUrl || !accountUid || !agentId) return {collaborators: [], publicRead: false}
+    queryFn: async (): Promise<{
+      collaborators: AgentCollaboratorInfo[]
+      publicRead: boolean
+      publicChat: boolean
+    }> => {
+      if (!serverUrl || !accountUid || !agentId) return {collaborators: [], publicRead: false, publicChat: false}
       const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentCollaborators', agentId}})
       if (res._ !== 'ListAgentCollaboratorsResponse') throw new Error('Unexpected collaborator list response')
-      return {collaborators: res.collaborators, publicRead: res.publicRead === true}
+      return {
+        collaborators: res.collaborators,
+        publicRead: res.publicRead === true,
+        publicChat: res.publicChat === true,
+      }
     },
     enabled: !!serverUrl && !!accountUid && !!agentId,
     refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
@@ -1187,6 +1195,19 @@ export function useSetAgentPublicRead(serverUrl: string | undefined, accountUid:
     mutationFn: async ({agentId, publicRead}: {agentId: string; publicRead: boolean}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'SetAgentPublicRead', agentId, publicRead}})
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
+/** Owner-only: lets every signed account chat with a public agent (create and message sessions). */
+export function useSetAgentPublicChat(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({agentId, publicChat}: {agentId: string; publicChat: boolean}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      return sendAgentAction({serverUrl, accountUid, action: {_: 'SetAgentPublicChat', agentId, publicChat}})
     },
     onSuccess() {
       invalidateQueries(['agents'])

@@ -39,6 +39,7 @@ import {
   useModelProviders,
   useProviderModels,
   useRemoveAgentCollaborator,
+  useSetAgentPublicChat,
   useSetAgentPublicRead,
   useSaveAgentTool,
   useSigningIdentities,
@@ -77,7 +78,19 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowRight, ArrowRightLeft, ExternalLink, Globe, Info, KeyRound, Pencil, Plus, Trash2, X} from 'lucide-react'
+import {
+  ArrowRight,
+  ArrowRightLeft,
+  ExternalLink,
+  Globe,
+  Info,
+  KeyRound,
+  MessageSquare,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react'
 import {HMIcon} from '@shm/ui/hm-icon'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {getSeedTool} from '@seed-hypermedia/agents-protocol'
@@ -108,6 +121,7 @@ import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
 import {pickDefaultProviderModel} from './model-utils'
 import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from './prompt-editor'
 import {AgentsNoAccountPage} from './no-account'
+import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {AgentRichMessageComposer} from './rich-message-composer'
 import {type AgentsRichEditorSubmitHandle} from './platform'
 
@@ -157,7 +171,9 @@ function AgentDetailPage({
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `agents/${agentId}`)
   const accessRole = agent.data?.agent.accessRole ?? 'owner'
-  const canWrite = accessRole === 'owner' || accessRole === 'writer'
+  const canWrite = agentAccessCanWrite(accessRole)
+  // Chatters (public chat) can start sessions here but cannot edit the agent or run session tools.
+  const canChat = agentAccessCanChat(accessRole)
   const isOwner = accessRole === 'owner'
   const [name, setName] = useState('')
   const [modelProvider, setModelProvider] = useState('')
@@ -481,7 +497,7 @@ function AgentDetailPage({
                 triggersCount={triggers.data?.length}
                 // The session is only created when the first message is sent, so "New session"
                 // just puts the cursor in the composer that will do it.
-                onCreateSession={canWrite ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
+                onCreateSession={canChat ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
                 creatingSession={createSession.isLoading}
                 onCreateTrigger={
                   canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined
@@ -567,7 +583,7 @@ function AgentDetailPage({
                       />
                     ))}
                   </div>
-                  {canWrite ? (
+                  {canChat ? (
                     // No sessionId: this is a draft composer — the first send creates the session
                     // and delivers the message in one motion (see handleStartSession).
                     <AgentRichMessageComposer
@@ -580,6 +596,7 @@ function AgentDetailPage({
                       agentTools={agent.data.agent.definition.tools}
                       agentToolsLoading={agent.isLoading}
                       focusOnMount={false}
+                      canInvokeTools={canWrite}
                       composerHandleRef={startComposerRef}
                       onToolStartSession={startDraftSession}
                       onToolSessionStarted={(sessionId) =>
@@ -691,6 +708,7 @@ function AgentDetailPage({
                   ownerAccountId={agent.data.agent.account}
                   collaborators={collaborators.data?.collaborators || []}
                   publicRead={collaborators.data?.publicRead ?? agent.data.agent.publicRead ?? false}
+                  publicChat={collaborators.data?.publicChat ?? agent.data.agent.publicChat ?? false}
                   loading={collaborators.isLoading}
                   isOwner={isOwner}
                 />
@@ -834,6 +852,7 @@ function AgentCollaboratorsTab({
   ownerAccountId,
   collaborators,
   publicRead,
+  publicChat,
   loading,
   isOwner,
 }: {
@@ -843,12 +862,14 @@ function AgentCollaboratorsTab({
   ownerAccountId: string
   collaborators: AgentCollaboratorInfo[]
   publicRead: boolean
+  publicChat: boolean
   loading: boolean
   isOwner: boolean
 }) {
   const invite = useInviteAgentCollaborator(serverUrl, accountUid)
   const remove = useRemoveAgentCollaborator(serverUrl, accountUid)
   const setPublicRead = useSetAgentPublicRead(serverUrl, accountUid)
+  const setPublicChat = useSetAgentPublicChat(serverUrl, accountUid)
   const [selected, setSelected] = useState<SearchResult[]>([])
   const [role, setRole] = useState<AgentCollaboratorRole>('writer')
   const excludedAccountIds = [ownerAccountId, ...collaborators.map((member) => member.accountId)]
@@ -905,37 +926,77 @@ function AgentCollaboratorsTab({
         </div>
       ) : null}
 
-      <div className="border-border flex items-center gap-3 rounded-md border p-3">
-        <Globe className="text-muted-foreground size-5 shrink-0" />
-        <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
-          <SizableText size="sm" weight="medium">
-            Public access
-          </SizableText>
-          <SizableText size="xs" color="muted">
-            {publicRead
-              ? 'This agent is public: anyone with a link can view its settings, memory, tools, and sessions.'
-              : 'This agent is private: only the owner and collaborators can view it.'}
-          </SizableText>
+      <div className="border-border flex flex-col gap-3 rounded-md border p-3">
+        <div className="flex items-center gap-3">
+          <Globe className="text-muted-foreground size-5 shrink-0" />
+          <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
+            <SizableText size="sm" weight="medium">
+              Public access
+            </SizableText>
+            <SizableText size="xs" color="muted">
+              {publicRead
+                ? 'This agent is public: anyone with a link can view its settings, memory, tools, and sessions.'
+                : 'This agent is private: only the owner and collaborators can view it.'}
+            </SizableText>
+          </div>
+          {isOwner ? (
+            <Switch
+              aria-label="Public access"
+              checked={publicRead}
+              disabled={setPublicRead.isLoading}
+              onCheckedChange={(checked) =>
+                setPublicRead.mutate(
+                  {agentId, publicRead: checked},
+                  {
+                    onError: (error) =>
+                      toast.error(error instanceof Error ? error.message : 'Could not change public access'),
+                  },
+                )
+              }
+            />
+          ) : publicRead ? (
+            <SizableText size="xs" color="muted" className="shrink-0">
+              Public
+            </SizableText>
+          ) : null}
         </div>
-        {isOwner ? (
-          <Switch
-            aria-label="Public access"
-            checked={publicRead}
-            disabled={setPublicRead.isLoading}
-            onCheckedChange={(checked) =>
-              setPublicRead.mutate(
-                {agentId, publicRead: checked},
-                {
-                  onError: (error) =>
-                    toast.error(error instanceof Error ? error.message : 'Could not change public access'),
-                },
-              )
-            }
-          />
-        ) : publicRead ? (
-          <SizableText size="xs" color="muted" className="shrink-0">
-            Public
-          </SizableText>
+        {/* Public chat only exists on top of public read: the server clears it when read is turned
+            off, and the row is hidden with it. Chat is narrower than collaborator "write" access —
+            it covers creating and messaging sessions, nothing that edits the agent. */}
+        {publicRead ? (
+          <div className="border-border flex items-center gap-3 border-t pt-3">
+            <MessageSquare className="text-muted-foreground size-5 shrink-0" />
+            <div className="flex flex-1 flex-col gap-0.5 overflow-hidden">
+              <SizableText size="sm" weight="medium">
+                Public chat
+              </SizableText>
+              <SizableText size="xs" color="muted">
+                {publicChat
+                  ? 'Anyone signed in can start sessions and send messages. Only collaborators can change settings, memory, tools, or triggers.'
+                  : 'Only the owner and collaborators can start sessions or send messages.'}
+              </SizableText>
+            </div>
+            {isOwner ? (
+              <Switch
+                aria-label="Public chat"
+                checked={publicChat}
+                disabled={setPublicChat.isLoading}
+                onCheckedChange={(checked) =>
+                  setPublicChat.mutate(
+                    {agentId, publicChat: checked},
+                    {
+                      onError: (error) =>
+                        toast.error(error instanceof Error ? error.message : 'Could not change public chat'),
+                    },
+                  )
+                }
+              />
+            ) : publicChat ? (
+              <SizableText size="xs" color="muted" className="shrink-0">
+                Open
+              </SizableText>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

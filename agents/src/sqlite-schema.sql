@@ -45,6 +45,7 @@ CREATE TABLE agents (
     status TEXT NOT NULL,
     -- 1 when any signed account may read the agent (definition, memory, tools, sessions) by id.
     public_read INTEGER NOT NULL DEFAULT 0,
+    public_chat INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
 ) WITHOUT ROWID;

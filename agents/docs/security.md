@@ -49,6 +49,11 @@ Seed account, first as a pending invitation and then as an accepted `reader` or 
   runs;
 - writers can additionally mutate agent-scoped state and interact with sessions;
 - only the owner can invite/revoke members or delete the agent;
+- two owner-set agent flags open the agent beyond membership: `public_read` makes every signed account a reader by agent
+  id, and `public_chat` (only settable while `public_read` is on; cleared with it) promotes those public readers to
+  `chatter` — they may create, message, attach to, and stop sessions, but every writer-level action (agent, memory,
+  tool, and trigger edits; session rename/delete; `InvokeSessionTool`; run cancel/signal) is still refused. Public chat
+  is the intended way to expose an agent to the world; `writer` is for people trusted to reshape it;
 - provider, secret, OAuth, and signing-identity mutations remain scoped to the collaborator's own account. Optional
   `agentId` on provider/identity list actions exposes only the owner's redacted records needed to render/edit that
   shared agent.

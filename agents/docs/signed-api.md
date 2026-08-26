@@ -72,6 +72,7 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
 - `InviteAgentCollaborator`
 - `RemoveAgentCollaborator`
 - `SetAgentPublicRead`
+- `SetAgentPublicChat`
 - `AcceptAgentInvite`
 - `DeclineAgentInvite`
 - `CreateAgent`
@@ -159,15 +160,15 @@ Response:
 ```
 
 Lists agents owned by the verified account plus agents on which it is an accepted reader or writer, ordered by update
-time descending. Each `AgentInfo.accessRole` is `owner`, `reader`, or `writer`; pending invitations are deliberately not
-returned here.
+time descending. Each `AgentInfo.accessRole` is `owner`, `reader`, or `writer` (an agent read through public access
+reports `reader`, or `chatter` when public chat is on); pending invitations are deliberately not returned here.
 
 ### Agent invitations and collaborators
 
 - `ListAgentInvites {}` returns pending `AgentInviteInfo` rows for the signed account. An invite discloses only the
   agent id/name, owner account, role, and timestamps; agent contents remain unavailable until acceptance.
-- `ListAgentCollaborators {agentId}` returns the owner and accepted members plus the agent's `publicRead` flag. The
-  owner also sees pending invitations.
+- `ListAgentCollaborators {agentId}` returns the owner and accepted members plus the agent's `publicRead` and
+  `publicChat` flags. The owner also sees pending invitations.
 - `InviteAgentCollaborator {agentId, accountId, role}` creates an invitation (`reader` or `writer`) or updates an
   existing member's role. Owner-only.
 - `RemoveAgentCollaborator {agentId, accountId}` revokes an accepted member or cancels a pending invitation. Owner-only.
@@ -176,12 +177,20 @@ returned here.
 - `SetAgentPublicRead {agentId, publicRead}` turns public read access on or off. Owner-only. While on, every signed
   account that knows the agent id is treated as a `reader` (the same view an invited reader gets, including live
   subscriptions); the agent is still never returned from `ListAgents` or account-wide `ListSessions` for accounts that
-  are not owner or collaborator. `AgentInfo.publicRead` reports the flag.
+  are not owner or collaborator. `AgentInfo.publicRead` reports the flag. Turning it off also clears `publicChat`.
+- `SetAgentPublicChat {agentId, publicChat}` turns public chat on or off. Owner-only, and enabling requires `publicRead`
+  to already be on (400 otherwise). While on, every signed account that reads the agent publicly is a `chatter`: it may
+  `CreateSession`, `MessageSession`, `UploadSessionAttachment` (and the chunked-upload actions targeting a session),
+  `StopSession`, and `RetrySession` on any of the agent's sessions. It still cannot do anything writer-level —
+  `UpdateAgent`, memory/tool/trigger writes, `UpdateSession`, `DeleteSession`, `InvokeSessionTool`, `CancelRun`,
+  `SignalRun`. `AgentInfo.publicChat` reports the flag. This is deliberately narrower than inviting a `writer`: public
+  chat lets the world talk to the agent, not reshape it.
 
-Readers can inspect all agent-scoped state. Writers can additionally create/update/delete agent-scoped resources and
-interact with sessions. Managing collaborators and deleting the agent remain owner-only. Account-scoped provider and
-secret mutations are never inherited from an agent collaboration; agent settings may list the owner's redacted
-providers/signing identities through optional `agentId` fields.
+Readers can inspect all agent-scoped state. Chatters (public chat only; not an invitable role) can additionally create,
+message, and stop sessions. Writers can additionally create/update/delete agent-scoped resources, rename/delete
+sessions, control runs, and run session tools. Managing collaborators and deleting the agent remain owner-only.
+Account-scoped provider and secret mutations are never inherited from an agent collaboration; agent settings may list
+the owner's redacted providers/signing identities through optional `agentId` fields.
 
 ### `CreateAgent`
 

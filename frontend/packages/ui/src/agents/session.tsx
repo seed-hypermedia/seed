@@ -1,3 +1,4 @@
+import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {type AgentRunActivity, type AgentSessionTriggerContext} from './client'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {SessionSummaryBanner} from './session-children'
@@ -221,13 +222,16 @@ function AgentSessionPage({
   )
   // Which runs the scroll already owns, so the pinned slot does not tell the same story twice.
   const frozenRuns = useMemo(() => frozenRunIds(chatRows), [chatRows])
-  const canWrite = !!agent.data && agent.data.agent.accessRole !== 'reader'
+  // Chatters (public chat) may send and retry; only owners/writers may rename, delete, control
+  // runs, or run session tools.
+  const canChat = !!agent.data && agentAccessCanChat(agent.data.agent.accessRole)
+  const canWrite = !!agent.data && agentAccessCanWrite(agent.data.agent.accessRole)
   const isAgentStreaming = session.data?.session.status === 'streaming'
   const isAgentBusy = messageSession.isPending || isAgentStreaming
   const retrySession = useRetrySession(serverUrl, selectedAccountId)
   // Deliberately not gated on the mutation being in flight: the button stays put and shows its
   // pending state until the retried run actually starts streaming, which is what removes the row.
-  const retryableRowKey = canWrite ? retryableErrorRowKey(chatRows, !!isAgentBusy) : undefined
+  const retryableRowKey = canChat ? retryableErrorRowKey(chatRows, !!isAgentBusy) : undefined
   const runStartedAt = useRunStartedAt(isAgentBusy)
   // Sub-session affordances: the parent is loaded only for its title/route, and the child's own run
   // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
@@ -547,7 +551,7 @@ function AgentSessionPage({
               isBusy={isAgentBusy}
               isStreaming={isAgentStreaming}
               disabledMessage={
-                !canWrite
+                !canChat
                   ? 'You have read-only access to this agent.'
                   : isDrivenByParent
                     ? SUB_SESSION_DRIVEN_MESSAGE
@@ -559,6 +563,7 @@ function AgentSessionPage({
               sessionId={sessionId}
               agentTools={agent.data?.agent.definition.tools}
               agentToolsLoading={agent.isLoading}
+              canInvokeTools={canWrite}
               onSend={(message) => void handleSendMessage(message)}
               onStop={() => void handleStopSession()}
             />

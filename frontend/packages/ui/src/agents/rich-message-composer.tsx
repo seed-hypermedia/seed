@@ -36,6 +36,7 @@ export function AgentRichMessageComposer({
   agentTools,
   agentToolsLoading,
   focusOnMount = true,
+  canInvokeTools = true,
   composerHandleRef,
   onToolStartSession,
   onToolSessionStarted,
@@ -58,6 +59,8 @@ export function AgentRichMessageComposer({
   agentToolsLoading?: boolean
   /** Focus the editor when the composer mounts. On by default, like the full session page. */
   focusOnMount?: boolean
+  /** Whether the user tool palette is offered. Off for chat-only access, which cannot run session tools. */
+  canInvokeTools?: boolean
   /** External handle for imperative focus/submit (e.g. the sidebar's new-chat flows). */
   composerHandleRef?: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
   /** Draft composer only: lets a tool run create the session, the same way the first send would. */
@@ -172,16 +175,18 @@ export function AgentRichMessageComposer({
           />
         </div>
         <div className="flex shrink-0 gap-1 pb-1">
-          <UserToolPalette
-            serverUrl={serverUrl}
-            accountId={accountId}
-            sessionId={sessionId}
-            agentTools={agentTools}
-            agentToolsLoading={agentToolsLoading}
-            disabled={isBusy}
-            onStartSession={sessionId ? undefined : onToolStartSession}
-            onSessionStarted={onToolSessionStarted}
-          />
+          {canInvokeTools ? (
+            <UserToolPalette
+              serverUrl={serverUrl}
+              accountId={accountId}
+              sessionId={sessionId}
+              agentTools={agentTools}
+              agentToolsLoading={agentToolsLoading}
+              disabled={isBusy}
+              onStartSession={sessionId ? undefined : onToolStartSession}
+              onSessionStarted={onToolSessionStarted}
+            />
+          ) : null}
           {draftMarkdown.trim() ? (
             <Button
               size="sm"

@@ -62,6 +62,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {agentAccessCanChat, agentAccessCanWrite} from '@shm/ui/agents/access'
 import {AgentRunStatusBar, useRunStartedAt} from '@shm/ui/agents/agent-run-status'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from '@shm/ui/agents/message-rendering'
 import {useChatAutoScroll} from '@shm/ui/agents/chat-autoscroll'
@@ -314,7 +315,8 @@ export function AssistantPanel({
           agentId={activeAgent.agent.id}
           agentName={activeAgent.agent.definition.name}
           accountUid={accountUid}
-          readOnly={activeAgent.agent.accessRole === 'reader'}
+          readOnly={!agentAccessCanChat(activeAgent.agent.accessRole)}
+          canInvokeTools={agentAccessCanWrite(activeAgent.agent.accessRole)}
           composerRef={composerRef}
           onSessionCreated={selectSession}
         />
@@ -552,12 +554,15 @@ function AssistantDraftChat({
   composerRef,
   onSessionCreated,
   readOnly,
+  canInvokeTools,
 }: {
   serverUrl: string
   agentId: string
   agentName: string
   accountUid: string | null | undefined
   readOnly: boolean
+  /** False for chat-only access: the tool palette needs write access to the agent. */
+  canInvokeTools: boolean
   composerRef: React.MutableRefObject<CommentEditorSubmitHandle | null>
   onSessionCreated: (ref: AssistantSessionRef) => void
 }) {
@@ -621,6 +626,7 @@ function AssistantDraftChat({
         disabledMessage={readOnly ? 'You have read-only access to this agent.' : undefined}
         serverUrl={serverUrl}
         accountId={accountUid ?? null}
+        canInvokeTools={canInvokeTools}
         composerHandleRef={composerRef}
         onSend={(message) => void handleSend(message)}
         onStop={() => {}}
@@ -654,7 +660,10 @@ function AssistantSessionChat({
 
   const autoScroll = useChatAutoScroll()
 
-  const readOnly = agentDetail.data?.agent.accessRole === 'reader'
+  // Chatters (public chat) may send; only owners/writers may control runs, switch the model, or
+  // run session tools.
+  const readOnly = !agentAccessCanChat(agentDetail.data?.agent.accessRole)
+  const canWrite = !!agentDetail.data && agentAccessCanWrite(agentDetail.data.agent.accessRole)
   const status = session.data?.session.status
   const isStreaming = status === 'streaming'
   const isBusy = messageSession.isPending || isStreaming
@@ -815,7 +824,7 @@ function AssistantSessionChat({
         sessionId={sessionId}
         sessionPlan={session.data?.session.plan}
         frozenRunIds={frozenRuns}
-        readOnly={readOnly}
+        readOnly={!canWrite}
         onOpenSession={(childSessionId, childAgentId) =>
           navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
         }
@@ -841,6 +850,7 @@ function AssistantSessionChat({
         agentTools={agentDetail.data?.agent.definition.tools}
         agentToolsLoading={agentDetail.isLoading}
         focusOnMount={false}
+        canInvokeTools={canWrite}
         composerHandleRef={composerRef}
         onSend={handleSend}
         onStop={() => void handleStop()}
@@ -855,7 +865,7 @@ function AssistantSessionChat({
             serverUrl={serverUrl}
             sessionId={sessionId}
             modelOverride={session.data.session.modelOverride}
-            canWrite={!readOnly && !!agentDetail.data}
+            canWrite={canWrite}
           />
         </div>
       ) : null}

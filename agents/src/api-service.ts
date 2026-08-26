@@ -774,6 +774,8 @@ export class Service {
         return this.#removeAgentCollaborator(verified.accountId, envelope.action.agentId, envelope.action.accountId)
       case 'SetAgentPublicRead':
         return this.#setAgentPublicRead(verified.accountId, envelope.action.agentId, envelope.action.publicRead)
+      case 'SetAgentPublicChat':
+        return this.#setAgentPublicChat(verified.accountId, envelope.action.agentId, envelope.action.publicChat)
       case 'AcceptAgentInvite':
         return this.#acceptAgentInvite(verified.accountId, envelope.action.agentId)
       case 'DeclineAgentInvite':
@@ -969,52 +971,58 @@ export class Service {
     }
   }
 
-  /** Resolves an agent-scoped action to the owning account and enforces read/write access once. */
+  /**
+   * Resolves an agent-scoped action to the owning account and enforces access once. Three levels:
+   * `reader` (inspect), `chat` (create/message/stop sessions — what public chat grants), and
+   * `writer` (everything else that mutates agent-scoped state, including session tools, renames,
+   * deletes, and run control).
+   */
   #actionAccountId(actorAccountId: string, action: api.UnsignedAgentAction): string {
-    const fromAgent = (agentId: string, write = false) =>
-      this.#requireAgentAccess(actorAccountId, agentId, write ? 'writer' : 'reader').ownerAccountId
-    const fromSession = (sessionId: string, write = false) => {
+    const fromAgent = (agentId: string, level: AgentAccessLevel = 'reader') =>
+      this.#requireAgentAccess(actorAccountId, agentId, level).ownerAccountId
+    const fromSession = (sessionId: string, level: AgentAccessLevel = 'reader') => {
       const row = this.#db
         .query<{agent_id: string}, [string]>(`SELECT agent_id FROM sessions WHERE id = ?`)
         .get(sessionId)
       if (!row) throw new APIError(404, 'Session not found')
       try {
-        return fromAgent(row.agent_id, write)
+        return fromAgent(row.agent_id, level)
       } catch (error) {
         if (error instanceof APIError && error.status === 404) throw new APIError(404, 'Session not found')
         throw error
       }
     }
-    const fromTrigger = (triggerId: string, write = false) => {
+    const fromTrigger = (triggerId: string, level: AgentAccessLevel = 'reader') => {
       const row = this.#db
         .query<{agent_id: string}, [string]>(`SELECT agent_id FROM agent_triggers WHERE id = ?`)
         .get(triggerId)
       if (!row) throw new APIError(404, 'Agent trigger not found')
       try {
-        return fromAgent(row.agent_id, write)
+        return fromAgent(row.agent_id, level)
       } catch (error) {
         if (error instanceof APIError && error.status === 404) throw new APIError(404, 'Agent trigger not found')
         throw error
       }
     }
-    const fromRun = (runId: string, write = false) => {
+    const fromRun = (runId: string, level: AgentAccessLevel = 'reader') => {
       const row = this.#db
         .query<{agent_id: string | null}, [string]>(`SELECT agent_id FROM runs WHERE id = ?`)
         .get(runId)
       if (!row?.agent_id) throw new APIError(404, 'Run not found')
       try {
-        return fromAgent(row.agent_id, write)
+        return fromAgent(row.agent_id, level)
       } catch (error) {
         if (error instanceof APIError && error.status === 404) throw new APIError(404, 'Run not found')
         throw error
       }
     }
-    const fromUpload = (uploadId: string, write = false) => {
+    // Memory uploads change agent state (writer); session attachments are part of chatting.
+    const fromUpload = (uploadId: string) => {
       const upload = this.#uploads.get(uploadId)
       if (!upload) throw new APIError(404, 'Upload not found')
       return upload.target.kind === 'memory'
-        ? fromAgent(upload.target.agentId, write)
-        : fromSession(upload.target.sessionId, write)
+        ? fromAgent(upload.target.agentId, 'writer')
+        : fromSession(upload.target.sessionId, 'chat')
     }
 
     switch (action._) {
@@ -1036,15 +1044,16 @@ export class Service {
       case 'DownloadAgentMemoryFile':
       case 'UploadAgentMemoryFileToIpfs':
       case 'CreateAgentTrigger':
+        return fromAgent(action.agentId, 'writer')
       case 'CreateSession':
-        return fromAgent(action.agentId, true)
+        return fromAgent(action.agentId, 'chat')
       case 'DeleteAgent':
         return this.#requireAgentAccess(actorAccountId, action.agentId, 'owner').ownerAccountId
       case 'GetAgentTrigger':
         return fromTrigger(action.triggerId)
       case 'UpdateAgentTrigger':
       case 'DeleteAgentTrigger':
-        return fromTrigger(action.triggerId, true)
+        return fromTrigger(action.triggerId, 'writer')
       case 'ListSessions':
         if (action.agentId) return fromAgent(action.agentId)
         if (action.parentSessionId) return fromSession(action.parentSessionId)
@@ -1054,20 +1063,21 @@ export class Service {
         return fromSession(action.sessionId)
       case 'UpdateSession':
       case 'DeleteSession':
-      case 'MessageSession':
       case 'InvokeSessionTool':
+        return fromSession(action.sessionId, 'writer')
+      case 'MessageSession':
       case 'UploadSessionAttachment':
       case 'StopSession':
       case 'RetrySession':
-        return fromSession(action.sessionId, true)
+        return fromSession(action.sessionId, 'chat')
       case 'BeginFileUpload':
         return action.target.kind === 'memory'
-          ? fromAgent(action.target.agentId, true)
-          : fromSession(action.target.sessionId, true)
+          ? fromAgent(action.target.agentId, 'writer')
+          : fromSession(action.target.sessionId, 'chat')
       case 'AppendFileUploadChunk':
       case 'CommitFileUpload':
       case 'AbortFileUpload':
-        return fromUpload(action.uploadId, true)
+        return fromUpload(action.uploadId)
       case 'GetRun':
       case 'GetRunJournal':
         return fromRun(action.runId)
@@ -1078,7 +1088,7 @@ export class Service {
         return actorAccountId
       case 'CancelRun':
       case 'SignalRun':
-        return fromRun(action.runId, true)
+        return fromRun(action.runId, 'writer')
       default:
         return actorAccountId
     }
@@ -1086,21 +1096,27 @@ export class Service {
 
   /**
    * Resolves the actor's role on an agent. Owners and accepted collaborators get their membership
-   * role; when the agent has public read enabled, every other signed account is a `reader` and
-   * `viaPublic` is set so callers can tell membership from public access. Agents the actor cannot
-   * access look identical to missing ones (404).
+   * role; when the agent has public read enabled, every other signed account is a `reader` (or a
+   * `chatter` when public chat is on too) and `viaPublic` is set so callers can tell membership
+   * from public access. Agents the actor cannot access look identical to missing ones (404).
    */
   #requireAgentAccess(
     actorAccountId: string,
     agentId: string,
-    required: 'reader' | 'writer' | 'owner',
+    required: AgentAccessLevel | 'owner',
   ): {ownerAccountId: string; role: api.AgentAccessRole; viaPublic: boolean} {
     const row = this.#db
       .query<
-        {owner_account_id: string; public_read: number; role: string | null; status: string | null},
+        {
+          owner_account_id: string
+          public_read: number
+          public_chat: number
+          role: string | null
+          status: string | null
+        },
         [string, string]
       >(
-        `SELECT a.account_id AS owner_account_id, a.public_read, c.role, c.status
+        `SELECT a.account_id AS owner_account_id, a.public_read, a.public_chat, c.role, c.status
          FROM agents a
          LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ?
          WHERE a.id = ?`,
@@ -1114,13 +1130,16 @@ export class Service {
     } else if (row.status === 'accepted' && (row.role === 'reader' || row.role === 'writer')) {
       role = row.role
     } else if (row.public_read === 1) {
-      role = 'reader'
+      role = row.public_chat === 1 ? 'chatter' : 'reader'
       viaPublic = true
     } else {
       throw new APIError(404, 'Agent not found')
     }
     if (required === 'owner' && role !== 'owner') throw new APIError(403, 'Only the agent owner can do this')
-    if (required === 'writer' && role === 'reader') throw new APIError(403, 'Write access is required')
+    if (required === 'writer' && (role === 'reader' || role === 'chatter')) {
+      throw new APIError(403, 'Write access is required')
+    }
+    if (required === 'chat' && role === 'reader') throw new APIError(403, 'Chat access is required')
     return {ownerAccountId: row.owner_account_id, role, viaPublic}
   }
 
@@ -1138,7 +1157,7 @@ export class Service {
   #listAgents(accountId: string): api.ListAgentsResponse {
     const rows = this.#db
       .query<AgentRow, [string, string, string]>(
-        `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.created_at, a.updated_at,
+        `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.public_chat, a.created_at, a.updated_at,
                 CASE WHEN a.account_id = ? THEN 'owner' ELSE c.role END AS access_role
          FROM agents a
          LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ? AND c.status = 'accepted'
@@ -1189,8 +1208,8 @@ export class Service {
   #listAgentCollaborators(accountId: string, agentId: string): api.ListAgentCollaboratorsResponse {
     const access = this.#requireAgentAccess(accountId, agentId, 'reader')
     const owner = this.#db
-      .query<{created_at: number; updated_at: number; public_read: number}, [string]>(
-        `SELECT created_at, updated_at, public_read FROM agents WHERE id = ?`,
+      .query<{created_at: number; updated_at: number; public_read: number; public_chat: number}, [string]>(
+        `SELECT created_at, updated_at, public_read, public_chat FROM agents WHERE id = ?`,
       )
       .get(agentId)
     if (!owner) throw new APIError(404, 'Agent not found')
@@ -1213,6 +1232,7 @@ export class Service {
       _: 'ListAgentCollaboratorsResponse',
       agentId,
       publicRead: owner.public_read === 1,
+      publicChat: owner.public_chat === 1,
       collaborators: [
         {
           accountId: access.ownerAccountId,
@@ -1237,16 +1257,40 @@ export class Service {
   #setAgentPublicRead(accountId: string, agentId: string, publicRead: unknown): api.SetAgentPublicReadResponse {
     if (typeof publicRead !== 'boolean') throw new APIError(400, 'publicRead must be a boolean')
     this.#requireAgentAccess(accountId, agentId, 'owner')
-    this.#db.run(`UPDATE agents SET public_read = ?, updated_at = ? WHERE id = ?`, [
-      publicRead ? 1 : 0,
+    // Public chat only exists on top of public read, so closing the agent closes chat with it.
+    this.#db.run(
+      publicRead
+        ? `UPDATE agents SET public_read = 1, updated_at = ? WHERE id = ?`
+        : `UPDATE agents SET public_read = 0, public_chat = 0, updated_at = ? WHERE id = ?`,
+      [Date.now(), agentId],
+    )
+    return {_: 'SetAgentPublicReadResponse', agent: this.#emitPublicAccessChange(accountId, agentId)}
+  }
+
+  #setAgentPublicChat(accountId: string, agentId: string, publicChat: unknown): api.SetAgentPublicChatResponse {
+    if (typeof publicChat !== 'boolean') throw new APIError(400, 'publicChat must be a boolean')
+    this.#requireAgentAccess(accountId, agentId, 'owner')
+    if (publicChat) {
+      const row = this.#db
+        .query<{public_read: number}, [string]>(`SELECT public_read FROM agents WHERE id = ?`)
+        .get(agentId)
+      if (row?.public_read !== 1) throw new APIError(400, 'Enable public access before enabling public chat')
+    }
+    this.#db.run(`UPDATE agents SET public_chat = ?, updated_at = ? WHERE id = ?`, [
+      publicChat ? 1 : 0,
       Date.now(),
       agentId,
     ])
+    return {_: 'SetAgentPublicChatResponse', agent: this.#emitPublicAccessChange(accountId, agentId)}
+  }
+
+  /** Re-reads an agent after a public-access flag changed and notifies the owner and members. */
+  #emitPublicAccessChange(accountId: string, agentId: string): api.AgentInfo {
     const agent = this.#getAgentInfo(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
     this.#emit({type: 'agent-change', accountId, agent})
     this.#emit({type: 'account-change', accountId, reason: 'agent-collaborators-changed', agentId})
-    return {_: 'SetAgentPublicReadResponse', agent}
+    return agent
   }
 
   #inviteAgentCollaborator(
@@ -2062,7 +2106,7 @@ export class Service {
   #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, agentId)
@@ -3250,7 +3294,7 @@ export class Service {
     }
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agentId)
@@ -3426,7 +3470,7 @@ export class Service {
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agent_id)
@@ -3559,7 +3603,7 @@ export class Service {
     const sessionId = run.sessionId
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(run.accountId, run.agentId)
@@ -3872,7 +3916,7 @@ export class Service {
     if (!session) return
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agent_id)
@@ -4813,7 +4857,7 @@ export class Service {
     }
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(run.accountId, run.agentId)
@@ -6233,7 +6277,7 @@ export class Service {
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, session.agent_id)
@@ -6355,7 +6399,7 @@ export class Service {
   #getAgentInfo(accountId: string, agentId: string): api.AgentInfo | null {
     const agent = this.#db
       .query<AgentRow, [string, string]>(
-        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at
+        `SELECT id, account_id, definition_cbor, state_dir, status, public_read, public_chat, created_at, updated_at
          FROM agents WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, agentId)
@@ -6918,6 +6962,9 @@ export class Service {
   }
 }
 
+/** How much an action needs from an agent: inspect it, chat with it, or change it. */
+type AgentAccessLevel = 'reader' | 'chat' | 'writer'
+
 type AgentRow = {
   id: string
   account_id: string
@@ -6925,6 +6972,7 @@ type AgentRow = {
   state_dir: string
   status: api.AgentInfo['status']
   public_read?: number
+  public_chat?: number
   created_at: number
   updated_at: number
   access_role?: api.AgentAccessRole
@@ -7237,6 +7285,7 @@ function agentRowToInfo(row: AgentRow, accessRole: api.AgentAccessRole = 'owner'
     updatedAt: row.updated_at,
     accessRole,
     publicRead: row.public_read === 1,
+    publicChat: row.public_chat === 1,
   }
 }
 
