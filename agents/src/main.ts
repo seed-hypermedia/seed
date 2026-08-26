@@ -126,10 +126,12 @@ function sendIfSubscribed(
 ): void {
   if (ws.data.accountId !== sourceAccountId) {
     // Not this socket's account: only the owner's events for a publicly-read key pass through, and
-    // an agent snapshot is downgraded so a public reader never sees the owner's access role.
+    // an agent snapshot is downgraded so a public reader never sees the owner's access role — it
+    // gets the role public access grants, which the snapshot's own flags determine.
     if (ws.data.publicSubscriptions.get(key) !== sourceAccountId) return
     if (event._ === 'change' && event.key.startsWith('agents/')) {
-      const value = {...(event.value as api.AgentInfo), accessRole: 'reader'} satisfies api.AgentInfo
+      const agent = event.value as api.AgentInfo
+      const value = {...agent, accessRole: agent.publicChat ? 'chatter' : 'reader'} satisfies api.AgentInfo
       sendWS(ws, {...event, value} as api.AgentWSEvent)
       return
     }

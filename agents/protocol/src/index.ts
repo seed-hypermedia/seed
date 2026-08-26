@@ -160,6 +160,7 @@ export type UnsignedAgentAction =
   | InviteAgentCollaborator
   | RemoveAgentCollaborator
   | SetAgentPublicRead
+  | SetAgentPublicChat
   | AcceptAgentInvite
   | DeclineAgentInvite
   | CreateAgent
@@ -269,6 +270,19 @@ export type SetAgentPublicRead = {
   _: 'SetAgentPublicRead'
   agentId: string
   publicRead: boolean
+}
+
+/**
+ * Turns public chat on or off for one owned agent that already has public read access. When on,
+ * any signed account that can read the agent publicly is a `chatter`: it can create sessions,
+ * message them, attach files, and stop/retry turns, but cannot change the agent, its memory, tools,
+ * or triggers, rename or delete sessions, or run session tools. Enabling requires `publicRead`;
+ * turning public read off clears this flag.
+ */
+export type SetAgentPublicChat = {
+  _: 'SetAgentPublicChat'
+  agentId: string
+  publicChat: boolean
 }
 
 /** Revokes an accepted collaborator or cancels a pending invitation. */
@@ -914,7 +928,11 @@ export type ModelProviderConfig = {
 export type AgentCollaboratorRole = 'reader' | 'writer'
 
 /** The signed account's relationship to an agent. */
-export type AgentAccessRole = 'owner' | AgentCollaboratorRole
+/**
+ * What the requesting account may do with an agent. `owner`/`writer`/`reader` are memberships;
+ * `chatter` is a public reader on an agent with public chat enabled (see `SetAgentPublicChat`).
+ */
+export type AgentAccessRole = 'owner' | AgentCollaboratorRole | 'chatter'
 
 /** One owner, accepted collaborator, or pending invitation on an agent. */
 export type AgentCollaboratorInfo = {
@@ -948,6 +966,8 @@ export type AgentInfo = {
   accessRole?: AgentAccessRole
   /** True when any signed account can read this agent by id (see `SetAgentPublicRead`). */
   publicRead?: boolean
+  /** True when any signed account can also create and message sessions (see `SetAgentPublicChat`). */
+  publicChat?: boolean
 }
 
 /** Public metadata returned for an agent trigger. */
@@ -1393,6 +1413,8 @@ export type ListAgentCollaboratorsResponse = {
   _: 'ListAgentCollaboratorsResponse'
   /** Whether the agent is readable by every signed account (see `SetAgentPublicRead`). */
   publicRead: boolean
+  /** Whether every signed account may also chat with the agent (see `SetAgentPublicChat`). */
+  publicChat: boolean
   agentId: string
   collaborators: AgentCollaboratorInfo[]
 }
@@ -1406,6 +1428,12 @@ export type InviteAgentCollaboratorResponse = {
 /** Successful response for `SetAgentPublicRead`. */
 export type SetAgentPublicReadResponse = {
   _: 'SetAgentPublicReadResponse'
+  agent: AgentInfo
+}
+
+/** Successful response for `SetAgentPublicChat`. */
+export type SetAgentPublicChatResponse = {
+  _: 'SetAgentPublicChatResponse'
   agent: AgentInfo
 }
 
@@ -1837,6 +1865,7 @@ export type AgentResponse =
   | InviteAgentCollaboratorResponse
   | RemoveAgentCollaboratorResponse
   | SetAgentPublicReadResponse
+  | SetAgentPublicChatResponse
   | AcceptAgentInviteResponse
   | DeclineAgentInviteResponse
   | ListModelProvidersResponse

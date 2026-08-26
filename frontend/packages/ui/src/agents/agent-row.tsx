@@ -29,7 +29,7 @@ export function AgentListRow({
   name: string
   status: string
   serverUrl: string
-  accessRole?: 'owner' | 'reader' | 'writer'
+  accessRole?: 'owner' | 'reader' | 'writer' | 'chatter'
 }) {
   const navigate = useNavigate()
   const statusIndicator = getAgentStatusIndicator(status)

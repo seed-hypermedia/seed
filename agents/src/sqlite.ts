@@ -13,6 +13,10 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Public chat: while an agent is publicly readable, this additionally lets every signed account
+  // create sessions and message them (the `chatter` access role). Never set without public_read;
+  // SetAgentPublicRead(false) clears it.
+  `ALTER TABLE agents ADD COLUMN public_chat INTEGER NOT NULL DEFAULT 0;`,
   // Delegations are proven per envelope by the CID of the account's Capability blob; a verified
   // one is remembered here so later envelopes skip the blob fetch. Rows from the old RegisterSigner
   // flow have no CID and stay valid.
