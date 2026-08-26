@@ -153,6 +153,14 @@ export const rawBlobRouteSchema = z.object({
 /** Navigation route for the raw DAG-CBOR blob JSON editor page. */
 export type RawBlobRoute = z.infer<typeof rawBlobRouteSchema>
 
+/** A schema blob by CID — the full-page schema browser (`/hm/schema/<cid>`).
+ * Bundled library schemas and user-published ones alike; refs are clickable. */
+export const schemaRouteSchema = z.object({
+  key: z.literal('schema'),
+  cid: z.string(),
+})
+export type SchemaRoute = z.infer<typeof schemaRouteSchema>
+
 export const onyxRouteSchema = z.object({
   key: z.literal('onyx'),
   /** The schema being viewed (a bundled schema name, e.g. "onyx-schema"). */
@@ -474,6 +482,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   inspectIpfsRouteSchema,
   rawBlobRouteSchema,
   onyxRouteSchema,
+  schemaRouteSchema,
   directoryRouteSchema,
   collaboratorsRouteSchema,
   activityRouteSchema,

@@ -396,8 +396,8 @@ export type HMAnnotation = {
 export type HMAnyBlob = HMChange<HMBlock> | HMRef | HMProfile | HMComment | HMCapability | HMContact
 
 /**
- * Hypermedia blob
- * The signed base envelope embedded in every Hypermedia CBOR blob: a type discriminator, the signer's public key, a signature, and a timestamp.
+ * Signed blob
+ * The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a unix-millisecond timestamp. Change, Ref, Profile, Comment, Capability and Contact all extend it — and so can your own types: extend this schema, pin a `type` tag, and the app signs values with your account.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob
  */
 export type HMBlob = {
