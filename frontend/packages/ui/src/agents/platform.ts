@@ -100,18 +100,27 @@ export type AgentsOAuthRedirectCatcher = {
  * safe to store on a singleton because the platform is registered once at app startup, before any
  * agents UI renders, and never swapped afterwards.
  */
+/** A published Capability by which an account delegated agent actions to the platform's signing key. */
+export type AgentsSignerDelegation = {
+  /** CID of the Capability blob (the account's signature over the delegation). */
+  capabilityCid: string
+  /** The blob's raw bytes when the platform holds them, so servers need not fetch them. */
+  capabilityBlob?: Uint8Array
+}
+
 export type AgentsPlatform = {
   /** Built-in default agent server URL for this runtime, or null when there is none. */
   defaultServerUrl: () => string | null
   /** Returns a signer whose principal is the given account, used to sign agent actions. */
   getSigner: (accountUid: string) => Promise<blobs.Signer>
   /**
-   * Proves a delegated signer to an agent server so it accepts envelopes whose account differs
-   * from the signing key (web: the vault account delegated to the local device key). Called once
-   * per server when it rejects the signer as unauthorized; omitted on platforms whose signing key
-   * is the account itself (desktop's daemon signing).
+   * The delegation by which {@link getSigner}'s key acts for `accountUid` when it is not that
+   * account's own key (web: the vault account delegated to the local device key). It rides inside
+   * every signed envelope so any agent server can verify it without prior registration. Omitted
+   * on platforms whose signing key is the account itself (desktop's daemon signing); returning
+   * null means the key holds no delegation for that account.
    */
-  registerSigner?: (serverUrl: string) => Promise<void>
+  getDelegation?: (accountUid: string) => Promise<AgentsSignerDelegation | null>
   /** Reads one persisted agents setting (JSON-compatible value) by key. */
   getSetting: (key: string) => Promise<unknown>
   /** Persists one agents setting (JSON-compatible value) by key. */

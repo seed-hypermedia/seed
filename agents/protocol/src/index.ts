@@ -129,6 +129,20 @@ export type SignedActionEnvelope = {
   signer: Uint8Array
   sig: Uint8Array
   account: Uint8Array
+  /**
+   * CID of the published Capability blob by which `account` delegated to `signer` (role AGENT or
+   * WRITER). Required whenever `signer` is not `account` — this is how a web device key acts as
+   * the vault account it was delegated from, so every surface sees the same agents. The server
+   * resolves the blob (from {@link capabilityBlob}, its own cache, or its HM node), verifies the
+   * delegation end to end, and remembers it by CID; the reference rides inside the signed payload,
+   * so it cannot be swapped in transit.
+   */
+  capability?: string
+  /**
+   * Optional raw canonical DAG-CBOR bytes of the {@link capability} blob, for servers that cannot
+   * (or need not) fetch it from the network. Must hash to {@link capability}.
+   */
+  capabilityBlob?: Uint8Array
   action: AgentAction
 }
 
@@ -209,10 +223,13 @@ export type ListAgents = {
 }
 
 /**
+ * @deprecated Delegations now ride inside every envelope as {@link SignedActionEnvelope.capability};
+ * nothing needs to be registered ahead of time. Still accepted so clients from before that change
+ * keep working; remove after one release.
+ *
  * Registers the envelope's signer as a delegated signer for another account, proven by a signed
  * Capability blob (the account key delegating role AGENT to this signer). After registration the
- * signer may send envelopes whose `account` is the delegating account — this is how a web device
- * key acts as the vault account it was delegated from, so both surfaces see the same agents.
+ * signer may send envelopes whose `account` is the delegating account.
  */
 export type RegisterSigner = {
   _: 'RegisterSigner'

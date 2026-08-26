@@ -10,6 +10,7 @@ CREATE TABLE account_authorizations (
     role TEXT NOT NULL,
     capability TEXT,
     created_at INTEGER NOT NULL,
+    capability_cid TEXT,
     PRIMARY KEY (account_id, signer),
     FOREIGN KEY (account_id) REFERENCES accounts (id)
 ) WITHOUT ROWID;
