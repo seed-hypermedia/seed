@@ -53,7 +53,6 @@ var NodeFeed = lazy(() => import('./desktop-node-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var RawBlob = lazy(() => import('./raw-blob'))
-var Onyx = lazy(() => import('./onyx'))
 var SchemaBrowser = lazy(() => import('./schema'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
@@ -485,11 +484,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'raw-blob':
       return {
         PageComponent: RawBlob,
-        Fallback: BaseLoading,
-      }
-    case 'onyx':
-      return {
-        PageComponent: Onyx,
         Fallback: BaseLoading,
       }
     case 'schema':

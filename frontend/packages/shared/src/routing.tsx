@@ -336,12 +336,6 @@ export function routeToHref(
     return '/hm/blob/new'
   }
 
-  // The Onyx schema explorer ("the tour"). Reserved `/hm/onyx/…` gateway form
-  // so a site document at `/onyx` can't collide.
-  if (typeof route !== 'string' && route.key === 'onyx') {
-    return route.slug ? `/hm/onyx/${route.slug}` : '/hm/onyx'
-  }
-
   // A schema blob by CID (reserved `/hm/schema/<cid>`): the full-page schema browser.
   if (typeof route !== 'string' && route.key === 'schema') {
     return `/hm/schema/${route.cid}`

@@ -34,7 +34,7 @@ The `output` side is built from the `seed-*` read models: the derived data the d
 
 ## The console
 
-In the Seed app, with Developer Mode on, open the schema tour and navigate to any `seed-rpc-*` page: below the schema is a live call section for that method. The input is edited with the same schema-respecting value editor used everywhere else — seeded with the method's required fields, with dropdowns and reference pickers where the schema calls for them. Press **Run** and the app sends the request through the real universal client, then validates the response against the declared `output` schema, showing **matches schema** or listing the fields that did not conform. The [seed-rpc](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc) page renders the whole console, with a method picker built from the union.
+In the Seed app, open any `seed-rpc-*` schema page (from its document here, or `/hm/schema/<cid>`): below the schema is a live call section for that method. The input is edited with the same schema-respecting value editor used everywhere else — seeded with the method's required fields, with dropdowns and reference pickers where the schema calls for them. Press **Run** and the app sends the request through the real universal client, then validates the response against the declared `output` schema, showing **matches schema** or listing the fields that did not conform. The [seed-rpc](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc) page renders the whole console, with a method picker built from the union.
 
 None of that is hand-wired. The console reads the `seed-rpc` union at runtime, so a method exists in the console exactly when its schema exists in the library.
 
@@ -47,4 +47,4 @@ None of that is hand-wired. The console reads the `seed-rpc` union at runtime, s
 
 ## Adding a method
 
-Add a `seed-rpc-<method>.json` with its `key` enum, `input`, and `output`; add a companion `.md`; reference it from the `seed-rpc` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, in the tour, and as a typed call in the client — from one schema. The pipeline is described in [how Onyx works](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/how-it-works).
+Add a `seed-rpc-<method>.json` with its `key` enum, `input`, and `output`; add a companion `.md`; reference it from the `seed-rpc` union; run the publisher to update the lockfile and the generators to refresh the bundled registry and TypeScript types; sync. The method then appears in the console, on its schema page, and as a typed call in the client — from one schema. The pipeline is described in [how Onyx works](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/how-it-works).

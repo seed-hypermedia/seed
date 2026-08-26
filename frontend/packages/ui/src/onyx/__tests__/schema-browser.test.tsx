@@ -10,6 +10,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {TooltipProvider} from '../../tooltip'
 import {kindUrl, nameToUrl, schemaCid} from '../onyx-engine'
 import {OnyxNavContext, OnyxSchemaByCid} from '../onyx-explorer'
+import {OnyxSchemaBrowserPage} from '../schema-browser'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
 const CUSTOM_CID = 'bafyreicustomschemaxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
@@ -76,5 +77,51 @@ describe('OnyxSchemaByCid', () => {
     expect(chip).toBeTruthy()
     act(() => chip.click())
     expect(openRef).toHaveBeenCalledWith('hm://acme/proposal')
+  })
+
+  it('the page header offers New <type>, which starts a blob draft pre-filled with this schema', async () => {
+    const navigate = vi.fn()
+    const openUrl = vi.fn()
+    const cid = schemaCid('example-person')!
+    await act(() =>
+      root.render(
+        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
+          <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: vi.fn()} as any}>
+            <TooltipProvider>
+              <OnyxSchemaBrowserPage cid={cid} navigate={navigate} openUrl={openUrl} />
+            </TooltipProvider>
+          </UniversalAppProvider>
+        </QueryClientProvider>,
+      ),
+    )
+    const header = container.querySelector('[data-testid="schema-browser-header"]')!
+    expect(header.textContent).toContain('Schema')
+    expect(header.textContent).toContain(cid)
+    // No back button; New starts the raw-blob draft seeded with this schema.
+    expect(container.textContent).not.toContain('Back')
+    const newButton = container.querySelector('[data-testid="schema-browser-new"]') as HTMLButtonElement
+    expect(newButton.textContent).toContain('New Person')
+    act(() => newButton.click())
+    expect(navigate).toHaveBeenCalledWith({key: 'raw-blob', schemaCid: cid})
+    // "browse the library" opens the onyx account's documents.
+    const browse = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'browse the library')!
+    act(() => browse.click())
+    expect(openUrl).toHaveBeenCalledWith('hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb')
+  })
+
+  it('a union schema page has no New button (no single seed shape)', async () => {
+    const navigate = vi.fn()
+    await act(() =>
+      root.render(
+        <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
+          <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: vi.fn()} as any}>
+            <TooltipProvider>
+              <OnyxSchemaBrowserPage cid={schemaCid('hypermedia-any-blob')!} navigate={navigate} openUrl={vi.fn()} />
+            </TooltipProvider>
+          </UniversalAppProvider>
+        </QueryClientProvider>,
+      ),
+    )
+    expect(container.querySelector('[data-testid="schema-browser-new"]')).toBeNull()
   })
 })
