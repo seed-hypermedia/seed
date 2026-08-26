@@ -1,7 +1,7 @@
 // The schema-document header actions: when a document carries a
 // `schemaDefinition` metadata field (an ipfs://<cid> pointing at a schema
 // blob), it "describes a type." This surfaces two header buttons:
-//   - "Schema"  → a dialog rendering that Onyx schema (browse it, follow refs).
+//   - "Schema"  → the full-page schema browser at /hm/schema/<cid> (follow refs).
 //   - "Create"  → a dialog with a schema-respecting editor to build and publish
 //                 a value of that type (e.g. create an employee on the employee
 //                 document).
@@ -14,6 +14,7 @@ import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {useState} from 'react'
 import {useUniversalClient} from '@shm/shared'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '../button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '../components/dialog'
 import {dagJsonToIpld} from '../dag-json'
@@ -21,9 +22,9 @@ import {toast} from '../toast'
 import {Tooltip} from '../tooltip'
 import {OnyxDataEditor, seedValue} from './onyx-data-editor'
 import {nameForCid, schemaForCid, validate} from './onyx-engine'
-import {OnyxSchemaPage} from './onyx-explorer'
-import {OnyxSchemaEditor} from './onyx-schema-editor'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
+import {isSignedBlobSchema} from './signed-blob'
+import {SignedBlobCreator} from './signed-blob-creator'
 
 const DAG_CBOR_CODE = 0x71
 /** The metadata field naming the schema THIS document conforms to. */
@@ -123,24 +124,21 @@ export function SchemaDocumentHeaderActions({metadata}: {metadata: unknown}) {
   const {byCid} = useOnyxSchemaRegistry(cid ? [cid] : [])
   const bundledName = cid ? nameForCid(cid) : undefined
   const schema = cid ? byCid[cid] : undefined
-  const [viewOpen, setViewOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const [viewSlug, setViewSlug] = useState<string | undefined>(bundledName)
+  const navigate = useNavigate()
   if (!cid) return null
   const typeName = (typeof schema?.name === 'string' && schema.name) || bundledName || 'Schema'
   const isInstantiable = !!schema && !schema.anyOf // a union has no single seed shape
 
   return (
     <div className="flex items-center gap-1.5">
-      {/* Tag-style link: opens the schema. */}
+      {/* Tag-style link: opens the full-page schema browser (/hm/schema/<cid>). */}
       <Tooltip content="Open the schema this document defines">
         <button
           type="button"
+          data-testid="schema-definition-pill"
           className="border-border bg-muted/40 hover:bg-muted text-foreground inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
-          onClick={() => {
-            setViewSlug(bundledName)
-            setViewOpen(true)
-          }}
+          onClick={() => navigate({key: 'schema', cid})}
         >
           <FileCode2 className="size-3.5" />
           {typeName}
@@ -152,29 +150,17 @@ export function SchemaDocumentHeaderActions({metadata}: {metadata: unknown}) {
         </Button>
       )}
 
-      <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{typeName} — schema</DialogTitle>
-          </DialogHeader>
-          {viewSlug ? (
-            <OnyxSchemaPage slug={viewSlug} nav={setViewSlug} />
-          ) : schema ? (
-            // A published (non-bundled) schema: show its shape with the struct editor,
-            // read-only (edits don't persist — authoring lives on the Attributes tab).
-            <OnyxSchemaEditor schema={schema} onSchema={() => {}} />
-          ) : (
-            <p className="text-muted-foreground text-sm">Loading schema…</p>
-          )}
-        </DialogContent>
-      </Dialog>
-
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create {typeName}</DialogTitle>
           </DialogHeader>
-          {schema && <CreateInstance schema={schema} typeName={typeName} />}
+          {schema &&
+            (isSignedBlobSchema(schema) ? (
+              <SignedBlobCreator schema={schema} typeName={typeName} />
+            ) : (
+              <CreateInstance schema={schema} typeName={typeName} />
+            ))}
         </DialogContent>
       </Dialog>
     </div>
