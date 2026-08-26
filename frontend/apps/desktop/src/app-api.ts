@@ -273,7 +273,7 @@ export const router = t.router({
           signal: AbortSignal.timeout(timeout),
         })
         if (res.status !== 200) {
-          let message = `Site returned status ${res.status}`
+          let message = `Space returned status ${res.status}`
           try {
             const error = await res.json()
             if (error.message) message = error.message
@@ -286,7 +286,7 @@ export const router = t.router({
         try {
           config = await res.json()
         } catch {
-          throw new Error(`Site returned invalid response`)
+          throw new Error(`Space returned invalid response`)
         }
         return HMHostConfigSchema.parse(config)
       }),

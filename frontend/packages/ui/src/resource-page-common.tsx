@@ -1476,7 +1476,7 @@ export function PageShell({
       <SiteFileBrowserLayout
         siteId={hmId(siteHomeId.uid)}
         activeDocumentId={docId}
-        siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Site documents'}
+        siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Space documents'}
         mobileOpen={isFileBrowserOpen}
         onMobileOpenChange={setIsFileBrowserOpen}
         onPrefetch={onPrefetchDocument}
@@ -3275,7 +3275,7 @@ function MainContent({
     case 'explore':
       return (
         <ExplorePage
-          contextLabel={`Site: ${allDocumentsSiteId.uid}`}
+          contextLabel={`Space: ${allDocumentsSiteId.uid}`}
           query={exploreQuery}
           parsed={parsedExploreQuery}
           results={explore.results}

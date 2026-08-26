@@ -255,7 +255,7 @@ function SubscriptionsSection() {
   const comments = useComments(commentIds)
 
   return (
-    <SidebarSection title="Joined Sites">
+    <SidebarSection title="Joined Spaces">
       {sortedContacts.length ? (
         sortedContacts.map((contact) => {
           const id = hmId(contact.subject)
@@ -311,7 +311,7 @@ function SubscriptionsSection() {
       ) : (
         <SidebarMenuItem>
           <div className="text-muted-foreground flex items-center justify-center px-4 pb-3 text-center text-xs leading-relaxed select-none">
-            Click "Join" on a site to get started.
+            Click "Join" on a space to get started.
           </div>
         </SidebarMenuItem>
       )}
@@ -373,7 +373,7 @@ function JoinedSiteListItem({
         side="right"
         align="start"
         button={
-          <SidebarMenuAction aria-label="Joined site options" onClick={(e) => e.stopPropagation()}>
+          <SidebarMenuAction aria-label="Joined space options" onClick={(e) => e.stopPropagation()}>
             <MoreHorizontal className="size-4" />
           </SidebarMenuAction>
         }
@@ -388,7 +388,7 @@ function JoinedSiteListItem({
             ? [
                 {
                   key: 'leave',
-                  label: 'Leave Site',
+                  label: 'Leave Space',
                   icon: <CircleOff className="size-4" />,
                   variant: 'destructive' as const,
                   disabled: isPending,
@@ -540,7 +540,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   if (resource.data?.type === 'document' && resource.data.document) {
     const {document} = resource.data
     return (
-      <SidebarSection title="My Site">
+      <SidebarSection title="My Space">
         <div className="relative">
           <div
             className={cn(
@@ -563,7 +563,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
             align="start"
             button={
               <button
-                aria-label="My site options"
+                aria-label="My space options"
                 className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md hover:bg-black/10 dark:hover:bg-white/10"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -579,7 +579,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
               },
               {
                 key: 'site-settings',
-                label: 'Site settings',
+                label: 'Space settings',
                 icon: <Settings className="size-4" />,
                 onClick: () => navigate({key: 'site-settings', id: hmId(selectedAccountId)}),
               },
@@ -595,10 +595,10 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   if (resource.isInitialLoading || resource.isDiscovering) return null
 
   return (
-    <SidebarSection title="My Site">
-      <Tooltip content="Create your site to publish documents and share your profile.">
+    <SidebarSection title="My Space">
+      <Tooltip content="Create your space to publish documents and share your profile.">
         <Button className="w-full" variant="default" onClick={() => createSpaceDialog.open()}>
-          Create my Site
+          Create my Space
         </Button>
       </Tooltip>
       {createSpaceDialog.content}

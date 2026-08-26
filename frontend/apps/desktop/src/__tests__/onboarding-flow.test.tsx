@@ -359,7 +359,7 @@ describe('Onboarding flow', () => {
       await Promise.resolve()
     })
 
-    expect(container.textContent).toContain('CREATING YOUR SITE')
+    expect(container.textContent).toContain('CREATING YOUR SPACE')
     expect(container.textContent).not.toContain('Secret Recovery Phrase')
     expect(container.textContent).not.toContain('Restore from Recovery Phrase')
 
@@ -372,7 +372,7 @@ describe('Onboarding flow', () => {
 
     await reachVaultStep(container)
 
-    expect(container.textContent).toContain('CREATING YOUR SITE')
+    expect(container.textContent).toContain('CREATING YOUR SPACE')
     expect(container.textContent).not.toContain('CHOOSE YOUR VAULT')
 
     cleanupRendered(root, container, queryClient)

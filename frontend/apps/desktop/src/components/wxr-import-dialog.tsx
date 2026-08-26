@@ -402,7 +402,7 @@ function OptionsStep({
             <Label>Author Keys Password</Label>
             <SizableText size="xs" color="muted">
               Encrypts the author keys file. Share this password with authors so they can import their identity, or use
-              it to load keys into a site vault.
+              it to load keys into a space vault.
             </SizableText>
             <input
               type="password"

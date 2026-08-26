@@ -56,7 +56,7 @@ export default function SiteSettings() {
             {/* Sidebar */}
             <div className="border-border flex w-[220px] shrink-0 flex-col gap-1 border-r p-2">
               <SizableText size="xs" weight="bold" color="muted" className="px-3 py-2 uppercase">
-                Site Settings
+                Space Settings
               </SizableText>
               {SITE_SETTINGS_TAB_CONFIG.map((tab) => (
                 <SidebarTab
@@ -106,7 +106,7 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
     )
   }
   if (!document) {
-    return <SizableText color="muted">This account doesn't have a site yet.</SizableText>
+    return <SizableText color="muted">This account doesn't have a space yet.</SizableText>
   }
   if (!isSiteOwner) {
     return (
@@ -114,7 +114,7 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
         <SizableText size="2xl" weight="bold">
           Identity
         </SizableText>
-        <SizableText color="muted">Only the site owner can edit these settings.</SizableText>
+        <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
       </>
     )
   }
@@ -138,12 +138,12 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
         cover: cover !== undefined ? await resolveImageValue(cover) : metadata.cover,
       }
       await updateHome.mutateAsync({metadata: nextMetadata})
-      toast.success('Site identity updated')
+      toast.success('Space identity updated')
       setName(null)
       setLogo(undefined)
       setCover(undefined)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update site identity')
+      toast.error(error instanceof Error ? error.message : 'Failed to update space identity')
     }
   }
 
@@ -158,11 +158,11 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
         </Button>
       </div>
 
-      <SettingsField label="Site name">
-        <Input value={nameValue} onChange={(e) => setName(e.target.value)} placeholder="Your site name" />
+      <SettingsField label="Space name">
+        <Input value={nameValue} onChange={(e) => setName(e.target.value)} placeholder="Your space name" />
       </SettingsField>
 
-      <SettingsField label="Site logo" hint="100px height JPG or PNG.">
+      <SettingsField label="Space logo" hint="100px height JPG or PNG.">
         <ImagePicker
           value={logoValue}
           onChange={setLogo}

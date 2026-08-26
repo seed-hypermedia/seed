@@ -110,7 +110,7 @@ export function EmailNotificationsContent() {
                     <EmailNotificationSubscription key={sub.id} subscription={sub} token={token} />
                   ))
                 ) : (
-                  <p className="text-sm text-gray-600">No site subscriptions configured for this email yet.</p>
+                  <p className="text-sm text-gray-600">No space subscriptions configured for this email yet.</p>
                 )}
                 <MyNotificationsSection myNotifications={notifSettings.myNotifications} token={token} />
               </div>
@@ -227,7 +227,7 @@ function EmailNotificationSubscription({
 
       <div className="space-y-6">
         <div className="space-y-3">
-          <h4 className="font-bold text-gray-800">Site Activity</h4>
+          <h4 className="font-bold text-gray-800">Space Activity</h4>
           <p className="text-sm text-gray-600">
             Get notified when something happens in {account.document?.metadata?.name}. Emails will be sent every 4 hours
             at most.

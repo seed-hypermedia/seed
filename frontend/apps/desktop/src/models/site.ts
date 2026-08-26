@@ -27,10 +27,10 @@ export function useSiteRegistration(accountUid: string) {
       console.log('registerUrl', registerUrl)
       const siteConfig = await client.sites.getConfig.mutate(siteUrl)
       console.log('siteConfig', siteConfig)
-      if (!siteConfig) throw new Error('Site is not set up.')
+      if (!siteConfig) throw new Error('Space is not set up.')
 
       if (siteConfig.registeredAccountUid && siteConfig.registeredAccountUid !== accountUid) {
-        throw new Error('Site already registered to another account')
+        throw new Error('Space already registered to another account')
       }
       if (!siteConfig.registeredAccountUid) {
         const daemonInfo = await grpcClient.daemon.getInfo({})
@@ -66,7 +66,7 @@ export function useSiteRegistration(accountUid: string) {
         } catch (error) {
           // error is not a dealbreaker for this workflow, we still want to move to the next step
           console.error('Failed pushing resources to site', error)
-          toast.error('Failed to push resources to the new site. Sync can be attempted again later.')
+          toast.error('Failed to push resources to the new space. Sync can be attempted again later.')
           reportError(error, {
             feature: 'site-registration',
             operation: 'push-resources',

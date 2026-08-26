@@ -88,7 +88,7 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
               {query.trim() ? 'No documents found' : 'No documents to browse'}
             </p>
           ) : (
-            <div role={query.trim() ? 'list' : 'tree'} aria-label="Site documents">
+            <div role={query.trim() ? 'list' : 'tree'} aria-label="Space documents">
               {visibleDocuments.map((doc) => {
                 const row = rowById.get(doc.id.id)
                 const isFiltered = !!query.trim()

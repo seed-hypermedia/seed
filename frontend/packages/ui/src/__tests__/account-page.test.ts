@@ -12,7 +12,7 @@ describe('getAccountSiteLinkState', () => {
     ).toMatchObject({
       kind: 'hidden',
       status: 'default',
-      label: 'Open Site',
+      label: 'Open Space',
     })
   })
 
@@ -26,7 +26,7 @@ describe('getAccountSiteLinkState', () => {
     ).toMatchObject({
       kind: 'internal',
       status: 'default',
-      label: 'Open Site',
+      label: 'Open Space',
     })
   })
 
@@ -58,7 +58,7 @@ describe('getAccountSiteLinkState', () => {
     ).toMatchObject({
       kind: 'internal',
       status: 'warning',
-      label: 'Open Site',
+      label: 'Open Space',
       hostname: 'alice.example',
       warningMessage: 'alice.example is not resolving to this profile account.',
     })

@@ -34,7 +34,7 @@ export default function OnboardingPage() {
       })
     } catch (error) {
       console.error('Failed to verify site before creating draft:', error)
-      toast.error('Could not verify whether your site already exists. Please try again.')
+      toast.error('Could not verify whether your space already exists. Please try again.')
     } finally {
       setIsCreatingSite(false)
     }
@@ -46,7 +46,7 @@ export default function OnboardingPage() {
         <GeneralPageSurface>
           <div className="mx-auto flex h-full max-w-3xl flex-col justify-center gap-6 p-8">
             <h1 className="text-3xl font-semibold tracking-tight">Welcome to Seed Hypermedia 👋</h1>
-            <p>A place where people build sites to share knowledge freely. Where would you like to start?</p>
+            <p>A place where people build spaces to share knowledge freely. Where would you like to start?</p>
 
             <div className="flex gap-2">
               <div className="flex flex-1 flex-col justify-between gap-4 rounded-lg border p-4 shadow-sm">
@@ -55,8 +55,8 @@ export default function OnboardingPage() {
                     <Search className="size-6" />
                   </div>
                   <div className="flex flex-col items-start gap-1">
-                    <h3 className="font-bold">Find and Join a Site</h3>
-                    <p className="text-muted-foreground">Paste a site link in the bar above</p>
+                    <h3 className="font-bold">Find and Join a Space</h3>
+                    <p className="text-muted-foreground">Paste a space link in the bar above</p>
                   </div>
                 </div>
                 <Button
@@ -65,7 +65,7 @@ export default function OnboardingPage() {
                   onClick={() => triggerWindowEvent({type: 'focus_omnibar', mode: 'search'})}
                 >
                   <Search className="size-4" />
-                  Input a Site URL
+                  Input a Space URL
                 </Button>
               </div>
               {!hasSelectedSite ? (
@@ -75,7 +75,7 @@ export default function OnboardingPage() {
                       <Plus className="size-6" />
                     </div>
                     <div className="flex flex-col items-start gap-1">
-                      <h3 className="font-bold">Create a Site</h3>
+                      <h3 className="font-bold">Create a Space</h3>
                       <p className="text-muted-foreground">Start your own space to share knowledge</p>
                     </div>
                   </div>
@@ -85,7 +85,7 @@ export default function OnboardingPage() {
                     disabled={isCreatingSite}
                     onClick={() => createSiteIntent.requireAccount(createSite)}
                   >
-                    Create my Site
+                    Create my Space
                   </Button>
                 </div>
               ) : null}

@@ -5,7 +5,7 @@ export const loader = async ({request}: {request: Request}) => {
   return null
 }
 
-export const meta = defaultPageMeta('Site Registration')
+export const meta = defaultPageMeta('Space Registration')
 
 export default function RegisterPage() {
   return (
@@ -14,23 +14,24 @@ export default function RegisterPage() {
         <div className="border-border dark:bg-background flex w-full max-w-lg flex-1 flex-col gap-4 rounded-lg border bg-white p-6 shadow-lg">
           <SizableText size="5xl">🚀</SizableText>
           <SizableText size="2xl" weight="bold">
-            Secret Site Setup Link
+            Secret Space Setup Link
           </SizableText>
 
           <SizableText asChild>
             <p>
-              <b>Your Seed Hypermedia Site is Ready to be Deployed!</b>
+              <b>Your Seed Hypermedia Space is Ready to be Deployed!</b>
             </p>
           </SizableText>
           <SizableText asChild>
             <p>
               From your publication or account page within the Seed Hypermedia app, click the dropdown in the top right
-              corner and select "Publish Site". Then, paste the URL of this page into the dialog box, and click Publish!
+              corner and select "Publish Space". Then, paste the URL of this page into the dialog box, and click
+              Publish!
             </p>
           </SizableText>
           <SizableText asChild>
             <p>
-              Then your content will be published to this site. Your account will be registered in this domain, so all
+              Then your content will be published to this space. Your account will be registered in this domain, so all
               future content in your publication will be sent here and published to the web.
             </p>
           </SizableText>

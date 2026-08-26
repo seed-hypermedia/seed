@@ -270,7 +270,7 @@ function AgentServerInput({
         onBlur={() => onMetadata({agentServerUrl: value.trim() || undefined})}
       />
       <span className="text-muted-foreground text-xs">
-        Readers of this site will see agents hosted on this server in their agents panel.
+        Readers of this space will see agents hosted on this server in their agents panel.
       </span>
     </div>
   )

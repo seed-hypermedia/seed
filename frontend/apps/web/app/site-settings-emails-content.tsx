@@ -72,19 +72,19 @@ export function WebSiteSettingsEmailsPage({
   const {isSiteOwner, isLoading: isOwnershipLoading} = useIsSiteOwner(siteAccountUid)
 
   if (!siteAccountUid) {
-    return <SiteEmailSubscribersPanel message="This site does not have a registered owner account." />
+    return <SiteEmailSubscribersPanel message="This space does not have a registered owner account." />
   }
   if (!notifyServiceHost) {
-    return <SiteEmailSubscribersPanel message="This site does not have a notification service configured." />
+    return <SiteEmailSubscribersPanel message="This space does not have a notification service configured." />
   }
   if (!keyPair) {
-    return <SiteEmailSubscribersPanel message="Sign in as the site owner to view email subscribers." />
+    return <SiteEmailSubscribersPanel message="Sign in as the space owner to view email subscribers." />
   }
   if (isOwnershipLoading) {
     return <SiteEmailSubscribersPanel isLoading />
   }
   if (!isSiteOwner) {
-    return <SiteEmailSubscribersPanel message="Only the site owner can view email subscribers." />
+    return <SiteEmailSubscribersPanel message="Only the space owner can view email subscribers." />
   }
   return <SiteEmailSubscribers notifyServiceHost={notifyServiceHost} siteAccountUid={siteAccountUid} signer={signer} />
 }

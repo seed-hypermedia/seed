@@ -10,7 +10,7 @@ import {useMemo} from 'react'
 function contextLabel(route: Extract<ReturnType<typeof useNavRoute>, {key: 'explore'}>) {
   if (route.context.type === 'node') return 'Node'
   const path = route.context.id.path?.join('/')
-  return path ? `Site: ${route.context.id.uid}/${path}` : `Site: ${route.context.id.uid}`
+  return path ? `Space: ${route.context.id.uid}/${path}` : `Space: ${route.context.id.uid}`
 }
 
 export default function ExploreDesktopPage() {
