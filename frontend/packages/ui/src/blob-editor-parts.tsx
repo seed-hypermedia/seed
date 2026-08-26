@@ -189,10 +189,7 @@ export function BlobJsonMode({
 /** The published blob as raw dag-json text: JSON with IPLD links/bytes in their `{"/": …}` envelopes. */
 export function RawDagJsonView({value}: {value: unknown}) {
   return (
-    <pre
-      className="bg-background overflow-x-auto rounded-md border p-4 font-mono text-sm whitespace-pre-wrap"
-      data-testid="raw-dag-json"
-    >
+    <pre className="overflow-x-auto px-1 py-2 font-mono text-sm whitespace-pre-wrap" data-testid="raw-dag-json">
       {JSON.stringify(value, null, 2)}
     </pre>
   )

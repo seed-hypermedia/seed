@@ -1,9 +1,9 @@
 import {createInspectIpfsNavRoute, NavRoute, useCID} from '@shm/shared'
 import {code as DAG_CBOR_CODE} from '@shm/shared/cbor'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
+import {useOpenUrl, useRouteLink, useUniversalClient} from '@shm/shared/routing'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Braces, Check, Copy, FileCode2, FileEdit, X} from 'lucide-react'
+import {Braces, Check, Copy, ExternalLink, FileCode2, FileEdit, FileText} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
@@ -16,13 +16,15 @@ import {useFileProxyUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
 import {blobBuilderMenuItems, META_SCHEMA_CID, NEW_BLOB_PATH, newInstanceRoute} from './onyx/blob-menu-items'
 import {seedValue} from './onyx/onyx-data-editor'
-import {isOnyxSchema, ONYX_SCHEMAS} from './onyx/onyx-engine'
+import {isOnyxSchema, ONYX_SCHEMAS, schemaCid} from './onyx/onyx-engine'
+import {useResolvedSchema} from './onyx/onyx-schema-resolve'
+import {SchemaPicker} from './onyx/schema-picker'
 import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
 import {useOnyxSchemaRegistry} from './onyx/onyx-schema-registry-cid'
 import {type MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {toast} from './toast'
-import {OmnibarUrl} from './url-omnibar'
+import {cn} from './utils'
 import {
   CBOR_VALUE_RULES,
   isPlainObject,
@@ -209,6 +211,18 @@ export function InspectIpfsPage({
     else setEditJson(starter !== undefined ? starter : {schema: {'/': seedSchemaCid}})
   }, [isDraft, editJson, seedSchemaCid, seedSchema, isMetaSeed])
 
+  // A blank draft offers a schema picker; choosing one restarts the draft as
+  // `new/<schemaCid>` (bundled names resolve at once, pasted refs resolve first).
+  const [pickedRef, setPickedRef] = useState<string | null>(null)
+  const picked = useResolvedSchema(pickedRef)
+  useEffect(() => {
+    if (!pickedRef) return
+    const target = pickedRef.startsWith('ipfs://')
+      ? pickedRef.slice('ipfs://'.length)
+      : schemaCid(pickedRef) ?? picked.cid
+    if (target) replaceRoute(newInstanceRoute(target))
+  }, [pickedRef, picked.cid, replaceRoute])
+
   const history = useValueHistory(editJson)
   const update = (next: unknown) => {
     history.record()
@@ -260,6 +274,8 @@ export function InspectIpfsPage({
     return rest
   }, [advisoryTarget, attachedSchemaCid])
 
+  const showSchemaPicker = isDraft && !seedSchemaCid && !attachedSchemaCid && !valueIsSchema
+
   const isDirty =
     mode === 'edit' && (isDraft || JSON.stringify(editJson) !== JSON.stringify(rawValue) || editText !== null)
 
@@ -284,8 +300,6 @@ export function InspectIpfsPage({
   // ── the "…" menu ──
   const menuItems: MenuItemType[] = []
   if (mode === 'view') {
-    if (canEdit)
-      menuItems.push({key: 'edit', label: 'Edit…', icon: <FileEdit className="size-4" />, onClick: startEdit})
     if (kind === 'cbor')
       menuItems.push({
         key: 'raw',
@@ -310,6 +324,16 @@ export function InspectIpfsPage({
           toast.success('Copied ipfs:// URL')
         },
       })
+    if (cid)
+      menuItems.push({
+        key: 'copy-gateway',
+        label: 'Copy gateway link',
+        icon: <Copy className="size-4" />,
+        onClick: () => {
+          copyTextToClipboard(`${gatewayUrl.replace(/\/+$/, '')}/ipfs/${ipfsPath}`)
+          toast.success('Copied gateway link')
+        },
+      })
   } else {
     if (kind === 'cbor')
       menuItems.push({
@@ -329,15 +353,7 @@ export function InspectIpfsPage({
       })
   }
   menuItems.push(...blobBuilderMenuItems(navigate))
-  if (exitRoute && mode === 'view')
-    menuItems.push({
-      key: 'exit',
-      label: 'Open Resource',
-      icon: <X className="size-4" />,
-      onClick: () => navigate(exitRoute),
-    })
-
-  const gatewayLink = `${gatewayUrl.replace(/\/+$/, '')}/ipfs/${ipfsPath}`
+  const exitLink = useRouteLink(mode === 'view' && exitRoute ? exitRoute : null)
 
   let body: ReactNode
   if (mode === 'edit' && kind === 'cbor') {
@@ -357,6 +373,17 @@ export function InspectIpfsPage({
                     ? 'New schema — publish to store it and create instances from it.'
                     : 'New blob — publish to encode as DAG-CBOR and store it on your IPFS node.'}
               </p>
+              {showSchemaPicker && (
+                <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="new-blob-schema-picker">
+                  <span className="text-muted-foreground">Schema</span>
+                  <SchemaPicker value={pickedRef} onChange={setPickedRef} />
+                  {pickedRef && !picked.schema && (
+                    <span className="text-muted-foreground text-xs">
+                      {picked.isLoading ? 'Resolving…' : 'schema not found'}
+                    </span>
+                  )}
+                </div>
+              )}
               <SchemaStatusRow
                 attachedSchemaCid={attachedSchemaCid}
                 valueIsSchema={valueIsSchema}
@@ -453,20 +480,70 @@ export function InspectIpfsPage({
     )
   }
 
+  const shortCid = cid ? `${cid.slice(0, 10)}…${cid.slice(-6)}` : null
+  const title = isDraft
+    ? valueIsSchema
+      ? 'New schema'
+      : 'New blob'
+    : mode === 'edit'
+      ? 'Editing blob'
+      : valueIsSchema
+        ? 'Schema blob'
+        : kind === 'image'
+          ? 'Image'
+          : kind === 'text'
+            ? 'Text file'
+            : 'IPFS blob'
+
   return (
     <div className="bg-background flex h-full max-h-full flex-col overflow-hidden">
-      <IpfsTopBar
-        restingUrl={`ipfs://${ipfsPath}`}
-        gatewayLink={gatewayLink}
-        editing={mode === 'edit'}
-        draftLabel={valueIsSchema ? 'Unpublished schema' : 'Unpublished draft'}
-        publishing={publishing}
-        canPublish={isDirty && !publishing && editJson !== undefined}
-        onPublish={publish}
-        onCancel={cid ? cancelEdit : undefined}
-        menuItems={menuItems}
-        windowControls={windowControls}
+      <BlobHeader
+        title={title}
+        cid={cid}
+        shortCid={shortCid}
+        draft={mode === 'edit'}
         trafficLightInset={trafficLightInset}
+        windowControls={windowControls}
+        actions={
+          <>
+            {mode === 'edit' ? (
+              <>
+                {cid && (
+                  <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={publishing}>
+                    Cancel
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={publish}
+                  disabled={!(isDirty && !publishing && editJson !== undefined)}
+                  data-testid="blob-publish"
+                >
+                  {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
+                  Publish
+                </Button>
+              </>
+            ) : (
+              <>
+                {canEdit && (
+                  <Button size="sm" variant="outline" onClick={startEdit} data-testid="blob-edit">
+                    <FileEdit className="size-4" />
+                    Edit
+                  </Button>
+                )}
+                {exitRoute && (
+                  <Button size="sm" variant="outline" asChild>
+                    <a {...exitLink} data-testid="blob-open-resource">
+                      <ExternalLink className="size-4" />
+                      Open Resource
+                    </a>
+                  </Button>
+                )}
+              </>
+            )}
+            {menuItems.length > 0 && <OptionsDropdown menuItems={menuItems} align="end" side="bottom" />}
+          </>
+        }
       />
       <div className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-900">
         <div className="mx-auto w-full px-4 py-4" style={{maxWidth: 960}}>
@@ -477,60 +554,51 @@ export function InspectIpfsPage({
   )
 }
 
-/** The slim top bar: omnibar-style URL + copy + "…" menu, or draft controls. */
-function IpfsTopBar({
-  restingUrl,
-  gatewayLink,
-  editing,
-  draftLabel,
-  publishing,
-  canPublish,
-  onPublish,
-  onCancel,
-  menuItems,
-  windowControls,
+/**
+ * The page header, in the app's regular top-bar style (the same bar documents
+ * use): what this is and its CID on the left, actions on the right. In the
+ * desktop's chromeless blob window it doubles as the draggable title bar.
+ */
+function BlobHeader({
+  title,
+  cid,
+  shortCid,
+  draft,
+  actions,
   trafficLightInset,
+  windowControls,
 }: {
-  restingUrl: string
-  gatewayLink: string
-  editing: boolean
-  draftLabel: string
-  publishing: boolean
-  canPublish: boolean
-  onPublish: () => void
-  onCancel?: () => void
-  menuItems: MenuItemType[]
-  windowControls?: ReactNode
+  title: string
+  cid?: string
+  shortCid: string | null
+  draft: boolean
+  actions: ReactNode
   trafficLightInset?: boolean
+  windowControls?: ReactNode
 }) {
-  const menu = menuItems.length ? <OptionsDropdown menuItems={menuItems} align="end" side="bottom" /> : undefined
   return (
     <div
-      className="window-drag border-border bg-background flex h-11 shrink-0 items-center gap-2 border-b px-3"
+      data-document-top-bar=""
+      className={cn(
+        'window-drag border-border dark:bg-background flex h-12 w-full shrink-0 items-center gap-2 border-b bg-white px-4',
+      )}
       style={trafficLightInset ? {paddingLeft: 78} : undefined}
     >
-      {editing ? (
-        <>
-          <span className="bg-muted text-muted-foreground no-window-drag rounded px-2 py-0.5 text-xs font-medium">
-            {draftLabel}
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
+        <FileText className="text-muted-foreground size-4 shrink-0" />
+        <span className="shrink-0 font-medium">{title}</span>
+        {draft && (
+          <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
+            Unpublished draft
           </span>
-          <div className="flex-1" />
-          <div className="no-window-drag flex items-center gap-2">
-            {onCancel && (
-              <Button size="sm" variant="ghost" onClick={onCancel} disabled={publishing}>
-                Cancel
-              </Button>
-            )}
-            <Button size="sm" onClick={onPublish} disabled={!canPublish} data-testid="blob-publish">
-              {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
-              Publish
-            </Button>
-            {menu}
-          </div>
-        </>
-      ) : (
-        <OmnibarUrl restingUrl={restingUrl} copyUrl={gatewayLink} rightActions={menu} />
-      )}
+        )}
+        {shortCid && (
+          <span className="text-muted-foreground min-w-0 truncate font-mono text-xs" title={`ipfs://${cid}`}>
+            {shortCid}
+          </span>
+        )}
+      </div>
+      <div className="no-window-drag flex shrink-0 items-center gap-1">{actions}</div>
       {windowControls}
     </div>
   )
