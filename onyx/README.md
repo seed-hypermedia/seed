@@ -127,7 +127,7 @@ validator:
   a **Create** button that opens the schema-defined value editor and publishes a
   new IPFS blob.
 - **Explorer / data editor** — browse any schema and build a conforming value
-  (reachable via the `/hm/onyx` route and the dev-mode "Onyx Schema Tour" menu).
+  (the published documents are the catalog; any schema opens at `/hm/schema/<cid>`).
 
 ## Publishing
 

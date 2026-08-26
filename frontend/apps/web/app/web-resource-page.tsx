@@ -151,18 +151,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   // enables developerMode by default). "New Schema" is a new instance of the
   // built-in meta-schema. The editor's own menu offers these too once open.
   const schemaBuilderMenuItems = useMemo<MenuItemType[]>(
-    () =>
-      experiments?.developerMode
-        ? [
-            ...blobBuilderMenuItems(navigate),
-            {
-              key: 'onyx-tour',
-              label: 'Onyx Schema Tour',
-              icon: <FileCode2 className="size-4" />,
-              onClick: () => navigate({key: 'onyx'}),
-            },
-          ]
-        : [],
+    () => (experiments?.developerMode ? blobBuilderMenuItems(navigate) : []),
     [experiments?.developerMode, navigate],
   )
 

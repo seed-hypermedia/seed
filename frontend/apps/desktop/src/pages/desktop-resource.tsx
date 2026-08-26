@@ -997,13 +997,6 @@ export default function DesktopResourcePage() {
       onClick: () => navigate({key: 'raw-blob', schemaCid: schemaCid('onyx-schema')}),
     })
 
-    menuItems.push({
-      key: 'onyx-tour',
-      label: 'Onyx Schema Tour',
-      icon: <FileCode2 className="size-4" />,
-      onClick: () => navigate({key: 'onyx'}),
-    })
-
     // The World Builder: scaffold a typed ontology (types + folders + starter
     // pages) under this document — the showcase for typed documents.
     if (canEdit) {
