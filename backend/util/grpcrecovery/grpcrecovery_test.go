@@ -92,7 +92,7 @@ func TestUnaryServerKeepsServingAfterPanic(t *testing.T) {
 	require.NoError(t, cc.Invoke(ctx, okMethod, &emptypb.Empty{}, &emptypb.Empty{}),
 		"the server must keep serving after recovering a panic")
 
-	entries := logs.FilterMessage("RecoveredPanicInGRPCHandler").All()
+	entries := logs.FilterMessage("GRPCHandlerPanic").All()
 	require.Len(t, entries, 1, "the recovered panic must be logged exactly once")
 
 	fields := entries[0].ContextMap()
@@ -129,5 +129,5 @@ func TestStreamServerInterceptorRecovers(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, codes.Internal, status.Code(err))
 	require.NotContains(t, err.Error(), panicValue)
-	require.Len(t, logs.FilterMessage("RecoveredPanicInGRPCHandler").All(), 1)
+	require.Len(t, logs.FilterMessage("GRPCHandlerPanic").All(), 1)
 }
