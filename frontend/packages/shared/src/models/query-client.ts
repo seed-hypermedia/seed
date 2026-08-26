@@ -47,6 +47,17 @@ export function registerQueryClient(client: QueryClient) {
   registeredClient = client
 }
 
+/**
+ * The query client the app actually renders with: the registered one, else the module singleton.
+ *
+ * Shared models that write to the cache directly (optimistic inserts, `setQueryData`) must go
+ * through this rather than the `queryClient` export — the web app builds its own client and only
+ * registers it, so writes to the singleton there land in a cache nothing reads.
+ */
+export function getQueryClient(): QueryClient {
+  return registeredClient ?? queryClient
+}
+
 export type InvalidateQueriesOptions = {
   /**
    * Which matching queries to refetch (react-query `refetchType`, default 'active').

@@ -7,7 +7,7 @@ import {
   isOptimisticUserEcho,
   retryableErrorRowKey,
 } from '@shm/ui/agents/agent-session-rows'
-import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@/components/assistant-session-ref'
+import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@shm/ui/agents/assistant-session-ref'
 
 const CONTEXT = {serverUrl: 'http://localhost:3050', agentId: 'agent-1', sessionId: 'session-1'}
 

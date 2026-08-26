@@ -68,7 +68,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
 })
 
 import {AlertDialog, AlertDialogContent, AlertDialogPortal} from '@shm/ui/components/alert-dialog'
-import {DeleteSessionDialog} from '../components/assistant-panel'
+import {DeleteSessionDialog} from '@shm/ui/agents/assistant-panel'
 
 function renderInRoot(node: React.ReactNode) {
   const container = document.createElement('div')

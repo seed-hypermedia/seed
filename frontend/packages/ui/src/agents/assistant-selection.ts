@@ -1,6 +1,6 @@
-import type {AgentInfo} from '@shm/ui/agents/client'
-import type {AssistantSessionRef} from '@/components/assistant-session-ref'
-import type {AgentSessionListEntry} from '@shm/ui/agents/models'
+import type {AgentInfo} from './client'
+import type {AssistantSessionRef} from './assistant-session-ref'
+import type {AgentSessionListEntry} from './models'
 
 /**
  * Selection model for the assistant sidebar.

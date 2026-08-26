@@ -37,7 +37,7 @@ import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform} from './platform'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
-import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
+import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
@@ -1302,7 +1302,7 @@ export async function prefetchAgentDetail(
   if (!serverUrl || !accountUid || !agentId) return
   const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'GetAgent', agentId}})
   if (res._ !== 'GetAgentResponse') throw new Error('Unexpected GetAgent response')
-  queryClient.setQueryData(['agents', 'detail', serverUrl, accountUid, agentId], res)
+  getQueryClient().setQueryData(['agents', 'detail', serverUrl, accountUid, agentId], res)
   return res
 }
 
@@ -1860,8 +1860,11 @@ export function useUpdateAgent(serverUrl: string | undefined, accountUid: string
     },
     onSuccess(result, variables) {
       if (result._ === 'GetAgentResponse') {
-        queryClient.setQueriesData({queryKey: ['agents', 'detail', serverUrl, accountUid, variables.agentId]}, result)
-        queryClient.setQueriesData(
+        getQueryClient().setQueriesData(
+          {queryKey: ['agents', 'detail', serverUrl, accountUid, variables.agentId]},
+          result,
+        )
+        getQueryClient().setQueriesData(
           {queryKey: ['agents', 'list', serverUrl, accountUid]},
           (old: AgentInfo[] | undefined) =>
             old?.map((agent) => (agent.id === result.agent.id ? result.agent : agent)) ?? old,
@@ -2313,17 +2316,20 @@ export function useAgentWebSocketSubscription(
         })
       }
       const sessionId = event.event.sessionId
-      queryClient.setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
-        if (!old || old._ !== 'GetSessionResponse') return old
-        if (old.events.some((existing: any) => existing.id === event.event.id)) return old
-        const events = old.events.filter((existing: any) => {
-          if (typeof existing.id !== 'string' || !existing.id.startsWith('optimistic-')) return true
-          // Only a message the USER wrote can be the echo of a message the user is waiting on. The
-          // runtime writes as `role: 'user'` too, mid-run, over this same stream.
-          return !isOptimisticUserEcho(event.event.event, existing.event)
-        })
-        return {...old, events: [...events, event.event]}
-      })
+      getQueryClient().setQueriesData(
+        {queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]},
+        (old: any) => {
+          if (!old || old._ !== 'GetSessionResponse') return old
+          if (old.events.some((existing: any) => existing.id === event.event.id)) return old
+          const events = old.events.filter((existing: any) => {
+            if (typeof existing.id !== 'string' || !existing.id.startsWith('optimistic-')) return true
+            // Only a message the USER wrote can be the echo of a message the user is waiting on. The
+            // runtime writes as `role: 'user'` too, mid-run, over this same stream.
+            return !isOptimisticUserEcho(event.event.event, existing.event)
+          })
+          return {...old, events: [...events, event.event]}
+        },
+      )
       invalidateQueries(['agents', 'detail'])
     } else if (event._ === 'appendPartial') {
       // Run-keyed partials (workflow progress) are handled by the run-tree hook, not here.
@@ -2464,7 +2470,7 @@ type AgentWSRunPatch = {progress?: {fraction?: number; label?: string}; activity
  * would otherwise re-select the session that is being deleted from the still-stale cache.
  */
 export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: string, sessionId: string) {
-  queryClient.setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) => {
+  getQueryClient().setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) => {
     if (!Array.isArray(old)) return old
     return old.filter((entry: AgentSessionListEntry) => entry.session.id !== sessionId)
   })
@@ -2482,12 +2488,12 @@ export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: 
  * fetches replace both seeds as they land.
  */
 export function addOptimisticSessionToCaches(serverUrl: string, accountUid: string, session: SessionInfo) {
-  queryClient.setQueryData(['agents', 'sessions', serverUrl, accountUid], (old: any) => {
+  getQueryClient().setQueryData(['agents', 'sessions', serverUrl, accountUid], (old: any) => {
     const list = Array.isArray(old) ? old : []
     if (list.some((entry: AgentSessionListEntry) => entry.session.id === session.id)) return old
     return [{serverUrl, session} satisfies AgentSessionListEntry, ...list]
   })
-  queryClient.setQueryData(['agents', 'session', serverUrl, accountUid, session.id], (old: any) => {
+  getQueryClient().setQueryData(['agents', 'session', serverUrl, accountUid, session.id], (old: any) => {
     if (old) return old
     return {_: 'GetSessionResponse', session, events: [], systemPromptMarkdown: ''}
   })
@@ -2506,7 +2512,7 @@ export function addOptimisticSessionMessage(
     ...message,
     clientMessageId: message.clientMessageId ?? crypto.randomUUID(),
   }))
-  queryClient.setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
+  getQueryClient().setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
     if (!old || old._ !== 'GetSessionResponse') return old
     const now = Date.now()
     return {
@@ -2607,7 +2613,7 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
       return res.session
     },
     onSuccess(updatedSession) {
-      queryClient.setQueriesData(
+      getQueryClient().setQueriesData(
         {queryKey: ['agents', 'session', serverUrl, accountUid, updatedSession.id]},
         (old: any) => {
           if (!old || old._ !== 'GetSessionResponse') return old
@@ -2629,7 +2635,7 @@ export function useDeleteAgentSession(serverUrl: string | undefined, accountUid:
       return res
     },
     onSuccess(deletedSession) {
-      queryClient.removeQueries(['agents', 'session', serverUrl, accountUid, deletedSession.sessionId])
+      getQueryClient().removeQueries(['agents', 'session', serverUrl, accountUid, deletedSession.sessionId])
       invalidateQueries(['agents'])
     },
   })

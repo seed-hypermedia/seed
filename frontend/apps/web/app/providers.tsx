@@ -7,6 +7,9 @@ import {registerQueryClient} from '@shm/shared/models/query-client'
 import {ReadOnlyViewerComponent, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {defaultRoute} from '@shm/shared/routes'
 import {isHttpUrl, NavAction, NavContextProvider, NavState, navStateReducer} from '@shm/shared/utils/navigation'
+import {AssistantPanelProvider} from './assistant-panel-state'
+import {SiteContextPublisher} from './site-context-bridge'
+import {WebAssistantHost} from './web-assistant-host'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {writeableStateStream} from '@shm/shared/utils/stream'
@@ -113,7 +116,14 @@ export const Providers = (props: {children: any}) => {
   return (
     <ThemeProvider>
       <QueryClientProvider client={client}>
-        <ReadOnlyViewerProvider value={ReadOnlyViewer}>{props.children}</ReadOnlyViewerProvider>
+        <ReadOnlyViewerProvider value={ReadOnlyViewer}>
+          {/* Above the outlet on purpose: the assistant panel and its open/session state must
+              outlive the per-page WebSiteProvider, or every route change would remount the panel.
+              The page contexts the panel needs reach it through the site-context bridge. */}
+          <AssistantPanelProvider>
+            <WebAssistantHost>{props.children}</WebAssistantHost>
+          </AssistantPanelProvider>
+        </ReadOnlyViewerProvider>
       </QueryClientProvider>
     </ThemeProvider>
   )
@@ -368,7 +378,10 @@ export function WebSiteProvider(props: {
         })
       }}
     >
-      <NavContextProvider value={navigation}>{props.children}</NavContextProvider>
+      <NavContextProvider value={navigation}>
+        <SiteContextPublisher />
+        {props.children}
+      </NavContextProvider>
     </UniversalAppProvider>
   )
 }

@@ -58,8 +58,13 @@ body {
   cursor: col-resize !important;
 }
 
-.panel-resize-handle:hover {
-  background-color: var(--color8);
+.panel-resize-handle.visible {
+  background-color: var(--color-border);
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle.active {
+  background-color: var(--color-brand-5, var(--color-border));
 }
 
 /*
