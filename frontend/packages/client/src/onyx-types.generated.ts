@@ -93,7 +93,7 @@ export type ExampleConstrained = {
 /**
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-counts
  */
-export type ExampleCounts = Record<string, number>
+export type ExampleCounts = {[key: string]: number}
 
 /**
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-document
@@ -155,7 +155,7 @@ export type ExampleGeo = {
  * A recursive JSON value: null, boolean, number, string, list, or map. References itself.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-json
  */
-export type ExampleJson = null | boolean | number | number | string | ExampleJson[] | Record<string, ExampleJson>
+export type ExampleJson = null | boolean | number | string | ExampleJson[] | {[key: string]: ExampleJson}
 
 /**
  * Matrix
@@ -169,7 +169,7 @@ export type ExampleMatrix = number[][]
  * Arbitrary string-to-string metadata — Map<String>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-metadata
  */
-export type ExampleMetadata = Record<string, string>
+export type ExampleMetadata = {[key: string]: string}
 
 /**
  * MyApp change
@@ -209,14 +209,14 @@ export type ExamplePersonDoc = HMDocument & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-poll-block
  */
 export type ExamplePollBlock = HMBlockBase & {
-  type?: "Poll"
+  type?: 'Poll'
   question: string
   options: string[]
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
     multiple?: boolean
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -224,14 +224,14 @@ export type ExamplePollBlock = HMBlockBase & {
  * A map from ids to person links — Map<Link<Person>>.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-registry
  */
-export type ExampleRegistry = Record<string, ExamplePerson>
+export type ExampleRegistry = {[key: string]: ExamplePerson}
 
 /**
  * Status
  * A publication status: draft, published, or archived.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-status
  */
-export type ExampleStatus = "draft" | "published" | "archived"
+export type ExampleStatus = 'draft' | 'published' | 'archived'
 
 /**
  * Tags
@@ -267,7 +267,7 @@ export type HMAnnotation = {
   link?: string
   starts?: number[]
   ends?: number[]
-} & Record<string, HMValue>
+} & {[key: string]: HMValue}
 
 /**
  * Any blob
@@ -300,8 +300,8 @@ export type HMBlock = {
   text?: string
   link?: string
   annotations?: HMAnnotation[]
-  attributes?: Record<string, unknown>
-} & Record<string, unknown>
+  attributes?: {[key: string]: unknown}
+} & {[key: string]: unknown}
 
 /**
  * Block (base)
@@ -320,7 +320,7 @@ export type HMBlockBase = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-button
  */
 export type HMBlockButton = HMBlockBase & {
-  type?: "Button"
+  type?: 'Button'
   text?: string
   link: string
   attributes?: {
@@ -328,7 +328,7 @@ export type HMBlockButton = HMBlockBase & {
     columnCount?: number
     name?: string
     alignment?: HMButtonAlignment
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -337,13 +337,13 @@ export type HMBlockButton = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-code
  */
 export type HMBlockCode = HMBlockBase & {
-  type?: "Code"
+  type?: 'Code'
   text?: string
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
     language?: string
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -351,7 +351,22 @@ export type HMBlockCode = HMBlockBase & {
  * The union of the fifteen built-in block types (Paragraph, Heading, Code, Math, Image, Video, File, Button, Embed, WebEmbed, Nostr, Table, TableRow, TableColumn, Query). This is the strict core Hypermedia defines; anyone can extend it by making a larger union that includes it plus their own block types.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-core
  */
-export type HMBlockCore = HMBlockParagraph | HMBlockHeading | HMBlockCode | HMBlockMath | HMBlockImage | HMBlockVideo | HMBlockFile | HMBlockButton | HMBlockEmbed | HMBlockWebEmbed | HMBlockNostr | HMBlockTable | HMBlockTableRow | HMBlockTableColumn | HMBlockQuery
+export type HMBlockCore =
+  | HMBlockParagraph
+  | HMBlockHeading
+  | HMBlockCode
+  | HMBlockMath
+  | HMBlockImage
+  | HMBlockVideo
+  | HMBlockFile
+  | HMBlockButton
+  | HMBlockEmbed
+  | HMBlockWebEmbed
+  | HMBlockNostr
+  | HMBlockTable
+  | HMBlockTableRow
+  | HMBlockTableColumn
+  | HMBlockQuery
 
 /**
  * Embed block
@@ -359,13 +374,13 @@ export type HMBlockCore = HMBlockParagraph | HMBlockHeading | HMBlockCode | HMBl
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-embed
  */
 export type HMBlockEmbed = HMBlockBase & {
-  type?: "Embed"
+  type?: 'Embed'
   link: string
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
     view?: HMEmbedView
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -374,14 +389,14 @@ export type HMBlockEmbed = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-file
  */
 export type HMBlockFile = HMBlockBase & {
-  type?: "File"
+  type?: 'File'
   link: string
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
     size?: number
     name?: string
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -390,13 +405,13 @@ export type HMBlockFile = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-heading
  */
 export type HMBlockHeading = HMBlockBase & {
-  type?: "Heading"
+  type?: 'Heading'
   text?: string
   annotations?: HMAnnotation[]
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -405,7 +420,7 @@ export type HMBlockHeading = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-image
  */
 export type HMBlockImage = HMBlockBase & {
-  type?: "Image"
+  type?: 'Image'
   text?: string
   annotations?: HMAnnotation[]
   link: string
@@ -414,7 +429,7 @@ export type HMBlockImage = HMBlockBase & {
     columnCount?: number
     width?: number
     name?: string
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -423,12 +438,12 @@ export type HMBlockImage = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-math
  */
 export type HMBlockMath = HMBlockBase & {
-  type?: "Math"
+  type?: 'Math'
   text?: string
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -447,7 +462,7 @@ export type HMBlockNode = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-nostr
  */
 export type HMBlockNostr = HMBlockBase & {
-  type?: "Nostr"
+  type?: 'Nostr'
   link: string
 }
 
@@ -457,14 +472,14 @@ export type HMBlockNostr = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-paragraph
  */
 export type HMBlockParagraph = HMBlockBase & {
-  type?: "Paragraph"
+  type?: 'Paragraph'
   text?: string
   annotations?: HMAnnotation[]
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
     columnId?: string
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -473,7 +488,7 @@ export type HMBlockParagraph = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-query
  */
 export type HMBlockQuery = HMBlockBase & {
-  type?: "Query"
+  type?: 'Query'
   attributes: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -490,7 +505,7 @@ export type HMBlockQuery = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table
  */
 export type HMBlockTable = HMBlockBase & {
-  type?: "Table"
+  type?: 'Table'
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -503,7 +518,7 @@ export type HMBlockTable = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table-column
  */
 export type HMBlockTableColumn = HMBlockBase & {
-  type?: "TableColumn"
+  type?: 'TableColumn'
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -519,7 +534,7 @@ export type HMBlockTableColumn = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-table-row
  */
 export type HMBlockTableRow = HMBlockBase & {
-  type?: "TableRow"
+  type?: 'TableRow'
   attributes?: {
     childrenType?: HMChildrenType
     columnCount?: number
@@ -533,7 +548,7 @@ export type HMBlockTableRow = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-video
  */
 export type HMBlockVideo = HMBlockBase & {
-  type?: "Video"
+  type?: 'Video'
   link: string
   attributes?: {
     childrenType?: HMChildrenType
@@ -543,7 +558,7 @@ export type HMBlockVideo = HMBlockBase & {
     autoplay?: boolean
     loop?: boolean
     muted?: boolean
-  } & Record<string, unknown>
+  } & {[key: string]: unknown}
 }
 
 /**
@@ -552,7 +567,7 @@ export type HMBlockVideo = HMBlockBase & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-web-embed
  */
 export type HMBlockWebEmbed = HMBlockBase & {
-  type?: "WebEmbed"
+  type?: 'WebEmbed'
   link: string
 }
 
@@ -561,7 +576,7 @@ export type HMBlockWebEmbed = HMBlockBase & {
  * Horizontal alignment of a Button block.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-button-alignment
  */
-export type HMButtonAlignment = "flex-start" | "center" | "flex-end"
+export type HMButtonAlignment = 'flex-start' | 'center' | 'flex-end'
 
 /**
  * Capability
@@ -569,7 +584,7 @@ export type HMButtonAlignment = "flex-start" | "center" | "flex-end"
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-capability
  */
 export type HMCapability = HMBlob & {
-  type?: "Capability"
+  type?: 'Capability'
   delegate: HMPrincipal
   audience?: HMPrincipal
   path?: string
@@ -583,7 +598,7 @@ export type HMCapability = HMBlob & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-change
  */
 export type HMChange<Block = HMBlock> = HMBlob & {
-  type?: "Change"
+  type?: 'Change'
   genesis?: HMCid
   deps?: HMCid[]
   depth?: number
@@ -605,7 +620,7 @@ export type HMChangeBody<Block = HMBlock> = {
  * How a block's children are laid out: Group (default), Ordered, Unordered, Blockquote, or Grid.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-children-type
  */
-export type HMChildrenType = "Group" | "Ordered" | "Unordered" | "Blockquote" | "Grid"
+export type HMChildrenType = 'Group' | 'Ordered' | 'Unordered' | 'Blockquote' | 'Grid'
 
 /**
  * CID
@@ -620,7 +635,7 @@ export type HMCid = OnyxLink
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment
  */
 export type HMComment = HMBlob & {
-  type?: "Comment"
+  type?: 'Comment'
   id?: string
   capability?: HMCid
   space?: HMPrincipal
@@ -647,7 +662,7 @@ export type HMCommentBlock = HMBlock & {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-contact
  */
 export type HMContact = HMBlob & {
-  type?: "Contact"
+  type?: 'Contact'
   id?: string
   account?: HMPrincipal
   subject?: HMPrincipal
@@ -680,7 +695,7 @@ export type HMDocument = {
  * How an Embed block renders its target: Content, Card, Comments, or Link.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-embed-view
  */
-export type HMEmbedView = "Content" | "Card" | "Comments" | "Link"
+export type HMEmbedView = 'Content' | 'Card' | 'Comments' | 'Link'
 
 /**
  * HM link
@@ -723,17 +738,17 @@ export type HMMetadata = {
   childrenSchema?: HMHmUrl
   /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Other documents reference this document's URL as their `schema`/`childrenSchema`. */
   schemaDefinition?: HMIpfs
-  layout?: "Seed/Experimental/Newspaper" | ""
+  layout?: 'Seed/Experimental/Newspaper' | ''
   displayPublishTime?: string
   displayAuthor?: string
   showOutline?: boolean
   showActivity?: boolean
-  contentWidth?: "S" | "M" | "L"
+  contentWidth?: 'S' | 'M' | 'L'
   childrenType?: string
   theme?: {
-    headerLayout?: "Center" | ""
+    headerLayout?: 'Center' | ''
   }
-} & Record<string, HMValue>
+} & {[key: string]: HMValue}
 
 /**
  * Navigation item
@@ -741,7 +756,7 @@ export type HMMetadata = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-navigation-item
  */
 export type HMNavigationItem = {
-  type: "Link"
+  type: 'Link'
   id: string
   text: string
   link: string
@@ -752,7 +767,12 @@ export type HMNavigationItem = {
  * A single CRDT operation inside a Change body — a discriminated union tagged on type.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op
  */
-export type HMOp<Block = HMBlock> = HMOpSetAttributes | HMOpMoveBlocks | HMOpReplaceBlock<Block> | HMOpDeleteBlocks | HMOpSetKey
+export type HMOp<Block = HMBlock> =
+  | HMOpSetAttributes
+  | HMOpMoveBlocks
+  | HMOpReplaceBlock<Block>
+  | HMOpDeleteBlocks
+  | HMOpSetKey
 
 /**
  * DeleteBlocks op
@@ -760,7 +780,7 @@ export type HMOp<Block = HMBlock> = HMOpSetAttributes | HMOpMoveBlocks | HMOpRep
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-delete-blocks
  */
 export type HMOpDeleteBlocks = {
-  type: "DeleteBlocks"
+  type: 'DeleteBlocks'
   blocks: string[]
 }
 
@@ -770,7 +790,7 @@ export type HMOpDeleteBlocks = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-move-blocks
  */
 export type HMOpMoveBlocks = {
-  type: "MoveBlocks"
+  type: 'MoveBlocks'
   parent?: string
   blocks: string[]
   ref?: number[]
@@ -782,7 +802,7 @@ export type HMOpMoveBlocks = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-replace-block
  */
 export type HMOpReplaceBlock<Block = HMBlock> = {
-  type: "ReplaceBlock"
+  type: 'ReplaceBlock'
   block: Block
 }
 
@@ -792,7 +812,7 @@ export type HMOpReplaceBlock<Block = HMBlock> = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-attributes
  */
 export type HMOpSetAttributes = {
-  type: "SetAttributes"
+  type: 'SetAttributes'
   block?: string
   attrs?: HMKeyValue[]
 }
@@ -803,7 +823,7 @@ export type HMOpSetAttributes = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-op-set-key
  */
 export type HMOpSetKey = {
-  type: "SetKey"
+  type: 'SetKey'
   key?: string
   value?: HMValue
 }
@@ -821,7 +841,7 @@ export type HMPrincipal = OnyxBytes
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-profile
  */
 export type HMProfile = HMBlob & {
-  type?: "Profile"
+  type?: 'Profile'
   alias?: HMPrincipal
   name?: string
   avatar?: string
@@ -849,7 +869,7 @@ export type HMQuery = {
 export type HMQueryInclusion = {
   space: string
   path?: string
-  mode: "Children" | "AllDescendants"
+  mode: 'Children' | 'AllDescendants'
 }
 
 /**
@@ -859,7 +879,7 @@ export type HMQueryInclusion = {
  */
 export type HMQuerySort = {
   reverse?: boolean
-  term: "Path" | "Title" | "CreateTime" | "UpdateTime" | "DisplayTime" | "ActivityTime"
+  term: 'Path' | 'Title' | 'CreateTime' | 'UpdateTime' | 'DisplayTime' | 'ActivityTime'
 }
 
 /**
@@ -867,7 +887,7 @@ export type HMQuerySort = {
  * How a Query block presents its results: a card grid, a compact list, or a table.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-query-style
  */
-export type HMQueryStyle = "Card" | "List" | "Table"
+export type HMQueryStyle = 'Card' | 'List' | 'Table'
 
 /**
  * Query table config
@@ -900,7 +920,7 @@ export type HMRedirectTarget = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ref
  */
 export type HMRef = HMBlob & {
-  type?: "Ref"
+  type?: 'Ref'
   space?: HMPrincipal
   path?: string
   genesisBlob?: HMCid
@@ -916,7 +936,7 @@ export type HMRef = HMBlob & {
  * A capability role: WRITER (edit a document) or AGENT (act on behalf of an account).
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-role
  */
-export type HMRole = "WRITER" | "AGENT"
+export type HMRole = 'WRITER' | 'AGENT'
 
 /**
  * Signature
@@ -944,7 +964,7 @@ export type HMValue = string | number | boolean | null
  * Resource visibility: "" (empty) for public, "Private" for private.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-visibility
  */
-export type HMVisibility = "" | "Private"
+export type HMVisibility = '' | 'Private'
 
 /**
  * Reference schema
@@ -953,15 +973,15 @@ export type HMVisibility = "" | "Private"
  */
 export type OnyxIncludeSchema = {
   ref: string
-  properties?: Record<string, OnyxSchema>
+  properties?: {[key: string]: OnyxSchema}
   required?: string[]
   values?: OnyxSchema
   items?: OnyxSchema
   enum?: unknown[]
   name?: string
   description?: string
-  params?: Record<string, OnyxSchema>
-  args?: Record<string, OnyxSchema>
+  params?: {[key: string]: OnyxSchema}
+  args?: {[key: string]: OnyxSchema}
 }
 
 /**
@@ -970,11 +990,11 @@ export type OnyxIncludeSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link-schema
  */
 export type OnyxLinkSchema = {
-  type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link"
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/link'
   ref?: string
   name?: string
   description?: string
-  params?: Record<string, OnyxSchema>
+  params?: {[key: string]: OnyxSchema}
 }
 
 /**
@@ -983,13 +1003,13 @@ export type OnyxLinkSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list-schema
  */
 export type OnyxListSchema = {
-  type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list"
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list'
   items?: OnyxSchema
   minItems?: number
   maxItems?: number
   name?: string
   description?: string
-  params?: Record<string, OnyxSchema>
+  params?: {[key: string]: OnyxSchema}
 }
 
 /**
@@ -998,13 +1018,13 @@ export type OnyxListSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map-schema
  */
 export type OnyxMapSchema = {
-  type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map"
-  properties?: Record<string, OnyxSchema>
+  type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map'
+  properties?: {[key: string]: OnyxSchema}
   required?: string[]
   values?: OnyxSchema
   name?: string
   description?: string
-  params?: Record<string, OnyxSchema>
+  params?: {[key: string]: OnyxSchema}
 }
 
 /**
@@ -1013,7 +1033,13 @@ export type OnyxMapSchema = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/scalar-schema
  */
 export type OnyxScalarSchema = {
-  type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null" | "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean" | "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer" | "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float" | "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string" | "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes"
+  type:
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/boolean'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/float'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string'
+    | 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/bytes'
   enum?: unknown[]
   minLength?: number
   maxLength?: number
@@ -1024,7 +1050,7 @@ export type OnyxScalarSchema = {
   maximum?: number
   name?: string
   description?: string
-  params?: Record<string, OnyxSchema>
+  params?: {[key: string]: OnyxSchema}
 }
 
 /**
@@ -1032,7 +1058,14 @@ export type OnyxScalarSchema = {
  * The meta-schema: a discriminated union of the shapes a schema can take. It is a valid instance of itself.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/schema
  */
-export type OnyxSchema = OnyxMapSchema | OnyxListSchema | OnyxScalarSchema | OnyxLinkSchema | OnyxIncludeSchema | OnyxUnionSchema | OnyxVarSchema
+export type OnyxSchema =
+  | OnyxMapSchema
+  | OnyxListSchema
+  | OnyxScalarSchema
+  | OnyxLinkSchema
+  | OnyxIncludeSchema
+  | OnyxUnionSchema
+  | OnyxVarSchema
 
 /**
  * Union schema
@@ -1043,7 +1076,7 @@ export type OnyxUnionSchema = {
   anyOf: OnyxSchema[]
   name?: string
   description?: string
-  params?: Record<string, OnyxSchema>
+  params?: {[key: string]: OnyxSchema}
 }
 
 /**
@@ -1062,29 +1095,31 @@ export type OnyxVarSchema = {
  * The result of resolving an account: its metadata payload, or an explicit not-found. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-account-result
  */
-export type SeedAccountResult = {
-  type: "account"
-  id: SeedId
-  metadata: HMMetadata | null
-  hasSite?: boolean
-} | {
-  type: "account-not-found"
-  uid: string
-}
+export type SeedAccountResult =
+  | {
+      type: 'account'
+      id: SeedId
+      metadata: HMMetadata | null
+      hasSite?: boolean
+    }
+  | {
+      type: 'account-not-found'
+      uid: string
+    }
 
 /**
  * Accounts metadata
  * Account uid -> resolved metadata payload, sent alongside listings so clients can render authors without extra requests. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-accounts-metadata
  */
-export type SeedAccountsMetadata = Record<string, SeedMetadataPayload>
+export type SeedAccountsMetadata = {[key: string]: SeedMetadataPayload}
 
 /**
  * Activity event
  * One event of the activity feed. The event union is not yet pinned down schema-side, so this is an open map — tightening it is tracked follow-up work. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-activity-event
  */
-export type SeedActivityEvent = Record<string, unknown>
+export type SeedActivityEvent = {[key: string]: unknown}
 
 /**
  * Activity summary
@@ -1147,17 +1182,19 @@ export type SeedCapability = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-citation
  */
 export type SeedCitation = {
-  source: {
-    type: "c"
-    id: SeedId
-    author?: string
-    time?: HMTimestamp
-  } | {
-    type: "d"
-    id: SeedId
-    author?: string
-    time?: HMTimestamp
-  }
+  source:
+    | {
+        type: 'c'
+        id: SeedId
+        author?: string
+        time?: HMTimestamp
+      }
+    | {
+        type: 'd'
+        id: SeedId
+        author?: string
+        time?: HMTimestamp
+      }
   isExactVersion: boolean
   targetFragment: SeedParsedFragment | null
   targetId: SeedId
@@ -1210,7 +1247,7 @@ export type SeedCommentGroup = {
   /** minimum: 0 */
   moreCommentsCount: number
   id: string
-  type: "commentGroup"
+  type: 'commentGroup'
 }
 
 /**
@@ -1220,7 +1257,7 @@ export type SeedCommentGroup = {
  */
 export type SeedCommentList = {
   comments: SeedComment[]
-  authors: Record<string, SeedMetadataPayload>
+  authors: {[key: string]: SeedMetadataPayload}
 }
 
 /**
@@ -1245,7 +1282,7 @@ export type SeedContactRecord = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-discovery-status
  */
 export type SeedDiscoveryStatus = {
-  state: "pending" | "found" | "failed"
+  state: 'pending' | 'found' | 'failed'
   version?: string
   error?: string
 }
@@ -1264,7 +1301,7 @@ export type SeedDocument = {
   createTime?: HMTimestamp | string
   updateTime?: HMTimestamp | string
   metadata: HMMetadata
-  detachedBlocks?: Record<string, HMBlockNode>
+  detachedBlocks?: {[key: string]: HMBlockNode}
   genesis: string
   generationInfo?: {
     genesis: string
@@ -1279,7 +1316,7 @@ export type SeedDocument = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-document-info
  */
 export type SeedDocumentInfo = {
-  type: "document"
+  type: 'document'
   id: SeedId
   path: string[]
   authors: string[]
@@ -1328,7 +1365,7 @@ export type SeedExternalCommentGroup = {
   moreCommentsCount: number
   id: string
   target: SeedMetadataPayload
-  type: "externalCommentGroup"
+  type: 'externalCommentGroup'
 }
 
 /**
@@ -1363,12 +1400,14 @@ export type SeedInteractionSummary = {
   /** minimum: 0 */
   children: number
   authorUids?: string[]
-  blocks: Record<string, {
-    /** minimum: 0 */
-    citations: number
-    /** minimum: 0 */
-    comments: number
-  }>
+  blocks: {
+    [key: string]: {
+      /** minimum: 0 */
+      citations: number
+      /** minimum: 0 */
+      comments: number
+    }
+  }
 }
 
 /**
@@ -1413,8 +1452,8 @@ export type SeedQueryBlockPayload = {
   queryTargetName: string
   in: SeedId
   results: SeedDocumentInfo[]
-  mode?: "Children" | "AllDescendants"
-  interactionSummaries: Record<string, SeedQueryBlockItemSummary>
+  mode?: 'Children' | 'AllDescendants'
+  interactionSummaries: {[key: string]: SeedQueryBlockItemSummary}
   accountsMetadata: SeedAccountsMetadata
 }
 
@@ -1426,7 +1465,7 @@ export type SeedQueryBlockPayload = {
 export type SeedQueryResult = {
   in: SeedId
   results: SeedDocumentInfo[]
-  mode?: "Children" | "AllDescendants"
+  mode?: 'Children' | 'AllDescendants'
 }
 
 /**
@@ -1488,7 +1527,7 @@ export type SeedRawDocumentChange = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-redirect-info
  */
 export type SeedRedirectInfo = {
-  type: "redirect"
+  type: 'redirect'
   target: string
   republish?: boolean
 }
@@ -1498,7 +1537,13 @@ export type SeedRedirectInfo = {
  * The union of every state a fetched resource can be in: a document, a comment, a redirect, not found, a tombstone, or an error. A derived read model computed by the Seed daemon/API for clients — not a signed network blob.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource
  */
-export type SeedResource = SeedResourceDocument | SeedResourceComment | SeedResourceRedirect | SeedResourceNotFound | SeedResourceTombstone | SeedResourceError
+export type SeedResource =
+  | SeedResourceDocument
+  | SeedResourceComment
+  | SeedResourceRedirect
+  | SeedResourceNotFound
+  | SeedResourceTombstone
+  | SeedResourceError
 
 /**
  * Resource: comment
@@ -1506,7 +1551,7 @@ export type SeedResource = SeedResourceDocument | SeedResourceComment | SeedReso
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-comment
  */
 export type SeedResourceComment = {
-  type: "comment"
+  type: 'comment'
   id: SeedId
   comment: SeedComment
 }
@@ -1517,7 +1562,7 @@ export type SeedResourceComment = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-document
  */
 export type SeedResourceDocument = {
-  type: "document"
+  type: 'document'
   id: SeedId
   document: SeedDocument
 }
@@ -1528,7 +1573,7 @@ export type SeedResourceDocument = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-error
  */
 export type SeedResourceError = {
-  type: "error"
+  type: 'error'
   id: SeedId
   message: string
 }
@@ -1539,7 +1584,7 @@ export type SeedResourceError = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-not-found
  */
 export type SeedResourceNotFound = {
-  type: "not-found"
+  type: 'not-found'
   id: SeedId
 }
 
@@ -1549,7 +1594,7 @@ export type SeedResourceNotFound = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-redirect
  */
 export type SeedResourceRedirect = {
-  type: "redirect"
+  type: 'redirect'
   id: SeedId
   redirectTarget: SeedId
   republish?: boolean
@@ -1561,7 +1606,7 @@ export type SeedResourceRedirect = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-resource-tombstone
  */
 export type SeedResourceTombstone = {
-  type: "tombstone"
+  type: 'tombstone'
   id: SeedId
 }
 
@@ -1570,7 +1615,33 @@ export type SeedResourceTombstone = {
  * The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output — the machine-readable catalog the in-app API console is driven by.
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc
  */
-export type SeedRpc = SeedRpcAccount | SeedRpcAccountContacts | SeedRpcComment | SeedRpcDiscoveryStatus | SeedRpcGetCid | SeedRpcGetCommentReplyCount | SeedRpcGetDomain | SeedRpcInteractionSummary | SeedRpcListAccounts | SeedRpcListCapabilities | SeedRpcListChanges | SeedRpcListCitations | SeedRpcListCommentVersions | SeedRpcListComments | SeedRpcListCommentsByAuthor | SeedRpcListCommentsByReference | SeedRpcListDiscussions | SeedRpcListDocumentCollaborators | SeedRpcListDomains | SeedRpcListEvents | SeedRpcQuery | SeedRpcQueryBlock | SeedRpcResource | SeedRpcResourceMetadata | SeedRpcSearch | SeedRpcSubjectContacts
+export type SeedRpc =
+  | SeedRpcAccount
+  | SeedRpcAccountContacts
+  | SeedRpcComment
+  | SeedRpcDiscoveryStatus
+  | SeedRpcGetCid
+  | SeedRpcGetCommentReplyCount
+  | SeedRpcGetDomain
+  | SeedRpcInteractionSummary
+  | SeedRpcListAccounts
+  | SeedRpcListCapabilities
+  | SeedRpcListChanges
+  | SeedRpcListCitations
+  | SeedRpcListCommentVersions
+  | SeedRpcListComments
+  | SeedRpcListCommentsByAuthor
+  | SeedRpcListCommentsByReference
+  | SeedRpcListDiscussions
+  | SeedRpcListDocumentCollaborators
+  | SeedRpcListDomains
+  | SeedRpcListEvents
+  | SeedRpcQuery
+  | SeedRpcQueryBlock
+  | SeedRpcResource
+  | SeedRpcResourceMetadata
+  | SeedRpcSearch
+  | SeedRpcSubjectContacts
 
 /**
  * RPC: Account
@@ -1578,7 +1649,7 @@ export type SeedRpc = SeedRpcAccount | SeedRpcAccountContacts | SeedRpcComment |
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-account
  */
 export type SeedRpcAccount = {
-  key: "Account"
+  key: 'Account'
   /** The account uid. */
   input: string
   output: SeedAccountResult
@@ -1590,7 +1661,7 @@ export type SeedRpcAccount = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-account-contacts
  */
 export type SeedRpcAccountContacts = {
-  key: "AccountContacts"
+  key: 'AccountContacts'
   /** The account uid. */
   input: string
   output: SeedContactRecord[]
@@ -1602,7 +1673,7 @@ export type SeedRpcAccountContacts = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-comment
  */
 export type SeedRpcComment = {
-  key: "Comment"
+  key: 'Comment'
   /** Comment id (uid/tsid) or version CID. */
   input: string
   output: SeedComment
@@ -1614,7 +1685,7 @@ export type SeedRpcComment = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-discovery-status
  */
 export type SeedRpcDiscoveryStatus = {
-  key: "DiscoveryStatus"
+  key: 'DiscoveryStatus'
   input: {
     uid: string
     path: string[]
@@ -1630,7 +1701,7 @@ export type SeedRpcDiscoveryStatus = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-get-cid
  */
 export type SeedRpcGetCid = {
-  key: "GetCID"
+  key: 'GetCID'
   input: {
     cid: string
   }
@@ -1645,7 +1716,7 @@ export type SeedRpcGetCid = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-get-comment-reply-count
  */
 export type SeedRpcGetCommentReplyCount = {
-  key: "GetCommentReplyCount"
+  key: 'GetCommentReplyCount'
   input: {
     id: string
   }
@@ -1659,7 +1730,7 @@ export type SeedRpcGetCommentReplyCount = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-get-domain
  */
 export type SeedRpcGetDomain = {
-  key: "GetDomain"
+  key: 'GetDomain'
   input: {
     domain: string
     forceCheck?: boolean
@@ -1673,7 +1744,7 @@ export type SeedRpcGetDomain = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-interaction-summary
  */
 export type SeedRpcInteractionSummary = {
-  key: "InteractionSummary"
+  key: 'InteractionSummary'
   input: {
     id: SeedId
   }
@@ -1686,7 +1757,7 @@ export type SeedRpcInteractionSummary = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-accounts
  */
 export type SeedRpcListAccounts = {
-  key: "ListAccounts"
+  key: 'ListAccounts'
   input: Record<string, never> | null
   output: {
     accounts: SeedMetadataPayload[]
@@ -1699,7 +1770,7 @@ export type SeedRpcListAccounts = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-capabilities
  */
 export type SeedRpcListCapabilities = {
-  key: "ListCapabilities"
+  key: 'ListCapabilities'
   input: {
     targetId: SeedId
   }
@@ -1714,7 +1785,7 @@ export type SeedRpcListCapabilities = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-changes
  */
 export type SeedRpcListChanges = {
-  key: "ListChanges"
+  key: 'ListChanges'
   input: {
     targetId: SeedId
   }
@@ -1730,7 +1801,7 @@ export type SeedRpcListChanges = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-citations
  */
 export type SeedRpcListCitations = {
-  key: "ListCitations"
+  key: 'ListCitations'
   input: {
     targetId: SeedId
   }
@@ -1745,7 +1816,7 @@ export type SeedRpcListCitations = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comment-versions
  */
 export type SeedRpcListCommentVersions = {
-  key: "ListCommentVersions"
+  key: 'ListCommentVersions'
   input: {
     id: string
   }
@@ -1760,7 +1831,7 @@ export type SeedRpcListCommentVersions = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comments
  */
 export type SeedRpcListComments = {
-  key: "ListComments"
+  key: 'ListComments'
   input: {
     targetId: SeedId
   }
@@ -1773,7 +1844,7 @@ export type SeedRpcListComments = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comments-by-author
  */
 export type SeedRpcListCommentsByAuthor = {
-  key: "ListCommentsByAuthor"
+  key: 'ListCommentsByAuthor'
   input: {
     authorId: SeedId
   }
@@ -1786,7 +1857,7 @@ export type SeedRpcListCommentsByAuthor = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-comments-by-reference
  */
 export type SeedRpcListCommentsByReference = {
-  key: "ListCommentsByReference"
+  key: 'ListCommentsByReference'
   input: {
     targetId: SeedId
   }
@@ -1799,14 +1870,14 @@ export type SeedRpcListCommentsByReference = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-discussions
  */
 export type SeedRpcListDiscussions = {
-  key: "ListDiscussions"
+  key: 'ListDiscussions'
   input: {
     targetId: SeedId
     commentId?: string
   }
   output: {
     discussions: SeedCommentGroup[]
-    authors: Record<string, SeedMetadataPayload>
+    authors: {[key: string]: SeedMetadataPayload}
     citingDiscussions: SeedExternalCommentGroup[]
   }
 }
@@ -1817,7 +1888,7 @@ export type SeedRpcListDiscussions = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-document-collaborators
  */
 export type SeedRpcListDocumentCollaborators = {
-  key: "ListDocumentCollaborators"
+  key: 'ListDocumentCollaborators'
   input: {
     targetId: SeedId
   }
@@ -1830,7 +1901,7 @@ export type SeedRpcListDocumentCollaborators = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-domains
  */
 export type SeedRpcListDomains = {
-  key: "ListDomains"
+  key: 'ListDomains'
   input: Record<string, never>
   output: {
     domains: SeedDomainInfo[]
@@ -1843,7 +1914,7 @@ export type SeedRpcListDomains = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-list-events
  */
 export type SeedRpcListEvents = {
-  key: "ListEvents"
+  key: 'ListEvents'
   input: {
     /** minimum: 0 */
     pageSize?: number
@@ -1853,7 +1924,7 @@ export type SeedRpcListEvents = {
     filterEventType?: string[]
     filterResource?: string
     currentAccount?: string
-    order?: "claimed" | "observed"
+    order?: 'claimed' | 'observed'
   }
   output: {
     events: SeedActivityEvent[]
@@ -1867,7 +1938,7 @@ export type SeedRpcListEvents = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-query
  */
 export type SeedRpcQuery = {
-  key: "Query"
+  key: 'Query'
   input: HMQuery
   output: SeedQueryResult | null
 }
@@ -1878,7 +1949,7 @@ export type SeedRpcQuery = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-query-block
  */
 export type SeedRpcQueryBlock = {
-  key: "QueryBlock"
+  key: 'QueryBlock'
   input: {
     query: HMQuery
   }
@@ -1891,7 +1962,7 @@ export type SeedRpcQueryBlock = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-resource
  */
 export type SeedRpcResource = {
-  key: "Resource"
+  key: 'Resource'
   input: SeedId
   output: SeedResource
 }
@@ -1902,7 +1973,7 @@ export type SeedRpcResource = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-resource-metadata
  */
 export type SeedRpcResourceMetadata = {
-  key: "ResourceMetadata"
+  key: 'ResourceMetadata'
   input: SeedId
   output: SeedMetadataPayload
 }
@@ -1913,7 +1984,7 @@ export type SeedRpcResourceMetadata = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-search
  */
 export type SeedRpcSearch = {
-  key: "Search"
+  key: 'Search'
   input: {
     query: string
     accountUid?: string
@@ -1938,7 +2009,7 @@ export type SeedRpcSearch = {
  * Schema: hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-subject-contacts
  */
 export type SeedRpcSubjectContacts = {
-  key: "SubjectContacts"
+  key: 'SubjectContacts'
   /** The subject account uid. */
   input: string
   output: SeedContactRecord[]
@@ -1958,7 +2029,7 @@ export type SeedSearchResultItem = {
   parentNames: string[]
   versionTime?: string
   searchQuery: string
-  type: "document" | "contact" | "comment"
+  type: 'document' | 'contact' | 'comment'
 }
 
 /**
@@ -1979,5 +2050,5 @@ export type SeedSearchResults = {
  */
 export type SeedSiteMember = {
   account: SeedId
-  role: "owner" | "writer" | "member"
+  role: 'owner' | 'writer' | 'member'
 }

@@ -88,9 +88,7 @@ export function RpcCallPanel({method}: {method: RpcMethod}) {
           <div className="flex items-center justify-between">
             <span className="text-foreground text-sm font-semibold">Input</span>
             <span className={cn('text-xs', inputWarnings.length ? 'text-destructive' : 'text-green-600')}>
-              {inputWarnings.length
-                ? `${inputWarnings.length} issue${inputWarnings.length > 1 ? 's' : ''}`
-                : 'valid'}
+              {inputWarnings.length ? `${inputWarnings.length} issue${inputWarnings.length > 1 ? 's' : ''}` : 'valid'}
             </span>
           </div>
           <OnyxDataEditor schema={method.input} value={value} onValue={setValue} registry={ONYX_SCHEMAS} />
