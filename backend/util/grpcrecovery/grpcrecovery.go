@@ -15,6 +15,13 @@
 // This package is the net for the next one, not a substitute for fixing it.
 // A recovered panic still means the request failed and something is wrong; it
 // just costs one RPC instead of the node.
+//
+// The interceptors delegate the recovery mechanics to go-grpc-middleware but
+// keep Seed's recovery policy here: log the panic and stack with the RPC method,
+// then return a generic Internal error without exposing those details to the
+// caller. Keeping that policy in one wrapper makes the daemon and p2p servers
+// behave consistently without duplicating security-sensitive options at each
+// call site.
 package grpcrecovery
 
 import (
@@ -55,7 +62,7 @@ func handler(log *zap.Logger) recovery.Option {
 		// debug.Stack() is called from the deferred function that recovered, so
 		// it still walks the frames that panicked. Without it the panic site is
 		// lost — the error below deliberately doesn't carry it.
-		log.Error("RecoveredPanicInGRPCHandler",
+		log.Error("GRPCHandlerPanic",
 			zap.String("method", method),
 			zap.Any("panic", p),
 			zap.ByteString("stack", debug.Stack()),
