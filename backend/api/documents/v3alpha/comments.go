@@ -299,8 +299,10 @@ const redirectAncestorsCTE = `
 	latest_document_generations AS (
 		SELECT
 			dg.resource AS resource,
-			dg.metadata->>'$."$db.redirect".v' AS redirect_iri
+			da.value AS redirect_iri
 		FROM document_generations dg
+		JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
+		JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
 		GROUP BY dg.resource
 		HAVING dg.generation = MAX(dg.generation)
 	),
@@ -313,8 +315,7 @@ const redirectAncestorsCTE = `
 
 		SELECT r.id, r.iri, ra.depth + 1
 		FROM redirect_ancestors ra
-		JOIN latest_document_generations dg
-			ON dg.redirect_iri = ra.iri
+		JOIN latest_document_generations dg ON dg.redirect_iri = ra.iri
 		JOIN resources r ON r.id = dg.resource
 		WHERE r.iri != ra.iri
 		AND ra.depth < 16

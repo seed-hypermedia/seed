@@ -75,9 +75,7 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 		cursor.LinkID = math.MaxInt64
 	}
 
-	if in.PageSize == 0 {
-		in.PageSize = 10
-	}
+	srv.clampPageSize("ListCitations", &in.PageSize, 10)
 
 	publicOnly, err := srv.isPublicOnlyFor(ctx, targetAccount, targetURL.Path)
 	if err != nil {
@@ -484,6 +482,12 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 	}, nil
 }
 
+// maxTargetVersionLoads bounds how many distinct target versions
+// [Server.addTargetBlockRevisions] fully loads per request. Each distinct
+// version is a whole document load + hydration, so an unbounded citation list
+// used to trigger an unbounded number of them on a single RPC.
+const maxTargetVersionLoads = 16
+
 func (srv *Server) addTargetBlockRevisions(ctx context.Context, target string, account core.Principal, path string, citations []*documents.Citation) error {
 	cache := make(map[string]map[string]string)
 	for _, citation := range citations {
@@ -498,6 +502,13 @@ func (srv *Server) addTargetBlockRevisions(ctx context.Context, target string, a
 
 		revisions, ok := cache[citation.TargetVersion]
 		if !ok {
+			// Block revisions only decorate citations (see [isUnresolvableTarget]),
+			// so past the load budget we leave them blank instead of loading
+			// yet another version of the document.
+			if len(cache) == maxTargetVersionLoads {
+				continue
+			}
+
 			var err error
 			revisions, err = srv.targetBlockRevisionsAtVersion(ctx, account, path, citation.TargetVersion)
 			if err != nil {
@@ -651,30 +662,37 @@ SELECT
   AND sb.extra_attrs->>'redirect' != '';
 `)
 
+// The redirected CTE walks redirect chains backwards from the target. It selects only
+// the flattened current attributes that carry a redirect, served by the
+// document_attributes_by_key index, instead of materializing the latest generation of
+// every document in the database.
+// MATERIALIZED is required: without it SQLite 3.45 inlines the subquery and re-runs it
+// on every recursion level. A resource whose latest generation redirects elsewhere has
+// a row in the CTE, so the seed's NOT IN check preserves the old "target is not itself
+// redirected" behavior, including for resources with no generations at all.
 const qListCitationsTpl = `
 WITH RECURSIVE
-latest_document_generations AS (
+redirected AS MATERIALIZED (
   SELECT
-    dg.resource AS resource,
-    dg.metadata->>'$."$db.redirect".v' AS redirect_iri
-  FROM document_generations dg
-  GROUP BY dg.resource
-  HAVING dg.generation = MAX(dg.generation)
+    da.resource AS resource,
+    da.value AS redirect_iri
+  FROM document_attributes da
+  JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
+  WHERE da.kind = 's'
+  AND da.value IS NOT NULL
 ),
 redirect_ancestors(resource, iri, depth) AS (
   SELECT r.id, r.iri, 0
   FROM resources r
-  LEFT JOIN latest_document_generations dg ON dg.resource = r.id
   WHERE r.id = :target
-  AND dg.redirect_iri IS NULL
+  AND r.id NOT IN (SELECT resource FROM redirected)
 
   UNION ALL
 
-  SELECT r.id, r.iri, ra.depth + 1
+  SELECT rd.resource, r.iri, ra.depth + 1
   FROM redirect_ancestors ra
-  JOIN latest_document_generations dg
-    ON dg.redirect_iri = ra.iri
-  JOIN resources r ON r.id = dg.resource
+  JOIN redirected rd ON rd.redirect_iri = ra.iri
+  JOIN resources r ON r.id = rd.resource
   WHERE r.iri != ra.iri
   AND ra.depth < 16
 ),

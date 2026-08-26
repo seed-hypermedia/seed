@@ -48,7 +48,7 @@ type Document struct {
 	deletedBlocks map[string]struct{}
 
 	dirtyBlocks   map[string]mvRegValue[blob.Block]
-	dirtyMetadata *btree.Map[[]string, mvRegValue[any]]
+	dirtyMetadata *btree.Map[[]string, mvRegValue[metadataValue]]
 
 	Generation maybe.Value[int64]
 
@@ -225,21 +225,26 @@ func (dm *Document) SetAttribute(block string, keyPath []string, newValue any) e
 
 	dm.dirty = true
 	if dm.dirtyMetadata == nil {
-		dm.dirtyMetadata = btree.New[[]string, mvRegValue[any]](8, slices.Compare)
+		dm.dirtyMetadata = btree.New[[]string, mvRegValue[metadataValue]](8, slices.Compare)
 	}
 
+	exactKey := slices.Clone(keyPath)
 	var preds []opID
-	if reg := dm.crdt.stateMetadata.GetMaybe(keyPath); reg != nil {
-		if reflect.DeepEqual(newValue, reg.GetLatest()) {
+	if reg := dm.crdt.stateMetadata.GetMaybe(exactKey); reg != nil {
+		latest := reg.GetLatest()
+		if reflect.DeepEqual(newValue, latest.Value) && slices.Equal(keyPath, latest.Key) {
 			// If metadata key already has the same value in the committed CRDT state,
 			// we do nothing, and just in case clear the dirty metadata value if any.
-			dm.dirtyMetadata.Delete(keyPath)
+			dm.dirtyMetadata.Delete(exactKey)
 			return nil
 		}
 		preds = slices.Collect(reg.state.Keys())
 	}
 
-	dm.dirtyMetadata.Set(keyPath, mvRegValue[any]{Value: newValue, Preds: preds})
+	dm.dirtyMetadata.Set(exactKey, mvRegValue[metadataValue]{
+		Value: metadataValue{Key: slices.Clone(keyPath), Value: newValue},
+		Preds: preds,
+	})
 
 	return nil
 }
@@ -488,10 +493,10 @@ func (dm *Document) cleanupPatch() (out blob.ChangeBody, err error) {
 	nDirtyAttrs := dm.dirtyMetadata.Len()
 	if nDirtyAttrs > 0 {
 		attrs := make([]blob.KeyValue, 0, nDirtyAttrs)
-		for k, v := range dm.dirtyMetadata.Items() {
+		for _, v := range dm.dirtyMetadata.Items() {
 			attrs = append(attrs, blob.KeyValue{
-				Key:   k,
-				Value: v.Value,
+				Key:   v.Value.Key,
+				Value: v.Value.Value,
 			})
 		}
 		op := blob.NewOpSetAttributes("", attrs)

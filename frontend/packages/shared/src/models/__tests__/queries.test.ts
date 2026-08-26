@@ -259,6 +259,7 @@ describe('queryDomain', () => {
       lastSuccess: null,
       registeredAccountUid: 'alice',
       peerId: null,
+      isGateway: false,
       lastError: null,
     }
     const client = createMockClient(() => domainInfo)

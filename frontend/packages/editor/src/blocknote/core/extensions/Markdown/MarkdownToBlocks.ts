@@ -6,6 +6,7 @@ import remarkRehype from 'remark-rehype'
 import {unified} from 'unified'
 import {Block, BlockNoteEditor, BlockSchema, BNLink, nodeToBlock, StyledText, Styles} from '../..'
 import {hmBlockSchema} from '../../../../full-schema'
+import {normalizeFragment} from '../Blocks/nodes/normalizeFragment'
 import {remarkCodeClass} from './RemarkCodeClass'
 import {remarkImageWidth} from './RemarkImageWidth'
 
@@ -230,10 +231,18 @@ export const MarkdownToBlocks = async (markdown: string, editor: BlockNoteEditor
   // Get ProseMirror fragment from parsed HTML
   const fragment = ProseMirrorDOMParser.fromSchema(state.schema).parse(doc.body)
 
-  // @ts-ignore
-  fragment.firstChild!.content.forEach((node) => {
+  // Run the parsed content through normalizeFragment to wrap root level markdown lists in a Slot.
+  const rootGroup = fragment.firstChild
+  const rootIsList =
+    !!rootGroup &&
+    rootGroup.type.name === 'blockChildren' &&
+    !!rootGroup.attrs.listType &&
+    rootGroup.attrs.listType !== 'Group'
+  const topLevelNodes = rootIsList ? normalizeFragment(fragment.content, state.schema) : rootGroup!.content
+
+  topLevelNodes.forEach((node: any) => {
     if (node.type.name !== 'blockNode') {
-      return false
+      return
     }
 
     blocks.push(nodeToBlock(node, hmBlockSchema))

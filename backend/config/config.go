@@ -306,6 +306,12 @@ type Syncing struct {
 	NoPull          bool
 	NoDiscovery     bool
 	AllowPush       bool
+
+	// ExhaustiveWaveInterval is how often a settled subscription still runs one
+	// full-width, all-tier discovery wave, bounding how long an
+	// under-advertising peer can go undetected. Zero means the built-in
+	// default.
+	ExhaustiveWaveInterval time.Duration
 }
 
 func (c Syncing) Default() Syncing {
@@ -315,6 +321,8 @@ func (c Syncing) Default() Syncing {
 		TimeoutPerPeer:  time.Minute * 2,
 		RefreshInterval: time.Second * 50,
 		MaxWorkers:      6,
+
+		ExhaustiveWaveInterval: time.Minute * 10,
 	}
 }
 
@@ -328,6 +336,7 @@ func (c *Syncing) BindFlags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.AllowPush, "syncing.allow-push", c.AllowPush, "Allows direct content push. Anyone could force push content")
 	fs.BoolVar(&c.NoPull, "syncing.no-pull", c.NoPull, "Disables periodic content pulling.")
 	fs.BoolVar(&c.NoDiscovery, "syncing.no-discovery", c.NoDiscovery, "Disables the ability to discover content from other peers")
+	fs.DurationVar(&c.ExhaustiveWaveInterval, "syncing.exhaustive-wave-interval", c.ExhaustiveWaveInterval, "How often a settled subscription still runs one full-width, all-tier discovery wave")
 
 	// Deprecated flags. Still defined here to avoid errors if these flags are passed.
 	fs.Bool("syncing.smart", true, "Deprecated (doesn't do anything): Enables subscription-based syncing and deactivates dumb syncing")

@@ -1,4 +1,21 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://127.0.0.1:*)",
+      "Bash(curl -sf http://127.0.0.1:*)",
+      "Bash(curl -s http://localhost:*)",
+      "Bash(curl -sf http://localhost:*)",
+      "Bash(grpcurl -plaintext 127.0.0.1:*)",
+      "Bash(grpcurl -plaintext localhost:*)",
+      "Bash(sqlite3 -readonly:*)",
+      "Bash(go tool pprof:*)",
+      "Bash(bash docs/security/probes/*)",
+      "Bash(scripts/crawler-load-test.py:*)",
+      "Bash(bun scripts/profile-daemon.ts:*)",
+      "Bash(gh issue list:*)",
+      "Bash(gh issue view:*)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {

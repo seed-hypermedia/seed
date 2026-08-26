@@ -146,7 +146,7 @@ export function DocumentDestinationDialog({
             : !slug
               ? 'Enter a URL path.'
               : moveTargetWrongSite
-                ? 'Moves must stay inside the current site.'
+                ? 'Moves must stay inside the current space.'
                 : moveTargetBlocked
                   ? 'Choose a location outside this document subtree.'
                   : pathInvalid
@@ -212,7 +212,7 @@ export function DocumentDestinationDialog({
       <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-            {targetParent ? 'Location' : 'Choose a site'}
+            {targetParent ? 'Location' : 'Choose a space'}
           </SizableText>
           {targetParent ? <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} /> : null}
         </div>

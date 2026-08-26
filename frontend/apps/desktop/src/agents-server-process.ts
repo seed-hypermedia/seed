@@ -1,4 +1,4 @@
-import {API_HTTP_URL} from '@shm/shared/constants'
+import {API_HTTP_URL, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
 import * as fs from 'node:fs'
@@ -40,6 +40,35 @@ export type AgentsServerState =
   | {t: 'error'; message: string}
 
 let state: AgentsServerState = {t: 'disabled'}
+let attachRetryTimer: ReturnType<typeof setInterval> | undefined
+
+/**
+ * A failed startup must not blind the app forever: a dev server that was mid-restart during the
+ * one startup probe (or a spawn that failed because no binary is staged) comes back seconds
+ * later, and the desktop should attach the moment it does. Cheap probe, stops on success, never
+ * respawns binaries — attach-only.
+ */
+const ATTACH_RETRY_INTERVAL_MS = 10_000
+
+function beginAttachRetry(url: string): void {
+  if (attachRetryTimer) return
+  attachRetryTimer = setInterval(() => {
+    void (async () => {
+      if (state.t === 'attached' || state.t === 'spawned' || state.t === 'disabled') {
+        clearInterval(attachRetryTimer)
+        attachRetryTimer = undefined
+        return
+      }
+      if (await isAgentsServerHealthy(url)) {
+        log.info('Attached to agents server after retry', {url})
+        state = {t: 'attached', url}
+        clearInterval(attachRetryTimer)
+        attachRetryTimer = undefined
+      }
+    })()
+  }, ATTACH_RETRY_INTERVAL_MS)
+  attachRetryTimer.unref?.()
+}
 let serverProcess: ChildProcess | null = null
 let expectingClose = false
 
@@ -96,6 +125,11 @@ async function findFreePort(startPort: number): Promise<number> {
  * 4. Otherwise spawn the bundled binary on the first free port.
  */
 export async function startLocalAgentsServer(): Promise<string | null> {
+  // A fresh startup supersedes any attach-retry loop left over from a previous attempt.
+  if (attachRetryTimer) {
+    clearInterval(attachRetryTimer)
+    attachRetryTimer = undefined
+  }
   if (process.env.SEED_NO_AGENTS_SPAWN) {
     log.debug('Local agents server disabled by SEED_NO_AGENTS_SPAWN')
     state = {t: 'disabled'}
@@ -112,6 +146,7 @@ export async function startLocalAgentsServer(): Promise<string | null> {
     const message = `SEED_AGENTS_SERVER_URL is set to ${configuredUrl} but no healthy agents server answered there`
     log.error(message)
     state = {t: 'error', message}
+    beginAttachRetry(configuredUrl)
     return null
   }
 
@@ -131,6 +166,9 @@ export async function startLocalAgentsServer(): Promise<string | null> {
     const message = error instanceof Error ? error.message : String(error)
     log.error('Failed to start local agents server', {error: message})
     state = {t: 'error', message}
+    // The usual dev cause: the mprocs server was mid-restart during the probe and there is no
+    // staged binary to spawn. Keep probing the default URL and attach when it returns.
+    beginAttachRetry(defaultUrl)
     return null
   }
 }
@@ -151,9 +189,14 @@ async function spawnAgentsServer(): Promise<string> {
     `--server-port=${port}`,
     `--db-path=${path.join(dataDir, 'agents.sqlite')}`,
     `--data-dir=${dataDir}`,
-    // The desktop's own HM API server, so a local agent reads and writes through the user's node
-    // instead of a public gateway.
+    // The desktop bridge serves the typed `/api/*` transport; direct `/ipfs/*` gateway reads live
+    // on the daemon. Hosted servers normally expose both surfaces on one origin, but local desktop
+    // topology deliberately splits them.
     `--hm-server-url=${API_HTTP_URL}`,
+    `--ipfs-server-url=${DAEMON_HTTP_URL}`,
+    // Subscription sign-in is a server opt-in; the desktop enables it for the server
+    // it owns because it can catch the OAuth redirect on localhost:1455 itself.
+    `--subscription-auth=true`,
   ]
 
   log.info('Starting local agents server', {binaryPath, port, args})

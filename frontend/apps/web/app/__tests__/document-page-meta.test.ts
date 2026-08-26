@@ -4,6 +4,8 @@ import {wrap} from '../wrapping'
 
 vi.mock('@/client-lazy', () => ({
   WebCommenting: () => null,
+  // Providers hosts the lazy assistant panel; the meta tests never open it.
+  clientLazy: () => () => null,
 }))
 
 vi.mock('@shm/editor/comment-editor', () => ({

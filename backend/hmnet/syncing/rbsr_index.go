@@ -159,11 +159,13 @@ const lastAccessRefreshInterval = time.Hour
 //
 //  1. read: map discovery keys to scope rows (lookupScope);
 //  2. write (only when some scope is missing or unmaterialized): resolve and
-//     materialize those — the one place the expensive collectBlobs closure runs;
-//  3. read: fill store from the persisted rows, after re-checking the scopes
-//     are still materialized (a full reindex may drop the derived tables
-//     between phases; the miss surfaces as an error and the caller falls back
-//     to the legacy rebuild).
+//     materialize those — the one place the expensive collectBlobs closure
+//     runs — and fill the store on the same connection, so the freshly
+//     committed rows are guaranteed visible;
+//  3. read (all-warm case only): fill store from the persisted rows, after
+//     re-checking the scopes are still materialized (a full reindex may drop
+//     the derived tables between phases; the miss surfaces as an error and the
+//     caller falls back to the legacy rebuild).
 //
 // It returns the scope ids whose last_access is due a refresh; the caller
 // passes them to touchScopesAsync off the latency path. The store is filled
@@ -197,7 +199,27 @@ func loadIndexedScopes(ctx context.Context, db *sqlitex.Pool, dkeys colx.HashSet
 		return nil, err
 	}
 
+	// buildFinal re-checks the scopes are still materialized (a full reindex
+	// may drop the derived tables between phases; the miss surfaces as an
+	// error and the caller falls back to the legacy rebuild) and fills the
+	// store from the persisted rows.
+	buildFinal := func(conn *sqlite.Conn) error {
+		n, err := countMaterialized(conn, scopeIDs)
+		if err != nil {
+			return err
+		}
+		if n != len(scopeIDs) {
+			return fmt.Errorf("%d of %d scopes lost materialization mid-load (reindex in flight?): scopes=%v", len(scopeIDs)-n, len(scopeIDs), scopeIDs)
+		}
+		return buildStoreFromScopes(conn, scopeIDs, store)
+	}
+
 	if len(cold) > 0 {
+		// Materialize AND build on the same writer connection: a fresh read
+		// connection's snapshot may predate the materializing commit, which
+		// used to fail the phase-3 re-check every time for these scopes —
+		// a permanent serve fallback that also starved last_access refreshes
+		// until the sweep's cold-skip horizon disowned the scope entirely.
 		if err := db.WithTx(ctx, func(conn *sqlite.Conn) error {
 			for _, dkey := range cold {
 				id, materialized, err := resolveScope(conn, dkey)
@@ -214,22 +236,14 @@ func loadIndexedScopes(ctx context.Context, db *sqlitex.Pool, dkeys colx.HashSet
 				}
 				scopeIDs = append(scopeIDs, id)
 			}
-			return nil
+			return buildFinal(conn)
 		}); err != nil {
 			return nil, err
 		}
+		return refresh, nil
 	}
 
-	if err := db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		n, err := countMaterialized(conn, scopeIDs)
-		if err != nil {
-			return err
-		}
-		if n != len(scopeIDs) {
-			return fmt.Errorf("%d of %d scopes lost materialization mid-load (reindex in flight?)", len(scopeIDs)-n, len(scopeIDs))
-		}
-		return buildStoreFromScopes(conn, scopeIDs, store)
-	}); err != nil {
+	if err := db.WithSave(ctx, buildFinal); err != nil {
 		return nil, err
 	}
 
@@ -432,6 +446,13 @@ var qInsertItem = dqb.Str(`
 	SELECT :scope, :blob
 	WHERE EXISTS (SELECT 1 FROM blobs b WHERE b.id = :blob AND b.size >= 0);`)
 
+// qStaleMarkAllScopes is the incremental oracle's fail-safe: when a batch
+// contains a membership edge MaintainRBSRIndex does not mirror, every
+// materialized scope is demoted so the next serve re-materializes it from
+// collectBlobs. See the incomplete-tracking in MaintainRBSRIndex.
+var qStaleMarkAllScopes = dqb.Str(`
+	UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;`)
+
 // MaintainRBSRIndex is the incremental maintenance hook: it patches the
 // materialized scopes a freshly indexed batch of blobs joins. Registered on
 // the index via SetIndexedHook, which applies it asynchronously in short
@@ -496,11 +517,24 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		scopesByIRI[k.IRI] = append(scopesByIRI[k.IRI], idsByKey[k]...)
 	}
 
+	// incomplete tracks blobs whose affectedScopes result is partial: blobs that
+	// can enter scopes through edges that are not a forward link-walk. Each
+	// targeted edge below deletes the cases it provably covers; anything left
+	// at the end is a case this function does not understand, and the affected
+	// scopes are stale-marked so the next serve re-materializes them from
+	// collectBlobs instead of silently under-advertising. Today the leftover
+	// set is empty — this is the contract enforcement that keeps it that way
+	// when the oracle and this function drift apart in the future.
+	incomplete := make(map[int64]struct{})
+
 	for _, blobID := range blobIDs {
 		// (1) Forward seed: resource-anchored types plus their forward closure.
-		inserts, _, err := affectedScopes(conn, blobID, keys)
+		inserts, complete, err := affectedScopes(conn, blobID, keys)
 		if err != nil {
 			return err
+		}
+		if !complete {
+			incomplete[blobID] = struct{}{}
 		}
 		for dkey, ids := range inserts {
 			for _, scopeID := range idsByKey[dkey] {
@@ -567,14 +601,32 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 		}
 
 		switch {
-		case f.typ == "Contact" && f.subject != 0:
+		case f.typ == "Contact":
 			// Inbound Contact-by-subject: anchored to its creator's resource, but
-			// belongs to the subject account's recursive scope.
-			for _, scopeID := range rootBySubject[f.subject] {
-				if err := insertItem(scopeID, f.id); err != nil {
-					return err
+			// belongs to the subject account's recursive scope. This edge is the
+			// only non-forward path a Contact takes into a scope, so together
+			// with the resource-anchored seed it fully covers the blob — and a
+			// Contact without a subject cannot take the edge at all.
+			delete(incomplete, f.id)
+			if f.subject != 0 {
+				for _, scopeID := range rootBySubject[f.subject] {
+					if err := insertItem(scopeID, f.id); err != nil {
+						return err
+					}
 				}
 			}
+		case f.typ == "Capability" && f.role != "AGENT":
+			// A non-AGENT capability (WRITER et al.) enters collectBlobs only
+			// via resource anchoring — the delegation closure walks AGENT roles
+			// exclusively — so the resource-anchored seed above is exhaustive
+			// for it. This is the case that used to silently under-advertise:
+			// the incompleteness flag was discarded and nothing compensated.
+			delete(incomplete, f.id)
+		case f.typ == "Capability" && f.role == "AGENT" && f.del == 0:
+			// An AGENT capability without a delegate cannot match the
+			// delegation closure (it joins on the delegate authoring an
+			// in-scope blob), so the resource-anchored seed covers it.
+			delete(incomplete, f.id)
 		case f.typ == "Capability" && f.role == "AGENT" && f.del != 0:
 			// A fresh AGENT capability joins any scope whose member its delegate
 			// authored; mark those scopes so the closure below inserts it.
@@ -592,6 +644,42 @@ func MaintainRBSRIndex(conn *sqlite.Conn, blobIDs []int64) error {
 					touched[scopeID] = struct{}{}
 				}
 			}
+			// The delegation closure below (edge 4) re-runs to a fixpoint for
+			// every touched scope, which is exactly the non-forward path an
+			// AGENT capability takes into a scope.
+			delete(incomplete, f.id)
+		}
+	}
+
+	// Non-structural blobs (Raw/DagPB) reported incomplete are covered by the
+	// late-arrival reverse edge (2): they are only ever scope members through
+	// the media closure of a structural member linking to them, and edge (2)
+	// walked exactly those inbound links. They have no structural fact row, so
+	// consume them by elimination.
+	if len(incomplete) > 0 {
+		structural := make(map[int64]struct{}, len(facts))
+		for _, f := range facts {
+			structural[f.id] = struct{}{}
+		}
+		for id := range incomplete {
+			if _, ok := structural[id]; !ok {
+				delete(incomplete, id)
+			}
+		}
+	}
+
+	// Fail-safe: anything still incomplete is a membership edge this function
+	// does not mirror (a future blob type, a future collectBlobs edge). The
+	// resource-anchored inserts above are still sound, but a scope may be owed
+	// more — so stale-mark every materialized scope and let the next serve
+	// re-materialize from collectBlobs. Deliberately coarse: this branch is
+	// never expected to execute, and silent under-advertisement is the failure
+	// mode that cost us synced write capabilities, so correctness wins over
+	// precision here.
+	if len(incomplete) > 0 {
+		MRBSRIndexStaleMarks.Add(float64(len(incomplete)))
+		if err := sqlitex.Exec(conn, qStaleMarkAllScopes(), nil); err != nil {
+			return err
 		}
 	}
 

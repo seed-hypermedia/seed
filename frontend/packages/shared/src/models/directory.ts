@@ -1,9 +1,9 @@
 import {HMDocumentInfo, HMQuery, HMQueryResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {SortAttribute} from '../client/.generated/documents/v3alpha/documents_pb'
-import {BIG_INT} from '../constants'
 import {queryBlockSortedItems} from '../content'
 import {GRPCClient} from '../grpc-client'
 import {entityQueryPathToHmIdPath, hmId} from '../utils'
+import {LIST_PAGE_SIZE, listAllPages} from '../list-all-pages'
 import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {prepareHMDocumentInfo} from './entity'
 
@@ -22,15 +22,20 @@ function createDirectoryResolver(client: GRPCClient) {
           ? {attribute: SortAttribute.NAME, descending: reverse}
           : undefined
 
-    const listResult = await client.documents.listDirectory({
-      account: id.uid,
-      directoryPath: hmIdPathToEntityQueryPath(id.path),
-      recursive: mode === 'AllDescendants',
-      pageSize: BIG_INT,
-      ...(sortOptions ? {sortOptions} : {}),
-    })
+    const documents = await listAllPages(
+      (pageToken) =>
+        client.documents.listDirectory({
+          account: id.uid,
+          directoryPath: hmIdPathToEntityQueryPath(id.path),
+          recursive: mode === 'AllDescendants',
+          pageSize: LIST_PAGE_SIZE,
+          pageToken,
+          ...(sortOptions ? {sortOptions} : {}),
+        }),
+      (r) => ({items: r.documents, nextPageToken: r.nextPageToken}),
+    )
 
-    return listResult.documents.map(prepareHMDocumentInfo).filter((doc: HMDocumentInfo) => {
+    return documents.map(prepareHMDocumentInfo).filter((doc: HMDocumentInfo) => {
       if (doc.id.id === id.id) return false
       if (!doc.id.id.startsWith(id.id)) return false
 

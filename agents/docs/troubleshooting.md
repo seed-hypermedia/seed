@@ -29,7 +29,8 @@ Diagnosis:
 
 - If desktop shows `Invalid signature`, check `signAgentAction()` and make sure undefined fields are omitted before
   signing.
-- If no partial publish appears, inspect the session in `/agents` for a durable error event from the Pi/provider path.
+- If no partial publish appears, inspect the session (desktop session page or `GetSession`) for a durable error event
+  from the Pi/provider path.
 - If server logs `skip partial; no subscription`, desktop is not subscribed to the target session/account.
 - If desktop logs partial state updates but UI does not render, inspect `AgentSessionPage` and `PartialAssistantRow`.
 
@@ -55,21 +56,49 @@ If it happens again:
 
 The Seed server receives text deltas from Pi SDK `message_update` events. If no deltas appear:
 
-- inspect `/agents` for a durable error event;
+- inspect the session for a durable error event;
 - verify the provider API key and model name;
 - check whether the provider/backend supports streaming for the selected Pi API mapping;
 - add temporary local diagnostics around `#runPiAgent()` if needed, without logging secrets or full session content.
 
-## Tool read fails
+## A `read` fails
 
-Check tool result event in session log or `/agents` inspector.
+Check the tool result event in the session log. `read` takes one address and the address shape picks the source, so the
+first question is always whether the address was the shape the agent meant.
 
 Common causes:
 
 - malformed HM/web URL;
 - URL cannot be resolved with hypermedia headers;
 - resource fetch fails;
-- output exceeds 256 KiB.
+- output exceeds 256 KiB (`MAX_TOOL_RESULT_BYTES`);
+- a memory path that does not exist. A directory address without its trailing slash is not one of these: `read` answers
+  with the listing rather than an error.
+
+An `hm://` read that returns `not-found` for a document the agent just published means the service's
+`SEED_AGENTS_HM_SERVER_URL` points at a different node than the one the write went through — check `/api/health` for the
+URL actually in effect. Reads never fall back to a public gateway, and every read-path HM request times out after 30s
+(`The operation timed out` in the tool result) rather than hanging the run on an unresponsive server.
+
+## `call` came back with a tool contract instead of a result
+
+That is touch-expand working, not a failure. A `call` with a missing or invalid input — or for a tool the thread has not
+expanded yet — answers with the tool's contract so the model can read it and call again correctly. The contract's
+arrival in the transcript also promotes that tool to a first-class provider tool for the rest of the thread.
+
+If a tool keeps returning its contract, compare the model's input against the `input` schema in `read ~/tools/<name>`.
+If a tool is missing from `~/tools` entirely, it is either not granted (`definition.tools`, see `ListAgentTools` —
+`granted: false` says exactly this) or withheld by the host: `execute` is dropped when the sandbox probe fails, which
+`/api/health` reports as `codeExec: false` with a reason.
+
+## Something the user did is not visible to the agent
+
+Verbs the user runs through the wrench palette append to the same log as `actor: 'user'` events, and the agent reads
+them on its next turn. If the agent seems not to know:
+
+1. `GetSession` — are the `tool_call`/`tool_result` events there with `actor: 'user'`?
+2. `InvokeSessionTool` returns `409` while a run is live; the palette is meant to be used between turns.
+3. The result is context for the NEXT turn. Nothing is pushed into a turn already in flight.
 
 ## Desktop cannot save API key
 
@@ -77,13 +106,64 @@ Remote plain HTTP servers are rejected for secret submission. Use HTTPS or local
 
 ## Session stuck in `streaming`
 
-No stop action exists yet. Current options:
+Since the runs rework, `sessions.status` is a derived mirror of run state and a crash cannot wedge it: the boot sweep
+requeues interrupted runs, interrupted tool calls get synthesized results, and a boot reconcile pass replays children
+that finalized inside a crash window. If a session still shows `streaming`:
 
-- wait for provider/network timeout/error;
-- restart local service for local debugging;
-- inspect DB/session events to understand last state.
+1. `ListRuns {sessionId}` → is the latest root run genuinely live (`queued`/`claimed`/`running`/`waiting`)? The mirror
+   says `streaming` iff yes.
+2. A run `waiting` with `wait_cbor {reason: 'children'}` is parked on delegated children — inspect the tree with
+   `ListRuns {rootRunId}` and check each child's status. `reason: 'timer'` (with `not_before`) wakes on schedule.
+   `reason: 'event'` is parked on `ctx.waitForEvent` and needs a wake source: a `SignalRun` (the run's `wait.answerWith`
+   names the signal, and the card's Answer button sends it), a trigger with a `wake` continuation, a matching activity
+   event, or its own timeout. `reason: 'budget-pause'` waits for a person to resume it.
+3. `StopSession` aborts the live turn AND cancels every run rooted at the session including descendants; `CancelRun` on
+   any run id is the finer-grained kill switch (cascades to its subtree).
+4. Restarting the service is always safe: sweep + reconcile recover every documented crash window.
 
-Future fix: implement StopSession/CancelRun.
+## Children ran but the parent never resumed
+
+Checklist, in order:
+
+1. **Was the child awaited?** `delegate` with `await: false` is detached by design — the child joins the parent's run
+   tree (visible in the progress card) but never resolves a result and never wakes the parent. Check the parent
+   transcript for the `delegate` input the model actually sent. If the model keeps detaching work whose result it needs,
+   that is a prompt problem worth reporting; the verb's description routes it to the awaited default.
+2. `ListRuns {rootRunId}` on the parent's root: are the children terminal while the parent is `waiting`? The parent's
+   `wait_cbor.toolCallIds` should shrink as each child's finalizer appends the durable `delegate` tool_result. A restart
+   runs `#reconcileWaitingRunsAtBoot`, which replays any child that finalized without resolving its parent — that pass
+   exists because a child's terminal commit and its parent's wait-resolution are separate transactions.
+3. A child that never delivered a required typed result does not vanish quietly: the parent run records
+   `unmetObligations: [{kind: 'typed-result'}]`, which `GetRun` returns and the card shows.
+4. Where errors surface: a failed run's `error_cbor` shows in `RunInfo.error` and the card; failed script effects appear
+   as `result {status: 'failed'}` journal entries (visible in the card's Activity drawer and `GetRunJournal`); agent-run
+   failures also append a durable session `error` event after retries exhaust.
+
+## Script child misbehaving
+
+- `GetRunJournal {runId}` is the flight recorder: every effect (`call`/`result`), timer, wait/event, log, step, and plan
+  change in order. The desktop Activity drawer renders the same stream.
+- `fuel-exhausted` means more than 2s of pure compute between awaits (move heavy work into `ctx.call('execute', …)`);
+  `journal-cap` means more than 5,000 entries or 8 MiB (split the job, or bound a long loop with `ctx.continueAsNew`);
+  `workflow-deadlock` means the script awaited a promise that did not come from `ctx`.
+- Sleeps ≥ 60s park the run (`waiting` + `not_before`); the dispatcher wakes due timers every second.
+- A resumed script replays its source against the journal, matching effects by **content key** (`tool|name|inputJSON`,
+  `agent|specJSON`, `sleep|ms`, …) with FIFO consumption per key — not by arrival order, which after a `ctx.parallel`
+  depends on real completion timing. An effect whose key has no journaled group executes fresh. A `{description}`
+  narration is display metadata and stays out of the key, so editing a label does not invalidate a journal.
+
+## A plan step closed itself, or a checklist froze
+
+Both are the runtime keeping the card honest, and both are visible in the plan snapshot:
+
+- a step marked `done` with `resolvedBy: 'runtime'` was closed by the runtime, not the model: every child attached to
+  that step came back succeeded. Only success is ever derived this way — a failed child's meaning is a judgment call the
+  runtime does not make.
+- a plan with `settledAt` set has had every step reach a terminal status, which is when the card can leave the pinned
+  slot and freeze into the log. An edit that reopens a step clears it.
+- a settled plan disappearing from `SessionInfo.plan` on the next user message is retirement, not loss: the new turn
+  clears the session's snapshot so the model plans the new task from scratch, and the settled copy stays on the run that
+  owned it (`RunInfo.plan`), which is what the frozen transcript card renders.
 
 ## Server unresponsive but process alive (100% CPU)
 
@@ -106,15 +186,10 @@ One past cause (fixed 2026-07): `parseMarkdown` in `@seed-hypermedia/client` loo
 so the tokenizer never advanced. Agent-generated `document.create`/`comment.create` markdown hit this within minutes of
 every restart. The tokenizer now guarantees forward progress each iteration.
 
-## Built-in inspector is empty
+## Desktop shows no agents
 
-Check:
-
-```bash
-curl http://localhost:3051/agents/api/status # dev port; release builds use 3050
-```
-
-If agents exist in desktop but not inspector, confirm desktop is pointing at the same server URL/database.
+Confirm the desktop is pointing at the same server URL/database. The server exposes no unauthenticated listing; to check
+what an account owns, send a signed `ListAgents` to `/api/message` as that account.
 
 ## Schema mismatch
 

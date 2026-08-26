@@ -1,5 +1,6 @@
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
+import {activitySlugToFilter} from '@shm/shared/utils/entity-id-url'
 import {describe, expect, it} from 'vitest'
 import {
   computeContactBreadcrumbs,
@@ -29,17 +30,11 @@ describe('getIconForRoute', () => {
   it('bookmarks -> star', () => {
     expect(getIconForRoute('bookmarks')).toBe('star')
   })
-  it('drafts -> file', () => {
-    expect(getIconForRoute('drafts')).toBe('file')
-  })
   it('draft -> file', () => {
     expect(getIconForRoute('draft')).toBe('file')
   })
   it('document -> null', () => {
     expect(getIconForRoute('document')).toBeNull()
-  })
-  it('library -> null', () => {
-    expect(getIconForRoute('library')).toBeNull()
   })
   it('feed -> null', () => {
     expect(getIconForRoute('feed')).toBeNull()
@@ -47,50 +42,39 @@ describe('getIconForRoute', () => {
 })
 
 describe('getWindowTitle', () => {
-  it('contacts -> Contacts', () => {
-    expect(getWindowTitle('contacts')).toBe('Contacts')
+  const id = hmId('alice')
+
+  it('uses static page names', () => {
+    expect(getWindowTitle({key: 'contacts'})).toBe('Contacts')
+    expect(getWindowTitle({key: 'settings'})).toBe('Settings')
+    expect(getWindowTitle({key: 'agents'})).toBe('Agents')
+    expect(getWindowTitle({key: 'notifications'})).toBe('Notifications')
   })
-  it('bookmarks -> Bookmarks', () => {
-    expect(getWindowTitle('bookmarks')).toBe('Bookmarks')
+
+  it('uses the document name for the base document route', () => {
+    expect(getWindowTitle({key: 'document', id}, 'Document A')).toBe('Document A')
   })
-  it('library -> Library', () => {
-    expect(getWindowTitle('library')).toBe('Library')
+
+  it('adds the dedicated view route name', () => {
+    expect(getWindowTitle({key: 'activity', id}, 'Document A')).toBe('Document A – Activity')
+    expect(getWindowTitle({key: 'comments', id}, 'Document A')).toBe('Document A – Discussions')
+    expect(getWindowTitle({key: 'directory', id}, 'Document A')).toBe('Document A – Sub-documents')
+    expect(getWindowTitle({key: 'collaborators', id}, 'Document A')).toBe('Document A – Collaborators')
+    expect(getWindowTitle({key: 'metadata', id}, 'Document A')).toBe('Document A – Metadata')
   })
-  it('drafts -> Drafts', () => {
-    expect(getWindowTitle('drafts')).toBe('Drafts')
+
+  it('uses Citations for the citations activity filter', () => {
+    expect(
+      getWindowTitle({key: 'activity', id, filterEventType: activitySlugToFilter('citations')}, 'Document A'),
+    ).toBe('Document A – Citations')
   })
-  it('api-inspector -> API Inspector', () => {
-    expect(getWindowTitle('api-inspector')).toBe('API Inspector')
+
+  it('ignores a document right panel', () => {
+    expect(getWindowTitle({key: 'document', id, panel: {key: 'comments', id}}, 'Document A')).toBe('Document A')
   })
-  it('contact with name', () => {
-    expect(getWindowTitle('contact', 'Alice')).toBe('Contact: Alice')
-  })
-  it('contact without name', () => {
-    expect(getWindowTitle('contact')).toBe('Contact')
-  })
-  it('profile with name', () => {
-    expect(getWindowTitle('profile', 'Bob')).toBe('Profile: Bob')
-  })
-  it('profile without name', () => {
-    expect(getWindowTitle('profile')).toBe('Profile')
-  })
-  it('draft with name', () => {
-    expect(getWindowTitle('draft', 'My Draft')).toBe('Draft: My Draft')
-  })
-  it('draft without name', () => {
-    expect(getWindowTitle('draft')).toBe('Draft')
-  })
-  it('document with name', () => {
-    expect(getWindowTitle('document', 'My Doc')).toBe('My Doc')
-  })
-  it('document without name', () => {
-    expect(getWindowTitle('document')).toBe('Document')
-  })
-  it('inspect with name', () => {
-    expect(getWindowTitle('inspect', 'My Doc')).toBe('My Doc')
-  })
-  it('unknown key -> null', () => {
-    expect(getWindowTitle('settings')).toBeNull()
+
+  it('falls back to Seed while a resource name is unavailable', () => {
+    expect(getWindowTitle({key: 'document', id})).toBe('Seed')
   })
 })
 
@@ -109,20 +93,6 @@ describe('computeSimpleRouteBreadcrumbs', () => {
     expect(result!.items).toHaveLength(1)
     expect(result!.items[0].name).toBe('Bookmarks')
     expect(result!.icon).toBe('star')
-  })
-  it('drafts', () => {
-    const result = computeSimpleRouteBreadcrumbs('drafts')
-    expect(result).not.toBeNull()
-    expect(result!.items).toHaveLength(1)
-    expect(result!.items[0].name).toBe('Drafts')
-    expect(result!.icon).toBe('file')
-  })
-  it('library', () => {
-    const result = computeSimpleRouteBreadcrumbs('library')
-    expect(result).not.toBeNull()
-    expect(result!.items).toHaveLength(1)
-    expect(result!.items[0].name).toBe('Library')
-    expect(result!.icon).toBeNull()
   })
   it('api-inspector', () => {
     const result = computeSimpleRouteBreadcrumbs('api-inspector')

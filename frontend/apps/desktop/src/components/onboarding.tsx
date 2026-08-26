@@ -148,8 +148,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       if (account) {
         // Ensure the account is selected when onboarding was previously completed
         setSelectedIdentity?.(account.uid)
-        // Navigate to library — vault-created accounts may not have home docs.
-        navigate({key: 'library'})
+        navigate({key: 'document', id: account})
       }
       onComplete()
     }
@@ -202,7 +201,7 @@ export function Onboarding({onComplete, modal = false}: OnboardingProps) {
       const resolvedAccount = nextAccount ?? account
       if (resolvedAccount) {
         setSelectedIdentity?.(resolvedAccount.uid)
-        navigate({key: 'library'})
+        navigate({key: 'document', id: resolvedAccount})
       }
 
       onComplete()
@@ -555,9 +554,9 @@ function ProfileStep({onSkip, onNext, onPrev}: {onSkip?: () => void; onNext: () 
 
   return (
     <StepWrapper onPrev={onPrev}>
-      <StepTitle>CREATE YOUR SITE</StepTitle>
+      <StepTitle>CREATE YOUR SPACE</StepTitle>
       <Text size="lg" className="text-muted-foreground text-center">
-        Your site is more than just a collection of pages, it's a reflection of who you are or what your brand stands
+        Your space is more than just a collection of pages, it's a reflection of who you are or what your brand stands
         for. Whether it's personal, professional, or creative, this is your space to shine.
       </Text>
 
@@ -584,11 +583,11 @@ function ProfileStep({onSkip, onNext, onPrev}: {onSkip?: () => void; onNext: () 
 
           <div className="flex min-h-[100px] w-full max-w-[100px] min-w-[100px] flex-none flex-col gap-2">
             <Text size="sm" className="text-muted-foreground">
-              Site Icon
+              Space Icon
             </Text>
             <ImageForm
               height={100}
-              emptyLabel="SITE ICON"
+              emptyLabel="SPACE ICON"
               suggestedSize="512px x 512px"
               url={formData.icon?.base64}
               uploadOnChange={false}
@@ -1041,7 +1040,7 @@ function RestoreFromPhraseStep({
     <StepWrapper onPrev={onPrev}>
       <StepTitle>ADD EXISTING KEY</StepTitle>
       <Text size="lg" className="text-muted-foreground text-center">
-        Add the keys to your existing site.
+        Add the keys to your existing space.
       </Text>
 
       <form onSubmit={handleSubmit} className="flex w-full max-w-[400px] flex-1 flex-col gap-4 pt-4">
@@ -1203,7 +1202,7 @@ function CreateAccountStep({
 
   return (
     <StepWrapper onPrev={isSubmitting ? undefined : onPrev}>
-      <StepTitle>CREATING YOUR SITE</StepTitle>
+      <StepTitle>CREATING YOUR SPACE</StepTitle>
       <div className="no-window-drag flex w-full max-w-[420px] flex-1 flex-col items-center justify-center gap-4 text-center">
         <Text size="xl" className="text-muted-foreground">
           Seed is creating your account and storing it in this device&apos;s encrypted local vault.
@@ -1451,10 +1450,10 @@ export function CreateAccountBanner() {
             dispatchOnboardingDialog(true)
           }}
         >
-          Create a Site
+          Create a Space
         </Button>
         {/* <Button size="#3" chromeless hoverStyle={{bg: '$color44}}>
-          I already have a Site
+          I already have a Space
         </Button> */}
       </div>
     </div>

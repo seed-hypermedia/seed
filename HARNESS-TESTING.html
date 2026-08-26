@@ -1,0 +1,1139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Harness — cumulative testing guide</title>
+    <style>
+      :root {
+        --bg: #f2f5f1;
+        --surface: #fcfdfb;
+        --ink: #1b211e;
+        --muted: #5c6862;
+        --line: #d8dfd9;
+        --accent: #1e7a62;
+        --accent-soft: #1e7a6218;
+        --amber: #a05a1c;
+        --amber-soft: #a05a1c14;
+        --code-bg: #eaefe9;
+        --display: 'Futura', 'Futura PT', 'Century Gothic', 'Avenir Next', sans-serif;
+        --body: 'Charter', 'Bitstream Charter', 'Iowan Old Style', Georgia, serif;
+        --mono: ui-monospace, 'SF Mono', 'Menlo', 'Consolas', monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0f1412;
+          --surface: #161c19;
+          --ink: #e4eae6;
+          --muted: #93a29a;
+          --line: #28322d;
+          --accent: #4fc0a0;
+          --accent-soft: #4fc0a01f;
+          --amber: #dfa260;
+          --amber-soft: #dfa2601a;
+          --code-bg: #1b2420;
+        }
+      }
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--body);
+        font-size: 16px;
+        line-height: 1.6;
+        margin: 0;
+      }
+      main {
+        max-width: 46rem;
+        margin: 0 auto;
+        padding: 2.5rem 1.25rem 5rem;
+      }
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-family: var(--display);
+        line-height: 1.15;
+        text-wrap: balance;
+      }
+      h1 {
+        font-size: 2rem;
+        margin: 0.2rem 0 0.8rem;
+      }
+      h2 {
+        font-size: 1.3rem;
+        margin: 2.6rem 0 0.7rem;
+        border-top: 1px solid var(--line);
+        padding-top: 1rem;
+      }
+      h3 {
+        font-size: 1.02rem;
+        margin: 1.5rem 0 0.3rem;
+      }
+      h4 {
+        font-size: 0.9rem;
+        margin: 1.1rem 0 0.3rem;
+        color: var(--muted);
+      }
+      p {
+        margin: 0 0 0.9rem;
+        max-width: 65ch;
+      }
+      .eyebrow {
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .muted {
+        color: var(--muted);
+      }
+      code {
+        font-family: var(--mono);
+        font-size: 0.85em;
+        background: var(--code-bg);
+        padding: 0.1em 0.35em;
+        border-radius: 3px;
+      }
+      pre {
+        background: var(--code-bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 0.8rem 1rem;
+        overflow-x: auto;
+        font-size: 0.8rem;
+        line-height: 1.55;
+      }
+      pre code {
+        background: none;
+        padding: 0;
+      }
+      .scroll {
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.9rem;
+        margin: 1rem 0;
+      }
+      th {
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--muted);
+        text-align: left;
+      }
+      th,
+      td {
+        padding: 0.5rem 0.8rem 0.5rem 0;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      .say {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 4px;
+        padding: 0.55rem 0.8rem;
+        font-style: italic;
+        margin: 0.5rem 0;
+      }
+      .expect {
+        margin: 0.4rem 0 0.6rem 0;
+        padding-left: 1.1rem;
+      }
+      .expect li {
+        margin-bottom: 0.3rem;
+        max-width: 62ch;
+      }
+      .expect li::marker {
+        color: var(--accent);
+      }
+      .warn li::marker {
+        color: var(--amber);
+      }
+      .tree {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+      }
+      .badge {
+        font-family: var(--mono);
+        font-size: 0.66rem;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 0.12rem 0.55rem;
+        white-space: nowrap;
+      }
+      .badge.dim {
+        border-color: var(--line);
+        color: var(--muted);
+      }
+      .badge.warn {
+        border-color: var(--amber);
+        color: var(--amber);
+      }
+      .verdict {
+        font-size: 0.85rem;
+        margin: 0.35rem 0 1.3rem;
+        padding: 0.4rem 0 0.4rem 0.7rem;
+        border-left: 2px solid var(--line);
+        color: var(--muted);
+      }
+      .verdict.live {
+        border-left-color: var(--accent);
+      }
+      .verdict.live b {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .verdict.headless {
+        border-left-color: var(--amber);
+      }
+      .verdict.headless b {
+        color: var(--amber);
+        font-weight: 600;
+      }
+      .note {
+        background: var(--amber-soft);
+        border-left: 3px solid var(--amber);
+        border-radius: 4px;
+        padding: 0.55rem 0.8rem;
+        margin: 1rem 0;
+        font-size: 0.92rem;
+      }
+      .note p:last-child {
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="eyebrow">the harness · cumulative testing guide</div>
+      <h1>Everything to test, in one place</h1>
+      <p class="muted">
+        One document that grows with the build. Each milestone appends its own section and nothing is ever removed, so a
+        case you already signed off on stays here as a regression check. Cases an automated gate has already driven
+        against a real server with a real model are marked as such — those you can skim; the unmarked ones are where
+        your eyes are actually needed.
+      </p>
+
+      <h2>How to read the markers</h2>
+      <table>
+        <tr>
+          <th>Marker</th>
+          <th>Means</th>
+        </tr>
+        <tr>
+          <td><span class="badge">verified live</span></td>
+          <td>
+            An automated gate sent this prompt to your dev server on <code>:3051</code> with your real OpenAI
+            subscription model and asserted the durable outcome — runs, journal, plan, transcript. The date and one line
+            of what actually happened are given.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="badge warn">verified headless</span></td>
+          <td>
+            The mechanism was driven directly on the branch code — no model, no UI. Proves the plumbing, not the
+            experience.
+          </td>
+        </tr>
+        <tr>
+          <td><span class="badge dim">not live-verified</span></td>
+          <td>
+            Covered by unit or integration tests only, or not reachable from the build that was running. Needs a human.
+          </td>
+        </tr>
+      </table>
+
+      <h2>Where everything is</h2>
+      <div class="scroll">
+        <pre class="tree">
+~/Code/Seed                      ← harness/01-verbs             M1 · running on :3051
+~/Code/Seed-worktrees/harness-02 ← harness/02-tools-as-docs     M2 · done, reviewable
+~/Code/Seed-worktrees/harness-03 ← harness/05-exec              M3 + UX + M4 + M5 + M6 bus (stacked)</pre
+        >
+      </div>
+      <p class="muted">
+        The branches are stacked — M2 sits on M1, the UX package sits on M3 — and only one of them can be the running
+        server at a time. That is why the live-verified marks cluster in M1: it is the build that was up all night.
+        Nothing is pushed.
+      </p>
+
+      <h4>Launching a build</h4>
+      <div class="scroll">
+        <pre><code># from the checkout you want to test — desktop spawns/connects its local agents server
+pnpm install &amp;&amp; pnpm desktop
+
+# or run the agents server standalone with hot reload
+cd agents &amp;&amp; pnpm dev</code></pre>
+      </div>
+      <p class="muted">
+        The first message to an <em>existing</em> agent replays its old transcript against the new verbs. Old tool names
+        in history render generically and never re-execute, but a fresh test agent gives the cleanest read.
+      </p>
+
+      <h4>Feedback</h4>
+      <p>
+        Tell Claude in the session, or drop notes into <code>agents/docs/harness/reviews/&lt;milestone&gt;.md</code> in
+        the matching worktree. Fixes land as commits on the milestone branch and rebase up through the stack.
+      </p>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>M1 · The five verbs <span class="badge">running on :3051</span></h2>
+      <p>
+        The 25-tool registry is gone. The model holds five always-on verbs — <code>read</code>, <code>write</code>,
+        <code>call</code>, <code>delegate</code>, <code>plan</code> — and everything else is dispatched through
+        <code>call</code>. One delegation verb replaces sub_session / run_workflow / start_session; memory, IPFS,
+        attachments, the activity feed, and hypermedia publishing are address forms of read/write.
+      </p>
+
+      <h3>M1.1 · Memory through the verbs</h3>
+      <div class="say">Save a note to memory that my favorite database is SQLite, then read it back to me.</div>
+      <ul class="expect">
+        <li>
+          A <code>Write</code> row addressed <code>~/memory/…</code>, then a <code>Read</code> row for the same path.
+        </li>
+        <li>The file appears on the agent's Memory tab.</li>
+        <li>
+          Stronger version: ask in one thread, then open a <em>new</em> thread with the same agent and ask “what is my
+          favorite database?” — it should read memory rather than guess.
+        </li>
+      </ul>
+      <div class="verdict live">
+        <b>verified live ✓ (2026-08-12 night)</b> — the gate wrote a fact plus a unique codeword to
+        <code>~/memory/notes/live-gate.md</code>, confirmed the file through <code>ListAgentMemory</code>, then asked a
+        <em>fresh session</em> of the same agent; it called the read verb and returned both the database name and the
+        exact codeword. 9.3s.
+      </div>
+
+      <h3>M1.2 · Callable dispatch</h3>
+      <div class="say">Search the web for the latest Bun release and tell me the version.</div>
+      <ul class="expect">
+        <li>A <code>Call</code> row whose subject is <code>web_search</code>, results rendered with links.</li>
+        <li>
+          If the model guesses a wrong input shape, the row shows the tool's contract as the result and the retry
+          succeeds — that is touch-expand, not a failure.
+        </li>
+      </ul>
+      <div class="verdict"><b>not live-verified</b> — the gate deliberately makes no outbound web calls.</div>
+
+      <h3>M1.3 · Parallel delegation + the checklist</h3>
+      <div class="say">
+        Research the histories of SQLite and Postgres in parallel — one child each — then write me a two-paragraph
+        comparison.
+      </div>
+      <ul class="expect">
+        <li>One pinned checklist; two <code>Delegate</code> children attached under the running step.</li>
+        <li>
+          The parent parks (the thread stays responsive), children tick to done, the parent resumes with the comparison.
+        </li>
+        <li>
+          Child titles in tool rows navigate to the child transcripts; the finished card lands in the transcript at its
+          finish position.
+        </li>
+      </ul>
+      <div class="verdict live">
+        <b>verified live ✓ (2026-08-12 night)</b> — with output schemas required on both children, the gate saw a
+        three-step plan (<em>Research SQLite · Research PostgreSQL · Combine findings</em>, all ending
+        <code>done</code>), the parent parked with <code>waiting · children</code> and resumed, both child runs and both
+        nested threads succeeded, both typed payloads validated, and one combined answer named both databases.
+      </div>
+      <div class="note">
+        <p>
+          <strong>But the “in parallel” part did not happen.</strong> Across three runs, <code>gpt-5.6-sol</code> never
+          issued two <code>delegate</code> calls in one reply — even when the prompt said “spawned in the same reply”.
+          It delegated one child, parked, took the result, delegated the next: correct answers, double the latency
+          (75–118s). In one of the three runs it then re-spawned both children a second time, doing the work twice. The
+          mechanism is fine — see M1.3b, where the same fan-out finishes in 22s — so this is a prompt-design question
+          for the <code>delegate</code> contract, not a broken feature. Worth deciding on before M4.
+        </p>
+      </div>
+
+      <h3>M1.3b · Parallel through a script child</h3>
+      <div class="say">
+        Use a script child that runs two model children concurrently with ctx.parallel — one lists three uses of SQLite,
+        the other three uses of Postgres — then write the combined list to ~/memory/notes/databases.md and report the
+        result.
+      </div>
+      <ul class="expect">
+        <li>One <code>Delegate</code> row containing a script; two children underneath it, genuinely overlapping.</li>
+        <li>The combined file lands in memory; the script's return value comes back as the delegate's result.</li>
+      </ul>
+      <div class="verdict live">
+        <b>verified live ✓ (2026-08-12 night)</b> — the two children started 2&nbsp;ms apart and ran concurrently
+        (proven from their <code>startedAt</code>/<code>finishedAt</code> spans), the workflow run succeeded, and the
+        combined memory file landed. <strong>21.9s end to end</strong> — a third to a fifth of the serial route above.
+      </div>
+
+      <h3>M1.4 · Script delegation</h3>
+      <div class="say">
+        Use a script child to write three memory files — one per planet closer to the sun than Earth — each with one
+        fact, then return the list of paths.
+      </div>
+      <ul class="expect">
+        <li>One <code>Delegate</code> row with a Code drawer (the script source is reviewable).</li>
+        <li>
+          The script's <code>ctx.call('write', …)</code> effects appear in the run's Activity journal; three files land
+          in memory.
+        </li>
+      </ul>
+      <div class="verdict live">
+        <b>verified live ✓ (2026-08-12 night)</b> — the gate's variant (three files under <code>~/memory/gate/</code>)
+        produced a workflow run that succeeded, kept its <code>sourceText</code> for review, and journaled three
+        <code>call</code>/<code>result</code> pairs carrying the written paths and byte counts. 8.2s.
+      </div>
+
+      <h3>M1.5 · Restraint + naming</h3>
+      <div class="say">What is 12 × 9?</div>
+      <ul class="expect">
+        <li>Direct answer. No delegation, no plan, no tool calls.</li>
+        <li>The session still gets a model-authored title (automatic — the title tool is gone).</li>
+      </ul>
+      <div class="verdict live">
+        <b>verified live ✓ (2026-08-12 night)</b> — the gate asked <em>“What is 17 + 25?”</em>: one run, zero delegate
+        calls, answer “42”, and the session named itself <em>“Calculate 17 Plus 25”</em> — which also exercises title
+        generation through a subscription (OAuth) provider. 2.2s.
+      </div>
+
+      <h3>M1 regression spot-checks</h3>
+      <table>
+        <tr>
+          <th>Check</th>
+          <th>Expect</th>
+        </tr>
+        <tr>
+          <td>Old sessions from before M1</td>
+          <td>Historical tool rows render (generic is fine); nothing re-executes; the app doesn't error.</td>
+        </tr>
+        <tr>
+          <td>Agent settings → Tools tab</td>
+          <td>Only callable toggles (Seed search, web search, execute code) — verbs are not configuration.</td>
+        </tr>
+        <tr>
+          <td>Publishing</td>
+          <td>
+            Ask it to publish a small doc to your site: a <code>Write</code> row addressed <code>hm://…</code> with the
+            signed-identity flow intact.
+            <span class="muted">(On M1 write is always-on — the publish grant toggle arrives in M2.)</span>
+          </td>
+        </tr>
+        <tr>
+          <td>Triggers</td>
+          <td>An existing mention/schedule trigger still fires and replies as a threaded comment.</td>
+        </tr>
+      </table>
+      <div class="verdict"><b>not live-verified</b> — all four need the desktop app and your own data.</div>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>M2 · Tools as documents <span class="badge dim">harness-02</span></h2>
+      <p>
+        Every callable tool is a content-addressed document in the agent's Space. The system prompt carries a cached,
+        byte-budgeted <code>&lt;space&gt;</code> index of that Space instead of a <code>&lt;tools&gt;</code> block and a
+        memory-file listing. Using a tool durably promotes it to a first-class provider tool for the rest of the thread
+        — the transcript is the pin.
+      </p>
+
+      <h3>M2.1 · The Space index</h3>
+      <div class="say">What tools do you have?</div>
+      <ul class="expect">
+        <li>A <code>read ~/tools/</code> row listing the verbs plus the callables, authored lambdas marked.</li>
+        <li>The list matches the <code>&lt;space&gt;</code> block in the session's system-prompt viewer.</li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — M2 is not the running build. Covered by <code>verbs.test.ts</code> (index budget,
+        caching, invalidation).
+      </div>
+
+      <h3>M2.2 · Authoring a tool</h3>
+      <div class="say">Make yourself a tool called word_count that counts the words in a string.</div>
+      <ul class="expect">
+        <li>A <code>write ~/tools/word_count</code> row whose result carries a <strong>CID</strong>.</li>
+        <li><code>word_count</code> then shows up in <code>~/tools</code> listings.</li>
+        <li>
+          Ask it to use the tool: expect a clear “not callable until lambda execution ships” answer that names the
+          contract address — not a crash and not a hallucinated result. (Execution lands in M4.)
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — covered by <code>tool-documents.test.ts</code> (validation matrix, CID stability,
+        delete protection).
+      </div>
+
+      <h3>M2.2b · Read the tool's code in the GUI <span class="badge">added 2026-08-12</span></h3>
+      <p>
+        You asked where an authored tool lives in the GUI — it didn't, anywhere. Now: the agent's
+        <b>Tools tab</b> has an <b>Authored tools</b> section listing every lambda the agent wrote for itself.
+      </p>
+      <ul class="expect">
+        <li>
+          After M2.2 (or your <code>word_count</code> session), open the agent → Tools tab: a card named
+          <code>word_count</code> with a runtime badge and its one-line summary.
+        </li>
+        <li>
+          Click the card: the full document opens — description, <b>source code</b>, input/output schemas, and the CID
+          (click it to copy). This is byte-for-byte what the agent reads at <code>~/tools/word_count</code>.
+        </li>
+        <li>Rewrite the tool in a session and re-open the card: new CID, new source, updated date.</li>
+        <li>No authored tools yet → an empty state says to ask the agent to write one, not a blank pane.</li>
+      </ul>
+      <div class="verdict">
+        <b>headless-verified</b> — <code>agent-tools-api.test.ts</code> pins the new <code>ListAgentTools</code> action
+        (lambda with source + CID, builtins with grant flags, strangers 404). The GUI itself needs your eyes after the
+        next <code>./dev up</code>.
+      </div>
+
+      <h3>M2.3 · Touch-expand promotion</h3>
+      <div class="say">Search the web for the latest Bun release.</div>
+      <p class="muted" style="margin: -0.3rem 0 0.6rem">…then, in a <em>later message of the same thread</em>:</p>
+      <div class="say">Now search for the latest Deno release.</div>
+      <ul class="expect">
+        <li>The first search goes through a <code>Call</code> row (subject <code>web_search</code>).</li>
+        <li>The second turn shows <code>web_search</code> as its own first-class tool row — it was promoted.</li>
+        <li>
+          Promotion survives a restart: reopen the thread and the second search still renders promoted, because the set
+          is rebuilt from durable events, not memory.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — derivation from durable events is unit-tested; the visible row-shape change is not.
+      </div>
+
+      <h3>M2 spot-checks</h3>
+      <table>
+        <tr>
+          <th>Check</th>
+          <th>Expect</th>
+        </tr>
+        <tr>
+          <td>Tools tab → “Publish Seed content”</td>
+          <td>New toggle. Off means the agent can still write memory but cannot publish <code>hm://</code>.</td>
+        </tr>
+        <tr>
+          <td>A legacy agent with <code>execute_code</code> in its tool array</td>
+          <td>Reported correctly in the Tools tab, and disable-able.</td>
+        </tr>
+        <tr>
+          <td>Delete an agent that has tool documents</td>
+          <td>Deletes cleanly (this used to fail on a foreign key).</td>
+        </tr>
+      </table>
+      <div class="verdict"><b>not live-verified</b></div>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>M3 · The symmetric log <span class="badge dim">harness-03</span></h2>
+      <p>
+        The session log stops being a chat and becomes a shared workspace log: you hold the same verbs the agent does,
+        on the same log, and every entry says who acted. Your actions replay into the agent's next turn as shared ground
+        truth it must not re-run.
+      </p>
+
+      <h3>M3.1 · Read from the wrench palette</h3>
+      <p>
+        Click the wrench beside Send, choose <strong>Read</strong>, address <code>~/memory/</code>, run it. Then ask:
+      </p>
+      <div class="say">What's in your memory right now?</div>
+      <ul class="expect">
+        <li>A <code>Read</code> row with an accent <strong>“You”</strong> chip and the directory listing.</li>
+        <li>The agent's reply references your listing <em>without re-running it</em>.</li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — the server path (actor-stamped events, replay as <code>&lt;user_action&gt;</code>)
+        has an end-to-end agents test; the palette has desktop tests but no live run.
+      </div>
+
+      <h3>M3.2 · Write from the palette</h3>
+      <p>Wrench → <strong>Write</strong> → address <code>~/memory/from-me.md</code>, content anything. Then ask:</p>
+      <div class="say">What did I just do?</div>
+      <ul class="expect">
+        <li>A “You”-chipped <code>Write</code> row, and the file on the Memory tab.</li>
+        <li>The agent answers from the log — it knows you wrote it, not the other way round.</li>
+      </ul>
+      <div class="verdict"><b>not live-verified</b></div>
+
+      <h3>M3.3 · Call a callable from the palette</h3>
+      <p>
+        With the agent idle, wrench → <code>web_search</code>, fill the schema-generated form, run it. Then ask a
+        question that needs the result.
+      </p>
+      <ul class="expect">
+        <li>The form is generated from the tool's own schema (deep shapes fall back to a JSON field).</li>
+        <li>The agent builds on your result instead of searching again.</li>
+        <li>
+          A deliberately wrong input keeps the popover open and shows the contract — the failed attempt is still a log
+          entry, which is the point.
+        </li>
+      </ul>
+      <div class="verdict"><b>not live-verified</b></div>
+
+      <h3>M3.4 · Busy-disable</h3>
+      <p>Send a message and, while the agent is streaming, open the wrench.</p>
+      <ul class="expect">
+        <li>The palette is disabled until the turn ends (the server also answers 409, so there is no race to lose).</li>
+      </ul>
+      <div class="verdict"><b>not live-verified</b></div>
+
+      <div class="note">
+        <p>
+          <strong>Known judgment call:</strong> the palette is a button, not a <code>/</code> keybinding. The composer
+          is a ProseMirror editor that owns its keystrokes; a slash command inside it is a follow-up, not a minimal
+          diff. Say the word if you want it anyway.
+        </p>
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>M4-UX · Elegant orchestration <span class="badge dim">harness-03, stacked</span></h2>
+      <p>
+        Your feedback package. One module now renders “the work” everywhere, the checklist and the children are the same
+        list, scripts narrate their own effects, and code moved behind ⓘ.
+      </p>
+
+      <h3>UX.1 · The checklist rows ARE the children</h3>
+      <div class="say">
+        Research the histories of SQLite and Postgres in parallel — one child each — then write me a two-paragraph
+        comparison.
+      </div>
+      <ul class="expect">
+        <li>
+          The pinned card shows one list. A step that has a child <em>is</em> the interactive row: status dot, live
+          activity, click to land in that researcher's transcript, hover-× to cancel.
+        </li>
+        <li>No separate block of sub-session rows beneath the todos — that duplication is gone.</li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — the orchestration underneath is verified live on M1 (M1.3); this case is about the
+        new rendering, which needs the desktop app on the UX branch. Desktop tests cover “step row = sub-session link
+        with no duplicate child row” and hover-× cancel.
+      </div>
+
+      <h3>UX.2 · Narrated script calls</h3>
+      <div class="say">
+        Use a script child to write three memory files — one per planet closer to the sun than Earth — each with one
+        fact, then return the list of paths.
+      </div>
+      <ul class="expect">
+        <li>
+          Expanding the <code>Delegate</code> bubble leads with the work story: steps and the script's tool calls
+          rendered as ordinary tool rows, each labeled with the description the script gave it (<code
+            >ctx.call(tool, input, {description})</code
+          >) — not a wall of code.
+        </li>
+        <li>The typed result and an “Open transcript →” link are right there.</li>
+        <li>Script source and raw payloads live behind ⓘ, which has a readable Script section.</li>
+      </ul>
+      <div class="verdict headless">
+        <b>verified headless ◐ (2026-08-12 night)</b> — driving the workflow VM directly on the UX branch: two labeled
+        calls carry their description into both the durable journal entry and the tool-call adapter, an unlabeled call
+        stays unlabeled, and <em>relabeling</em> a call still replays from the journal instead of redoing the work
+        (descriptions sit outside the content key). Now covered by two unit tests in
+        <code>agents/src/workflow-host.test.ts</code> as well as <code>agents/e2e/narration-check.ts</code>. The
+        <em>rendering</em> of those labels is still not live-verified.
+      </div>
+      <div class="verdict">
+        <b>and one honest gap:</b> on the running M1 build the same prompt produces a correctly narrated script — the
+        model does pass <code>{description}</code> — but the label is dropped before the journal, so the Activity drawer
+        shows unlabeled calls. Expected: the narration lands with this package, not on <code>harness/01-verbs</code>.
+      </div>
+
+      <h3>UX.3 · One card, live and frozen</h3>
+      <p>After the parallel task above finishes, scroll the transcript to where it landed.</p>
+      <ul class="expect">
+        <li>
+          The finished record renders the same hierarchy as the pinned live card — same view, frozen at its finish
+          position.
+        </li>
+        <li>
+          The Activity drawer still has the raw journal; the Code drawer still has the source. The drill-down did not go
+          away, it stopped being the front page.
+        </li>
+      </ul>
+      <div class="verdict"><b>not live-verified</b></div>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>M4 · Execution <span class="badge dim">harness-03 · harness/05-exec</span></h2>
+      <p>
+        <code>execute</code> now takes <code>{runtime: 'ts' | 'python' | 'shell', code}</code>, and the tools an agent
+        writes for itself finally <em>run</em>: a document under <code>~/tools/&lt;name&gt;</code> is callable by name,
+        its input validated against its own schema on the way in and its return value against its own output schema on
+        the way out.
+      </p>
+      <p class="muted">
+        <b>Updated 2026-08-12:</b> <code>:3051</code> now serves <code>harness/full</code>, so every case below runs
+        live against your dev server.
+      </p>
+
+      <h3>M4.1 · Author a tool, then call it</h3>
+      <div class="say">
+        Make yourself a tool called word_count that takes {text} and returns {words}, then use it to count the words in
+        “the quick brown fox jumps”.
+      </div>
+      <ul class="expect">
+        <li>
+          A <code>write ~/tools/word_count</code> row whose result carries a <strong>CID</strong> — and whose summary
+          now says to call it by name, not the M2 “not callable yet”.
+        </li>
+        <li>
+          Then a row for <code>word_count</code> itself that actually ran: a <code>result</code> of
+          <code>{words: 5}</code>, and a summary like <code>Ran word_count (620ms)</code>.
+        </li>
+        <li>
+          Anything the tool printed comes back as <code>logs</code>, kept <em>separate</em> from what it returned. This
+          is the tell that the ABI is working: a tool can debug with <code>console.log</code> without corrupting its own
+          result.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — verifies headless in <code>agents/src/verbs.test.ts</code> (a lambda round-trip: the
+        validated input reaches the program, the return value is the result, logs stay separate, memory changes are
+        announced) and in <code>agents/src/code-exec.test.ts</code>, which runs the generated TypeScript wrapper under
+        <em>real bun</em> and the Python wrapper under <em>real python</em> — sync and async — rather than trusting its
+        shape.
+      </div>
+
+      <h3>M4.1b · Retry your word_count session <span class="badge">fixed 2026-08-12</span></h3>
+      <p>
+        Your live run of M4.1 (session <code>1620fd65</code>) hit two real bugs, both now fixed on
+        <code>harness/full</code> (<code>5f4484036</code>):
+      </p>
+      <ul class="expect">
+        <li>
+          <b>TypeScript refused</b> (“needs a sandbox image with bun on PATH”): TS was an operator opt-in with no image
+          configured. It now defaults to <code>oven/bun</code> — a TS lambda runs out of the box.
+        </li>
+        <li>
+          <b>Python died at sandbox start</b> (“database schema is newer than this msb binary”): every msb copy on the
+          machine shares <code>~/.microsandbox/db</code>, and a newer 0.6.8 install had migrated it out from under the
+          dev server's 0.6.6. The dep is now pinned to 0.6.8.
+        </li>
+      </ul>
+      <div class="say">In your existing session: Now use word_count on “the quick brown fox jumps”.</div>
+      <ul class="expect">
+        <li>The saved python tool just runs: <code>{word_count: 5}</code>, no re-authoring needed.</li>
+        <li>
+          Then ask it to rewrite word_count in TypeScript and call it again — the write gets a new CID and the call
+          succeeds in the bun image. First TS call may take ~a minute while <code>oven/bun</code> is pulled; after that
+          it's warm.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>live-verified</b> — the exact lambda from your session (both the TS original and the python rewrite) executed
+        in real microVMs via <code>createCodeExecutor</code>: <code>{word_count: 9}</code> from each, logs separate, and
+        the running <code>:3051</code> server now advertises <code>ts, python, shell</code> in <code>/api/health</code>.
+      </div>
+
+      <h3>M4.2 · A tool that lies about its own output</h3>
+      <div class="say">Change word_count so it returns {words: "five"} instead of a number, then call it again.</div>
+      <ul class="expect">
+        <li>
+          The call <strong>fails</strong>, and the error says the tool returned a value its own output schema rejects —
+          naming the path and the reason.
+        </li>
+        <li>
+          It does not hand you a plausible-looking answer. Same for a tool that crashes (you get the tail of its stderr)
+          and for one that finishes without returning anything (you get told which entry point should have returned).
+        </li>
+        <li>
+          Bad <em>input</em> is different: that answers with the tool's contract, the same touch-expand every builtin
+          does.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — the whole failure matrix is asserted in <code>verbs.test.ts</code>.
+      </div>
+
+      <h3>M4.3 · TypeScript in the sandbox, and honest degradation without it</h3>
+      <div class="say">
+        Write a TypeScript snippet that reads my memory files and prints the three largest, and run it.
+      </div>
+      <ul class="expect">
+        <li>
+          On a server configured with a bun image (<code>SEED_AGENTS_EXEC_TS_IMAGE=oven/bun</code>): an
+          <code>execute</code> row with <code>runtime: 'ts'</code> that ran in that image.
+        </li>
+        <li>
+          <strong>Without</strong> that image — which is the default — the model never sees <code>ts</code> as an
+          option: the runtime enum it is given lists only <code>python</code> and <code>shell</code>. If it asks for
+          <code>ts</code> anyway it gets the contract back (touch-expand), not a sandbox failure it cannot diagnose.
+        </li>
+        <li>
+          <code>read ~/tools/execute</code> shows the narrowed list and says it was narrowed;
+          <code>curl :3050/api/health</code> reports <code>codeExecRuntimes</code>.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — <code>code-exec.test.ts</code> covers both halves (offered only when configured, run
+        in that image with <code>bun -e</code>; an unavailable host offers no runtimes at all), and
+        <code>verbs.test.ts</code> covers the narrowed contract a model actually reads.
+      </div>
+
+      <h3>M4.4 · The grant still means something</h3>
+      <p>
+        In the agent's tool settings, turn <em>off</em> code execution, then ask it to use <code>word_count</code>
+        again.
+      </p>
+      <ul class="expect">
+        <li>
+          The call is refused, and the message says the tool runs code in the sandbox and its owner can grant that in
+          the agent's tool settings.
+        </li>
+        <li>
+          This is the point: authoring a tool must not be a way around an owner who turned code execution off. A lambda
+          rides on the same grant <code>execute</code> needs.
+        </li>
+      </ul>
+      <div class="verdict"><b>not live-verified</b> — asserted in <code>verbs.test.ts</code>.</div>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>M5 · Time <span class="badge dim">harness-03 · harness/05-exec</span></h2>
+      <p>
+        A run can now wait for something to happen without holding a worker: <code>ctx.waitForEvent</code> parks it
+        until a matching activity event or an explicit signal arrives, <code>ctx.continueAsNew</code> ends a run and
+        starts a successor carrying only the state it declared, and a run that outlives its time budget pauses for a
+        person instead of failing.
+      </p>
+
+      <h3>M5.1 · A run that waits for you</h3>
+      <div class="say">
+        Use a script child that publishes nothing until I approve it: have it wait for a signal called “approved” with
+        the label “sign-off from Eric”, then write what it got to ~/memory/approval.md.
+      </div>
+      <ul class="expect">
+        <li>
+          The run card does not spin — it parks, and says <em>what</em> it is waiting for:
+          <code>sign-off from Eric</code> rather than a bare “Waiting”.
+        </li>
+        <li>The run holds no worker slot while parked; other work in the session proceeds normally.</li>
+        <li>
+          Sending the signal wakes it exactly once, and the payload you sent is what the script receives. A
+          <em>second</em> signal delivers nothing — the run is no longer listening.
+        </li>
+        <li>Restart the server while it is parked: it is still parked, still listening, and the signal still works.</li>
+      </ul>
+      <div class="note">
+        <p>
+          <strong>How you answer it.</strong> The parked card carries the button: <strong>Answer</strong> sends the
+          signal the run named and wakes it immediately. If it wants data back, <em>Answer with data</em> opens a small
+          JSON field first — leave it empty and it is the same one-click answer. A run paused on its budget shows
+          <strong>Resume</strong> instead. If the run moved on while the card sat open, you get “This run is no longer
+          waiting for that” rather than a silent no-op.
+        </p>
+        <p>
+          Two cases deliberately show <em>no</em> button, and that is the feature working: a run waiting on its own
+          children, and a run watching the activity feed. Neither is asking you for anything — they resolve themselves —
+          and a button there would send a signal the run ignores.
+        </p>
+      </div>
+      <div class="verdict">
+        <b>not live-verified</b> — verifies headless in <code>agents/src/run-time.test.ts</code>, which drives real
+        workflow runs through the real queue: the park survives a <em>restart</em> (a fresh service on the same
+        database), one signal wakes it, the journal holds exactly one delivery, and a second signal is refused. The
+        exactly-once property is structural — the journal write and the requeue are one SQLite transaction — so a signal
+        that loses a race writes nothing at all.
+      </div>
+
+      <h3>M5.2 · A wait that gives up, and a signal that arrives too late</h3>
+      <div class="say">Same thing, but tell it to give up after two minutes and write “no answer” instead.</div>
+      <ul class="expect">
+        <li>The card shows the wait with its deadline (“… (until 4:15 PM)”).</li>
+        <li>When the deadline passes the run resumes on its own and takes the give-up path.</li>
+        <li>A signal sent <em>after</em> that is not delivered: the decision has already been made.</li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — <code>run-time.test.ts</code> asserts the timeout resume and the refused late signal;
+        <code>workflow-host.test.ts</code> asserts the opposite race too (a payload that won in the database beats a
+        deadline that has since passed, because the journal — not the clock — is the record of what happened).
+      </div>
+
+      <h3>M5.3 · A run that hands itself on</h3>
+      <div class="say">
+        Use a script child that processes one item per generation and calls ctx.continueAsNew with the next index, for
+        three items.
+      </div>
+      <ul class="expect">
+        <li>
+          Each generation finishes as its own run, and the next one starts carrying <em>only</em> the state it was
+          handed — a fresh journal, not a growing one. This is what lets a loop run for weeks.
+        </li>
+        <li>
+          The generations are linked: the finished run's result names its successor, and the successor names its
+          predecessor.
+        </li>
+        <li>
+          If the loop was started by a <code>delegate</code> call, that call is answered by the <em>last</em>
+          generation, not the first. A continuation is the same work, not a finished one.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — <code>run-time.test.ts</code> asserts the state handoff, the link in both directions,
+        and that the successor's journal has its own entries and none of its predecessor's.
+      </div>
+
+      <h3>M5.4 · A run that pauses on its budget</h3>
+      <p>Give a long-running script child a wall-clock budget (a workflow run carries one), and let it outlive it.</p>
+      <ul class="expect">
+        <li>
+          The status pill reads <strong>Paused</strong>, not “Waiting”, and the card says
+          <em>Paused: out of time budget</em>. This is the one wait a person has to end, so it does not hide behind the
+          same word as a sleep.
+        </li>
+        <li>The clock will never release it — nothing wakes it but you.</li>
+        <li>
+          <strong>Resume</strong> on the card lets it finish. The limit that stopped it is <em>dropped</em>, not
+          deferred: a resume that re-pauses on the next tick would be a button that does nothing.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — <code>run-time.test.ts</code> drives a run past its budget, asserts the wait shape
+        and that it has no wake time, releases it with a signal, and checks it finished with the limit gone.
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>M6 · The event bus, first slice <span class="badge dim">harness-03 · harness/05-exec</span></h2>
+      <p>
+        The bus <em>underneath</em> the trigger surface. Two things a trigger could not do before: fire when a run
+        finishes, and answer a run that is already waiting instead of always starting a new thread. The trigger surface
+        itself is untouched — trigger documents, the draft→active consent step, the migration and the protocol deletion
+        are a day package, argued in <code>agents/docs/harness/m6-event-bus-design.md</code>.
+      </p>
+      <div class="note">
+        <p>
+          <strong>Creating one is API-only for now.</strong> The desktop <em>renders</em> a
+          <code>run-completed</code> trigger — summary line and icon — but has no form for making one, because the form
+          belongs with the trigger document editor that lands with the day package. Until then these cases are driven
+          the way the live gate drives everything: a signed <code>CreateAgentTrigger</code> envelope.
+        </p>
+      </div>
+
+      <h3>M6.1 · One automation starts the next</h3>
+      <p>
+        Create a trigger with source <code>{type: 'run-completed', status: 'succeeded'}</code> and continuation
+        <code>{kind: 'wake', signal: 'go'}</code>. Start a script child that waits:
+      </p>
+      <div class="say">
+        Use a script child that waits for a signal called “go”, then writes what it received to ~/memory/unblocked.md.
+      </div>
+      <p>Then let any run of that account finish.</p>
+      <ul class="expect">
+        <li>The waiting run wakes on its own — nobody clicked anything — and receives the delivery.</li>
+        <li>
+          What it receives says where it came from: <code>source: 'trigger'</code>, distinct from a hand-sent
+          <code>signal</code> and from an <code>activity</code> event. Same delivery path, honest about its sender.
+        </li>
+        <li>Exactly one delivery lands in the woken run's journal, however many times the trigger matched.</li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — verifies headless in <code>agents/src/trigger-events.test.ts</code>, which drives
+        real runs through the real queue and the real finalizer: a parked run, a second run finishing, the trigger
+        firing, and the first run resuming with <code>woken by trigger</code>.
+      </div>
+
+      <h3>M6.2 · A trigger that fires into an empty room</h3>
+      <p>Same trigger, but with nothing parked on that signal. Let a run finish.</p>
+      <ul class="expect">
+        <li>
+          Nothing breaks and nothing is silently swallowed: the firing is recorded as
+          <code>no-listener</code>. The firing history is what you debug a trigger with, so a firing that found nobody
+          has to be visible.
+        </li>
+      </ul>
+      <div class="verdict"><b>not live-verified</b> — asserted in <code>trigger-events.test.ts</code>.</div>
+
+      <h3>M6.3 · The loop that does not happen</h3>
+      <p>
+        A <code>run-completed</code> trigger whose own continuation produces a run is one step from an infinite loop:
+        its run finishes, which fires it again, forever. Point one at itself and let it run.
+      </p>
+      <ul class="expect">
+        <li>It fires once. The run it caused does not cause it again.</li>
+        <li>
+          The guard walks back through the firings that produced each run — so a two-trigger cycle (A fires B, B fires
+          A) is caught as well, and any chain deeper than eight hops is treated as a loop whether or not it repeats.
+        </li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — <code>trigger-events.test.ts</code> proves it with a forged chain: a run that exists
+        <em>because</em> the trigger fired does not re-fire it.
+      </div>
+
+      <h3>M6.4 · What the source can watch</h3>
+      <p>
+        <code>run-completed</code> filters on the agent, on how the run ended, and on a case-insensitive substring of
+        its title — so “when the nightly digest finishes” is expressible without watching every run on the account.
+      </p>
+      <ul class="expect">
+        <li>A trigger watching <code>status: 'failed'</code> stays quiet when a run succeeds, and vice versa.</li>
+        <li>A trigger watching another agent's runs never fires for yours.</li>
+        <li><code>titleMatch: 'nightly'</code> matches a run titled “Nightly crawl”.</li>
+      </ul>
+      <div class="verdict">
+        <b>not live-verified</b> — the four-way matrix is asserted in <code>trigger-events.test.ts</code>.
+      </div>
+
+      <!-- ─────────────────────────────────────────────────────────────── -->
+
+      <h2>The live gate</h2>
+      <p>
+        <code>agents/e2e/live-gate.ts</code> is the script behind every “verified live” mark. It is a pure client: it
+        signs action envelopes with your Seed daemon's key over grpc-web — the same path the desktop app uses — and
+        talks CBOR to an already-running agents server. That is what lets it gate the build you are actually using, with
+        your real subscription model, rather than an in-process service replaying recorded responses (which is what
+        <code>agents/e2e/run.ts</code> does).
+      </p>
+      <p>
+        It creates its own throwaway agent named <strong>NightGate</strong>, mirroring the provider, model and toolset
+        of an existing agent so it tests your real setup. It writes full transcripts, run trees, journals and child
+        threads to the artifact directory, then deletes the agent so your sidebar stays clean.
+      </p>
+      <div class="scroll">
+        <pre><code># everything, against localhost:3051
+cd agents &amp;&amp; bun e2e/live-gate.ts
+
+# one scenario, keep the agent around to poke at it in the UI
+bun e2e/live-gate.ts parallel-delegate --keep --out /tmp/gate
+
+# a different build on a different port
+bun e2e/live-gate.ts --base http://localhost:3099</code></pre>
+      </div>
+      <table>
+        <tr>
+          <th>Scenario</th>
+          <th>Asserts</th>
+        </tr>
+        <tr>
+          <td><code>trivial</code></td>
+          <td>One run, no delegation, the answer, and a model-authored session title.</td>
+        </tr>
+        <tr>
+          <td><code>memory</code></td>
+          <td>
+            Write verb to <code>~/memory/</code>, the file present via <code>ListAgentMemory</code>, and recall of an
+            exact codeword from a <em>second</em> session.
+          </td>
+        </tr>
+        <tr>
+          <td><code>parallel-delegate</code></td>
+          <td>
+            Two children with declared output schemas, a settled plan, the parent observed
+            <code>waiting · children</code>, typed payloads, two nested threads, a combined answer, no child spawned
+            twice, and — the part that catches silent breakage — every child carrying a <code>planStepId</code> that
+            still resolves in the <em>final</em> plan. Same-turn fan-out and child overlap are
+            <strong>reported, not enforced</strong>: this model delegates serially no matter how the contract is worded,
+            so failing on it would only restate a known behavior.
+          </td>
+        </tr>
+        <tr>
+          <td><code>script-parallel</code></td>
+          <td>
+            A script child whose two <code>ctx.parallel</code> children genuinely overlap, and the combined memory file.
+          </td>
+        </tr>
+        <tr>
+          <td><code>script-narration</code></td>
+          <td>
+            A script child, a succeeded workflow run with its source kept, journaled call entries, and
+            <code>{description}</code> labels on them.
+          </td>
+        </tr>
+      </table>
+      <p class="muted">
+        Park/resume is asserted from what the poller <em>witnessed</em>, not from the final row: a run that only ever
+        shows <code>succeeded</code> at the end is indistinguishable from one that never parked. Same reasoning for
+        fan-out — only the transcript shows whether two children were one reply or two.
+      </p>
+      <p>
+        <code>agents/e2e/narration-check.ts</code> is the headless companion: it drives the workflow VM with a stub
+        adapter, so the narration mechanism is gated on any branch without a model, a server, or credentials.
+      </p>
+
+      <h4>Status as of 2026-08-12, 04:15 — final full-gate run</h4>
+      <p class="muted">
+        All five scenarios in one pass against the running M1 build, with the real subscription model. Four pass; the
+        fifth fails for a reason that is not a defect.
+      </p>
+      <table>
+        <tr>
+          <th>Scenario</th>
+          <th>Result</th>
+          <th>What actually happened</th>
+        </tr>
+        <tr>
+          <td><code>trivial</code></td>
+          <td>pass · 1.3s</td>
+          <td>One run, zero delegate calls, answered “42”, session self-named “Calculate 17 Plus 25”.</td>
+        </tr>
+        <tr>
+          <td><code>memory</code></td>
+          <td>pass · 12.0s</td>
+          <td>
+            Wrote a fact and a unique codeword to <code>~/memory/notes/live-gate.md</code>, confirmed the file through
+            the API, then recalled both from a <em>fresh second session</em>.
+          </td>
+        </tr>
+        <tr>
+          <td><code>parallel-delegate</code></td>
+          <td>pass · 75.7s</td>
+          <td>
+            Plan settled 3/3, the parent parked on its children twice and resumed, typed payloads validated, the
+            combined answer named both databases — and every child carried a <code>planStepId</code> that still resolved
+            in the final plan.
+          </td>
+        </tr>
+        <tr>
+          <td><code>script-parallel</code></td>
+          <td>pass · 18.1s</td>
+          <td>
+            The script child's two <code>ctx.parallel</code> children started 2&nbsp;ms apart and genuinely overlapped.
+          </td>
+        </tr>
+        <tr>
+          <td><code>script-narration</code></td>
+          <td>fail · 13.1s <span class="muted">(by design)</span></td>
+          <td>
+            The model <em>did</em> write <code>ctx.call(…, {description})</code> — it is right there in the run's saved
+            source — but this build drops the label before the journal. The narration feature lives on the UX branch;
+            this scenario turns green when that build is the running server.
+          </td>
+        </tr>
+      </table>
+
+      <div class="note">
+        <p>
+          <strong>The closing surprise: it fanned out.</strong> For the first time in ten measured runs, the agent
+          emitted <em>two delegate calls in one reply</em> — children overlapping in time, all three of them stamped to
+          a single plan step named for the whole batch (“Research SQLite and PostgreSQL in parallel”). That is exactly
+          the shape the contract asks for, and it is one run out of five on the current wording, so treat it as a
+          promising data point rather than a settled behavior. It surfaced only because the gate <em>reports</em>
+          same-turn fan-out instead of failing on it — a red check would have buried the good news along with the bad.
+        </p>
+      </div>
+
+      <h3>Attachment survives a rename <span class="badge">verified live</span></h3>
+      <p>
+        A child is hung under its plan step by <em>step id</em>, not by the step's label. This matters because agents
+        rewrite their step labels constantly, mid-task, without being asked.
+      </p>
+      <div class="verdict live">
+        <b>verified live ✓ (2026-08-12 night), twice</b> — in two separate runs the model renamed its running step while
+        its children were working. Both children kept <code>planStepId: "s1"</code>, which still resolved in the final
+        plan, while their stamped labels ("Research SQLite and PostgreSQL in parallel") matched no step at all. Under
+        the previous label-based join both children would have detached and rendered as loose rows below the checklist —
+        the bug this case now guards.
+      </div>
+      <p class="muted">
+        If you ever see a sub-agent row floating <em>beneath</em> the checklist rather than attached to the step that
+        spawned it, that is this bug returning, and the gate should have caught it.
+      </p>
+    </main>
+  </body>
+</html>

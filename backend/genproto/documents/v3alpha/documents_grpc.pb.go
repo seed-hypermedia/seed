@@ -20,30 +20,33 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Documents_GetDocument_FullMethodName              = "/com.seed.documents.v3alpha.Documents/GetDocument"
-	Documents_GetDocumentInfo_FullMethodName          = "/com.seed.documents.v3alpha.Documents/GetDocumentInfo"
-	Documents_BatchGetDocumentInfo_FullMethodName     = "/com.seed.documents.v3alpha.Documents/BatchGetDocumentInfo"
-	Documents_PrepareChange_FullMethodName            = "/com.seed.documents.v3alpha.Documents/PrepareChange"
-	Documents_DeleteDocument_FullMethodName           = "/com.seed.documents.v3alpha.Documents/DeleteDocument"
-	Documents_ListAccounts_FullMethodName             = "/com.seed.documents.v3alpha.Documents/ListAccounts"
-	Documents_GetAccount_FullMethodName               = "/com.seed.documents.v3alpha.Documents/GetAccount"
-	Documents_BatchGetAccounts_FullMethodName         = "/com.seed.documents.v3alpha.Documents/BatchGetAccounts"
-	Documents_UpdateProfile_FullMethodName            = "/com.seed.documents.v3alpha.Documents/UpdateProfile"
-	Documents_CreateAlias_FullMethodName              = "/com.seed.documents.v3alpha.Documents/CreateAlias"
-	Documents_CreateContact_FullMethodName            = "/com.seed.documents.v3alpha.Documents/CreateContact"
-	Documents_GetContact_FullMethodName               = "/com.seed.documents.v3alpha.Documents/GetContact"
-	Documents_UpdateContact_FullMethodName            = "/com.seed.documents.v3alpha.Documents/UpdateContact"
-	Documents_DeleteContact_FullMethodName            = "/com.seed.documents.v3alpha.Documents/DeleteContact"
-	Documents_ListContacts_FullMethodName             = "/com.seed.documents.v3alpha.Documents/ListContacts"
-	Documents_ListDirectory_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDirectory"
-	Documents_ListDocuments_FullMethodName            = "/com.seed.documents.v3alpha.Documents/ListDocuments"
-	Documents_ListRootDocuments_FullMethodName        = "/com.seed.documents.v3alpha.Documents/ListRootDocuments"
-	Documents_ListDocumentChanges_FullMethodName      = "/com.seed.documents.v3alpha.Documents/ListDocumentChanges"
-	Documents_GetDocumentChange_FullMethodName        = "/com.seed.documents.v3alpha.Documents/GetDocumentChange"
-	Documents_UpdateDocumentReadStatus_FullMethodName = "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus"
-	Documents_CreateRef_FullMethodName                = "/com.seed.documents.v3alpha.Documents/CreateRef"
-	Documents_GetRef_FullMethodName                   = "/com.seed.documents.v3alpha.Documents/GetRef"
-	Documents_ListRefs_FullMethodName                 = "/com.seed.documents.v3alpha.Documents/ListRefs"
+	Documents_GetDocument_FullMethodName                 = "/com.seed.documents.v3alpha.Documents/GetDocument"
+	Documents_GetDocumentInfo_FullMethodName             = "/com.seed.documents.v3alpha.Documents/GetDocumentInfo"
+	Documents_BatchGetDocumentInfo_FullMethodName        = "/com.seed.documents.v3alpha.Documents/BatchGetDocumentInfo"
+	Documents_PrepareChange_FullMethodName               = "/com.seed.documents.v3alpha.Documents/PrepareChange"
+	Documents_DeleteDocument_FullMethodName              = "/com.seed.documents.v3alpha.Documents/DeleteDocument"
+	Documents_ListAccounts_FullMethodName                = "/com.seed.documents.v3alpha.Documents/ListAccounts"
+	Documents_GetAccount_FullMethodName                  = "/com.seed.documents.v3alpha.Documents/GetAccount"
+	Documents_BatchGetAccounts_FullMethodName            = "/com.seed.documents.v3alpha.Documents/BatchGetAccounts"
+	Documents_UpdateProfile_FullMethodName               = "/com.seed.documents.v3alpha.Documents/UpdateProfile"
+	Documents_CreateAlias_FullMethodName                 = "/com.seed.documents.v3alpha.Documents/CreateAlias"
+	Documents_CreateContact_FullMethodName               = "/com.seed.documents.v3alpha.Documents/CreateContact"
+	Documents_GetContact_FullMethodName                  = "/com.seed.documents.v3alpha.Documents/GetContact"
+	Documents_UpdateContact_FullMethodName               = "/com.seed.documents.v3alpha.Documents/UpdateContact"
+	Documents_DeleteContact_FullMethodName               = "/com.seed.documents.v3alpha.Documents/DeleteContact"
+	Documents_ListContacts_FullMethodName                = "/com.seed.documents.v3alpha.Documents/ListContacts"
+	Documents_ListDirectory_FullMethodName               = "/com.seed.documents.v3alpha.Documents/ListDirectory"
+	Documents_ListDocuments_FullMethodName               = "/com.seed.documents.v3alpha.Documents/ListDocuments"
+	Documents_ListRootDocuments_FullMethodName           = "/com.seed.documents.v3alpha.Documents/ListRootDocuments"
+	Documents_QueryDocuments_FullMethodName              = "/com.seed.documents.v3alpha.Documents/QueryDocuments"
+	Documents_ListDocumentAttributeNames_FullMethodName  = "/com.seed.documents.v3alpha.Documents/ListDocumentAttributeNames"
+	Documents_ListDocumentAttributeValues_FullMethodName = "/com.seed.documents.v3alpha.Documents/ListDocumentAttributeValues"
+	Documents_ListDocumentChanges_FullMethodName         = "/com.seed.documents.v3alpha.Documents/ListDocumentChanges"
+	Documents_GetDocumentChange_FullMethodName           = "/com.seed.documents.v3alpha.Documents/GetDocumentChange"
+	Documents_UpdateDocumentReadStatus_FullMethodName    = "/com.seed.documents.v3alpha.Documents/UpdateDocumentReadStatus"
+	Documents_CreateRef_FullMethodName                   = "/com.seed.documents.v3alpha.Documents/CreateRef"
+	Documents_GetRef_FullMethodName                      = "/com.seed.documents.v3alpha.Documents/GetRef"
+	Documents_ListRefs_FullMethodName                    = "/com.seed.documents.v3alpha.Documents/ListRefs"
 )
 
 // DocumentsClient is the client API for Documents service.
@@ -97,6 +100,12 @@ type DocumentsClient interface {
 	ListDocuments(ctx context.Context, in *ListDocumentsRequest, opts ...grpc.CallOption) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(ctx context.Context, in *ListRootDocumentsRequest, opts ...grpc.CallOption) (*ListRootDocumentsResponse, error)
+	// Queries the current, visible attributes of documents.
+	QueryDocuments(ctx context.Context, in *QueryDocumentsRequest, opts ...grpc.CallOption) (*QueryDocumentsResponse, error)
+	// Lists user-defined document attribute names for autocomplete.
+	ListDocumentAttributeNames(ctx context.Context, in *ListDocumentAttributeNamesRequest, opts ...grpc.CallOption) (*ListDocumentAttributeNamesResponse, error)
+	// Lists known values for a user-defined document attribute.
+	ListDocumentAttributeValues(ctx context.Context, in *ListDocumentAttributeValuesRequest, opts ...grpc.CallOption) (*ListDocumentAttributeValuesResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(ctx context.Context, in *ListDocumentChangesRequest, opts ...grpc.CallOption) (*ListDocumentChangesResponse, error)
 	// Gets a single document change by ID.
@@ -300,6 +309,36 @@ func (c *documentsClient) ListRootDocuments(ctx context.Context, in *ListRootDoc
 	return out, nil
 }
 
+func (c *documentsClient) QueryDocuments(ctx context.Context, in *QueryDocumentsRequest, opts ...grpc.CallOption) (*QueryDocumentsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryDocumentsResponse)
+	err := c.cc.Invoke(ctx, Documents_QueryDocuments_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) ListDocumentAttributeNames(ctx context.Context, in *ListDocumentAttributeNamesRequest, opts ...grpc.CallOption) (*ListDocumentAttributeNamesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDocumentAttributeNamesResponse)
+	err := c.cc.Invoke(ctx, Documents_ListDocumentAttributeNames_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *documentsClient) ListDocumentAttributeValues(ctx context.Context, in *ListDocumentAttributeValuesRequest, opts ...grpc.CallOption) (*ListDocumentAttributeValuesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListDocumentAttributeValuesResponse)
+	err := c.cc.Invoke(ctx, Documents_ListDocumentAttributeValues_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *documentsClient) ListDocumentChanges(ctx context.Context, in *ListDocumentChangesRequest, opts ...grpc.CallOption) (*ListDocumentChangesResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListDocumentChangesResponse)
@@ -411,6 +450,12 @@ type DocumentsServer interface {
 	ListDocuments(context.Context, *ListDocumentsRequest) (*ListDocumentsResponse, error)
 	// Lists all the root documents that we know about.
 	ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error)
+	// Queries the current, visible attributes of documents.
+	QueryDocuments(context.Context, *QueryDocumentsRequest) (*QueryDocumentsResponse, error)
+	// Lists user-defined document attribute names for autocomplete.
+	ListDocumentAttributeNames(context.Context, *ListDocumentAttributeNamesRequest) (*ListDocumentAttributeNamesResponse, error)
+	// Lists known values for a user-defined document attribute.
+	ListDocumentAttributeValues(context.Context, *ListDocumentAttributeValuesRequest) (*ListDocumentAttributeValuesResponse, error)
 	// Lists all changes of a document.
 	ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error)
 	// Gets a single document change by ID.
@@ -485,6 +530,15 @@ func (UnimplementedDocumentsServer) ListDocuments(context.Context, *ListDocument
 }
 func (UnimplementedDocumentsServer) ListRootDocuments(context.Context, *ListRootDocumentsRequest) (*ListRootDocumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListRootDocuments not implemented")
+}
+func (UnimplementedDocumentsServer) QueryDocuments(context.Context, *QueryDocumentsRequest) (*QueryDocumentsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryDocuments not implemented")
+}
+func (UnimplementedDocumentsServer) ListDocumentAttributeNames(context.Context, *ListDocumentAttributeNamesRequest) (*ListDocumentAttributeNamesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentAttributeNames not implemented")
+}
+func (UnimplementedDocumentsServer) ListDocumentAttributeValues(context.Context, *ListDocumentAttributeValuesRequest) (*ListDocumentAttributeValuesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentAttributeValues not implemented")
 }
 func (UnimplementedDocumentsServer) ListDocumentChanges(context.Context, *ListDocumentChangesRequest) (*ListDocumentChangesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListDocumentChanges not implemented")
@@ -848,6 +902,60 @@ func _Documents_ListRootDocuments_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Documents_QueryDocuments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryDocumentsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).QueryDocuments(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_QueryDocuments_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).QueryDocuments(ctx, req.(*QueryDocumentsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_ListDocumentAttributeNames_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDocumentAttributeNamesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListDocumentAttributeNames(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_ListDocumentAttributeNames_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListDocumentAttributeNames(ctx, req.(*ListDocumentAttributeNamesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Documents_ListDocumentAttributeValues_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListDocumentAttributeValuesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DocumentsServer).ListDocumentAttributeValues(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Documents_ListDocumentAttributeValues_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DocumentsServer).ListDocumentAttributeValues(ctx, req.(*ListDocumentAttributeValuesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Documents_ListDocumentChanges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListDocumentChangesRequest)
 	if err := dec(in); err != nil {
@@ -1034,6 +1142,18 @@ var Documents_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRootDocuments",
 			Handler:    _Documents_ListRootDocuments_Handler,
+		},
+		{
+			MethodName: "QueryDocuments",
+			Handler:    _Documents_QueryDocuments_Handler,
+		},
+		{
+			MethodName: "ListDocumentAttributeNames",
+			Handler:    _Documents_ListDocumentAttributeNames_Handler,
+		},
+		{
+			MethodName: "ListDocumentAttributeValues",
+			Handler:    _Documents_ListDocumentAttributeValues_Handler,
 		},
 		{
 			MethodName: "ListDocumentChanges",

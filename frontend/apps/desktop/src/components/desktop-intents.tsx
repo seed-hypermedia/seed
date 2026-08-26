@@ -107,14 +107,14 @@ export function useJoinSiteIntent(siteUid: string, siteName?: string) {
         try {
           await subscribeContact({accountUid, subjectUid: siteUid, subscribe: 'site'})
           setSubscription.mutate({id: hmId(siteUid), subscribed: true, recursive: true})
-          toast.success(`Joined ${siteName || 'site'}`)
+          toast.success(`Joined ${siteName || 'space'}`)
         } catch (error) {
           console.error('Failed to join:', error)
           toast.error('Failed to join')
         }
       },
       {
-        title: `Join ${siteName || 'this site'}`,
+        title: `Join ${siteName || 'this space'}`,
         introDescription: 'Create your identity to participate, it takes two minutes.',
         siteName,
       },

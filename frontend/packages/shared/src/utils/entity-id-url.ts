@@ -49,6 +49,7 @@ export const VIEW_TERMS = [
   ':directory',
   ':feed',
   ':all-documents',
+  ':explore',
   ':settings',
   ':attributes',
   ':metadata', // backward compat: the metadata view is now surfaced as :attributes
@@ -64,6 +65,7 @@ export type ViewRouteKey =
   | 'directory'
   | 'feed'
   | 'all-documents'
+  | 'explore'
   | 'site-settings'
   | 'metadata'
   | SiteProfileTab
@@ -182,6 +184,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':directory': 'directory',
     ':feed': 'feed',
     ':all-documents': 'all-documents',
+    ':explore': 'explore',
     ':settings': 'site-settings',
     ':attributes': 'metadata',
     ':metadata': 'metadata', // backward compat
@@ -576,6 +579,21 @@ export function routeToUrl(
     return createWebInspectIpfsUrl(route, opts)
   }
 
+  if (route.key === 'explore') {
+    if (route.context.type !== 'site') return null
+    const siteId = route.context.id
+    return appendExploreQuery(
+      createWebHMUrl(siteId.uid, {
+        ...siteId,
+        hostname: opts?.hostname,
+        originHomeId: opts?.originHomeId,
+        viewTerm: ':explore',
+      }),
+      route.q,
+      route.sort,
+    )
+  }
+
   if (route.key === 'document') {
     const url = createWebHMUrl(route.id.uid, {
       ...route.id,
@@ -604,13 +622,17 @@ export function routeToUrl(
         viewTermPath = `:activity/${filterSlug}`
       }
     }
-    // For comments with openComment, put commentId in view term path
+    // For comments with openComment, put commentId in view term path.
+    // On comment permalinks, ?v pins the comment version (not the document version).
+    let commentPermalinkVersion: {version: string | null; latest: null} | undefined
     if (route.key === 'comments' && route.openComment) {
       viewTermPath = `:comments/${route.openComment}`
+      commentPermalinkVersion = {version: route.openCommentVersion || null, latest: null}
     }
     const effectivePanelParam = route.key === 'all-documents' ? null : panelParam
     return createWebHMUrl(route.id.uid, {
       ...route.id,
+      ...commentPermalinkVersion,
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
@@ -661,6 +683,12 @@ export function routeToHmUrl(route: NavRoute): string | null {
     return createHmInspectIpfsUrl(route)
   }
 
+  if (route.key === 'explore') {
+    if (route.context.type !== 'site') return null
+    const siteId = route.context.id
+    return appendExploreQuery(`${packBaseId(siteId.uid, siteId.path)}/:explore`, route.q, route.sort)
+  }
+
   if (route.key === 'document') {
     let url = packBaseId(route.id.uid, route.id.path)
     url += getHMQueryString({
@@ -688,15 +716,20 @@ export function routeToHmUrl(route: NavRoute): string | null {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTermPath = `:activity/${filterSlug}`
     }
+    // On comment permalinks, ?v pins the comment version (not the document version).
+    let versionQuery: {version?: string | null; latest?: boolean | null} = {
+      version: route.id.version,
+      latest: route.id.latest,
+    }
     if (route.key === 'comments' && route.openComment) {
       viewTermPath = `:comments/${route.openComment}`
+      versionQuery = {version: route.openCommentVersion || null}
     }
 
     let url = packBaseId(route.id.uid, route.id.path)
     url += `/${viewTermPath}`
     url += getHMQueryString({
-      version: route.id.version,
-      latest: route.id.latest,
+      ...versionQuery,
       panel: panelParam,
     })
     if (route.id.blockRef) {
@@ -964,6 +997,15 @@ function serializeQueryString(query: Record<string, string | null>) {
     .join('&')
   if (!queryString) return ''
   return `?${queryString}`
+}
+
+function appendExploreQuery(url: string, q?: string | null, sort?: string | null) {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (sort) params.set('sort', sort)
+  const query = params.toString()
+  if (!query) return url
+  return `${url}${url.includes('?') ? '&' : '?'}${query}`
 }
 
 /** @deprecated Import from `@seed-hypermedia/client/hm-types` instead. */

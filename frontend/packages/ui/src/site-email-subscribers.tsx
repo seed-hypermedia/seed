@@ -51,7 +51,7 @@ export function SiteEmailSubscribersPanel({
         <h1>{tx('Email Subscribers')}</h1>
       </SizableText>
       <SizableText size="sm" className="text-muted-foreground">
-        {tx('People who subscribed to receive updates from this site.')}
+        {tx('People who subscribed to receive updates from this space.')}
       </SizableText>
       {message ? (
         <SizableText className="text-muted-foreground">{message}</SizableText>
@@ -90,7 +90,7 @@ export function SiteEmailSubscribersList({
   }
 
   if (!subscribers?.length) {
-    return <SizableText className="text-muted-foreground">{tx('No one has subscribed to this site yet.')}</SizableText>
+    return <SizableText className="text-muted-foreground">{tx('No one has subscribed to this space yet.')}</SizableText>
   }
 
   const activeCount = subscribers.filter((s) => !s.isUnsubscribed).length

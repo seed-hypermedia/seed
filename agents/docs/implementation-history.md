@@ -5,6 +5,146 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### Agent introspection: ~/triggers/, ~/self, thread listing (2026-08-18/19)
+
+Agents became introspective: they can read everything about themselves and manage their own automations. Three
+additions, all riding the existing tables (no protocol deletions, no migrations):
+
+- **`~/triggers/` through the verbs.** `read ~/triggers/` lists the agent's triggers with the write contract inline;
+  `read ~/triggers/<name>` returns one trigger (source, prompt markdown, continuation, recent firings);
+  `write ~/triggers/<name>` creates, edits, enables, disables, or deletes by name or id, validated by the same
+  normalizers the signed CRUD actions use, with `enabled` honored as written (default true). A draft→active consent gate
+  was built first and then **removed on the owner's direction** — agents enable and disable their own triggers directly,
+  with no approval step; `security.md` records the threat-model tradeoff. Trigger writes emit `trigger-updated` account
+  events so the desktop Triggers tab updates live.
+- **`read ~/self`.** The agent's own record: definition (name, model, provider, reasoning level, system prompt), grants,
+  signing-key names, triggers, memory summary, session count, and guidance on what it can and cannot change.
+- **`read thread:`** (bare address) lists the account's conversations newest-first and searches them — titles plus a
+  bounded scan of recent message text with snippets (`options {query, agentId, limit}`).
+
+The Space index now always advertises the triggers affordance and names active triggers, so "do this every morning" is a
+request the agent can complete in one turn. Docs: `tools.md`, `security.md`, `persistence.md`, `agent-triggers-plan.md`,
+`m6-event-bus-design.md`.
+
+### Agent invitations and collaborators
+
+Agents can now be shared with Seed accounts through explicit pending invitations and accepted reader/writer roles. The
+SQLite membership row never changes ownership: every existing agent/session/run query still executes against the owner's
+account after one centralized access-resolution check. Readers can inspect the complete agent; writers can mutate and
+interact; collaborator management and deletion remain owner-only. Signed WebSocket subscriptions use the same check and
+durable service events fan out to accepted collaborators. Desktop adds pending invites to the Agents index and reuses
+the document collaborator account-search pattern in Agent Settings for invites, roles, revocation, and read-only states.
+
+### Remote agent content sync hardening
+
+The desktop already discovered `hm://` references from open agent sessions, but the implementation issued one request
+and permanently deduplicated it. That request could race the desktop's connection to the remote HM peer or return a
+cached discovery result from before the agent published, leaving a newly created document/comment unavailable when its
+link was clicked. Open session WebSockets now turn structured tool-result and assistant-message references into normal
+live desktop sync subscriptions, recursive for comments, and release them when the session closes. This lifecycle is
+strictly mounted-session scoped: account/agent sockets and non-selected background sessions do nothing. The write verb's
+registry extractor again covers its actual document/comment result fields after the five-verb migration and includes
+exact document versions.
+
+### The Harness — three nouns, five verbs (2026-08-11 → 2026-08-13)
+
+The tool surface was rebuilt from the ground up on a stack of `harness/*` milestone branches, each gated (full suite,
+adversarial self-review, simulated-model gate) and written up in `docs/harness/reviews/`. Architecture and vocabulary:
+`docs/harness/plan.md` and `docs/glossary.md`. Breaking changes were preferred over aliases throughout — old tool names
+simply stopped existing, and stored transcripts keep their historical events without re-dispatching.
+
+- **M1 — the five verbs.** `protocol/src/tool-registry.ts` was rewritten: `seedVerbRegistry` is `read`, `write`, `call`,
+  `delegate`, `plan` plus the hidden `return_result`; `callableToolRegistry` is `search`, `web_search`, `navigate`,
+  `execute`, reachable only through `call`. `api-service.ts` gained the three address dispatchers (`executeReadVerb` /
+  `executeWriteVerb` / `executeCallVerb`). `delegate` absorbed `sub_session`, `run_workflow`, and `start_session`;
+  `plan` absorbed `update_plan`; `set_session_title` was deleted. Provider-facing tool bytes fell 71% (28,886 → 8,483).
+  Calling a tool with wrong input returns its **contract** instead of an error, and the retry runs.
+- **M2 — tools as documents.** `src/tool-documents.ts` and the `tool_documents` table: every tool is a content-addressed
+  document (canonical DAG-CBOR, CIDv1) under `~/tools/`, builtins upserted at boot, lambdas authored through `write`.
+  `buildSpaceIndex()` injects one byte-budgeted `<space>` block into every system prompt, cached per agent and
+  invalidated at each mutation site. Touch-expand **promotion** is derived from durable events, so it survives resume
+  and restart. Signed public writing moved behind the **publish grant**.
+- **M3 — the symmetric log.** `SessionActor` (`user | agent | system | trigger`) stamps every event, and the
+  `InvokeSessionTool` action lets the user run `read`/`write`/`call` through the exact dispatchers the agent uses, on
+  the same log. The agent reads them back as `<user_action>` frames on its next turn. Desktop: the wrench palette and
+  the "You" chip.
+- **M4 — execution.** `execute {runtime: 'ts' | 'python' | 'shell', code}` (`CODE_EXEC_RUNTIMES`) is the whole compute
+  surface, each runtime one argv command in a microVM. TypeScript is an operator opt-in (`SEED_AGENTS_EXEC_TS_IMAGE`)
+  and is not offered when unconfigured. Authored `~/tools/**` lambdas became callable by name: input validated outside
+  the VM, source executed, output validated against the tool's own schema.
+- **M5 — time.** `RunWait` grew `event` and `budget-pause` beside `children`/`timer`, backed by the `run_event_waits`
+  table; `ctx.waitForEvent`, `ctx.continueAsNew` (successors linked by `continued_from_run_id`, not parent), and the new
+  `SignalRun` action. Delivery is exactly-once by construction — journal write and requeue in one transaction. The card
+  gained `ParkedRunActions`: Answer, Answer with data, Resume.
+- **M6 first slice — the event bus.** `run-completed` joined the trigger sources, firing inline from `#onRunFinalized`;
+  triggers gained a **continuation** (`agent_triggers.continuation_cbor`, NULL = `newThread`) with `wake` delivering
+  into a parked run through the same path `SignalRun` uses; `#triggerAlreadyInChain` walks the firing chain
+  (`TRIGGER_CHAIN_MAX_HOPS`, 8) to stop trigger ping-pong; `matchesActivityCriteria` is now one matcher shared by
+  trigger matching and run event waits. Trigger **documents** and draft→active consent are designed in
+  `docs/harness/m6-event-bus-design.md` and deliberately not built.
+- **Obligations and settlement** (after M6, `918084d75` and `9f56ccdda`). One model of what a run owes —
+  `#openObligations`, one continuation loop, `MAX_RUN_CONTINUATIONS` of 3 — replaced the per-feature nudges. Spending
+  the budget ends the run honestly: `unmetObligations` on the output and `RunInfo` plus a visible notice, never an
+  auto-checked step (typed debt fails the run; plan debt succeeds owing it). Every runtime-authored message is durably
+  `actor: 'system'`. Each turn's replay ends with an ephemeral `<plan_state>` block so a resumed model can see its own
+  checklist, and a step whose attached children all succeeded is settled by the runtime
+  (`RunPlanStep.resolvedBy: 'runtime'`, shown as a muted "auto" affix); `RunPlan.settledAt` freezes a finished checklist
+  into the log. Model- authored step ids and labels are escaped before being framed back to the model.
+- **Verification.** `agents/e2e/live-gate.ts` runs scripted scenarios against a real server and model;
+  `e2e/scripted-provider.ts` plus `e2e/obligations-live-check.ts` and `e2e/narration-check.ts` drive deterministic live
+  checks without provider credits. `HARNESS-TESTING.html` at the repo root is the manual test guide. Suite at the end of
+  this work: **282 pass / 0 fail** across 25 files.
+
+### Durable runs, sub-sessions, and the workflow engine (2026-08-03)
+
+Landed as ten commits on `feat/agent-workflows` implementing `agents/docs/workflows-v1-plan.md`. The first four:
+
+- `feat(agents): durable runs table + dispatch queue under every agent execution` — every execution is a `runs` row; the
+  table is the dispatch queue (leases, interactive/background, one-live-run-per-session, boot sweep + interrupted
+  tool_call repair); `sessions.status` became a derived mirror, killing the wedged-`streaming` crash mode; usage
+  persists per turn and rolls up child→parent; session lineage columns landed; also fixed a schedule-trigger
+  clock-mixing flake.
+- `feat(agents): sub_session tool — awaited child sessions with park/resume and typed results` — awaited delegation with
+  total context isolation, turn parking (refuse-next-provider-request), child finalizers appending the durable
+  tool_result and requeuing the parent, typed `return_result` validation with bounded retries, run actions
+  (GetRun/ListRuns/CancelRun/GetRunJournal) and the `runs/<rootRunId>` WS key.
+- `feat(agents): QuickJS workflow engine — journaled deterministic runs behind run_workflow` — agent-authored JS
+  orchestration with journal replay-from-top resume, determinism lint + realm, sync-VM effect pump (true parallel
+  fan-out), fuel/memory/journal caps, timer parking, its own concurrency pool, and `ctx.step`/`ctx.plan` progress.
+- `feat(agents): update_plan todo tool + Tier-3 live-model validation harness` — always-available todo snapshots on
+  `sessions.plan_cbor`, plus `agents/e2e/run.ts`, the manual real-model gate (default `gpt-5-mini`) asserting on durable
+  state with transcript artifacts.
+
+The same day continued through six more commits:
+
+- `docs(agents)` routing-table pass, plus desktop UX (`feat(desktop)` ×2): the pinned `SessionRunCard`
+  (active/parked/terminal-chip/todo states, durable-first from `ListRuns` + the `runs/<rootRunId>` subscription replay),
+  the collapsed Activity drawer tailing the run tree's journal, session nesting with lazy disclosures in both list
+  surfaces, and child-page breadcrumb/banner/composer-lock.
+- `fix(agents): six confirmed findings from the adversarial review pass` — a 13-agent review workflow (4 dimensions +
+  adversarial verification) over the branch diff confirmed: an interactive-claim TOCTOU that could double-execute a
+  session (same-session exclusion added to the inline claim; refused claims withdraw + 409); journal matching by arrival
+  order diverging on `ctx.parallel` continuation reordering (empirically reproduced by the verifier; replaced with
+  content-keyed matching — `nondeterministic-replay` no longer exists as a failure mode); `DeleteAgent` FK-crashing on
+  run rows (any agent that ever executed was undeletable); crash-window stranding of parked parents (boot reconcile
+  pass + unconditional wait resolution); `DeleteSession` stranding parked parents (live trees canceled before detach);
+  and a `ListSessions` default that hid agent-started sessions from older clients (default flipped to inclusive;
+  exclusion needs explicit `includeChildren: false`).
+- `fix(agents,desktop): delegation works out of the box; sessions never list twice` — root cause of the first live
+  report: existing agents' saved tool arrays predate `sub_session`/`run_workflow`, so real models fell back to
+  fire-and-forget `start_session` (children invisible to the card, no resume). Both delegation tools became
+  always-available like `start_session`; `start_session` children joined the caller's run tree while keeping detached
+  turn semantics; both session-list surfaces filter to top-level rows client-side. Verified by three full-stack repros
+  driving `bun src/main.ts` over signed HTTP with a scripted local provider.
+- `feat(agents): simulated-model validation pass` — with the OpenAI key exhausted, blind Claude-subagent simulated-model
+  gates (see `operations.md`) validated delegation choice and workflow authoring; their guessed-at-contract lists drove
+  bare-string `ctx.plan` steps and the contract-tight ctx documentation in the tool descriptions.
+
+Validation at head: `bun check` clean; 174 `bun test` tests (park/resume fan-out, typed-validation retry,
+restart-while-parked, crash recovery, queue semantics, 19 workflow-engine determinism/fault-injection tests including
+the continuation-reordering replay regression); desktop 567 vitest tests. The Tier-3 live-model gate ran against the
+real OpenAI endpoint but remains blocked on account credits.
+
 ### Sandboxed code execution (`execute_code`)
 
 Completed:

@@ -169,7 +169,8 @@ describe('moveWebDocuments', () => {
         path: '/old-parent/renamed',
         genesis: 'genesis-cid',
         version: 'doc-version',
-        generation: 5,
+        // Fresh generation so the ref supersedes anything already at the destination path.
+        generation: expect.any(Number),
         capability: 'cap-cid',
       },
       expect.anything(),
@@ -179,7 +180,7 @@ describe('moveWebDocuments', () => {
         space: 'site',
         path: '/old-parent/doc',
         genesis: 'genesis-cid',
-        generation: 5,
+        generation: expect.any(Number),
         targetSpace: 'site',
         targetPath: '/old-parent/renamed',
         capability: 'cap-cid',
@@ -228,6 +229,91 @@ describe('moveWebDocuments', () => {
     expect(publish).toHaveBeenCalledTimes(2)
     expect(enqueueCleanupMock).toHaveBeenCalled()
   })
+
+  it('moves a republished path as a republish: the destination re-publishes the original, not a fork', async () => {
+    // A path that republishes an original is a live mirror. Moving it must keep it a mirror — the
+    // destination republishes the SAME original — rather than freezing a fork of its content.
+    const from = makeId('site', ['mirror'])
+    const to = makeId('site', ['moved-mirror'])
+    const original = makeId('other', ['resources', 'guide'])
+    const publish = vi.fn(async () => ({}))
+    const getSigner = vi.fn(() => ({
+      getPublicKey: async () => new Uint8Array([1]),
+      sign: async () => new Uint8Array([2]),
+    }))
+    // The source republishes the original; following it reaches the original document.
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
+      if (id.uid === 'site' && (id.path || []).join('/') === 'mirror') {
+        return {type: 'redirect', id, redirectTarget: original, republish: true}
+      }
+      return {
+        type: 'document',
+        document: {version: 'guide-version', generationInfo: {genesis: 'guide-genesis', generation: 9n}},
+      }
+    })
+    createVersionRefMock.mockClear()
+    createRedirectRefMock.mockClear()
+
+    await moveWebDocuments({request, publish, getSigner} as any, {
+      from,
+      to,
+      signingAccountId: 'site',
+      capabilityId: 'cap-cid',
+    })
+
+    // No fork: the destination gets a republish redirect pointing at the ORIGINAL.
+    expect(createVersionRefMock).not.toHaveBeenCalled()
+    expect(createRedirectRefMock).toHaveBeenCalledWith(
+      {
+        space: 'site',
+        path: '/moved-mirror',
+        genesis: 'guide-genesis',
+        generation: expect.any(Number),
+        targetSpace: 'other',
+        targetPath: '/resources/guide',
+        republish: true,
+        capability: 'cap-cid',
+      },
+      expect.anything(),
+    )
+    // And the source redirects to the destination — a plain move redirect, no republish flag.
+    expect(createRedirectRefMock).toHaveBeenCalledWith(
+      {
+        space: 'site',
+        path: '/mirror',
+        genesis: 'guide-genesis',
+        generation: expect.any(Number),
+        targetSpace: 'site',
+        targetPath: '/moved-mirror',
+        capability: 'cap-cid',
+      },
+      expect.anything(),
+    )
+    expect(publish).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuses to move a path that has itself already moved', async () => {
+    const from = makeId('site', ['old'])
+    const to = makeId('site', ['newer'])
+    const movedTarget = makeId('site', ['new'])
+    const publish = vi.fn(async () => ({}))
+    const getSigner = vi.fn(() => ({
+      getPublicKey: async () => new Uint8Array([1]),
+      sign: async () => new Uint8Array([2]),
+    }))
+    // A move redirect (republish: false) — the source is a pointer, not content.
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
+      if (id.uid === 'site' && (id.path || []).join('/') === 'old') {
+        return {type: 'redirect', id, redirectTarget: movedTarget, republish: false}
+      }
+      return {type: 'document', document: {version: 'v', generationInfo: {genesis: 'g', generation: 1n}}}
+    })
+
+    await expect(
+      moveWebDocuments({request, publish, getSigner} as any, {from, to, signingAccountId: 'site'}),
+    ).rejects.toThrow('already moved')
+    expect(publish).not.toHaveBeenCalled()
+  })
 })
 
 describe('republishWebDocument', () => {
@@ -258,7 +344,9 @@ describe('republishWebDocument', () => {
         space: 'site',
         path: '/parent/copy',
         genesis: 'genesis-cid',
-        generation: 8,
+        // Fresh generation — not the source document's — so any later publish at the
+        // destination supersedes the republish redirect.
+        generation: expect.any(Number),
         targetSpace: 'source',
         targetPath: '/doc',
         republish: true,

@@ -15,6 +15,7 @@ import (
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/hmnet"
 	"seed/backend/util/apiutil"
+	"seed/backend/util/attrkey"
 	"seed/backend/util/cclock"
 	"seed/backend/util/colx"
 	"seed/backend/util/dqb"
@@ -43,12 +44,18 @@ import (
 
 const (
 	defaultPageSize                = 100
-	maxPageAllocBuffer             = 400 // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
-	publicOnlyListVisibilityFilter = `COALESCE(json_extract(dg.metadata, '$."$db.visibility".v'), '') IS NOT 'Private'`
+	maxPageSize                    = 2000 // Hard cap on client-requested page sizes; clients wanting more must follow next_page_token.
+	maxPageAllocBuffer             = 400  // Arbitrary limit to prevent allocating too much memory when client requested huge page size.
+	maxQueryDocumentsPageSize      = 1000
+	maxQueryDocumentSorts          = 16
+	publicOnlyListVisibilityFilter = `dg.visibility IS NOT 'Private'`
+	indexedAttributeString         = "s"
+	indexedAttributeBool           = "b"
+	indexedAttributeInt            = "i"
 )
 
 var authenticatedListVisibilityFilter = `(
-	COALESCE(json_extract(dg.metadata, '$."$db.visibility".v'), '') IS NOT 'Private'
+	dg.visibility IS NOT 'Private'
 	OR ` + blob.SQLCanWriteRootByOwnerID("r.owner") + `
 )`
 
@@ -84,6 +91,20 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 	idx.SetDeriveFirstContentImage(DeriveFirstContentImage)
 
 	return srv
+}
+
+// clampPageSize applies the default page size when the client didn't set one,
+// and caps huge page sizes: clients wanting more data must follow next_page_token.
+// The proto contract explicitly allows the server to ignore the requested size.
+func (srv *Server) clampPageSize(rpc string, pageSize *int32, defaultSize int32) {
+	if *pageSize <= 0 {
+		*pageSize = defaultSize
+		return
+	}
+	if *pageSize > maxPageSize {
+		srv.log.Warn("PageSizeClamped", zap.String("rpc", rpc), zap.Int32("requestedPageSize", *pageSize))
+		*pageSize = maxPageSize
+	}
 }
 
 // DeriveFirstContentImage rebuilds a document in memory from the given changes
@@ -139,6 +160,610 @@ func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link st
 // telemetry emitters are no-ops.
 func (srv *Server) SetTelemetry(t *telemetry.Server) {
 	srv.telemetry = t
+}
+
+// QueryDocuments queries current document attributes.
+func (srv *Server) QueryDocuments(ctx context.Context, in *documents.QueryDocumentsRequest) (out *documents.QueryDocumentsResponse, err error) {
+	if in.PageSize <= 0 {
+		in.PageSize = defaultPageSize
+	}
+	if in.PageSize > maxQueryDocumentsPageSize {
+		return nil, status.Errorf(codes.InvalidArgument, "page_size must not exceed %d", maxQueryDocumentsPageSize)
+	}
+
+	cursor := struct {
+		Offset int `json:"o"`
+	}{}
+	if in.PageToken != "" {
+		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+
+	args := colx.Slice[any]{}
+	qb := baseListDocumentsQuery(commentAggAll)
+	qb.Where("r.iri GLOB 'hm://*'")
+	whereFilters, havingFilter := splitDocumentLocationFilters(in.GetFilter())
+	for _, locationFilter := range whereFilters {
+		where, err := documentFilterSQL(locationFilter, &args, 0)
+		if err != nil {
+			return nil, err
+		}
+		qb.Where(where)
+	}
+	srv.applyListVisibilityFilter(ctx, qb, &args)
+	filterArgs := colx.Slice[any]{}
+	filter, err := documentFilterSQL(havingFilter, &filterArgs, 0)
+	if err != nil {
+		return nil, err
+	}
+	qb.Having(filter)
+	args.Append(filterArgs...)
+
+	order, err := documentSortSQL(in.GetSort(), &args)
+	if err != nil {
+		return nil, err
+	}
+	qb.OrderBy(order).Limit("? OFFSET ?")
+	args.Append(in.PageSize+1, cursor.Offset)
+
+	out = &documents.QueryDocumentsResponse{
+		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
+	}
+	conn, release, err := srv.db.ReadConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	lookup := blob.NewLookupCache(conn)
+	err = sqlitex.ExecTransient(conn, qb.StringTransient(), func(row *sqlite.Stmt) error {
+		if len(out.Documents) == int(in.PageSize) {
+			out.NextPageToken = apiutil.EncodePageToken(struct {
+				Offset int `json:"o"`
+			}{Offset: cursor.Offset + len(out.Documents)}, nil)
+			return nil
+		}
+		item, _, err := documentInfoFromRow(lookup, row)
+		if err != nil {
+			return err
+		}
+		out.Documents = append(out.Documents, item)
+		return nil
+	}, args...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// splitDocumentLocationFilters moves top-level location predicates into WHERE,
+// where SQLite can use the resources indexes before grouping generations. Other
+// predicates remain in HAVING because attribute filters inspect the grouped
+// current document projection. Location predicates nested under OR stay intact.
+func splitDocumentLocationFilters(filter *documents.DocumentFilter) (where []*documents.DocumentFilter, having *documents.DocumentFilter) {
+	if isDocumentLocationFilter(filter) {
+		return []*documents.DocumentFilter{filter}, nil
+	}
+	and, ok := filter.GetFilter().(*documents.DocumentFilter_And_)
+	if !ok || and.And == nil {
+		return nil, filter
+	}
+
+	rest := make([]*documents.DocumentFilter, 0, len(and.And.Filters))
+	for _, child := range and.And.Filters {
+		if isDocumentLocationFilter(child) {
+			where = append(where, child)
+		} else {
+			rest = append(rest, child)
+		}
+	}
+	switch len(rest) {
+	case 0:
+		return where, nil
+	case 1:
+		return where, rest[0]
+	default:
+		return where, &documents.DocumentFilter{Filter: &documents.DocumentFilter_And_{And: &documents.DocumentFilter_And{Filters: rest}}}
+	}
+}
+
+func isDocumentLocationFilter(filter *documents.DocumentFilter) bool {
+	if filter == nil {
+		return false
+	}
+	switch value := filter.Filter.(type) {
+	case *documents.DocumentFilter_SpaceMatch_, *documents.DocumentFilter_PathMatch_, *documents.DocumentFilter_UrlMatch:
+		return true
+	case *documents.DocumentFilter_Not_:
+		return value.Not != nil && isDocumentLocationFilter(value.Not.Filter)
+	default:
+		return false
+	}
+}
+
+func autocompletePage(inSize int32, token string) (size, offset int, err error) {
+	if inSize <= 0 {
+		inSize = defaultPageSize
+	}
+	if inSize > 1000 {
+		return 0, 0, status.Error(codes.InvalidArgument, "page_size must not exceed 1000")
+	}
+	cursor := struct {
+		Offset int `json:"o"`
+	}{}
+	if token != "" {
+		if err := apiutil.DecodePageToken(token, &cursor, nil); err != nil {
+			return 0, 0, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+	if cursor.Offset < 0 {
+		return 0, 0, status.Error(codes.InvalidArgument, "invalid page token offset")
+	}
+	return int(inSize), cursor.Offset, nil
+}
+
+func validateAttributePath(path []string, required bool) error {
+	if required && len(path) == 0 {
+		return status.Error(codes.InvalidArgument, "attribute path is required")
+	}
+	for _, segment := range path {
+		if segment == "" || strings.Contains(segment, ".") {
+			return status.Error(codes.InvalidArgument, "attribute path segments must be non-empty and must not contain dots")
+		}
+	}
+	for _, segment := range path {
+		if strings.HasPrefix(segment, "$") {
+			return status.Error(codes.InvalidArgument, "internal attributes are not available")
+		}
+	}
+	return nil
+}
+
+func autocompleteAccount(account string) (core.Principal, error) {
+	if account == "" {
+		return nil, nil
+	}
+	principal, err := core.DecodePrincipal(account)
+	if err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid account: %v", err)
+	}
+	return principal, nil
+}
+
+type attributeAutocompleteQueries struct {
+	all           dqb.LazyQuery
+	publicOnly    dqb.LazyQuery
+	authenticated dqb.LazyQuery
+}
+
+const attributeAutocompleteEligibleDocuments = `
+	WITH requested_space AS (
+		SELECT id FROM public_keys WHERE principal = ?
+	), eligible_documents AS (
+		SELECT dg.resource, r.owner AS space
+		FROM document_generations dg, resources r
+		WHERE r.id = dg.resource
+		GROUP BY dg.resource
+		HAVING dg.generation = MAX(dg.generation) AND dg.is_deleted = 0%s
+	)
+`
+
+func newAttributeAutocompleteQueries(body string) attributeAutocompleteQueries {
+	return attributeAutocompleteQueries{
+		all:           dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, "") + body),
+		publicOnly:    dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+publicOnlyListVisibilityFilter) + body),
+		authenticated: dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+authenticatedListVisibilityFilter) + body),
+	}
+}
+
+func (srv *Server) attributeAutocompleteQuery(ctx context.Context, queries attributeAutocompleteQueries, account core.Principal) (dqb.LazyQuery, []any) {
+	args := []any{[]byte(account)}
+	if !srv.cfg.PublicOnly {
+		return queries.all, args
+	}
+	if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
+		return queries.authenticated, append(args, []byte(caller))
+	}
+	return queries.publicOnly, args
+}
+
+var attributeAutocompleteNameQueries = newAttributeAutocompleteQueries(`
+	, matching_keys AS MATERIALIZED (
+		SELECT id, key, search_key
+		FROM document_attribute_keys
+		WHERE key NOT GLOB '$*'
+			AND key NOT GLOB '*.$*'
+			AND search_key >= ?
+			AND search_key < ? || X'FFFF'
+			AND (? = '' OR substr(key, 1, length(?) + 1) = ? || '.')
+	)
+	, direct_children AS (
+		SELECT DISTINCT da.resource,
+			CASE WHEN ? THEN mk.key ELSE attribute_path_segment(mk.key, ?) END AS name,
+			CASE
+				WHEN ? OR attribute_path_segment(mk.key, ?) IS NULL THEN CASE da.kind
+					WHEN 's' THEN 2
+					WHEN 'b' THEN 4
+					WHEN 'i' THEN 3
+				END
+				ELSE 1
+			END AS kind,
+			CASE WHEN ed.space = (SELECT id FROM requested_space) THEN 0 ELSE 1 END AS scope_rank
+		FROM matching_keys mk
+		JOIN document_attributes da ON da.key = mk.id
+		JOIN eligible_documents ed ON ed.resource = da.resource
+		WHERE da.value IS NOT NULL
+			AND da.kind IN ('s', 'b', 'i')
+	), ranked_names AS (
+		SELECT name, MIN(scope_rank) AS scope_rank
+		FROM direct_children
+		GROUP BY name
+	), name_kinds AS (
+		SELECT dc.name, dc.kind
+		FROM direct_children dc
+		JOIN ranked_names rn ON rn.name = dc.name AND rn.scope_rank = dc.scope_rank
+		GROUP BY dc.name, dc.kind
+	)
+	SELECT rn.name,
+		(
+			SELECT json_group_array(kind)
+			FROM (
+				SELECT kind
+				FROM name_kinds
+				WHERE name = rn.name
+				ORDER BY kind
+			)
+		) AS kinds
+	FROM ranked_names rn
+	ORDER BY rn.scope_rank, attribute_search_key(rn.name), rn.name
+	LIMIT ? OFFSET ?
+`)
+
+func newAttributeAutocompleteValueQueries(display string) attributeAutocompleteQueries {
+	return newAttributeAutocompleteQueries(fmt.Sprintf(`
+		, matching_values AS (
+			SELECT DISTINCT da.value,
+				%s AS display
+			FROM document_attributes da
+			JOIN document_attribute_keys dak ON dak.id = da.key
+			JOIN eligible_documents ed ON ed.resource = da.resource
+			WHERE da.value IS NOT NULL
+				AND dak.key = ?
+				AND (NOT EXISTS (SELECT 1 FROM requested_space) OR ed.space = (SELECT id FROM requested_space))
+				AND da.kind = ?
+				AND substr(attribute_search_key(%s), 1, length(?)) = ?
+		)
+		SELECT value
+		FROM matching_values
+		ORDER BY attribute_search_key(display), display
+		LIMIT ? OFFSET ?
+	`, display, display))
+}
+
+var (
+	attributeAutocompleteStringValueQueries = newAttributeAutocompleteValueQueries("da.value")
+	attributeAutocompleteIntValueQueries    = newAttributeAutocompleteValueQueries("CAST(da.value AS TEXT)")
+	attributeAutocompleteBoolValueQueries   = newAttributeAutocompleteValueQueries("CASE da.value WHEN 0 THEN 'false' ELSE 'true' END")
+)
+
+// ListDocumentAttributeNames lists user-defined document attribute names for autocomplete.
+func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents.ListDocumentAttributeNamesRequest) (*documents.ListDocumentAttributeNamesResponse, error) {
+	if err := validateAttributePath(in.GetParentPath(), false); err != nil {
+		return nil, err
+	}
+	account, err := autocompleteAccount(in.GetAccount())
+	if err != nil {
+		return nil, err
+	}
+	pageSize, offset, err := autocompletePage(in.GetPageSize(), in.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	out := &documents.ListDocumentAttributeNamesResponse{}
+	searchPath := attrkey.SearchPath(in.GetParentPath())
+	fullPrefix := strings.Join(append(searchPath, attrkey.SearchKey(in.GetPrefix())), ".")
+	exactParent := strings.Join(in.GetParentPath(), ".")
+	depth := len(in.GetParentPath())
+	query, args := srv.attributeAutocompleteQuery(ctx, attributeAutocompleteNameQueries, account)
+	args = append(args, fullPrefix, fullPrefix, exactParent, exactParent, exactParent, in.GetRecursive(), depth, in.GetRecursive(), depth+1, pageSize+1, offset)
+
+	conn, release, err := srv.db.ReadConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	err = sqlitex.ExecTransient(conn, query(), func(row *sqlite.Stmt) error {
+		if len(out.Names) == pageSize {
+			out.NextPageToken = apiutil.EncodePageToken(struct {
+				Offset int `json:"o"`
+			}{Offset: offset + pageSize}, nil)
+			return nil
+		}
+		var kinds []documents.DocumentAttributeKind
+		if err := json.Unmarshal([]byte(row.ColumnText(1)), &kinds); err != nil {
+			return err
+		}
+		item := &documents.DocumentAttributeName{
+			Name:  row.ColumnText(0),
+			Kinds: make([]*documents.DocumentAttributeKindUsage, 0, len(kinds)),
+		}
+		for _, kind := range kinds {
+			item.Kinds = append(item.Kinds, &documents.DocumentAttributeKindUsage{Kind: kind})
+		}
+		out.Names = append(out.Names, item)
+		return nil
+	}, args...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListDocumentAttributeValues lists known values for a user-defined document attribute.
+func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *documents.ListDocumentAttributeValuesRequest) (*documents.ListDocumentAttributeValuesResponse, error) {
+	if err := validateAttributePath(in.GetPath(), true); err != nil {
+		return nil, err
+	}
+	if in.GetKind() != documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING &&
+		in.GetKind() != documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_INT &&
+		in.GetKind() != documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_BOOL {
+		return nil, status.Error(codes.InvalidArgument, "kind must be a scalar attribute kind")
+	}
+	account, err := autocompleteAccount(in.GetAccount())
+	if err != nil {
+		return nil, err
+	}
+	pageSize, offset, err := autocompletePage(in.GetPageSize(), in.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	wantKey := strings.Join(in.GetPath(), ".")
+	out := &documents.ListDocumentAttributeValuesResponse{}
+	var queries attributeAutocompleteQueries
+	var indexedKind string
+	switch in.GetKind() {
+	case documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING:
+		queries = attributeAutocompleteStringValueQueries
+		indexedKind = indexedAttributeString
+	case documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_INT:
+		queries = attributeAutocompleteIntValueQueries
+		indexedKind = indexedAttributeInt
+	case documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_BOOL:
+		queries = attributeAutocompleteBoolValueQueries
+		indexedKind = indexedAttributeBool
+	}
+	query, args := srv.attributeAutocompleteQuery(ctx, queries, account)
+	prefix := attrkey.SearchKey(in.GetPrefix())
+	args = append(args, wantKey, indexedKind, prefix, prefix, pageSize+1, offset)
+
+	conn, release, err := srv.db.ReadConn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+	err = sqlitex.ExecTransient(conn, query(), func(row *sqlite.Stmt) error {
+		if len(out.Values) == pageSize {
+			out.NextPageToken = apiutil.EncodePageToken(struct {
+				Offset int `json:"o"`
+			}{Offset: offset + pageSize}, nil)
+			return nil
+		}
+		value := &documents.AttributeValue{}
+		switch in.GetKind() {
+		case documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_STRING:
+			value.Value = &documents.AttributeValue_StringValue{StringValue: row.ColumnText(0)}
+		case documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_INT:
+			value.Value = &documents.AttributeValue_IntValue{IntValue: row.ColumnInt64(0)}
+		case documents.DocumentAttributeKind_DOCUMENT_ATTRIBUTE_KIND_BOOL:
+			value.Value = &documents.AttributeValue_BoolValue{BoolValue: row.ColumnInt64(0) != 0}
+		}
+		out.Values = append(out.Values, &documents.DocumentAttributeValue{
+			Value: value,
+		})
+		return nil
+	}, args...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], depth int) (string, error) {
+	if filter == nil {
+		return "1", nil
+	}
+	if depth == 32 {
+		return "", status.Error(codes.InvalidArgument, "content filter is too deeply nested")
+	}
+
+	attribute := func(key string, condition string, conditionArgs ...any) (string, error) {
+		if key == "" {
+			return "", status.Error(codes.InvalidArgument, "attribute key is required")
+		}
+		args.Append(key)
+		args.Append(conditionArgs...)
+		return "EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?) AND " + condition + ")", nil
+	}
+	join := func(filters []*documents.DocumentFilter, operator, empty string) (string, error) {
+		if len(filters) == 0 {
+			return empty, nil
+		}
+		parts := make([]string, 0, len(filters))
+		for _, child := range filters {
+			part, err := documentFilterSQL(child, args, depth+1)
+			if err != nil {
+				return "", err
+			}
+			parts = append(parts, "("+part+")")
+		}
+		return strings.Join(parts, " "+operator+" "), nil
+	}
+
+	switch value := filter.Filter.(type) {
+	case *documents.DocumentFilter_And_:
+		if value.And == nil {
+			return "", status.Error(codes.InvalidArgument, "and filter is required")
+		}
+		return join(value.And.Filters, "AND", "1")
+	case *documents.DocumentFilter_Or_:
+		if value.Or == nil {
+			return "", status.Error(codes.InvalidArgument, "or filter is required")
+		}
+		return join(value.Or.Filters, "OR", "0")
+	case *documents.DocumentFilter_Not_:
+		if value.Not == nil || value.Not.Filter == nil {
+			return "", status.Error(codes.InvalidArgument, "not filter requires a filter")
+		}
+		child, err := documentFilterSQL(value.Not.Filter, args, depth+1)
+		return "NOT (" + child + ")", err
+	case *documents.DocumentFilter_Exists:
+		if value.Exists == nil {
+			return "", status.Error(codes.InvalidArgument, "exists filter is required")
+		}
+		return attribute(value.Exists.Key, "value IS NOT NULL")
+	case *documents.DocumentFilter_Missing:
+		if value.Missing == nil || value.Missing.Key == "" {
+			return "", status.Error(codes.InvalidArgument, "attribute key is required")
+		}
+		args.Append(value.Missing.Key)
+		return "NOT EXISTS (SELECT 1 FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?) AND da.value IS NOT NULL)", nil
+	case *documents.DocumentFilter_StringMatch_:
+		if value.StringMatch == nil {
+			return "", status.Error(codes.InvalidArgument, "string_match filter is required")
+		}
+		match := value.StringMatch
+		condition := "kind = 's' AND "
+		if match.Prefix {
+			if match.CaseSensitive {
+				condition += "substr(value, 1, length(?)) = ?"
+				return attribute(match.Key, condition, match.Value, match.Value)
+			}
+			searchValue := attrkey.SearchKey(match.Value)
+			condition += "substr(attribute_search_key(value), 1, length(?)) = ?"
+			return attribute(match.Key, condition, searchValue, searchValue)
+		} else if match.CaseSensitive {
+			condition += "instr(value, ?) > 0"
+			return attribute(match.Key, condition, match.Value)
+		}
+		condition += "instr(attribute_search_key(value), ?) > 0"
+		return attribute(match.Key, condition, attrkey.SearchKey(match.Value))
+	case *documents.DocumentFilter_UrlMatch:
+		if value.UrlMatch == nil {
+			return "", status.Error(codes.InvalidArgument, "url_match filter is required")
+		}
+		match := value.UrlMatch
+		account, path, err := blob.IRI(match.Url).SpacePath()
+		if err != nil {
+			return "", status.Errorf(codes.InvalidArgument, "invalid URL: %v", err)
+		}
+		canonical, err := blob.NewIRI(account, path)
+		if err != nil || canonical.String() != match.Url {
+			return "", status.Error(codes.InvalidArgument, "URL must be a canonical hm:// document URL")
+		}
+		args.Append(match.Url)
+		if !match.Prefix {
+			return "r.iri = ?", nil
+		}
+		args.Append(match.Url, match.Url)
+		return "(r.iri = ? OR substr(r.iri, 1, length(?) + 1) = ? || '/')", nil
+	case *documents.DocumentFilter_SpaceMatch_:
+		if value.SpaceMatch == nil {
+			return "", status.Error(codes.InvalidArgument, "space_match filter is required")
+		}
+		space, err := core.DecodePrincipal(value.SpaceMatch.Space)
+		if err != nil {
+			return "", status.Errorf(codes.InvalidArgument, "invalid space: %v", err)
+		}
+		args.Append([]byte(space))
+		return "r.owner = (SELECT id FROM public_keys WHERE principal = ?)", nil
+	case *documents.DocumentFilter_PathMatch_:
+		if value.PathMatch == nil {
+			return "", status.Error(codes.InvalidArgument, "path_match filter is required")
+		}
+		match := value.PathMatch
+		if match.Path != "" && (!strings.HasPrefix(match.Path, "/") || strings.HasSuffix(match.Path, "/")) {
+			return "", status.Error(codes.InvalidArgument, "path must be empty or start with a slash and not end with one")
+		}
+		if match.Prefix && match.Path == "" {
+			return "1", nil
+		}
+		const pathSQL = "(CASE WHEN instr(substr(r.iri, 6), '/') = 0 THEN '' ELSE substr(r.iri, 5 + instr(substr(r.iri, 6), '/')) END)"
+		args.Append(match.Path)
+		if !match.Prefix {
+			return pathSQL + " = ?", nil
+		}
+		args.Append(match.Path, match.Path)
+		return "(" + pathSQL + " = ? OR substr(" + pathSQL + ", 1, length(?) + 1) = ? || '/')", nil
+	case *documents.DocumentFilter_Comparison_:
+		if value.Comparison == nil || value.Comparison.Value == nil {
+			return "", status.Error(codes.InvalidArgument, "comparison requires a value")
+		}
+		comparison := value.Comparison
+		operator := map[documents.DocumentFilter_Comparison_Operator]string{
+			documents.DocumentFilter_Comparison_EQUAL:                 "=",
+			documents.DocumentFilter_Comparison_NOT_EQUAL:             "!=",
+			documents.DocumentFilter_Comparison_LESS_THAN:             "<",
+			documents.DocumentFilter_Comparison_LESS_THAN_OR_EQUAL:    "<=",
+			documents.DocumentFilter_Comparison_GREATER_THAN:          ">",
+			documents.DocumentFilter_Comparison_GREATER_THAN_OR_EQUAL: ">=",
+		}[comparison.Operator]
+		if operator == "" {
+			return "", status.Error(codes.InvalidArgument, "comparison operator is required")
+		}
+		var kind string
+		var operand any
+		switch attr := comparison.Value.Value.(type) {
+		case *documents.AttributeValue_NullValue:
+			kind = "n"
+		case *documents.AttributeValue_StringValue:
+			kind, operand = "s", attr.StringValue
+		case *documents.AttributeValue_IntValue:
+			kind, operand = "i", attr.IntValue
+		case *documents.AttributeValue_BoolValue:
+			kind, operand = "b", attr.BoolValue
+		default:
+			return "", status.Error(codes.InvalidArgument, "comparison value is required")
+		}
+		if kind == "n" {
+			if comparison.Operator != documents.DocumentFilter_Comparison_EQUAL && comparison.Operator != documents.DocumentFilter_Comparison_NOT_EQUAL {
+				return "", status.Error(codes.InvalidArgument, "null only supports equality comparisons")
+			}
+			condition := "kind = 'n'"
+			if comparison.Operator == documents.DocumentFilter_Comparison_NOT_EQUAL {
+				condition = "kind != 'n' AND value IS NOT NULL"
+			}
+			return attribute(comparison.Key, condition)
+		}
+		if kind == "b" && comparison.Operator != documents.DocumentFilter_Comparison_EQUAL && comparison.Operator != documents.DocumentFilter_Comparison_NOT_EQUAL {
+			return "", status.Error(codes.InvalidArgument, "boolean only supports equality comparisons")
+		}
+		return attribute(comparison.Key, "kind = ? AND value "+operator+" ?", kind, operand)
+	default:
+		return "", status.Error(codes.InvalidArgument, "content filter is required")
+	}
+}
+
+func documentSortSQL(sort []*documents.DocumentSort, args *colx.Slice[any]) (string, error) {
+	if len(sort) == 0 {
+		return "r.iri ASC", nil
+	}
+	if len(sort) > maxQueryDocumentSorts {
+		return "", status.Errorf(codes.InvalidArgument, "at most %d sort attributes are supported", maxQueryDocumentSorts)
+	}
+	parts := make([]string, 0, len(sort)+1)
+	for _, item := range sort {
+		if item == nil || item.Key == "" {
+			return "", status.Error(codes.InvalidArgument, "sort attribute key is required")
+		}
+		args.Append(item.Key)
+		direction := "ASC"
+		if item.Descending {
+			direction = "DESC"
+		}
+		parts = append(parts, "(SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = ?)) "+direction)
+	}
+	return strings.Join(append(parts, "r.iri ASC"), ", "), nil
 }
 
 // emitTelemetry records a single checkpoint for the given hm:// URL.
@@ -492,9 +1117,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		}
 	}
 
-	if in.PageSize <= 0 {
-		in.PageSize = defaultPageSize
-	}
+	srv.clampPageSize("ListDirectory", &in.PageSize, defaultPageSize)
 
 	var (
 		query string
@@ -516,8 +1139,8 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		// The comment aggregation is scoped to the same subtree as the row filter below.
 		// It's a LEFT JOIN, so it precedes the WHERE clause and binds first. The scope
 		// appears twice inside it (targets, then credits), so it binds twice.
-		args.Append(baseIRI, baseIRI+"/*")
-		args.Append(baseIRI, baseIRI+"/*")
+		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
+		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
 
 		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
 			return nil, err
@@ -525,8 +1148,8 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			qb.Where(publicOnlyListVisibilityFilter)
 		}
 
-		qb.Where("(r.iri = ? OR r.iri GLOB ?)")
-		args.Append(baseIRI, baseIRI+"/*")
+		qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
+		args.Append(baseIRI, baseIRI+"/", baseIRI+"0")
 
 		if !in.Recursive {
 			qb.Where("r.iri NOT GLOB ?")
@@ -545,28 +1168,31 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			paginationCmp = ">"
 		}
 
+		var outerOrder string
 		switch in.SortOptions.Attribute {
 		case documents.SortAttribute_ACTIVITY_TIME:
 			qb.Where("activity_time " + paginationCmp + " ?")
 			args.Append(cursor.ActivityTime)
 
 			qb.OrderBy("activity_time " + order)
+			outerOrder = "activity_time " + order
 		case documents.SortAttribute_NAME:
-			qb.Where("COALESCE(dg.metadata->>'name', '') " + paginationCmp + " ?")
+			qb.Having("COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name') AND da.kind = 's'), '') " + paginationCmp + " ?")
 			args.Append(cursor.NameOrPath)
-
-			qb.OrderBy("COALESCE(dg.metadata->>'name', '') " + order)
+			qb.OrderBy("COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name') AND da.kind = 's'), '') " + order)
+			outerOrder = "COALESCE(json_extract(i.metadata, '$.name.v'), '') " + order
 		case documents.SortAttribute_PATH:
 			qb.Where("r.iri " + paginationCmp + " ?")
 			args.Append(cursor.NameOrPath)
 
 			qb.OrderBy("r.iri " + order)
+			outerOrder = "i.iri " + order
 		default:
 			return nil, status.Errorf(codes.InvalidArgument, "unsupported sort attribute %v", in.SortOptions.Attribute)
 		}
 
 		args.Append(in.PageSize)
-		query = qb.String()
+		query = wrapDocumentsQuery(qb, outerOrder)
 	}
 
 	out := &documents.ListDirectoryResponse{
@@ -773,7 +1399,7 @@ func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []bl
 	args = append(args, len(iris))
 
 	out = make(map[blob.IRI]*documents.DocumentInfo, len(iris))
-	rows, discard, check := sqlitex.Query(conn, qb.String(), args...).All()
+	rows, discard, check := sqlitex.Query(conn, wrapDocumentsQuery(qb, ""), args...).All()
 	defer discard(&err)
 	for row := range rows {
 		info, _, err := documentInfoFromRow(lookup, row)
@@ -877,7 +1503,7 @@ func (srv *Server) baseAccountQuery() *dqb.SelectQuery {
 			"MAX(last_comment_time, last_change_time) AS last_activity_time",
 			"subs.id IS NOT NULL AS is_subscribed",
 			"(SELECT 1 FROM unread_resources WHERE iri >= 'hm://' || spaces.id AND iri < 'hm://' || spaces.id || X'FFFF') AS is_unread",
-			"(SELECT metadata FROM document_generations WHERE resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id) GROUP BY resource HAVING generation = MAX(generation)) AS metadata",
+			"(SELECT COALESCE(json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)), '{}') FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = (SELECT resources.id FROM resources WHERE iri = 'hm://' || spaces.id)) AS metadata",
 			`(
 	SELECT
 		json_group_array(json_object(
@@ -1163,16 +1789,16 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		// below. The scope takes no parameters, so binding order is unaffected.
 		qb := baseListDocumentsQuery(commentAggRoots).OrderBy("activity_time DESC")
 
-		srv.applyListVisibilityFilter(ctx, qb, &args)
-
 		qb.Where("r.iri GLOB 'hm://*'")
 		qb.Where("r.iri NOT GLOB 'hm://*/*'")
 
 		qb.Where("activity_time < ?", "r.iri < ?")
 		args.Append(cursor.ActivityTime, cursor.IRI)
 
+		srv.applyListVisibilityFilter(ctx, qb, &args)
+
 		args.Append(in.PageSize)
-		query = qb.String()
+		query = wrapDocumentsQuery(qb, "activity_time DESC")
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -1268,29 +1894,31 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			}
 
 			commentAgg = commentAggSubtree
-			args.Append(accountIRI, accountIRI+"/*")
-			args.Append(accountIRI, accountIRI+"/*")
+			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
+			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
 		}
 
 		qb := baseListDocumentsQuery(commentAgg).OrderBy("activity_time DESC")
 
 		if in.Account == "" {
-			srv.applyListVisibilityFilter(ctx, qb, &args)
 			qb.Where("r.iri GLOB 'hm://*'")
 		} else {
 			if publicOnly {
 				qb.Where(publicOnlyListVisibilityFilter)
 			}
 
-			qb.Where("(r.iri = ? OR r.iri GLOB ?)")
-			args.Append(accountIRI, accountIRI+"/*")
+			qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
+			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
 		}
 
 		qb.Where("activity_time < ?", "r.iri < ?")
 		args.Append(cursor.ActivityTime, cursor.IRI)
+		if in.Account == "" {
+			srv.applyListVisibilityFilter(ctx, qb, &args)
+		}
 
 		args.Append(in.PageSize)
-		query = qb.String()
+		query = wrapDocumentsQuery(qb, "activity_time DESC")
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -1332,7 +1960,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 }
 
 func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
-	q := baseSingleDocumentQuery().Where("r.iri = ?").String()
+	q := wrapDocumentsQuery(baseSingleDocumentQuery().Where("r.iri = ?"), "")
 	// The IRI is bound twice: as the comment aggregation seed, and as the row filter.
 	// 0 is the page size parameter.
 	rows, discard, check := sqlitex.Query(conn, q, iri, iri, 0).All()
@@ -1366,7 +1994,9 @@ const qSingleDocCommentAgg = `(
 
 		SELECT dg.resource, res.iri, ra.depth + 1
 		FROM redirect_ancestors ra
-		JOIN document_generations dg ON dg.metadata->>'$."$db.redirect".v' = ra.iri
+		JOIN document_attributes da ON da.kind = 's' AND da.value = ra.iri
+		JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
+		JOIN document_generations dg ON dg.resource = da.resource
 		JOIN resources res ON res.id = dg.resource
 		WHERE dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
 		AND res.iri != ra.iri
@@ -1410,8 +2040,13 @@ const qSingleDocCommentAgg = `(
 // These are built once rather than per request: the scopes are fixed, and assembling a
 // couple of kilobytes of SQL on every call would be pure waste on a hot path.
 var (
-	// commentAggSubtree covers one document and everything below it.
-	commentAggSubtree = qListDocsCommentAggScoped(`tr.iri = ? OR tr.iri GLOB ?`)
+	// commentAggSubtree covers one document and everything below it. The subtree is
+	// expressed as an explicit range rather than GLOB because a parameterized GLOB
+	// inside an OR never seeks the resources.iri index (the prefix optimization doesn't
+	// apply to it there), while the equivalent range becomes a MULTI-INDEX OR of two
+	// seeks. Callers bind (iri, iri+"/", iri+"0") — '0' is '/'+1, so the range is
+	// exactly the iri+"/*" prefix, same trick as children_count below.
+	commentAggSubtree = qListDocsCommentAggScoped(`tr.iri = ? OR (tr.iri >= ? AND tr.iri < ?)`)
 
 	// commentAggRoots covers the root document of every space.
 	commentAggRoots = qListDocsCommentAggScoped(`tr.iri GLOB 'hm://*' AND tr.iri NOT GLOB 'hm://*/*'`)
@@ -1453,6 +2088,12 @@ var (
 // losers outside the scope simply credit nothing. Comment blobs always carry a TSID
 // (blob_comment.go sets it unconditionally), so the partition key is never NULL.
 //
+// `deduped` fetches those blobs by JOINing cand_tsids rather than with an IN subquery:
+// an equality join term proves the partial structural_blobs_by_tsid index's IS NOT NULL
+// predicate, so each candidate TSID is a seek, whereas `tsid IN (SELECT …)` cannot prove
+// it and degraded to scanning every Comment blob in the database via
+// structural_blobs_by_type on each call.
+//
 // The scope must be written in terms of the `tr` alias of `resources` (e.g.
 // `tr.iri GLOB 'hm://*'`), because it is applied in two places, and callers with a
 // parameterised scope must therefore bind its arguments TWICE: once for `targets`, then
@@ -1461,20 +2102,34 @@ var (
 // targets)` was quadratic: `chains` is a recursive CTE consumed as a co-routine, so SQLite
 // re-evaluated the IN list per row instead of materializing it once (~2k chain rows × ~7k
 // target rows ≈ 15M scans ≈ 2.5s on a real database, and MATERIALIZED hints on `targets`,
-// `redirected` or `chains` did not help). Applying the predicate directly to `tr.iri`
-// makes it a filter on a row already in hand: same rows, ~0.07s instead of ~2.5s.
+// `redirected` or `chains` did not fix THAT problem). Applying the predicate directly to
+// `tr.iri` makes it a filter on a row already in hand: same rows, ~0.07s instead of ~2.5s.
+//
+// The parenthetical above used to read "did not help", full stop. It is scoped to the
+// IN-list pathology, and reading it more broadly steered the 2026-08-11 outage response
+// away from the actual fix: `redirected` is also referenced from the recursive term of
+// `chains`, where it was re-derived once per visited row at ~5.5s per listing call. It now
+// carries a MATERIALIZED hint for that separate reason (see the comment on it below). That
+// win was invisible when the note was written, because the 2.5s IN-list scan dominated.
 func qListDocsCommentAggScoped(scope string) string {
 	return `(
 	WITH RECURSIVE
 	targets AS (
 		SELECT id FROM resources tr WHERE (` + scope + `)
 	),
-	redirected AS (
+	redirected AS MATERIALIZED (
+		-- MATERIALIZED is load-bearing. This CTE is referenced from the recursive
+		-- term of ` + "`chains`" + ` below, and without the hint SQLite re-derives it for
+		-- every row the recursion visits, paying the correlated MAX(generation)
+		-- subquery each time: ~2.2k rows x ~2.5ms = 5.5s of CPU per listing call,
+		-- which saturated production on 2026-08-11. Materialized it's ~40ms.
 		SELECT
 			dg.resource AS resource,
-			dg.metadata->>'$."$db.redirect".v' AS redirect_iri
+			da.value AS redirect_iri
 		FROM document_generations dg
-		WHERE dg.metadata->>'$."$db.redirect".v' IS NOT NULL
+		JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
+		JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
+		WHERE da.value IS NOT NULL
 		AND dg.generation = (SELECT MAX(g.generation) FROM document_generations g WHERE g.resource = dg.resource)
 	),
 	chains(source, target_iri, depth) AS (
@@ -1511,9 +2166,9 @@ func qListDocsCommentAggScoped(scope string) string {
 			sb.ts AS ts,
 			ROW_NUMBER() OVER (PARTITION BY sb.extra_attrs->>'tsid' ORDER BY sb.ts DESC, sb.id DESC) AS rn,
 			sb.extra_attrs->>'deleted' AS deleted
-		FROM structural_blobs sb
+		FROM cand_tsids ct
+		JOIN structural_blobs sb ON sb.extra_attrs->>'tsid' = ct.tsid
 		WHERE sb.type = 'Comment'
-		AND sb.extra_attrs->>'tsid' IN (SELECT tsid FROM cand_tsids)
 	),
 	live AS (
 		SELECT resource, id, ts FROM deduped WHERE rn = 1 AND deleted IS NULL
@@ -1555,7 +2210,7 @@ func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
 			"r.iri",
 			"dg.genesis",
 			"dg.generation",
-			"dg.metadata",
+			"COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}') AS metadata",
 			"COALESCE(agg.comment_count, 0) AS comment_count",
 			"dg.heads",
 			"dg.authors",
@@ -1567,29 +2222,66 @@ func baseDocumentsQuery(commentAggJoin string) *dqb.SelectQuery {
 			// instead of dg.last_activity_time, which misses comments made on the
 			// document's previous paths.
 			"MAX(COALESCE(agg.last_comment_time, 0), dg.last_alive_ref_time) AS activity_time",
-			"(SELECT 1 FROM unread_resources WHERE iri = r.iri) AS is_unread",
-			// Alive direct children of the document, so listing cards can show
-			// the subdocument count without a per-document interaction-summary
-			// request. The prefix-range comparison (everything between
-			// 'iri/' and 'iri0', '0' being the character after '/') seeks the
-			// resources.iri index instead of scanning; the instr check drops
-			// grandchildren; the innermost subquery keeps only resources whose
-			// latest generation is alive.
-			`(SELECT count(*)
-			  FROM resources cr
-			  WHERE cr.iri > r.iri || '/' AND cr.iri < r.iri || '0'
-			    AND instr(substr(cr.iri, length(r.iri) + 2), '/') = 0
-			    AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
-			) AS children_count`,
+			"dg.visibility",
 		).
+		// CROSS JOIN forces the join order: seek resources by IRI first, then probe
+		// document_generations by its (resource, ...) primary key. Left to itself, the
+		// stat-less planner prefers scanning all of document_generations because that
+		// satisfies GROUP BY dg.resource without a sort — a whole-database scan on
+		// every call, with the caller's IRI filter applied only after the join.
 		From(
-			"document_generations dg",
-			"resources r",
+			"resources r CROSS JOIN document_generations dg",
 		).
 		LeftJoin(commentAggJoin, "agg.resource = dg.resource").
 		Where("r.id = dg.resource").
-		GroupBy("dg.resource HAVING dg.generation = MAX(dg.generation) AND dg.is_deleted = 0").
+		GroupBy("dg.resource").
+		Having("dg.generation = MAX(dg.generation)", "dg.is_deleted = 0").
 		Limit("? + 1")
+}
+
+// qDocumentsOuterColumns are the expensive per-row columns of the documents
+// queries, evaluated in the outer layer of [wrapDocumentsQuery], i.e. only for
+// the rows that survive the inner query's LIMIT. They reference the inner
+// query's alias `i`, and they must stay the LAST columns of the statement,
+// in this order, because [documentInfoFromRow] reads columns by position.
+const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = i.iri) AS is_unread,
+    -- Alive direct children of the document, so listing cards can show
+    -- the subdocument count without a per-document interaction-summary
+    -- request. The prefix-range comparison (everything between
+    -- 'iri/' and 'iri0', '0' being the character after '/') seeks the
+    -- resources.iri index instead of scanning; the instr check drops
+    -- grandchildren; the innermost subquery keeps only resources whose
+    -- latest generation is alive.
+    (SELECT count(*)
+      FROM resources cr
+      WHERE cr.iri > i.iri || '/' AND cr.iri < i.iri || '0'
+        AND instr(substr(cr.iri, length(i.iri) + 2), '/') = 0
+        AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
+    ) AS children_count`
+
+// wrapDocumentsQuery wraps a query built by [baseDocumentsQuery] into an outer
+// SELECT that appends [qDocumentsOuterColumns]. The inner query keeps all the
+// filtering, grouping, ordering and the LIMIT, so SQLite computes the expensive
+// per-row subqueries only for the final page instead of for every candidate row
+// of the scope (a recursive listing used to pay O(scope × children)
+// document_generations probes for children_count alone, of which only
+// page_size+1 rows survived the sorter).
+//
+// orderBy repeats the inner ordering in terms of the inner query's alias `i`
+// (the wrapper alone doesn't guarantee preserving the inner order); pass ""
+// for single-row lookups.
+func wrapDocumentsQuery(qb *dqb.SelectQuery, orderBy string) string {
+	var sb strings.Builder
+	sb.WriteString("SELECT\n    i.*,\n")
+	sb.WriteString(qDocumentsOuterColumns)
+	sb.WriteString("\nFROM (\n")
+	sb.WriteString(qb.String())
+	sb.WriteString("\n) i")
+	if orderBy != "" {
+		sb.WriteString("\nORDER BY ")
+		sb.WriteString(orderBy)
+	}
+	return sb.String()
 }
 
 // documentInfoFromRow decodes a row of the base documents query.
@@ -1612,6 +2304,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		lastCommentTime   = row.ColumnInt64(inc())
 		lastChangeTime    = row.ColumnInt64(inc())
 		activityTime      = row.ColumnInt64(inc())
+		visibility        = blob.Visibility(row.ColumnText(inc()))
 		isUnread          = row.ColumnInt64(inc()) > 0
 		childrenCount     = row.ColumnInt64(inc())
 	)
@@ -1756,11 +2449,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			Generation: generation,
 		},
 		RedirectInfo: redirectInfo,
-		Visibility:   documents.ResourceVisibility_RESOURCE_VISIBILITY_PUBLIC,
-	}
-
-	if v, ok := attrs["$db.visibility"]; ok {
-		out.Visibility = docmodel.VisibilityToProto(blob.Visibility(v.Value.(string)))
+		Visibility:   docmodel.VisibilityToProto(visibility),
 	}
 
 	return out, activityTime, nil
@@ -2226,6 +2915,9 @@ func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error
 	for _, op := range ops {
 		switch o := op.Op.(type) {
 		case *documents.DocumentChange_SetMetadata_:
+			if err := validateAttributePath([]string{o.SetMetadata.Key}, true); err != nil {
+				return err
+			}
 			if err := doc.SetMetadata(o.SetMetadata.Key, o.SetMetadata.Value); err != nil {
 				return err
 			}
@@ -2242,6 +2934,9 @@ func applyChanges(doc *docmodel.Document, ops []*documents.DocumentChange) error
 				return err
 			}
 		case *documents.DocumentChange_SetAttribute_:
+			if err := validateAttributePath(o.SetAttribute.Key, true); err != nil {
+				return err
+			}
 			if err := doc.SetAttribute(o.SetAttribute.BlockId, o.SetAttribute.Key, getInterfaceValue(o.SetAttribute)); err != nil {
 				return err
 			}
@@ -2286,11 +2981,11 @@ func (srv *Server) applyListVisibilityFilter(ctx context.Context, qb *dqb.Select
 		return
 	}
 	if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
-		qb.Where(authenticatedListVisibilityFilter)
+		qb.Having(authenticatedListVisibilityFilter)
 		args.Append([]byte(caller))
 		return
 	}
-	qb.Where(publicOnlyListVisibilityFilter)
+	qb.Having(publicOnlyListVisibilityFilter)
 }
 
 func (srv *Server) canReadPrivate(ctx context.Context, account core.Principal, path string) (bool, error) {

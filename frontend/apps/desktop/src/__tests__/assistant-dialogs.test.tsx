@@ -12,7 +12,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
  * identical prop types. This mounts the dialog in the root its call site actually uses.
  */
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: () => false,
   describeAgentServer: (serverUrl: string) => new URL(serverUrl).host,
@@ -30,13 +30,19 @@ vi.mock('@/models/agents', () => ({
   useStopAgentSession: () => ({mutate: vi.fn()}),
 }))
 
-vi.mock('@/selected-account', () => ({
+vi.mock('@shm/ui/agents/account', () => ({
   useSelectedAccountId: () => 'account-1',
 }))
 vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
 // The real create dialog drags in the prompt-editor stack, which does not load under jsdom.
-vi.mock('@/pages/agents/dialogs', () => ({CreateAgentDialog: () => null}))
+vi.mock('@shm/ui/agents/dialogs', () => ({CreateAgentDialog: () => null}))
+// Same for the shared rich composer (ProseMirror editor stack); never rendered by these dialogs.
+vi.mock('@shm/ui/agents/rich-message-composer', () => ({
+  AgentRichMessageComposer: () => null,
+  SUB_SESSION_DRIVEN_MESSAGE: '',
+  TERMINAL_RUN_STATUSES: new Set(),
+}))
 
 // The panel module transitively reaches the Electron tRPC/gRPC clients, which cannot initialize
 // outside the app shell. These dialogs never call them.
@@ -62,7 +68,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
 })
 
 import {AlertDialog, AlertDialogContent, AlertDialogPortal} from '@shm/ui/components/alert-dialog'
-import {DeleteSessionDialog} from '../components/assistant-panel'
+import {DeleteSessionDialog} from '@shm/ui/agents/assistant-panel'
 
 function renderInRoot(node: React.ReactNode) {
   const container = document.createElement('div')

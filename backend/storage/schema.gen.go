@@ -94,6 +94,46 @@ const (
 	C_BlobsSize       = "blobs.size"
 )
 
+// Table document_attribute_keys.
+const (
+	DocumentAttributeKeys          sqlitegen.Table  = "document_attribute_keys"
+	DocumentAttributeKeysID        sqlitegen.Column = "document_attribute_keys.id"
+	DocumentAttributeKeysKey       sqlitegen.Column = "document_attribute_keys.key"
+	DocumentAttributeKeysSearchKey sqlitegen.Column = "document_attribute_keys.search_key"
+)
+
+// Table document_attribute_keys. Plain strings.
+const (
+	T_DocumentAttributeKeys          = "document_attribute_keys"
+	C_DocumentAttributeKeysID        = "document_attribute_keys.id"
+	C_DocumentAttributeKeysKey       = "document_attribute_keys.key"
+	C_DocumentAttributeKeysSearchKey = "document_attribute_keys.search_key"
+)
+
+// Table document_attributes.
+const (
+	DocumentAttributes          sqlitegen.Table  = "document_attributes"
+	DocumentAttributesActor     sqlitegen.Column = "document_attributes.actor"
+	DocumentAttributesKey       sqlitegen.Column = "document_attributes.key"
+	DocumentAttributesKind      sqlitegen.Column = "document_attributes.kind"
+	DocumentAttributesOperation sqlitegen.Column = "document_attributes.operation"
+	DocumentAttributesResource  sqlitegen.Column = "document_attributes.resource"
+	DocumentAttributesTimestamp sqlitegen.Column = "document_attributes.timestamp"
+	DocumentAttributesValue     sqlitegen.Column = "document_attributes.value"
+)
+
+// Table document_attributes. Plain strings.
+const (
+	T_DocumentAttributes          = "document_attributes"
+	C_DocumentAttributesActor     = "document_attributes.actor"
+	C_DocumentAttributesKey       = "document_attributes.key"
+	C_DocumentAttributesKind      = "document_attributes.kind"
+	C_DocumentAttributesOperation = "document_attributes.operation"
+	C_DocumentAttributesResource  = "document_attributes.resource"
+	C_DocumentAttributesTimestamp = "document_attributes.timestamp"
+	C_DocumentAttributesValue     = "document_attributes.value"
+)
+
 // Table document_generations.
 const (
 	DocumentGenerations                     sqlitegen.Table  = "document_generations"
@@ -112,8 +152,9 @@ const (
 	DocumentGenerationsLastComment          sqlitegen.Column = "document_generations.last_comment"
 	DocumentGenerationsLastCommentTime      sqlitegen.Column = "document_generations.last_comment_time"
 	DocumentGenerationsLastTombstoneRefTime sqlitegen.Column = "document_generations.last_tombstone_ref_time"
-	DocumentGenerationsMetadata             sqlitegen.Column = "document_generations.metadata"
 	DocumentGenerationsResource             sqlitegen.Column = "document_generations.resource"
+	DocumentGenerationsVisibility           sqlitegen.Column = "document_generations.visibility"
+	DocumentGenerationsVisibilityTimestamp  sqlitegen.Column = "document_generations.visibility_timestamp"
 )
 
 // Table document_generations. Plain strings.
@@ -134,8 +175,9 @@ const (
 	C_DocumentGenerationsLastComment          = "document_generations.last_comment"
 	C_DocumentGenerationsLastCommentTime      = "document_generations.last_comment_time"
 	C_DocumentGenerationsLastTombstoneRefTime = "document_generations.last_tombstone_ref_time"
-	C_DocumentGenerationsMetadata             = "document_generations.metadata"
 	C_DocumentGenerationsResource             = "document_generations.resource"
+	C_DocumentGenerationsVisibility           = "document_generations.visibility"
+	C_DocumentGenerationsVisibilityTimestamp  = "document_generations.visibility_timestamp"
 )
 
 // Table domains.
@@ -688,6 +730,16 @@ var Schema = sqlitegen.Schema{
 		BlobsInsertTime:                         {Table: Blobs, SQLType: "INTEGER"},
 		BlobsMultihash:                          {Table: Blobs, SQLType: "BLOB"},
 		BlobsSize:                               {Table: Blobs, SQLType: "INTEGER"},
+		DocumentAttributeKeysID:                 {Table: DocumentAttributeKeys, SQLType: "INTEGER"},
+		DocumentAttributeKeysKey:                {Table: DocumentAttributeKeys, SQLType: "TEXT"},
+		DocumentAttributeKeysSearchKey:          {Table: DocumentAttributeKeys, SQLType: "TEXT"},
+		DocumentAttributesActor:                 {Table: DocumentAttributes, SQLType: "INTEGER"},
+		DocumentAttributesKey:                   {Table: DocumentAttributes, SQLType: "INTEGER"},
+		DocumentAttributesKind:                  {Table: DocumentAttributes, SQLType: "TEXT"},
+		DocumentAttributesOperation:             {Table: DocumentAttributes, SQLType: "INTEGER"},
+		DocumentAttributesResource:              {Table: DocumentAttributes, SQLType: "INTEGER"},
+		DocumentAttributesTimestamp:             {Table: DocumentAttributes, SQLType: "INTEGER"},
+		DocumentAttributesValue:                 {Table: DocumentAttributes, SQLType: ""},
 		DocumentGenerationsAuthors:              {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsChangeCount:          {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsChanges:              {Table: DocumentGenerations, SQLType: "BLOB"},
@@ -703,8 +755,9 @@ var Schema = sqlitegen.Schema{
 		DocumentGenerationsLastComment:          {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsLastCommentTime:      {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DocumentGenerationsLastTombstoneRefTime: {Table: DocumentGenerations, SQLType: "INTEGER"},
-		DocumentGenerationsMetadata:             {Table: DocumentGenerations, SQLType: "JSON"},
 		DocumentGenerationsResource:             {Table: DocumentGenerations, SQLType: "INTEGER"},
+		DocumentGenerationsVisibility:           {Table: DocumentGenerations, SQLType: "TEXT"},
+		DocumentGenerationsVisibilityTimestamp:  {Table: DocumentGenerations, SQLType: "INTEGER"},
 		DomainsDomain:                           {Table: Domains, SQLType: "TEXT"},
 		DomainsLastCheck:                        {Table: Domains, SQLType: "INTEGER"},
 		DomainsLastConfig:                       {Table: Domains, SQLType: "JSON"},

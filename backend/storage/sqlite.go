@@ -6,10 +6,12 @@ import (
 	"math"
 	"math/big"
 	"path/filepath"
-	"seed/backend/storage/dbext"
-	"seed/backend/testutil"
+	"strings"
 	"testing"
 
+	"seed/backend/storage/dbext"
+	"seed/backend/testutil"
+	"seed/backend/util/attrkey"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
@@ -48,6 +50,9 @@ func openSQLite(uri string, flags sqlite.OpenFlags, poolSize int, writePrelude, 
 	}
 
 	if err := pool.ForWrite(func(conn *sqlite.Conn) error {
+		if err := registerSQLiteFunctions(conn); err != nil {
+			return err
+		}
 		for _, stmt := range writePrelude {
 			if err := sqlitex.ExecTransient(conn, stmt, nil); err != nil {
 				return err
@@ -60,6 +65,9 @@ func openSQLite(uri string, flags sqlite.OpenFlags, poolSize int, writePrelude, 
 	}
 
 	if err := pool.ForEachRead(func(conn *sqlite.Conn) error {
+		if err := registerSQLiteFunctions(conn); err != nil {
+			return err
+		}
 		for _, stmt := range readPrelude {
 			if err := sqlitex.ExecTransient(conn, stmt, nil); err != nil {
 				return err
@@ -72,6 +80,28 @@ func openSQLite(uri string, flags sqlite.OpenFlags, poolSize int, writePrelude, 
 	}
 
 	return pool, nil
+}
+
+func registerSQLiteFunctions(conn *sqlite.Conn) error {
+	if err := conn.CreateFunction("attribute_search_key", true, 1, func(ctx sqlite.Context, values ...sqlite.Value) {
+		searchKey := attrkey.SearchKey(values[0].Text())
+		if searchKey == "" {
+			ctx.ResultValue(values[0])
+			return
+		}
+		ctx.ResultText(searchKey)
+	}, nil, nil); err != nil {
+		return err
+	}
+	return conn.CreateFunction("attribute_path_segment", true, 2, func(ctx sqlite.Context, values ...sqlite.Value) {
+		segments := strings.Split(values[0].Text(), ".")
+		index := values[1].Int()
+		if index < 0 || index >= len(segments) {
+			ctx.ResultNull()
+			return
+		}
+		ctx.ResultText(segments[index])
+	}, nil, nil)
 }
 
 func initSQLite(conn *sqlite.Conn) error {

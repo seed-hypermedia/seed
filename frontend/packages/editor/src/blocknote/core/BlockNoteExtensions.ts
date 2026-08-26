@@ -23,6 +23,7 @@ import {TableCell, TableHeader, TableRow} from '../../tiptap-extension-table'
 import {BackgroundColorMark} from './extensions/BackgroundColor/BackgroundColorMark'
 import {createBlockHighlightPlugin} from './extensions/BlockHighlight/BlockHighlightPlugin'
 import {BlockManipulationExtension} from './extensions/BlockManipulation/BlockManipulationExtension'
+import {SlotNormalizationExtension} from './extensions/SlotNormalization/SlotNormalizationExtension'
 import {BlockRevisionInvalidationExtension} from './extensions/BlockRevision/BlockRevisionInvalidation'
 import {BlockChildren, BlockNode, Doc} from './extensions/Blocks'
 import {BlockNoteDOMAttributes} from './extensions/Blocks/api/blockTypes'
@@ -165,6 +166,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       BlockManipulationExtension.configure({
         openUrl: opts.linkExtensionOptions?.openUrl,
       }),
+      SlotNormalizationExtension.configure({editor: opts.editor as any}),
       KeyboardShortcutsExtension.configure({editor: opts.editor}),
 
       LocalMediaPastePlugin.configure({

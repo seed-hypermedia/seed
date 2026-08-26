@@ -8,7 +8,6 @@ import {
 import {abbreviateUid, useRouteLink} from '@shm/shared'
 import {useAccount} from '@shm/shared/models/entity'
 import type {NavRoute} from '@shm/shared/routes'
-import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {X} from 'lucide-react'
 import {useMemo} from 'react'
@@ -19,11 +18,10 @@ import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
 import {Home} from './icons'
 import {getContextualProfileRoute} from './inline-descriptor'
-import {MergedBadge} from './merged-badge'
-import {PrivateBadge} from './private-badge'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 export type AuthorPayload = HMMetadataPayload
 
@@ -48,20 +46,17 @@ export function DocumentHeader({
   docMetadata,
   authors = [],
   updateTime = null,
-  breadcrumbs,
   siteUrl,
   documentTools,
-  visibility,
-  version,
   showTitle = true,
   children,
   onRemoveIcon,
+  mobileBylineAction,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
   authors: AuthorPayload[]
   updateTime: HMDocument['updateTime'] | null
-  breadcrumbs?: BreadcrumbEntry[]
   siteUrl?: string
   documentTools?: React.ReactNode
   visibility?: HMResourceVisibility
@@ -69,13 +64,12 @@ export function DocumentHeader({
   showTitle?: boolean
   children?: React.ReactNode
   onRemoveIcon?: () => void
+  mobileBylineAction?: React.ReactNode
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
   const isHomeDoc = !docId?.path?.length
   const highlighter = useHighlighter()
-  const isPrivate = visibility === 'PRIVATE'
-  const headCount = getVersionHeads(version).length
   const displayAuthors = useMemo(() => {
     const seen = new Set<string>()
     return authors.filter((author) => {
@@ -88,13 +82,12 @@ export function DocumentHeader({
 
   return (
     <Container
-      className="dark:bg-background relative w-full rounded-lg bg-white"
+      className={cn('dark:bg-background relative w-full rounded-lg bg-white', hasCover ? 'pt-6' : 'pt-4 md:pt-15')}
       style={{
         marginTop: hasCover ? -40 : 0,
-        paddingTop: !hasCover ? 60 : 24,
       }}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 md:gap-4">
         {!isHomeDoc && docId && hasIcon ? (
           <div
             className="group/icon relative flex w-fit"
@@ -121,19 +114,16 @@ export function DocumentHeader({
             ) : null}
           </div>
         ) : null}
-        {breadcrumbs && breadcrumbs.length > 0 ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
-        {(isPrivate || headCount > 1) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {isPrivate && <PrivateBadge />}
-            {headCount > 1 && <MergedBadge count={headCount} />}
-          </div>
-        )}
         {children ? (
           children
         ) : (
           <>
             {showTitle && (
-              <SizableText className="text-3xl md:text-4xl lg:text-5xl" weight="bold" {...highlighter(docId)}>
+              <SizableText
+                className="text-2xl max-md:leading-tight md:text-4xl lg:text-5xl"
+                weight="bold"
+                {...highlighter(docId)}
+              >
                 {isHomeDoc ? 'Home' : docMetadata?.name}
               </SizableText>
             )}
@@ -142,10 +132,10 @@ export function DocumentHeader({
             ) : null}
           </>
         )}
-        <div className="border-border flex flex-col gap-2 border-b pb-4">
+        <div className="border-border flex flex-col gap-2 border-b pb-2 md:pb-4">
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
-            <div className="flex flex-1 flex-wrap items-center gap-3">
+            <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">
               {displayAuthors.length ? (
                 <>
                   <p className="text-sm font-bold">
@@ -171,6 +161,33 @@ export function DocumentHeader({
               ) : null}
               {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
             </div>
+            <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
+              {displayAuthors.length ? (
+                <>
+                  <div className="flex shrink-0 items-center -space-x-2">
+                    {displayAuthors.slice(0, 3).map((author) => (
+                      <div
+                        key={author.id.id}
+                        className="dark:border-background dark:bg-background size-5 overflow-hidden rounded-full border-2 border-white bg-white"
+                      >
+                        <HMIcon id={author.id} name={author.metadata?.name} icon={author.metadata?.icon} size={20} />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="min-w-0 truncate text-xs font-medium">
+                    <AuthorLink id={displayAuthors[0]!.id} siteUid={docId?.uid} />
+                    {displayAuthors.length > 1 ? ` & ${displayAuthors.length - 1} others` : null}
+                  </p>
+                </>
+              ) : null}
+              {displayAuthors.length && updateTime ? (
+                <SizableText size="xs" className="shrink-0" aria-hidden="true">
+                  ·
+                </SizableText>
+              ) : null}
+              {updateTime ? <DocumentDate metadata={docMetadata || undefined} updateTime={updateTime} /> : null}
+            </div>
+            {mobileBylineAction}
           </div>
         </div>
       </div>
@@ -201,19 +218,20 @@ function AuthorLink({id, siteUid}: {id: UnpackedHypermediaId; siteUid?: string})
 }
 
 /**
- * Renders document breadcrumbs when there is at least one navigable item beyond the home/root crumb.
+ * Renders the document's location trail, ending with the current document as
+ * non-navigable text. A lone crumb still renders: it is the home document.
  */
-export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
-  if (breadcrumbs.length <= 1) return null
+export function Breadcrumbs({breadcrumbs, className}: {breadcrumbs: BreadcrumbEntry[]; className?: string}) {
+  if (breadcrumbs.length === 0) return null
 
   const [first, ...rest] = breadcrumbs
   const lastIndex = breadcrumbs.length - 1
 
   return (
-    <nav aria-label="Breadcrumb" className="text-muted-foreground flex flex-1 items-center">
-      <ol className="flex min-w-0 flex-1 items-center gap-2">
+    <nav aria-label="Breadcrumb" className={cn('text-muted-foreground flex min-w-0 items-center', className)}>
+      <ol className="flex min-w-0 items-center gap-2">
         {first && 'id' in first ? (
-          <li className="flex min-w-0 items-center">
+          <li className="flex shrink-0 items-center">
             <HomeBreadcrumb crumb={first} isCurrent={lastIndex === 0} />
           </li>
         ) : null}
@@ -223,7 +241,7 @@ export function Breadcrumbs({breadcrumbs}: {breadcrumbs: BreadcrumbEntry[]}) {
           const isCurrent = index === lastIndex
           return (
             <li key={key} className="flex min-w-0 items-center gap-2">
-              <SizableText aria-hidden="true" color="muted" size="xs">
+              <SizableText aria-hidden="true" color="muted" size="xs" className="shrink-0">
                 {'>'}
               </SizableText>
               {'id' in crumb ? (
@@ -287,7 +305,7 @@ function BreadcrumbLink({crumb, isCurrent}: {crumb: DocumentBreadcrumbEntry; isC
         <Spinner size="small" />
       </>
     )
-    const className = 'text-muted-foreground flex items-center gap-1 text-xs whitespace-nowrap'
+    const className = 'text-muted-foreground flex min-w-0 items-center gap-1 truncate text-xs whitespace-nowrap'
     if (isCurrent) {
       return (
         <span aria-current="page" className={className}>

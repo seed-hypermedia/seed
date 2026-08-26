@@ -13,5 +13,21 @@
          hypervisor grant must be here or VM creation fails in the notarized app. -->
     <key>com.apple.security.hypervisor</key>
     <true/>
+    <!-- Device/media grants matching @electron/osx-sign's default.darwin.plist, which shipped
+         builds were signed with while the flat entitlements option was silently ignored.
+         Kept so switching to optionsForFile doesn't regress camera/mic/etc under hardened
+         runtime. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+    <key>com.apple.security.device.bluetooth</key>
+    <true/>
+    <key>com.apple.security.device.camera</key>
+    <true/>
+    <key>com.apple.security.device.print</key>
+    <true/>
+    <key>com.apple.security.device.usb</key>
+    <true/>
+    <key>com.apple.security.personal-information.location</key>
+    <true/>
   </dict>
 </plist>

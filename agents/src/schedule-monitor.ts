@@ -23,6 +23,9 @@ export class ScheduleMonitor {
       timeoutMs: options.pollTimeoutMs ?? DEFAULT_POLL_TIMEOUT_MS,
       run: () => this.pollOnce(),
     })
+    // NOTE: processScheduledTriggers has no cancellation seam yet, so a schedule cycle that overruns
+    // still only loses its race. It fires due triggers from local state (no upstream fetch), so it can't
+    // stall on a slow HM server the way the activity cycle does — see fix note in poll-loop.ts.
   }
 
   /** Starts polling until `stop()` is called. */

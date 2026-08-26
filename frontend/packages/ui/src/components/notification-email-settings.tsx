@@ -123,7 +123,7 @@ export function NotificationEmailSettings({
 
       <div className="flex items-center justify-between gap-4">
         <Label htmlFor="notification-email-switch" className="font-normal">
-          Get notified for mentions and replies across all Hypermedia sites
+          Get notified for mentions and replies across all Hypermedia spaces
         </Label>
         <Switch
           id="notification-email-switch"

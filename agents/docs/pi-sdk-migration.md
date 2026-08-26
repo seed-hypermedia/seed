@@ -1,5 +1,21 @@
 # Pi SDK migration project
 
+> **STATUS (2026-08-13): the migration itself is complete history. A few hardening items remain.**
+>
+> Phases 0 and 1 are done and the old runtime is gone: `#runOpenAI()`, `#openAIChatStream()`, and the hand-written SSE
+> parser described under "Current state" no longer exist in `api-service.ts`. Every turn runs through `#runPiAgent()`.
+> Phase 2's provider mapping is in place for the whole registry (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq,
+> xAI, Ollama, Custom). Of Phase 3, cancellation through the session abort landed with `StopSession`/`CancelRun`, and
+> reasoning level became a typed agent setting (`AgentDefinition.reasoningLevel`).
+>
+> **Still open:** real-provider smoke tests for Anthropic and Google (mocked coverage only); the
+> `provider.modelDefaults` typed-settings question; Pi context **compaction**, which is deliberately disabled
+> (`SettingsManager.inMemory({compaction: {enabled: false}})`) — Seed's durable transcript is the record, and the
+> touch-expand pin set is derived from it precisely so that it would survive compaction when compaction arrives; and
+> multi-turn tool-history regression coverage.
+>
+> Sections below describing the pre-migration runtime are historical.
+
 This project tracks replacing the custom model-provider loop in Seed Agents with the Pi SDK agentic loop from
 `@mariozechner/pi-coding-agent`.
 

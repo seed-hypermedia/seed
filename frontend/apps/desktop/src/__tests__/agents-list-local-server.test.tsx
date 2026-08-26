@@ -14,9 +14,17 @@ const mockState = vi.hoisted(() => ({
   healths: [] as Array<{isLoading: boolean; isError: boolean; data?: {uptime: number}}>,
   selectedAccountId: 'account-1' as string | null,
   accountIds: ['account-1'] as string[],
+  invites: [] as Array<{
+    agentId: string
+    agentName: string
+    ownerAccountId: string
+    role: 'reader' | 'writer'
+    createdAt: number
+    updatedAt: number
+  }>,
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
@@ -24,9 +32,20 @@ vi.mock('@/models/agents', () => ({
   useLocalAgentServerUrl: () => ({data: mockState.localServerUrl}),
   useAgentServerHealths: () => mockState.healths,
   useAgentLists: () => mockState.serverUrls.map(() => ({data: [], isFetching: false, isError: false})),
+  useSpaceAgents: () => ({agents: [], isLoading: false}),
+  useAgentInviteLists: () =>
+    mockState.serverUrls.map((_, index) => ({
+      data: index === 0 ? mockState.invites : [],
+      isFetching: false,
+      isError: false,
+    })),
+  useAcceptAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
+  useDeclineAgentInvite: () => ({isLoading: false, mutate: vi.fn()}),
   useAgentWebSocketSubscription: () => ({text: ''}),
+  useAgentAccountsSync: () => {},
 }))
 
+vi.mock('@shm/ui/agents/account', () => ({useSelectedAccountId: () => mockState.selectedAccountId}))
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => mockState.selectedAccountId}))
 // The signed-out state pulls in the auth dialog, whose real module graph reaches the editor
 // package; only its hook surface matters here.
@@ -34,15 +53,21 @@ vi.mock('@/components/desktop-auth-dialog', () => ({
   useDesktopAuthDialog: () => ({content: null, open: vi.fn(), close: vi.fn()}),
 }))
 vi.mock('@/models/daemon', () => ({useMyAccountIds: () => ({data: mockState.accountIds})}))
-vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
+vi.mock('@shm/ui/agents/navigation', () => ({
+  useNavigate: () => vi.fn(),
+  useClickNavigate: () => vi.fn(),
+  useOpenUrl: () => vi.fn(),
+  resolveHypermediaRoute: () => null,
+}))
+vi.mock('@shm/ui/agents/platform', () => ({
+  getAgentsPlatform: () => ({
+    useSignInPrompt: () => ({hasAccounts: !!mockState.accountIds.length, signIn: vi.fn(), dialog: null}),
+  }),
+  setAgentsPlatform: vi.fn(),
+}))
 vi.mock('@/trpc', () => ({client: {}}))
 vi.mock('@/grpc-client', () => ({grpcClient: {}}))
-vi.mock('./dialogs', () => ({
-  CreateAgentDialog: () => null,
-  ManageAgentAccountsDialog: () => null,
-  ModelProvidersDialog: () => null,
-}))
-vi.mock('../pages/agents/dialogs', () => ({
+vi.mock('@shm/ui/agents/dialogs', () => ({
   CreateAgentDialog: () => null,
   ManageAgentAccountsDialog: () => null,
   ModelProvidersDialog: () => null,
@@ -73,7 +98,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
   }
 })
 
-import AgentsListPage from '../pages/agents/list'
+import AgentsListPage from '@shm/ui/agents/list'
 
 function renderList() {
   const container = document.createElement('div')
@@ -108,10 +133,33 @@ describe('agents list — local server presentation', () => {
     ]
     mockState.selectedAccountId = 'account-1'
     mockState.accountIds = ['account-1']
+    mockState.invites = []
   })
 
   afterEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('shows pending agent invitations with their role and actions', () => {
+    mockState.invites = [
+      {
+        agentId: 'shared-agent',
+        agentName: 'Research partner',
+        ownerAccountId: 'z6MkOwnerAccount',
+        role: 'writer',
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]
+    const {container, root} = renderList()
+
+    expect(container.textContent).toContain('Invites')
+    expect(container.textContent).toContain('Research partner')
+    expect(container.textContent).toContain('Write collaborator')
+    expect(container.textContent).toContain('Accept')
+    expect(container.textContent).toContain('Decline')
+
+    cleanupRendered(root, container)
   })
 
   it('names the local server instead of showing its URL', () => {

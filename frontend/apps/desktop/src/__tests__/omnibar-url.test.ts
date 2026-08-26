@@ -123,7 +123,7 @@ describe('omnibar url resolution', () => {
   it('builds and resolves agent trigger urls', async () => {
     const url = agentTriggerUrl('https://agents.example/agents', 'agent-1', 'trigger 2')
 
-    expect(url).toBe('https://agents.example/agents/agent-1/triggers/trigger%202')
+    expect(url).toBe('https://agents.example/agents/agent-1/:triggers/trigger%202')
     await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
       key: 'agent',
       serverUrl: 'https://agents.example',
@@ -131,6 +131,60 @@ describe('omnibar url resolution', () => {
       tab: 'triggers',
       triggerId: 'trigger 2',
     })
+  })
+
+  it('still resolves legacy agent trigger urls', async () => {
+    await expect(
+      resolveOmnibarUrlToRoute('https://agents.example/agents/agent-1/triggers/trigger%202'),
+    ).resolves.toEqual({
+      key: 'agent',
+      serverUrl: 'https://agents.example',
+      agentId: 'agent-1',
+      tab: 'triggers',
+      triggerId: 'trigger 2',
+    })
+  })
+
+  it('builds and resolves agent tab urls', async () => {
+    const url = agentUrl('https://agents.example', 'agent-1', 'tools')
+
+    expect(url).toBe('https://agents.example/agents/agent-1/:tools')
+    await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
+      key: 'agent',
+      serverUrl: 'https://agents.example',
+      agentId: 'agent-1',
+      tab: 'tools',
+    })
+  })
+
+  it('treats the sessions tab as the bare agent url', async () => {
+    expect(agentUrl('https://agents.example', 'agent-1', 'sessions')).toBe('https://agents.example/agents/agent-1')
+  })
+
+  it('builds and resolves agent memory file urls', async () => {
+    const url = agentUrl('https://agents.example', 'agent-1', 'memory', 'notes/todo list.md')
+
+    expect(url).toBe('https://agents.example/agents/agent-1/:memory/notes/todo%20list.md')
+    await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
+      key: 'agent',
+      serverUrl: 'https://agents.example',
+      agentId: 'agent-1',
+      tab: 'memory',
+      memoryPath: 'notes/todo list.md',
+    })
+  })
+
+  it('resolves memory tab urls without a file', async () => {
+    await expect(resolveOmnibarUrlToRoute('https://agents.example/agents/agent-1/:memory')).resolves.toEqual({
+      key: 'agent',
+      serverUrl: 'https://agents.example',
+      agentId: 'agent-1',
+      tab: 'memory',
+    })
+  })
+
+  it('rejects unknown agent tab urls', async () => {
+    await expect(resolveOmnibarUrlToRoute('https://agents.example/agents/agent-1/:bogus')).resolves.toBeNull()
   })
 })
 

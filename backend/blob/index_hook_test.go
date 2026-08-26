@@ -71,8 +71,9 @@ func TestIndexedHook_OffWritePath(t *testing.T) {
 }
 
 // TestIndexedHook_ErrorDoesNotAffectWrites guards the error policy: a failing
-// hook is logged and dropped (shadow-verify repairs the derived index), and
-// must neither fail the Put nor wedge the worker for later blobs.
+// hook is retried, then its chunk is surrendered with a stale-mark of the
+// maintained scopes (see applyIndexedHook) — and it must neither fail the Put
+// nor wedge the worker for later blobs.
 func TestIndexedHook_ErrorDoesNotAffectWrites(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 	bob := coretest.NewTester("bob").Account
@@ -108,5 +109,48 @@ func TestIndexedHook_ErrorDoesNotAffectWrites(t *testing.T) {
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Equal(t, 2, calls, "hook must be attempted for both blobs despite errors")
+	require.Equal(t, 2*indexedHookMaxAttempts, calls,
+		"each blob's chunk must be retried to the attempt cap despite persistent errors")
+}
+
+// TestIndexedHook_TransientErrorRecovered: a chunk whose hook fails once and
+// then succeeds must be applied on the retry — dropping it used to leave a
+// permanent hole in the persisted RBSR index (a capability missing from every
+// already-materialized scope's advertised set).
+func TestIndexedHook_TransientErrorRecovered(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	var (
+		mu    sync.Mutex
+		calls int
+		got   []int64
+	)
+	idx.SetIndexedHook(func(_ *sqlite.Conn, ids []int64) error {
+		mu.Lock()
+		defer mu.Unlock()
+		calls++
+		if calls == 1 {
+			return errors.New("transient boom")
+		}
+		got = append(got, ids...)
+		return nil
+	})
+
+	clock := cclock.New()
+	change, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{must.Do2(NewOpSetKey("name", "A"))},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	require.NoError(t, idx.Put(t.Context(), change))
+	require.NoError(t, idx.WaitIndexedHook(t.Context()))
+
+	changeID := blobIDForCID(t, db, change.CID)
+	mu.Lock()
+	defer mu.Unlock()
+	require.Equal(t, 2, calls, "the retry must stop as soon as the hook succeeds")
+	require.Contains(t, got, changeID, "the retried chunk must be applied, not dropped")
 }

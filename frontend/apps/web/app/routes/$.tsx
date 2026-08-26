@@ -57,8 +57,11 @@ import {shouldRevalidateDocumentRoute} from './revalidation'
 type ExtendedSitePayload = SiteDocumentPayload & {
   isInspect?: boolean
   viewTerm?: ViewRouteKey | null
+  exploreQ?: string | null
+  exploreSort?: 'relevance' | 'recently_updated' | 'newest' | 'oldest' | 'title' | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
   openComment?: string | null
+  commentVersion?: string | null
   accountUid?: string | null
   inspectTab?: InspectTab | null
 }
@@ -71,6 +74,27 @@ type InspectIpfsPayload = {
 }
 
 type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | SiteSettingsEmailsPayload | 'unregistered' | 'no-site'
+
+function isInspectIpfsPayload(data: DocumentPayload): data is InspectIpfsPayload {
+  return typeof data === 'object' && 'kind' in data && data.kind === 'inspect-ipfs'
+}
+
+function getInspectTab(value: string | null): InspectTab | null {
+  switch (value) {
+    case 'document':
+    case 'changes':
+    case 'versions':
+    case 'comments':
+    case 'citations':
+    case 'children':
+    case 'authored-comments':
+    case 'contacts':
+    case 'capabilities':
+      return value
+    default:
+      return null
+  }
+}
 
 /**
  * Extract view term from path parts and return cleaned path + view term
@@ -193,7 +217,7 @@ export const documentPageMeta = ({data}: {data: Wrapped<SiteDocumentPayload>}): 
       : []
   }
   const metadata = createResourceMetadata({
-    id: siteDocument.comment ? commentIdToHmId(siteDocument.comment.id) : siteDocument.id,
+    id: siteDocument.comment ? commentIdToHmId(siteDocument.comment.id) : siteDocument.metadataId,
     document: siteDocument.document,
     comment: siteDocument.comment,
   })
@@ -263,6 +287,16 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   const latest = url.searchParams.get('l') === '' || !version
   const panelParam = url.searchParams.get('panel')
   const inspectTab = url.searchParams.get('tab')
+  const exploreQ = url.searchParams.get('q')
+  const rawExploreSort = url.searchParams.get('sort')
+  const exploreSort =
+    rawExploreSort === 'relevance' ||
+    rawExploreSort === 'recently_updated' ||
+    rawExploreSort === 'newest' ||
+    rawExploreSort === 'oldest' ||
+    rawExploreSort === 'title'
+      ? rawExploreSort
+      : null
 
   const serviceConfig = await instrument(ctx, 'getConfig', () => getConfig(hostname))
   if (!serviceConfig) {
@@ -327,6 +361,10 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   // Merge activity filter slug from path into panelParam for createDocumentNavRoute
   let effectivePanelParam = panelParam
   let openComment: string | null = null
+  // On comment permalink routes, ?v refers to the comment version CID, not
+  // the target document version. Keep it off the document lookup or the
+  // target document resolves as not found.
+  let isCommentPermalink = false
   let accountUid: string | null = null
 
   // Determine document type based on URL pattern
@@ -352,12 +390,13 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
+      isCommentPermalink = true
     }
     accountUid = extracted.accountUid || null
     documentId = hmId(docUid, {
       path: extracted.path,
-      version,
-      latest,
+      version: isCommentPermalink ? null : version,
+      latest: isCommentPermalink ? true : latest,
     })
   } else {
     // Site document (regular path) or inspector document (/inspect/path...)
@@ -371,23 +410,27 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
+      isCommentPermalink = true
     }
     accountUid = extracted.accountUid || null
     documentId = hmId(registeredAccountUid, {
       path: extracted.path,
-      version,
-      latest,
+      version: isCommentPermalink ? null : version,
+      latest: isCommentPermalink ? true : latest,
     })
   }
 
   const siteResourceData = {
     prefersLanguages: parsedRequest.prefersLanguages,
     viewTerm,
+    exploreQ,
+    exploreSort,
     panelParam: effectivePanelParam,
     openComment,
+    commentVersion: isCommentPermalink ? version : null,
     accountUid,
     isInspect,
-    inspectTab: isInspect && inspectTab ? (inspectTab as ExtendedSitePayload['inspectTab']) : null,
+    inspectTab: isInspect ? getInspectTab(inspectTab) : null,
     instrumentationCtx: ctx,
   }
 
@@ -426,7 +469,7 @@ export default function UnifiedDocumentPage() {
   if ('kind' in data && data.kind === 'site-settings-emails') {
     return <SiteSettingsEmailsScreen payload={data} />
   }
-  if ('kind' in data && data.kind === 'inspect-ipfs') {
+  if (isInspectIpfsPayload(data)) {
     return (
       <WebSiteProvider
         originHomeId={data.originHomeId}
@@ -437,7 +480,7 @@ export default function UnifiedDocumentPage() {
       </WebSiteProvider>
     )
   }
-  const siteData = data as ExtendedSitePayload
+  const siteData: ExtendedSitePayload = data
 
   // The resource isn't available locally yet; discovery is running in the
   // background. Render a fast shim page that polls until it arrives.
@@ -464,7 +507,16 @@ export default function UnifiedDocumentPage() {
     siteData.panelParam,
     siteData.openComment,
     siteData.accountUid,
+    siteData.commentVersion,
   )
+  const initialRouteWithExploreParams =
+    initialRoute.key === 'explore'
+      ? {
+          ...initialRoute,
+          q: siteData.exploreQ || undefined,
+          sort: siteData.exploreSort || undefined,
+        }
+      : initialRoute
   const initialInspectRoute = createInspectNavRoute(
     siteData.id,
     siteData.viewTerm,
@@ -480,7 +532,7 @@ export default function UnifiedDocumentPage() {
       originHomeId={siteData.originHomeId}
       siteHost={siteData.siteHost}
       dehydratedState={siteData.dehydratedState}
-      initialRoute={siteData.isInspect ? initialInspectRoute : initialRoute}
+      initialRoute={siteData.isInspect ? initialInspectRoute : initialRouteWithExploreParams}
     >
       {siteData.viewTerm === 'feed' && !siteData.isInspect ? (
         <WebFeedPage docId={siteData.id} />

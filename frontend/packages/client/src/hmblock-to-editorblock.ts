@@ -37,6 +37,7 @@ function toEditorBlockType(hmBlockType: HMBlockType): EditorBlockType {
   if (hmBlockType === 'Table') return 'table'
   if (hmBlockType === 'TableRow') return 'tableRow'
   if (hmBlockType === 'TableColumn') return 'tableColumn'
+  if (hmBlockType === 'Slot') return 'slot'
   return 'unknown'
 }
 
@@ -48,7 +49,6 @@ export function hmBlocksToEditorContent(
   blocks: HMBlockNode[],
   opts: ServerToEditorRecursiveOpts & {
     childrenType?: HMBlockChildrenType
-    listLevel?: string
     start?: string
     parentType?: HMBlockType
   } = {level: 1},
@@ -233,6 +233,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     queryProps.querySort = JSON.stringify(block.attributes?.query?.sort || {})
     queryProps.banner = block.attributes?.banner ? 'true' : 'false'
     queryProps.queryLimit = String(block.attributes?.query?.limit || '')
+    if (block.attributes?.table) queryProps.tableConfig = JSON.stringify(block.attributes.table)
   }
 
   const blockText = (block as any).text || ''

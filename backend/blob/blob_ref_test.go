@@ -102,6 +102,46 @@ func TestRefCausality(t *testing.T) {
 	}
 }
 
+func TestRefVisibilityConvergesAtEqualTimestamps(t *testing.T) {
+	alice := coretest.NewTester("alice")
+	clock := cclock.New()
+
+	change, err := NewChange(alice.Account, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{must.Do2(NewOpSetKey("title", "Visibility test"))},
+	}, clock.MustNow())
+	require.NoError(t, err)
+
+	refTime := clock.MustNow()
+	publicRef, err := NewRef(alice.Account, 0, change.CID, alice.Account.Principal(), "/test-doc", []cid.Cid{change.CID}, refTime, VisibilityPublic)
+	require.NoError(t, err)
+	privateRef, err := NewRef(alice.Account, 0, change.CID, alice.Account.Principal(), "/test-doc", []cid.Cid{change.CID}, refTime, VisibilityPrivate)
+	require.NoError(t, err)
+
+	iri := must.Do2(NewIRI(alice.Account.Principal(), "/test-doc"))
+	for name, refs := range map[string][]blocks.Block{
+		"public_then_private": {publicRef, privateRef},
+		"private_then_public": {privateRef, publicRef},
+	} {
+		t.Run(name, func(t *testing.T) {
+			db := storage.MakeTestDB(t)
+			idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+			require.NoError(t, err)
+			require.NoError(t, idx.Put(t.Context(), change))
+			for _, ref := range refs {
+				require.NoError(t, idx.Put(t.Context(), ref))
+			}
+
+			visibility, err := idx.GetDocumentVisibility(t.Context(), alice.Account.Principal(), "/test-doc")
+			require.NoError(t, err)
+			require.Equal(t, VisibilityPrivate, visibility)
+
+			storedVisibility, err := sqlitex.QueryOnePool[string](t.Context(), db, "SELECT visibility FROM document_generations WHERE resource = (SELECT id FROM resources WHERE iri = ?)", iri)
+			require.NoError(t, err)
+			require.Equal(t, string(VisibilityPrivate), storedVisibility)
+		})
+	}
+}
+
 func TestBug_MetadataCRDT(t *testing.T) {
 	// Data extracted from real document that was causing problems.
 	data := []byte(`{"cover":{"v":"","t":1741180379407},"icon":{"v":"ipfs://bafkreid63qduvw3p4bldx4mjxnb6tskhgabvhe4zfsf62hmfrp5xbe6uku","t":1729778316028},"layout":{"v":"","t":1761781408059},"name":{"v":"Eric Vicenti","t":1729606183282},"seedExperimentalLogo":{"v":"","t":1761781408059},"showOutline":{"v":false,"t":1761781408059},"siteUrl":{"v":"https://ev.hyper.media","t":1743635919824},"theme":{"v":"[object Object]","t":1739260812124},"theme.headerLayout":{"v":"","t":1761781408059},"thumbnail":{"v":"ipfs://bafkreid63qduvw3p4bldx4mjxnb6tskhgabvhe4zfsf62hmfrp5xbe6uku","t":1729606183282}}`)
@@ -111,5 +151,43 @@ func TestBug_MetadataCRDT(t *testing.T) {
 		require.NoError(t, json.Unmarshal(data, &attrs))
 
 		require.IsType(t, map[string]any{}, attrs.PublicMap()["theme"])
+	}
+}
+
+func TestDocIndexedAttrsStructuralLWWIsOrderIndependent(t *testing.T) {
+	t.Parallel()
+
+	for _, order := range []string{"old-first", "new-first"} {
+		t.Run("child_tombstone_replaces_parent/"+order, func(t *testing.T) {
+			attrs := DocIndexedAttrs{}
+			if order == "old-first" {
+				attrs.setOrdered("theme", "Legacy", 1, 0, 1)
+				attrs.setOrdered("theme.Color", nil, 2, 0, 1)
+			} else {
+				attrs.setOrdered("theme.Color", nil, 2, 0, 1)
+				attrs.setOrdered("theme", "Legacy", 1, 0, 1)
+			}
+
+			require.Equal(t, DocIndexedAttrs{
+				"theme.Color": {Key: "theme.Color", Value: nil, Ts: 2, Actor: 1, Kind: documentAttributeNull},
+			}, attrs)
+			require.Empty(t, attrs.PublicMap())
+		})
+
+		t.Run("parent_tombstone_replaces_child/"+order, func(t *testing.T) {
+			attrs := DocIndexedAttrs{}
+			if order == "old-first" {
+				attrs.setOrdered("theme.Color", "Blue", 1, 0, 1)
+				attrs.setOrdered("theme", nil, 2, 0, 1)
+			} else {
+				attrs.setOrdered("theme", nil, 2, 0, 1)
+				attrs.setOrdered("theme.Color", "Blue", 1, 0, 1)
+			}
+
+			require.Equal(t, DocIndexedAttrs{
+				"theme": {Key: "theme", Value: nil, Ts: 2, Actor: 1, Kind: documentAttributeNull},
+			}, attrs)
+			require.Empty(t, attrs.PublicMap())
+		})
 	}
 }

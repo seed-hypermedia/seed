@@ -145,6 +145,72 @@ describe('renderDocumentToHTML', () => {
     expect(html).toContain('Entity\nAttribute\nValue')
   })
 
+  it('renders table query blocks from the prefetched cache', () => {
+    const hmBlock = {
+      id: 'q-table',
+      type: 'Query',
+      text: '',
+      annotations: [],
+      attributes: {
+        style: 'Table',
+        columnCount: 1,
+        banner: false,
+        query: {includes: [{space: 'z6Mkuid', path: 'notes', mode: 'Children'}]},
+        table: {columns: [{id: 'title', visible: true}]},
+      },
+    }
+    const item = {
+      type: 'document',
+      id: {
+        id: 'z6Mkuid/notes/table-row',
+        uid: 'z6Mkuid',
+        path: ['notes', 'table-row'],
+        version: 'v1',
+        latest: true,
+        blockRef: null,
+        blockRange: null,
+        hostname: null,
+        scheme: null,
+      },
+      path: ['notes', 'table-row'],
+      authors: ['z6Mkuid'],
+      createTime: {seconds: 1700000000n, nanos: 0},
+      updateTime: {seconds: 1700000000n, nanos: 0},
+      sortTime: new Date(1700000000000),
+      genesis: 'g',
+      version: 'v1',
+      breadcrumbs: [],
+      activitySummary: {
+        latestComment: null,
+        latestChangeTime: {seconds: 1700000000n, nanos: 0},
+        isUnread: false,
+        latestCommentTime: null,
+        latestCommentId: '',
+        commentCount: 0,
+      },
+      generationInfo: {genesis: 'g', generation: 1n},
+      metadata: {name: 'Table Note'},
+      visibility: 'PUBLIC',
+    }
+    const queryClient = new QueryClient()
+    const input = getQueryBlockInput(hmBlockToEditorBlock(hmBlock as any).props as any)
+    const key = queryQueryBlock({request: async () => null} as any, input as any).queryKey
+    queryClient.setQueryData(key, {
+      queryTargetName: 'Notes',
+      in: item.id,
+      results: [item],
+      mode: 'Children',
+      interactionSummaries: {},
+      accountsMetadata: {z6Mkuid: {id: item.id, metadata: {name: 'Someone'}}},
+    })
+
+    const html = render([{block: hmBlock, children: []}] as any, queryClient)
+
+    expect(html).toContain('Search table')
+    expect(html).toContain('Table Note')
+    expect(html).not.toContain('data-ssr-error')
+  })
+
   it('renders query blocks from the prefetched cache with the exact component key', () => {
     const hmBlock = {
       id: 'q1',

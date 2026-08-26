@@ -5,7 +5,7 @@ import {describe, expect, it, vi} from 'vitest'
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavRoute: () => ({key: 'library'})}))
 
-import {deriveAssistantWindowContext, formatWindowContextLines} from '../components/assistant-window-context'
+import {deriveAssistantWindowContext, formatWindowContextLines} from '@shm/ui/agents/assistant-window-context'
 
 /**
  * The window-context lines attached to assistant sends.

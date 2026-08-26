@@ -22,6 +22,19 @@ function documentName(doc: HMDocumentInfo): string {
   return getMetadataName(doc.metadata) ?? doc.path?.join('/') ?? ''
 }
 
+/** Filters documents by a case-insensitive substring of their displayed title. */
+export function filterDocumentsByTitle(docs: HMDocumentInfo[], query: string): HMDocumentInfo[] {
+  const normalized = query.trim().toLocaleLowerCase()
+  if (!normalized) return docs
+  return docs.filter((doc) => documentName(doc).toLocaleLowerCase().includes(normalized))
+}
+
+/** Returns the hierarchical path keys that must be expanded to reveal a document. */
+export function getAncestorPathKeys(path: string[] | null | undefined): string[] {
+  if (!path) return []
+  return path.slice(0, -1).map((_, index) => path.slice(0, index + 1).join('/'))
+}
+
 export function buildDocumentTree(docs: HMDocumentInfo[]): DocumentTreeNode[] {
   const pathMap = new Map<string, HMDocumentInfo>()
   for (const doc of docs) {

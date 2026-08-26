@@ -24,15 +24,19 @@ const mockState = vi.hoisted(() => ({
   createAgentDialogInput: null as null | {onCreated?: (created: {serverUrl: string; agentId: string}) => void},
 }))
 
-vi.mock('@/models/agents', () => ({
+vi.mock('@shm/ui/agents/models', () => ({
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
   describeAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     localServerUrl && serverUrl === localServerUrl ? 'Local Agents' : new URL(serverUrl).host,
   addOptimisticSessionMessage: vi.fn(),
+  addOptimisticSessionToCaches: vi.fn(),
   removeOptimisticSessionFromLists: vi.fn(),
+  useAgentDetail: () => ({data: undefined, isLoading: false}),
+  useRun: () => ({data: undefined}),
   useAgentLists: () => mockState.agentLists,
+  useSpaceAgents: () => ({agents: [], isLoading: false}),
   useAgentServerUrls: () => ({data: mockState.serverUrls, isSuccess: true, isLoading: false}),
   useAgentSession: () => ({data: undefined}),
   useAgentWebSocketSubscription: () => ({text: ''}),
@@ -42,14 +46,65 @@ vi.mock('@/models/agents', () => ({
   useLocalAgentServerUrl: () => ({data: LOCAL}),
   useMessageAgentSession: () => ({mutate: vi.fn()}),
   useStopAgentSession: () => ({mutate: vi.fn()}),
+  useRetrySession: () => ({mutate: vi.fn(), isPending: false}),
+  // Sub-session nesting and the pinned run card: idle by default, so neither renders here.
+  useChildSessions: () => ({data: undefined, isLoading: false, isError: false}),
+  useSessionRuns: () => ({data: []}),
+  useRunTree: () => ({data: []}),
+  useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: []}),
+  useCancelRun: () => ({mutate: vi.fn(), isPending: false}),
 }))
 
+vi.mock('@shm/ui/agents/account', () => ({useSelectedAccountId: () => 'account-1'}))
 vi.mock('@/selected-account', () => ({useSelectedAccountId: () => 'account-1'}))
+vi.mock('@shm/ui/agents/navigation', () => ({
+  useNavigate: () => mockState.navigate,
+  useClickNavigate: () => vi.fn(),
+  useOpenUrl: () => vi.fn(),
+  resolveHypermediaRoute: () => null,
+}))
 vi.mock('@/utils/useNavigate', () => ({useNavigate: () => mockState.navigate}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
+// The real composer drags in the ProseMirror editor stack, which does not load under jsdom. The
+// mock honors the contract these tests care about: a textarea stands in for the editor, it
+// focuses itself when told to focus on mount (the default, as in the real component), it renders
+// the driven-by-parent notice instead of an input, and it exposes an imperative focus handle.
+vi.mock('@shm/ui/agents/rich-message-composer', () => {
+  const React = require('react')
+  return {
+    SUB_SESSION_DRIVEN_MESSAGE: 'This sub-session is being driven by its parent',
+    TERMINAL_RUN_STATUSES: new Set(['succeeded', 'failed', 'canceled']),
+    AgentRichMessageComposer: ({
+      focusOnMount = true,
+      disabledMessage,
+      composerHandleRef,
+    }: {
+      focusOnMount?: boolean
+      disabledMessage?: string
+      composerHandleRef?: {current: unknown}
+    }) => {
+      const ref = React.useRef(null)
+      React.useEffect(() => {
+        if (composerHandleRef) {
+          composerHandleRef.current = {
+            focus: () => (ref.current as HTMLTextAreaElement | null)?.focus(),
+            submit: () => {},
+            reset: () => {},
+            flush: () => {},
+            getContent: async () => ({blockNodes: [], blobs: []}),
+          }
+        }
+        if (focusOnMount) (ref.current as HTMLTextAreaElement | null)?.focus()
+      }, [])
+      if (disabledMessage) return React.createElement('div', null, disabledMessage)
+      return React.createElement('textarea', {ref, 'data-testid': 'rich-composer'})
+    },
+  }
+})
+
 // The real create dialog drags in the prompt editor stack; the panel only mounts it via
 // useAppDialog, which is what these tests assert.
-vi.mock('@/pages/agents/dialogs', () => ({
+vi.mock('@shm/ui/agents/dialogs', () => ({
   CreateAgentDialog: ({input}: {input: (typeof mockState)['createAgentDialogInput']}) => {
     mockState.createAgentDialogMounts += 1
     mockState.createAgentDialogInput = input
@@ -77,7 +132,7 @@ vi.mock('@shm/shared/utils/navigation', () => {
   }
 })
 
-import {AssistantPanel} from '../components/assistant-panel'
+import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
 
 let root: Root
 let container: HTMLDivElement
@@ -207,6 +262,23 @@ describe('assistant sidebar agent context', () => {
     expect(document.body.textContent).toContain('No agents yet')
     clickText('New agent')
     expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
+  })
+
+  it('footer new-chat drafts under the agent last used in the sidebar, not the first agent', () => {
+    // The footer button opens the panel with the last session restored and a pending new-chat
+    // request; the draft must inherit that session's agent (Researcher), not fall back to the
+    // default first agent.
+    act(() => {
+      root.render(<AssistantPanel initialSessionId={`${REMOTE} | s-r1`} newChatRequest={1} />)
+    })
+    expect(document.body.textContent).toContain('Send a message to start chatting with Researcher')
+  })
+
+  it('footer new-chat focuses the draft composer', () => {
+    act(() => {
+      root.render(<AssistantPanel initialSessionId={`${REMOTE} | s-r1`} newChatRequest={1} />)
+    })
+    expect(document.activeElement?.tagName).toBe('TEXTAREA')
   })
 
   it('offers session options in a menu on the session row, not a dedicated row', () => {

@@ -6,8 +6,10 @@ import {MakerSquirrel} from '@electron-forge/maker-squirrel'
 import {MakerZIP} from '@electron-forge/maker-zip'
 import {PublisherS3} from '@electron-forge/publisher-s3'
 import type {ForgeConfig} from '@electron-forge/shared-types'
+import type {HookFunction} from '@electron/packager'
 // import {MakerRpm} from '@electron-forge/maker-rpm'
 import {VitePlugin} from '@electron-forge/plugin-vite'
+import {execFileSync} from 'node:child_process'
 import path from 'node:path'
 import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
@@ -17,6 +19,8 @@ import {signWindowsMakeResults, signWindowsPackagePaths} from './scripts/windows
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
 const packageExecutableName = IS_PROD_DEV ? 'SeedDev.exe' : 'Seed.exe'
+const macAppName = IS_PROD_DEV ? 'SeedDev' : 'Seed'
+const macSigningIdentity = 'Developer ID Application: Mintter Technologies S.L. (XSKC6RJDD8)'
 
 const devProjectRoot = path.join(process.cwd(), '../../..')
 const LLVM_TRIPLES = {
@@ -75,6 +79,51 @@ function agentsNestedBinaries(): string[] {
   return ['bin/msb', 'lib/libkrunfw.5.dylib', 'microsandbox.darwin-arm64.node']
     .map((rel) => path.join(platformPkgDir, rel))
     .filter((candidate) => fs.existsSync(candidate))
+}
+
+function stagedMacExtraResourceBinaries(buildPath: string): string[] {
+  const resourcesDir = path.join(buildPath, `${macAppName}.app`, 'Contents', 'Resources')
+  const binaries = [path.join(resourcesDir, path.basename(daemonBinaryPath))]
+
+  if (hasAgentsBinary) {
+    binaries.push(
+      path.join(resourcesDir, 'agents', path.basename(agentsBinaryPath)),
+      ...agentsNestedBinaries().map((binary) =>
+        path.join(resourcesDir, 'agents', path.relative(agentsDistPath, binary)),
+      ),
+    )
+  }
+
+  return binaries.filter((binary) => fs.existsSync(binary))
+}
+
+const signMacExtraResourceBinaries: HookFunction = (buildPath, _electronVersion, platform, _arch, callback) => {
+  if ((platform !== 'darwin' && platform !== 'mas') || !process.env.CI) {
+    callback()
+    return
+  }
+
+  try {
+    for (const binary of stagedMacExtraResourceBinaries(buildPath)) {
+      execFileSync(
+        'codesign',
+        [
+          '--force',
+          '--sign',
+          macSigningIdentity,
+          '--options',
+          'runtime',
+          '--entitlements',
+          path.join(__dirname, 'entitlements.plist'),
+          binary,
+        ],
+        {stdio: 'inherit'},
+      )
+    }
+    callback()
+  } catch (error) {
+    callback(error instanceof Error ? error : new Error(String(error)))
+  }
 }
 
 if (process.platform === 'win32') {
@@ -175,12 +224,13 @@ const config: ForgeConfig = {
     asar: true,
     darwinDarkModeSupport: true,
     icon: iconsPath,
-    name: IS_PROD_DEV ? 'SeedDev' : 'Seed',
+    name: macAppName,
     appBundleId: IS_PROD_DEV ? 'media.hyper.seed.dev' : 'media.hyper.seed',
-    executableName: IS_PROD_DEV ? 'SeedDev' : 'Seed',
+    executableName: macAppName,
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: extraResources,
+    afterCopyExtraResources: [signMacExtraResourceBinaries],
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
@@ -407,18 +457,16 @@ function notarizeMaybe() {
 
   // @ts-expect-error
   config.packagerConfig.osxSign = {
-    // @ts-expect-error
-    entitlements: './entitlements.plist',
-    executableName: 'Mintter',
-    entitlementsInherit: './entitlements.plist',
-    gatekeeperAssess: false,
-    hardenedRuntime: true,
-    identity: 'Developer ID Application: Mintter Technologies S.L. (XSKC6RJDD8)',
-    // Every nested executable must be listed, or notarization ships an unsigned binary that
-    // refuses to launch on other machines. The microsandbox native pieces staged next to the
-    // agents binary are Mach-O files too; re-signing `msb` is safe because entitlements.plist
-    // grants com.apple.security.hypervisor, which msb needs to create microVMs.
-    binaries: hasAgentsBinary ? [daemonBinaryPath, agentsBinaryPath, ...agentsNestedBinaries()] : [daemonBinaryPath],
+    identity: macSigningIdentity,
+    // @electron/osx-sign v1 only honors entitlements via optionsForFile; the old flat
+    // `entitlements`/`entitlementsInherit` options are silently ignored, which signed every
+    // binary with the library's default entitlements and stripped com.apple.security.hypervisor
+    // from msb — breaking execute_code microVMs in shipped builds while dev (npm-signed msb)
+    // kept working.
+    optionsForFile: () => ({
+      entitlements: './entitlements.plist',
+      hardenedRuntime: true,
+    }),
   }
 }
 

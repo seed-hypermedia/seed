@@ -110,6 +110,25 @@ describe('local agents server resolution', () => {
     expect(mockState.fetched.every((url) => url.includes('4000'))).toBe(true)
   })
 
+  it('recovers by attaching when the server comes back after a failed startup', async () => {
+    // The one startup probe misses (server mid-restart, no binary staged) — the app must not stay
+    // blind forever: the attach-retry loop probes the default URL and attaches when it answers.
+    vi.useFakeTimers()
+    try {
+      const started = await startLocalAgentsServer()
+      expect(started).toBeNull()
+      expect(getAgentsServerState().t).toBe('error')
+
+      mockState.healthy.add('http://localhost:3050')
+      await vi.advanceTimersByTimeAsync(11_000)
+      const state = getAgentsServerState()
+      expect(state.t).toBe('attached')
+      expect(state.t === 'attached' && state.url).toBe('http://localhost:3050')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reports an error when nothing is running and the bundled binary is missing', async () => {
     expect(await startLocalAgentsServer()).toBeNull()
     const state = getAgentsServerState()

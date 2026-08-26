@@ -4,16 +4,18 @@ import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
+import {useAgentServerUrls, useHasAnyAgent} from '@shm/ui/agents/models'
 import {useConnectPeer} from '@/models/contacts'
-import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useCreateDraft} from '@/models/documents'
+import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
 import {useSelectedAccountId} from '@/selected-account'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
+import {draftDocumentRouteId} from '@/utils/draft-route'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {hmId} from '@shm/shared'
-import {NavRoute} from '@shm/shared/routes'
+import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
@@ -28,14 +30,13 @@ import React, {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, u
 import {ErrorBoundary} from 'react-error-boundary'
 import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
-import {useAgentServerUrls, useHasAnyAgent} from '@/models/agents'
-import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
-import {AssistantPanel} from '../components/assistant-panel'
+import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
 import {AppSidebar} from '../components/sidebar'
 import {TitleBar} from '../components/titlebar'
+import {WindowTitle} from '../components/window-title'
 import {BaseLoading, NotFoundPage} from './base'
 import {DocumentPlaceholder} from './document-placeholder'
 import './polyfills'
@@ -50,14 +51,14 @@ var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
-var Library = lazy(() => import('./library'))
 var DeletedContent = lazy(() => import('./deleted-content'))
 var ApiInspector = lazy(() => import('./api-inspector'))
+var QueryDocuments = lazy(() => import('./query-documents'))
+var Explore = lazy(() => import('./explore'))
 var Agents = lazy(() => import('./agents'))
-var AgentServer = lazy(() => import('./agents/server'))
-var AgentDetail = lazy(() => import('./agents/detail'))
-var AgentSession = lazy(() => import('./agents/session'))
-var Drafts = lazy(() => import('./drafts'))
+var AgentServer = lazy(() => import('@shm/ui/agents/server'))
+var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
+var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
 var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
@@ -83,12 +84,12 @@ function DraftRouteRedirect() {
     if (draftQuery.isLoading) return
     const draft = draftQuery.data
     if (!draft) {
-      replace({key: 'drafts'})
+      replace(defaultRoute)
       return
     }
     const targetId = draftDocumentRouteId(draft)
     if (!targetId) {
-      replace({key: 'drafts'})
+      replace(defaultRoute)
       return
     }
     replace({key: 'document', id: targetId})
@@ -100,6 +101,12 @@ function DraftRouteRedirect() {
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
+  const replaceRemovedRoute = useNavigate('replace')
+  useEffect(() => {
+    if (navR.key === 'library' || navR.key === 'drafts') {
+      replaceRemovedRoute(defaultRoute)
+    }
+  }, [navR.key, replaceRemovedRoute])
   const selectedAccountId = useSelectedAccountId()
   const createNewDocument = useCreateDraft({
     locationUid: selectedAccountId ?? undefined,
@@ -135,6 +142,10 @@ export default function Main({className}: {className?: string}) {
       sendAssistantState(next, assistantSessionId)
       return next
     })
+    // A remounted panel counts new-chat requests from zero, so a counter left over from an earlier
+    // footer click would otherwise open the panel straight into a draft instead of restoring the
+    // last session.
+    setAssistantNewChatRequest(0)
   }, [assistantSessionId, sendAssistantState])
 
   const handleNewAssistantChat = useCallback(() => {
@@ -195,6 +206,7 @@ export default function Main({className}: {className?: string}) {
     )
     return (
       <div className={cn(windowContainerStyles, 'p-0', className)}>
+        <WindowTitle />
         <ErrorBoundary
           resetKeys={[routeKey]}
           FallbackComponent={AppErrorPage}
@@ -212,6 +224,7 @@ export default function Main({className}: {className?: string}) {
     // (read-only ipfs:// URL + copy + "…" menu) as the window's title bar.
     return (
       <div className={cn(windowContainerStyles, 'p-0', className)}>
+        <WindowTitle />
         <ErrorBoundary
           resetKeys={[routeKey]}
           FallbackComponent={AppErrorPage}
@@ -236,6 +249,7 @@ export default function Main({className}: {className?: string}) {
 
   return (
     <div className={cn(windowContainerStyles, 'p-0', className)}>
+      <WindowTitle />
       <PanelGroup direction="horizontal" autoSaveId="main-assistant">
         <Panel id="app-content" order={1}>
           <div className="flex h-full flex-col">
@@ -419,12 +433,6 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: SiteSettings,
         Fallback: BaseLoading,
       }
-    case 'library': {
-      return {
-        PageComponent: Library,
-        Fallback: BaseLoading,
-      }
-    }
     case 'deleted-content':
       return {
         PageComponent: DeletedContent,
@@ -433,6 +441,16 @@ function getPageComponent(navRoute: NavRoute) {
     case 'api-inspector':
       return {
         PageComponent: ApiInspector,
+        Fallback: BaseLoading,
+      }
+    case 'query-documents':
+      return {
+        PageComponent: QueryDocuments,
+        Fallback: BaseLoading,
+      }
+    case 'explore':
+      return {
+        PageComponent: Explore,
         Fallback: BaseLoading,
       }
     case 'agents':
@@ -453,11 +471,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'agent-session':
       return {
         PageComponent: AgentSession,
-        Fallback: BaseLoading,
-      }
-    case 'drafts':
-      return {
-        PageComponent: Drafts,
         Fallback: BaseLoading,
       }
     case 'feed':

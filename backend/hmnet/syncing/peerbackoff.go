@@ -178,23 +178,24 @@ func (s *Service) scopeIsQuiet(entityID blob.IRI) bool {
 // fetched resets it, so a scope that starts producing again immediately gets the
 // full search back.
 //
-// Only recursive scopes are tracked: a one-shot discovery never runs a second
-// wave, so there is nothing for the counter to inform, and recording it would
-// grow the map for no benefit.
+// Only recursive scopes accumulate quiet: a one-shot discovery never runs a
+// second wave, so there is nothing for the counter to inform, and recording it
+// would grow the map for no benefit. A yield resets the counter regardless of
+// shape though — any wave downloading blobs for this IRI proves the scope is
+// not settled, and the subscription must get its full search back.
 func (s *Service) recordWaveYield(entityID blob.IRI, recursive bool, blobs int32) {
-	if !recursive {
-		return
-	}
-
 	s.quietMu.Lock()
 	defer s.quietMu.Unlock()
 
-	if s.quiet == nil {
-		s.quiet = make(map[blob.IRI]int)
-	}
 	if blobs > 0 {
 		delete(s.quiet, entityID)
 		return
+	}
+	if !recursive {
+		return
+	}
+	if s.quiet == nil {
+		s.quiet = make(map[blob.IRI]int)
 	}
 	if n, ok := s.quiet[entityID]; ok {
 		// Saturate rather than climb forever; only the threshold is read.
@@ -207,6 +208,106 @@ func (s *Service) recordWaveYield(entityID blob.IRI, recursive bool, blobs int32
 		return
 	}
 	s.quiet[entityID] = 1
+}
+
+// Quiet-narrowing and the tier short-circuit each assume the peers they keep
+// (the authority set) advertise everything that exists. When that assumption
+// breaks — a serving site whose maintained RBSR set is short, or a blob held
+// only by a peer outside the authority set — both mechanisms lock the miss in:
+// the narrow wave asks nobody else, and the satisfied authority tier skips the
+// tiers that would have. The exhaustive wave is the bounded escape hatch: a
+// rate-limited wave that runs the full speculative sample AND every peer tier,
+// so any such gap heals within one interval instead of never.
+const (
+	// defaultExhaustiveWaveInterval is how often a settled recursive scope still
+	// runs one full-width, all-tier wave. It bounds how long an
+	// under-advertising authority can go undetected. Cost: one 20-peer search
+	// per subscription per interval, vs. one per ~11s before narrowing existed.
+	defaultExhaustiveWaveInterval = 10 * time.Minute
+
+	// userProbeMinInterval rate-limits forced exhaustive waves per IRI, so the
+	// hot-task heartbeat (fired every few seconds while a view is open) cannot
+	// re-create the search load the narrowing removed.
+	userProbeMinInterval = 2 * time.Minute
+
+	// exhaustiveForget drops probe timestamps untouched for this long, so the
+	// map tracks live subscriptions rather than every scope ever probed.
+	exhaustiveForget = 24 * time.Hour
+)
+
+// shouldRunExhaustive reports whether the wave that is about to run must be
+// exhaustive (full sample width, no tier short-circuit), consuming or arming
+// the per-IRI state. Returns the trigger for metrics: "" (no), "forced" (user
+// interest), or "periodic".
+func (s *Service) shouldRunExhaustive(entityID blob.IRI, recursive bool, now time.Time) string {
+	s.quietMu.Lock()
+	defer s.quietMu.Unlock()
+
+	if _, ok := s.forcedExhaustive[entityID]; ok {
+		delete(s.forcedExhaustive, entityID)
+		if s.lastExhaustive == nil {
+			s.lastExhaustive = make(map[blob.IRI]time.Time)
+		}
+		s.lastExhaustive[entityID] = now
+		return "forced"
+	}
+	if !recursive {
+		return ""
+	}
+
+	interval := s.exhaustiveEvery
+	if interval <= 0 {
+		interval = defaultExhaustiveWaveInterval
+	}
+
+	last, ok := s.lastExhaustive[entityID]
+	if !ok {
+		// A fresh scope's first waves are naturally full-width already (nothing
+		// has narrowed yet), so seed the clock instead of double-probing.
+		// Jitter the seed so subscriptions bulk-loaded at startup don't all
+		// come due in lockstep one interval later.
+		if s.lastExhaustive == nil {
+			s.lastExhaustive = make(map[blob.IRI]time.Time)
+		}
+		if len(s.lastExhaustive) >= maxQuietScopes {
+			return ""
+		}
+		s.lastExhaustive[entityID] = now.Add(-rand.N(max(interval/8, 1)))
+		return ""
+	}
+	if now.Sub(last) < interval {
+		return ""
+	}
+	s.lastExhaustive[entityID] = now
+
+	// Lazy GC, same idea as Benched: piggyback on a write that already holds
+	// the lock instead of running a sweeper.
+	for iri, ts := range s.lastExhaustive {
+		if now.Sub(ts) > exhaustiveForget {
+			delete(s.lastExhaustive, iri)
+		}
+	}
+	return "periodic"
+}
+
+// noteUserInterest arms one forced exhaustive wave for the IRI, unless one ran
+// within userProbeMinInterval. Called on every hot-task touch (the funnel for
+// every frontend-triggered discovery); the self-rate-limiting is what makes
+// that safe.
+func (s *Service) noteUserInterest(entityID blob.IRI, now time.Time) {
+	s.quietMu.Lock()
+	defer s.quietMu.Unlock()
+
+	if last, ok := s.lastExhaustive[entityID]; ok && now.Sub(last) < userProbeMinInterval {
+		return
+	}
+	if s.forcedExhaustive == nil {
+		s.forcedExhaustive = make(map[blob.IRI]struct{})
+	}
+	if len(s.forcedExhaustive) >= maxQuietScopes {
+		return
+	}
+	s.forcedExhaustive[entityID] = struct{}{}
 }
 
 // sampleWidth decides how many peers to speculatively sample for one wave.

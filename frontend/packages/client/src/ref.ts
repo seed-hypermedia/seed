@@ -3,10 +3,11 @@
  */
 
 import {encode as cborEncode} from '@ipld/dag-cbor'
-import type {HMPublishBlobsInput, HMSigner} from './hm-types'
+import type {HMPublishBlobsInput} from './hm-types'
 import {CID} from 'multiformats'
 import {base58btc} from 'multiformats/bases/base58'
-import {signObject, toPublishInput} from './signing'
+import {signObject, signerPublicKey, toPublishInput} from './signing'
+import type {AnySigner} from './signer'
 
 export type CreateVersionRefInput = {
   /** Account UID (base58btc-encoded principal) */
@@ -130,8 +131,8 @@ function buildUnsignedRef({
  * Points to a specific document version (genesis + heads).
  * Used for fork/branch operations and normal document refs.
  */
-export async function createVersionRef(input: CreateVersionRefInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
-  const signerKey = await signer.getPublicKey()
+export async function createVersionRef(input: CreateVersionRefInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
+  const signerKey = await signerPublicKey(signer)
 
   const unsigned = buildUnsignedRef({
     signerKey,
@@ -158,9 +159,9 @@ export async function createVersionRef(input: CreateVersionRefInput, signer: HMS
  */
 export async function createTombstoneRef(
   input: CreateTombstoneRefInput,
-  signer: HMSigner,
+  signer: AnySigner,
 ): Promise<HMPublishBlobsInput> {
-  const signerKey = await signer.getPublicKey()
+  const signerKey = await signerPublicKey(signer)
 
   const unsigned = buildUnsignedRef({
     signerKey,
@@ -184,8 +185,11 @@ export async function createTombstoneRef(
  * Redirects this document path to a different account/path.
  * Optionally republishes the target content at this location.
  */
-export async function createRedirectRef(input: CreateRedirectRefInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
-  const signerKey = await signer.getPublicKey()
+export async function createRedirectRef(
+  input: CreateRedirectRefInput,
+  signer: AnySigner,
+): Promise<HMPublishBlobsInput> {
+  const signerKey = await signerPublicKey(signer)
 
   const unsigned = buildUnsignedRef({
     signerKey,

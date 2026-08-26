@@ -105,16 +105,83 @@ const watchedDirs = collectFileDependencyPaths()
 install()
 startCommand()
 
+/**
+ * Watch a directory tree with one NON-recursive watcher per directory.
+ *
+ * `fs.watch({recursive: true})` on Linux walks the whole subtree itself,
+ * including node_modules — where pnpm leaves dangling symlinks
+ * (node_modules/.bin/esbuild etc.) and `bun install` rewrites entries while
+ * we watch. Both surface as an ENOENT on the watcher, which with a recursive
+ * watcher means re-arming the entire tree and hitting the same path again,
+ * forever. Walking manually lets us skip IGNORED_PATH_SEGMENTS entirely and
+ * confine any error to the one directory that vanished.
+ */
+const watchers = new Map<string, fs.FSWatcher>()
+
+function watchTree(root: string, label: string) {
+  watchDir(root, root, label)
+}
+
+function watchDir(root: string, dir: string, label: string) {
+  if (watchers.has(dir)) return
+  let watcher: fs.FSWatcher
+  try {
+    watcher = fs.watch(dir, (_event, filename) => {
+      if (!filename) return
+      const full = path.join(dir, filename)
+      // A new subdirectory (e.g. a freshly created component folder) needs
+      // its own watcher; do this regardless of the quiet window so we don't
+      // miss it, but skip ignored names so node_modules never gets watched.
+      if (!IGNORED_PATH_SEGMENTS.includes(filename)) {
+        try {
+          if (fs.statSync(full).isDirectory()) watchDir(root, full, label)
+        } catch {
+          // Vanished between event and stat (or a dangling symlink); if it
+          // was a watched dir its own watcher's error handler cleans up.
+        }
+      }
+      if (Date.now() < quietUntil) return
+      const rel = path.relative(root, full)
+      if (rel.split(path.sep).some((part) => IGNORED_PATH_SEGMENTS.includes(part))) return
+      scheduleResync(path.join(label, rel))
+    })
+  } catch (err) {
+    // Unwatchable entry (dangling symlink, permission) — skip just this one.
+    const code = (err as NodeJS.ErrnoException).code ?? (err as Error).message
+    console.warn(`⚠️ watch-file-deps: cannot watch ${path.join(label, path.relative(root, dir))} (${code}); skipping`)
+    return
+  }
+  watchers.set(dir, watcher)
+  watcher.on('error', (err) => {
+    // The directory itself went away (or was replaced). Drop it; if it comes
+    // back, the parent's watcher sees the create event and re-adds it. Only
+    // the tree root gets re-armed, since nothing above it is watching.
+    const code = (err as NodeJS.ErrnoException).code ?? err.message
+    watcher.close()
+    watchers.delete(dir)
+    if (dir === root) {
+      console.warn(`⚠️ watch-file-deps: watcher error on ${label} (${code}); rewatching`)
+      setTimeout(() => watchTree(root, label), 1_000)
+    }
+  })
+
+  let entries: fs.Dirent[]
+  try {
+    entries = fs.readdirSync(dir, {withFileTypes: true})
+  } catch {
+    return
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue // isDirectory() is false for symlinks: never follow them
+    if (IGNORED_PATH_SEGMENTS.includes(entry.name)) continue
+    watchDir(root, path.join(dir, entry.name), label)
+  }
+}
+
 for (const dir of watchedDirs) {
   const label = path.relative(path.dirname(workspaceDir), dir)
-  fs.watch(dir, {recursive: true}, (_event, filename) => {
-    if (!filename) return
-    if (Date.now() < quietUntil) return
-    const parts = filename.split(path.sep)
-    if (parts.some((part) => IGNORED_PATH_SEGMENTS.includes(part))) return
-    scheduleResync(path.join(label, filename))
-  })
-  console.log(`👀 watch-file-deps: watching ${label}`)
+  watchTree(dir, label)
+  console.log(`👀 watch-file-deps: watching ${label} (${watchers.size} dirs)`)
 }
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {

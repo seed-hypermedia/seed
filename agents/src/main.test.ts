@@ -100,23 +100,29 @@ describe('main routes', () => {
     }
   })
 
-  test('GET health advertises web tool capabilities from server config', async () => {
+  test('GET health advertises server endpoints and web tool capabilities', async () => {
     const {db, dataDir, cleanup} = createTestState()
     try {
       const off = getGetHandler(createAPIRoutes(new apisvc.Service(db, dataDir)), '/agents/api/health')
       const offBody = await (await off()).json()
       expect(offBody.status).toBe('ok')
+      expect(offBody.hmServerUrl).toBe('https://hyper.media')
+      expect(offBody.ipfsServerUrl).toBe('https://hyper.media')
       expect(offBody.webTools).toEqual({search: false, readBrowser: false})
 
       const on = getGetHandler(
         createAPIRoutes(
           new apisvc.Service(db, dataDir, {
+            hmServerUrl: 'http://localhost:58004',
+            ipfsServerUrl: 'http://localhost:58001',
             web: {searxngUrl: 'http://searxng:8080', crawlerUrl: 'http://crawl4ai:11235'},
           }),
         ),
         '/agents/api/health',
       )
       const onBody = await (await on()).json()
+      expect(onBody.hmServerUrl).toBe('http://localhost:58004')
+      expect(onBody.ipfsServerUrl).toBe('http://localhost:58001')
       expect(onBody.webTools).toEqual({search: true, readBrowser: true})
 
       const searchOnly = getGetHandler(

@@ -13,7 +13,6 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   commentIdToHmId,
-  createWebHMUrl,
   extractQueryBlocks,
   extractRefs,
   getBreadcrumbDocumentIds,
@@ -22,6 +21,7 @@ import {
   hmIdPathToEntityQueryPath,
   hypermediaUrlToHref,
   packHmId,
+  RedirectErrorDetails,
 } from '@shm/shared'
 import {DAEMON_FILE_URL, SITE_BASE_URL, WEB_SIGNING_ENABLED} from '@shm/shared/constants'
 import {prepareHMDocument} from '@shm/shared/document-utils'
@@ -35,9 +35,9 @@ import {
 } from '@shm/shared/models/entity'
 import {
   queryAccount,
+  queryCommentVersions,
   queryDirectory,
   queryDocumentCollaborators,
-  queryInteractionSummary,
   queryQueryBlock,
   queryResource,
 } from '@shm/shared/models/queries'
@@ -48,6 +48,7 @@ import {instrument, InstrumentationContext} from './instrumentation.server'
 import {getOptimizedImageUrl} from './providers'
 import {createPrefetchContext, dehydratePrefetchContext, PrefetchContext} from './queries.server'
 import {ParsedRequest} from './request'
+import {createResourceRedirectUrl, RedirectRouteContext} from './resource-redirect'
 import {serverUniversalClient} from './server-universal-client'
 import {getConfig} from './site-config.server'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
@@ -272,9 +273,10 @@ async function prefetchResourceData(
       instrument(ctx || noopCtx, `prefetchDirectory(${packHmId(docId)}, Children)`, () =>
         prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, docId, 'Children')),
       ),
-      instrument(ctx || noopCtx, `prefetchInteractionSummary(${packHmId(docId)})`, () =>
-        prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, docId)),
-      ),
+      // NOTE: the document's own interaction summary is deliberately NOT
+      // prefetched here. See the comment on Wave 3 below: computing it
+      // enumerates every citation of the document, which is unbounded work per
+      // render. `useInteractionSummary` fetches it on the client instead.
       // Collaborators drive the "People" tab count (and the home-doc members
       // facepile); without prefetch the count pops in and shifts the tab row.
       instrument(ctx || noopCtx, `prefetchCollaborators(${packHmId(docId)})`, () =>
@@ -323,27 +325,27 @@ async function prefetchResourceData(
     ]),
   )
 
-  // Wave 3: interaction summaries for embed cards, which show the target's
-  // comment count via useInteractionSummary. Query-block cards and list
-  // items DON'T need this: their comment/children counts ride on each
-  // listing item's activitySummary and reach them through the payload's
+  // Interaction summaries are deliberately NOT server-rendered.
+  //
+  // They used to be prefetched here for up to 30 embed cards per render. Each
+  // one costs an unbounded amount of work: InteractionSummary derives its
+  // counts by enumerating EVERY citation of its target through listAllPages
+  // (500 per page), and each ListCitations materialises the target's whole
+  // citation fan-out before applying its LIMIT — 0.3-2.5s of daemon CPU per
+  // call, measured against the production database. Thirty of those per page
+  // view took hyper.media and every hosted site down on 2026-08-11: ~1.9
+  // req/s was enough to pin all 8 cores, with ListCitations at 87% of CPU.
+  //
+  // Crawlers never run JS, so serving them these counts was pure waste. The
+  // counts now load client-side via useInteractionSummary, for the cards a
+  // real reader actually has on screen. Query-block cards and list items are
+  // unaffected either way: their comment/children counts ride on each listing
+  // item's activitySummary and reach them through the payload's
   // interactionSummaries, with no per-item requests.
-  const MAX_RESULT_SUMMARIES = 30
-  const resultIds = new Map<string, UnpackedHypermediaId>()
-  for (const ref of refs.slice(0, MAX_RESULT_SUMMARIES)) {
-    resultIds.set(ref.refId.id, ref.refId)
-  }
-  if (resultIds.size) {
-    await instrument(ctx || noopCtx, 'prefetchWave3', () =>
-      Promise.allSettled(
-        Array.from(resultIds.values()).map((id) =>
-          instrument(ctx || noopCtx, `prefetchResultSummary(${packHmId(id)})`, () =>
-            prefetchCtx.queryClient.prefetchQuery(queryInteractionSummary(client, id)),
-          ),
-        ),
-      ),
-    )
-  }
+  //
+  // Before restoring any of this, give the daemon a way to report citation
+  // counts without enumerating citations, the way children_count already works
+  // for directories (see getDocumentInfo in api-interaction-summary.ts).
 }
 
 /** JSON stringify that survives the bigint fields in daemon payloads. */
@@ -524,22 +526,39 @@ export async function loadResource(
   } as InstrumentationContext
 
   const resource = await instrument(ctx || noopCtx, `fetchResource(${packHmId(id)})`, () => fetchResource(id))
+  if (resource.type === 'redirect' && resource.republish) {
+    // A republish redirect renders the target's latest content at THIS route — matching the
+    // client-side queryResource behavior — instead of bouncing the browser to the target URL.
+    const followed = await instrument(ctx || noopCtx, `followRepublish(${packHmId(resource.redirectTarget)})`, () =>
+      resolveResource(resource.redirectTarget),
+    )
+    if (followed.type === 'document') {
+      const latestDocument = await instrument(ctx || noopCtx, `getLatestDocument(${packHmId(followed.id)})`, () =>
+        getLatestDocument(followed.id),
+      )
+      return await loadResourcePayload(
+        id,
+        parsedRequest,
+        {
+          document: followed.document,
+          latestDocument,
+        },
+        ctx,
+        options,
+      )
+    }
+    // The chain does not end at a live document — fall through to the plain-redirect handling.
+  }
   if (resource.type === 'redirect') {
-    const destRedirectUrl = createWebHMUrl(resource.redirectTarget.uid, {
-      path: resource.redirectTarget.path,
-      version: resource.redirectTarget.version,
-      latest: resource.redirectTarget.latest,
-      blockRef: resource.redirectTarget.blockRef,
-      blockRange: resource.redirectTarget.blockRange,
-      originHomeId: options?.originHomeId,
-      hostname: null,
-    })
-    console.log('[web-loader] redirecting resource route', {
-      from: id,
-      to: resource.redirectTarget,
-      destRedirectUrl,
-    })
-    throw redirect(destRedirectUrl)
+    // The destination URL is built in loadSiteResource, which has the route
+    // context (view term, open comment, panel) that must survive the redirect.
+    throw new HMRedirectError(
+      new RedirectErrorDetails({
+        targetAccount: resource.redirectTarget.uid,
+        targetPath: hmIdPathToEntityQueryPath(resource.redirectTarget.path),
+        republish: resource.republish,
+      }),
+    )
   }
   if (resource.type === 'not-found') {
     throw new HMNotFoundError()
@@ -638,6 +657,7 @@ export type SiteDocumentPayload = WebResourcePayload & {
   // True when the resource is not available locally and an async discovery
   // task is running. The route renders a shim page that polls for completion.
   discoveryPending?: boolean
+  metadataId: UnpackedHypermediaId
 }
 
 // We have to define our own error type here instead of using the ConnectError type,
@@ -702,6 +722,7 @@ export async function loadWebDraftPlaceholderResource<T extends Record<string, u
     homeMetadata,
     origin,
     originHomeId,
+    metadataId: id,
   }
   const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
   return wrapJSON(cleanDocument)
@@ -710,10 +731,25 @@ export async function loadWebDraftPlaceholderResource<T extends Record<string, u
 export async function loadSiteResource<T extends Record<string, unknown> = Record<string, never>>(
   parsedRequest: ParsedRequest,
   id: UnpackedHypermediaId,
-  extraData?: T & {instrumentationCtx?: InstrumentationContext},
+  extraData?: T & {
+    instrumentationCtx?: InstrumentationContext
+    viewTerm?: string | null
+    accountUid?: string | null
+    openComment?: string | null
+    commentVersion?: string | null
+  },
 ): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
+  // Profile pages render/load the account root document, but the public
+  // metadata identifies the profile view term addressed by the URL.
+  const metadataId =
+    extraData?.viewTerm === 'profile'
+      ? {
+          ...hmId(extraData.accountUid || id.uid, {version: id.version, latest: id.latest}),
+          id: `hm://${extraData.accountUid || id.uid}/:profile`,
+        }
+      : id
   const noopCtx = {
     enabled: false,
     requestPath: '',
@@ -744,10 +780,13 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     // Resolve comment when URL addresses one (e.g. /:comment/UID/TSID)
     let comment = resourceContent.comment
     let commentAuthorTitle: string | undefined
-    const openCommentId = (extraData as any)?.openComment as string | undefined
+    const openCommentId = extraData?.openComment || undefined
+    const openCommentVersion = extraData?.commentVersion || undefined
     if (!comment && openCommentId) {
       try {
-        comment = (await getComment(openCommentId)) ?? undefined
+        // ?v on comment permalinks is the comment version CID. The comments
+        // API accepts either the stable comment id or a version CID.
+        comment = (await getComment(openCommentVersion || openCommentId)) ?? undefined
         if (comment?.author) {
           try {
             const authorResource = await resolveResource(hmId(comment.author))
@@ -761,8 +800,24 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
 
     // When viewing a profile, prefetch the account data so the client
     // doesn't enter the "discovering" state (web has no discovery service).
-    const accountUid = (extraData as any)?.accountUid as string | undefined
+    const accountUid = extraData?.accountUid || undefined
     let mergedDehydratedState = resourceContent.dehydratedState
+    // When a comment permalink pins an old comment version, prefetch the edit
+    // history so the client renders that version without a flash of the
+    // current content.
+    if (openCommentId && openCommentVersion) {
+      try {
+        const versionsPrefetchCtx = createPrefetchContext()
+        await versionsPrefetchCtx.queryClient.prefetchQuery(queryCommentVersions(serverUniversalClient, openCommentId))
+        const versionsDehydrated = dehydratePrefetchContext(versionsPrefetchCtx)
+        mergedDehydratedState = mergedDehydratedState
+          ? {
+              mutations: [...mergedDehydratedState.mutations, ...versionsDehydrated.mutations],
+              queries: [...mergedDehydratedState.queries, ...versionsDehydrated.queries],
+            }
+          : versionsDehydrated
+      } catch (e) {}
+    }
     if (accountUid) {
       const profilePrefetchCtx = createPrefetchContext()
       const client = serverUniversalClient
@@ -790,11 +845,12 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       homeMetadata,
       origin,
       originHomeId,
+      metadataId,
     }
     // Remove instrumentationCtx from the response
     const {instrumentationCtx: _, ...cleanDocument} = loadedSiteDocument as any
     const metadata = createResourceMetadata({
-      id: comment ? commentIdToHmId(comment.id) : id,
+      id: comment ? commentIdToHmId(comment.id) : metadataId,
       document: resourceContent.document,
       comment,
       commentAuthorTitle,
@@ -814,6 +870,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
           homeMetadata,
           origin,
           originHomeId,
+          metadataId,
           discoveryPending: true,
           ...cleanExtraData,
         },
@@ -824,19 +881,20 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         {status: 404, headers: {'Cache-Control': 'no-store'}},
       )
     }
-    console.error('Error Loading Site Document', id, e)
     if (e instanceof HMRedirectError) {
-      const destRedirectUrl = createWebHMUrl(e.target.uid, {
-        path: e.target.path,
-        version: e.target.version,
-        latest: e.target.latest,
-        blockRef: e.target.blockRef,
-        blockRange: e.target.blockRange,
+      const destRedirectUrl = createResourceRedirectUrl(
+        e.target,
+        (extraData || {}) as RedirectRouteContext,
         originHomeId,
-        hostname: null,
+      )
+      console.log('[web-loader] redirecting resource route', {
+        from: id,
+        to: e.target,
+        destRedirectUrl,
       })
       return redirect(destRedirectUrl)
     }
+    console.error('Error Loading Site Document', id, e)
 
     let daemonError: GRPCError | undefined = undefined
     if (e instanceof ConnectError) {
@@ -858,6 +916,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         origin,
         originHomeId,
         daemonError,
+        metadataId,
         ...(extraData || {}),
       },
       {status: id ? 200 : 404},

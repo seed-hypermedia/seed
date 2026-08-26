@@ -92,7 +92,7 @@ var gibberishEmbedding = []int8{
 // Returns the top limit results matching the query.
 // Threshold is the minimum similarity score (0.0 to 1.0) to include in results.
 type LightEmbedder interface {
-	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly bool) (SearchResultMap, error)
+	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly, rootDocumentsOnly bool) (SearchResultMap, error)
 }
 
 // Embedder handles embedding generation and indexing.
@@ -416,7 +416,8 @@ func (srList SearchResultList) ToMap() SearchResultMap {
 // If empty, defaults to ["title", "document", "comment"].
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
 // Threshold filters results by minimum similarity score (0.0 to 1.0). Default is 0.0 (no filtering).
-func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly bool) (SearchResultMap, error) {
+// rootDocumentsOnly restricts results to resources whose IRI has no document path.
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly, rootDocumentsOnly bool) (SearchResultMap, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -491,6 +492,7 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 	// Determine if we need IRI pre-filtering.
 	// Generic patterns like "*" or "hm://*" don't need filtering.
 	needsIriFilter := iriGlob != "*" && iriGlob != "hm://*"
+	needsResourceFilter := needsIriFilter || rootDocumentsOnly
 
 	resultHandler := func(stmt *sqlite.Stmt) error {
 		distance := stmt.ColumnFloat(1)
@@ -499,13 +501,13 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		return nil
 	}
 
-	if needsIriFilter {
+	if needsResourceFilter {
 		// Use pre-filtered query with fts_id IN (subquery).
 		// The subquery parameters are duplicated for both UNION branches.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchFiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, publicOnly,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, publicOnly,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
@@ -932,6 +934,7 @@ WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
     LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
     WHERE fi.type IN (?, ?, ?, ?, ?)
       AND r.iri GLOB ?
+      AND (? = 0 OR (r.iri GLOB 'hm://*' AND r.iri NOT GLOB 'hm://*/*'))
       AND (? = 0 OR pb.id IS NOT NULL)
     UNION
     SELECT fi.rowid FROM fts_index fi
@@ -941,6 +944,7 @@ WHERE v.multilingual_minilm_l12_v2 MATCH vec_int8(?)
     LEFT JOIN public_blobs pb ON pb.id = fi.blob_id
     WHERE fi.type IN (?, ?, ?, ?, ?)
       AND r.iri GLOB ?
+      AND (? = 0 OR (r.iri GLOB 'hm://*' AND r.iri NOT GLOB 'hm://*/*'))
       AND (? = 0 OR pb.id IS NOT NULL)
   )
 ORDER BY v.distance

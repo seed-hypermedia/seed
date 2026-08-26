@@ -47,6 +47,10 @@ export function hasBlockContent(block: HMBlockNode): boolean {
       // Group and Link blocks are structural, check text if available
       return !!('text' in blockData && blockData.text && blockData.text.trim().length > 0)
 
+    case 'Slot':
+      // Slot is an invisible grouping container with no content of its own.
+      return false
+
     default:
       return false
   }

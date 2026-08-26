@@ -268,7 +268,7 @@ function AppearanceStep({state, update}: StepProps) {
       <div className="bg-muted flex items-center justify-between gap-4 rounded-lg p-3">
         <div className="flex items-center gap-1.5">
           <Label htmlFor="space-activity-tabs">Show activity tabs</Label>
-          <Tooltip content="Show the People, Comments, and Citations tabs on your site's pages.">
+          <Tooltip content="Show the People, Comments, and Citations tabs on your space's pages.">
             <HelpCircle className="text-muted-foreground size-3.5" />
           </Tooltip>
         </div>

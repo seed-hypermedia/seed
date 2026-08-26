@@ -7,7 +7,7 @@ import {entityQueryPathToHmIdPath} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
 import {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
-import {HMBlockQuery, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlockQuery, HMQueryTableConfig, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
 import {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -34,7 +34,7 @@ export const QueryBlock = createReactBlockSpec({
   type: 'query',
   propSchema: {
     style: {
-      values: ['Card', 'List'], // TODO: convert HMEmbedView type to array items
+      values: ['Card', 'List', 'Table'], // TODO: convert HMEmbedView type to array items
       default: 'Card',
     },
     columnCount: {
@@ -57,6 +57,9 @@ export const QueryBlock = createReactBlockSpec({
     defaultOpen: {
       default: 'false',
       values: ['true', 'false'],
+    },
+    tableConfig: {
+      default: '',
     },
   },
   containsInlineContent: false,
@@ -152,13 +155,17 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   }, [sortedItems, interactionSummaries])
 
   const accountsMetadata = queryBlock.data?.accountsMetadata ?? {}
+  const tableConfig = useMemo<HMQueryTableConfig | undefined>(() => {
+    if (!block.props.tableConfig) return undefined
+    return JSON.parse(block.props.tableConfig)
+  }, [block.props.tableConfig])
   const [isFocusedWithin, setIsFocusedWithin] = useState(false)
   const isActive = selected || isFocusedWithin
   const {onRender} = useQueryBlockFrontendPerf({
     source: 'desktop',
     blockId: block.id,
     queryInput: queryBlockInput,
-    style: block.props.style as 'Card' | 'List',
+    style: block.props.style as 'Card' | 'List' | 'Table',
     banner,
     active: isActive,
     status: queryBlock.status,
@@ -185,7 +192,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         queryDocName={queryBlock.data?.queryTargetName || ''}
         queryIncludes={queryIncludes}
         querySort={querySort}
-        style={block.props.style as 'Card' | 'List'}
+        style={block.props.style as 'Card' | 'List' | 'Table'}
         banner={banner}
         // @ts-expect-error
         block={block}
@@ -198,13 +205,26 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         <Profiler id={`query-block-${block.id}`} onRender={onRender}>
           <QueryBlockContent
             items={sortedItems}
-            style={block.props.style as 'Card' | 'List'}
+            style={block.props.style as 'Card' | 'List' | 'Table'}
             columnCount={block.props.columnCount}
             banner={banner}
             accountsMetadata={accountsMetadata}
             itemContributors={itemContributors}
             interactionSummaries={interactionSummaries}
             isDiscovering={queryBlock.isLoading}
+            tableConfig={tableConfig}
+            onTableConfigChange={(config) => assign({tableConfig: JSON.stringify(config)})}
+            onTableSortingChange={(sorting) => {
+              const first = sorting[0]
+              const terms: Record<string, HMQueryBlockSort[number]['term']> = {
+                title: 'Title',
+                path: 'Path',
+                created: 'CreateTime',
+                updated: 'UpdateTime',
+              }
+              const term = first ? terms[first.id] : undefined
+              if (term) assign({querySort: JSON.stringify([{term, reverse: first?.desc ?? false}])})
+            }}
           />
         </Profiler>
       </LazyViewportMount>
@@ -360,7 +380,7 @@ function QuerySettings({
                 onValue={(value) => {
                   onValuesChange({
                     id: null,
-                    props: {...block.props, style: value as 'Card' | 'List'},
+                    props: {...block.props, style: value as 'Card' | 'List' | 'Table'},
                   })
                 }}
                 label="View"
@@ -373,6 +393,10 @@ function QuerySettings({
                   {
                     label: 'List',
                     value: 'List',
+                  },
+                  {
+                    label: 'Table',
+                    value: 'Table',
                   },
                 ]}
               />

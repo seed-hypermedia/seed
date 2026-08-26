@@ -33,7 +33,7 @@ export default function SiteSettingsEmailsPage() {
     content = <SiteEmailSubscribersPanel isLoading />
   } else if (!isSiteOwner) {
     content = (
-      <SiteEmailSubscribersPanel message="Only the site owner can view email subscribers. Switch to the site's account to see this list." />
+      <SiteEmailSubscribersPanel message="Only the space owner can view email subscribers. Switch to the space's account to see this list." />
     )
   } else {
     content = <SiteEmailSubscribers siteUrl={siteUrl} siteAccountUid={siteAccountUid} signAs={selectedAccountUid} />

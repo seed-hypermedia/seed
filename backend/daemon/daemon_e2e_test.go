@@ -4256,7 +4256,7 @@ func TestSearchEntitiesFilters(t *testing.T) {
 		SigningKeyName: "main",
 		Changes: []*documents.DocumentChange{
 			{Op: &documents.DocumentChange_SetMetadata_{
-				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home Page"},
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "title", Value: "Alice Home rocks"},
 			}},
 			{Op: &documents.DocumentChange_MoveBlock_{
 				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "b1", Parent: "", LeftSibling: ""},
@@ -4367,6 +4367,18 @@ func TestSearchEntitiesFilters(t *testing.T) {
 		for _, e := range res.Entities {
 			require.Equal(t, "title", e.Type, "must only return title results when filter is explicit")
 		}
+	})
+
+	t.Run("EntityKindSpaceReturnsOnlyRootDocuments", func(t *testing.T) {
+		res, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
+			Query:             "rocks",
+			ContentTypeFilter: []entities.ContentTypeFilter{entities.ContentTypeFilter_CONTENT_TYPE_TITLE},
+			EntityKindFilter:  []entities.EntityKindFilter{entities.EntityKindFilter_ENTITY_KIND_SPACE},
+			PageSize:          10,
+		})
+		require.NoError(t, err)
+		require.Len(t, res.Entities, 1)
+		require.Equal(t, "hm://"+aliceAccount, strings.Split(res.Entities[0].Id, "?")[0])
 	})
 
 	t.Run("ContentTypeLegacyWithBody", func(t *testing.T) {

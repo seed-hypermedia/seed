@@ -1,5 +1,33 @@
 # Agent triggers plan
 
+> **STATUS (2026-08-13): phases 1–3 shipped; the surface this plan designed is now scheduled for replacement.**
+>
+> **Shipped and current:** the four sources (`schedule`, `document-comment`, `user-mention`, `site-update`), the
+> `ActivityMonitor` with durable watermarks, exactly-once firing dedup through `trigger_firings.activity_key`,
+> per-trigger cooldowns, trigger-created sessions, and the desktop Triggers tab.
+>
+> **Added since, by the M6 first slice (the event bus underneath):** a fifth source, `run-completed`, firing inline from
+> run finalization; a **continuation** on every trigger (`agent_triggers.continuation_cbor`; NULL means `newThread`,
+> which is what every trigger in this plan did), with a `wake` continuation that delivers into a **parked run** through
+> the same transactional exactly-once path `SignalRun` uses; a firing-chain **loop guard** (`TRIGGER_CHAIN_MAX_HOPS`, 8
+> hops) so two run-completed triggers cannot feed each other forever; and one shared `matchesActivityCriteria` matcher
+> used by both trigger matching and run event waits. The desktop can render a `run-completed` trigger but cannot create
+> one — that is API-only today.
+>
+> **Added 2026-08-18 (introspection slice):** the `~/triggers/` verb surface now exists **on the existing
+> `agent_triggers` rows** — `read ~/triggers/` lists (with the write contract inline), `read ~/triggers/<name>` returns
+> one trigger plus recent firings, and `write ~/triggers/<name>` creates/edits/enables/disables/deletes by name (or id),
+> honoring `enabled` as written. There is **no draft/consent step**: the owner decided (2026-08-19) that agents manage
+> their own triggers directly, so "do this every morning" works in one turn (see `security.md` for the threat-model
+> note).
+>
+> **Superseded but not yet built:** trigger **documents** (content-addressed, CID-versioned like `~/tools/`), replacing
+> the `CreateAgentTrigger`/`UpdateAgentTrigger`/`DeleteAgentTrigger` actions. That, the `document-change` source, the
+> `appendTo`/`runPlan` continuations, the data-preserving migration off `agent_triggers`, and the desktop editor
+> replacing the CRUD dialogs are designed in `harness/m6-event-bus-design.md` and **not implemented** (its draft→active
+> consent proposal is explicitly not wanted). Until they are, the CRUD actions in "Signed API changes" below remain the
+> desktop's interface, now alongside the verb surface.
+
 Status: Phase 1 CRUD and UI shell has started. Backend CRUD/persistence and the desktop Triggers tab/detail shell are in
 place. Phase 2 matching/idempotency utilities and background ActivityFeed polling have started. Schedule triggers are
 now implemented with interval, weekly, and one-time modes plus a background schedule monitor. Recent fix: first

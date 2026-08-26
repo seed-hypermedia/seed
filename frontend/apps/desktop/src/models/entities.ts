@@ -1,7 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
-import {createTombstoneRef} from '@seed-hypermedia/client'
+import {createTombstoneRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
 import {DiscoveryState, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {createQueryResolver} from '@shm/shared/models/directory'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -70,14 +70,28 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
         ids.map(async (id) => {
           await deleteRecent.mutateAsync(id.id)
           const resource = await universalClient.request('Resource', id)
-          if (resource.type !== 'document') throw new Error(`Cannot delete: resource is ${resource.type}`)
-          const doc = resource.document
-          const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
+          if (resource.type !== 'document' && resource.type !== 'redirect')
+            throw new Error(`Cannot delete: resource is ${resource.type}`)
+          // A redirected path (including a republished one) has no document of its own to read
+          // genesis and generation from: the tombstone borrows the redirect target's genesis and
+          // takes a fresh generation, which supersedes the redirect Ref so the path reads as
+          // deleted instead of continuing to follow the target.
+          let genesis: string
+          let generation: number
+          if (resource.type === 'redirect') {
+            const followed = await followToDocument(universalClient as unknown as SeedClient, id)
+            genesis = followed.document.genesis
+            generation = Date.now()
+          } else {
+            const doc = resource.document
+            genesis = doc.genesis
+            generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
+          }
           const refInput = await createTombstoneRef(
             {
               space: id.uid || '',
               path: hmIdPathToEntityQueryPath(id.path),
-              genesis: doc.genesis,
+              genesis,
               generation,
               capability: capabilityId,
             },

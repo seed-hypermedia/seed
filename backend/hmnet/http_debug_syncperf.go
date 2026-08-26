@@ -359,7 +359,7 @@ func (n *Node) siteNames(ctx context.Context) map[string]string {
 	// proven query rather than relying on SQLite's bare-column-with-MAX()
 	// behaviour, which is easy to get subtly wrong.
 	const q = `
-		SELECT substr(r.iri, 6) AS space, COALESCE(dg.metadata->>'$.siteUrl.v', '') AS site_url
+		SELECT substr(r.iri, 6) AS space, COALESCE((SELECT da.value FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource AND dak.key = 'siteUrl' AND da.kind = 's'), '') AS site_url
 		FROM document_generations dg
 		JOIN resources r ON r.id = dg.resource
 		WHERE instr(r.iri, 'hm://') = 1

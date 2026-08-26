@@ -132,11 +132,14 @@ var qBlobFacts = dqb.Str(`
 // seed plus the change-closure walk.
 //
 // complete reports whether the result is the full set of blobs the scopes gain.
-// It is false when the blob participates in an edge this implementation does not
-// expand incrementally (media links, capability delegation, or the
-// inbound-Contact-by-subject edge); the caller must then re-materialize the
-// affected scopes rather than trust the partial result. The reported inserts are
-// always sound (a subset of what collectBlobs would produce) regardless.
+// It is false when the blob can participate in an edge that is not a forward
+// link-walk from it (capability delegation, the inbound-Contact-by-subject
+// edge, or reverse media membership for non-structural blobs). The contract
+// with the caller (MaintainRBSRIndex): every incomplete blob must either be
+// consumed by a targeted edge that provably covers its case, or the affected
+// scopes must be stale-marked for re-materialization — never silently trusted.
+// The reported inserts are always sound (a subset of what collectBlobs would
+// produce) regardless.
 func affectedScopes(conn *sqlite.Conn, blobID int64, scopes []DiscoveryKey) (inserts map[DiscoveryKey][]int64, complete bool, err error) {
 	var (
 		blobType  string
@@ -164,8 +167,8 @@ func affectedScopes(conn *sqlite.Conn, blobID int64, scopes []DiscoveryKey) (ins
 	// (keyed on the contact's subject account) and the capability-delegation
 	// closure (keyed on the delegate's authored blobs). The resource-anchored
 	// inserts we compute below are still sound for those types, but a scope may
-	// gain the blob through one of these edges too, so the caller must
-	// re-materialize rather than trust completeness.
+	// gain the blob through one of these edges too, so the caller must consume
+	// the case with a targeted edge or stale-mark the affected scopes.
 	complete = blobType != "Contact" && blobType != "Capability"
 
 	if _, isResourceScoped := resourceScopedTypes[blobType]; !isResourceScoped || resourceI == "" {
@@ -211,8 +214,11 @@ func affectedScopes(conn *sqlite.Conn, blobID int64, scopes []DiscoveryKey) (ins
 // the triggering blob is indexed, mirroring the matching collectBlobs step
 // (discovery.go) over the persisted set instead of a temp rebuild, so the
 // maintained set stays equal to a fresh materialization without the sweep.
-// They operate on downloaded (size>=0), non-stashed blobs only — exactly the
-// set materialize/shadow-verify count, so they never introduce "extra" drift.
+// They operate on downloaded (size>=0) blobs only — the same filter the fresh
+// set shadow-verify compares against applies. Stashed-blob anti-joins appear
+// only where the mirrored collectBlobs step has one (the media link-walk);
+// structurally-anchored blobs and the capability closure advertise regardless
+// of a coexisting stash marker, exactly like fillTables.
 // ============================================================================
 
 // qScopesLinkingTo returns the materialized scopes that already contain a blob
@@ -283,15 +289,21 @@ func scopesWithAuthor(conn *sqlite.Conn, author int64) (out []int64, err error) 
 // recursive capability closure in collectBlobs (discovery.go). Idempotent
 // (INSERT OR IGNORE); the caller loops it to a fixpoint because a capability
 // just added introduces its own author, which may delegate further.
+//
+// Deliberately no stashed_blobs anti-join: collectBlobs' capability recursion
+// has none, and the fresh set shadow-verify compares against filters on
+// size >= 0 only. A structural row coexisting with a stale stash marker must
+// still be advertised — excluding it here produced permanent heal-churn (the
+// sweep re-adding what this step refused) and, worse, peers whose own
+// delegation chain was incomplete could never fetch the capability from us.
 var qAgentCapStep = dqb.Str(`
 	INSERT OR IGNORE INTO rbsr_item (scope, blob)
 	SELECT :scope, sb.id
 	FROM structural_blobs sb INDEXED BY capabilities_by_delegate
 	JOIN blobs b INDEXED BY blobs_metadata ON b.id = sb.id
-	LEFT JOIN stashed_blobs s ON s.id = sb.id
 	WHERE sb.type = 'Capability'
 		AND sb.extra_attrs->>'role' = 'AGENT'
-		AND s.id IS NULL AND b.size >= 0
+		AND b.size >= 0
 		AND sb.extra_attrs->>'del' IN (
 			SELECT sb2.author
 			FROM rbsr_item ri

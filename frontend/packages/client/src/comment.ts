@@ -7,11 +7,11 @@ import type {
   HMPublishBlobsInput,
   HMPublishableAnnotation,
   HMPublishableBlock,
-  HMSigner,
   UnpackedHypermediaId,
 } from './hm-types'
 import {hmIdPathToEntityQueryPath, packHmId} from './hm-types'
-import {signObject, toPublishInput} from './signing'
+import {signObject, signerPublicKey, toPublishInput} from './signing'
+import type {AnySigner} from './signer'
 import {validateExclusiveAnnotations} from './unicode'
 
 // ─── Block trimming ─────────────────────────────────────────────────────────
@@ -264,6 +264,14 @@ function blockToPublishable(blockNode: HMBlockNode): HMPublishableBlock | null {
       children: blocksToPublishable(blockNode.children || []),
     }
   }
+  if (block.type === 'Slot') {
+    return {
+      id: block.id,
+      type: 'Slot',
+      ...block.attributes,
+      children: blocksToPublishable(blockNode.children || []),
+    }
+  }
   throw new Error(`Unsupported block type: ${block.type}`)
 }
 
@@ -341,7 +349,7 @@ function createUnsignedComment({
   return unsignedComment
 }
 
-async function createSignedComment(comment: UnsignedComment, signer: HMSigner): Promise<SignedComment> {
+async function createSignedComment(comment: UnsignedComment, signer: AnySigner): Promise<SignedComment> {
   const commentForSigning = {
     ...comment,
     version: comment.version.split('.').map((v) => CID.parse(v)),
@@ -364,12 +372,12 @@ async function createCommentBlob({
   content: HMBlockNode[]
   docId: UnpackedHypermediaId
   docVersion: string
-  signer: HMSigner
+  signer: AnySigner
   replyCommentVersion?: string | null
   rootReplyCommentVersion?: string | null
   visibility?: 'Private' | ''
 }): Promise<Uint8Array> {
-  const signerKey = await signer.getPublicKey()
+  const signerKey = await signerPublicKey(signer)
   cleanContentOfUndefined(content)
   const unsignedComment = createUnsignedComment({
     content,
@@ -451,7 +459,7 @@ async function resolveCommentContentAndBlobs(input: CreateCommentInput): Promise
   }
 }
 
-export async function createComment(input: CreateCommentInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
+export async function createComment(input: CreateCommentInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
   const {content, blobs} = await resolveCommentContentAndBlobs(input)
   const comment = await createCommentBlob({
     content,
@@ -473,7 +481,7 @@ export type DeleteCommentInput = {
   visibility?: 'Private' | ''
 }
 
-export async function deleteComment(input: DeleteCommentInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
+export async function deleteComment(input: DeleteCommentInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
   // Extract TSID from comment ID (format: "authority/tsid")
   const parts = input.commentId.split('/')
   const tsid = parts[1]
@@ -481,7 +489,7 @@ export async function deleteComment(input: DeleteCommentInput, signer: HMSigner)
     throw new Error(`Invalid comment ID format: ${input.commentId}`)
   }
 
-  const signerKey = await signer.getPublicKey()
+  const signerKey = await signerPublicKey(signer)
 
   // Create the tombstone comment object for signing
   // Empty body signals deletion, zeroed thread/reply refs, same TSID as original
@@ -520,7 +528,7 @@ export type UpdateCommentInput = {
 }
 
 /** Creates a signed update blob for an existing comment. */
-export async function updateComment(input: UpdateCommentInput, signer: HMSigner): Promise<HMPublishBlobsInput> {
+export async function updateComment(input: UpdateCommentInput, signer: AnySigner): Promise<HMPublishBlobsInput> {
   // Extract TSID from comment ID (format: "authority/tsid")
   const parts = input.commentId.split('/')
   const tsid = parts[1]
@@ -528,7 +536,7 @@ export async function updateComment(input: UpdateCommentInput, signer: HMSigner)
     throw new Error(`Invalid comment ID format: ${input.commentId}`)
   }
 
-  const signerKey = await signer.getPublicKey()
+  const signerKey = await signerPublicKey(signer)
   cleanContentOfUndefined(input.content)
   const trimmedContent = trimTrailingEmptyBlocks(input.content)
 

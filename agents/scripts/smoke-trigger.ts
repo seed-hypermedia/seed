@@ -4,8 +4,8 @@
  * Boots the actual Agents daemon as a child process (the same `main.ts` the deployment image runs),
  * points its activity monitor at a local stand-in for hyper.media's `/api/ListEvents`, then drives the
  * full production path over the wire: signed CBOR API to create an agent + user-mention trigger, the
- * daemon's own monitor polling the feed, matching, and firing a session — observed through the live
- * `/agents/api/status` inspector endpoint.
+ * daemon's own monitor polling the feed, matching, and firing a session — observed through the signed
+ * `GetAgentTrigger` action (the sessions it fired) and `ListSessions`.
  *
  * The feed serves ONLY the comment-sourced `citation` event (the sibling that arrives first; the
  * `comment` event is the one the staleness watermark was dropping). Before the fix the daemon
@@ -73,7 +73,7 @@ try {
     definition: {name: 'Teal Scribe', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
   })
   if (created._ !== 'CreateAgentResponse') throw new Error(`unexpected CreateAgent response: ${created._}`)
-  await action({
+  const createdTrigger = await action({
     _: 'CreateAgentTrigger',
     agentId: String(created.agentId),
     trigger: {
@@ -82,25 +82,27 @@ try {
       source: {type: 'user-mention', mentionedAccounts: [MENTIONED_ACCOUNT]},
     },
   })
+  if (createdTrigger._ !== 'CreateAgentTriggerResponse') {
+    throw new Error(`unexpected CreateAgentTrigger response: ${createdTrigger._}`)
+  }
+  const triggerId = String((createdTrigger.trigger as {id: string}).id)
 
   // Serve only the citation twin of the mention (fresh). The daemon must fire on it.
   feed = {events: [citationEvent(COMMENT_CID, Date.now())], nextPageToken: ''}
 
   const fired = await waitFor(async () => {
-    const overview = await status()
-    const trigger = overview.agents[0]?.triggers?.[0]
-    return trigger && trigger.firingCount >= 1 ? overview : null
+    const overview = await status(triggerId)
+    return overview.firings >= 1 ? overview : null
   }, 12_000)
 
-  const firings = firingsOf(fired)
-  assert(firings === 1, `expected exactly 1 firing, got ${firings}`)
-  assert(sessionsOf(fired) === 1, `expected exactly 1 session, got ${sessionsOf(fired)}`)
+  assert(fired.firings === 1, `expected exactly 1 firing, got ${fired.firings}`)
+  assert(fired.sessions === 1, `expected exactly 1 session, got ${fired.sessions}`)
 
   // Keep serving the same citation for several more polls; it must not create a second firing/session.
   await Bun.sleep(1_500)
-  const after = await status()
-  assert(firingsOf(after) === 1, `citation re-fired: ${firingsOf(after)} firings`)
-  assert(sessionsOf(after) === 1, `extra sessions appeared: ${sessionsOf(after)}`)
+  const after = await status(triggerId)
+  assert(after.firings === 1, `citation re-fired: ${after.firings} firings`)
+  assert(after.sessions === 1, `extra sessions appeared: ${after.sessions}`)
 
   console.log(`Trigger smoke test passed: comment-sourced citation fired exactly one session on the real daemon.`)
 } finally {
@@ -141,20 +143,18 @@ async function action(
   return decoded
 }
 
-type StatusOverview = {
-  agents: Array<{triggers: Array<{firingCount: number}>; sessions: Array<unknown>}>
-}
+type StatusOverview = {firings: number; sessions: number}
 
-async function status(): Promise<StatusOverview> {
-  const res = await fetch(`${apiBase}/agents/api/status`)
-  return (await res.json()) as StatusOverview
-}
-
-function firingsOf(overview: StatusOverview): number {
-  return overview.agents[0]?.triggers?.[0]?.firingCount ?? 0
-}
-function sessionsOf(overview: StatusOverview): number {
-  return overview.agents[0]?.sessions?.length ?? 0
+/** Firings (sessions started by the trigger) and total sessions on the account, via the signed API. */
+async function status(triggerId: string): Promise<StatusOverview> {
+  const trigger = await action({_: 'GetAgentTrigger', triggerId})
+  if (trigger._ !== 'GetAgentTriggerResponse') throw new Error(`unexpected GetAgentTrigger response: ${trigger._}`)
+  const sessions = await action({_: 'ListSessions'})
+  if (sessions._ !== 'ListSessionsResponse') throw new Error(`unexpected ListSessions response: ${sessions._}`)
+  return {
+    firings: (trigger.sessions as unknown[]).length,
+    sessions: (sessions.sessions as unknown[]).length,
+  }
 }
 
 async function waitFor<T>(probe: () => Promise<T | null>, timeoutMs: number): Promise<T> {

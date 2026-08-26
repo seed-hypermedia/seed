@@ -1,10 +1,10 @@
-import {sendAgentAction, type AgentDefinition, type AgentInfo, type ModelProviderInfo} from '@/agents-client'
-import {AGENT_READ_TOOL_GROUP} from '@/pages/agents/agent-tools'
-import {pickDefaultProviderModel} from '@/pages/agents/model-utils'
-import type {ProviderModelInfo} from '@/agents-client'
+import {sendAgentAction, type AgentDefinition, type AgentInfo, type ModelProviderInfo} from '@shm/ui/agents/client'
+import {ASSISTANT_DEFAULT_TOOLS} from '@shm/ui/agents/agent-tools'
+import {pickDefaultProviderModel} from '@shm/ui/agents/model-utils'
+import type {ProviderModelInfo} from '@shm/ui/agents/client'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useEffect, useMemo, useRef} from 'react'
-import {useAgentLists, useLocalAgentServerUrl, useModelProviders, useProviderModels} from './agents'
+import {useAgentLists, useLocalAgentServerUrl, useModelProviders, useProviderModels} from '@shm/ui/agents/models'
 
 /**
  * Auto-provisioning for the built-in local Assistant.
@@ -43,9 +43,9 @@ export function buildLocalAssistantDefinition(modelProvider: string, model: stri
     systemPrompt: LOCAL_ASSISTANT_SYSTEM_PROMPT,
     modelProvider,
     model,
-    // Read-only parity with the old sidebar assistant (search/read/activity). No signing key and
-    // no write tool: local writes-as-the-user are a separate, deliberate step (plan D5).
-    tools: [...AGENT_READ_TOOL_GROUP],
+    // Search-only callables; the verbs cover reading and memory. No signing key, so hm://
+    // publishing stays blocked: local writes-as-the-user are a separate, deliberate step (plan D5).
+    tools: [...ASSISTANT_DEFAULT_TOOLS],
   }
 }
 

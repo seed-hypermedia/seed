@@ -20,7 +20,7 @@ import {prepareHMDocument} from '@shm/shared/document-utils'
 import {readFileSync} from 'fs'
 import {join} from 'path'
 import satori from 'satori'
-import svg2img from 'svg2img'
+import sharp from 'sharp'
 import {processImage} from '../utils/image-processor'
 
 export const OG_IMAGE_SIZE = {
@@ -427,12 +427,7 @@ async function loadContentImage(request: Request) {
       },
     ],
   })
-  const png = await new Promise<Buffer>((resolve, reject) =>
-    svg2img(svg, function (error, buffer) {
-      if (error) reject(error)
-      else resolve(buffer)
-    }),
-  )
+  const png = await sharp(Buffer.from(svg)).png().toBuffer()
   return new Response(png, {
     headers: {
       'Content-Type': 'image/png',

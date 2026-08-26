@@ -49,6 +49,13 @@ function renderOptionsPanel(isHomeDoc: boolean) {
 }
 
 describe('OptionsPanel document metadata fields', () => {
+  // The agents server a space advertises is a space-wide setting, not a document one: it lives on
+  // the Agents tab of Space Settings, so it is deliberately absent here.
+  it('does not offer the agents server field', () => {
+    renderOptionsPanel(true)
+    expect(container.querySelector('#agent-server-url')).toBeNull()
+  })
+
   it('keeps home document title and icon controls but removes summary and cover controls', () => {
     renderOptionsPanel(true)
 

@@ -110,6 +110,46 @@ proto3.util.setEnumType(ContentTypeFilter, "com.seed.entities.v1alpha.ContentTyp
 ]);
 
 /**
+ * Kind of entity returned by search, independently of which content matched.
+ *
+ * @generated from enum com.seed.entities.v1alpha.EntityKindFilter
+ */
+export enum EntityKindFilter {
+  /**
+   * @generated from enum value: ENTITY_KIND_UNSPECIFIED = 0;
+   */
+  ENTITY_KIND_UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: ENTITY_KIND_SPACE = 1;
+   */
+  ENTITY_KIND_SPACE = 1,
+
+  /**
+   * @generated from enum value: ENTITY_KIND_DOCUMENT = 2;
+   */
+  ENTITY_KIND_DOCUMENT = 2,
+
+  /**
+   * @generated from enum value: ENTITY_KIND_COMMENT = 3;
+   */
+  ENTITY_KIND_COMMENT = 3,
+
+  /**
+   * @generated from enum value: ENTITY_KIND_CONTACT = 4;
+   */
+  ENTITY_KIND_CONTACT = 4,
+}
+// Retrieve enum metadata with: proto3.getEnumType(EntityKindFilter)
+proto3.util.setEnumType(EntityKindFilter, "com.seed.entities.v1alpha.EntityKindFilter", [
+  { no: 0, name: "ENTITY_KIND_UNSPECIFIED" },
+  { no: 1, name: "ENTITY_KIND_SPACE" },
+  { no: 2, name: "ENTITY_KIND_DOCUMENT" },
+  { no: 3, name: "ENTITY_KIND_COMMENT" },
+  { no: 4, name: "ENTITY_KIND_CONTACT" },
+]);
+
+/**
  * Request to get a change by ID.
  *
  * @generated from message com.seed.entities.v1alpha.GetChangeRequest
@@ -990,6 +1030,14 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
    */
   pageToken = "";
 
+  /**
+   * Optional. Restricts the kinds of entities returned by search.
+   * A space is represented by its root document.
+   *
+   * @generated from field: repeated com.seed.entities.v1alpha.EntityKindFilter entity_kind_filter = 12;
+   */
+  entityKindFilter: EntityKindFilter[] = [];
+
   constructor(data?: PartialMessage<SearchEntitiesRequest>) {
     super();
     proto3.util.initPartial(data, this);
@@ -1009,6 +1057,7 @@ export class SearchEntitiesRequest extends Message<SearchEntitiesRequest> {
     { no: 9, name: "authority_weight", kind: "scalar", T: 2 /* ScalarType.FLOAT */ },
     { no: 10, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
     { no: 11, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 12, name: "entity_kind_filter", kind: "enum", T: proto3.getEnumType(EntityKindFilter), repeated: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): SearchEntitiesRequest {

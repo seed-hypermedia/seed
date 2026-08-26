@@ -353,6 +353,11 @@ export const MediaContainer = ({
       //   mediaType === 'file' ? 'items-stretch' : 'items-center',
       // )}
       draggable={canAuthor ? 'true' : 'false'}
+      onMouseDownCapture={(e) => {
+        // Disable dragging for gestures that begin in the caption.
+        const inCaption = !!(e.target as Element | null)?.closest?.('[data-media-container-ignore-select]')
+        e.currentTarget.setAttribute('draggable', canAuthor && !inCaption ? 'true' : 'false')
+      }}
       onDragStart={(e: any) => {
         // Uncomment to allow drag only if block is selected
         // if (!selected) {

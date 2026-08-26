@@ -5,7 +5,7 @@ import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {Timestamp, toPlainMessage} from '@bufbuild/protobuf'
 import {Code, ConnectError} from '@connectrpc/connect'
-import {createRedirectRef, createVersionRef} from '@seed-hypermedia/client'
+import {createRedirectRef, createVersionRef, followToDocument, type SeedClient} from '@seed-hypermedia/client'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {
   HMAnnotation,
@@ -69,6 +69,7 @@ import {
   createRepublishRefOperation,
   getDocumentCardReconciliationInputForRepublish,
   getDocumentCardReconciliationInputsForMove,
+  getDocumentMoveRefOperations,
   getMovedChildPath,
   isChildDocumentPath,
 } from './document-relocation'
@@ -286,6 +287,11 @@ export function usePublishResource(
           // Skipped for legacy first-publishes (no `editId` outer arg) because
           // there is no doc to fetch yet.
           let existingDocVersion: string | null = null
+          // True when the destination path currently holds a redirect Ref (a republished or moved
+          // document). Editing such a path is a takeover: the editor was seeded with the redirect
+          // target's content, so the publish builds on the target's DAG and mints a fresh
+          // generation, which supersedes the redirect Ref at this path.
+          let takesOverRedirect = false
           if (editId) {
             try {
               const latestDoc = await grpcClient.documents.getDocument({
@@ -296,8 +302,22 @@ export function usePublishResource(
                 existingDocVersion = latestDoc.version
               }
             } catch (err) {
-              // Doc doesn't exist yet (first publish) — leave existingDoc null.
-              console.log('[publish] getDocument(latest) failed — treating as first publish', err)
+              try {
+                const raw = await desktopUniversalClient.request('Resource', destinationId)
+                takesOverRedirect = raw.type === 'redirect'
+              } catch {
+                // Raw resource probe is best-effort; fall through to first-publish handling.
+              }
+              if (takesOverRedirect && editDocument?.version) {
+                existingDocVersion = editDocument.version
+                console.log('[publish] destination is a redirect — taking over the path', {
+                  destination: destinationId.id,
+                  baseVersion: existingDocVersion,
+                })
+              } else {
+                // Doc doesn't exist yet (first publish) — leave existingDoc null.
+                console.log('[publish] getDocument(latest) failed — treating as first publish', err)
+              }
             }
           }
 
@@ -397,7 +417,13 @@ export function usePublishResource(
             capability: capabilityId,
             visibility,
             genesis: baseVersion ? editDocument?.genesis : undefined,
-            generation: baseVersion ? editDocument?.generationInfo?.generation : undefined,
+            // Taking over a redirect needs a generation strictly above the redirect Ref's;
+            // leaving it undefined lets signDocumentChange mint one from the change timestamp.
+            generation: takesOverRedirect
+              ? undefined
+              : baseVersion
+                ? editDocument?.generationInfo?.generation
+                : undefined,
           }
           await desktopUniversalClient.publishDocument!(publishInput)
 
@@ -1085,18 +1111,18 @@ export function useForkDocument() {
       origin?: DocumentCardActionOrigin
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
-      const resource = await universalClient.request('Resource', from)
-      if (resource.type !== 'document') throw new Error(`Cannot fork: resource is ${resource.type}`)
-      const doc = resource.document
-      if (!doc.generationInfo) throw new Error('No generation info for document')
+      // Follows redirects so a republished path can be forked: the fork points at the content
+      // the path currently re-publishes. The fresh generation lets the fork supersede any
+      // redirect Ref already sitting at the destination path.
+      const {document: doc} = await followToDocument(universalClient as unknown as SeedClient, from)
       const signer = universalClient.getSigner(signingAccountId)
       const refInput = await createVersionRef(
         {
           space: to.uid,
           path: hmIdPathToEntityQueryPath(to.path),
-          genesis: doc.generationInfo.genesis,
+          genesis: doc.generationInfo?.genesis ?? doc.genesis,
           version: doc.version,
-          generation: Number(doc.generationInfo.generation),
+          generation: Date.now(),
         },
         signer,
       )
@@ -1177,6 +1203,8 @@ async function createDocumentMoveRefs({
   signer,
   sourceCapabilityId,
   targetCapabilityId,
+  sourceRedirect,
+  originalId,
 }: {
   sourceId: UnpackedHypermediaId
   targetId: UnpackedHypermediaId
@@ -1185,6 +1213,10 @@ async function createDocumentMoveRefs({
   signer: HMSigner
   sourceCapabilityId?: string
   targetCapabilityId?: string
+  /** The redirect (if any) currently at the source, from following it to `doc`. */
+  sourceRedirect: {republish: boolean; target: UnpackedHypermediaId} | null
+  /** The address `doc` really lives at — the republish target when the source is a republish. */
+  originalId: UnpackedHypermediaId
 }): Promise<MoveRefBundle> {
   // console.log(`[move-document] creating move refs`, {
   //   moveScope: moveScopeLabel(isSubdocumentMove),
@@ -1192,20 +1224,23 @@ async function createDocumentMoveRefs({
   //   targetId,
   //   doc,
   // })
-  if (!doc.generationInfo) throw new Error('No generation info for document')
-  const generation = Number(doc.generationInfo.generation)
-
-  const versionRefOperation = {
-    space: targetId.uid,
-    path: hmIdPathToEntityQueryPath(targetId.path),
-    genesis: doc.generationInfo.genesis,
-    version: doc.version,
-    generation,
-    capability: targetCapabilityId || undefined,
-  }
-  const versionRefInput = await createVersionRef(versionRefOperation, signer)
+  // The behavior — fork vs. move-a-republish, and the "already moved" guard — is a pure decision
+  // extracted to document-relocation.ts so it can be unit-tested without signing/publishing.
+  const {destination: versionRefOperation, sourceRedirect: redirectRefOperation} = getDocumentMoveRefOperations({
+    sourceId,
+    targetId,
+    doc,
+    sourceRedirect,
+    originalId,
+    sourceCapabilityId,
+    targetCapabilityId,
+  })
+  const versionRefInput =
+    versionRefOperation.kind === 'republish'
+      ? await createRedirectRef(versionRefOperation, signer)
+      : await createVersionRef(versionRefOperation, signer)
   logMoveRefBlob({
-    kind: 'version',
+    kind: versionRefOperation.kind === 'republish' ? 'redirect' : 'version',
     sourceId,
     targetId,
     isSubdocumentMove,
@@ -1213,15 +1248,6 @@ async function createDocumentMoveRefs({
     publishInput: versionRefInput,
   })
 
-  const redirectRefOperation = {
-    space: sourceId.uid,
-    path: hmIdPathToEntityQueryPath(sourceId.path),
-    genesis: doc.generationInfo.genesis,
-    generation,
-    targetSpace: targetId.uid,
-    targetPath: hmIdPathToEntityQueryPath(targetId.path),
-    capability: sourceCapabilityId || undefined,
-  }
   const redirectRefInput = await createRedirectRef(redirectRefOperation, signer)
   logMoveRefBlob({
     kind: 'redirect',
@@ -1429,9 +1455,14 @@ export function useMoveDocument() {
           //   sourceId,
           //   targetId,
           // })
-          const resource = await universalClient.request('Resource', sourceId)
-          if (resource.type !== 'document') throw new Error(`Cannot move: resource is ${resource.type}`)
-          const doc = resource.document
+          // Follows redirects so a redirected source can be moved: the destination receives the
+          // content the source currently presents. `redirect` tells us the source's kind (a
+          // republish moves as a republish) and `targetId` is where that content really lives.
+          const {
+            document: doc,
+            redirect,
+            targetId: originalId,
+          } = await followToDocument(universalClient as unknown as SeedClient, sourceId)
           if (!doc.generationInfo) throw new Error('No generation info for document')
           // console.log(`[move-document] loaded source document`, {
           //   moveScope: moveScopeLabel(isSubdocumentMove),
@@ -1440,13 +1471,13 @@ export function useMoveDocument() {
           //   version: doc.version,
           //   generationInfo: doc.generationInfo,
           // })
-          return {from: sourceId, to: targetId, isSubdocumentMove, doc}
+          return {from: sourceId, to: targetId, isSubdocumentMove, doc, redirect, originalId}
         }),
       )
 
       // console.log(`[move-document] creating ref bundles`, {count: moveResources.length})
       const moveRefBundles = []
-      for (const {from: sourceId, to: targetId, isSubdocumentMove, doc} of moveResources) {
+      for (const {from: sourceId, to: targetId, isSubdocumentMove, doc, redirect, originalId} of moveResources) {
         const moveRefs = await createDocumentMoveRefs({
           sourceId,
           targetId,
@@ -1455,6 +1486,8 @@ export function useMoveDocument() {
           signer,
           sourceCapabilityId,
           targetCapabilityId,
+          sourceRedirect: redirect,
+          originalId,
         })
         moveRefBundles.push(moveRefs)
       }
@@ -1577,9 +1610,8 @@ export function useRepublishDocument() {
     }) => {
       if (!universalClient.getSigner) throw new Error('Signing not available')
       const signer = universalClient.getSigner(signingAccountId)
-      const resource = await universalClient.request('Resource', from)
-      if (resource.type !== 'document') throw new Error(`Cannot republish: resource is ${resource.type}`)
-      const doc = resource.document
+      // Follows redirects so an already-republished doc can be republished elsewhere too.
+      const {document: doc} = await followToDocument(universalClient as unknown as SeedClient, from)
       if (!doc.generationInfo) throw new Error('No generation info for document')
       const capabilityId = await resolveWriteCapabilityId(signingAccountId, to)
       const refOperation = createRepublishRefOperation({

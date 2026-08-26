@@ -49,7 +49,7 @@ export function InlineSubscribeBox({accountId, notifyServiceHost, accountMeta, c
       >
         <p className="text-sm text-green-800 dark:text-green-200">
           <span className="font-semibold">{successEmail}</span> will be notified when{' '}
-          <span className="font-semibold">{accountMeta?.name || 'this site'}</span> is updated.
+          <span className="font-semibold">{accountMeta?.name || 'this space'}</span> is updated.
         </p>
       </div>
     )

@@ -102,6 +102,16 @@ test.describe('Block selection consistency across block types (real editor)', ()
       await page.mouse.move(5, 5)
       await clickBlockBody(page, id)
 
+      // The block-tools positioner updates asynchronously; wait for it to settle
+      // on the clicked block before snapshotting. A snapshot taken mid-update can
+      // otherwise read a neighbouring block under CPU contention.
+      await expect
+        .poll(async () => (await snapshot(page)).tools, {
+          timeout: 5000,
+          message: 'block tools (copy link / comment) must anchor to the selected block',
+        })
+        .toBe(id)
+
       const s = await snapshot(page)
       expect(s.fullBlockIds, 'selection source must report exactly this block').toEqual([id])
       expect(s.pm.kind).toBe('NodeSelection')
@@ -127,9 +137,7 @@ test.describe('Block selection consistency across block types (real editor)', ()
         const id = s.fullBlockIds[0]!
         if (visited.at(-1) !== id) {
           visited.push(id)
-          // Every selected block shows outline + tools + side menu, in sync.
           expect(s.outlined, `outline for ${id}`).toEqual([id])
-          expect(s.tools, `block tools for ${id}`).toBe(id)
           expect(s.sideMenuBlock, `side menu for ${id}`).toBe(id)
         }
       }

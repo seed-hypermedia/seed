@@ -25,7 +25,7 @@ export default function Collaboration() {
               </h3>
               <p className="mt-2 text-gray-700 max-w-[320px] min-h-[56px]">
                 Engage with your community by inviting readers and collaborators
-                to your site.
+                to your space.
               </p>
               <img
                 src={collaboratorsImage}

@@ -144,6 +144,7 @@ export function OptionsDropdown({
   triggerClassName,
   contentClassName,
   ariaLabel = 'Open options',
+  onCloseAutoFocus,
 }: {
   menuItems: (MenuItemType | null)[]
   hiddenUntilItemHover?: boolean
@@ -156,6 +157,7 @@ export function OptionsDropdown({
   triggerClassName?: string
   contentClassName?: string
   ariaLabel?: string
+  onCloseAutoFocus?: DropdownMenuContentProps['onCloseAutoFocus']
 }) {
   const popoverState = usePopoverState()
   const {ordered, firstDestructiveIndex} = orderMenuItems(menuItems)
@@ -183,7 +185,12 @@ export function OptionsDropdown({
             <MoreHorizontal className="size-3.5" />
           </DropdownMenuTrigger>
         )}
-        <DropdownMenuContent className={cn('p-1', contentClassName)} side={side} align={align}>
+        <DropdownMenuContent
+          className={cn('p-1', contentClassName)}
+          side={side}
+          align={align}
+          onCloseAutoFocus={onCloseAutoFocus}
+        >
           <div className="flex flex-col">
             {ordered.map((item, index) => (
               <div key={item.key}>

@@ -1,4 +1,3 @@
-import {State} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DAEMON_GRPC_PORT, DAEMON_HTTP_PORT, P2P_PORT, VERSION} from '@shm/shared/constants'
 import {ChildProcess, spawn} from 'child_process'
 import {app} from 'electron'
@@ -7,6 +6,7 @@ import path from 'path'
 import {grpcClient, markGRPCReady} from './app-grpc'
 import {userDataPath} from './app-paths'
 import {getDaemonBinaryPath} from './daemon-path'
+import {waitForDaemonActive} from './daemon-readiness'
 import * as log from './logger'
 import {forceKillChildProcess} from './win32-process'
 
@@ -76,7 +76,13 @@ let currentDaemonProcess: ChildProcess | null = null
 let expectingDaemonClose = false
 
 type ReadyState = {t: 'ready'}
-type ErrorState = {t: 'error'; message: string}
+type ErrorState = {
+  t: 'error'
+  message: string
+  details?: string
+  exitCode?: number | null
+  signal?: string | null
+}
 type StartupState = {t: 'startup'}
 type MigratingState = {t: 'migrating'; completed: number; total: number}
 
@@ -118,11 +124,16 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
   // Store reference for restart capability
   currentDaemonProcess = daemonProcess
 
-  let lastStderr = ''
+  const output: string[] = []
+  const rememberOutput = (stream: 'stdout' | 'stderr', line: string) => {
+    output.push(`[${stream}] ${line}`)
+    if (output.length > 160) output.shift()
+  }
+
   const stderr = readline.createInterface({input: daemonProcess.stderr})
   await new Promise<void>((resolve, reject) => {
     stderr.on('line', (line: string) => {
-      lastStderr = line
+      rememberOutput('stderr', line)
       if (line.includes('DaemonStarted')) {
         updateGoDaemonState({t: 'ready'})
       }
@@ -130,10 +141,18 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
     })
     const stdout = readline.createInterface({input: daemonProcess.stdout})
     stdout.on('line', (line: string) => {
+      rememberOutput('stdout', line)
       if (!quietNodeLogs) log.rawMessage(line)
     })
     daemonProcess.on('error', (err) => {
       log.error('Go daemon spawn error', {error: err})
+      if (daemonProcess === currentDaemonProcess) {
+        updateGoDaemonState({
+          t: 'error',
+          message: 'Seed could not start the local daemon.',
+          details: output.join('\n') || err.message,
+        })
+      }
       reject(err)
     })
     daemonProcess.on('close', (code, signal) => {
@@ -142,9 +161,12 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
       if (!expectingDaemonClose && daemonProcess === currentDaemonProcess) {
         updateGoDaemonState({
           t: 'error',
-          message: 'Service Error: !!!' + lastStderr,
+          message: 'The local daemon stopped unexpectedly.',
+          details: output.join('\n') || 'The daemon did not write any diagnostic output.',
+          exitCode: code,
+          signal,
         })
-        log.error('Go daemon closed', {code: code, signal: signal})
+        log.error('Go daemon closed', {code, signal, output: output.join('\n')})
       }
     })
     daemonProcess.on('spawn', () => {
@@ -156,32 +178,13 @@ async function spawnDaemonProcess(args: string[]): Promise<void> {
 
 /** Polls the daemon gRPC and HTTP endpoints until it is fully ready. */
 async function waitForDaemonReady(label: string): Promise<void> {
-  await tryUntilSuccess(
-    async () => {
-      log.debug('Waiting for daemon to boot...')
-      const info = await grpcClient.daemon.getInfo({})
-      if (info.state !== State.ACTIVE) {
-        if (info.state === State.MIGRATING && info.tasks.length === 1) {
-          const completed = Number(info.tasks[0].completed)
-          const total = Number(info.tasks[0].total)
-          log.info(`Daemon migrating: ${completed}/${total}`)
-          // Broadcast migration progress to loading window
-          updateGoDaemonState({
-            t: 'migrating',
-            completed,
-            total,
-          })
-        }
-        throw new Error(`Daemon not ready yet: ${info.state}`)
-      }
-      log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
-      // Daemon is ACTIVE - update state so loading window can close
-      updateGoDaemonState({t: 'ready'})
-    },
-    `waiting for ${label} gRPC to be ready`,
-    200, // try every 200ms
-    10 * 60 * 1_000, // timeout after 10 minutes
-  )
+  const info = await waitForDaemonActive({
+    getInfo: () => grpcClient.daemon.getInfo({}),
+    onDaemonState: updateGoDaemonState,
+    onLogDebug: (message) => log.debug(message),
+    onLogInfo: (message) => log.info(message),
+  })
+  log.info('Daemon is ready: ' + JSON.stringify(info.toJson()))
 
   // Also check HTTP endpoint is responding
   await tryUntilSuccess(

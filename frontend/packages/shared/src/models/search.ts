@@ -1,5 +1,5 @@
 import {useQuery} from '@tanstack/react-query'
-import {ContentTypeFilter, SearchType} from '../client/.generated/entities/v1alpha/entities_pb'
+import {ContentTypeFilter, EntityKindFilter, SearchType} from '../client/.generated/entities/v1alpha/entities_pb'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {packHmId} from '../utils/entity-id-url'
 import {queryKeys} from './query-keys'
@@ -32,8 +32,10 @@ export function useSearch(
     perspectiveAccountUid,
     searchType,
     pageSize,
+    pageToken,
     iriFilter,
     contentTypeFilter,
+    entityKindFilter,
   }: {
     enabled?: boolean
     accountUid?: string
@@ -42,8 +44,10 @@ export function useSearch(
     perspectiveAccountUid?: string
     searchType?: SearchType
     pageSize?: number
+    pageToken?: string
     iriFilter?: string
     contentTypeFilter?: ContentTypeFilter[]
+    entityKindFilter?: EntityKindFilter[]
   } = {},
 ) {
   const client = useUniversalClient()
@@ -57,8 +61,10 @@ export function useSearch(
       contextSize,
       searchType,
       pageSize || null,
+      pageToken || null,
       iriFilter || null,
       contentTypeFilter || null,
+      entityKindFilter || null,
     ],
     queryFn: async ({signal}: {signal?: AbortSignal} = {}) => {
       const out = await client.request(
@@ -71,8 +77,10 @@ export function useSearch(
           contextSize: contextSize || 48,
           searchType,
           pageSize: pageSize || undefined,
+          pageToken: pageToken || undefined,
           iriFilter: iriFilter || undefined,
           contentTypeFilter: contentTypeFilter && contentTypeFilter.length ? contentTypeFilter : undefined,
+          entityKindFilter: entityKindFilter && entityKindFilter.length ? entityKindFilter : undefined,
         },
         {signal},
       )

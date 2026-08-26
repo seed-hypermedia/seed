@@ -282,6 +282,211 @@ describe('markdown round-trip', () => {
   })
 })
 
+describe('list nesting under text blocks', () => {
+  it('nests a bullet list under the preceding paragraph instead of an empty container', () => {
+    const {tree} = parseMarkdown('Here are the items:\n\n- one\n- two')
+    expect(tree).toHaveLength(1)
+    const para = tree[0]!
+    expect(para.block.type).toBe('Paragraph')
+    expect(para.block.text).toBe('Here are the items:')
+    expect(para.block.childrenType).toBe('Unordered')
+    expect(para.children.map((c) => c.block.text)).toEqual(['one', 'two'])
+  })
+
+  it('nests an ordered list under the preceding paragraph', () => {
+    const {tree} = parseMarkdown('Steps:\n1. first\n2. second')
+    expect(tree).toHaveLength(1)
+    expect(tree[0]!.block.childrenType).toBe('Ordered')
+    expect(tree[0]!.children.map((c) => c.block.text)).toEqual(['first', 'second'])
+  })
+
+  it('nests a list directly under a heading when it is the only content', () => {
+    const {tree} = parseMarkdown('## Tasks\n\n- alpha\n- beta')
+    expect(tree).toHaveLength(1)
+    const heading = tree[0]!
+    expect(heading.block.type).toBe('Heading')
+    expect(heading.block.childrenType).toBe('Unordered')
+    expect(heading.children.map((c) => c.block.text)).toEqual(['alpha', 'beta'])
+  })
+
+  it('re-wraps a heading-merged list when more content follows under the heading', () => {
+    const {tree} = parseMarkdown('## Tasks\n\n- alpha\n- beta\n\nA closing note.')
+    expect(tree).toHaveLength(1)
+    const heading = tree[0]!
+    expect(heading.block.childrenType).toBe('Group')
+    expect(heading.children).toHaveLength(2)
+    const container = heading.children[0]!
+    expect(container.block.type).toBe('Paragraph')
+    expect(container.block.text).toBe('')
+    expect(container.block.childrenType).toBe('Unordered')
+    expect(container.children.map((c) => c.block.text)).toEqual(['alpha', 'beta'])
+    expect(heading.children[1]!.block.text).toBe('A closing note.')
+  })
+
+  it('keeps the container fallback for a list at the start of the document', () => {
+    const {tree} = parseMarkdown('- one\n- two')
+    expect(tree).toHaveLength(1)
+    expect(tree[0]!.block.text).toBe('')
+    expect(tree[0]!.block.childrenType).toBe('Unordered')
+    expect(tree[0]!.children).toHaveLength(2)
+  })
+
+  it('keeps the container fallback after a non-text block', () => {
+    const {tree} = parseMarkdown('```js\ncode\n```\n\n- one')
+    expect(tree).toHaveLength(2)
+    expect(tree[0]!.block.type).toBe('Code')
+    expect(tree[1]!.block.text).toBe('')
+    expect(tree[1]!.block.childrenType).toBe('Unordered')
+  })
+
+  it('does not merge a second list into an already-nested paragraph', () => {
+    const {tree} = parseMarkdown('Intro:\n\n- one\n\n1. first')
+    expect(tree).toHaveLength(2)
+    expect(tree[0]!.block.childrenType).toBe('Unordered')
+    expect(tree[1]!.block.text).toBe('')
+    expect(tree[1]!.block.childrenType).toBe('Ordered')
+  })
+
+  it('preserves an explicit container id from round-tripped markdown', () => {
+    const {tree} = parseMarkdown('Intro: <!-- id:p1 -->\n\n<!-- id:list1 -->\n- one <!-- id:i1 -->')
+    expect(tree).toHaveLength(2)
+    expect(tree[0]!.block.id).toBe('p1')
+    expect(tree[0]!.children).toHaveLength(0)
+    const container = tree[1]!
+    expect(container.block.id).toBe('list1')
+    expect(container.block.text).toBe('')
+    expect(container.block.childrenType).toBe('Unordered')
+    expect(container.children[0]!.block.id).toBe('i1')
+  })
+
+  it('round-trips a paragraph with nested list items, preserving ids', () => {
+    const tree: HMBlockNode[] = [
+      {
+        block: {
+          type: 'Paragraph',
+          id: 'P1',
+          text: 'Groceries:',
+          annotations: [],
+          attributes: {childrenType: 'Unordered'},
+          link: '',
+          revision: '',
+        },
+        children: [
+          {
+            block: {
+              type: 'Paragraph',
+              id: 'i1',
+              text: 'apples',
+              annotations: [],
+              attributes: {},
+              link: '',
+              revision: '',
+            },
+            children: [],
+          },
+          {
+            block: {
+              type: 'Paragraph',
+              id: 'i2',
+              text: 'pears',
+              annotations: [],
+              attributes: {},
+              link: '',
+              revision: '',
+            },
+            children: [],
+          },
+        ],
+      },
+    ]
+    const result = roundtrip(tree)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.block.id).toBe('P1')
+    expect((result[0]!.block.attributes as {childrenType?: string}).childrenType).toBe('Unordered')
+    expect(result[0]!.children!.map((c) => c.block.id)).toEqual(['i1', 'i2'])
+  })
+
+  it('round-trips a heading whose only content is a list, preserving ids', () => {
+    const tree: HMBlockNode[] = [
+      {
+        block: {
+          type: 'Heading',
+          id: 'H1',
+          text: 'Tasks',
+          annotations: [],
+          attributes: {childrenType: 'Ordered'},
+          link: '',
+          revision: '',
+        },
+        children: [
+          {
+            block: {
+              type: 'Paragraph',
+              id: 'i1',
+              text: 'first',
+              annotations: [],
+              attributes: {},
+              link: '',
+              revision: '',
+            },
+            children: [],
+          },
+          {
+            block: {
+              type: 'Paragraph',
+              id: 'i2',
+              text: 'second',
+              annotations: [],
+              attributes: {},
+              link: '',
+              revision: '',
+            },
+            children: [],
+          },
+        ],
+      },
+    ]
+    const result = roundtrip(tree)
+    expect(result).toHaveLength(1)
+    expect(result[0]!.block.id).toBe('H1')
+    expect((result[0]!.block.attributes as {childrenType?: string}).childrenType).toBe('Ordered')
+    expect(result[0]!.children!.map((c) => c.block.id)).toEqual(['i1', 'i2'])
+  })
+
+  it('round-trips an invisible container document unchanged', () => {
+    const tree: HMBlockNode[] = [
+      {
+        block: {type: 'Paragraph', id: 'P1', text: 'Intro', annotations: [], attributes: {}, link: '', revision: ''},
+        children: [],
+      },
+      {
+        block: {
+          type: 'Paragraph',
+          id: 'C1',
+          text: '',
+          annotations: [],
+          attributes: {childrenType: 'Unordered'},
+          link: '',
+          revision: '',
+        },
+        children: [
+          {
+            block: {type: 'Paragraph', id: 'i1', text: 'one', annotations: [], attributes: {}, link: '', revision: ''},
+            children: [],
+          },
+        ],
+      },
+    ]
+    const result = roundtrip(tree)
+    expect(result).toHaveLength(2)
+    expect(result[0]!.block.id).toBe('P1')
+    expect(result[0]!.children ?? []).toHaveLength(0)
+    expect(result[1]!.block.id).toBe('C1')
+    expect(result[1]!.block.text).toBe('')
+    expect(result[1]!.children!.map((c) => c.block.id)).toEqual(['i1'])
+  })
+})
+
 describe('parseMarkdown termination', () => {
   it('parses indented headings as headings instead of looping forever', () => {
     const {tree} = parseMarkdown('  ### Indented Heading <!-- id:AbCd1234 -->\n\n  body text')
@@ -290,7 +495,7 @@ describe('parseMarkdown termination', () => {
     expect(nodes[0]!.block.type).toBe('Heading')
     expect(nodes[0]!.block.text).toBe('Indented Heading')
     expect(nodes[0]!.block.id).toBe('AbCd1234')
-    expect(nodes[0]!.children![0]!.block.text).toBe('  body text')
+    expect(nodes[0]!.children![0]!.block.text).toBe('body text')
   })
 
   it.each([

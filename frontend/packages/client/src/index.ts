@@ -56,6 +56,8 @@ export {
   unpackHmId,
 } from './hm-types'
 export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
+export {toHMSigner, toPrincipalSigner} from './signer'
+export type {AnySigner, PrincipalSigner} from './signer'
 
 export {resolveHypermediaUrl, resolveId} from './hm-resolver'
 export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, ResolvedUrl} from './hm-resolver'
@@ -86,7 +88,14 @@ export {
 export type {ResolvedMarkdownOptions} from './blocks-to-markdown'
 export type {BlocksToMarkdownOptions} from './blocks-to-markdown'
 
-export {createBlocksMap, matchBlockIds, computeReplaceOps, hmBlockNodeToBlockNode} from './block-diff'
+export {
+  createBlocksMap,
+  matchBlockIds,
+  computeReplaceOps,
+  hmBlockNodeToBlockNode,
+  rebindTableIdentities,
+  toAPIBlockNode,
+} from './block-diff'
 export type {APIBlockNode, APIBlock} from './block-diff'
 
 export {
@@ -97,8 +106,20 @@ export {
   shouldAutoLinkParent,
 } from './auto-link'
 export type {AutoLinkChildToParentOptions} from './auto-link'
-export {resolveDocumentState} from './document-state'
-export type {DocumentState} from './document-state'
+export {
+  describeRedirect,
+  followRedirects,
+  followToDocument,
+  resolveDocumentState,
+  resolveEditableDocument,
+} from './document-state'
+export type {
+  DocumentState,
+  EditableDocumentBase,
+  FollowedDocument,
+  FollowedResource,
+  RedirectHop,
+} from './document-state'
 
 export {editorBlockToHMBlock, editorBlocksToHMBlockNodes} from './editorblock-to-hmblock'
 export {hmBlocksToEditorContent, hmBlockToEditorBlock, annotationContains} from './hmblock-to-editorblock'

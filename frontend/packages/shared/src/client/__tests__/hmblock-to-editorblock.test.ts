@@ -907,6 +907,32 @@ describe('HMBlock to EditorBlock', () => {
 
       expect(val).toEqual(result)
     })
+
+    test('table query block preserves its column configuration', () => {
+      const hmBlock: HMBlockQuery = {
+        id: 'table-query',
+        type: 'Query',
+        text: '',
+        annotations: [],
+        attributes: {
+          style: 'Table',
+          columnCount: 3,
+          banner: false,
+          query: {includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}]},
+          table: {
+            columns: [
+              {id: 'title', visible: true, width: 280},
+              {id: 'metadata:status', visible: false},
+            ],
+          },
+        },
+      }
+
+      expect(hmBlockToEditorBlock(hmBlock).props).toMatchObject({
+        style: 'Table',
+        tableConfig: '{"columns":[{"id":"title","visible":true,"width":280},{"id":"metadata:status","visible":false}]}',
+      })
+    })
   })
 
   describe('childrenType', () => {

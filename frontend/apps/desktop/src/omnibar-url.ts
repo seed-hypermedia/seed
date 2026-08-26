@@ -1,6 +1,6 @@
-import {normalizeAgentServerUrl} from '@/agents-client'
+import {normalizeAgentServerUrl} from '@shm/ui/agents/client'
 import {resolveHypermediaUrl, type ResolveOptions} from '@seed-hypermedia/client'
-import {createDocumentNavRoute, createInspectNavRoute, type NavRoute} from '@shm/shared/routes'
+import {agentRouteSchema, createDocumentNavRoute, createInspectNavRoute, type NavRoute} from '@shm/shared/routes'
 import {
   activitySlugToFilter,
   extractViewTermFromUrl,
@@ -95,8 +95,21 @@ export async function resolveOmnibarUrlToHypermediaUrl(url: string, opts?: Resol
   return routeToHmUrl(route)
 }
 
-export function agentUrl(serverUrl: string, agentId: string): string {
-  return `${normalizeAgentServerUrl(serverUrl)}/agents/${encodeURIComponent(agentId)}`
+type AgentTab = NonNullable<Extract<NavRoute, {key: 'agent'}>['tab']>
+
+// Derived from the route schema so a tab added there is representable in agent URLs
+// without anyone remembering this file exists.
+const AGENT_TABS = agentRouteSchema.shape.tab.unwrap().options
+
+export function agentUrl(serverUrl: string, agentId: string, tab?: AgentTab, memoryPath?: string): string {
+  const base = `${normalizeAgentServerUrl(serverUrl)}/agents/${encodeURIComponent(agentId)}`
+  // Sessions is the default tab, so its URL is the bare agent URL.
+  if (!tab || tab === 'sessions') return base
+  if (tab === 'memory' && memoryPath) {
+    const filePath = memoryPath.split('/').map(encodeURIComponent).join('/')
+    return `${base}/:memory/${filePath}`
+  }
+  return `${base}/:${tab}`
 }
 
 export function agentSessionUrl(serverUrl: string, agentId: string, sessionId: string): string {
@@ -104,7 +117,7 @@ export function agentSessionUrl(serverUrl: string, agentId: string, sessionId: s
 }
 
 export function agentTriggerUrl(serverUrl: string, agentId: string, triggerId: string): string {
-  return `${agentUrl(serverUrl, agentId)}/triggers/${encodeURIComponent(triggerId)}`
+  return `${agentUrl(serverUrl, agentId)}/:triggers/${encodeURIComponent(triggerId)}`
 }
 
 /**
@@ -137,7 +150,7 @@ async function siteSettingsEmailsUrlToRoute(input: string, opts?: ResolveOptions
   }
 }
 
-function agentUrlToRoute(input: string): NavRoute | null {
+export function agentUrlToRoute(input: string): NavRoute | null {
   try {
     const url = new URL(input.trim())
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
@@ -158,8 +171,22 @@ function agentUrlToRoute(input: string): NavRoute | null {
     if (segments.length === 4 && segments[2] === 'sessions') {
       return {key: 'agent-session', serverUrl, agentId, sessionId: segments[3]}
     }
+    // Legacy trigger URL form, before triggers moved to the /:triggers tab suffix.
     if (segments.length === 4 && segments[2] === 'triggers') {
       return {key: 'agent', serverUrl, agentId, tab: 'triggers', triggerId: segments[3]}
+    }
+    if (segments[2]?.startsWith(':')) {
+      const tab = AGENT_TABS.find((candidate) => candidate === segments[2].slice(1))
+      if (!tab) return null
+      const rest = segments.slice(3)
+      if (tab === 'memory' && rest.length) {
+        return {key: 'agent', serverUrl, agentId, tab, memoryPath: rest.join('/')}
+      }
+      if (tab === 'triggers' && rest.length === 1) {
+        return {key: 'agent', serverUrl, agentId, tab, triggerId: rest[0]}
+      }
+      if (rest.length === 0) return {key: 'agent', serverUrl, agentId, tab}
+      return null
     }
     return null
   } catch {
@@ -190,7 +217,13 @@ function applyResolvedViewTerm(
   if (!routeKey) return route
 
   if (routeKey === 'comments' && commentId) {
-    return {key: 'comments', id: route.id, openComment: commentId}
+    // On comment permalinks, ?v pins the comment version, not the document version
+    return {
+      key: 'comments',
+      id: {...route.id, version: null, latest: true},
+      openComment: commentId,
+      openCommentVersion: route.id.version || undefined,
+    }
   }
 
   if (isSiteProfileTab(routeKey)) {
@@ -203,6 +236,10 @@ function applyResolvedViewTerm(
       id: route.id,
       filterEventType: activityFilter ? activitySlugToFilter(activityFilter) : undefined,
     }
+  }
+
+  if (routeKey === 'explore') {
+    return {key: 'explore', context: {type: 'site', id: route.id}}
   }
 
   return {key: routeKey, id: route.id}

@@ -14,9 +14,9 @@
 import * as dagCBOR from '@ipld/dag-cbor'
 import {ed25519} from '@noble/curves/ed25519.js'
 import * as cborg from 'cborg'
-import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import './base64'
+import {principalFromEd25519, principalToString as blobsPrincipalToString} from './blobs'
 import {decrypt} from './encryption'
 
 /** Current vault schema version. Bump on every incompatible schema change. */
@@ -38,24 +38,24 @@ const delegationExtraKey = Symbol('vault-delegation-extra')
 const capabilityExtraKey = Symbol('vault-capability-extra')
 const accountNamePattern = /^[A-Za-z0-9_-]+$/
 
-// Ed25519 multicodec prefix (varint-encoded 0xed = [0xed, 0x01]).
-const ED25519_MULTICODEC_PREFIX = new Uint8Array([0xed, 0x01])
-
 /** A principal: multicodec prefix + raw Ed25519 public key. */
 export type Principal = Uint8Array
 
-/** Build a Principal from a raw 32-byte Ed25519 public key. */
-export function principalFromPublicKey(publicKey: Uint8Array): Principal {
-  const principal = new Uint8Array(ED25519_MULTICODEC_PREFIX.length + publicKey.length)
-  principal.set(ED25519_MULTICODEC_PREFIX, 0)
-  principal.set(publicKey, ED25519_MULTICODEC_PREFIX.length)
-  return principal
-}
+/**
+ * Build a Principal from a raw 32-byte Ed25519 public key.
+ *
+ * @deprecated Use `principalFromEd25519` from `./blobs`, the single
+ * implementation. Kept as an alias so existing vault callers keep working.
+ */
+export const principalFromPublicKey: (publicKey: Uint8Array) => Principal = principalFromEd25519
 
-/** Encode a Principal to its base58btc multibase string (starts with 'z'). */
-export function principalToString(principal: Principal): string {
-  return base58btc.encode(principal)
-}
+/**
+ * Encode a Principal to its base58btc multibase string (starts with 'z').
+ *
+ * @deprecated Use `principalToString` from `./blobs`, the single
+ * implementation. Re-exported here so existing vault callers keep working.
+ */
+export const principalToString: (principal: Principal) => string = blobsPrincipalToString
 
 /** Derive the account ID (base58btc principal string) from a 32-byte Ed25519 seed. */
 export function accountIdFromSeed(seed: Uint8Array): string {

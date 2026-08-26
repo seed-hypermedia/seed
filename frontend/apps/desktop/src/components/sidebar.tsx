@@ -1,4 +1,3 @@
-import {useBookmarks, useRemoveBookmark} from '@/models/bookmarks'
 import {useComments} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
@@ -12,18 +11,15 @@ import {
   HMComment,
   HMContactRecord,
   HMMetadata,
-  HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {defaultJoinedSiteUid, useRouteLink} from '@shm/shared'
-import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
 import {hasProfileSubscription, useFollowProfile, useLeaveSite} from '@shm/shared/models/join-site'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
-import {bookmarkUrlFromRoute, hmId, ViewTerm, viewTermToRouteKey} from '@shm/shared/utils/entity-id-url'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
@@ -50,25 +46,8 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {
-  AlertCircle,
-  Bot,
-  ChevronDown,
-  ChevronRight,
-  File,
-  Folder,
-  History,
-  LayoutList,
-  Library,
-  Lock,
-  MessageSquare,
-  MoreHorizontal,
-  Quote,
-  Settings,
-  Users,
-} from 'lucide-react'
+import {Bot, ChevronDown, ChevronRight, LayoutList, MoreHorizontal, Settings} from 'lucide-react'
 import React, {memo} from 'react'
-import {BookmarkOptionsMenu} from './bookmark-options-menu'
 import {CreateDocumentButton} from './create-doc-button'
 import {isSiteDocumentsActiveRoute} from './sidebar-active'
 import {GenericSidebarContainer} from './sidebar-base'
@@ -116,18 +95,6 @@ export function MainAppSidebar() {
           <SidebarMenu className="py-4">
             <SidebarMenuItem>
               <SmallListItem
-                active={route.key == 'library'}
-                onClick={() => {
-                  navigate({key: 'library'})
-                }}
-                title="Library"
-                bold
-                icon={<Library className="size-4" />}
-                rightHover={[]}
-              />
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SmallListItem
                 active={route.key == 'agents'}
                 onClick={() => {
                   navigate({key: 'agents'})
@@ -148,17 +115,6 @@ export function MainAppSidebar() {
                 bold
               />
             </SidebarMenuItem> */}
-            <SidebarMenuItem>
-              <SmallListItem
-                active={route.key == 'drafts'}
-                onClick={() => {
-                  navigate({key: 'drafts'})
-                }}
-                icon={<File className="size-4" />}
-                title="Drafts"
-                bold
-              />
-            </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooterLayout>
       )}
@@ -170,7 +126,6 @@ export function MainAppSidebar() {
         <MySiteSection selectedAccountId={selectedAccountId ?? undefined} />
         <SubscriptionsSection />
         <FollowingSection />
-        <BookmarksSection />
       </SidebarContent>
     </GenericSidebarContainer>
   )
@@ -216,174 +171,6 @@ function SidebarSection({
         </SidebarGroupContent>
       )}
     </SidebarGroup>
-  )
-}
-
-function BookmarksSection() {
-  const bookmarks = useBookmarks()
-  const removeBookmark = useRemoveBookmark()
-  const contacts = useSelectedAccountContacts()
-  const bookmarkIds = bookmarks.map((b) => b.id)
-  const bookmarkEntities = useResources(bookmarkIds)
-  const route = useNavRoute()
-  const currentBookmarkUrl = bookmarkUrlFromRoute(route)
-  if (!bookmarkEntities.length) return null
-  return (
-    <SidebarSection title="Bookmarks">
-      {bookmarks.map((bookmarkItem, i) => {
-        const entity = bookmarkEntities[i]
-        const deletingBookmark = removeBookmark.isLoading && removeBookmark.variables === bookmarkItem.url
-        const deleteBookmark = () => removeBookmark.mutate(bookmarkItem.url)
-        if (!entity?.data) {
-          if (entity?.isLoading) return null
-          return (
-            <SidebarMenuItem key={bookmarkItem.url}>
-              <ErrorListItem
-                id={bookmarkItem.id}
-                active={currentBookmarkUrl === bookmarkItem.url}
-                onDeleteBookmark={deleteBookmark}
-                deletingBookmark={deletingBookmark}
-              />
-            </SidebarMenuItem>
-          )
-        }
-        if (entity.data.type === 'error') {
-          return (
-            <SidebarMenuItem key={bookmarkItem.url}>
-              <ErrorListItem
-                id={entity.data.id}
-                active={currentBookmarkUrl === bookmarkItem.url}
-                onDeleteBookmark={deleteBookmark}
-                deletingBookmark={deletingBookmark}
-              />
-            </SidebarMenuItem>
-          )
-        }
-        if (entity.data.type !== 'document') {
-          return (
-            <SidebarMenuItem key={bookmarkItem.url}>
-              <ErrorListItem
-                id={bookmarkItem.id}
-                active={currentBookmarkUrl === bookmarkItem.url}
-                onDeleteBookmark={deleteBookmark}
-                deletingBookmark={deletingBookmark}
-              />
-            </SidebarMenuItem>
-          )
-        }
-        const {id, document} = entity.data
-        const metadata = id.path?.length
-          ? document?.metadata
-          : getContactMetadata(id.uid, document?.metadata, contacts.data)
-        if (!metadata) return null
-        return (
-          <SidebarMenuItem key={bookmarkItem.url}>
-            <BookmarkListItem
-              id={id}
-              metadata={metadata}
-              active={currentBookmarkUrl === bookmarkItem.url}
-              visibility={document?.visibility}
-              bookmarkKey={bookmarkItem.key}
-              viewTerm={bookmarkItem.viewTerm}
-              onDeleteBookmark={deleteBookmark}
-              deletingBookmark={deletingBookmark}
-            />
-          </SidebarMenuItem>
-        )
-      })}
-    </SidebarSection>
-  )
-}
-
-function ErrorListItem({
-  id,
-  active,
-  onDeleteBookmark,
-  deletingBookmark,
-}: {
-  id: UnpackedHypermediaId
-  active: boolean
-  onDeleteBookmark: () => void
-  deletingBookmark?: boolean
-}) {
-  const linkProps = useRouteLink({key: 'document', id})
-  return (
-    <>
-      <SmallListItem
-        key={id.id}
-        docId={id.id}
-        active={active}
-        title="Error"
-        textClass="text-destructive"
-        icon={<AlertCircle className="text-destructive size-5" />}
-        className="pr-8"
-        {...linkProps}
-      />
-      <BookmarkOptionsMenu onDeleteBookmark={onDeleteBookmark} disabled={deletingBookmark} />
-    </>
-  )
-}
-
-const VIEW_TERM_ICONS: Record<string, React.ElementType> = {
-  ':comments': MessageSquare,
-  ':activity': Quote,
-  ':collaborators': Users,
-  ':directory': Folder,
-  ':feed': History,
-}
-
-function profileTabFromViewTerm(viewTerm: ViewTerm | null): ProfileTab {
-  switch (viewTerm) {
-    case ':membership':
-      return 'membership'
-    case ':followers':
-      return 'followers'
-    case ':following':
-      return 'following'
-    default:
-      return 'profile'
-  }
-}
-
-function BookmarkListItem({
-  id,
-  metadata,
-  active,
-  visibility,
-  bookmarkKey,
-  viewTerm,
-  onDeleteBookmark,
-  deletingBookmark,
-}: {
-  id: UnpackedHypermediaId
-  metadata: HMMetadata
-  active: boolean
-  visibility?: HMResourceVisibility
-  bookmarkKey: 'document' | 'profile'
-  viewTerm: ViewTerm | null
-  onDeleteBookmark: () => void
-  deletingBookmark?: boolean
-}) {
-  const navRoute =
-    bookmarkKey === 'profile'
-      ? {key: 'profile' as const, id, tab: profileTabFromViewTerm(viewTerm)}
-      : viewTerm
-        ? createDocumentNavRoute(id, viewTermToRouteKey(viewTerm))
-        : {key: 'document' as const, id}
-  const linkProps = useRouteLink(navRoute)
-  const ViewTermIcon = viewTerm ? VIEW_TERM_ICONS[viewTerm] : null
-  return (
-    <>
-      <SidebarMenuButton isActive={active} className="min-h-10 items-center pr-8" onClick={linkProps.onClick}>
-        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="shrink-0" />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <span className="truncate text-left text-sm select-none">{metadata?.name || 'Untitled'}</span>
-        </div>
-        {ViewTermIcon ? <ViewTermIcon size={12} className="text-muted-foreground shrink-0" /> : null}
-        {visibility === 'PRIVATE' ? <Lock size={12} className="shrink-0" /> : null}
-      </SidebarMenuButton>
-      <BookmarkOptionsMenu onDeleteBookmark={onDeleteBookmark} disabled={deletingBookmark} />
-    </>
   )
 }
 
@@ -468,7 +255,7 @@ function SubscriptionsSection() {
   const comments = useComments(commentIds)
 
   return (
-    <SidebarSection title="Joined Sites">
+    <SidebarSection title="Joined Spaces">
       {sortedContacts.length ? (
         sortedContacts.map((contact) => {
           const id = hmId(contact.subject)
@@ -524,7 +311,7 @@ function SubscriptionsSection() {
       ) : (
         <SidebarMenuItem>
           <div className="text-muted-foreground flex items-center justify-center px-4 pb-3 text-center text-xs leading-relaxed select-none">
-            Click "Join" on a site to get started.
+            Click "Join" on a space to get started.
           </div>
         </SidebarMenuItem>
       )}
@@ -586,7 +373,7 @@ function JoinedSiteListItem({
         side="right"
         align="start"
         button={
-          <SidebarMenuAction aria-label="Joined site options" onClick={(e) => e.stopPropagation()}>
+          <SidebarMenuAction aria-label="Joined space options" onClick={(e) => e.stopPropagation()}>
             <MoreHorizontal className="size-4" />
           </SidebarMenuAction>
         }
@@ -601,7 +388,7 @@ function JoinedSiteListItem({
             ? [
                 {
                   key: 'leave',
-                  label: 'Leave Site',
+                  label: 'Leave Space',
                   icon: <CircleOff className="size-4" />,
                   variant: 'destructive' as const,
                   disabled: isPending,
@@ -753,7 +540,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   if (resource.data?.type === 'document' && resource.data.document) {
     const {document} = resource.data
     return (
-      <SidebarSection title="My Site">
+      <SidebarSection title="My Space">
         <div className="relative">
           <div
             className={cn(
@@ -776,7 +563,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
             align="start"
             button={
               <button
-                aria-label="My site options"
+                aria-label="My space options"
                 className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md hover:bg-black/10 dark:hover:bg-white/10"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -792,7 +579,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
               },
               {
                 key: 'site-settings',
-                label: 'Site settings',
+                label: 'Space settings',
                 icon: <Settings className="size-4" />,
                 onClick: () => navigate({key: 'site-settings', id: hmId(selectedAccountId)}),
               },
@@ -808,10 +595,10 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   if (resource.isInitialLoading || resource.isDiscovering) return null
 
   return (
-    <SidebarSection title="My Site">
-      <Tooltip content="Create your site to publish documents and share your profile.">
+    <SidebarSection title="My Space">
+      <Tooltip content="Create your space to publish documents and share your profile.">
         <Button className="w-full" variant="default" onClick={() => createSpaceDialog.open()}>
-          Create my Site
+          Create my Space
         </Button>
       </Tooltip>
       {createSpaceDialog.content}

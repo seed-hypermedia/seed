@@ -48,6 +48,13 @@ func NewIRI(account core.Principal, path string) (IRI, error) {
 		if path[len(path)-1] == '/' {
 			return "", fmt.Errorf("path must not end with a slash: %s", path)
 		}
+
+		// Reject quote and control characters. IRIs embed the path and are used to build
+		// SQL and JSON elsewhere; forbidding these at the boundary removes an entire class
+		// of injection/escaping hazards regardless of how downstream queries are written.
+		if strings.ContainsAny(path, "'\"\\\x00\n\r\t") {
+			return "", fmt.Errorf("path contains forbidden characters: %q", path)
+		}
 	}
 
 	return IRI("hm://" + account.String() + path), nil
@@ -164,8 +171,9 @@ const indexedHookBatchSize = 100
 //
 // The hook maintains derived state only (the RBSR index), so it runs off the
 // foreground write path on purpose: a slow or failing hook must never delay or
-// roll back the blobs themselves. Failures are logged and dropped; the
-// shadow-verify trickle repairs any resulting drift.
+// roll back the blobs themselves. Failed chunks are retried, and a chunk that
+// keeps failing demotes the materialized scopes so they rebuild lazily from
+// the ground truth — see applyIndexedHook.
 func (idx *Index) SetIndexedHook(fn func(*sqlite.Conn, []int64) error) {
 	idx.hookMu.Lock()
 	idx.indexedHook = fn
@@ -225,11 +233,19 @@ func (idx *Index) indexedHookWorker() {
 	}
 }
 
+// indexedHookMaxAttempts bounds the synchronous retries of one failed hook
+// chunk. Hook writes are idempotent (INSERT OR IGNORE, per-scope repairs), so
+// a retry is safe; failures are expected to be transient (writer contention,
+// disk pressure), so a couple of attempts recover most of them.
+const indexedHookMaxAttempts = 3
+
 // applyIndexedHook runs the registered hook over ids in chunked standalone
-// write transactions. A failed chunk is logged and dropped: the hook only
-// maintains the derived RBSR index, which the shadow-verify trickle repairs on
-// drift, and its writes are idempotent (INSERT OR IGNORE, per-scope repairs),
-// so retrying or aborting here would only add writer pressure.
+// write transactions. A failed chunk is retried a few times; a chunk that
+// still fails cannot simply be dropped — rbsr_item is persistent, so a lost
+// chunk would be a permanent hole in every already-materialized scope's
+// advertised set (the sweep only heals warm scopes, on a slow rotation). The
+// fallback demotes every materialized scope so each lazily re-materializes
+// from the ground truth on its next serve.
 func (idx *Index) applyIndexedHook(ids []int64) {
 	idx.hookMu.RLock()
 	fn := idx.indexedHook
@@ -239,14 +255,32 @@ func (idx *Index) applyIndexedHook(ids []int64) {
 	}
 
 	for chunk := range slices.Chunk(ids, indexedHookBatchSize) {
-		err := idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
-			return fn(conn, chunk)
-		})
-		if err != nil {
+		var err error
+		for attempt := 1; attempt <= indexedHookMaxAttempts; attempt++ {
+			err = idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+				return fn(conn, chunk)
+			})
+			if err == nil {
+				break
+			}
 			if errors.Is(err, sqlitex.ErrPoolClosed) {
 				return
 			}
+			// Retries stay synchronous so hookInFlight remains true and
+			// WaitIndexedHook keeps its "caught up" meaning for tests.
+			time.Sleep(time.Duration(attempt) * 100 * time.Millisecond)
+		}
+		if err != nil {
 			idx.log.Error("IndexedHookFailed", zap.Int64s("blobs", chunk), zap.Error(err))
+			// Plain SQL rather than a syncing-package helper: blob must not
+			// import syncing. rbsr_scope is part of the shared schema; the
+			// serve path (see rbsr_index.go) treats materialized = 0 as cold
+			// and rebuilds the scope from collectBlobs.
+			if merr := idx.db.WithTx(context.Background(), func(conn *sqlite.Conn) error {
+				return sqlitex.Exec(conn, `UPDATE rbsr_scope SET materialized = 0 WHERE materialized = 1;`, nil)
+			}); merr != nil && !errors.Is(merr, sqlitex.ErrPoolClosed) {
+				idx.log.Error("IndexedHookStaleMarkFailed", zap.Error(merr))
+			}
 		}
 	}
 }
@@ -535,14 +569,9 @@ func (idx *Index) ResolveLatest(ctx context.Context, resource IRI) (DocumentStat
 		return DocumentState{}, status.Errorf(codes.NotFound, "document not found: %s", resource)
 	}
 
-	visibility, err := dg.visibility()
-	if err != nil {
-		return DocumentState{}, err
-	}
-
 	out := DocumentState{
 		Generation: dg.Generation,
-		Visibility: visibility,
+		Visibility: dg.Visibility,
 		Heads:      make([]cid.Cid, 0, len(dg.Heads)),
 	}
 
@@ -581,7 +610,8 @@ func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg d
 		"dg.changes",
 		"dg.change_count",
 		"dg.authors",
-		"dg.metadata",
+		"dg.visibility",
+		"dg.visibility_timestamp",
 	).
 		From("document_generations dg", "resources r").
 		Where("r.id = dg.resource").
@@ -608,20 +638,9 @@ func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg d
 	}
 
 	// Check for redirects.
-	var hasRedirect bool
-	var targetIRI IRI
-	if rt, ok := dg.Metadata["$db.redirect"]; ok {
-		hasRedirect = true
-		var ok bool
-		targetIRI, ok = rt.Value.(IRI)
-		if !ok {
-			// Try string conversion as fallback
-			if s, ok := rt.Value.(string); ok {
-				targetIRI = IRI(s)
-			} else {
-				return dg, false, fmt.Errorf("invalid redirect target type: %T", rt.Value)
-			}
-		}
+	targetIRI, hasRedirect, err := readDocumentRedirect(conn, dg.ResourceID)
+	if err != nil {
+		return dg, false, err
 	}
 
 	// Check if it's a tombstone (deleted document).
@@ -655,21 +674,6 @@ func (idx *Index) resolveLatestGeneration(conn *sqlite.Conn, resource IRI) (dg d
 	return dg, true, nil
 }
 
-// visibility reads the generation's indexed visibility attribute.
-func (dg *documentGeneration) visibility() (Visibility, error) {
-	v, ok := dg.Metadata["$db.visibility"]
-	if !ok {
-		return "", nil
-	}
-
-	s, ok := v.Value.(string)
-	if !ok {
-		return "", fmt.Errorf("invalid visibility type: %T", v.Value)
-	}
-
-	return Visibility(s), nil
-}
-
 // iterChangesLatest iterates over changes for a given resource for the latest generation.
 func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.Seq[ChangeRecord], check func() error) {
 	var outErr error
@@ -691,12 +695,6 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 		}
 
 		if !found {
-			return
-		}
-
-		visibility, err := dg.visibility()
-		if err != nil {
-			outErr = err
 			return
 		}
 
@@ -747,7 +745,7 @@ func (idx *Index) iterChangesLatest(ctx context.Context, resource IRI) (it iter.
 				CID:        chcid,
 				Data:       ch,
 				Generation: dg.Generation,
-				Visibility: visibility,
+				Visibility: dg.Visibility,
 			}
 
 			if !yield(rec) {
@@ -861,7 +859,8 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 			"dg.changes",
 			"dg.change_count",
 			"dg.authors",
-			"dg.metadata",
+			"dg.visibility",
+			"dg.visibility_timestamp",
 		).
 			From("document_generations dg", "resources r").
 			Where("r.id = dg.resource").
@@ -959,10 +958,7 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 				CID:        chcid,
 				Data:       ch,
 				Generation: dg.Value().Generation,
-			}
-
-			if v, ok := dg.Value().Metadata["$db.visibility"]; ok {
-				rec.Visibility = Visibility(v.Value.(string))
+				Visibility: dg.Value().Visibility,
 			}
 
 			if !yield(rec) {
@@ -2280,10 +2276,13 @@ func (l *LookupCache) DocumentTitle(iri IRI) (title string, ok bool, err error) 
 }
 
 var qLookupDocumentTitle = dqb.Str(`
-	SELECT COALESCE(metadata->>'$.name.v', metadata->>'$.title.v')
-	FROM document_generations
-	WHERE resource = (SELECT id FROM resources WHERE iri = :iri)
-	GROUP BY resource HAVING generation = MAX(generation)
+SELECT da.value
+FROM document_attributes da
+JOIN document_attribute_keys dak ON dak.id = da.key
+WHERE da.resource = (SELECT id FROM resources WHERE iri = :iri)
+AND dak.key IN ('name', 'title') AND da.kind = 's'
+ORDER BY CASE dak.key WHEN 'name' THEN 0 ELSE 1 END
+LIMIT 1
 `)
 
 // PublicKey returns the public key by the internal database ID.
@@ -2461,7 +2460,7 @@ var qGetSiteURL = dqb.Str(`
 	SELECT site_url
 	FROM (
 		SELECT
-			COALESCE(dg.metadata->>'$.siteUrl.v', '') AS site_url,
+			COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'siteUrl') AND da.kind = 's'), '') AS site_url,
 			dg.is_deleted AS is_deleted
 		FROM document_generations dg
 		JOIN resources r ON r.id = dg.resource
@@ -2498,7 +2497,7 @@ var qGetDocumentVisibility = dqb.Str(`
 	SELECT visibility
 	FROM (
 		SELECT
-			COALESCE(dg.metadata->>'$."$db.visibility".v', '') AS visibility,
+			COALESCE(dg.visibility, '') AS visibility,
 			dg.is_deleted AS is_deleted
 		FROM document_generations dg
 		JOIN resources r ON r.id = dg.resource

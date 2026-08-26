@@ -301,6 +301,15 @@ enum ContentTypeFilter {
   CONTENT_TYPE_CONTACT = 3;
 }
 
+// Kind of entity returned by search, independently of which content matched.
+enum EntityKindFilter {
+  ENTITY_KIND_UNSPECIFIED = 0;
+  ENTITY_KIND_SPACE = 1;
+  ENTITY_KIND_DOCUMENT = 2;
+  ENTITY_KIND_COMMENT = 3;
+  ENTITY_KIND_CONTACT = 4;
+}
+
 // Request to search entities.
 message SearchEntitiesRequest {
   // Query to find. We support wildcards and phrases.
@@ -348,6 +357,10 @@ message SearchEntitiesRequest {
 
   // Optional. Token from a previous SearchEntitiesResponse to get the next page.
   string page_token = 11;
+
+  // Optional. Restricts the kinds of entities returned by search.
+  // A space is represented by its root document.
+  repeated EntityKindFilter entity_kind_filter = 12;
 }
 
 // A list of entities matching the request.

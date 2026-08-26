@@ -2814,7 +2814,9 @@ type DomainInfo struct {
 	// The peer ID of the domain's node.
 	PeerId string `protobuf:"bytes,6,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
 	// Error details from the last failed check.
-	LastError     string `protobuf:"bytes,7,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	LastError string `protobuf:"bytes,7,opt,name=last_error,json=lastError,proto3" json:"last_error,omitempty"`
+	// Whether the domain is a public gateway that serves canonical /hm/* URLs.
+	IsGateway     bool `protobuf:"varint,8,opt,name=is_gateway,json=isGateway,proto3" json:"is_gateway,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2896,6 +2898,13 @@ func (x *DomainInfo) GetLastError() string {
 		return x.LastError
 	}
 	return ""
+}
+
+func (x *DomainInfo) GetIsGateway() bool {
+	if x != nil {
+		return x.IsGateway
+	}
+	return false
 }
 
 var File_daemon_v1alpha_daemon_proto protoreflect.FileDescriptor
@@ -3038,7 +3047,7 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\x13RemoveDomainRequest\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\",\n" +
 	"\x12CheckDomainRequest\x12\x16\n" +
-	"\x06domain\x18\x01 \x01(\tR\x06domain\"\xa4\x02\n" +
+	"\x06domain\x18\x01 \x01(\tR\x06domain\"\xc3\x02\n" +
 	"\n" +
 	"DomainInfo\x12\x16\n" +
 	"\x06domain\x18\x01 \x01(\tR\x06domain\x129\n" +
@@ -3049,7 +3058,9 @@ const file_daemon_v1alpha_daemon_proto_rawDesc = "" +
 	"\x16registered_account_uid\x18\x05 \x01(\tR\x14registeredAccountUid\x12\x17\n" +
 	"\apeer_id\x18\x06 \x01(\tR\x06peerId\x12\x1d\n" +
 	"\n" +
-	"last_error\x18\a \x01(\tR\tlastError*0\n" +
+	"last_error\x18\a \x01(\tR\tlastError\x12\x1d\n" +
+	"\n" +
+	"is_gateway\x18\b \x01(\bR\tisGateway*0\n" +
 	"\x05State\x12\f\n" +
 	"\bSTARTING\x10\x00\x12\r\n" +
 	"\tMIGRATING\x10\x01\x12\n" +

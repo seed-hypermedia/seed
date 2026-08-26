@@ -10,7 +10,13 @@
  * closing over the host's editor accessor + universal client + signer factory.
  */
 
-import {createGenesisChange, createVersionRef, signDocumentChange} from '@seed-hypermedia/client'
+import {
+  createGenesisChange,
+  createVersionRef,
+  followToDocument,
+  signDocumentChange,
+  type SeedClient,
+} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import type {
@@ -240,7 +246,15 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
       : hmBlocksToEditorContent(draft.content ?? [], {childrenType: 'Group'})
 
   const resource = await deps.client.request('Resource', deps.docId)
-  const editDocument = resource.type === 'document' ? resource.document : null
+  // A path holding a redirect Ref (a republished or moved document) is edited by taking it over:
+  // the baseline is the redirect target's document — the same content the editor was seeded with —
+  // and the fresh generation minted below supersedes the redirect Ref at this path.
+  const editDocument =
+    resource.type === 'document'
+      ? resource.document
+      : resource.type === 'redirect'
+        ? (await followToDocument(deps.client as unknown as SeedClient, deps.docId)).document
+        : null
   const isPrivate = draft.visibility === 'PRIVATE' || editDocument?.visibility === 'PRIVATE'
   const currentPath = deps.docId.path ?? []
   const isPlaceholderPath = isWebDraftPlaceholderPath(currentPath, draft.draftId)

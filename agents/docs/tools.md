@@ -1,531 +1,536 @@
 # Tools
 
-Agent tools allow a model to request external work during a session. Tool calls and results are persisted as durable
-session events and shown in the desktop chat log.
+An agent's entire model-facing tool surface is **five verbs**: `read`, `write`, `call`, `delegate`, `plan`. Everything
+else — searching, the web, code execution, an agent's own authored tools — is either an address form of a verb or a
+**callable tool** dispatched through `call`. Tool calls and results are persisted as durable, actor-stamped session
+events and rendered in the desktop log.
 
-## Unified registry
+## The registry
 
-The canonical tool registry lives at `agents/protocol/src/tool-registry.ts`. It is shared by the standalone Agents
-service and the desktop local assistant. Each entry owns the model-facing name, label, prompt description, JSON input
-schema, optional output schema slot, runtime availability, visibility/configurability flags, and chat-rendering
-metadata. Server runtimes add only tool-specific execution functions around those registry entries, and chat UIs choose
-their bubble renderer from the same registry metadata. Desktop-only actions such as `navigate` are marked for the local
-assistant runtime and are not exposed by the agent service.
+The canonical registry lives at `agents/protocol/src/tool-registry.ts`. The Agents service executes from it and the
+desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction can never drift
+apart. It exports three tables:
 
-## Current tools
+- `seedVerbRegistry` — the five verbs plus the hidden `return_result` mechanism. This is the **only** provider-facing
+  toolset (`agents/protocol/src/tool-registry.ts:398`).
+- `callableToolRegistry` — `search`, `web_search`, `navigate`, `execute`. These are never handed to the provider as
+  tools by default; `call` dispatches them (`tool-registry.ts:613`).
+- `seedToolRegistry` — both, merged, for renderers and validation lookups (`tool-registry.ts:630`).
 
-User-configurable tools:
+Each entry owns the model-facing name, label, prompt description, JSON input schema, optional output schema, runtime
+availability (`assistant` / `agent-service`), rendering metadata, and an optional `getReferencedUrls` extractor used to
+sync `hm://` resources a call touched. Write results include document versions and comment/target URLs in this
+extraction so an open desktop session can keep newly published content subscribed on its local node before the user
+follows the result link. Server runtimes add only execution functions around registry entries; chat UIs pick their
+bubble renderer from the same metadata.
 
-```text
-read
-list_activity_feed
-web_search
-web_read
-write
-memory_list
-memory_read
-memory_write
-memory_delete
-memory_download
-ipfs_read
-ipfs_write
-attachment_to_memory
-attachment_to_ipfs
-execute_code
-```
+`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it: `serviceCallableNames()`
+(`agents/src/api-service.ts:285`) filters on `runtimes.includes('agent-service')`, leaving the service's callable set as
+`search`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` is currently inert
+— it is kept as the registry entry a desktop-side executor would bind to.
 
-`read` is available by default for existing agents whose saved definition omits `tools`. Agents with an explicit `tools`
-array can enable or disable user-configurable tools from the autosaving desktop Tools tab. The local desktop assistant
-also uses the same `read` model-facing API; the old local `read` name is only a legacy chat history rendering alias.
+### Legacy names
 
-Always-available runtime tools (not stored in agent `tools`):
+`normalizeSeedToolName()` maps exactly one renamed callable: `execute_code` → `execute` (`tool-registry.ts:642`). Names
+that were absorbed into verbs — `memory_*`, `web_read`, `ipfs_*`, `attachment_*`, `list_activity_feed`, the old spawn
+tools, `update_plan`, `set_session_title` — have **no** alias on purpose. The verbs are always on, so those entries in a
+stored `tools` array are simply inert.
 
-```text
-view_attachment
-set_session_title
-```
+## Tools are documents
 
-`set_session_title` is always available to the model but is not stored in agent `tools`, shown in the desktop Tools tab,
-or rendered as a durable tool call/result in chat. The system prompt tells the model to set a concise one-line title
-when the conversation purpose becomes clear and to update it if that purpose changes.
-
-Near-term project: augment `read` into the general SHM read/query path rather than ignoring it or replacing it blindly.
-A future model-facing `query` alias may be added, but existing `read` behavior must remain compatible.
-
-## Tool lifecycle
-
-1. Server registers Seed-approved tools with the Pi SDK.
-2. Pi calls the model with tool definitions.
-3. Model returns assistant text and tool call deltas/final tool calls.
-4. Pi emits assistant `message_end` before tool execution; the server appends any assistant text from that turn as a
-   durable `message` event.
-5. Pi emits tool execution events.
-6. Server appends durable `tool_call` event for visible tools.
-7. Server executes the Seed-owned tool implementation through Pi.
-8. Server appends durable `tool_result` event for visible tools.
-9. Pi sends result back to the model as a tool message.
-10. Model continues until final assistant text is produced; each later assistant turn is also appended at `message_end`.
-
-Hidden tools can perform server-side state changes without visible `tool_call`/`tool_result` events. Today this applies
-only to `set_session_title`, whose state change is surfaced through normal session-change/account-change events.
-
-On later turns, Seed reconstructs durable assistant text and consecutive `tool_call` events as a single Pi assistant
-message before their matching `tool_result` messages. This keeps provider replay valid for APIs such as OpenAI chat
-completions, which reject orphaned `tool` messages and expect multi-tool batches to remain grouped.
-
-## Event shapes
-
-Tool call:
+Every tool an agent holds is a content-addressed document in its Space, stored per agent in the `tool_documents` table
+(`agents/src/tool-documents.ts`). A document's CID is computed over its canonical DAG-CBOR encoding — the same encoding
+the hypermedia network uses for blobs — so "what exactly can this agent run" is always answerable, and publishing a tool
+to the network later means publishing bytes that already exist.
 
 ```ts
-{
-  type: 'tool_call'
-  id: string
+type ToolDocument = {
   name: string
-  input: unknown
+  kind: 'builtin' | 'lambda'
+  summary: string // one line, for the Space index and ~/tools listing
+  description: string // full model-facing instructions
+  input: JsonSchema
+  output?: JsonSchema
+  source?: string // lambda source
+  runtime?: 'typescript' | 'python' // lambda language, default typescript
+  binding?: string // builtin executor id, bound at boot
 }
 ```
 
-Tool result:
+- **Builtins** are documents whose implementation is a runtime binding. `ensureBuiltinToolDocuments()` materializes and
+  refreshes them per agent; rows are rewritten only when the registry contract changed (CID differs), so a forked
+  builtin keeps its binding while its divergence from the shipped contract shows as a different CID
+  (`tool-documents.ts:114`).
+- **Lambdas** are authored by the agent: `write ~/tools/<name>` with JSON content. Validation
+  (`saveLambdaToolDocument()`, `tool-documents.ts:188`): names match `/^[a-z][a-z0-9_-]{1,63}$/`, a builtin or verb name
+  cannot be replaced, a description is required (≤ 16 KiB), source is required (≤ 256 KiB), and both schemas must pass
+  `validateJsonSchemaShape`. `write ~/tools/<name>` with `{delete: true}` removes an authored tool; builtins refuse
+  deletion and point at the agent's grants instead.
+
+`ListAgentTools` returns the desktop's view of the same documents — name, kind, summary, description, schemas, `source`,
+`runtime`, `cid`, `enabled`, and `granted` (whether the agent's grant set actually offers it). Writers can also use
+`SaveAgentTool` and `DeleteAgentTool` from the Tools tab. The save action creates or updates every editable field and
+can rename an existing authored tool atomically; it refuses to overwrite another tool. Builtins remain read-only.
+
+## The Space index
+
+Every system prompt carries a compact `<space>` block built by `buildSpaceIndex()`: one line per enabled tool document
+(`- name — summary`, authored tools tagged `(authored)`), a one-line memory top-level summary, and a triggers line that
+names active triggers and advertises the `read ~/triggers/` / `write ~/triggers/<name>` affordance even when no triggers
+exist — so an agent asked "do this every morning" knows it can create the automation. It is cached per
+`(account, agent, callable set)` and invalidated on memory, tool, or trigger writes. Over `SPACE_INDEX_BUDGET_BYTES`
+(2048) the per-tool lines collapse to a count, so the index stays honest but tiny.
+
+The point is that the agent always knows what it _could_ expand without paying for every contract up front.
+
+## Touch-expand and promotion
+
+`call` never punishes a miss. Calling an unknown tool returns the `~/tools` listing; calling a known tool with input its
+schema rejects returns **the tool's contract** as the result, plus the validation errors, so the retry succeeds
+(`executeCallVerb`, `api-service.ts:7794`).
+
+Once a tool's contract has entered the transcript — an agent `read` of `~/tools/<name>`, or any `call` by that name —
+the tool is **promoted** to a first-class provider tool for the rest of the thread. Promotion is derived purely from
+durable `tool_call` events (`expandedCallablesFromEvents()`, `api-service.ts:7221`), so resume, park, restart, and
+compaction all reconstruct the same set. Events with actor `user` are skipped: a user's palette call must not silently
+reshape the agent's active toolset.
+
+Promotion is intersected with the agent's enabled callables before anything reaches Pi (`api-service.ts:4322`):
 
 ```ts
-{
-  type: 'tool_result'
-  toolCallId: string
-  name: string
-  output?: unknown
-  error?: string
-}
+const expandedCallables = this.#expandedCallablesForSession(sessionId)
+  .map(normalizeSeedToolName)
+  .filter((name) => enabledCallables.includes(name))
 ```
 
-Tool failures should usually become `tool_result.error` so the model can respond gracefully.
+This filter is load-bearing security, not tidiness: a hallucinated `call {tool: 'bash'}` durably stores that name, and
+an unfiltered allowlist would hand `bash` to Pi, activating Pi's own host builtins outside the sandbox.
 
-## `set_session_title`
+## Grants
 
-Input:
+Verbs are never grants — they are always on. Two things are granted per agent, both through `definition.tools`:
+
+- **The callable set.** `enabledCallableTools()` (`api-service.ts:304`) intersects the service callables with
+  `definition.tools` (normalized, unknown names ignored); an undefined `tools` array grants all of them. `execute` drops
+  out silently when the host cannot run sandboxes, so the model never sees a tool that can only fail.
+- **Publish.** `publishGrantEnabled()` (`api-service.ts:299`) is the pseudo-tool name `publish` in `definition.tools`.
+  Legacy write-group names (`write`, `memory_publish_document`, `ipfs_write`, `attachment_to_ipfs`) still count, so a
+  pre-verbs agent keeps exactly the publishing posture its owner configured; an undefined `tools` array publishes.
+  Without it, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts:7454`, `api-service.ts:7499`). Memory writes
+  are never gated.
+
+Definition limits: at most 32 tool names, 128 bytes each, 4 KiB total (`api-service.ts:106`).
+
+---
+
+## `read`
+
+One dispatcher over every address form (`executeReadVerb`, `api-service.ts:7250`).
 
 ```ts
-type SetSessionTitleInput = {
-  title: string
+type ReadInput = {
+  address: string
+  format?: 'markdown' | 'json'
+  options?: Record<string, unknown>
 }
 ```
 
-The title is normalized with the same bounded session-title validation used by the public `UpdateSession` action. Agent
-writes mark the row as agent-authored. If a user has manually edited the title through `UpdateSession`, the session row
-is marked user-authored and later `set_session_title` calls are ignored so the manual title always wins.
+| address             | behavior                                                                                                                                                                                                             |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/memory/<path>`   | file content, or a directory listing (`{entries: [{path, type, size}]}`) for a directory address                                                                                                                     |
+| `~/tools/<name>`    | one tool's full contract as markdown; `~/tools/` alone lists everything callable                                                                                                                                     |
+| `~/triggers/<name>` | one trigger — source, prompt markdown, status, continuation, recent firings; `~/triggers/` lists all, with the write contract inline                                                                                 |
+| `~/self`            | the agent's own record: definition (name, model, provider, reasoning level, system prompt), grants, signing-key names, triggers, memory summary, session count, and guidance on what it can change itself            |
+| `hm://…`            | a hypermedia document or comment, markdown by default                                                                                                                                                                |
+| `ipfs://<cid>`      | fetches through the configured `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it                                                                                                               |
+| `https://…`         | resolved as hypermedia first, then read as a web page                                                                                                                                                                |
+| `activity:`         | the activity feed via `ListEvents`, filtered by `options`                                                                                                                                                            |
+| `attachment:<id>`   | a session-private attachment (images are returned as image content to vision models)                                                                                                                                 |
+| `thread:<id>`       | a conversation transcript (its last 200 events) rendered as markdown                                                                                                                                                 |
+| `thread:`           | lists the account's conversations, newest first; `options.query` searches titles plus a bounded scan (4000 most recent events) of message text with snippets, `options.agentId` filters, `options.limit` caps at 100 |
+| `run:<id>`          | a run's public record, plus `sourceText` for script runs                                                                                                                                                             |
 
-## `list_activity_feed`
+Unrecognized addresses fail with the supported list (`api-service.ts:7350`).
 
-Input:
+`thread:` and `run:` are scoped by **account**, not by agent (`readThreadAddress`, `threadsListing`, `readRunAddress`).
+One agent can list, search, and read the transcripts and runs of every other agent on the same account — deliberate, so
+an agent asked "what did my research agent find yesterday?" can answer (see `security.md`).
+
+**Tool contracts.** A read of `~/tools/<name>` resolves verbs from the registry and everything else from the agent's
+tool documents. A builtin the agent has not been granted reads as "no tool named …" plus the listing, so grants are not
+discoverable by probing. `contractMarkdownForThisServer()` (`api-service.ts:7641`) narrows the `execute` contract to the
+runtimes this server can actually run and says so — the contract a model reads is the one it can call.
+
+**Web escalation.** An `https://` address is tried as hypermedia first. It falls through to the web reader only when the
+resolver explicitly says not-hypermedia, or the resource 404s. Every other failure — transient daemon errors, too-large,
+network — surfaces, so scraped page HTML is never silently substituted for a document's real content
+(`api-service.ts:7332`).
+
+**Web reading tiers.** `executeWebRead` (`agents/src/web-tools.ts:371`) runs a cheapest-first chain and returns the
+first tier yielding ≥ 200 characters: (1) **MediaWiki API** for wiki-shaped URLs, probing the host once via
+`api.php?meta=siteinfo` (cached per host) and fetching Parsoid HTML; (2) **in-process static extraction** — plain
+`fetch`, Mozilla Readability on a `linkedom` DOM, Turndown to markdown; (3) **Crawl4AI** (`POST /md`, Bearer token) when
+`SEED_AGENTS_CRAWLER_URL` is configured, the backstop for JS-heavy and anti-bot pages. `options.raw: true` skips the
+chain entirely and returns the response body verbatim (text content types only). Markdown is bounded to 200 KiB,
+truncated on a byte boundary.
+
+**Hypermedia output.** Markdown output resolves Seed embeds before returning: inline `Embed` annotations render as
+human-readable account/document labels, block `Embed` nodes inline the embedded markdown including block-fragment zooms.
+Block-level links must quote an exact `<!-- id:BLOCK_ID -->` marker copied from a read result — the shared assistant
+prompt states this, and re-reading after a write is required because block IDs may change.
+
+**Address resolution.** Hypermedia reads go through the shared client resolver, not bespoke parsing:
+`resolveIdWithClient()` from `frontend/packages/client/src/resource-read.ts`, given a `domainResolver` backed by the
+read-only Seed `GetDomain` request. That covers pasted clean web-domain URLs, `hm:`/`hm://` IDs, block fragments, and
+comment view URLs alike; `:profile` paths branch to the profile reader, `/:attributes` is stripped into an
+attributes-only read, and `/:directory` branches to a Children `Query` listing of the id's child documents (trimmed to
+plain JSON-safe entries: id, path, name, summary, updateTime, childrenCount). Bare `hm://` addresses read from the
+service's configured HM server (`SEED_AGENTS_HM_SERVER_URL` — the local node in every desktop environment), exactly as
+`write` publishes; explicit gateway/site URLs read from the URL's own origin. There is no cross-server fallback: a
+document the configured server does not have is a `not-found`, never a silent read from a public gateway. Every
+read-path request carries a 30s deadline so a wedged server fails the tool call instead of hanging the session's run.
+The result keeps both `requestedId` (what was asked for) and `id` (the canonical hm:// URL). The agent never shells out
+to `seed-cli`.
+
+## `write`
+
+The mirror of `read` (`executeWriteVerb`, `api-service.ts:7357`).
 
 ```ts
-type ListActivityFeedInput = {
-  pageSize?: number
-  pageToken?: string
-  trustedOnly?: boolean
-  filterAuthors?: string[]
-  filterEventType?: string[]
-  filterResource?: string
+type WriteInput = {
+  address: string
+  content?: string
+  options?: Record<string, unknown>
+  dryRun?: boolean
 }
 ```
 
-`list_activity_feed` reads recent SHM activity from the gRPC-compatible `ActivityFeed/ListEvents` path. It is useful for
-observing new or recent content without knowing exact document URLs. The desktop assistant executes it through the local
-daemon gRPC client; the agent service executes it through the configured HM server `ListEvents` request scoped to the
-signed agent account.
+`dryRun` is a flag on the call itself, not destination data, so it lives at the top level rather than in `options`. It
+is strict: a non-boolean value is a 400 (never a silent real publish), and it applies only to `hm://` writes — every
+command handler early-returns an echo of what would be published before `client.publish` is reached. Passing it on a
+memory/tools/ipfs write is refused rather than ignored.
 
-Supported filters mirror `ListEvents`:
+- **`~/memory/<path>`** — writes `content`, creating parent directories; writing an existing file replaces it whole
+  (there is no append). `options.delete` removes a file or directory, `options.fromUrl` downloads a URL to the path,
+  `options.fromAttachment` saves a session attachment to it.
+- **`~/tools/<name>`** — authors a tool. `content` is JSON `{description, input, output?, source, runtime?}` (or
+  `options.tool` as an object); the name comes from the address. Non-JSON content fails with that exact shape as the
+  message. `options.delete` deletes an authored tool. Both paths emit the memory-change event, so the desktop Tools tab
+  updates live.
+- **`~/triggers/<name>`** — creates or edits a trigger (`writeTriggerAddress`). `content` is JSON
+  `{source, prompt, enabled?, continuation?}` (or `options.trigger` as an object); the name comes from the address and a
+  name inside the content cannot retarget the write. Sources and continuations are validated by the same normalizers the
+  signed CRUD actions use. `enabled` is honored as written and defaults to true, so the agent enables, disables, and
+  retires its own automations directly (see the threat-model note in `security.md`). Names are not unique, so an
+  ambiguous name is refused with the matching ids; addressing by id works too. `options.delete` removes a trigger.
+  Writes emit `trigger-updated` account events, so the desktop Triggers tab updates live.
+- **`ipfs://`** — publishes `options.fromPath` (a memory file) or `options.fromAttachment` by chunking it into UnixFS
+  blocks with the shared client helper and sending those blocks through `PublishBlobs` on the typed HM API; it returns
+  the root `ipfs://<cid>` URL. This deliberately does not depend on a server-specific `/ipfs/file-upload` route.
+  `SEED_AGENTS_IPFS_SERVER_URL` selects only the gateway used by `read ipfs://…`, defaulting to the HM API origin.
+  Requires the publish grant. Publishing makes the file publicly retrievable.
+- **`hm://<account>/<path>`** — publishes signed hypermedia. Requires the publish grant.
 
-- `pageSize` limits the number of newest events returned; use small values such as 5-20 for exploration;
-- `pageToken` continues from a previous `nextPageToken`;
-- `trustedOnly` asks the daemon/server to apply trusted-source filtering;
-- `filterAuthors` restricts events to one or more author account UIDs;
-- `filterEventType` can include values such as `Ref`, `Comment`, `Capability`, `Contact`, `Profile`, `DagPB`,
-  `comment/Embed`, `comment/Link`, `comment/Target`, `doc/Embed`, `doc/Link`, and `doc/Button`;
-- `filterResource` restricts results to an HM resource, and daemon/server implementations may support prefix forms such
-  as `hm://account/path*` for path-related activity.
+Hypermedia writes map `options.action` onto the CLI-parity command envelope (`api-service.ts:7528`): the default
+`document` → `document.create`, plus `update`, `comment` (with `target`/`replyTo`), `move` (`toPath`), `redirect`
+(`toUrl`), `delete`, and `fork` (`fromUrl`). For `update` the write address **is** the edit target — the envelope fills
+`input.edit` from it ("same address, new version"), so the target is never spellable as a separate option. An update
+with `content` replaces the whole document body; an update with no `content` at all is metadata-only and leaves the body
+untouched (it never diffs against an empty tree, which would delete every block). Any dotted action passes through as a
+raw command — `draft.create`, `profile.update`, `contact.create`, `capability.grant`, and the rest — with the address
+filling account/path. Extra command fields ride **only** in `options.input`, never as loose option keys, because the
+command handlers accept aliases (`reply`, `commentId`, `name`, …) and a stray key silently changing the operation is a
+real hazard.
 
-The result includes a summary, loaded/resolved events where supported by the runtime, and `nextPageToken` for
-pagination.
+An unrecognized loose option key is **refused with a 400 naming the key and the supported set**, never silently dropped.
+This is enforced per address form (`assertKnownWriteOptions`), and it exists because of a real failure: a model passed
+`{metadata}` before the envelope knew that key, the write "succeeded", and the document published with the metadata
+missing — the model's only recourse was to fake it in the body text. A loud refusal is a contract the model can read and
+self-correct from; a silent drop is not. Retired spellings get a migration hint in the refusal
+(`RETIRED_WRITE_OPTION_HINTS`): `title` points at `name`/`metadata.name`, `dryRun` points at the top-level field.
 
-## Web research tools (`web_search`, `web_read`)
+Other write behavior worth knowing:
 
-`web_search` and `web_read` give agents access to the public web. They are fully self-hosted and use no third-party API
-keys. Implementation lives in `agents/src/web-tools.ts`; configuration lives in `agents/src/config.ts` under `web`
-(`SEED_AGENTS_SEARXNG_URL`, `SEED_AGENTS_CRAWLER_URL`, `SEED_AGENTS_CRAWLER_TOKEN`). The config is threaded through
-`Service` into the tool context, exactly like `hmServerUrl`.
+- There is no separate "title" anywhere in the document model: the document's name **is** `metadata.name`, and
+  `options.name` is shorthand for it. A markdown `#` heading is body content, not the name.
+- `document.create` (and `draft.create`) **require a name** — from `options.name`, `metadata: {name}`, or content
+  frontmatter (`name:`, with `title:` accepted by the shared markdown parser as a backward-compat alias). A nameless
+  create is refused; nothing publishes as "Untitled" anymore.
+- `options.metadata` (document/update and dotted document-shaped commands) is an object of document metadata attributes
+  merged into the document's metadata — `{summary, icon, cover, …}` or custom keys. It merges over markdown frontmatter
+  metadata, and `options.name` wins for `name`.
+- `options.signer` picks the identity by `profileName` or `publicKey` from the agent's selected signing keys.
+- `options.fromPath` on an `hm://` address publishes a memory markdown file (frontmatter + resolved images) through the
+  dedicated pipeline; path `/` derives the document path from the file's frontmatter name.
+- `document.create` refuses a nested path whose parent is not already published; top-level paths are always allowed.
+  This is enforced server-side, including in `dryRun`.
+- Root-level `server`/`dev` are accepted only when they resolve to the configured agent HM server. Publishing always
+  uses that server, never an arbitrary model-selected one (`api-service.ts:7953`).
+- `path: "/"` means the account home document and is published as the canonical empty HM path.
+- Tables round-trip through markdown as GFM tables carrying identity comments (shared dialect in
+  `frontend/packages/client/src/markdown-to-blocks.ts` / `blocks-to-markdown.ts`): a standalone `<!-- id:… -->` line
+  before the table (the Table block), `<!-- col:… -->` inside each header cell (TableColumn identity — column order and
+  reorders follow these), and `<!-- id:… -->` inside each row's last cell (TableRow identity — in-cell so every line
+  keeps the delimiter row's cell count; strict GFM refuses tables whose header cell count disagrees, and the parser
+  still accepts the legacy after-the-final-pipe placement). Cell block ids never appear: on update,
+  `rebindTableIdentities` re-derives each cell as (row id, column id) against the old document, so cell history and
+  anchored comments survive edits. Columns whose comments were dropped still match by header text, then position.
+  Attributes markdown cannot express (column width, header column) carry over from the old blocks. Plain GFM tables with
+  no comments create fresh tables. `\|` escapes a pipe, `<br>` is a newline inside a cell; a headerless HM table emits
+  an all-empty header row and parses back headerless.
+- Hypermedia content is bounded at 256 KiB (`MAX_WRITE_CONTENT_BYTES`): `normalizeWriteContent()`
+  (`api-service.ts:9072`) rejects oversized document and comment bodies, and publishing a memory file refuses the same
+  ceiling (`api-service.ts:8861`). Memory writes themselves are unbounded — see the note in `security.md`.
 
-These are distinct from the Hypermedia `search`/`read` tools: `search`/`read` operate on the Seed network, while
-`web_search`/`web_read` operate on the public internet. Tool descriptions instruct the model to use the Seed tools for
-`hm://` and Seed site URLs and the web tools for arbitrary internet pages.
+## `call`
+
+```ts
+type CallInput = {tool: string; input?: object}
+```
+
+Dispatch order in `executeCallVerb` (`api-service.ts:7794`):
+
+1. Resolve the name through `normalizeSeedToolName` and the registry. For `execute`, swap in the server-narrowed
+   contract.
+2. If it is not a granted builtin, look for an enabled **lambda** document of that name and run it.
+3. Otherwise return the `~/tools` listing with a "no callable tool named …" summary.
+4. Validate `input` against the tool's schema; on failure return the contract (touch-expand).
+5. Execute: `search` → `executeAgentServiceSearch`, `web_search` → `executeWebSearch`, `execute` → the sandbox.
+
+Promoted callables are exposed as real provider tools that route back through the same function
+(`createAgentServicePiTools`, `api-service.ts:7869`), so a promoted tool and a `call` of it behave identically — same
+validation, same narrowing, same executor.
+
+### `search`
+
+Seed hypermedia search: document titles, contacts, optionally bodies and comments. Input
+`{query, accountUid?, includeBody?, contextSize?, searchType?: 'keyword' | 'semantic' | 'hybrid', pageSize?}`. Returns
+ranked results with hm:// URLs.
 
 ### `web_search`
 
-Input:
+Backed by a self-hosted **SearXNG** instance (`GET /search?format=json`), no third-party API keys. SearXNG has no index
+of its own; it federates public engines. Because engines rate-limit datacenter IPs, `executeWebSearch`
+(`web-tools.ts:180`) inspects `unresponsive_engines` and, when the first query returns nothing but engines were
+unavailable, retries once against a fallback engine set. Throws (becomes `tool_result.error`) when no `searxngUrl` is
+configured.
+
+The implementation speaks the registry contract exactly: `timeRange` in (forwarded to SearXNG as its own `time_range`
+query param) and a `partial` boolean out when engines were unavailable, with the affected engines named in the markdown.
+(Both sides drifted once — the audit caught it, fixed in `0d877e3a1` with a test pinning the round-trip.)
+
+### `execute`
+
+Runs TypeScript, Python, or shell code in a hardware-isolated microVM with the agent's memory bind-mounted at
+`/workspace`, which is also the working directory (`agents/src/code-exec.ts`).
 
 ```ts
-type WebSearchInput = {
-  query: string
-  count?: number // default 10, max 25
-  category?: 'general' | 'news' | 'science' | 'it'
-  time_range?: 'day' | 'week' | 'month' | 'year'
-  language?: string // default 'en'
-}
-```
-
-Backend: a self-hosted **SearXNG** instance queried at `GET /search?format=json`. SearXNG has no index of its own; it
-federates public search engines. Because engines rate-limit datacenter IPs, the tool inspects `unresponsive_engines`
-and, when the first query returns no results but engines were unavailable, retries once with a different engine set. The
-result includes a `degraded` flag and `unavailableEngines` so the model knows when coverage was partial. `web_search`
-throws (becomes `tool_result.error`) when no `searxngUrl` is configured.
-
-Output: `{summary, query, results: [{title, url, snippet, engine}], degraded, unavailableEngines, markdown}`.
-
-### `web_read`
-
-Input:
-
-```ts
-type WebReadInput = {
-  url: string // http(s) only
-  query?: string // optional focus; enables BM25 filtering when browser rendering is used
-  raw?: boolean // return the verbatim response body instead of extracted markdown
-}
-```
-
-By default `web_read` uses a tiered, cheapest-first reader chain and returns the first tier that yields substantial
-content (`>= 200` characters):
-
-1. **MediaWiki API** — when the URL looks like a wiki page (`/wiki/Title` or `?title=Title`), the host is probed once
-   via `api.php?meta=siteinfo` (cached per host) and, if it is MediaWiki, the page is fetched as Parsoid HTML from the
-   REST endpoint `{scriptpath}/rest.php/v1/page/{title}/html` and converted to markdown. No browser, highest quality for
-   wikis.
-2. **In-process static extraction** — a plain `fetch` of the URL, then Mozilla Readability (`@mozilla/readability` on a
-   `linkedom` DOM) extracts the main article and Turndown converts it to markdown. Runs entirely inside the Bun process;
-   no extra container. Readability throwing or returning thin content escalates to the next tier.
-3. **Crawl4AI** — when configured (`SEED_AGENTS_CRAWLER_URL`), the URL is rendered by a self-hosted Crawl4AI headless
-   browser via `POST /md` (Bearer `SEED_AGENTS_CRAWLER_TOKEN`). This is the reliability backstop for JS-heavy/SPA and
-   anti-bot pages, and for hosts where Bun's `fetch` fails. One retry covers transient browser hiccups.
-
-If the crawler is not configured, `web_read` relies on the MediaWiki and static tiers only. When every tier fails it
-throws a clean error naming the tiers tried.
-
-When `raw` is true, `web_read` skips the tiered reader entirely: it does a single direct fetch and returns the response
-body verbatim (HTML, JSON, source code, plain text), bounded to the size limit. Binary content types are rejected. This
-is the path for reading source files (e.g. `raw.githubusercontent.com`), JSON APIs, and config files where main-content
-extraction would lose information. `source` is then `raw` and the result includes `contentType`.
-
-Output:
-`{summary, url, finalUrl, title, source: 'mediawiki' | 'static' | 'crawl4ai' | 'raw', truncated, success, markdown}`
-(plus `contentType` for `raw`). The `summary` describes the source in plain language ("via the wiki API", "via direct
-fetch", "with a browser"). Markdown is bounded to 200 KiB (under the 256 KiB tool-result cap); oversized content is
-truncated on a byte boundary with `truncated: true`.
-
-### Server capability and desktop visibility
-
-Both web tools declare an `outputSchema` in the registry in addition to `inputSchema`. The server advertises which web
-backends are configured through its health response (`webTools: {search, readBrowser}`; see `operations.md`). The
-desktop Tools tab uses this to grey out tools the server cannot run, and exposes each tool's exact model-facing
-description and input/output schemas through a per-tool info dialog (see `desktop-ui.md`).
-
-## Memory and IPFS tools (`memory_list`, `memory_read`, `memory_write`, `memory_delete`, `memory_download`, `ipfs_read`, `ipfs_write`)
-
-Each agent owns a private persistent filesystem at `<stateDir>/memory`, implemented in `agents/src/agent-memory.ts` and
-shared across all of the agent's sessions. The memory tools give the model access to that directory; the signed
-agent-memory actions give the user the same access from the desktop Memory tab, so both sides always see the same real
-files on disk.
-
-Key behavior:
-
-- All paths are relative to the memory root and strictly sandboxed: absolute paths, `..` segments, and null bytes are
-  rejected, resolved paths are verified to stay inside the root, and symlinks are refused for reads/writes and skipped
-  in listings.
-- Files can be UTF-8 text or binary. `memory_write` writes text and replaces the whole file, creating parent directories
-  automatically; edits are read-modify-write. `memory_read` returns text content for text files; for binary files it
-  returns size/MIME metadata only — raw bytes never go to the model.
-- `memory_download` fetches any public http(s) URL (including binary media) into memory, streamed with a hard size cap.
-  When no target path is given the file lands in `downloads/` named from the URL; extension-less paths gain one from the
-  response content type. Same open-fetch policy as `web_read`.
-- `ipfs_read` fetches a file by CID (or `ipfs://<cid>` URL) from the HM server's `/ipfs/` gateway into memory (default
-  path `ipfs/<cid>`), returning text content inline; the agent server is the only side talking to IPFS, so remote agents
-  need no local gateway.
-- `ipfs_write` (renamed from `memory_upload_ipfs`; the old name is still accepted in stored definitions as an alias)
-  uploads one memory file to the HM server's `/ipfs/file-upload` endpoint and returns its `ipfs://<cid>` URL, so the
-  agent can reference stored media from Hypermedia content (documents, avatars) created with the `write` tool.
-  Publishing to IPFS makes the file publicly retrievable.
-- MIME types are inferred from file extensions (`inferMimeType`) for previews, downloads, and IPFS uploads.
-- Limits: 1 MiB per text write, 100 MiB per file (binary/downloads), 1 GiB per agent, 2000 entries, 512-byte paths, 16
-  levels of nesting.
-- Tool-driven writes/downloads/deletes emit `account-change` (`agent-memory-changed`) events, fanned out to both
-  `account/<id>` and `agents/<agentId>` WebSocket subscribers, so the desktop Memory tab updates live while a session
-  runs.
-- When any memory tool is enabled, the agent system prompt describes the memory filesystem and instructs the model to
-  check memory at task start, store durable learnings as small organized files, and use download/IPFS publishing for web
-  media.
-- Memory-enabled system prompts also automatically embed a `<memory_files>` listing of the top level of memory — root
-  files with sizes and root folders with contained file counts, without expanding subfolder contents — built fresh per
-  run by `summarizeMemoryTopLevel`. The agent starts every session knowing what it has without an explicit `memory_list`
-  call; `memory_list` remains the way to see full nested paths.
-
-## Session attachment tools (`view_attachment`, `attachment_to_memory`, `attachment_to_ipfs`)
-
-Files a user drops into the desktop session composer upload to the agent server as **session-private attachments**
-(`agents/src/session-attachments.ts`, stored under `<stateDir>/session-attachments/<sessionId>/`, ids are the SHA-256 of
-the content). They are deliberately not written to agent memory, not published to IPFS, and are deleted with the
-session. The desktop uses the signed `UploadSessionAttachment` / `ReadSessionAttachment` actions to upload before send
-and to render attached images in the chat thread. Files over a couple of MB (attachments and Memory-tab uploads alike)
-go through the chunked `BeginFileUpload` / `AppendFileUploadChunk` / `CommitFileUpload` actions instead of one giant
-signed action — signing hashes the whole payload, so a single 300MB action would freeze the client for many seconds —
-with per-chunk progress shown in the UI and server-side staging under `<dataDir>/uploads` (TTL-swept, abort on client
-failure).
-
-The model sees each message's attachments as a cheap `<attachments>` metadata block (name, MIME type, size, id) — never
-the bytes — so large files cannot flood the context uninvited. Content is pulled on demand:
-
-- `view_attachment` (always available in sessions, like `set_session_title`) returns the actual image content in the
-  tool result for image attachments when the model supports image input (`modelSupportsImageInput`, capped at ~4.5 MB);
-  UTF-8 text attachments return their text; everything else returns metadata plus guidance. Image bytes ride only the
-  model-facing tool result — the durable `tool_result` event stores just the structured summary, so transcripts and the
-  DB stay small, and a later run re-fetches on demand rather than replaying the image.
-- `attachment_to_memory` (memory tool group) copies one attachment into persistent memory (default `attachments/<name>`)
-  when it is worth keeping across sessions.
-- `attachment_to_ipfs` (write tool group) publishes one attachment to the HM server's IPFS endpoint and returns its
-  `ipfs://<cid>` URL for use in Hypermedia content. Publishing makes the file publicly retrievable.
-
-## `execute_code`
-
-Runs model-written Python or shell code in a hardware-isolated microVM with the agent's memory directory bind-mounted at
-`/workspace` (also the working directory), so sandboxed code reads and writes exactly the files the `memory_*` tools and
-the desktop Memory tab see. Implementation lives in `agents/src/code-exec.ts` on the embedded `microsandbox` runtime
-(libkrun microVMs on macOS/Linux, WHP on Windows; no separate server process). Configuration lives in
-`agents/src/config.ts` under `exec` (see `operations.md`).
-
-Input:
-
-```ts
-type ExecuteCodeInput = {
-  language: 'python' | 'shell'
+type ExecuteInput = {
+  runtime: 'ts' | 'python' | 'shell'
   code: string
   timeout_secs?: number // clamped to [1, 300]
 }
 ```
 
-Behavior and safety:
+- `ts` runs `bun -e`, `python` runs `python -c`, `shell` runs `/bin/sh -c`. Nothing goes through a shell unless the
+  runtime _is_ the shell: the sandbox takes an argv array, so code with quotes, newlines, or `$` needs no escaping
+  (`code-exec.ts:470`).
+- **Two images.** The main rootfs is a Python image with no JavaScript runtime, so `ts` runs in its own image
+  (`SEED_AGENTS_EXEC_TS_IMAGE`, default `oven/bun`). An operator can set it explicitly empty to withhold TypeScript; the
+  runtime is then not offered at all rather than advertised and failing (`code-exec.ts:318`, `executeToolForRuntimes`).
+- Each call gets a fresh **ephemeral** sandbox (`security: restricted`) with capped CPUs, memory, and lifetime
+  (`timeout + 30s`). No state survives between calls, so the contract tells the model to persist results as files and to
+  `pip install --target /workspace/pylibs <pkg>`.
+- Networking is **on by default** with explicit DNS resolvers and a non-local egress policy
+  (`NetworkPolicy.fromProfiles(['public'])`, falling back to `nonLocal()` for older staged SDKs — `code-exec.ts:117`).
+- Output: `{summary, exitCode, success, stdout, stderr, truncated, durationMs, changedFiles}`. stdout and stderr are
+  bounded at 64 KiB each; `changedFiles` is a before/after listing diff of memory. Live progress streams a ~2000-char
+  output tail at most every 250 ms.
+- The SDK loads lazily and `availability()` is memoized: hosts without virtualization run normally, and the tool is
+  simply absent instead of failing (`code-exec.ts:328`, with codes `config-disabled`, `unsupported-platform`,
+  `whp-disabled`, `kvm-missing`, `kvm-forbidden`, `runtime-error`).
 
-- every call creates a fresh **ephemeral** sandbox (`security: restricted`) with capped CPUs, memory, and lifetime; no
-  state survives between calls, so the prompt instructs the model to persist results as files;
-- the memory mount carries a guest write quota equal to the agent's remaining memory budget (clamped to 1 GiB), so
-  sandboxed code cannot blow past memory limits;
-- networking is **on by default** so agents can install packages and fetch data; the runtime configures explicit DNS
-  resolvers (`SEED_AGENTS_EXEC_DNS`) and a non-local egress policy, so the sandbox reaches the public internet but not
-  the host's private network or cloud-metadata endpoints. Set `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` to isolate it. The
-  prompt tells agents to `pip install --target /workspace/pylibs <pkg>` so packages persist in memory across calls;
-- stdout/stderr are truncated to 64 KiB each; the result carries `exitCode`, `success`, `durationMs`, and a
-  `changedFiles` diff (added/modified/removed memory paths from a before/after listing comparison);
-- memory changes made by code emit the same `agent-memory-changed` events as the memory tools, so the Memory tab
-  refreshes live;
-- the SDK loads lazily: servers without virtualization support run normally and the tool fails with a clear
-  backend-unavailable error (or is greyed out when `SEED_AGENTS_EXEC_BACKEND` is unset/off, via the health `codeExec`
-  capability).
+### Authored (lambda) tools
 
-## `write`
-
-For document and ref commands, `input.path: "/"` is accepted as the account home document and is published as the
-canonical empty HM path, so refs do not fail server validation for trailing slashes.
-
-## `read`
-
-Input:
+A lambda runs its stored source in the same sandbox, with the call's validated input handed in and its return value
+handed back (`executeLambdaTool`, `api-service.ts:7662`). The ABI (`tool-documents.ts:22`):
 
 ```ts
-type ReadHypermediaInput = {
-  id: string
-  server?: string
-  dev?: boolean
-  format?: 'markdown' | 'json'
+// runtime: 'typescript' — run with bun
+export default async function (input: {city: string}) {
+  return {tempC: await lookup(input.city)}
 }
 ```
 
-Accepted IDs/URLs:
-
-- `hm://...`
-- `hm:...`
-- `https://...`
-- `http://...`
-- exact block fragments such as `hm://.../path#BLOCK_ID`
-- comment view URLs such as `hm://doc/path/:comments/UID/TSID`, `https://site/doc/:comments/UID/TSID`, and
-  `?panel=comments/UID/TSID`
-
-Model-facing block-link rule: before returning a block-level link, the model should call `read` for the target
-resource/version and copy the exact `<!-- id:BLOCK_ID -->` marker from the markdown result. Seed document fragments are
-not HTML heading anchors; models must not invent heading slugs, title slugs, or URL-safe text fragments. After `write`
-creates, forks, copies, or edits a document, read the resulting document before returning links to changed blocks
-because block IDs may differ from the source document.
-
-## Shared URL and domain resolution
-
-The tool uses shared internal SDK code:
-
-- `frontend/packages/client/src/resource-read.ts` — `resolveIdWithClient()`, the unified read-target resolver used for
-  document and comment inputs.
-- `frontend/apps/cli/src/utils/resolve-id.ts` — CLI wrapper using the same helper.
-- `frontend/packages/client/src/hm-resolver.ts` — lower-level web/HM resolution through `resolveId()` and
-  `resolveHypermediaUrl()`.
-
-The agent does not shell out to `seed-cli`.
-
-Important project requirement: users commonly paste clean HM web-domain URLs such as `https://example.com/path`. Agent
-tools must reuse the existing resolver workflow used elsewhere in the app:
-
-1. detect Seed comment view URLs (`/:comments/UID/TSID`, legacy aliases, or `?panel=comments/UID/TSID`) and convert them
-   to the canonical comment HM ID before document path resolution;
-2. parse `hm://`/`hm:` IDs directly;
-3. for web URLs, call `resolveHypermediaUrl(url, {domainResolver})` through `resolveId()`/`resolveIdWithClient()`;
-4. try the domain resolver first so cached custom-domain mappings can produce an HM URL;
-5. fall back to OPTIONS-header resolution when the domain resolver returns null or fails.
-
-`resolveIdWithClient()` accepts and passes through `DomainResolverFn`. The agents Bun service provides a resolver with
-the same shared interface, backed by Seed API `GetDomain` rather than desktop daemon `grpcClient`.
-
-If the model supplies a canonical `hm://...` ID without `server`/`dev` after the user pasted a dev URL, `read` first
-checks the default production server and then falls back to `https://dev.hyper.media` only when production returns
-`not-found` or `error`. This keeps dev comment/document reads working even if the model strips the URL origin before
-calling the tool.
-
-## Output
-
-Markdown output resolves Seed embeds before returning content to the model. Inline `Embed` annotations are rendered with
-human-readable account/profile or document/comment labels. Block `Embed` nodes inline the embedded document or comment
-markdown, including block-fragment zooms and a note when a specific version is referenced.
-
-```ts
-{
-  type: 'hypermedia_document'
-  requestedId: string
-  id: string
-  server: string
-  format: 'markdown'
-  dev?: true
-  title?: string
-  version?: string
-  metadata?: Record<string, unknown>
-  markdown: string
-}
+```python
+# runtime: 'python'
+def main(input):
+    return {"tempC": lookup(input["city"])}
 ```
 
-For web-domain inputs, `requestedId` should remain the pasted URL and `id` should be the resolved `hm://` URL so the
-model and UI can show both the user's original reference and the canonical HM identity.
+`buildLambdaProgram()` (`code-exec.ts:502`) wraps the source into a self-contained program with the input baked in as a
+double-`JSON.stringify` literal, so no interpolation can escape into code. TypeScript is imported as a module from a
+`data:` URL, keeping its natural `export default` shape and type annotations without touching the filesystem; Python
+gets an epilogue that calls `main` and awaits it if it is a coroutine.
 
-JSON output:
+The return value travels on a marked stdout line (`LAMBDA_RESULT_PREFIX = '__SEED_TOOL_RESULT__'`) — a file would have
+to live somewhere, and `/workspace` _is_ the agent's memory, so a result file would litter it and show up in
+`changedFiles`. Everything unmarked comes back to the caller as `logs`, which keeps ordinary `print`/`console.log`
+debugging working (`code-exec.ts:489`, `parseLambdaResult` at `code-exec.ts:543`).
+
+Failures are thrown, not returned: a non-zero exit, no returned value, or a value the tool's own `output` schema rejects
+is a broken tool, and the model that authored it is the one who can fix it. An input miss still returns the contract,
+exactly like a builtin.
+
+Two gates apply before a lambda runs: the server must actually offer that runtime, and the agent must hold the `execute`
+grant — an authored tool is code in the sandbox, so writing one must not become a way around an owner who turned code
+execution off (`api-service.ts:7684`, `api-service.ts:7696`).
+
+## `delegate`
+
+Spawns a child run. Two kinds of child, one verb (`api-service.ts:7889`).
+
+**Model child** — pass `brief`, human-readable markdown that becomes the child conversation's first message
+**verbatim**; the user reviews it as the child's full context. `prompt` gives an anonymous worker persona, `agentId`
+runs one of the account's other agents (at most one of the two), `tools` narrows the child's set — intersected against
+the parent's full callable set, not a stale minimal default (`api-service.ts:2623`). `output` declares a JSON schema for
+a validated structured result, delivered through `return_result`; without it the result is `{text}`.
+`normalizeSubSessionSpec()` (`api-service.ts:313`) accepts `input` as an alias for `brief` and reads a bare `prompt` as
+the brief rather than bouncing the call, because models write the task into `prompt` often enough that a retry is worse
+than a rescue.
+
+**Script child** — pass `script`, a self-contained module `export default async function (input, ctx) {…}` run in an
+in-process QuickJS-WASM realm (`agents/src/workflow-host.ts`). Everything external crosses through `ctx`:
+`ctx.call(tool, input, {description})`, `ctx.delegate`, `ctx.parallel`, `ctx.sleep`, `ctx.waitForEvent`,
+`ctx.continueAsNew`, `ctx.step`, `ctx.plan`, `ctx.now`, `ctx.log`, `ctx.progress`, `ctx.input`, `ctx.runId`. Scripts
+hold the read and write verbs plus the agent's callable set (`api-service.ts:3801`), including enabled authored lambda
+tools created earlier in the same parent turn; every effect is journaled, so resume after a crash or a timer wake
+replays from the top with completed work never re-executing. Detached script children are rejected outright — scripts
+are awaited.
+
+**Parallelism.** Independent children must be spawned together: every `delegate` call in one reply runs at the same
+time, and the turn then parks (cheaply, restart-proof) until all of them resolve, with each call receiving its own
+result. `await: false` detaches — the child runs as this agent with the brief as its first message and returns nothing,
+so `agentId`, `output`, and `tools` are rejected loudly rather than silently discarded (`api-service.ts:7909`).
+
+Durable limits come from the run tree, so they survive restarts: spawn-chain depth 3 (`MAX_SESSION_SPAWN_DEPTH`, checked
+at `api-service.ts:3438`), 10 awaited children per run and 10 detached starts per session
+(`MAX_SESSION_SPAWNS_PER_SESSION`, `api-service.ts:3444` and `api-service.ts:2270`), and 3 `return_result` retries
+(`MAX_RETURN_RESULT_RETRIES`).
+
+## `plan`
+
+Maintains the thread's visible checklist:
+`{title?, steps: [{id, label, status: pending | running | done | failed | skipped}]}`. Calls replace the whole plan, are
+stored on `sessions.plan_cbor`, and write **no transcript event** — the checklist is the card, not conversation. The
+server stamps the owning run id; when every step settles, it copies that snapshot onto the run so the completed plan
+stays in transcript history even after a later turn replaces the session's mutable plan.
+
+That choice has a consequence the runtime handles explicitly. A model resuming after its children finished is blind to
+the very list it published, so `planStateBlock()` (`api-service.ts:414`) rebuilds a `<plan_state>` block from session
+state on **every turn** and injects it into the replay as the last user message. It is never stored: the transcript
+keeps exactly one copy of the truth, and the log stays a record of what happened rather than of what the runtime
+reminded the model about. Step ids and labels are model-authored text being handed back inside a frame whose syntax the
+model knows, so both go through `escapeActionFraming()`.
+
+**Runtime settlement.** When every run attached to a running step comes back `succeeded`,
+`#settlePlanStepFromChildren()` (`api-service.ts:2727`) marks the step `done` with `resolvedBy: 'runtime'`. Only success
+settles a step — what a failed child means is a judgment the model makes, and the continuation loop exists to make it
+ask. `resolvedBy` can never be forged from model input: `normalizeRunPlan` reads only what the model may say, and
+`#carryResolvedBy()` (`api-service.ts:2174`) carries the runtime's mark across later writes while the step stays done,
+dropping it if the step is reopened or written off.
+
+**Obligations.** A turn that ends still owing something does not simply end. `#openObligations()`
+(`api-service.ts:2776`) collects one list — an undelivered typed result, unfinished plan steps — and the run hands the
+turn back with every open obligation named at once, up to `MAX_RUN_CONTINUATIONS` (3) times (`#executeAgentRun`,
+`api-service.ts:2607`). Steps left open while children are still working are not obligations (someone else is carrying
+them), and `failed`/`skipped` are terminal — an agent that says it could not do something has kept the contract and must
+never be nagged into pretending otherwise. When the budget is spent, the run leaves an actor-`system` notice saying
+exactly what was left undone; a typed child that never delivered **fails**, an unfinished plan **succeeds owing it**.
+Nothing is ever ticked off on the agent's behalf.
+
+## `return_result`
+
+Exposed only inside typed delegate children. Its declared parameters ARE the spawner's `output` schema, swapped in at
+session start (`api-service.ts:7938`). The server validates the payload; failures return the error list to the child for
+self-correction. Delivering the result ends the child's turn immediately — nothing else it might still owe is worth
+another turn (`api-service.ts:2640`).
+
+---
+
+## The user holds the same verbs
+
+`InvokeSessionTool` (`agents/protocol/src/index.ts:616`) runs `read`, `write`, or `call` **as the user** on the
+session's shared log (`#invokeSessionTool`, `api-service.ts:2345`). The call and its result append as actor-`user`
+events, so the agent reads them on its next turn exactly as it reads its own — the log is the interface, there is no
+side channel.
+
+- `delegate` and `plan` are rejected: delegation is a conversational ask, so the user messages the agent instead.
+- The request is rejected with 409 while the session has a live run.
+- Execution failures are themselves log entries (a failed attempt is context too) and come back in the response; only
+  pre-execution validation rejects the request outright.
+- On replay, user tool calls become `<user_action>` / `<user_action_result>` tagged user messages, not provider tool
+  exchanges, since providers have no notion of a user-made tool call (`api-service.ts:4878`). The system prompt tells
+  the agent these are shared ground truth it can build on without re-running them (`api-service.ts:4190`).
+
+## Event shapes
 
 ```ts
-{
-  type: 'hypermedia_document'
-  requestedId: string
-  id: string
-  server: string
-  format: 'json'
-  resource: unknown
-}
+{type: 'tool_call', id: string, name: string, input: unknown, actor?: SessionActor}
+{type: 'tool_result', toolCallId: string, name: string, output?: unknown, error?: string,
+ actor?: SessionActor, meta?: SessionEventMeta}
 ```
 
-`id` is the resolved HM URL; `requestedId` is the model-supplied input.
+`SessionActor` is `'user' | 'agent' | 'system' | 'trigger'`; events written before the field existed derive their actor
+from shape via `sessionEventActor()` (`agents/protocol/src/index.ts:952`). `SessionEventMeta` carries `model`,
+`provider`, `usage`, and `durationMs` — provenance stamped once at append time, because none of it is recoverable after
+the run is gone.
 
-## Size limit
+Tool failures should usually become `tool_result.error` so the model can respond gracefully.
 
-`MAX_TOOL_RESULT_BYTES` is 256 KiB. Oversized rendered markdown fails with a tool error.
+## Tool lifecycle
 
-## Desktop rendering
+1. The server registers the verbs (plus any promoted callables) with Pi, with `noTools: 'builtin'` so Pi's own host
+   tools never load.
+2. Pi calls the model; the model returns assistant text and tool calls.
+3. Pi emits `message_end` before tool execution; the server appends the turn's assistant text as a durable `message`
+   event with its `meta`.
+4. The server appends a durable `tool_call` event, executes the Seed-owned implementation, and appends `tool_result`.
+5. The model continues until final assistant text; each later assistant turn is appended at its own `message_end`.
 
-Desktop session page renders:
+On later turns the server reconstructs durable assistant text and consecutive `tool_call` events as a single Pi
+assistant message before their matching `tool_result` messages, keeping provider replay valid for APIs such as OpenAI
+chat completions, which reject orphaned `tool` messages and expect multi-tool batches grouped.
 
-- user and assistant messages through the shared assistant chat bubble renderer;
-- assistant messages and live partials as markdown through `AssistantMessageParts`;
-- paired `tool_call`/`tool_result` events through the shared tool-call bubbles;
-- `read` results as read/document tool bubbles with document links and raw-debug access;
-- errors as destructive text;
-- unknown event payloads as JSON fallback.
+Parked `delegate` calls keep their durable `tool_call` deliberately unanswered until the child's finalizer appends the
+real result; a post-park reconcile pass closes the race where a fast child finalizes before the parent's `waiting`
+status commits.
 
-## Security considerations
+## Size limits
 
-`read` may contact URLs supplied by the model. It follows CLI-compatible resolution behavior, including web URL
-resolution via HTTP methods and Seed resource fetching.
+Two ceilings, two purposes:
 
-Production improvements needed:
+- `MAX_TOOL_RESULT_BYTES` (256 KiB, `api-service.ts:150`) bounds what a tool may produce durably: rendered document and
+  comment markdown is truncated on a byte boundary at this cap before it enters the session event log.
+- `MAX_MODEL_TOOL_RESULT_BYTES` (8 KiB, `api-service.ts:157`) bounds what any single tool result contributes to the
+  provider context. `boundModelToolResultText()` cuts the serialized result on a UTF-8 character boundary and appends a
+  notice telling the model the result was truncated and that it must work in bounded pieces — narrower reads, or saving
+  the source into a memory file and processing it with `execute` — instead of retrying the same call. It is applied at
+  the single tool-definition choke point (`defineSeedPiTool`) for live calls (including `piContent` text parts; image
+  parts have their own inline cap) and again on transcript replay (assistant tool results, orphan results, and
+  user-action payloads), so a resumed session sees the same bounded transcript the live session saw.
 
-- outbound network policy;
-- audit log;
-- optional allow/deny lists;
-- private-network read protection;
-- runtime implementations for signing/publishing tools that use the per-agent selected uploaded HM account key.
+Durable session events and the desktop UI keep the tool's full output; only the model-facing text is cut.
 
-## Planned general read/query shape
+## Adding or changing a tool
 
-The preferred next step is to augment the existing read tool before adding more model-facing tools. The generalized path
-may support an input like:
-
-```ts
-type ReadHypermediaOrQueryInput =
-  | {id: string; server?: string; dev?: boolean; format?: 'markdown' | 'json'}
-  | {
-      key: ReadonlySeedRequestKey
-      input?: unknown
-      id?: string
-      url?: string
-      server?: string
-      dev?: boolean
-      format?: 'markdown' | 'json'
-    }
-```
-
-Rules:
-
-- `id`/`url` shortcuts should resolve pasted HM IDs and web-domain URLs through the shared resolver stack;
-- read-only Seed client request keys can be supported (`Resource`, `Search`, `Query`, `ListComments`, `ListCitations`,
-  and related GET requests);
-- action/write keys (`PublishBlobs`, `PrepareDocumentChange`) must be rejected until there is an explicit write-tools
-  permissions project;
-- document/comment `Resource` reads should continue to return markdown by default.
-
-## Signing and publishing tools
-
-The autosaving desktop Tools tab now stores per-agent `signingKeys` secret names selected from account-scoped secrets
-whose metadata has `kind: 'hm-account-key'`. The list response is redacted and account-filtered. If no agent accounts
-exist, the tab opens a new-account panel that creates a server-side Ed25519 HM account key through
-`CreateSigningIdentity`; the raw seed is encrypted as an account-scoped secret and never returned to the desktop.
-Selected identities are passed to the agent with both profile names and public key IDs so users can refer to names while
-`write` uses public key IDs. The initial model-facing write tool mirrors CLI-style commands for profiles, drafts,
-documents, comments, capabilities, and contacts, and only uses keys selected on the agent.
-
-`write` accepts both a structured `input` object and CLI-like command arguments at the tool-call root. The server folds
-unknown root-level arguments into `input` before command validation, so calls such as
-`{command: 'comment.create', signer, id: 'hm://...', text: '...'}` are equivalent to using
-`input: {id: 'hm://...', text: '...'}`. For documents and drafts, `body` and `text` are accepted as `content` aliases,
-and `title` is accepted as a `name` metadata alias. For `document.move`, `id`, `target`, and `targetId` are accepted as
-source aliases, and `path` can be used instead of a full destination URL to move within the same account; `path: '/'`
-moves the document to the account home/root. For comments, `body`, `content`, and `text` are accepted as body aliases.
-`document.create` refuses to publish a document under a parent path that does not yet exist: creating `/team/notes`
-requires `/team` to already be a published document, so parents must be created first. Top-level documents (directly
-under the account home/root) are always allowed. The model-facing `write` description and the signing-identity prompt
-state this rule, and the server enforces it before publishing (in `dryRun` too). For `comment.create` replies,
-`replyCommentId`, `replyComment`, `reply`, and `replyTo` are accepted as parent-comment aliases. Trigger-created
-sessions add explicit model instructions to use `trigger_context.activity.comment.id` (or `activity.commentId.id`) as
-`replyCommentId` when responding to a mention or comment activity so the published comment is threaded instead of
-orphaned. If a reply parent is provided without a target document, the server derives the target from the parent
-comment. Root-level `server` and `dev` are accepted only when they resolve to the configured agent HM server; publishing
-always uses that configured server and never an arbitrary model-selected server.
-
-## Adding new tools
-
-Checklist:
-
-1. Add or update the canonical entry in `agents/protocol/src/tool-registry.ts` with prompt metadata, JSON schema, and
-   render metadata.
-2. Add provider/runtime-specific execution around the registry entry; do not duplicate descriptions or schemas.
-3. Validate model-supplied input at tool boundary.
+1. Update the canonical entry in `agents/protocol/src/tool-registry.ts` — prompt metadata, JSON schema, render metadata
+   — and remember the contract is what the model reads.
+2. Add the runtime executor in `executeCallVerb` (callables) or the verb dispatcher (address forms); do not duplicate
+   descriptions or schemas.
+3. Validate model-supplied input at the boundary and return the contract on a miss rather than an error.
 4. Bound output size.
-5. Append `tool_call` and `tool_result` events.
-6. Add specialized chat rendering only when the registry render kind is insufficient.
-7. Avoid logging sensitive input/output.
-8. Add tests for success, tool failure, and provider continuation.
-9. Update `tools.md`, `security.md`, `desktop-ui.md`, and `roadmap.md`.
+5. Confirm the tool document CID changes as intended — a changed contract rewrites every agent's builtin row.
+6. Decide the grant: is it in the callable set, or does it need publish?
+7. Add tests for success, tool failure, and provider continuation.
+8. Update `tools.md`, `security.md`, `desktop-ui.md`, and `roadmap.md`.

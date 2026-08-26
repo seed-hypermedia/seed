@@ -16,7 +16,7 @@ export const PROFILE_TABS = [
 ] as const
 export type ProfileTab = (typeof PROFILE_TABS)[number]
 
-export const defaultRoute: NavRoute = {key: 'library'}
+export const defaultRoute: NavRoute = {key: 'onboarding'}
 
 export const onboardingRouteSchema = z.object({key: z.literal('onboarding')})
 export type OnboardingRoute = z.infer<typeof onboardingRouteSchema>
@@ -187,6 +187,8 @@ export const commentsRouteSchema = z.object({
   id: unpackedHmIdSchema,
   width: z.number().optional(),
   openComment: z.string().optional(),
+  /** Version CID of the opened comment to view (an old version from its edit history). */
+  openCommentVersion: z.string().optional(),
   targetBlockId: z.string().optional(),
   blockId: z.string().optional(),
   blockRange: BlockRangeSchema.nullable().optional(),
@@ -289,7 +291,14 @@ export const accountSettingsRouteSchema = z.object({
 /** Navigation route for the desktop Account Settings page. */
 export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>
 
-export const siteSettingsTabSchema = z.enum(['identity', 'navigation', 'members', 'writers', 'email-subscribers'])
+export const siteSettingsTabSchema = z.enum([
+  'identity',
+  'navigation',
+  'members',
+  'writers',
+  'email-subscribers',
+  'agents',
+])
 export type SiteSettingsTab = z.infer<typeof siteSettingsTabSchema>
 
 export const siteSettingsRouteSchema = z.object({
@@ -340,8 +349,10 @@ export const agentRouteSchema = z.object({
   key: z.literal('agent'),
   agentId: z.string(),
   serverUrl: z.string().optional(),
-  tab: z.enum(['sessions', 'triggers', 'memory', 'tools', 'prompt', 'settings']).optional(),
+  tab: z.enum(['sessions', 'triggers', 'memory', 'tools', 'prompt', 'collaborators', 'settings']).optional(),
   triggerId: z.string().optional(),
+  /** Memory tab: the file to open, so a `~/memory/…` link in a tool row lands on that file. */
+  memoryPath: z.string().optional(),
 })
 /** Navigation route for one server-hosted agent. */
 export type AgentRoute = z.infer<typeof agentRouteSchema>
@@ -362,6 +373,26 @@ export const apiInspectorRouteSchema = z.object({
 })
 /** Navigation route for the desktop API inspector. */
 export type ApiInspectorRoute = z.infer<typeof apiInspectorRouteSchema>
+
+/** Route for the desktop Query Documents playground. */
+export const queryDocumentsRouteSchema = z.object({
+  key: z.literal('query-documents'),
+})
+/** Navigation route for the desktop Query Documents playground. */
+export type QueryDocumentsRoute = z.infer<typeof queryDocumentsRouteSchema>
+
+/** Route for the Explore search prototype. */
+export const exploreRouteSchema = z.object({
+  key: z.literal('explore'),
+  context: z.discriminatedUnion('type', [
+    z.object({type: z.literal('node')}),
+    z.object({type: z.literal('site'), id: unpackedHmIdSchema}),
+  ]),
+  q: z.string().optional(),
+  sort: z.enum(['relevance', 'recently_updated', 'newest', 'oldest', 'title']).optional(),
+})
+/** Navigation route for the Explore search prototype. */
+export type ExploreRoute = z.infer<typeof exploreRouteSchema>
 
 export const draftRebaseRouteSchema = z.object({
   key: z.literal('draft-rebase'),
@@ -401,6 +432,8 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentRouteSchema,
   agentSessionRouteSchema,
   apiInspectorRouteSchema,
+  queryDocumentsRouteSchema,
+  exploreRouteSchema,
   feedRouteSchema,
   allDocumentsRouteSchema,
   inspectRouteSchema,
@@ -511,6 +544,13 @@ export function replaceRouteDocumentId(route: NavRoute, targetId: UnpackedHyperm
         ...route,
         id: targetId,
       }
+    case 'explore':
+      return route.context.type === 'site'
+        ? {
+            ...route,
+            context: {...route.context, id: targetId},
+          }
+        : route
     case 'site-profile':
       return {
         ...route,
@@ -579,6 +619,7 @@ export function createDocumentNavRoute(
   panelParam?: string | null,
   openComment?: string | null,
   accountUid?: string | null,
+  openCommentVersion?: string | null,
 ): NavRoute {
   // Create properly typed panel route if panelParam provided.
   // Cast needed: each route schema has a narrow panel union (excluding itself),
@@ -613,7 +654,7 @@ export function createDocumentNavRoute(
       }
       // /:comments/UID/TSID → comments main with openComment
       if (openComment) {
-        return {key: 'comments', id: docId, openComment, panel}
+        return {key: 'comments', id: docId, openComment, openCommentVersion: openCommentVersion || undefined, panel}
       }
       // Preserve non-comments panel (e.g. activity, collaborators)
       return {key: 'comments', id: docId, panel}
@@ -625,6 +666,8 @@ export function createDocumentNavRoute(
       return {key: 'feed', id: docId, panel}
     case 'all-documents':
       return {key: 'all-documents', id: docId}
+    case 'explore':
+      return {key: 'explore', context: {type: 'site', id: docId}}
     case 'site-settings':
       return {key: 'site-settings', id: docId}
     case 'metadata':
@@ -654,7 +697,7 @@ export function createInspectNavRoute(
     key: 'inspect',
     id: docId,
   }
-  if (targetView && targetView !== 'site-settings') route.targetView = targetView
+  if (targetView && targetView !== 'site-settings' && targetView !== 'explore') route.targetView = targetView
   if (targetActivityFilter) route.targetActivityFilter = targetActivityFilter
   if (targetView === 'comments' && openComment) route.targetOpenComment = openComment
   if (isSiteProfileTab(targetView) && accountUid) route.targetAccountUid = accountUid

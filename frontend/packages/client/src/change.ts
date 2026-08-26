@@ -9,15 +9,16 @@
  */
 
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
-import type {HMPrepareDocumentChangeInput, HMPublishBlobsInput, HMSigner} from './hm-types'
+import type {HMPrepareDocumentChangeInput, HMPublishBlobsInput} from './hm-types'
 import {CID} from 'multiformats'
 import * as Block from 'multiformats/block'
 import {sha256} from 'multiformats/hashes/sha2'
 import {createVersionRef} from './ref'
-import {cborCodec, normalizeBytes} from './signing'
+import {cborCodec, normalizeBytes, signerPublicKey} from './signing'
+import type {AnySigner} from './signer'
 
 export type DocumentOperation =
-  | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: unknown}>}
+  | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: string | number | boolean | null}>}
   | {type: 'MoveBlocks'; blocks: string[]; parent: string}
   | {type: 'ReplaceBlock'; block: unknown}
   | {type: 'DeleteBlocks'; blocks: string[]}
@@ -70,7 +71,7 @@ export function createChangeOps(input: CreateChangeOpsInput): {unsignedBytes: Ui
  */
 export async function createChange(
   unsignedBytes: Uint8Array,
-  signer: HMSigner,
+  signer: AnySigner,
 ): Promise<{bytes: Uint8Array; cid: CID; genesis: CID | null; ts: number | undefined}> {
   const change = cborDecode(unsignedBytes) as Record<string, unknown>
 
@@ -78,7 +79,7 @@ export async function createChange(
   const genesis = change.genesis instanceof CID ? change.genesis : null
   const ts = timestampToNumber(change.ts)
 
-  change.signer = new Uint8Array(await signer.getPublicKey())
+  change.signer = new Uint8Array(await signerPublicKey(signer))
   change.sig = new Uint8Array(64)
 
   change.sig = await signer.sign(cborEncode(change))
@@ -91,7 +92,7 @@ export async function createChange(
 /** @deprecated Use createChange instead */
 export const signPreparedChange = async (
   unsignedBytes: Uint8Array,
-  signer: HMSigner,
+  signer: AnySigner,
 ): Promise<{signedBytes: Uint8Array; cid: CID; genesis: CID | null}> => {
   const result = await createChange(unsignedBytes, signer)
   return {signedBytes: result.bytes, cid: result.cid, genesis: result.genesis}
@@ -101,8 +102,8 @@ export const signPreparedChange = async (
  * Create a signed genesis Change blob (empty, ts=0).
  * This deterministic sentinel is only intended for home documents.
  */
-export async function createGenesisChange(signer: HMSigner): Promise<{bytes: Uint8Array; cid: CID}> {
-  const pubKey = await signer.getPublicKey()
+export async function createGenesisChange(signer: AnySigner): Promise<{bytes: Uint8Array; cid: CID}> {
+  const pubKey = await signerPublicKey(signer)
   const unsigned: Record<string, unknown> = {
     type: 'Change',
     signer: new Uint8Array(pubKey),
@@ -123,7 +124,7 @@ export type CreateDocumentChangeFromOpsInput = CreateChangeOpsInput
  */
 export async function createDocumentChangeFromOps(
   input: CreateChangeOpsInput,
-  signer: HMSigner,
+  signer: AnySigner,
 ): Promise<{bytes: Uint8Array; cid: CID; ts: bigint}> {
   const {unsignedBytes, ts} = createChangeOps(input)
   const {bytes, cid} = await createChange(unsignedBytes, signer)
@@ -147,7 +148,7 @@ export type CreateDocumentChangeInput = {
  */
 export async function createDocumentChange(
   input: CreateDocumentChangeInput,
-  signer: HMSigner,
+  signer: AnySigner,
 ): Promise<{bytes: Uint8Array; cid: CID}> {
   const ops = protoChangesToOps(input.changes)
   const {unsignedBytes} = createChangeOps({ops, genesisCid: input.genesisCid, deps: input.deps, depth: input.depth})
@@ -215,7 +216,7 @@ export type SignDocumentChangeInput = {
  */
 export async function signDocumentChange(
   input: SignDocumentChangeInput,
-  signer: HMSigner,
+  signer: AnySigner,
 ): Promise<{changeCid: CID; publishInput: HMPublishBlobsInput}> {
   const {
     bytes: signedBytes,

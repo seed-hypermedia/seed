@@ -42,7 +42,7 @@ const Translations = {
   Save: 'Guardar',
   'Save Account': 'Guardar Cuenta',
   'Account Name': 'Nombre de la cuenta',
-  'Site Icon': 'Icono del sitio',
+  'Space Icon': 'Icono del espacio',
   'Profile Icon': 'Icono del perfil',
   'Log out?': '¿Cerrar sesión?',
   'Log out': 'Cerrar sesión',

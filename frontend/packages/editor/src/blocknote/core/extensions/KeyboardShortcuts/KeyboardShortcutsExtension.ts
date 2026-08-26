@@ -1,12 +1,12 @@
 import {Extension} from '@tiptap/core'
 import {Decoration, DecorationSet} from '@tiptap/pm/view'
 import {Node as PMNode} from 'prosemirror-model'
-import {NodeSelection, TextSelection} from 'prosemirror-state'
+import {NodeSelection, Plugin, PluginKey, TextSelection} from 'prosemirror-state'
 import {mergeBlocksCommand} from '../../api/blockManipulation/commands/mergeBlocks'
 import {nestBlock, unnestBlock} from '../../api/blockManipulation/commands/nestBlock'
-import {splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
+import {getCarryableStoredMarks, splitBlockCommand} from '../../api/blockManipulation/commands/splitBlock'
 import {updateBlockCommand} from '../../api/blockManipulation/commands/updateBlock'
-import {updateGroupChildrenCommand, updateGroupCommand} from '../../api/blockManipulation/commands/updateGroup'
+import {liftSlotItem, nestSlotItem, updateGroupCommand} from '../../api/blockManipulation/commands/updateGroup'
 import {BlockNoteEditor} from '../../BlockNoteEditor'
 import {selectableNodeTypes} from '../Blocks/api/selectable-node-types'
 import {getBlockInfoFromPos, getBlockInfoFromSelection} from '../Blocks/helpers/getBlockInfoFromPos'
@@ -31,6 +31,10 @@ export const KeyboardShortcutsExtension = Extension.create<{
         () => commands.deleteSelection(),
         // Undoes an input rule if one was triggered in the last editor state change.
         () => commands.undoInputRule(),
+        // At the start of a top-level root-Slot item, lift just that item out to
+        // the root, keeping its subtree nested — same single-item unnest as a
+        // collapsed Shift-Tab (which routes to liftSlotItem via unnestBlock).
+        () => commands.command(liftSlotItem({requireAtStart: true})),
         // Moves a first child block of a heading to be a part of the heading.
         () =>
           commands.command(({state, dispatch}) => {
@@ -507,6 +511,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
           commands.command(({state, dispatch}) => {
             const blockInfo = getBlockInfoFromSelection(state)
             const {block: blockContainer, blockContent} = blockInfo
+            const storedMarks = getCarryableStoredMarks(state)
 
             const selectionAtBlockStart = state.selection.$anchor.parentOffset === 0
             const selectionEmpty = state.selection.anchor === state.selection.head
@@ -523,6 +528,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
 
                 state.tr.insert(newBlockInsertionPos, newBlock).scrollIntoView()
                 state.tr.setSelection(new TextSelection(state.doc.resolve(newBlockContentPos)))
+                state.tr.setStoredMarks(storedMarks)
               }
 
               return true
@@ -554,8 +560,11 @@ export const KeyboardShortcutsExtension = Extension.create<{
           }),
       ])
 
-    const handleTab = () =>
-      this.editor.commands.first(({commands}) => [
+    const handleTab = () => {
+      return this.editor.commands.first(({commands}) => [
+        // Tab on the first item of a root-level Slot's list nests the whole list
+        // under the previous root block and removes the slot.
+        () => commands.command(nestSlotItem()),
         // If the current block's previous sibling is a table, create an empty paragraph
         // blockNode, and indent a group under it.
         () =>
@@ -580,7 +589,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
               const blockChildrenType = state.schema.nodes['blockChildren']
 
               const emptyParagraph = paragraphType!.create()
-              const innerChildren = blockChildrenType!.create({listType: 'Group', listLevel: '1'}, blockInfo.block.node)
+              const innerChildren = blockChildrenType!.create({listType: 'Group'}, blockInfo.block.node)
               const wrappingBlock = blockNodeType!.create(null, [emptyParagraph, innerChildren])
 
               tr.replaceWith(blockInfo.block.beforePos, blockInfo.block.afterPos, wrappingBlock)
@@ -598,31 +607,12 @@ export const KeyboardShortcutsExtension = Extension.create<{
             if (isInGridContainer(state, state.selection.from)) return true
 
             // Find block group, block container, and depth it is at
-            const {group, container, $pos} = getGroupInfoFromPos(state.selection.from, state)
+            const {group} = getGroupInfoFromPos(state.selection.from, state)
 
             if (group.type.name === 'blockChildren' && group.attrs.listType !== 'Group') {
               setTimeout(() => {
-                // Try nesting the list item
-                const isNested = nestBlock(
-                  this.options.editor,
-                  group.attrs.listType,
-                  group.attrs.listType === 'Unordered' ? (parseInt(group.attrs.listLevel) + 1).toString() : '1',
-                )
-                // Update list children if nesting was successful
-                if (isNested)
-                  this.editor
-                    .chain()
-                    .command(
-                      updateGroupChildrenCommand(
-                        group,
-                        container!,
-                        $pos,
-                        group.attrs.listType === 'Unordered' ? parseInt(group.attrs.listLevel) + 1 : 1,
-                        group.attrs.listType,
-                        true,
-                      ),
-                    )
-                    .run()
+                // Nest the list item
+                nestBlock(this.options.editor, group.attrs.listType)
               })
               return true
             }
@@ -631,34 +621,11 @@ export const KeyboardShortcutsExtension = Extension.create<{
         () =>
           // This command is needed for tab inside of the first level of nesting
           commands.command(({state, chain}) => {
-            const {group, container, $pos} = getGroupInfoFromPos(state.selection.from, state)
+            const {container} = getGroupInfoFromPos(state.selection.from, state)
 
             if (container) {
-              // Try sinking the list item.
-              const result = chain().sinkListItem('blockNode').run()
-              // Update group children if sinking was successful.
-              if (result) {
-                setTimeout(() => {
-                  try {
-                    this.editor
-                      .chain()
-                      .command(
-                        updateGroupChildrenCommand(
-                          group,
-                          container,
-                          $pos,
-                          parseInt(group.attrs.listLevel),
-                          group.attrs.listType,
-                          true,
-                        ),
-                      )
-                      .run()
-                  } catch (e) {
-                    // @ts-expect-error
-                    console.log(e.message)
-                  }
-                })
-              }
+              // Sink the list item
+              chain().sinkListItem('blockNode').run()
               return true
             } else {
               // Just sink the list item if not a list.
@@ -667,6 +634,7 @@ export const KeyboardShortcutsExtension = Extension.create<{
             }
           }),
       ])
+    }
 
     return {
       Backspace: handleBackspace,
@@ -675,7 +643,9 @@ export const KeyboardShortcutsExtension = Extension.create<{
       Tab: handleTab,
       'Shift-Tab': () => {
         // Prevent outdent of grid children
-        if (isInGridContainer(this.editor.state, this.editor.state.selection.from)) return true
+        if (isInGridContainer(this.editor.state, this.editor.state.selection.from)) {
+          return true
+        }
         const {block} = getBlockInfoFromSelection(this.editor.state)
         return unnestBlock(this.editor, block.beforePos + 1)
       },
@@ -716,5 +686,39 @@ export const KeyboardShortcutsExtension = Extension.create<{
         return false
       },
     }
+  },
+
+  addProseMirrorPlugins() {
+    let capturedMarks: ReturnType<typeof getCarryableStoredMarks> | null = null
+
+    return [
+      new Plugin({
+        key: new PluginKey('CarryStoredMarks'),
+        props: {
+          handleDOMEvents: {
+            keydown(view, event) {
+              if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
+                capturedMarks = getCarryableStoredMarks(view.state)
+              } else {
+                capturedMarks = null
+              }
+              return false
+            },
+          },
+        },
+        appendTransaction(transactions, _oldState, newState) {
+          if (!capturedMarks?.length) return null
+          if (!transactions.some((transaction) => transaction.docChanged)) return null
+          if (!(newState.selection instanceof TextSelection) || !newState.selection.empty) {
+            capturedMarks = null
+            return null
+          }
+
+          const marks = capturedMarks
+          capturedMarks = null
+          return newState.tr.setStoredMarks(marks)
+        },
+      }),
+    ]
   },
 })

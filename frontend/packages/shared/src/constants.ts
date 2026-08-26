@@ -147,6 +147,18 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
   process.env.NOTIFY_SERVICE_HOST || // web server
   WEB_ENV.NOTIFY_SERVICE_HOST // web client
 
+/**
+ * Default agent server for the web app's /hm/agents UI. The site will eventually support several
+ * configured agent servers (as desktop does); for now this is the seed of the configured list.
+ *
+ * The dev fallback matches the harness dev agents server port (see agents/.env.vars), not the
+ * packaged binary's 3050 — a stale packaged server on 3050 answers but 400s the runs API.
+ */
+export const SEED_AGENT_SERVER_URL: string | undefined =
+  process.env.SEED_AGENT_SERVER_URL || // web server
+  WEB_ENV.SEED_AGENT_SERVER_URL || // web client
+  (process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051')
+
 // Discovery timeouts
 export const DISCOVERY_TIMEOUT_MS = 15_000 // 15 seconds before showing not-found
 export const DISCOVERY_DEBOUNCE_MS = 100 // debounce rapid mounts

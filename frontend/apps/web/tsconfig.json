@@ -6,7 +6,6 @@
     "app/**/.server/**/*.tsx",
     "app/**/.client/**/*.ts",
     "app/**/.client/**/*.tsx",
-    "app/shims/react-native-svg.js",
     "devicelink/**/*.ts",
     "devicelink/**/*.tsx"
   ],
@@ -44,7 +43,8 @@
       "@shm/shared/*": ["../../packages/shared/src/*"],
       "@shm/ui/*": ["../../packages/ui/src/*"],
       "@seed-hypermedia/client": ["../../packages/client/src/index.ts"],
-      "@seed-hypermedia/client/*": ["../../packages/client/src/*"]
+      "@seed-hypermedia/client/*": ["../../packages/client/src/*"],
+      "@seed-hypermedia/agents-protocol": ["../../../agents/protocol/src/index.ts"]
     },
     "noEmit": true
   },

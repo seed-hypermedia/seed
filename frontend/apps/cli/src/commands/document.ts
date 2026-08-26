@@ -17,7 +17,12 @@ import {
   pdfToBlocks,
   fileToIpfsBlobs,
   slugify,
+  describeRedirect,
+  followRedirects,
+  followToDocument,
+  packHmId,
   resolveCapability,
+  resolveEditableDocument,
   type DocumentOperation,
   type CollectedBlob,
 } from '@seed-hypermedia/client'
@@ -32,10 +37,16 @@ import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
-import {createBlocksMap, computeReplaceOps, hmBlockNodeToBlockNode, type APIBlockNode} from '../utils/block-diff'
+import {
+  createBlocksMap,
+  computeReplaceOps,
+  hmBlockNodeToBlockNode,
+  rebindTableIdentities,
+  type APIBlockNode,
+} from '../utils/block-diff'
 import {resolveFileLinks} from '../utils/file-links'
 import {markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client'
-import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 // ── Input helpers ────────────────────────────────────────────────────────────
 
@@ -200,6 +211,17 @@ export async function readInput(options: {file?: string; grobidUrl?: string; qui
   return {ops, metadata, fileBlobs: resolved.blobs, tree: resolvedTree}
 }
 
+/**
+ * Records a followed redirect in the markdown frontmatter so the fact survives piping to a file:
+ * `republishOf` (the address whose latest content this is) or `movedTo`. Both keys are ignored by
+ * the frontmatter parser on the way back in, so `get > file; update -f file` still round-trips.
+ */
+function withRedirectFrontmatter(md: string, republish: boolean, target: UnpackedHypermediaId): string {
+  const line = `${republish ? 'republishOf' : 'movedTo'}: ${JSON.stringify(packHmId(target))}`
+  if (md.startsWith('---\n')) return `---\n${line}\n${md.slice(4)}`
+  return `---\n${line}\n---\n${md}`
+}
+
 export function registerDocumentCommands(program: Command) {
   const doc = program
     .command('document')
@@ -235,6 +257,36 @@ export function registerDocumentCommands(program: Command) {
       try {
         const {id: resolvedId, client} = await resolveIdWithClient(id, globalOpts)
 
+        // `:directory` is a view term, not a path segment: list the child documents the way the
+        // desktop's directory tab does, instead of asking the server for a document at that path.
+        if (resolvedId.path?.[resolvedId.path.length - 1] === ':directory') {
+          const parent = {...resolvedId, path: resolvedId.path.slice(0, -1)}
+          // No sort: the daemon's `Path` sort term currently returns an empty result set, so the
+          // listing relies on the server's default ordering.
+          const result = await client.request('Query', {
+            includes: [{space: parent.uid, path: hmIdPathToEntityQueryPath(parent.path), mode: 'Children'}],
+          })
+          const results = result?.results ?? []
+          if (globalOpts.quiet || options.quiet) {
+            emit(results.map((r) => `${r.id.id}\t${r.metadata?.name || ''}`).join('\n'))
+          } else if (useStructuredOutput) {
+            emit(formatOutput(result, format, pretty))
+          } else {
+            let md = results.length
+              ? results
+                  .map((r) => {
+                    const label = r.metadata?.name || hmIdPathToEntityQueryPath(r.path) || r.id.id
+                    const summary = r.metadata?.summary ? ` — ${r.metadata.summary}` : ''
+                    return `- [${label}](${r.id.id})${summary}`
+                  })
+                  .join('\n')
+              : '(no child documents)'
+            if (pretty) md = renderMarkdown(md)
+            emit(md)
+          }
+          return
+        }
+
         if (options.metadata) {
           const result = await client.request('ResourceMetadata', resolvedId)
           if (globalOpts.quiet || options.quiet) {
@@ -245,7 +297,14 @@ export function registerDocumentCommands(program: Command) {
           return
         }
 
-        const result = await client.request('Resource', resolvedId)
+        // A redirected address (a moved path, or a "republished" path that re-publishes another
+        // document as its own) is followed so the reader gets content — but never silently: the
+        // output names the address the content really lives at, because a write to the requested
+        // address does something different (it replaces the redirect) from a write to the target.
+        const followed = await followRedirects(client, resolvedId)
+        const result = followed.resource
+        const redirectNotice = describeRedirect(followed)
+        if (redirectNotice && !globalOpts.quiet && !options.quiet) printInfo(redirectNotice)
 
         if (globalOpts.quiet || options.quiet) {
           if (result.type === 'document') {
@@ -257,7 +316,18 @@ export function registerDocumentCommands(program: Command) {
           }
         } else if (useStructuredOutput) {
           // --json or --yaml → structured output (optionally colorized with --pretty)
-          emit(formatOutput(result, format, pretty))
+          const structured = redirectNotice
+            ? {
+                ...result,
+                redirect: {
+                  from: packHmId(followed.id),
+                  to: packHmId(followed.targetId),
+                  republish: followed.redirects[0]!.republish,
+                  notice: redirectNotice,
+                },
+              }
+            : result
+          emit(formatOutput(structured, format, pretty))
         } else {
           // Default: markdown output (with frontmatter and block IDs)
           // When --pretty: render markdown with ANSI terminal styling
@@ -266,6 +336,7 @@ export function registerDocumentCommands(program: Command) {
               resolve: options.resolve,
               client: options.resolve ? client : undefined,
             })
+            if (redirectNotice) md = withRedirectFrontmatter(md, followed.redirects[0]!.republish, followed.targetId)
             if (pretty) md = renderMarkdown(md)
             emit(md)
           } else if (result.type === 'comment') {
@@ -366,7 +437,8 @@ export function registerDocumentCommands(program: Command) {
         const {metadata: resolvedMeta, blobs: metaBlobs} = await resolveMetadataFileLinks(metadata)
 
         const rawPath = options.path || slugify(resolvedMeta.name || 'Untitled')
-        const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`
+        // "/" publishes the account's home document, whose ref carries no path at all.
+        const path = rawPath === '/' ? '' : rawPath.startsWith('/') ? rawPath : `/${rawPath}`
 
         // When publishing under a different account, resolve the capability.
         // Pass the document path so ListCapabilities can find path-scoped capabilities.
@@ -394,8 +466,13 @@ export function registerDocumentCommands(program: Command) {
                   `Document already exists at ${path}. Use "document update hm://${account}${path}" to modify it, or --force to overwrite with a new lineage.`,
                 )
               }
+              if (existing.type === 'redirect') {
+                throw new Error(
+                  `A redirect already exists at ${path}. Use "document update hm://${account}${path}" to replace it with edited content (continuing the target's history), or --force to overwrite with a new lineage.`,
+                )
+              }
             } catch (e) {
-              // Re-throw our own "already exists" error; swallow network/not-found errors
+              // Re-throw our own guard errors; swallow network/not-found errors
               if ((e as Error).message.includes('already exists')) throw e
             }
           }
@@ -504,13 +581,18 @@ export function registerDocumentCommands(program: Command) {
         let fileBlobs: CollectedBlob[] = []
         let metaBlobs: CollectedBlob[] = []
 
-        // Fetch the document — needed for diffing and state resolution
-        const resource = await client.request('Resource', resourceId)
-        if (resource.type !== 'document') {
-          printError(`Resource is ${resource.type}, not a document.`)
-          process.exit(1)
+        // Fetch the document — needed for diffing and state resolution. A redirected address
+        // (including a republished one) is followed to its target: the edit builds on the
+        // target's DAG and the new Version Ref at THIS address supersedes the redirect.
+        const base = await resolveEditableDocument(client, resourceId)
+        const existingDoc = base.document
+        if (base.redirect && !globalOpts.quiet) {
+          printInfo(
+            `This address currently ${base.redirect.republish ? 'republishes' : 'redirects to'} ${packHmId(
+              base.redirect.target,
+            )}; updating it replaces the redirect with an edited copy of that document.`,
+          )
         }
-        const existingDoc = resource.document
 
         // Collect content and metadata from file input
         let inputMeta: HMMetadata = {}
@@ -530,7 +612,11 @@ export function registerDocumentCommands(program: Command) {
             // whose IDs are absent from the new tree are deleted.
             const oldNodes = (existingDoc.content || []).map(toAPIBlockNode)
             const oldMap = createBlocksMap(oldNodes)
-            const diffOps = computeReplaceOps(oldMap, input.tree)
+            // Tables: markdown only carries table/column/row ids, so cell
+            // block ids and unexpressible attributes (column width, header
+            // column) are rebound from the old document before diffing.
+            const rebound = rebindTableIdentities(oldNodes, input.tree)
+            const diffOps = computeReplaceOps(oldMap, rebound)
             ops.push(...diffOps)
           } else {
             // No tree available (e.g. PDF input) — use flat ops as-is
@@ -564,10 +650,11 @@ export function registerDocumentCommands(program: Command) {
           process.exit(1)
         }
 
-        const docAccount = existingDoc.account
-        const docPath = existingDoc.path || ''
+        // The Ref lands at the requested address, not the (possibly different) redirect target.
+        const docAccount = resourceId.uid
+        const docPath = resourceId.path?.length ? `/${resourceId.path.join('/')}` : existingDoc.path || ''
 
-        const state = await resolveDocumentState(client, id)
+        const state = base.state
         const genesisCid = CID.parse(state.genesis)
         const depCids = state.heads.map((h) => CID.parse(h))
         const newDepth = state.headDepth + 1
@@ -625,12 +712,24 @@ export function registerDocumentCommands(program: Command) {
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', unpacked)
-        if (resource.type !== 'document') {
+        if (resource.type !== 'document' && resource.type !== 'redirect') {
           printError(`Cannot delete: resource is ${resource.type}, not a document.`)
           process.exit(1)
         }
-        const doc = resource.document
-        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 0
+        // A redirected path (including a republished one) has no document of its own to read
+        // genesis and generation from, so the tombstone borrows the redirect target's genesis and
+        // takes a fresh generation — the new maximum generation supersedes the redirect Ref, so
+        // the path reads as deleted instead of continuing to follow the target.
+        let genesis: string
+        let generation: number
+        if (resource.type === 'redirect') {
+          const base = await followToDocument(client, unpacked)
+          genesis = base.document.genesis
+          generation = Date.now()
+        } else {
+          genesis = resource.document.genesis
+          generation = resource.document.generationInfo ? Number(resource.document.generationInfo.generation) : 0
+        }
         const docPath = hmIdPathToEntityQueryPath(unpacked.path)
         const capability = await resolveCapability(client, unpacked.uid, key.accountId, docPath)
 
@@ -638,7 +737,7 @@ export function registerDocumentCommands(program: Command) {
           {
             space: unpacked.uid,
             path: hmIdPathToEntityQueryPath(unpacked.path),
-            genesis: doc.genesis,
+            genesis,
             generation,
             capability,
           },
@@ -669,21 +768,18 @@ export function registerDocumentCommands(program: Command) {
         const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
-        const resource = await client.request('Resource', sourceUnpacked)
-        if (resource.type !== 'document') {
-          printError(`Cannot fork: source is ${resource.type}, not a document.`)
-          process.exit(1)
-        }
-        const doc = resource.document
-        if (!doc.generationInfo) throw new Error('No generation info for source document')
+        // Follows redirects so a republished path can be forked: the fork points at the content
+        // the path currently re-publishes. A fresh generation lets the fork supersede any
+        // redirect Ref already sitting at the destination path.
+        const {document: doc} = await followToDocument(client, sourceUnpacked)
 
         const refInput = await createVersionRef(
           {
             space: dest.uid,
             path: hmIdPathToEntityQueryPath(dest.path),
-            genesis: doc.generationInfo.genesis,
+            genesis: doc.generationInfo?.genesis ?? doc.genesis,
             version: doc.version,
-            generation: Number(doc.generationInfo.generation),
+            generation: Date.now(),
           },
           signer,
         )
@@ -715,34 +811,68 @@ export function registerDocumentCommands(program: Command) {
         const key = await resolveSigningKey(_options.key, keyOptions(globalOpts))
         const signer = createSignerFromKey(key)
 
-        const resource = await client.request('Resource', source)
-        if (resource.type !== 'document') {
-          printError(`Cannot move: source is ${resource.type}, not a document.`)
+        // A move acts on whatever lives at the source and keeps it that kind of thing at the
+        // destination. Following redirects tells us which: a republish moves as a republish; a
+        // plain document moves as a fork of its history; a path that has itself already moved is a
+        // pointer with nothing to move.
+        const followed = await followToDocument(client, source)
+        const genesis = followed.document.generationInfo?.genesis ?? followed.document.genesis
+
+        if (followed.redirect && !followed.redirect.republish) {
+          printError(
+            `${packHmId(source)} has already moved to ${packHmId(followed.redirect.target)}. ` +
+              `Move ${packHmId(followed.redirect.target)} instead.`,
+          )
           process.exit(1)
         }
-        const doc = resource.document
-        if (!doc.generationInfo) throw new Error('No generation info for source document')
 
-        // Create version ref at destination
-        const versionRefInput = await createVersionRef(
-          {
-            space: dest.uid,
-            path: hmIdPathToEntityQueryPath(dest.path),
-            genesis: doc.generationInfo.genesis,
-            version: doc.version,
-            generation: Number(doc.generationInfo.generation),
-          },
-          signer,
-        )
-        await client.publish(versionRefInput)
+        if (followed.redirect?.republish) {
+          // Moving a republish moves the republish: the destination re-publishes the same original
+          // (so it keeps tracking the original's edits), and the source redirects to the
+          // destination. Forking here would freeze a snapshot and sever the republish.
+          const original = followed.targetId
+          if (!globalOpts.quiet) {
+            printInfo(
+              `${packHmId(source)} republishes ${packHmId(original)}; ` +
+                `moving it makes ${packHmId(dest)} republish ${packHmId(original)}.`,
+            )
+          }
+          const destRepublishInput = await createRedirectRef(
+            {
+              space: dest.uid,
+              path: hmIdPathToEntityQueryPath(dest.path),
+              genesis,
+              generation: Date.now(),
+              targetSpace: original.uid,
+              targetPath: hmIdPathToEntityQueryPath(original.path),
+              republish: true,
+            },
+            signer,
+          )
+          await client.publish(destRepublishInput)
+        } else {
+          // A plain document forks its history to the destination. Fresh generations let both refs
+          // supersede any redirect Refs already sitting at their paths.
+          const versionRefInput = await createVersionRef(
+            {
+              space: dest.uid,
+              path: hmIdPathToEntityQueryPath(dest.path),
+              genesis,
+              version: followed.document.version,
+              generation: Date.now(),
+            },
+            signer,
+          )
+          await client.publish(versionRefInput)
+        }
 
-        // Create redirect ref at source
+        // Redirect the source to the destination (a plain move redirect, not a republish).
         const redirectRefInput = await createRedirectRef(
           {
             space: source.uid,
             path: hmIdPathToEntityQueryPath(source.path),
-            genesis: doc.generationInfo.genesis,
-            generation: Number(doc.generationInfo.generation),
+            genesis,
+            generation: Date.now(),
             targetSpace: dest.uid,
             targetPath: hmIdPathToEntityQueryPath(dest.path),
           },
@@ -779,19 +909,25 @@ export function registerDocumentCommands(program: Command) {
         const signer = createSignerFromKey(key)
 
         const resource = await client.request('Resource', source)
-        if (resource.type !== 'document') {
+        if (resource.type !== 'document' && resource.type !== 'redirect') {
           printError(`Cannot redirect: resource is ${resource.type}, not a document.`)
           process.exit(1)
         }
-        const doc = resource.document
-        const generation = doc.generationInfo ? Number(doc.generationInfo.generation) : 1
+        // Re-pointing an already-redirected source borrows the current target's genesis (the
+        // source has no document of its own). A fresh generation is minted either way — the same
+        // choice the daemon's CreateRef makes — so the redirect occupies its own generation row
+        // and any later publish at this path supersedes it cleanly.
+        const genesis =
+          resource.type === 'redirect'
+            ? (await followToDocument(client, source)).document.genesis
+            : resource.document.genesis
 
         const refInput = await createRedirectRef(
           {
             space: source.uid,
             path: hmIdPathToEntityQueryPath(source.path),
-            genesis: doc.genesis,
-            generation,
+            genesis,
+            generation: Date.now(),
             targetSpace: target.uid,
             targetPath: hmIdPathToEntityQueryPath(target.path),
             republish: !!_options.republish,
@@ -962,14 +1098,28 @@ export function mergeMetadata(
 
 /**
  * Convert an HMMetadata object to a SetAttributes operation.
- * Only includes fields with defined values.
+ * Only includes fields with defined values, flattening nested objects into key paths.
  */
 function metadataToSetAttributes(metadata: HMMetadata): DocumentOperation | null {
-  const attrs: Array<{key: string[]; value: unknown}> = []
-  for (const [key, value] of Object.entries(metadata)) {
-    if (value !== undefined) {
-      attrs.push({key: [key], value})
+  const attrs: Array<{key: string[]; value: string | number | boolean | null}> = []
+
+  const flatten = (value: unknown, key: string[]) => {
+    if (value === undefined) return
+
+    if (value !== null && typeof value === 'object') {
+      for (const [nestedKey, nestedValue] of Object.entries(value)) {
+        flatten(nestedValue, [...key, nestedKey])
+      }
+      return
     }
+
+    if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      attrs.push({key, value})
+    }
+  }
+
+  for (const [key, value] of Object.entries(metadata)) {
+    flatten(value, [key])
   }
   if (attrs.length === 0) return null
   return {type: 'SetAttributes', attrs}

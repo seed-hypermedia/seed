@@ -234,12 +234,32 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// nothing is settled whatever the index says about it. That signal cannot
 	// lie the way the resolve check can, because it measures the thing we
 	// actually care about.
-	haveLocally := s.scopeIsQuiet(entityID)
-	if !haveLocally && s.resources != nil {
-		if _, gerr := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
-			Iri: string(entityID),
-		}); gerr == nil {
-			haveLocally = true
+	//
+	// Both signals assume the peers a narrowed wave keeps advertise everything
+	// that exists, which is why the exhaustive probe periodically (and on user
+	// interest) overrides them — see shouldRunExhaustive.
+	exhaustiveTrigger := s.shouldRunExhaustive(entityID, recursive, time.Now())
+	exhaustive := exhaustiveTrigger != ""
+	if exhaustive {
+		// Tag the connected-phase context so syncWithManyPeers runs every peer
+		// tier instead of stopping at a satisfied authority. The DHT phase
+		// stays untagged: it is already the last resort and keeps draining.
+		ctxLocalPeers = contextWithExhaustiveWave(ctxLocalPeers)
+		MDiscoverExhaustiveWaves.WithLabelValues(exhaustiveTrigger).Inc()
+	}
+	haveLocally := false
+	if !exhaustive {
+		// Only recursive waves feed the quiet counter (recordWaveYield), so
+		// only recursive waves may consult it: a one-shot or depth-one
+		// discovery for the same IRI must not inherit the subscription's
+		// narrowed peer set.
+		haveLocally = recursive && s.scopeIsQuiet(entityID)
+		if !haveLocally && s.resources != nil {
+			if _, gerr := s.resources.GetResource(ctxLocalPeers, &docspb.GetResourceRequest{
+				Iri: string(entityID),
+			}); gerr == nil {
+				haveLocally = true
+			}
 		}
 	}
 
@@ -367,6 +387,12 @@ func (s *Service) DiscoverObjectWithProgress(ctx context.Context, entityID blob.
 	// Now choose the width, knowing what is actually reachable.
 	hasSite := len(auth.addrInfos) > 0
 	maxSample := sampleWidth(haveLocally, hasSite, len(gatewayPeers) > 0)
+	if exhaustive {
+		// A probe is a search by definition: full width, and (because the
+		// width is non-zero) the gateway drop below never fires, so the probe
+		// asks site + gateways + the full sample.
+		maxSample = maxSampledPeers
+	}
 
 	// Gateways drop out only when a site server can answer instead — it is
 	// authoritative for its own space, so they are pure overhead on every 10s
@@ -1174,10 +1200,16 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 				placeholders[i] = "?"
 				args[i] = t
 			}
+			// Deliberately no stashed_blobs filter: structurally-anchored
+			// blobs are advertised regardless of a coexisting stash marker
+			// (a currently-stashed blob has no structural rows at all, so it
+			// never matches; a structural row next to a stale marker must
+			// still be served — a peer missing the rest of a delegation
+			// chain can only complete it by fetching from us). Only the
+			// link-walk targets exclude stashed — see the media walk below.
 			q := `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT sb.id
 					FROM structural_blobs sb
-					LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 					WHERE resource IN rbsr_iris
 					AND sb.type IN (` + strings.Join(placeholders, ",") + `)`
 
@@ -1245,10 +1277,11 @@ func fillTables(conn *sqlite.Conn, dkeys map[DiscoveryKey]struct{}, includeAccou
 		}
 
 		if hasType(typeFilter, "Profile") {
+			// No stashed_blobs filter, same contract as the resource-scoped
+			// insert above.
 			const q = `INSERT OR IGNORE INTO rbsr_blobs
 					SELECT sb.id
 					FROM structural_blobs sb
-					LEFT OUTER JOIN stashed_blobs ON stashed_blobs.id = sb.id
 					WHERE sb.type = 'Profile'
 					AND sb.author IN (
 						SELECT DISTINCT author

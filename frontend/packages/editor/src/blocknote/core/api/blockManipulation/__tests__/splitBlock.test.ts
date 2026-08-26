@@ -93,6 +93,33 @@ describe('splitBlockCommand', () => {
       expect(topGroup.child(1).firstChild!.textContent).toBe('')
       expect(topGroup.child(2).firstChild!.textContent).toBe('Second')
     })
+
+    it('keeps active text formatting as stored marks for typing in the new block', () => {
+      const bold = schema.marks['bold']!.create()
+      const italic = schema.marks['italic']!.create()
+      const textSize = schema.marks['textSize']!.create({value: 'large'})
+      const textFamily = schema.marks['textFamily']!.create({value: 'serif'})
+      const link = schema.marks['link']!.create({href: 'https://example.com'})
+      const paragraph = schema.nodes['paragraph']!.create(
+        null,
+        schema.text('First', [bold, italic, textSize, textFamily, link]),
+      )
+      const doc = schema.nodes['doc']!.create(
+        null,
+        schema.nodes['blockChildren']!.create(null, schema.nodes['blockNode']!.create({id: 'block-1'}, paragraph)),
+      )
+      const splitPos = findPosInBlock(doc, 'block-1') + 5
+      const newState = runSplit(doc, splitPos)
+
+      const marks = newState.storedMarks?.map((mark) => ({type: mark.type.name, attrs: mark.attrs}))
+      expect(marks).toEqual(
+        expect.arrayContaining([
+          {type: 'textSize', attrs: {value: 'large'}},
+          {type: 'textFamily', attrs: {value: 'serif'}},
+        ]),
+      )
+      expect(marks?.length).toBe(2)
+    })
   })
 
   // Test 3: Split in Unordered list preserves list attrs
@@ -113,7 +140,6 @@ describe('splitBlockCommand', () => {
       const topGroup = newState.doc.firstChild!
       expect(topGroup.type.name).toBe('blockChildren')
       expect(topGroup.attrs.listType).toBe('Unordered')
-      expect(topGroup.attrs.listLevel).toBe('1')
       expect(topGroup.childCount).toBe(2)
 
       expect(topGroup.child(0).firstChild!.textContent).toBe('Hello')

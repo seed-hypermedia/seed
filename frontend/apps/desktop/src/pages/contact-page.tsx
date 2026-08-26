@@ -182,7 +182,7 @@ function ContactPageMain({contactId}: {contactId: UnpackedHypermediaId}) {
               }
             >
               <ArrowUpRight className="size-4" />
-              Open Site
+              Open Space
             </Button>
             {myContact ? (
               <>

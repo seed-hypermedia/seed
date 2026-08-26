@@ -58,8 +58,13 @@ body {
   cursor: col-resize !important;
 }
 
-.panel-resize-handle:hover {
-  background-color: var(--color8);
+.panel-resize-handle.visible {
+  background-color: var(--color-border);
+}
+
+.panel-resize-handle:hover,
+.panel-resize-handle.active {
+  background-color: var(--color-brand-5, var(--color-border));
 }
 
 /*
@@ -88,6 +93,18 @@ body {
 @media (min-width: 768px) {
   [data-header-layout='bar'] {
     --site-header-default-h: 81px;
+  }
+}
+
+/* === MOBILE FRAGMENT SCROLL ===
+ * Mobile web scrolls the document itself and the document top bar pins over it
+ * (see DocumentTopBar), so a `#blockRef` fragment must land below the bar. The
+ * JS path in use-block-scroll.ts subtracts the same amount, but the browser's
+ * native fragment scroll runs last and only honors scroll-padding. 660px is the
+ * `xs` breakpoint useMedia uses to pick the mobile layout. */
+@media (max-width: 660px) {
+  html {
+    scroll-padding-top: 4rem;
   }
 }
 

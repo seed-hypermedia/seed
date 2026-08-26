@@ -16,6 +16,7 @@ export type EditorBlock =
   | EditorTableBlock
   | EditorTableRowBlock
   | EditorTableColumnBlock
+  | EditorSlotBlock
   | EditorUnknownBlock
 export type HMInlineContent = EditorText | EditorInlineEmbed | EditorLink
 
@@ -31,7 +32,6 @@ export interface EditorBlockProps {
   // textAlignment?: 'left' | 'center' | 'right'
   childrenType?: HMBlockChildrenType
   columnCount?: string
-  listLevel?: string
   level?: number | string
   ref?: string
   revision?: string
@@ -145,12 +145,13 @@ export type EditorNostrBlock = EditorBaseBlock & {
 export type EditorQueryBlock = EditorBaseBlock & {
   type: 'query'
   props: EditorBlockProps & {
-    style: 'Card' | 'List'
+    style: 'Card' | 'List' | 'Table'
     columnCount?: '1' | '2' | '3'
     queryLimit?: string
     queryIncludes?: string
     querySort?: string
     banner?: 'true' | 'false'
+    tableConfig?: string
   }
   content: Array<HMInlineContent>
 }
@@ -179,6 +180,11 @@ export interface EditorTableColumnBlock extends EditorBaseBlock {
     isHeader?: boolean
   }
   content: Array<HMInlineContent> // always empty
+}
+
+export interface EditorSlotBlock extends EditorBaseBlock {
+  type: 'slot'
+  content: Array<HMInlineContent>
 }
 
 export type EditorUnknownBlock = EditorBaseBlock & {

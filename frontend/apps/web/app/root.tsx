@@ -6,6 +6,7 @@ import {
   ENABLE_EMAIL_NOTIFICATIONS,
   LIGHTNING_API_URL,
   NOTIFY_SERVICE_HOST,
+  SEED_AGENT_SERVER_URL,
   SEED_ASSET_HOST,
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
@@ -94,6 +95,7 @@ export function Layout({children}: {children: React.ReactNode}) {
               ENABLE_EMAIL_NOTIFICATIONS,
               SEED_ASSET_HOST,
               NOTIFY_SERVICE_HOST,
+              SEED_AGENT_SERVER_URL,
             })}`,
           }}
         />

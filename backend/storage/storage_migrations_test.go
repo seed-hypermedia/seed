@@ -144,6 +144,32 @@ func checkSQLEqual(t *testing.T, want, got string) {
 	require.Equal(t, want, got)
 }
 
+func TestRBSRRepairMigrationDoesNotScheduleReindex(t *testing.T) {
+	db := MakeTestMemoryDB(t)
+	conn, release, err := db.WriteConn(context.Background())
+	require.NoError(t, err)
+	defer release()
+
+	reindexTime := "already-indexed"
+	require.NoError(t, SetKV(context.Background(), conn, "last_reindex_time", reindexTime, true))
+
+	idx := slices.IndexFunc(migrations, func(m migration) bool {
+		return m.Version == "2026-08-05.103117"
+	})
+	require.NotEqual(t, -1, idx, "RBSR repair migration must exist")
+	require.NoError(t, migrations[idx].Run(nil, conn))
+
+	got, err := sqlitex.QueryOne[string](conn, "SELECT value FROM kv WHERE key = 'last_reindex_time'")
+	require.NoError(t, err)
+	require.Equal(t, reindexTime, got)
+
+	for _, table := range []string{"rbsr_scope", "rbsr_item"} {
+		exists, err := sqlitex.QueryOne[int64](conn, "SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name = ?", table)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), exists, "%s must exist", table)
+	}
+}
+
 func TestMigrationListSorted(t *testing.T) {
 	require.True(t, slices.IsSortedFunc(migrations, func(a, b migration) int {
 		return strings.Compare(a.Version, b.Version)

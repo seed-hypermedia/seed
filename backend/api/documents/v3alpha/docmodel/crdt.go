@@ -10,9 +10,10 @@ import (
 	"math"
 	"seed/backend/blob"
 	"seed/backend/core"
+	"seed/backend/util/attrkey"
 	"seed/backend/util/btree"
 	"seed/backend/util/cclock"
-	"seed/backend/util/colx"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -20,12 +21,11 @@ import (
 	"github.com/ipfs/go-cid"
 	"github.com/multiformats/go-multibase"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 type opID struct {
 	Ts    int64
-	Idx   int32
+	Idx   int64
 	Actor core.ActorID
 }
 
@@ -55,23 +55,43 @@ func decodeOpID(s []uint64) (opID, error) {
 	}
 
 	if len(s) == 1 {
-		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int32(s[0])}, nil //nolint:gosec // We know this should not overflow.
+		if s[0] > maxIdx {
+			return opID{}, fmt.Errorf("invalid opID: index %d overflows the maximum %d", s[0], maxIdx)
+		}
+		return opID{Ts: 0, Actor: math.MaxUint64, Idx: int64(s[0])}, nil //nolint:gosec // Bounds-checked above.
 	}
 
 	if len(s) != 3 {
 		return opID{}, fmt.Errorf("invalid opID: %v", s)
 	}
 
+	if s[0] > maxTs {
+		return opID{}, fmt.Errorf("invalid opID: timestamp %d overflows the maximum %d", s[0], maxTs)
+	}
+
+	if s[1] > maxIdx {
+		return opID{}, fmt.Errorf("invalid opID: index %d overflows the maximum %d", s[1], maxIdx)
+	}
+
 	return opID{
-		Ts:    int64(s[0]), //nolint:gosec // We know this should not overflow.
-		Idx:   int32(s[1]), //nolint:gosec // We know this should not overflow.
+		Ts:    int64(s[0]), //nolint:gosec // Bounds-checked above.
+		Idx:   int64(s[1]), //nolint:gosec // Bounds-checked above.
 		Actor: core.ActorID(s[2]),
 	}, nil
 }
 
 const (
-	maxTs  = 1<<48 - 1
-	maxIdx = 1<<24 - 1
+	maxTs = 1<<48 - 1
+
+	// maxIdx is a policy bound, not a representation one: op IDs used to be
+	// packed into a fixed 15-byte encoding with a 24-bit index (removed in
+	// 2024's Breaking Change), but today the index is a plain int64 in memory
+	// and a full uint64 on the wire. The apply loop advances the index
+	// quadratically within multi-block ops, so the old 2^24 cap was reached by
+	// a single move op of only ~5.8k blocks — real imported documents exceed
+	// that. 2^31 allows ~65k blocks in one move op while still bounding the
+	// work a hostile change can ask for.
+	maxIdx = 1<<31 - 1
 )
 
 func newOpID(ts int64, actor core.ActorID, idx int) opID {
@@ -90,7 +110,7 @@ func newOpID(ts int64, actor core.ActorID, idx int) opID {
 
 	return opID{
 		Ts:    ts,
-		Idx:   int32(idx),
+		Idx:   int64(idx),
 		Actor: actor,
 	}
 }
@@ -127,12 +147,17 @@ type docCRDT struct {
 
 	tree *treeOpSet
 
-	stateMetadata *btree.Map[[]string, *mvReg[any]]
+	stateMetadata *btree.Map[[]string, *mvReg[metadataValue]]
 	stateBlocks   map[string]*mvReg[blob.Block] // blockID -> opid -> block state.
 
 	clock        *cclock.Clock
 	actorsIntern map[core.PrincipalUnsafeString]core.PrincipalUnsafeString
 	vectorClock  map[core.PrincipalUnsafeString]time.Time
+}
+
+type metadataValue struct {
+	Key   []string
+	Value any
 }
 
 func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
@@ -141,7 +166,7 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 		applied:       make(map[cid.Cid]int),
 		heads:         make(map[cid.Cid]struct{}),
 		tree:          newTreeOpSet(),
-		stateMetadata: btree.New[[]string, *mvReg[any]](8, slices.Compare),
+		stateMetadata: btree.New[[]string, *mvReg[metadataValue]](8, slices.Compare),
 		stateBlocks:   make(map[string]*mvReg[blob.Block]),
 		clock:         cclock.New(),
 		actorsIntern:  make(map[core.PrincipalUnsafeString]core.PrincipalUnsafeString),
@@ -154,50 +179,76 @@ func newCRDT(id blob.IRI, clock *cclock.Clock) *docCRDT {
 func (e *docCRDT) GetMetadata() map[string]any {
 	out := make(map[string]any, e.stateMetadata.Len())
 
-	// When a key is set to null it removes any nested map previously stored
-	// under it. Keys are stored flattened and iterated in prefix order (a
-	// parent immediately precedes all of its descendants), so we keep a stack
-	// of the "removal" ancestors currently in scope. A descendant is dropped
-	// when it lives under such a removal and is older than it; a newer value
-	// under the same prefix means the key was re-set and is kept.
-	// Search for "attrprefixhack" in the codebase.
-	type removal struct {
-		Key []string
-		ID  opID
+	type attribute struct {
+		ID    opID
+		Key   []string
+		Value any
 	}
-	var removals []removal
-	for k, v := range e.stateMetadata.Items() {
+	var attributes []attribute
+	for _, v := range e.stateMetadata.Items() {
 		id, vv, ok := v.GetLatestWithID()
-
-		// Pop removal ancestors we've iterated out of.
-		for len(removals) > 0 && !colx.HasPrefix(k, removals[len(removals)-1].Key) {
-			removals = removals[:len(removals)-1]
-		}
-
-		if !ok || vv == nil {
-			// A null value removes its subtree; remember it so every older
-			// descendant (not just the first one) is dropped.
-			if ok && vv == nil {
-				removals = append(removals, removal{Key: k, ID: id})
-			}
+		if !ok || vv.Value == nil {
 			continue
 		}
+		attributes = append(attributes, attribute{ID: id, Key: vv.Key, Value: vv.Value})
+	}
 
-		dropped := false
-		for _, r := range removals {
-			if colx.HasPrefix(k, r.Key) && id.Compare(r.ID) < 0 {
-				dropped = true
-				break
-			}
-		}
-		if dropped {
-			continue
-		}
-
-		colx.ObjectSet(out, k, vv)
+	slices.SortFunc(attributes, func(a, b attribute) int {
+		return a.ID.Compare(b.ID)
+	})
+	for _, attribute := range attributes {
+		attrkey.Set(out, attribute.Key, attribute.Value)
 	}
 
 	return out
+}
+
+func (e *docCRDT) setMetadata(id opID, key []string, value any) {
+	exactKey := slices.Clone(key)
+	if reg := e.stateMetadata.GetMaybe(exactKey); reg != nil {
+		currentID, _, ok := reg.GetLatestWithID()
+		if ok && currentID.Compare(id) >= 0 {
+			return
+		}
+	}
+
+	// Ancestor and descendant paths are mutually exclusive registers. Resolve
+	// them with the same total order as exact-key updates so replay order cannot
+	// resurrect a value that a later structural replacement removed.
+	var remove [][]string
+	for otherKey, reg := range e.stateMetadata.Items() {
+		if slices.Equal(otherKey, exactKey) {
+			continue
+		}
+
+		otherIsAncestor := len(otherKey) < len(exactKey) && slices.Equal(otherKey, exactKey[:len(otherKey)])
+		otherIsDescendant := len(exactKey) < len(otherKey) && slices.Equal(exactKey, otherKey[:len(exactKey)])
+		if !otherIsAncestor && !otherIsDescendant {
+			continue
+		}
+
+		otherID, _, ok := reg.GetLatestWithID()
+		if !ok {
+			continue
+		}
+
+		order := otherID.Compare(id)
+		if order > 0 || order == 0 && otherIsDescendant {
+			return
+		}
+		remove = append(remove, otherKey)
+	}
+
+	for _, otherKey := range remove {
+		e.stateMetadata.Delete(otherKey)
+	}
+
+	reg := e.stateMetadata.GetMaybe(exactKey)
+	if reg == nil {
+		reg = newMVReg[metadataValue]()
+		e.stateMetadata.Set(exactKey, reg)
+	}
+	reg.Set(id, metadataValue{Key: slices.Clone(key), Value: value})
 }
 
 // Heads returns the map of head changes.
@@ -380,6 +431,31 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		panic("BUG: actor wasn't derived when applying change")
 	}
 
+	if ts != math.MaxInt64 && ts >= maxTs {
+		return fmt.Errorf("change %s: timestamp %d overflows the maximum op ID timestamp %d", c, ts, maxTs)
+	}
+
+	// A change carrying enough ops can push the op ID index past maxIdx (the
+	// index advances quadratically within multi-block ops — see below). newOpID
+	// panics on such values because today's write path can never produce them,
+	// but changes arriving from the network can — huge imported documents from
+	// older writers exist in the wild — and applying those must fail with an
+	// error instead of crashing the process.
+	checkedOpID := func(i int) (opID, error) {
+		if i > maxIdx {
+			return opID{}, fmt.Errorf("change %s: op ID index %d overflows the maximum %d", c, i, maxIdx)
+		}
+		return newOpID(ts, actorID, i), nil
+	}
+
+	// The multi-block ops below advance idx by i, not by 1, so a single op
+	// carrying n blocks consumes about n²/2 index values. That is wire-visible
+	// behaviour, not an off-by-one: refs in existing changes encode the indexes
+	// this numbering produced, so switching to idx++ would renumber every op ID
+	// in existence and make historical refs fail to resolve ("causality
+	// violation: ref op ... is not found") on documents that load today.
+	// Changing it needs a versioned migration, not a one-line fix. The quadratic
+	// growth is also why maxIdx is where it is — see its comment.
 	idx := -1
 	for op, err := range ch.Ops() {
 		idx++
@@ -389,13 +465,12 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 
 		switch op := op.(type) {
 		case blob.OpSetKey:
-			reg := e.stateMetadata.GetMaybe([]string{op.Key})
-			if reg == nil {
-				reg = newMVReg[any]()
-				e.stateMetadata.Set([]string{op.Key}, reg)
+			key := []string{op.Key}
+			opid, err := checkedOpID(idx)
+			if err != nil {
+				return err
 			}
-			opid := newOpID(ts, actorID, idx)
-			reg.Set(opid, op.Value)
+			e.setMetadata(opid, key, op.Value)
 		case blob.OpReplaceBlock:
 			blk := op.Block
 			reg := e.stateBlocks[blk.ID()]
@@ -403,7 +478,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 				reg = newMVReg[blob.Block]()
 				e.stateBlocks[blk.ID()] = reg
 			}
-			opid := newOpID(ts, actorID, idx)
+			opid, err := checkedOpID(idx)
+			if err != nil {
+				return err
+			}
 			reg.Set(opid, blk)
 
 			// We now support having detached blocks, so we need to make sure they exist in the tree.
@@ -438,7 +516,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 			var lastOp opID
 			for i, blk := range op.Blocks {
 				idx += i
-				opid := newOpID(ts, actorID, idx)
+				opid, err := checkedOpID(idx)
+				if err != nil {
+					return err
+				}
 				if i > 0 {
 					refID = lastOp
 				}
@@ -450,7 +531,10 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 		case blob.OpDeleteBlocks:
 			for i, blk := range op.Blocks {
 				idx += i
-				opid := newOpID(ts, actorID, idx)
+				opid, err := checkedOpID(idx)
+				if err != nil {
+					return err
+				}
 				if err := e.tree.Integrate(opid, TrashNodeID, blk, opID{}); err != nil {
 					return err
 				}
@@ -462,13 +546,11 @@ func (e *docCRDT) ApplyChange(c cid.Cid, ch *blob.Change) error {
 
 			for i, kv := range op.Attrs {
 				idx += i
-				opid := newOpID(ts, actorID, idx)
-				reg := e.stateMetadata.GetMaybe(kv.Key)
-				if reg == nil {
-					reg = newMVReg[any]()
-					e.stateMetadata.Set(kv.Key, reg)
+				opid, err := checkedOpID(idx)
+				if err != nil {
+					return err
 				}
-				reg.Set(opid, kv.Value)
+				e.setMetadata(opid, kv.Key, kv.Value)
 			}
 		default:
 			return fmt.Errorf("BUG?: unhandled op type: %T", op)

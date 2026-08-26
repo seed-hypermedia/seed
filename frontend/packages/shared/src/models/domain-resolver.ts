@@ -58,11 +58,13 @@ export function createDomainResolver(grpcClient: GRPCClient, onIdChanged?: Domai
   return async (hostname: string) => {
     // Fast cached lookup
     let cachedUid: string | null = null
+    let cachedIsGateway = false
     let lastCheck: Date | null = null
     try {
       const domainInfo = await grpcClient.daemon.getDomain({domain: hostname})
       if (domainInfo.registeredAccountUid) {
         cachedUid = domainInfo.registeredAccountUid
+        cachedIsGateway = !!domainInfo.isGateway
         lastCheck = domainInfo.lastCheck?.toDate() ?? null
       }
     } catch {
@@ -87,14 +89,14 @@ export function createDomainResolver(grpcClient: GRPCClient, onIdChanged?: Domai
           })
       }
 
-      return cachedUid
+      return {registeredAccountUid: cachedUid, isGateway: cachedIsGateway}
     }
 
     // Cache miss — do a full resolution (blocking) to populate the cache
     try {
       const result = await grpcClient.daemon.checkDomain({domain: hostname})
       if (result.registeredAccountUid) {
-        return result.registeredAccountUid
+        return {registeredAccountUid: result.registeredAccountUid, isGateway: !!result.isGateway}
       }
     } catch {
       // Full resolution failed — fall through to OPTIONS

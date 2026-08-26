@@ -1,4 +1,4 @@
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
+import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
@@ -319,7 +319,7 @@ export async function resolveEmbedUrl(
   url: string,
   opts: {
     gwUrl?: any
-    domainResolver?: (hostname: string) => Promise<string | null>
+    domainResolver?: DomainResolverFn
   } = {},
 ): Promise<EmbedResolveResult> {
   const directHmId = unpackHmId(url)
@@ -388,7 +388,7 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
           error: result.error,
         })
         setFileName({
-          name: 'Failed to reach URL — site may be offline or block requests',
+          name: 'Failed to reach URL — space may be offline or block requests',
           color: 'red',
         })
         return

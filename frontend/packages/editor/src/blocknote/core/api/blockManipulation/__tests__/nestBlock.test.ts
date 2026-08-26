@@ -12,10 +12,10 @@ describe('nestBlock - custom sinkListItem', () => {
   })
 
   // Helper: call custom sinkListItem and return new state
-  function runSink(state: EditorState, listType: string, listLevel: string): EditorState | undefined {
+  function runSink(state: EditorState, listType: string): EditorState | undefined {
     const itemType = schema.nodes['blockNode']!
     const groupType = schema.nodes['blockChildren']!
-    const cmd = sinkListItem(itemType, groupType, listType as any, listLevel)
+    const cmd = sinkListItem(itemType, groupType, listType as any)
 
     let newState: EditorState | undefined
     cmd({
@@ -49,7 +49,7 @@ describe('nestBlock - custom sinkListItem', () => {
       selection: TextSelection.create(doc, pos),
     })
 
-    const newState = runSink(state, 'Group', '1')
+    const newState = runSink(state, 'Group')
     expect(newState).toBeDefined()
 
     // Top group should have 1 child now
@@ -64,7 +64,6 @@ describe('nestBlock - custom sinkListItem', () => {
     const nested = block1.lastChild!
     expect(nested.type.name).toBe('blockChildren')
     expect(nested.attrs.listType).toBe('Group')
-    expect(nested.attrs.listLevel).toBe('1')
 
     // block-2 should be the first child of block-1
     const block2 = nested.firstChild!
@@ -103,7 +102,7 @@ describe('nestBlock - custom sinkListItem', () => {
       selection: TextSelection.create(doc, pos),
     })
 
-    const newState = runSink(state, 'Unordered', '2')
+    const newState = runSink(state, 'Unordered')
     expect(newState).toBeDefined()
 
     // Navigate to the Unordered list
@@ -123,7 +122,6 @@ describe('nestBlock - custom sinkListItem', () => {
     const nestedList = item1.lastChild!
     expect(nestedList.type.name).toBe('blockChildren')
     expect(nestedList.attrs.listType).toBe('Unordered')
-    expect(nestedList.attrs.listLevel).toBe('2')
 
     // item-2 should be the first child of item-1
     const item2 = nestedList.firstChild!
@@ -162,7 +160,7 @@ describe('nestBlock - custom sinkListItem', () => {
       selection: TextSelection.create(doc, pos),
     })
 
-    const newState = runSink(state, 'Group', '1')
+    const newState = runSink(state, 'Group')
     expect(newState).toBeDefined()
 
     // Top group should have 1 child

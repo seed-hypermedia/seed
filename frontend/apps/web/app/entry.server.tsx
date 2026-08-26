@@ -26,10 +26,13 @@ import {
   printInstrumentationSummary,
   startSpan,
 } from './instrumentation.server'
+import {getRequestResourceIds} from './hypermedia-id'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {getComment, resolveResource} from './loaders'
 import {logDebug} from './logger'
 import {ParsedRequest, parseRequest} from './request'
+import {extractCommentId, parseResourceExportPath} from './resource-export-path'
+import {EXPOSED_HYPERMEDIA_HEADERS, handleResourceExportRequest} from './resource-export.server'
 import {getOrCreateServerSignerAccountUid} from './server-signing'
 import {applyConfigSubscriptions, getConfig} from './site-config.server'
 
@@ -111,52 +114,11 @@ initializeServer()
     console.error('Error initializing server', e)
   })
 
-const COMMENT_VIEW_TERMS = [':comments', ':comment', ':discussions']
-
-function extractCommentId(pathParts: string[]): string | null {
-  if (pathParts.length >= 3) {
-    const thirdToLast = pathParts[pathParts.length - 3]!
-    if (COMMENT_VIEW_TERMS.includes(thirdToLast)) {
-      return `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`
-    }
-  }
-  if (pathParts.length >= 2) {
-    const secondToLast = pathParts[pathParts.length - 2]!
-    if (COMMENT_VIEW_TERMS.includes(secondToLast)) {
-      return pathParts[pathParts.length - 1]!
-    }
-  }
-  return null
-}
-
-function stripInspectPrefix(pathParts: string[]): string[] {
-  if (pathParts[0] === 'hm' && pathParts[1] === 'inspect') {
-    return ['hm', ...pathParts.slice(2)]
-  }
-  if (pathParts[0] === 'inspect') {
-    return pathParts.slice(1)
-  }
-  return pathParts
-}
-
-function getHmIdOfRequest({pathParts, url}: ParsedRequest, originAccountId: string | undefined) {
-  const effectivePathParts = stripInspectPrefix(pathParts)
-  const version = url.searchParams.get('v')
-  const latest = url.searchParams.get('l') === '' || !version
-  if (effectivePathParts.length === 0) {
-    if (!originAccountId) return null
-    return hmId(originAccountId, {path: [], version, latest})
-  }
-  if (effectivePathParts[0] === 'hm') {
-    return hmId(effectivePathParts[1], {path: effectivePathParts.slice(2), version, latest})
-  }
-  if (!originAccountId) return null
-  return hmId(originAccountId, {path: effectivePathParts, version, latest})
-}
-
 async function handleOptionsRequest(request: Request) {
   const parsedRequest = parseRequest(request)
-  const {hostname, pathParts} = parsedRequest
+  const {hostname} = parsedRequest
+  // Preflights for .md/.json export URLs should resolve the same resource as their GET.
+  const pathParts = parseResourceExportPath(parsedRequest.pathParts)?.pathParts ?? parsedRequest.pathParts
   const serviceConfig = await getConfig(hostname)
   const originAccountId = serviceConfig?.registeredAccountUid
 
@@ -164,8 +126,7 @@ async function handleOptionsRequest(request: Request) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, HEAD',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Expose-Headers':
-      'X-Hypermedia-Id, X-Hypermedia-Version, X-Hypermedia-Title, X-Hypermedia-Target, X-Hypermedia-Authors, X-Hypermedia-Type',
+    'Access-Control-Expose-Headers': EXPOSED_HYPERMEDIA_HEADERS,
   }
 
   try {
@@ -205,12 +166,18 @@ async function handleOptionsRequest(request: Request) {
       }
     }
 
-    // Document URL
-    const resourceId = getHmIdOfRequest(parsedRequest, originAccountId)
-    if (resourceId) {
-      const resource = await resolveResource(resourceId)
+    // Document URL. Rebuild the URL from the export-stripped path parts so
+    // .md/.json preflights resolve the same resource as their GET.
+    const resourceUrl = new URL(parsedRequest.url)
+    resourceUrl.pathname = '/' + pathParts.join('/')
+    const resourceIds = getRequestResourceIds(resourceUrl, originAccountId)
+    if (resourceIds) {
+      const resource = await resolveResource(resourceIds.loadResourceId)
       if (resource.type === 'document') {
-        Object.assign(headers, metadataToHeaders(createResourceMetadata({id: resourceId, document: resource.document})))
+        Object.assign(
+          headers,
+          metadataToHeaders(createResourceMetadata({id: resourceIds.publicMetadataId, document: resource.document})),
+        )
       }
       return new Response(null, {status: 200, headers})
     }
@@ -279,6 +246,14 @@ async function handleRequestWithAuth(
   }
   if (url.pathname.startsWith('/.well-known/')) {
     return new Response('Not Found', {status: 404})
+  }
+  if (request.method === 'GET' || request.method === 'HEAD') {
+    // Serve raw markdown/JSON for URLs with a .md/.json export extension, so
+    // agents and bots can consume content without parsing HTML.
+    const exportPath = parseResourceExportPath(pathParts)
+    if (exportPath) {
+      return await handleResourceExportRequest(parsedRequest, exportPath)
+    }
   }
   if (parsedRequest.pathParts.length > 1 && parsedRequest.pathParts.find((part) => part === '') == '') {
     // This block handles redirecting from trailing slash requests

@@ -375,12 +375,18 @@ test.describe('Formatting Toolbar', () => {
       await page.getByTestId('group-type-unordered').click()
       await page.waitForTimeout(500)
 
-      // Check that the list type is set correctly
+      // The two selected blocks become a single root-level Slot list; Parent and
+      // Sibling stay plain paragraphs around it.
       const blocks = await editorHelpers.getBlocks()
-      expect(blocks[0].props.childrenType).toBe('Unordered')
-      const listItems = blocks[0].children
-      expect(listItems[0].content[0].text).toBe('Child 1')
-      expect(listItems[1].content[0].text).toBe('Child 2')
+      expect(blocks[0].content[0].text).toBe('Parent')
+
+      const slot = blocks[1]
+      expect(slot.type).toBe('slot')
+      expect(slot.props.childrenType).toBe('Unordered')
+      expect(slot.children[0].content[0].text).toBe('Child 1')
+      expect(slot.children[1].content[0].text).toBe('Child 2')
+
+      expect(blocks[2].content[0].text).toBe('Sibling')
     })
   })
 

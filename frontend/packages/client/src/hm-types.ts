@@ -45,9 +45,22 @@ export const HMEmbedViewSchema = z.union([
 ])
 export type HMEmbedView = z.infer<typeof HMEmbedViewSchema>
 
-export const HMQueryStyleSchema = z.union([z.literal('Card'), z.literal('List')])
+export const HMQueryStyleSchema = z.union([z.literal('Card'), z.literal('List'), z.literal('Table')])
 
 export type HMQueryStyle = z.infer<typeof HMQueryStyleSchema>
+
+const HMQueryTableColumnSchema = z.object({
+  id: z.string(),
+  visible: z.boolean(),
+  width: z.number().positive().optional(),
+})
+
+const HMQueryTableConfigSchema = z.object({
+  columns: z.array(HMQueryTableColumnSchema),
+})
+
+/** Persisted presentation settings for a Query block's Table view. */
+export type HMQueryTableConfig = z.infer<typeof HMQueryTableConfigSchema>
 
 const baseAnnotationProperties = {
   starts: z.array(z.number()),
@@ -311,7 +324,10 @@ export const HMBlockFileSchema = z
     attributes: z
       .object({
         ...parentBlockAttributes,
-        size: z.number().optional().transform(toNumber), // number of bytes, as a string
+        size: z
+          .number()
+          .optional()
+          .transform((value) => (value == null ? null : toNumber(value))), // number of bytes, as a string
         name: z.string().optional(),
       })
       .optional()
@@ -492,6 +508,14 @@ export type HMPublishableBlockWebEmbed = {
   children?: HMPublishableBlock[]
 }
 
+export type HMPublishableBlockSlot = {
+  id: string
+  type: 'Slot'
+  childrenType?: HMBlockChildrenType
+  columnCount?: number
+  children?: HMPublishableBlock[]
+}
+
 export type HMPublishableBlock =
   | HMPublishableBlockParagraph
   | HMPublishableBlockHeading
@@ -503,6 +527,7 @@ export type HMPublishableBlock =
   | HMPublishableBlockButton
   | HMPublishableBlockEmbed
   | HMPublishableBlockWebEmbed
+  | HMPublishableBlockSlot
 
 export type HMBlockNode = {
   children?: HMBlockNode[]
@@ -533,6 +558,27 @@ export const HMDocumentMetadataSchema = z
     thumbnail: z.string().optional(), // DEPRECATED
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
+    /**
+     * Agents server a space advertises for its readers (an http(s) origin). Clients viewing the
+     * space's documents connect to it alongside their own configured servers, so a site can host
+     * agents for its audience — on the gateway, each site brings its own agents backend.
+     */
+    agentServerUrl: z.string().optional(),
+    /**
+     * Agents this space publishes to its readers: `{[agentId]: order}`, where each id names an agent
+     * on {@link agentServerUrl} and the number is its position in the picker.
+     *
+     * This is what makes a space's agents reachable by someone who just arrived: an agent server
+     * only ever lists agents you own or collaborate on, so a reader cannot discover them by asking.
+     * Named here, the client fetches each one by id, which the server serves to any signed account
+     * once the agent is public-read.
+     *
+     * Only ids and order live here — an agent's name and icon are read from the agent itself, so
+     * renaming one never strands a stale copy in a signed document. Values are typed loosely
+     * because removal leaves a null attribute behind rather than dropping the key; `parseSpaceAgentIds`
+     * in @shm/ui/agents/space-agents is the reader for this field.
+     */
+    spaceAgents: z.record(z.unknown()).optional(),
     layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
     displayPublishTime: z.string().optional(),
     displayAuthor: z.string().optional(),
@@ -571,6 +617,34 @@ export type HMMetadata = z.infer<typeof HMDocumentMetadataSchema>
 
 /** Keys declared by HMDocumentMetadataSchema — the built-in document metadata fields. */
 export const BUILTIN_METADATA_KEYS: ReadonlySet<string> = new Set(Object.keys(HMDocumentMetadataSchema.shape))
+
+/** User-facing explanations for document attributes understood by Seed. */
+export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  name: 'Document or space title.',
+  summary: 'Short description shown in previews and cards.',
+  icon: 'Square document or space image.',
+  thumbnail: 'Deprecated image field kept for older documents.',
+  cover: 'Wide cover image shown in headers and cards.',
+  siteUrl: 'Published website URL for a space.',
+  agentServerUrl: 'Agents server readers of this space connect to.',
+  spaceAgents: 'Agents this space publishes to its readers, by id and order.',
+  layout: 'Legacy space header layout setting.',
+  displayPublishTime: 'Publication date shown to readers.',
+  displayAuthor: 'Author byline shown to readers.',
+  seedExperimentalLogo: 'Logo shown in the space header.',
+  seedExperimentalHomeOrder: 'Legacy ordering preference for a space home page.',
+  showOutline: 'Whether to show the document outline.',
+  showActivity: 'Whether to show document activity and tools.',
+  contentWidth: 'Width of the document content area.',
+  childrenType: 'Layout of the document’s root-level blocks.',
+  theme: 'Visual settings for a space.',
+  'theme.headerLayout': 'Alignment of the space header.',
+  importCategories: 'Categories retained from an imported document.',
+  importTags: 'Tags retained from an imported document.',
+  title: 'Legacy document title; new documents use name.',
+  alias: 'Legacy identity name used by older profiles.',
+  description: 'Legacy profile description; documents use summary.',
+}
 
 /**
  * Count of custom (user-authored) metadata fields on a document: keys not
@@ -842,6 +916,7 @@ export const HMBlockQuerySchema = z
       columnCount: z.number().optional().default(3),
       query: HMQuerySchema,
       banner: z.boolean().optional().default(false),
+      table: HMQueryTableConfigSchema.optional(),
     }),
   })
   .strict()
@@ -850,6 +925,14 @@ export const HMBlockGroupSchema = z.object({
   type: z.literal('Group'),
   id: z.string(),
 })
+
+export const HMBlockSlotSchema = z
+  .object({
+    type: z.literal('Slot'),
+    ...blockBaseProperties,
+    attributes: z.object(parentBlockAttributes).optional().default({}),
+  })
+  .strict()
 
 export const HMBlockLinkSchema = z.object({
   type: z.literal('Link'),
@@ -875,6 +958,7 @@ export const HMBlockKnownSchema = z.discriminatedUnion('type', [
   HMBlockTableColumnSchema,
   HMBlockQuerySchema,
   HMBlockGroupSchema,
+  HMBlockSlotSchema,
   HMBlockLinkSchema,
 ])
 
@@ -909,6 +993,7 @@ export type HMBlockButton = z.infer<typeof HMBlockButtonSchema>
 export type HMBlockEmbed = z.infer<typeof HMBlockEmbedSchema>
 export type HMBlockWebEmbed = z.infer<typeof HMBlockWebEmbedSchema>
 export type HMBlockQuery = z.infer<typeof HMBlockQuerySchema>
+export type HMBlockSlot = z.infer<typeof HMBlockSlotSchema>
 export type HMBlock = z.infer<typeof HMBlockKnownSchema>
 export type HMBlockNostr = z.infer<typeof HMBlockNostrSchema>
 export type HMBlockTable = z.infer<typeof HMBlockTableSchema>
@@ -1361,8 +1446,10 @@ export const HMSearchInputSchema = z.object({
   perspectiveAccountUid: z.string().optional(),
   searchType: z.number().optional(),
   pageSize: z.number().optional(),
+  pageToken: z.string().optional(),
   iriFilter: z.string().optional(),
   contentTypeFilter: z.array(z.number()).optional(),
+  entityKindFilter: z.array(z.number()).optional(),
 })
 export type HMSearchInput = z.infer<typeof HMSearchInputSchema>
 
@@ -1381,6 +1468,7 @@ export const HMSearchResultItemSchema = z.object({
 export const HMSearchPayloadSchema = z.object({
   entities: z.array(HMSearchResultItemSchema),
   searchQuery: z.string(),
+  nextPageToken: z.string(),
 })
 export type HMSearchPayload = z.infer<typeof HMSearchPayloadSchema>
 
@@ -1844,6 +1932,7 @@ export const HMDomainInfoSchema = z.object({
   lastSuccess: z.date().nullable(),
   registeredAccountUid: z.string().nullable(),
   peerId: z.string().nullable(),
+  isGateway: z.boolean(),
   lastError: z.string().nullable(),
 })
 export type HMDomainInfo = z.infer<typeof HMDomainInfoSchema>

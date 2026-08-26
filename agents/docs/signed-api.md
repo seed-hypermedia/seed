@@ -63,9 +63,18 @@ Future agents must preserve this rule: **never sign action objects containing ex
 
 ## Actions
 
-Current `AgentAction` union:
+Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index.ts`, dispatched by the switch in
+`Service.message()`):
 
 - `ListAgents`
+- `ListAgentInvites`
+- `ListAgentCollaborators`
+- `InviteAgentCollaborator`
+- `RemoveAgentCollaborator`
+- `SetAgentPublicRead`
+- `SetAgentPublicChat`
+- `AcceptAgentInvite`
+- `DeclineAgentInvite`
 - `CreateAgent`
 - `ListModelProviders`
 - `ListProviderModels`
@@ -74,6 +83,11 @@ Current `AgentAction` union:
 - `UpdateSigningIdentity`
 - `DeleteSigningIdentity`
 - `SetModelProvider`
+- `DeleteModelProvider`
+- `StartProviderOAuth`
+- `SubmitProviderOAuthCode`
+- `GetProviderOAuthStatus`
+- `CancelProviderOAuth`
 - `SetSecret`
 - `GetAgent`
 - `UpdateAgent`
@@ -84,6 +98,7 @@ Current `AgentAction` union:
 - `UpdateAgentTrigger`
 - `DeleteAgentTrigger`
 - `ListAgentMemory`
+- `ListAgentTools`
 - `ReadAgentMemoryFile`
 - `WriteAgentMemoryFile`
 - `DeleteAgentMemoryFile`
@@ -95,7 +110,20 @@ Current `AgentAction` union:
 - `DeleteSession`
 - `GetSession`
 - `MessageSession`
+- `InvokeSessionTool`
+- `UploadSessionAttachment`
+- `ReadSessionAttachment`
+- `BeginFileUpload`
+- `AppendFileUploadChunk`
+- `CommitFileUpload`
+- `AbortFileUpload`
 - `StopSession`
+- `RetrySession`
+- `GetRun`
+- `ListRuns`
+- `CancelRun`
+- `SignalRun`
+- `GetRunJournal`
 - `Subscribe`
 
 `Subscribe` is signed with the same envelope type but is accepted over WebSocket, not HTTP.
@@ -131,7 +159,38 @@ Response:
 {_: 'ListAgentsResponse'; agents: AgentInfo[]}
 ```
 
-Lists agents for the verified account, ordered by update time descending.
+Lists agents owned by the verified account plus agents on which it is an accepted reader or writer, ordered by update
+time descending. Each `AgentInfo.accessRole` is `owner`, `reader`, or `writer` (an agent read through public access
+reports `reader`, or `chatter` when public chat is on); pending invitations are deliberately not returned here.
+
+### Agent invitations and collaborators
+
+- `ListAgentInvites {}` returns pending `AgentInviteInfo` rows for the signed account. An invite discloses only the
+  agent id/name, owner account, role, and timestamps; agent contents remain unavailable until acceptance.
+- `ListAgentCollaborators {agentId}` returns the owner and accepted members plus the agent's `publicRead` and
+  `publicChat` flags. The owner also sees pending invitations.
+- `InviteAgentCollaborator {agentId, accountId, role}` creates an invitation (`reader` or `writer`) or updates an
+  existing member's role. Owner-only.
+- `RemoveAgentCollaborator {agentId, accountId}` revokes an accepted member or cancels a pending invitation. Owner-only.
+- `AcceptAgentInvite {agentId}` accepts the signed account's pending invitation and returns the now-accessible agent.
+- `DeclineAgentInvite {agentId}` deletes the signed account's pending invitation.
+- `SetAgentPublicRead {agentId, publicRead}` turns public read access on or off. Owner-only. While on, every signed
+  account that knows the agent id is treated as a `reader` (the same view an invited reader gets, including live
+  subscriptions); the agent is still never returned from `ListAgents` or account-wide `ListSessions` for accounts that
+  are not owner or collaborator. `AgentInfo.publicRead` reports the flag. Turning it off also clears `publicChat`.
+- `SetAgentPublicChat {agentId, publicChat}` turns public chat on or off. Owner-only, and enabling requires `publicRead`
+  to already be on (400 otherwise). While on, every signed account that reads the agent publicly is a `chatter`: it may
+  `CreateSession`, `MessageSession`, `UploadSessionAttachment` (and the chunked-upload actions targeting a session),
+  `StopSession`, and `RetrySession` on any of the agent's sessions. It still cannot do anything writer-level —
+  `UpdateAgent`, memory/tool/trigger writes, `UpdateSession`, `DeleteSession`, `InvokeSessionTool`, `CancelRun`,
+  `SignalRun`. `AgentInfo.publicChat` reports the flag. This is deliberately narrower than inviting a `writer`: public
+  chat lets the world talk to the agent, not reshape it.
+
+Readers can inspect all agent-scoped state. Chatters (public chat only; not an invitable role) can additionally create,
+message, and stop sessions. Writers can additionally create/update/delete agent-scoped resources, rename/delete
+sessions, control runs, and run session tools. Managing collaborators and deleting the agent remain owner-only.
+Account-scoped provider and secret mutations are never inherited from an agent collaboration; agent settings may list
+the owner's redacted providers/signing identities through optional `agentId` fields.
 
 ### `CreateAgent`
 
@@ -202,6 +261,7 @@ Request:
 ```ts
 {
   _: 'ListSigningIdentities'
+  agentId?: string
 }
 ```
 
@@ -212,7 +272,11 @@ Response:
 ```
 
 Lists account-scoped secrets whose metadata has `kind: 'hm-account-key'`. Plain secret material is never returned, and
-only keys uploaded by the signed account are visible.
+only keys uploaded by the signed account are visible. With `agentId`, the request resolves against the owning account of
+a shared agent: the owner sees every identity, while collaborators (reader or writer) only see the identities granted to
+that agent — the owner's other keys are private to the owner. Changing the granted set itself (`definition.signingKeys`
+via `UpdateAgent`) is owner-only; a writer's `UpdateAgent` must carry the grant set unchanged or it is rejected
+with 403.
 
 ### `CreateSigningIdentity`
 
@@ -279,7 +343,43 @@ Request:
 }
 ```
 
-Upserts provider config by account/name.
+Upserts provider config by account/name. `ModelProviderConfig.authMode` selects how requests authenticate: `api-key`
+(default, uses the `secretRefs.apiKey` secret) or `subscription` (uses OAuth credentials in the `secretRefs.oauth`
+secret).
+
+### `DeleteModelProvider`
+
+Request:
+
+```ts
+{
+  _: 'DeleteModelProvider'
+  name: string
+}
+```
+
+Deletes the named provider record for the account, plus every secret it referenced that no remaining provider still
+references — subscription providers of the same type share one OAuth secret, so a shared credential survives the
+deletion of one of its providers. 404 when the account has no provider by that name. Response:
+`{_: 'DeleteModelProviderResponse'; name}`.
+
+### Provider OAuth actions ("Sign in with ChatGPT")
+
+Subscription-authenticated providers are configured through a four-action login flow instead of a pasted API key. It is
+offered only when the server runs with `SEED_AGENTS_SUBSCRIPTION_AUTH` enabled (surfaced as `subscriptionAuth` on
+`/api/health`); `StartProviderOAuth` returns `403` otherwise. Implementation lives in `agents/src/provider-oauth.ts`.
+
+- `StartProviderOAuth {providerType}` → `{_: 'StartProviderOAuthResponse'; loginId; authUrl; expiresAt}`. Only `openai`
+  is supported. Starting a new login cancels the account's previous pending one.
+- `GetProviderOAuthStatus {loginId}` →
+  `{_: 'ProviderOAuthStatusResponse'; loginId; status: 'pending' | 'completed' | 'failed'; secretName?; error?}`. On
+  `completed`, `secretName` is the stored credentials secret to reference as `secretRefs.oauth`.
+- `SubmitProviderOAuthCode {loginId, code}` → `{_: 'SubmitProviderOAuthCodeResponse'}`. For deployments where the
+  provider's localhost redirect cannot reach the server, the client pastes the code (or the full redirect URL).
+- `CancelProviderOAuth {loginId}` → `{_: 'CancelProviderOAuthResponse'; loginId}`.
+
+`RedactedModelProvider.authStatus` reports subscription health afterwards: `ok`, or `needs-login` when credentials are
+missing or a token refresh failed.
 
 ### `SetSecret`
 
@@ -313,7 +413,7 @@ Response:
 {_: 'GetAgentResponse'; agent: AgentInfo; sessions: SessionInfo[]}
 ```
 
-Requires the agent to belong to the verified account.
+Requires owner, reader, or writer access to the agent.
 
 ### `UpdateAgent`
 
@@ -327,7 +427,8 @@ Request:
 }
 ```
 
-Updates definition after validating account ownership and provider existence.
+Updates the definition for the owner or an accepted writer after validating the owning account's provider and signing
+identities.
 
 ### `DeleteAgent`
 
@@ -350,7 +451,10 @@ Response:
 ```
 
 Deletes the agent after validating ownership, including its triggers, sessions, session events, trigger firings, drafts,
-and per-agent state directory.
+and per-agent state directory. Live runs of the agent are canceled first (cascading through their trees); run history
+survives detached — `runs.agent_id`, `runs.session_id`, and `runs.trigger_firing_id` are nulled inside the delete
+transaction (they are enforced foreign keys; without the detach, any agent that had ever executed a run was
+undeletable), and sub-sessions of _other_ agents hanging off this agent's sessions promote to top level.
 
 ### Agent trigger actions
 
@@ -362,29 +466,49 @@ Trigger source shape:
 ```ts
 type AgentTriggerSource =
   | {type: 'document-comment'; resource: string; author?: string}
-  | {type: 'user-mention'; mentionedAccount: string; resourcePrefix?: string}
+  | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
   | {type: 'schedule'; schedule: AgentScheduleTrigger}
+  | {
+      type: 'run-completed'
+      agentId?: string
+      status?: 'succeeded' | 'failed' | 'canceled'
+      titleMatch?: string
+    }
 
 type AgentScheduleTrigger =
   | {kind: 'interval'; every: number; unit: 'minutes' | 'hours'}
   | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timezone: string}
   | {kind: 'once'; runAt: number; timezone?: string}
 
+type TriggerContinuation = {kind: 'newThread'} | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
+
 type AgentTriggerInput = {
   name: string
   enabled?: boolean
   source: AgentTriggerSource
   prompt: string | AgentPromptBlock[]
-  cooldownMs?: number
+  continuation?: TriggerContinuation
 }
 ```
 
 Trigger prompts accept the same rich Seed block format as agent system prompts. Legacy string input is parsed as
 markdown; trigger prompt blocks are converted to resolved markdown before starting the triggered session.
 
-`cooldownMs` is optional. When present, matching activity is skipped while the trigger is still inside its cooldown
-window after the last successful firing.
+A `user-mention` source watches a list of accounts; a legacy singular `mentionedAccount` on input is still normalized
+into `mentionedAccounts`, and an empty list is rejected.
+
+`continuation` says what a firing _does_. Omitted (or `newThread`) starts a fresh thread from the trigger's prompt —
+what every trigger did before continuations existed. `wake` delivers a signal to a run parked on `ctx.waitForEvent`
+instead, riding the same delivery path as `SignalRun`; without `runId` the account's parked runs are searched for one
+the signal satisfies.
+
+`run-completed` is the source that lets automations chain: it fires when a run of this account reaches a terminal
+status. Chains are loop-guarded — a firing whose ancestry already contains the same trigger within 8 hops is skipped
+(`TRIGGER_CHAIN_MAX_HOPS` in `api-service.ts`).
+
+The `agent_triggers` table carries a `cooldown_ms` column, but no protocol field writes it and no monitor reads it. It
+is vestigial; do not document a cooldown feature until one exists.
 
 Actions:
 
@@ -400,9 +524,10 @@ same `clientRequestId` idempotency pattern as other create actions.
 
 ### Agent memory actions
 
-Each agent owns a private memory filesystem at `<stateDir>/memory`, shared with the `memory_*` session tools and shown
-on the desktop Memory tab. All actions validate agent ownership for the signed account, and every path is a sandboxed
-relative path (no absolute paths, no `..`, symlinks refused). Files can be UTF-8 text or binary.
+Each agent owns a private memory filesystem at `<stateDir>/memory` — the `~/memory/` half of its Space, reached by the
+agent through the `read` and `write` verbs and shown to its owner on the desktop Memory tab. All actions validate agent
+ownership for the signed account, and every path is a sandboxed relative path (no absolute paths, no `..`, symlinks
+refused). Files can be UTF-8 text or binary.
 
 ```ts
 type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number; mimeType?: string}
@@ -431,16 +556,58 @@ Actions:
   subscribers so open Memory tabs refresh.
 - `DeleteAgentMemoryFile {agentId, path}` returns `{_: 'DeleteAgentMemoryFileResponse'; agentId; path; deleted}` and
   removes a file, or a directory recursively; `deleted` is false when nothing existed.
-- `DownloadAgentMemoryFile {agentId, url, path?}` server-side fetches a public http(s) URL into memory (streamed,
-  size-capped) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`. Omitting
-  `path` stores the file under `downloads/` named from the URL; extension-less paths gain an extension from the response
-  content type.
-- `UploadAgentMemoryFileToIpfs {agentId, path}` uploads the file to the HM server's `/ipfs/file-upload` endpoint and
-  returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the
+- `DownloadAgentMemoryFile {agentId, url, path?}` server-side fetches a public http(s) URL into memory (streamed, with a
+  60-second idle timeout) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`.
+  Omitting `path` stores the file under `downloads/` named from the URL; extension-less paths gain an extension from the
+  response content type.
+- `UploadAgentMemoryFileToIpfs {agentId, path}` chunks the file as UnixFS and publishes its blocks through the typed HM
+  API's `PublishBlobs` action, then returns
+  `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the
   `ipfs://<cid>` URL usable from Hypermedia content. Publishing makes the file publicly retrievable.
 
-Limits (see `agents/src/agent-memory.ts`): 1 MiB per text write, 100 MiB per file, 1 GiB per agent, 2000 entries,
-512-byte paths, 16 levels of nesting.
+Path limits (`agents/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself
+carries no per-file, per-agent, or entry-count size cap — the server accepts uploads of any size (`main.ts` raises Bun's
+request-body limit for exactly this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies to
+hypermedia content the `write` verb publishes, not to memory files.
+
+### `ListAgentTools`
+
+Request:
+
+```ts
+{
+  _: 'ListAgentTools'
+  agentId: string
+}
+```
+
+Response:
+
+```ts
+{_: 'ListAgentToolsResponse'; agentId: string; tools: AgentToolInfo[]}
+```
+
+Lists every tool document in the agent's `~/tools` — builtin bindings and authored lambdas alike — from the
+`tool_documents` table, materializing the builtin rows first if the registry contract has changed. This is the owner's
+transparency view: the same documents the agent sees when it reads `~/tools/`.
+
+```ts
+type AgentToolInfo = {
+  name: string
+  kind: 'builtin' | 'lambda'
+  summary: string // one line, for listings and the Space index
+  description: string // full model-facing instructions
+  input: Record<string, unknown> // JSON Schema
+  output?: Record<string, unknown> // JSON Schema, when declared
+  source?: string // lambda source, exactly as authored
+  runtime?: 'typescript' | 'python'
+  cid: string // DAG-CBOR CIDv1 of the document; changes on every edit
+  enabled: boolean
+  granted: boolean // builtins: whether the agent's grant set offers it. Lambdas: always true
+  createdAt: number
+  updatedAt: number
+}
+```
 
 ### `CreateSession`
 
@@ -469,6 +636,8 @@ Request:
   agentId?: string
   limit?: number
   cursor?: {updatedBefore: number; idBefore: string}
+  parentSessionId?: string
+  includeChildren?: boolean
 }
 ```
 
@@ -496,6 +665,12 @@ Pagination is keyset on the composite `(updatedAt, id)`, not on `updatedAt` alon
 timestamp-only cursor silently drops every tied row past a page boundary. Pass `nextCursor` back verbatim as `cursor`;
 its absence means the list is exhausted.
 
+Child sessions (spawned by `delegate`, a script's `ctx.delegate`, or an agent starting a session) are **included by
+default**: an absent `includeChildren` returns every session, because older deployed clients cannot send the field and
+hiding agent-started sessions from them would be a silent regression. Lineage-aware clients (the current desktop) pass
+`includeChildren: false` explicitly to get top-level rows only — parents carry `childSessionCount` — and fetch children
+per parent with `parentSessionId` (which ignores `includeChildren`).
+
 ### `UpdateSession`
 
 Request:
@@ -510,7 +685,8 @@ Request:
 
 Updates editable session metadata for an account-owned session. The server trims and bounds the title, marks the title
 as user-authored, updates `updatedAt`, emits `session-change`, and fans out an account change with reason
-`session-updated`. User-authored titles are not overwritten by the agent's hidden `set_session_title` runtime tool.
+`session-updated`. A title saved this way is marked `title_source = 'user'`, which the server's automatic session
+titling refuses to overwrite.
 
 Response:
 
@@ -532,8 +708,11 @@ Request:
 }
 ```
 
-Deletes an account-owned session and its durable events. If the session was created by a trigger firing, the firing row
-is retained but detached from the deleted session. The server emits an account change with reason `session-deleted`.
+Deletes an account-owned session and its durable events. Every live run rooted at the session is canceled first —
+**including descendants** (spawned sub-sessions and workflows) — so a parked parent can never be stranded `waiting` by
+its session disappearing, and no executor streams into deleted rows. Run history survives detached (`runs.session_id`
+nulled); child sessions promote to top level (`parent_session_id` nulled); a creating trigger firing is retained but
+detached. The server emits an account change with reason `session-deleted`.
 
 Response:
 
@@ -568,7 +747,11 @@ Request:
 {
   _: 'MessageSession'
   sessionId: string
-  content: Array<{type: 'text'; text: string; blocks?: AgentMessageBlock[]} | {type: 'context'; lines: string[]}>
+  content: Array<
+    | {type: 'text'; text: string; blocks?: AgentMessageBlock[]}
+    | {type: 'context'; lines: string[]}
+    | {type: 'attachment'; id: string}
+  >
   clientMessageId?: string
 }
 ```
@@ -578,19 +761,91 @@ block) so "this document" resolves for the model. All context lines in a request
 `contextLines`, reach the model appended to that message inside a `<window_context>` block, and never appear in the
 transcript `content`. At least one `text` part is required.
 
+`attachment` parts reference files already staged with `UploadSessionAttachment` (or a committed chunked upload). They
+are session-private: they live with the session, the agent reaches them through `read attachment:<id>`, and they are
+deleted with the session.
+
 Flow:
 
-1. verify session belongs to account;
-2. reject if session is already `streaming`;
-3. append durable user message with `content`/`rawMarkdown` set to the model-facing markdown and optional `blocks`
-   preserved for rich UI replay;
-4. set session `streaming`;
-5. run model loop;
+1. verify the signed account has write access to the session's agent;
+2. append the durable user message immediately, with `content`/`rawMarkdown`, optional rich `blocks`, and
+   `meta.accountId` plus the exact cryptographic `meta.signerId` from the verified envelope;
+3. enqueue a durable run for that message;
+4. claim it inline when no other turn owns the session, otherwise leave it queued behind the current turn;
+5. run the model loop with one model turn at a time per session;
 6. emit live partials over WebSocket;
 7. append tool events and final assistant/error event;
-8. set session `idle` or `error`.
+8. start the next queued collaborator turn, if any.
+
+Multiple writers may therefore submit to one session concurrently. Their messages are saved and broadcast in append
+order instead of receiving `409` while the agent is streaming; model turns remain serialized. A queued turn gets an
+in-memory handoff identifying the exact message events that arrived during the preceding response, so later assistant
+events from that preceding turn are not mistaken for answers to the newly queued messages.
+
+Internally each turn is a durable run row in the dispatch queue (`agents/src/runs.ts`).
+`MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant
+event existed: concurrent/background enqueues (including triggers and agent-started sessions) and turns that parked on
+children spawned with `delegate` — the rest of the turn streams over WebSocket.
 
 Idempotent through `clientMessageId`, but intentionally avoids one long SQLite transaction around network calls.
+
+### `InvokeSessionTool`
+
+Request:
+
+```ts
+{
+  _: 'InvokeSessionTool'
+  sessionId: string
+  verb: 'read' | 'write' | 'call'
+  input: unknown
+}
+```
+
+Response:
+
+```ts
+{
+  _: 'InvokeSessionToolResponse'
+  sessionId: string
+  resultEventId: string // durable event id of the appended tool_result
+  output?: unknown
+  error?: string
+}
+```
+
+Runs one verb **as the user** against the session's shared log. The log is a shared workspace log, not a chat: the same
+`read`/`write`/`call` implementations the agent uses execute here, and both the call and its result append as durable
+events stamped `actor: 'user'`, so the agent reads them on its next turn as ground truth — there is no side channel.
+This is what the desktop composer's wrench palette sends.
+
+Only those three verbs are accepted. `delegate` and `plan` are deliberately not user-invocable — delegation is a
+conversational ask, and any path that reaches session-spawning from a user verb rejects with "Delegation is a
+conversational ask; message the agent instead".
+
+Execution failures are themselves log entries — the user's failed attempt is context too — and come back in `error`
+rather than as an HTTP error. Only pre-execution problems reject the request outright: an unknown verb (400), an unowned
+session (404), and a session with a live run (409, "The agent is working in this thread right now").
+
+### Session attachments and chunked uploads
+
+- `UploadSessionAttachment {sessionId, name, mimeType?, content}` →
+  `{_: 'UploadSessionAttachmentResponse'; attachment: SessionAttachmentInfo}`. The attachment id is the SHA-256 hex of
+  the bytes, so re-uploading the same file returns the same id. Caps: 100 MiB per attachment and 200 attachments per
+  session (`agents/src/session-attachments.ts`), stored under `<stateDir>/session-attachments/<sessionId>/`.
+- `ReadSessionAttachment {sessionId, attachmentId}` → `{_: 'ReadSessionAttachmentResponse'; attachment; data}` for
+  rendering an attachment back in the thread.
+
+Large files upload in bounded chunks instead, so each signed action stays small and clients can show progress:
+
+- `BeginFileUpload {target, size}` → `{_: 'BeginFileUploadResponse'; uploadId; maxChunkBytes}`. `target` is
+  `{kind: 'memory', agentId, path}` or `{kind: 'session-attachment', sessionId, name, mimeType?}`, validated up front so
+  a long upload cannot fail at the very end. `maxChunkBytes` is 8 MiB.
+- `AppendFileUploadChunk {uploadId, offset, content}` → `{_: 'AppendFileUploadChunkResponse'; uploadId; received}`.
+  Chunks must arrive in order: `offset` must equal the bytes already staged. Oversized chunks return `413`.
+- `CommitFileUpload {uploadId}` → `{_: 'CommitFileUploadResponse'; entry?; attachment?}` — `entry` for a memory target,
+  `attachment` for a session attachment. The staged byte count must equal the declared `size`.
+- `AbortFileUpload {uploadId}` → `{_: 'AbortFileUploadResponse'; uploadId}`. Staged uploads also expire after an hour.
 
 ### `StopSession`
 
@@ -613,8 +868,85 @@ Response:
 }
 ```
 
-Stops the in-flight Pi agent turn for the signed account/session when one is active. `stopped` is `false` when the
+Stops the in-flight Pi agent turn for the signed account/session when one is active, and cancels every live run rooted
+at the session **including descendants** (delegated model children and script children). `stopped` is `false` when the
 session is already idle.
+
+### `RetrySession`
+
+Request:
+
+```ts
+{
+  _: 'RetrySession'
+  sessionId: string
+}
+```
+
+Response:
+
+```ts
+{
+  _: 'RetrySessionResponse'
+  sessionId: string
+  assistantEventId: string
+}
+```
+
+Re-runs a session whose latest run failed, without appending a new user message: the turn re-enters from the durable
+transcript, and error events are not replayed to the provider. Rejected when a run is live or the latest run did not
+fail. `assistantEventId` is an empty string when the retried turn parked (the rest streams over WebSocket), exactly like
+`MessageSession`.
+
+### `GetRun`
+
+`{_: 'GetRun', runId}` → `{_: 'GetRunResponse', run: RunInfo}`. 404 when the run does not belong to the account.
+
+### `ListRuns`
+
+```ts
+{
+  _: 'ListRuns'
+  rootRunId?: string // the whole tree of one root, oldest first (tree rendering)
+  sessionId?: string // root runs referencing a session, newest first
+  agentId?: string // runs of one agent, newest first
+  status?: RunStatus
+  limit?: number // default 50, clamped to 200
+}
+```
+
+Exactly one selector is required. Response: `{_: 'ListRunsResponse', runs: RunInfo[]}`.
+
+### `CancelRun`
+
+`{_: 'CancelRun', runId}` → `{_: 'CancelRunResponse', runId, canceled}`. Cancels the run and every non-terminal
+descendant: queued runs never start, waiting runs never wake, executing runs are aborted (Pi abort for agent runs, VM
+interrupt for script runs). `canceled` is `false` when everything was already terminal.
+
+### `SignalRun`
+
+```ts
+{
+  _: 'SignalRun'
+  runId: string
+  signal: string // a wait with no criteria accepts any name
+  payload?: unknown // must be JSON-serializable
+}
+```
+
+Response: `{_: 'SignalRunResponse', runId, delivered}`.
+
+Delivers a named signal to a run parked on `ctx.waitForEvent`, waking it with the payload. This is how a person (or
+another system) answers a workflow waiting for something the activity feed cannot express — an approval, a webhook, a
+human decision; the run card's **Answer** button sends the run's `RunWaitInfo.answerWith` signal. Signalling a run that
+is not listening for this signal is not an error: `delivered` is simply `false`. A trigger with a `wake` continuation
+rides this same delivery path.
+
+### `GetRunJournal`
+
+`{_: 'GetRunJournal', runId, afterSeq?}` → `{_: 'GetRunJournalResponse', runId, entries}` — a script (workflow) run's
+durable journal entries (`{runId, seq, entry, createdAt}`), empty for agent runs, replayable with `afterSeq` like
+session events.
 
 ### `Subscribe`
 
@@ -623,7 +955,7 @@ Request:
 ```ts
 {
   _: 'Subscribe'
-  key: `account/${string}` | `agents/${string}` | `sessions/${string}`
+  key: `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
   afterSeq?: number
 }
 ```
@@ -651,6 +983,7 @@ type AgentDefinition = {
   systemPrompt: string | AgentPromptBlock[]
   modelProvider: string
   model: string
+  reasoningLevel?: ReasoningLevel
   tools?: string[]
   signingKey?: string
   signingKeys?: string[]
@@ -664,13 +997,32 @@ type AgentPromptBlock = {
 ```
 
 `systemPrompt` is normalized to Seed block nodes on create/update; legacy string input is parsed as markdown first.
-Before a model run, the server converts the stored blocks back to markdown and appends dynamic runtime instructions.
+Before a model run, the server converts the stored blocks back to markdown and appends the shared runtime instructions
+and the agent's `<space>` index.
 
-`tools` controls Seed-approved tool exposure. Existing agents with `tools` omitted receive the legacy default `read`;
-agents with an explicit empty array receive no Seed tools. `signingKeys` stores the selected uploaded HM account key
-secret names for signing/publishing tools; `signingKey` is retained as a legacy single-key field. When an agent runs,
-selected keys are appended to the system prompt with both profile names and public key IDs so the model can map
-user-facing names to signing IDs. Pi default coding tools are disabled by the Seed runner.
+`reasoningLevel` applies to reasoning-capable models and must be one of the levels `modelReasoningSupport` reports for
+the model (`agents/protocol/src/reasoning.ts`); absent means off, or the provider default where reasoning cannot be
+disabled.
+
+`tools` is a **grant list, not the tool surface**. The five verbs — `read`, `write`, `call`, `delegate`, `plan` — are
+always on and can never be granted or revoked; see [the glossary](./glossary.md). (The one exception is structural, not
+a permission: `delegate` needs a run to park on, so the rare runless invocation simply omits it.) What `tools` narrows
+is:
+
+- the **callable set** dispatched through `call` (today `search`, `web_search`, `execute`; `navigate` is
+  assistant-runtime only). An omitted `tools` array grants every service-runtime callable; an explicit array keeps only
+  the names it lists. Unknown and legacy names are ignored, and `execute_code` normalizes to `execute`
+  (`normalizeSeedToolName`). `execute` is dropped silently on hosts that cannot run sandboxes, so the model never sees a
+  tool that can only fail.
+- the **publish grant**: the pseudo-tool name `publish` authorizes signed public writing (`hm://` documents and
+  comments, IPFS uploads). Legacy write-group names (`write`, `memory_publish_document`, `ipfs_write`,
+  `attachment_to_ipfs`) still count so a pre-verbs agent keeps the posture its owner configured, and an omitted `tools`
+  array publishes. Memory writes are never gated.
+
+`signingKeys` stores the selected uploaded HM account key secret names for signing/publishing; `signingKey` is retained
+as a legacy single-key field. When an agent runs, selected keys are appended to the system prompt with both profile
+names and public key IDs so the model can map user-facing names to signing IDs. Pi's own builtin tools are disabled by
+the Seed runner (`noTools: 'builtin'`).
 
 ## Protocol sync
 

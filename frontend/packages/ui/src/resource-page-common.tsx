@@ -15,6 +15,7 @@ import {
   findContentBlock,
   getBlockText,
   getDraftNodesOutline,
+  getMetadataName,
   getNodesOutline,
   hmId,
   NavRoute,
@@ -39,6 +40,8 @@ import type {
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
+import {parseExploreQuery} from '@shm/shared/explore'
+import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {
   useAccount,
@@ -51,6 +54,7 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
+import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {
   documentMachine,
@@ -77,7 +81,6 @@ import {
   useScrollSync,
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
-import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl} from '@shm/shared/routing'
@@ -85,6 +88,7 @@ import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/br
 import {
   activityFilterToSlug,
   getCommentTargetId,
+  getVersionHeads,
   hmIdToURL,
   latestId,
   parseFragment,
@@ -97,6 +101,7 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {useQuery} from '@tanstack/react-query'
 import {FilePen, Info, Quote, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
 import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
@@ -105,17 +110,24 @@ import {ScrollArea} from './components/scroll-area'
 import {DirectoryPageContent} from './directory-page'
 import {DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
-import {AuthorPayload, BreadcrumbEntry, Breadcrumbs, DocumentHeader} from './document-header'
-import {EditableDocumentMetadataFields, HomeDocumentMetadataAffordanceBar} from './document-metadata-affordances'
+import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
+import {
+  DocumentMetadataAffordanceButtons,
+  EditableDocumentMetadataFields,
+  HomeDocumentMetadataAffordanceBar,
+} from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
 import {DocumentTools} from './document-tools'
+import {DocumentTopBar} from './document-top-bar'
 import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
+import {ExplorePage} from './explore-page'
 import {Feed, type DraftVersionEntry} from './feed'
 import {FeedFilters} from './feed-filters'
 import {HMIcon} from './hm-icon'
 import {useDocumentLayout} from './layout'
 import {MembersFacepile} from './members-facepile'
 import {MobilePanelSheet} from './mobile-panel-sheet'
+import {MergedBadge} from './merged-badge'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
 import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
@@ -123,6 +135,8 @@ import {OptionsPanel} from './options-panel'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
+import {PrivateBadge} from './private-badge'
+import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
 import {toast} from './toast'
@@ -131,6 +145,7 @@ import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
+import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
 
 const LazyDocumentMachineDebugDrawer = lazy(() =>
   import('@shm/shared/models/document-machine-debug-drawer').then((m) => ({default: m.DocumentMachineDebugDrawer})),
@@ -384,6 +399,7 @@ export type ActiveView =
   | 'collaborators'
   | 'site-profile'
   | 'all-documents'
+  | 'explore'
   | 'metadata'
 
 /** Returns the document and focused comment rendered by a comments panel. */
@@ -662,6 +678,8 @@ function getActiveView(routeKey: string): ActiveView {
       return 'collaborators'
     case 'all-documents':
       return 'all-documents'
+    case 'explore':
+      return 'explore'
     case 'site-profile':
       return 'site-profile'
     case 'metadata':
@@ -718,6 +736,8 @@ export interface ResourcePageProps {
   ssrContentHTML?: string | null
   /** Platform-specific page footer (web only) */
   pageFooter?: ReactNode
+  /** Starts loading a document route before navigation when the platform supports it. */
+  onPrefetchDocument?: (id: UnpackedHypermediaId) => void
 
   floatingButtons?: ReactNode
   /** Inline child draft cards rendered after document content */
@@ -762,6 +782,8 @@ export interface ResourcePageProps {
   linkExtensionOptions?: LinkExtensionOptions
   /** Optional site-header edit-nav pane rendered inside DocumentMachineProvider. */
   editNavPane?: ReactNode
+  /** Optional platform adapter for user-defined metadata autocomplete. */
+  attributeAutocomplete?: AttributeAutocomplete
 }
 
 /** Get panel title for display */
@@ -801,6 +823,7 @@ export function ResourcePage({
   draftVersionOnDiscardConfirm,
   floatingButtons,
   pageFooter,
+  onPrefetchDocument,
   inlineCards,
   rightActions,
   onEditProfile,
@@ -823,10 +846,14 @@ export function ResourcePage({
   perspectiveAccountUid,
   linkExtensionOptions,
   editNavPane,
+  attributeAutocomplete,
 }: ResourcePageProps) {
   const route = useNavRoute()
   const replaceRoute = useNavigate('replace')
   const isSiteProfile = route.key === 'site-profile'
+  const media = useMedia()
+  const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
+  const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
     ({isDeleted, redirectTarget}: {isDeleted: boolean; redirectTarget: UnpackedHypermediaId | null}) => {
@@ -919,7 +946,12 @@ export function ResourcePage({
         headerData={headerData}
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
       >
+        <DocumentTopBar
+          breadcrumbs={[{id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
+          isMobile={media.xs && !IS_DESKTOP}
+        />
         <SiteProfileContent
           siteUid={docId.uid}
           accountUid={accountUid}
@@ -935,7 +967,13 @@ export function ResourcePage({
 
   if (resourceFetchId === null && existingDraft === undefined && !reservedDraftId) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -959,7 +997,13 @@ export function ResourcePage({
   // Loading state - should not show during SSR if data was prefetched
   if (resource.isInitialLoading && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -971,7 +1015,13 @@ export function ResourcePage({
   // Handle discovery state
   if (resource.isDiscovering && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageDiscovery />
         {pageFooter}
       </PageWrapper>
@@ -981,7 +1031,13 @@ export function ResourcePage({
   // Handle not-found
   if ((!resource.data || resource.data.type === 'not-found') && !hasUnpublishedDraft && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -992,7 +1048,13 @@ export function ResourcePage({
   if (!hasUnpublishedDraft && (resource.isTombstone || resource.data?.type === 'tombstone')) {
     const isCommentRoute = route.key === 'comments'
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageDeleted entityType={isCommentRoute ? 'comment' : 'document'} />
         {pageFooter}
       </PageWrapper>
@@ -1002,7 +1064,13 @@ export function ResourcePage({
   // Handle private document (permission denied) — persistent state, always unmount.
   if (resource.data?.type === 'error' && resource.data.message.toLowerCase().includes('permission')) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PagePrivate />
         {pageFooter}
       </PageWrapper>
@@ -1013,7 +1081,13 @@ export function ResourcePage({
   // success render path with a banner so the user keeps the document in view.
   if (!hasUnpublishedDraft && resource.data?.type === 'error' && !hasEverLoadedRef.current) {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
         </div>
@@ -1027,7 +1101,13 @@ export function ResourcePage({
   if (comment) {
     if (!targetDocId || targetResource.data?.type === 'not-found') {
       return (
-        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
+          docId={docId}
+          headerData={headerData}
+          rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
+        >
           <PageNotFound />
           {pageFooter}
         </PageWrapper>
@@ -1035,7 +1115,13 @@ export function ResourcePage({
     }
     if (targetResource.isInitialLoading) {
       return (
-        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
+          docId={docId}
+          headerData={headerData}
+          rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
+        >
           <div className="flex flex-1 items-center justify-center">
             <Spinner />
           </div>
@@ -1045,7 +1131,13 @@ export function ResourcePage({
     }
     if (targetResource.data?.type !== 'document') {
       return (
-        <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+        <PageWrapper
+          siteHomeId={siteHomeId}
+          docId={docId}
+          headerData={headerData}
+          rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
+        >
           <PageNotFound />
           {pageFooter}
         </PageWrapper>
@@ -1060,6 +1152,7 @@ export function ResourcePage({
           headerData={headerData}
           document={targetDocument}
           rightActions={rightActions}
+          onPrefetchDocument={onPrefetchDocument}
         >
           <DocumentBody
             routeDocId={targetDocId}
@@ -1108,7 +1201,13 @@ export function ResourcePage({
     } as unknown as HMDocument
   } else {
     return (
-      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
+      <PageWrapper
+        siteHomeId={siteHomeId}
+        docId={docId}
+        headerData={headerData}
+        rightActions={rightActions}
+        onPrefetchDocument={onPrefetchDocument}
+      >
         <PageNotFound />
         {pageFooter}
       </PageWrapper>
@@ -1127,88 +1226,94 @@ export function ResourcePage({
     : undefined
 
   return (
-    <DocumentMachineProvider
-      // Recreate the machine only when the identity it's bound to changes: the
-      // resolved doc id (path change on first publish) or the ROUTE's pinned
-      // version (?v=). Deliberately NOT the *resolved* latest version — that
-      // bumps on our own publish, which would destroy + recreate the machine
-      // mid-publish and re-load the just-cleared draft, stranding it in editing.
-      key={getDocumentMachineKey(renderedDocId)}
-      input={{
-        documentId: renderedDocId,
-        canEdit: effectiveCanEdit,
-        isLatest,
-        routeVersion: renderedDocId.version ?? null,
-        deps: existingDraftDeps,
-        reservedDraftId: reservedDraftId ?? undefined,
-        editUid: renderedDocId.uid,
-        editPath: renderedDocId.path ?? undefined,
-        signingAccountId,
-        publishAccountUid,
-      }}
-      machine={machine}
-      inspect={inspect}
+    <PageWrapper
+      siteHomeId={siteHomeId}
+      docId={renderedDocId}
+      headerData={headerData}
+      document={document}
+      rightActions={rightActions}
+      onPrefetchDocument={onPrefetchDocument}
+      editNavPanePortalRef={setEditNavPanePortalElement}
+      transientResourceError={transientResourceError}
+      liveNavigationItems={liveNavigationItems}
     >
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={renderedDocId}
-        headerData={headerData}
-        document={document}
-        rightActions={rightActions}
-        editNavPane={editNavPane}
-        transientResourceError={transientResourceError}
+      <DocumentMachineProvider
+        // Recreate the machine only when the identity it's bound to changes: the
+        // resolved doc id (path change on first publish) or the ROUTE's pinned
+        // version (?v=). Deliberately NOT the *resolved* latest version — that
+        // bumps on our own publish, which would destroy + recreate the machine
+        // mid-publish and re-load the just-cleared draft, stranding it in editing.
+        key={getDocumentMachineKey(renderedDocId)}
+        input={{
+          documentId: renderedDocId,
+          canEdit: effectiveCanEdit,
+          isLatest,
+          routeVersion: renderedDocId.version ?? null,
+          deps: existingDraftDeps,
+          reservedDraftId: reservedDraftId ?? undefined,
+          editUid: renderedDocId.uid,
+          editPath: renderedDocId.path ?? undefined,
+          signingAccountId,
+          publishAccountUid,
+        }}
+        machine={machine}
+        inspect={inspect}
       >
-        <DocumentBody
-          routeDocId={docId}
-          docId={renderedDocId}
-          document={document}
-          documentSyncRouteKey={documentResourceRouteKey}
-          documentIsPlaceholderData={getDocumentSyncIsPlaceholderData({
-            resourceFetchId,
-            hasUnpublishedDraft,
-            resourceIsPreviousData: resource.isPreviousData,
-          })}
-          activeView={getActiveView(route.key)}
-          isLatest={isLatest}
-          latestVersion={latestDocumentVersion}
-          siteUrl={siteHomeDocument?.metadata?.siteUrl}
-          CommentEditor={CommentEditor}
-          optionsMenuItems={optionsMenuItems}
-          extraMenuItems={extraMenuItems}
-          existingDraft={existingDraft}
-          reservedDraftId={reservedDraftId}
-          existingDraftVisibility={existingDraftVisibility}
-          existingDraftContent={existingDraftContent}
-          existingDraftCursorPosition={existingDraftCursorPosition}
-          existingDraftMineTouchedIds={existingDraftMineTouchedIds}
-          existingDraftBaseBlocks={existingDraftBaseBlocks}
-          existingDraftDeps={existingDraftDeps}
-          draftVersionEntry={draftVersionEntry}
-          floatingButtons={floatingButtons}
-          pageFooter={pageFooter}
-          inlineCards={inlineCards}
-          inlineInsert={inlineInsert}
-          DocumentContentComponent={DocumentContentComponent}
-          onEditorReady={onEditorReady}
-          canEdit={effectiveCanEdit}
-          editingFloatingActions={editingFloatingActions}
-          draftActions={draftActions}
-          signingAccountId={signingAccountId}
-          publishAccountUid={publishAccountUid}
-          fileUpload={fileUpload}
-          ssrContentHTML={ssrContentHTML}
-          perspectiveAccountUid={perspectiveAccountUid}
-          linkExtensionOptions={linkExtensionOptions}
-          transientResourceError={transientResourceError}
-        />
-      </PageWrapper>
-      {machineExtras}
-      {inspect && (
-        <Suspense fallback={null}>
-          <LazyDocumentMachineDebugDrawer store={inspectStore} />
-        </Suspense>
-      )}
-    </DocumentMachineProvider>
+        <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
+        {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
+        <AttributeAutocompleteProvider value={attributeAutocomplete}>
+          <DocumentBody
+            routeDocId={docId}
+            docId={renderedDocId}
+            document={document}
+            documentSyncRouteKey={documentResourceRouteKey}
+            documentIsPlaceholderData={getDocumentSyncIsPlaceholderData({
+              resourceFetchId,
+              hasUnpublishedDraft,
+              resourceIsPreviousData: resource.isPreviousData,
+            })}
+            activeView={getActiveView(route.key)}
+            isLatest={isLatest}
+            latestVersion={latestDocumentVersion}
+            siteUrl={siteHomeDocument?.metadata?.siteUrl}
+            CommentEditor={CommentEditor}
+            optionsMenuItems={optionsMenuItems}
+            extraMenuItems={extraMenuItems}
+            existingDraft={existingDraft}
+            reservedDraftId={reservedDraftId}
+            existingDraftVisibility={existingDraftVisibility}
+            existingDraftContent={existingDraftContent}
+            existingDraftCursorPosition={existingDraftCursorPosition}
+            existingDraftMineTouchedIds={existingDraftMineTouchedIds}
+            existingDraftBaseBlocks={existingDraftBaseBlocks}
+            existingDraftDeps={existingDraftDeps}
+            draftVersionEntry={draftVersionEntry}
+            floatingButtons={floatingButtons}
+            pageFooter={pageFooter}
+            inlineCards={inlineCards}
+            inlineInsert={inlineInsert}
+            DocumentContentComponent={DocumentContentComponent}
+            onEditorReady={onEditorReady}
+            canEdit={effectiveCanEdit}
+            editingFloatingActions={editingFloatingActions}
+            draftActions={draftActions}
+            signingAccountId={signingAccountId}
+            publishAccountUid={publishAccountUid}
+            fileUpload={fileUpload}
+            ssrContentHTML={ssrContentHTML}
+            perspectiveAccountUid={perspectiveAccountUid}
+            linkExtensionOptions={linkExtensionOptions}
+            transientResourceError={transientResourceError}
+          />
+        </AttributeAutocompleteProvider>
+        {machineExtras}
+        {inspect && (
+          <Suspense fallback={null}>
+            <LazyDocumentMachineDebugDrawer store={inspectStore} />
+          </Suspense>
+        )}
+      </DocumentMachineProvider>
+    </PageWrapper>
   )
 }
 
@@ -1257,18 +1362,45 @@ export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderDa
   }
 }
 
-// Wrapper that renders SiteHeader + content
-export function PageWrapper({
-  siteHomeId,
+function getLiveHeaderNavigationItems(
+  machineNav: ReturnType<typeof useDocumentNavigationOptional>,
+): DocNavigationItem[] | undefined {
+  return machineNav
+    ?.map((n) => {
+      const id = unpackHmId(n.link)
+      return {
+        key: n.id,
+        id: id ?? undefined,
+        webUrl: id ? undefined : n.link,
+        draftId: undefined,
+        metadata: {name: n.text || ''},
+        isPublished: true,
+      } satisfies DocNavigationItem
+    })
+    .filter(isValidSiteHeaderItem)
+}
+
+function DocumentNavigationItemsBridge({
   docId,
-  headerData,
-  document,
-  children,
-  isMainFeedVisible = false,
-  rightActions,
-  editNavPane,
-  transientResourceError,
+  onItemsChange,
 }: {
+  docId: UnpackedHypermediaId
+  onItemsChange: (items: DocNavigationItem[] | undefined) => void
+}) {
+  const machineNav = useDocumentNavigationOptional()
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
+
+  useEffect(() => {
+    onItemsChange(isHomeDoc ? getLiveHeaderNavigationItems(machineNav) : undefined)
+    return () => onItemsChange(undefined)
+  }, [docId.id, isHomeDoc, machineNav, onItemsChange])
+
+  return null
+}
+
+/** Props for the persistent site page shell. */
+export interface PageShellProps {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
   headerData: HeaderData
@@ -1277,41 +1409,38 @@ export function PageWrapper({
   isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
+  editNavPanePortalRef?: (node: HTMLDivElement | null) => void
   /** Non-fatal resource fetch state rendered as a banner below the header. */
   transientResourceError?: TransientResourceError
-}) {
+  /** In-flight header navigation from an active document machine. */
+  liveNavigationItems?: DocNavigationItem[]
+  /** Starts loading a document route before navigation when the platform supports it. */
+  onPrefetchDocument?: (id: UnpackedHypermediaId) => void
+}
+
+/** Persistent site chrome for the header and file browser around route content. */
+export function PageShell({
+  siteHomeId,
+  docId,
+  headerData,
+  document,
+  children,
+  isMainFeedVisible = false,
+  rightActions,
+  editNavPane,
+  editNavPanePortalRef,
+  transientResourceError,
+  liveNavigationItems,
+  onPrefetchDocument,
+}: PageShellProps) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
   // Note: IS_DESKTOP (Electron) never uses document scroll regardless of window width
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
-
-  // Live-preview the in-flight nav while the user edits the home doc, so
-  // additions/reorders/deletions in the EditNavPopover show immediately in
-  // the visible site header. Mirrors the legacy draft route at
-  // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
-  // outside DocumentMachineProvider (loading/error/discovery branches), in
-  // which case we fall back to the published headerData.items.
-  const machineNav = useDocumentNavigationOptional()
-  const homeDraftOverride = useIsHomeDraftOverride()
-  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
-  const liveItems: DocNavigationItem[] | undefined =
-    isHomeDoc && machineNav
-      ? machineNav
-          .map((n) => {
-            const id = unpackHmId(n.link)
-            return {
-              key: n.id,
-              id: id ?? undefined,
-              webUrl: id ? undefined : n.link,
-              draftId: undefined,
-              metadata: {name: n.text || ''},
-              isPublished: true,
-            } satisfies DocNavigationItem
-          })
-          .filter(isValidSiteHeaderItem)
-      : undefined
-  const itemsForHeader = liveItems ?? headerData.items
+  const navigate = useNavigate()
+  const [isFileBrowserOpen, setIsFileBrowserOpen] = useState(false)
+  const itemsForHeader = liveNavigationItems ?? headerData.items
 
   return (
     <div
@@ -1339,11 +1468,87 @@ export function PageWrapper({
         isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
-        editNavPane={editNavPane}
+        editNavPane={editNavPanePortalRef ? undefined : editNavPane}
+        editNavPanePortalRef={editNavPanePortalRef}
+        onOpenFileBrowser={() => setIsFileBrowserOpen(true)}
       />
       <TransientResourceBanner error={transientResourceError ?? null} />
-      {children}
+      <SiteFileBrowserLayout
+        siteId={hmId(siteHomeId.uid)}
+        activeDocumentId={docId}
+        siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Space documents'}
+        mobileOpen={isFileBrowserOpen}
+        onMobileOpenChange={setIsFileBrowserOpen}
+        onPrefetch={onPrefetchDocument}
+        onNavigate={(id) => {
+          setIsFileBrowserOpen(false)
+          navigate({key: 'document', id})
+        }}
+      >
+        {children}
+      </SiteFileBrowserLayout>
     </div>
+  )
+}
+
+/** Wrapper that renders the persistent site header, file browser, and page content. */
+export function PageWrapper({
+  siteHomeId,
+  docId,
+  headerData,
+  document,
+  children,
+  isMainFeedVisible = false,
+  rightActions,
+  editNavPane,
+  editNavPanePortalRef,
+  transientResourceError,
+  liveNavigationItems,
+  onPrefetchDocument,
+}: {
+  siteHomeId: UnpackedHypermediaId
+  docId: UnpackedHypermediaId
+  headerData: HeaderData
+  document?: HMDocument
+  children: React.ReactNode
+  isMainFeedVisible?: boolean
+  rightActions?: React.ReactNode
+  editNavPane?: React.ReactNode
+  editNavPanePortalRef?: (node: HTMLDivElement | null) => void
+  /** Non-fatal resource fetch state rendered as a banner below the header. */
+  transientResourceError?: TransientResourceError
+  /** In-flight header navigation from a document machine mounted inside this wrapper. */
+  liveNavigationItems?: DocNavigationItem[]
+  /** Starts loading a document route before navigation when the platform supports it. */
+  onPrefetchDocument?: (id: UnpackedHypermediaId) => void
+}) {
+  // Live-preview the in-flight nav while the user edits the home doc, so
+  // additions/reorders/deletions in the EditNavPopover show immediately in
+  // the visible site header. Mirrors the legacy draft route at
+  // frontend/apps/desktop/src/pages/draft.tsx:880-893. Returns undefined
+  // outside DocumentMachineProvider (loading/error/discovery branches), in
+  // which case we fall back to the published headerData.items.
+  const machineNav = useDocumentNavigationOptional()
+  const homeDraftOverride = useIsHomeDraftOverride()
+  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
+  const liveItems = liveNavigationItems ?? (isHomeDoc ? getLiveHeaderNavigationItems(machineNav) : undefined)
+
+  return (
+    <PageShell
+      siteHomeId={siteHomeId}
+      docId={docId}
+      headerData={headerData}
+      document={document}
+      isMainFeedVisible={isMainFeedVisible}
+      rightActions={rightActions}
+      editNavPane={editNavPane}
+      editNavPanePortalRef={editNavPanePortalRef}
+      transientResourceError={transientResourceError}
+      liveNavigationItems={liveItems}
+      onPrefetchDocument={onPrefetchDocument}
+    >
+      {children}
+    </PageShell>
   )
 }
 
@@ -1710,6 +1915,7 @@ function DocumentBody({
   const draftVisibility = shouldUseDraftOverlay && existingDraft ? existingDraftVisibility : undefined
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
+  const versionHeadCount = getVersionHeads(document.version).length
   const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   // Skip the queries for anonymous pending drafts.
   const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
@@ -1906,30 +2112,8 @@ function DocumentBody({
     route,
   ])
 
-  // Track when DocumentTools becomes sticky
-  const [isToolsSticky, setIsToolsSticky] = useState(false)
-  const toolsSentinelRef = useRef<HTMLDivElement>(null)
-
   // Mobile panel open state derived from URL panel route
   const mobilePanelOpen = !!panelKey
-
-  useEffect(() => {
-    const sentinel = toolsSentinelRef.current
-    if (!sentinel) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0]
-        if (!entry) return
-        // When sentinel is not intersecting (scrolled out of view), tools are sticky
-        setIsToolsSticky(!entry.isIntersecting)
-      },
-      {threshold: 0.1, rootMargin: '0px'},
-    )
-
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [])
 
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
@@ -2271,14 +2455,25 @@ function DocumentBody({
     actionButtons,
     allMenuItems,
   })
-  const documentContentActionOverlay =
-    documentContentAction && !isMobile ? (
-      <div className="absolute top-2 right-2 z-50 flex items-center gap-1 rounded-sm transition-opacity md:top-4 md:right-4">
-        {documentContentAction}
-      </div>
-    ) : null
-  const documentToolsRightAction = isMobile ? documentContentAction : null
   const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
+
+  // The bar always states where you are, so a home document is its own single crumb.
+  const topBarBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
+  const documentTopBar = (
+    <DocumentTopBar
+      breadcrumbs={topBarBreadcrumbs}
+      status={
+        !isHomeDoc && (headerVisibility === 'PRIVATE' || versionHeadCount > 1) ? (
+          <>
+            {headerVisibility === 'PRIVATE' ? <PrivateBadge size="sm" /> : null}
+            <MergedBadge count={versionHeadCount} size="sm" />
+          </>
+        ) : null
+      }
+      actions={documentContentAction}
+      isMobile={isMobile}
+    />
+  )
 
   // Main page content (used in both mobile and desktop layouts)
   const mainPageContent = (
@@ -2311,33 +2506,6 @@ function DocumentBody({
                   <MembersFacepile members={siteMembers.members} siteId={siteId} />
                 </div>
               )}
-            {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
-              <div className="mt-4 px-6">
-                <Breadcrumbs
-                  breadcrumbs={[
-                    {id: hmId(docId.uid, {latest: true}), metadata: metadata},
-                    ...(activeView !== 'content'
-                      ? [
-                          {
-                            label:
-                              (
-                                {
-                                  comments: 'Comments',
-                                  collaborators: 'People',
-                                  activity: 'Activity',
-                                  directory: 'Sub documents',
-                                  'all-documents': 'All Documents',
-                                  'site-profile': 'Profile',
-                                  metadata: 'Attributes',
-                                } as Record<string, string>
-                              )[activeView] || '',
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
-              </div>
-            )}
             {!isHomeDoc &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
@@ -2345,7 +2513,6 @@ function DocumentBody({
                   docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
-                  breadcrumbs={breadcrumbs}
                   visibility={headerVisibility}
                   version={document.version}
                   fileUpload={fileUpload}
@@ -2356,7 +2523,6 @@ function DocumentBody({
                   docMetadata={metadata}
                   authors={authorPayloads}
                   updateTime={document.updateTime}
-                  breadcrumbs={breadcrumbs}
                   visibility={headerVisibility}
                   version={document.version}
                 />
@@ -2374,33 +2540,6 @@ function DocumentBody({
                 <MembersFacepile members={siteMembers.members} siteId={siteId} />
               </div>
             )}
-          {isHomeDoc && !showActivity && activeView !== 'all-documents' && (
-            <div className="mt-4 px-6">
-              <Breadcrumbs
-                breadcrumbs={[
-                  {id: hmId(docId.uid, {latest: true}), metadata: metadata},
-                  ...(activeView !== 'content'
-                    ? [
-                        {
-                          label:
-                            (
-                              {
-                                comments: 'Comments',
-                                collaborators: 'People',
-                                activity: 'Activity',
-                                directory: 'Sub documents',
-                                'all-documents': 'All Documents',
-                                'site-profile': 'Profile',
-                                metadata: 'Attributes',
-                              } as Record<string, string>
-                            )[activeView] || '',
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            </div>
-          )}
           {!isHomeDoc &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
@@ -2408,7 +2547,6 @@ function DocumentBody({
                 docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
                 visibility={headerVisibility}
                 version={document.version}
                 fileUpload={fileUpload}
@@ -2419,7 +2557,6 @@ function DocumentBody({
                 docMetadata={metadata}
                 authors={authorPayloads}
                 updateTime={document.updateTime}
-                breadcrumbs={breadcrumbs}
                 visibility={headerVisibility}
                 version={document.version}
               />
@@ -2427,19 +2564,10 @@ function DocumentBody({
         </div>
       )}
 
-      {/* Sentinel element - important for doc tools sticky checking */}
-      <div ref={toolsSentinelRef} />
-
-      {/* DocumentTools - sticky with compact padding. Hidden when showActivity is false. */}
+      {/* DocumentTools - scrolls with the page; the border separates document
+          identity above from document body below. Hidden when showActivity is false. */}
       {showActivity && (
-        <div
-          className={cn(
-            'sticky top-0 z-10 px-5 py-1',
-            'dark:bg-background bg-white',
-            isToolsSticky ? 'shadow-md' : 'shadow-none',
-            'transition-shadow',
-          )}
-        >
+        <div className="px-5 py-1">
           <DocumentTools
             id={docId}
             activeTab={
@@ -2449,7 +2577,8 @@ function DocumentBody({
                 : activeView === 'activity' ||
                     activeView === 'directory' ||
                     activeView === 'site-profile' ||
-                    activeView === 'all-documents'
+                    activeView === 'all-documents' ||
+                    activeView === 'explore'
                   ? undefined
                   : activeView
             }
@@ -2459,7 +2588,6 @@ function DocumentBody({
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
             metadataCount={countCustomMetadataFields(metadata)}
-            rightAction={documentToolsRightAction}
             layoutProps={
               isMobile
                 ? undefined
@@ -2471,14 +2599,20 @@ function DocumentBody({
                   }
             }
             activeTabAction={
-              activeView !== 'content' && activeView !== 'site-profile' && activeView !== 'all-documents' ? (
+              activeView !== 'content' &&
+              activeView !== 'site-profile' &&
+              activeView !== 'all-documents' &&
+              activeView !== 'explore' ? (
                 <OpenInPanelButton
                   id={docId}
                   panelRoute={
                     route.key === activeView
                       ? extractPanelRoute(route)
                       : {
-                          key: activeView as Exclude<ActiveView, 'content' | 'site-profile' | 'all-documents'>,
+                          key: activeView as Exclude<
+                            ActiveView,
+                            'content' | 'site-profile' | 'all-documents' | 'explore'
+                          >,
                           id: docId,
                         }
                   }
@@ -2564,6 +2698,7 @@ function DocumentBody({
     return (
       <>
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+          {documentTopBar}
           {mainPageContent}
           {floatingButtonsAction}
         </div>
@@ -2605,7 +2740,10 @@ function DocumentBody({
                     rootReplyCommentVersion={
                       panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
                     }
-                    focusOnMount
+                    // On mobile, opening the keyboard during the sheet entrance
+                    // causes visible viewport jumps. Let the drawer settle and
+                    // let users tap the composer when they are ready to type.
+                    focusOnMount={false}
                   />
                 ) : undefined
               }
@@ -2642,18 +2780,17 @@ function DocumentBody({
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
-        {/* Floating action buttons — when editing, show editing toolbar;
-            when a draft exists but not editing, show draft toolbar (publish + menu);
-            otherwise show the options menu */}
-        {documentContentActionOverlay}
-        <ScrollArea
-          id="scroll-page-wrapper"
-          className="h-full"
-          viewportClassName="[&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
-          fillViewportContent
-        >
-          {mainPageContent}
-        </ScrollArea>
+        <div className="flex h-full min-h-0 flex-col">
+          {documentTopBar}
+          <ScrollArea
+            id="scroll-page-wrapper"
+            className="min-h-0 flex-1"
+            viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+            fillViewportContent
+          >
+            {mainPageContent}
+          </ScrollArea>
+        </div>
       </PanelLayout>
     </div>
   )
@@ -2661,7 +2798,7 @@ function DocumentBody({
 
 /**
  * Editable document header shown when in editing mode.
- * Renders the same breadcrumbs/authors/date via DocumentHeader but replaces
+ * Renders the same authors/date via DocumentHeader but replaces
  * the static title and summary with editable textareas that send `change`
  * events to the document machine.
  */
@@ -2670,7 +2807,6 @@ function EditableDocumentHeader({
   docMetadata,
   authors,
   updateTime,
-  breadcrumbs,
   visibility,
   version,
   fileUpload,
@@ -2679,7 +2815,6 @@ function EditableDocumentHeader({
   docMetadata: HMDocument['metadata']
   authors: AuthorPayload[]
   updateTime: HMDocument['updateTime']
-  breadcrumbs?: BreadcrumbEntry[]
   visibility?: string
   version?: HMDocument['version'] | null
   fileUpload?: (file: File) => Promise<string>
@@ -2688,6 +2823,7 @@ function EditableDocumentHeader({
   const isEditing = useDocumentSelector(selectIsEditing)
   const focusTitleOnMount = useDocumentSelector(selectShouldFocusDraftTitle)
   const send = useDocumentSend()
+  const [summaryRequested, setSummaryRequested] = useState(false)
 
   // Use machine context metadata if it has been changed, otherwise fall back to document metadata
   const name = ctx.metadata?.name ?? docMetadata?.name ?? ''
@@ -2700,9 +2836,25 @@ function EditableDocumentHeader({
       docMetadata={docMetadata}
       authors={authors}
       updateTime={updateTime}
-      breadcrumbs={breadcrumbs}
       visibility={visibility as any}
       version={version}
+      mobileBylineAction={
+        <DocumentMetadataAffordanceButtons
+          metadata={metadata}
+          visible
+          mobileOnly
+          fileUpload={fileUpload}
+          onBeforeMetadataChange={() => {
+            if (!isEditing) send({type: 'edit.start'})
+          }}
+          onMetadata={(metadata) => {
+            send({type: 'change', metadata})
+          }}
+          onRequestSummary={() => {
+            setSummaryRequested(true)
+          }}
+        />
+      }
       showTitle={false}
       onRemoveIcon={
         metadata.icon
@@ -2716,7 +2868,7 @@ function EditableDocumentHeader({
       <EditableDocumentMetadataFields
         name={name}
         summary={summary}
-        metadata={metadata as any}
+        metadata={metadata}
         fileUpload={fileUpload}
         focusTitleOnMount={focusTitleOnMount}
         onBeginEdit={() => {
@@ -2733,6 +2885,8 @@ function EditableDocumentHeader({
         onSummaryEnter={() => {
           send({type: 'edit.start', cursorPosition: 'end'})
         }}
+        summaryRequested={summaryRequested}
+        onSummaryRequestedChange={setSummaryRequested}
       />
     </DocumentHeader>
   )
@@ -3080,7 +3234,21 @@ function MainContent({
 }) {
   const {openRouteNewWindow, originHomeId} = useUniversalAppContext()
   const navigate = useNavigate()
+  const replaceRoute = useNavigate('replace')
+  const route = useNavRoute()
   const allDocumentsSiteId = !IS_DESKTOP && originHomeId ? hmId(originHomeId.uid) : hmId(docId.uid)
+  const rawExploreQuery = route.key === 'explore' ? route.q || '' : ''
+  const legacyExploreSort =
+    route.key === 'explore' && route.sort && !/\bsort:/.test(rawExploreQuery) ? `sort:${route.sort}` : ''
+  const exploreQuery = [rawExploreQuery, legacyExploreSort].filter(Boolean).join(' ')
+  const parsedExploreQuery = useMemo(() => parseExploreQuery(exploreQuery), [exploreQuery])
+  const explore = useExploreResults(
+    parsedExploreQuery,
+    {type: 'site', id: allDocumentsSiteId},
+    {
+      enabled: activeView === 'explore',
+    },
+  )
 
   switch (activeView) {
     case 'all-documents':
@@ -3100,6 +3268,36 @@ function MainContent({
               return
             }
             navigate(route)
+          }}
+        />
+      )
+
+    case 'explore':
+      return (
+        <ExplorePage
+          contextLabel={`Space: ${allDocumentsSiteId.uid}`}
+          query={exploreQuery}
+          parsed={parsedExploreQuery}
+          results={explore.results}
+          counts={explore.counts}
+          textTerms={explore.textTerms}
+          diagnostics={explore.diagnostics}
+          blocksByDocument={explore.blocksByDocument}
+          hasMore={explore.hasMore}
+          intersectionPending={explore.intersectionPending}
+          intersectionTruncated={explore.intersectionTruncated}
+          onLoadMore={explore.loadMore}
+          isLoading={explore.isLoading}
+          error={explore.error instanceof Error ? explore.error.message : null}
+          onQueryChange={(q) => replaceRoute({key: 'explore', context: {type: 'site', id: allDocumentsSiteId}, q})}
+          accountUid={allDocumentsSiteId.uid}
+          context={{type: 'site', id: allDocumentsSiteId}}
+          onOpenResult={(result) => {
+            if (result.type === 'comment') {
+              navigate({key: 'comments', id: result.documentId, openComment: result.commentId})
+              return
+            }
+            navigate({key: 'document', id: result.id})
           }}
         />
       )
@@ -3314,7 +3512,7 @@ function ContentViewWithOutline({
       {showSidebars && (
         <div {...sidebarProps}>
           {outline.length > 0 && (
-            <div className="sticky top-24 mt-4">
+            <div className="sticky top-4 mt-4">
               <DocNavigationWrapper showCollapsed={showCollapsed} outline={outline}>
                 <DocumentOutline
                   onActivateBlock={(blockId) => {

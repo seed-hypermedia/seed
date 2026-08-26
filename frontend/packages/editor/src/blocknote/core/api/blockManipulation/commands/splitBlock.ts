@@ -1,11 +1,20 @@
 import {selectableNodeTypes} from '../../../extensions/BlockManipulation/BlockManipulationExtension'
-import {Node} from 'prosemirror-model'
+import {Mark, Node} from 'prosemirror-model'
 import {EditorState, TextSelection} from 'prosemirror-state'
 import {getBlockInfoFromPos} from '../../../extensions/Blocks/helpers/getBlockInfoFromPos'
+
+const carryableMarkNames = new Set(['textSize', 'textFamily'])
+
+/** Returns active text formatting marks that should continue after creating a new block. */
+export function getCarryableStoredMarks(state: EditorState): Mark[] {
+  const marks = state.storedMarks ?? state.selection.$from.marks()
+  return marks.filter((mark) => carryableMarkNames.has(mark.type.name))
+}
 
 export const splitBlockCommand = (posInBlock: number, keepType?: boolean, keepProps?: boolean, insertNode?: Node) => {
   return ({state, dispatch}: {state: EditorState; dispatch: ((args?: any) => any) | undefined}) => {
     let tr = state.tr
+    const storedMarks = getCarryableStoredMarks(state)
 
     const blockInfo = getBlockInfoFromPos(state, posInBlock)
 
@@ -38,6 +47,8 @@ export const splitBlockCommand = (posInBlock: number, keepType?: boolean, keepPr
       }
       tr = tr.setSelection(selection)
     }
+
+    tr = tr.setStoredMarks(storedMarks)
 
     if (dispatch) {
       dispatch(tr)

@@ -105,12 +105,12 @@ export function PushToast({
   const hosts = state?.hosts || []
   let statusMessage = baseMessage
   if (status === 'success') {
-    statusMessage += ' and pushed to all sites.'
+    statusMessage += ' and pushed to all spaces.'
   } else if (status === 'error') {
     statusMessage += ' but failed to push. Your content will be distributed eventually.'
   } else {
     // loading
-    statusMessage += '. Now pushing to sites:'
+    statusMessage += '. Now pushing to spaces:'
   }
   return (
     <>

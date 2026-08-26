@@ -1,13 +1,16 @@
 package docmodel
 
 import (
+	"fmt"
 	"seed/backend/blob"
 	"seed/backend/core/coretest"
 	documents "seed/backend/genproto/documents/v3alpha"
 	"seed/backend/util/cclock"
 	"seed/backend/util/must"
 	"testing"
+	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -118,6 +121,37 @@ func TestFirstContentImage(t *testing.T) {
 
 		require.Equal(t, "ipfs://real", load(must.Do2(doc.SignChange(alice))).FirstContentImage())
 	})
+}
+
+func TestMetadataStructuralReplacementDoesNotResurrectAncestors(t *testing.T) {
+	t.Parallel()
+
+	alice := coretest.NewTester("alice").Account
+	load := func(changes ...blob.Encoded[*blob.Change]) *Document {
+		doc := must.Do2(New("mydoc", cclock.New()))
+		for _, change := range changes {
+			must.Do(doc.ApplyChange(change.CID, change.Decoded))
+		}
+		return doc
+	}
+
+	doc := load()
+	must.Do(doc.SetAttribute("", []string{"theme"}, "Legacy"))
+	parent := must.Do2(doc.SignChange(alice))
+
+	doc = load(parent)
+	must.Do(doc.SetAttribute("", []string{"theme", "Color"}, "Red"))
+	child := must.Do2(doc.SignChange(alice))
+	require.Equal(t, map[string]any{"theme": map[string]any{"Color": "Red"}}, doc.crdt.GetMetadata())
+
+	doc = load(parent, child)
+	must.Do(doc.SetAttribute("", []string{"theme", "Color"}, nil))
+	deletedChild := must.Do2(doc.SignChange(alice))
+	require.Empty(t, doc.crdt.GetMetadata())
+
+	doc = load(parent, child, deletedChild)
+	require.Empty(t, doc.crdt.GetMetadata(), "deleting a child must not resurrect the scalar parent it replaced")
+	require.Equal(t, 1, doc.crdt.stateMetadata.Len(), "only the winning child tombstone must remain")
 }
 
 func TestBug_RedundantReplaces(t *testing.T) {
@@ -335,4 +369,48 @@ func TestBug_HydratePreservesStructuralParentWithoutBlockState(t *testing.T) {
 	require.Equal(t, "row", hdoc.Content[0].Children[0].Block.Id)
 
 	require.Equal(t, "after", hdoc.Content[1].Block.Id)
+}
+
+func TestApplyChangeOpIndexOverflow(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+
+	// A multi-block op advances the op ID index quadratically per block, so a
+	// single move op with enough blocks overflows the op ID index cap. Today's
+	// writer can't author such a change (it re-applies its own ops), but they
+	// exist in the wild from older writers, and applying one — e.g. serving
+	// GetDocument for such a document — must fail with an error instead of
+	// panicking the whole process.
+	hugeMove := func(numBlocks int) *blob.Change {
+		moved := make([]string, numBlocks)
+		for i := range moved {
+			moved[i] = fmt.Sprintf("b%d", i)
+		}
+
+		return &blob.Change{
+			BaseBlob: blob.BaseBlob{
+				Type:   blob.TypeChange,
+				Signer: alice.Principal(),
+				Ts:     time.Now(),
+			},
+			Body: blob.ChangeBody{
+				Ops: []blob.OpMap{blob.NewOpMoveBlocks("", moved, []uint64{0, 0, 0})},
+			},
+		}
+	}
+
+	t.Run("real-world-sized import applies", func(t *testing.T) {
+		// The largest single move op seen in the wild carries 6,411 blocks
+		// (op index peaks around 20.5M), which overflowed the old 2^24 cap.
+		doc := must.Do2(New("mydoc", cclock.New()))
+		require.NoError(t, doc.ApplyChange(cid.Undef, hugeMove(6411)))
+	})
+
+	t.Run("overflowing the cap fails cleanly", func(t *testing.T) {
+		// 70k blocks push the quadratic index past the 2^31-1 cap
+		// (at block ~65,537).
+		doc := must.Do2(New("mydoc", cclock.New()))
+		err := doc.ApplyChange(cid.Undef, hugeMove(70_000))
+		require.ErrorContains(t, err, "op ID index")
+		require.ErrorContains(t, err, "overflows")
+	})
 }

@@ -14,7 +14,7 @@
 - `frontend/AGENTS.md` for `frontend/**`.
 - `proto/AGENTS.md` for `proto/**`.
 - `vault/AGENTS.md` for `vault/**`.
-- `agents/docs/readme.md` for `agents/**`
+- `agents/AGENTS.md` for `agents/**`.
 
 ## Agent Assets
 
@@ -34,6 +34,17 @@
 - Never modify the `.git` directory directly.
 - Do not run git commands that write state, including commit, amend, rebase, reset, checkout, merge, cherry-pick, stash,
   tag, branch deletion, or push, unless explicitly asked.
+- If you need to write a commit message, explain why the change was made, not what the commit is doing mechanically.
+
+## Security audit
+
+- The vulnerability-hunting protocol is `docs/security/auditor.md`. It is plain markdown and self-contained: point any
+  model at it, or symlink it into a provider's agent directory to launch it as a named agent (for Claude Code:
+  `ln -s ../../docs/security/auditor.md .claude/agents/security-auditor.md`).
+- Read `docs/security/audit-log.md` before any security review. It records which surfaces have been audited and which
+  hypotheses were ruled out, so sessions resume instead of rediscovering.
+- Fixed vulnerabilities are disclosed as GitHub issues closed by their fix commit. Detail for unfixed findings stays in
+  `.ai/security/queue.md`, which is gitignored — this repo is public.
 
 ## Workflow
 
@@ -42,9 +53,7 @@
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
-- This repo uses `mise` + `direnv` for toolchain setup. Always run commands with the `direnv` environment activated. In
-  non-interactive shells, run `eval "$(direnv export <shell>)"` first, using the current shell name; for example,
-  `eval "$(direnv export zsh)"`.
+- This repo uses `mise` + `direnv` for toolchain setup. Run repository commands as `direnv exec . <command>`.
 
 ## Local CI
 

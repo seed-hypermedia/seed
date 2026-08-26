@@ -40,7 +40,6 @@ export default defineConfig(({command, mode}) => {
         '@shm/shared': path.resolve(__dirname, '../../packages/shared/src'),
         '@shm/editor': path.resolve(__dirname, '../../packages/editor/src'),
         '@shm/ui': path.resolve(__dirname, '../../packages/ui/src'),
-        'react-native': 'react-native-web',
       },
     },
     optimizeDeps: {

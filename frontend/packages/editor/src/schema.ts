@@ -8,6 +8,7 @@ import {HMHeadingBlockContent} from './heading-component-plugin'
 import {ImageBlock} from './image'
 import {MathBlock} from './math'
 import {QueryBlock} from './query-block'
+import {SlotBlock} from './slot-block'
 import CodeBlockLowlight from './tiptap-extension-code-block'
 import {Table} from './tiptap-extension-table'
 import {UnknownBlock} from './unknown-block'
@@ -50,6 +51,7 @@ export const hmBlockSchema: BlockSchema = {
     // @ts-ignore
     node: Table,
   },
+  slot: SlotBlock,
   unknown: UnknownBlock,
 }
 

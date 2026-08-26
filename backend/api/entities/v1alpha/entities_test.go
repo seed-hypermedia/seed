@@ -155,7 +155,8 @@ func TestSearchEntitiesFindsProfileOnlyAccount(t *testing.T) {
 	require.Equal(t, codes.NotFound, st.Code())
 
 	res, err := svc.entities.SearchEntities(ctx, &entpb.SearchEntitiesRequest{
-		Query: "web eric 84",
+		Query:            "web eric 84",
+		EntityKindFilter: []entpb.EntityKindFilter{entpb.EntityKindFilter_ENTITY_KIND_SPACE},
 	})
 	require.NoError(t, err)
 	require.Len(t, res.Entities, 1)

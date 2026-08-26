@@ -67,7 +67,7 @@ export default function Linking() {
             Seamless Embeds
           </h3>
           <p className="mt-5 text-gray-700 max-w-xl">
-            Embed external content into your site while preserving proper
+            Embed external content into your space while preserving proper
             attribution, keeping your resources organized and accessible.
           </p>
           <div className="mt-6 overflow-hidden w-full ">

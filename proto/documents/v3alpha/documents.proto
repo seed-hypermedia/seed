@@ -83,6 +83,15 @@ service Documents {
   // Lists all the root documents that we know about.
   rpc ListRootDocuments(ListRootDocumentsRequest) returns (ListRootDocumentsResponse);
 
+  // Queries the current, visible attributes of documents.
+  rpc QueryDocuments(QueryDocumentsRequest) returns (QueryDocumentsResponse);
+
+  // Lists user-defined document attribute names for autocomplete.
+  rpc ListDocumentAttributeNames(ListDocumentAttributeNamesRequest) returns (ListDocumentAttributeNamesResponse);
+
+  // Lists known values for a user-defined document attribute.
+  rpc ListDocumentAttributeValues(ListDocumentAttributeValuesRequest) returns (ListDocumentAttributeValuesResponse);
+
   // Lists all changes of a document.
   rpc ListDocumentChanges(ListDocumentChangesRequest) returns (ListDocumentChangesResponse);
 
@@ -529,6 +538,295 @@ message ListDocumentsResponse {
   repeated DocumentInfo documents = 1;
 
   // Token for the next page if there're more results.
+  string next_page_token = 2;
+}
+
+// A typed scalar document attribute value.
+message AttributeValue {
+  oneof value {
+    // An explicit null value.
+    google.protobuf.Empty null_value = 1;
+
+    // A string value.
+    string string_value = 2;
+
+    // A signed integer value.
+    int64 int_value = 3;
+
+    // A boolean value.
+    bool bool_value = 4;
+  }
+}
+
+// A recursive predicate over document attributes and built-in document fields.
+message DocumentFilter {
+  // Matches when all nested filters match. An empty list matches every document.
+  message And {
+    // Filters to combine.
+    repeated DocumentFilter filters = 1;
+  }
+
+  // Matches when at least one nested filter matches. An empty list matches no documents.
+  message Or {
+    // Filters to combine.
+    repeated DocumentFilter filters = 1;
+  }
+
+  // Inverts a nested filter.
+  message Not {
+    // Filter to invert.
+    DocumentFilter filter = 1;
+  }
+
+  // Compares a user-defined document attribute with a typed value.
+  message Comparison {
+    // Supported comparison operators.
+    enum Operator {
+      // No operator specified.
+      OPERATOR_UNSPECIFIED = 0;
+
+      // Equal to.
+      EQUAL = 1;
+
+      // Not equal to.
+      NOT_EQUAL = 2;
+
+      // Less than.
+      LESS_THAN = 3;
+
+      // Less than or equal to.
+      LESS_THAN_OR_EQUAL = 4;
+
+      // Greater than.
+      GREATER_THAN = 5;
+
+      // Greater than or equal to.
+      GREATER_THAN_OR_EQUAL = 6;
+    }
+
+    // Attribute key to compare.
+    string key = 1;
+
+    // Comparison operator to apply.
+    Operator operator = 2;
+
+    // Value to compare against.
+    AttributeValue value = 3;
+  }
+
+  // Tests whether a user-defined document attribute is present or missing.
+  message Presence {
+    // Attribute key to test.
+    string key = 1;
+  }
+
+  // Matches text within a user-defined string attribute.
+  message StringMatch {
+    // Attribute key to search.
+    string key = 1;
+
+    // Text to search for.
+    string value = 2;
+
+    // Whether matching is case-sensitive.
+    bool case_sensitive = 3;
+
+    // When false, value may occur anywhere. When true, value must be a prefix.
+    bool prefix = 4;
+  }
+
+  // Matches the built-in URL of a document.
+  message URLMatch {
+    // Canonical hm:// document URL to match.
+    string url = 1;
+
+    // When false, matches the URL exactly. When true, also matches descendant URLs.
+    bool prefix = 2;
+  }
+
+  // Matches the built-in space that owns a document.
+  message SpaceMatch {
+    // Space principal to match.
+    string space = 1;
+  }
+
+  // Matches the built-in path of a document, independently of its account.
+  message PathMatch {
+    // Canonical document path. Empty selects account root documents.
+    string path = 1;
+
+    // When false, matches the path exactly. When true, also matches descendant paths.
+    bool prefix = 2;
+  }
+
+  // Predicate to apply.
+  oneof filter {
+    // Matches when every nested filter matches.
+    And and = 1;
+
+    // Matches when any nested filter matches.
+    Or or = 2;
+
+    // Inverts a nested filter.
+    Not not = 3;
+
+    // Compares a user-defined attribute value.
+    Comparison comparison = 4;
+
+    // Matches when a user-defined attribute exists and is not null.
+    Presence exists = 5;
+
+    // Matches when a user-defined attribute is absent or null.
+    Presence missing = 6;
+
+    // Matches text within a user-defined string attribute.
+    StringMatch string_match = 7;
+
+    // Matches the built-in document URL.
+    URLMatch url_match = 8;
+
+    // Matches the space that owns the document.
+    SpaceMatch space_match = 9;
+
+    // Matches the document path across accounts.
+    PathMatch path_match = 10;
+  }
+}
+
+// Sorting configuration for QueryDocuments.
+message DocumentSort {
+  // User-defined attribute key to sort by.
+  string key = 1;
+
+  // Whether to sort in descending order.
+  bool descending = 2;
+}
+
+// Request to query current non-deleted documents by attributes.
+message QueryDocumentsRequest {
+  // Optional. Predicate documents must satisfy. When omitted, all visible documents match.
+  DocumentFilter filter = 1;
+
+  // Optional. Attribute sort order, from highest to lowest priority.
+  repeated DocumentSort sort = 2;
+
+  // Optional. Number of results per page. Default is defined by the server.
+  int32 page_size = 3;
+
+  // Optional. Value from next_page_token obtained from a previous response.
+  string page_token = 4;
+}
+
+// Page of document attribute query results.
+message QueryDocumentsResponse {
+  // Documents that matched the query.
+  repeated DocumentInfo documents = 1;
+
+  // Token for the next page. Empty when there are no more results.
+  string next_page_token = 2;
+}
+
+// Scalar and container kinds supported by user-defined document attributes.
+enum DocumentAttributeKind {
+  // No attribute kind specified.
+  DOCUMENT_ATTRIBUTE_KIND_UNSPECIFIED = 0;
+
+  // A nested object with child attributes.
+  DOCUMENT_ATTRIBUTE_KIND_OBJECT = 1;
+
+  // A string scalar.
+  DOCUMENT_ATTRIBUTE_KIND_STRING = 2;
+
+  // A signed integer scalar.
+  DOCUMENT_ATTRIBUTE_KIND_INT = 3;
+
+  // A boolean scalar.
+  DOCUMENT_ATTRIBUTE_KIND_BOOL = 4;
+}
+
+// One kind observed for an attribute name.
+message DocumentAttributeKindUsage {
+  // Observed attribute kind.
+  DocumentAttributeKind kind = 1;
+}
+
+// Request for user-defined attribute name autocomplete.
+message ListDocumentAttributeNamesRequest {
+  // Optional. Account whose attribute names should be prioritized. When
+  // omitted, suggestions are ordered globally.
+  string account = 1;
+
+  // Optional. Parent object path. Results are direct children of this path.
+  repeated string parent_path = 2;
+
+  // Optional. Case-insensitive name prefix.
+  string prefix = 3;
+
+  // Optional. Number of results per page.
+  int32 page_size = 4;
+
+  // Optional. Value from next_page_token obtained from a previous response.
+  string page_token = 5;
+
+  // Optional. Return complete scalar paths instead of direct children. Intended
+  // for global query builders rather than hierarchical attribute editors.
+  bool recursive = 6;
+}
+
+// A user-defined attribute name suggestion.
+message DocumentAttributeName {
+  // Direct child name relative to the requested parent path, or a complete
+  // scalar path when recursive was requested.
+  string name = 1;
+
+  // Kinds observed at this path, including object when child paths exist. For
+  // a prioritized account, these come from that account when possible.
+  repeated DocumentAttributeKindUsage kinds = 2;
+}
+
+// Page of user-defined attribute name suggestions.
+message ListDocumentAttributeNamesResponse {
+  // Matching direct child attribute names.
+  repeated DocumentAttributeName names = 1;
+
+  // Token for the next page. Empty when there are no more results.
+  string next_page_token = 2;
+}
+
+// Request for user-defined attribute value autocomplete.
+message ListDocumentAttributeValuesRequest {
+  // Required. Exact nested path of the user-defined attribute.
+  repeated string path = 1;
+
+  // Required. Scalar kind whose values should be returned.
+  DocumentAttributeKind kind = 2;
+
+  // Optional. Account whose values should be searched. When omitted, values
+  // are searched globally.
+  string account = 3;
+
+  // Optional. Case-insensitive prefix of the value's display representation.
+  string prefix = 4;
+
+  // Optional. Number of results per page.
+  int32 page_size = 5;
+
+  // Optional. Value from next_page_token obtained from a previous response.
+  string page_token = 6;
+}
+
+// A known typed value for a user-defined document attribute.
+message DocumentAttributeValue {
+  // Typed scalar value.
+  AttributeValue value = 1;
+}
+
+// Page of known values for a user-defined document attribute.
+message ListDocumentAttributeValuesResponse {
+  // Matching typed values.
+  repeated DocumentAttributeValue values = 1;
+
+  // Token for the next page. Empty when there are no more results.
   string next_page_token = 2;
 }
 

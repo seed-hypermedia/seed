@@ -35,6 +35,7 @@ const EMPTY_TIMESTAMP = {
 
 export function useAddCapabilities(id: UnpackedHypermediaId) {
   const client = useUniversalClient()
+  const {onPushPublished} = useUniversalAppContext()
   return useMutation({
     mutationFn: async ({
       myCapability,
@@ -48,7 +49,7 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
       if (!client.getSigner) throw new Error('Signing not available on this platform')
       const signer = client.getSigner(myCapability.accountUid)
       const path = hmIdPathToEntityQueryPath(id.path)
-      await Promise.all(
+      const results = await Promise.allSettled(
         collaboratorAccountIds.map(async (collaboratorAccountId) => {
           const result = await createCapabilityBlob(
             {
@@ -61,10 +62,27 @@ export function useAddCapabilities(id: UnpackedHypermediaId) {
           await client.publish(result)
         }),
       )
-    },
-    onSuccess: () => {
-      invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
-      invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, id.uid, ...(id.path || [])])
+      const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+      const publishedCount = results.length - failures.length
+      if (publishedCount > 0) {
+        // Some grants are now in the local daemon. They must reach the
+        // document's site as fast as a comment does: push instead of waiting
+        // for the site's next sync wave. No-op on platforms that publish
+        // through the site. Pushed even when other grants failed, so the ones
+        // that did publish don't fall back to the slow path.
+        onPushPublished?.(id)
+        invalidateQueries([queryKeys.CAPABILITIES, id.uid, ...(id.path || [])])
+        invalidateQueries([queryKeys.DOCUMENT_COLLABORATORS, id.uid, ...(id.path || [])])
+      }
+      if (failures.length) {
+        const first = failures[0]!.reason
+        if (failures.length === results.length) throw first
+        throw new Error(
+          `Granted ${publishedCount} of ${results.length} capabilities; ${failures.length} failed: ${
+            first instanceof Error ? first.message : String(first)
+          }`,
+        )
+      }
     },
   })
 }

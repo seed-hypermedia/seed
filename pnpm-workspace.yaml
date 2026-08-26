@@ -13,6 +13,22 @@ packages:
 # an existing lockfile (frozen) is unaffected.
 minimumReleaseAge: 1440
 
+# image-size has no patched release. It is only pulled into the macOS packaging
+# toolchain by appdmg and does not process user-controlled images in Seed.
+auditConfig:
+  ignoreGhsas:
+    # extract-zip has no patched release (advisory lists none). It reaches the
+    # tree only through lighthouse's bundled puppeteer, a dev-only perf tool
+    # that never extracts user-controlled archives in Seed.
+    - GHSA-jmr9-qjv8-65gv
+  ignoreCves:
+    # Remix 2 is coupled to React Router 6, which has no patched release.
+    # The notify app cannot move to React Router 7 independently of Remix.
+    - CVE-2026-53666
+    - CVE-2026-53668
+    - CVE-2026-53669
+    - CVE-2025-71329
+    - CVE-2025-71330
 # trustPolicy: "no-downgrade"
 # Blocks installation if a package's trust level has decreased compared to its
 # previous release (e.g. was provenance-attested, now unsigned).

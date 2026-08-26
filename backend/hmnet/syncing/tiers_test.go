@@ -52,3 +52,12 @@ func TestPeerTierNamesCoverEveryTier(t *testing.T) {
 	require.Equal(t, "connected", peerTierNames[peerTierConnected])
 	require.Equal(t, "cold", peerTierNames[peerTierCold])
 }
+
+// TestExhaustiveWaveCtxTagRoundTrip: the exhaustive bit travels by context from
+// DiscoverObjectWithProgress into syncWithManyPeers, where it disables the tier
+// short-circuit. An untagged context must read false.
+func TestExhaustiveWaveCtxTagRoundTrip(t *testing.T) {
+	ctx := t.Context()
+	require.False(t, isExhaustiveWave(ctx))
+	require.True(t, isExhaustiveWave(contextWithExhaustiveWave(ctx)))
+}

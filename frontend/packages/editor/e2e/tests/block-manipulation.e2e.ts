@@ -27,6 +27,19 @@ test.describe('Block Manipulation', () => {
       expect(blocks[1].content[0].text).toContain('Second paragraph')
     })
 
+    test('Should carry text formatting to the block created by Enter', async ({editorHelpers, page}) => {
+      await page.evaluate(() => {
+        window.TEST_EDITOR?.editor?.addStyles({textSize: 'large', textFamily: 'serif'})
+      })
+      await editorHelpers.typeText('First paragraph')
+      await editorHelpers.pressKey('Enter')
+      await editorHelpers.typeText('Second paragraph')
+
+      const blocks = await editorHelpers.getBlocks()
+      expect(blocks[0].content[0].styles).toMatchObject({textSize: 'large', textFamily: 'serif'})
+      expect(blocks[1].content[0].styles).toMatchObject({textSize: 'large', textFamily: 'serif'})
+    })
+
     test('Should insert heading with slash menu', async ({editorHelpers, page}) => {
       await editorHelpers.openSlashMenu()
       await editorHelpers.clickSlashMenuItem('Heading')

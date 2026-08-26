@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {canonicalModelId, curateProviderModels, isChatModel, pickDefaultProviderModel} from '../model-utils'
+import {canonicalModelId, curateProviderModels, isChatModel, pickDefaultProviderModel} from '@shm/ui/agents/model-utils'
 
 const m = (id: string, name?: string) => ({id, name: name ?? id})
 

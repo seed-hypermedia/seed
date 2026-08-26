@@ -59,6 +59,36 @@ func TestListEvents(t *testing.T) {
 	require.Len(t, events.Events, 0)
 }
 
+// TestListEventsFilterResourceUsesBoundIRIList exercises the resource-filter path, which binds the
+// matched IRIs as a JSON array parameter (json_each) instead of interpolating them into the SQL.
+// It asserts the filter matches the right resource and excludes others.
+func TestListEventsFilterResourceUsesBoundIRIList(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+		if err := insertActivityProfileEvent(conn, 1, 1, author.String()+"/filtered-doc", 2_000); err != nil {
+			return err
+		}
+		return insertActivityProfileEvent(conn, 2, 2, author.String()+"/other-doc", 1_000)
+	}))
+
+	wantIRI := "hm://" + author.String() + "/filtered-doc"
+	events, err := alice.ListEvents(ctx, &activity.ListEventsRequest{
+		PageSize:       10,
+		FilterResource: wantIRI,
+	})
+	require.NoError(t, err)
+	require.Len(t, events.Events, 1)
+	require.Equal(t, wantIRI, events.Events[0].GetNewBlob().GetResource())
+}
+
 func TestListEventsDefaultsToClaimedTimeOrder(t *testing.T) {
 	alice := newTestServer(t, "alice")
 	ctx := context.Background()

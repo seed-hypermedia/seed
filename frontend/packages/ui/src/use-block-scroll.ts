@@ -10,8 +10,25 @@ export type BlockScrollOptions = {
   behavior?: ScrollBehavior
 }
 
-// Offset to clear sticky DocumentTools bar; matches .blocknode-content scroll-margin-top in blocks-content.css
-const STICKY_HEADER_OFFSET = 88
+// Breathing room above the target block. Nothing is pinned over the scroll
+// container anymore, so this only keeps the block off the very top edge.
+const SCROLL_TOP_MARGIN = 16
+
+/**
+ * Height the document top bar covers when it is pinned over the scrolling
+ * document, which only happens on mobile web where the document itself scrolls.
+ */
+function pinnedTopBarHeight(): number {
+  const bar = document.querySelector<HTMLElement>('[data-document-top-bar]')
+  if (!bar || window.getComputedStyle(bar).position !== 'sticky') return 0
+  return bar.getBoundingClientRect().height
+}
+
+/** Scrolls the window so the element clears both the pinned top bar and the top edge. */
+function scrollWindowToElement(element: HTMLElement, behavior: ScrollBehavior | undefined) {
+  const top = element.getBoundingClientRect().top + window.scrollY - SCROLL_TOP_MARGIN - pinnedTopBarHeight()
+  window.scrollTo({top: Math.max(top, 0), behavior})
+}
 
 const defaultOptions: BlockScrollOptions = {
   block: 'start',
@@ -72,10 +89,11 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
         // Scroll the container directly
         const containerRect = scrollContainer.getBoundingClientRect()
         const elementRect = element.getBoundingClientRect()
-        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - STICKY_HEADER_OFFSET
+        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - SCROLL_TOP_MARGIN
         scrollContainer.scrollTo({top: scrollTop, behavior})
+      } else if (block === 'start') {
+        scrollWindowToElement(element, behavior)
       } else {
-        // No scroll container, use standard scrollIntoView
         element.scrollIntoView({behavior, block})
       }
       return true
@@ -132,8 +150,10 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
       if (scrollContainer) {
         const containerRect = scrollContainer.getBoundingClientRect()
         const elementRect = element.getBoundingClientRect()
-        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - STICKY_HEADER_OFFSET
+        const scrollTop = scrollContainer.scrollTop + elementRect.top - containerRect.top - SCROLL_TOP_MARGIN
         scrollContainer.scrollTo({top: scrollTop, behavior})
+      } else if (block === 'start') {
+        scrollWindowToElement(element, behavior)
       } else {
         element.scrollIntoView({behavior, block})
       }

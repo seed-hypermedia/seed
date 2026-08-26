@@ -154,7 +154,7 @@ func (srv *Server) lookupLocalDomainAccount(ctx context.Context, domain string) 
 }
 
 var qLookupLocalDomainAccount = dqb.Str(`
-	SELECT substr(r.iri, 6) AS account_uid, COALESCE(dg.metadata->>'$.siteUrl.v', '') AS site_url
+	SELECT substr(r.iri, 6) AS account_uid, COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'siteUrl') AND da.kind = 's'), '') AS site_url
 	FROM document_generations dg
 	JOIN resources r ON r.id = dg.resource
 	WHERE instr(r.iri, 'hm://') = 1
@@ -182,6 +182,7 @@ func domainEntryToProto(e blob.DomainEntry) *daemon.DomainInfo {
 	if e.LastConfig != nil {
 		info.RegisteredAccountUid = e.LastConfig.RegisteredAccountUID
 		info.PeerId = e.LastConfig.PeerID
+		info.IsGateway = e.LastConfig.IsGateway
 	}
 
 	return info

@@ -1,13 +1,13 @@
 import {domainResolver} from '@/grpc-client'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
+import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
 import {
   agentRouteServerUrl,
-  DEFAULT_AGENT_SERVER_URL,
   isLocalAgentServer,
   LOCAL_AGENT_SERVER_LABEL,
   useAgentSession,
   useLocalAgentServerUrl,
-} from '@/models/agents'
+} from '@shm/ui/agents/models'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -55,8 +55,6 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {useQuery} from '@tanstack/react-query'
 import {
-  ArrowLeftFromLine,
-  ArrowRightFromLine,
   Bell,
   Bot,
   ChevronDown,
@@ -74,6 +72,7 @@ import {
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
+import {BookmarksPopover} from './bookmarks-popover'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
@@ -453,6 +452,7 @@ export function PageActionButtons(props: TitleBarProps) {
   return (
     <TitlebarSection>
       {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
+      <BookmarksPopover />
       <NotificationButton />
       <AccountProfileButton />
     </TitlebarSection>
@@ -512,22 +512,15 @@ export function NavigationButtons() {
 export function NavMenuButton({left}: {left?: ReactNode}) {
   const ctx = useContext(SidebarContext)
   const isLocked = useStream(ctx?.isLocked)
-  const isHoverVisible = useStream(ctx?.isHoverVisible)
-  let icon = <PanelLeft className="size-4" />
+  const icon = <PanelLeft className="size-4" />
   let tooltip = 'Lock Sidebar Open'
   let onPress = ctx?.onLockSidebarOpen
   let key = 'lock'
-  let color: undefined | string = undefined
 
   if (isLocked) {
     tooltip = 'Close Sidebar'
     onPress = ctx?.onCloseSidebar
     key = 'close'
-    color = 'text-muted'
-  }
-
-  if (isHoverVisible) {
-    icon = !isLocked ? <ArrowRightFromLine className="size-4" /> : <ArrowLeftFromLine className="size-4" />
   }
 
   // Add a state to track the last click time to debounce clicks
@@ -553,15 +546,7 @@ export function NavMenuButton({left}: {left?: ReactNode}) {
             content={tooltip}
             key={key} // use this key to make sure the component is unmounted when changes, to blur the button and make tooltip disappear
           >
-            <Button
-              size="icon"
-              key={key}
-              aria-label={tooltip}
-              className="shrink-0"
-              // onMouseEnter={ctx.onMenuHover}
-              // onMouseLeave={ctx.onMenuHoverLeave}
-              onClick={handleClick}
-            >
+            <Button size="icon" key={key} aria-label={tooltip} className="shrink-0" onClick={handleClick}>
               {icon}
             </Button>
           </Tooltip>
@@ -613,6 +598,10 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Settings'
     case 'api-inspector':
       return 'API Inspector'
+    case 'query-documents':
+      return 'Query Documents'
+    case 'explore':
+      return 'Explore'
     case 'notifications':
       return 'Notifications'
     case 'draft':
@@ -781,7 +770,7 @@ function useCurrentRouteUrl(): {
       const url =
         route.tab === 'triggers' && route.triggerId
           ? agentTriggerUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.triggerId)
-          : agentUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId)
+          : agentUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.tab, route.memoryPath)
       return {displayUrl: url, copyableUrl: url}
     }
 
@@ -864,6 +853,9 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
   ) {
     return route.id
   }
+  if (route.key === 'explore') {
+    return route.context.type === 'site' ? route.context.id : null
+  }
   if (route.key === 'site-settings-emails') {
     return route.accountUid ? hmId(route.accountUid) : null
   }
@@ -885,6 +877,7 @@ function isUrlDisplayableRoute(route: NavRoute): boolean {
     route.key === 'comments' ||
     route.key === 'all-documents' ||
     route.key === 'metadata' ||
+    (route.key === 'explore' && route.context.type === 'site') ||
     route.key === 'site-profile' ||
     route.key === 'site-settings-emails' ||
     route.key === 'site-settings'

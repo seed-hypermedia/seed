@@ -76,6 +76,56 @@ proto3.util.setEnumType(SortAttribute, "com.seed.documents.v3alpha.SortAttribute
 ]);
 
 /**
+ * Scalar and container kinds supported by user-defined document attributes.
+ *
+ * @generated from enum com.seed.documents.v3alpha.DocumentAttributeKind
+ */
+export enum DocumentAttributeKind {
+  /**
+   * No attribute kind specified.
+   *
+   * @generated from enum value: DOCUMENT_ATTRIBUTE_KIND_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * A nested object with child attributes.
+   *
+   * @generated from enum value: DOCUMENT_ATTRIBUTE_KIND_OBJECT = 1;
+   */
+  OBJECT = 1,
+
+  /**
+   * A string scalar.
+   *
+   * @generated from enum value: DOCUMENT_ATTRIBUTE_KIND_STRING = 2;
+   */
+  STRING = 2,
+
+  /**
+   * A signed integer scalar.
+   *
+   * @generated from enum value: DOCUMENT_ATTRIBUTE_KIND_INT = 3;
+   */
+  INT = 3,
+
+  /**
+   * A boolean scalar.
+   *
+   * @generated from enum value: DOCUMENT_ATTRIBUTE_KIND_BOOL = 4;
+   */
+  BOOL = 4,
+}
+// Retrieve enum metadata with: proto3.getEnumType(DocumentAttributeKind)
+proto3.util.setEnumType(DocumentAttributeKind, "com.seed.documents.v3alpha.DocumentAttributeKind", [
+  { no: 0, name: "DOCUMENT_ATTRIBUTE_KIND_UNSPECIFIED" },
+  { no: 1, name: "DOCUMENT_ATTRIBUTE_KIND_OBJECT" },
+  { no: 2, name: "DOCUMENT_ATTRIBUTE_KIND_STRING" },
+  { no: 3, name: "DOCUMENT_ATTRIBUTE_KIND_INT" },
+  { no: 4, name: "DOCUMENT_ATTRIBUTE_KIND_BOOL" },
+]);
+
+/**
  * Request for getting a single document.
  *
  * @generated from message com.seed.documents.v3alpha.GetDocumentRequest
@@ -1847,6 +1897,1260 @@ export class ListDocumentsResponse extends Message<ListDocumentsResponse> {
 
   static equals(a: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined, b: ListDocumentsResponse | PlainMessage<ListDocumentsResponse> | undefined): boolean {
     return proto3.util.equals(ListDocumentsResponse, a, b);
+  }
+}
+
+/**
+ * A typed scalar document attribute value.
+ *
+ * @generated from message com.seed.documents.v3alpha.AttributeValue
+ */
+export class AttributeValue extends Message<AttributeValue> {
+  /**
+   * @generated from oneof com.seed.documents.v3alpha.AttributeValue.value
+   */
+  value: {
+    /**
+     * An explicit null value.
+     *
+     * @generated from field: google.protobuf.Empty null_value = 1;
+     */
+    value: Empty;
+    case: "nullValue";
+  } | {
+    /**
+     * A string value.
+     *
+     * @generated from field: string string_value = 2;
+     */
+    value: string;
+    case: "stringValue";
+  } | {
+    /**
+     * A signed integer value.
+     *
+     * @generated from field: int64 int_value = 3;
+     */
+    value: bigint;
+    case: "intValue";
+  } | {
+    /**
+     * A boolean value.
+     *
+     * @generated from field: bool bool_value = 4;
+     */
+    value: boolean;
+    case: "boolValue";
+  } | { case: undefined; value?: undefined } = { case: undefined };
+
+  constructor(data?: PartialMessage<AttributeValue>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.AttributeValue";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "null_value", kind: "message", T: Empty, oneof: "value" },
+    { no: 2, name: "string_value", kind: "scalar", T: 9 /* ScalarType.STRING */, oneof: "value" },
+    { no: 3, name: "int_value", kind: "scalar", T: 3 /* ScalarType.INT64 */, oneof: "value" },
+    { no: 4, name: "bool_value", kind: "scalar", T: 8 /* ScalarType.BOOL */, oneof: "value" },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): AttributeValue {
+    return new AttributeValue().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): AttributeValue {
+    return new AttributeValue().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): AttributeValue {
+    return new AttributeValue().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: AttributeValue | PlainMessage<AttributeValue> | undefined, b: AttributeValue | PlainMessage<AttributeValue> | undefined): boolean {
+    return proto3.util.equals(AttributeValue, a, b);
+  }
+}
+
+/**
+ * A recursive predicate over document attributes and built-in document fields.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter
+ */
+export class DocumentFilter extends Message<DocumentFilter> {
+  /**
+   * Predicate to apply.
+   *
+   * @generated from oneof com.seed.documents.v3alpha.DocumentFilter.filter
+   */
+  filter: {
+    /**
+     * Matches when every nested filter matches.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.And and = 1;
+     */
+    value: DocumentFilter_And;
+    case: "and";
+  } | {
+    /**
+     * Matches when any nested filter matches.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.Or or = 2;
+     */
+    value: DocumentFilter_Or;
+    case: "or";
+  } | {
+    /**
+     * Inverts a nested filter.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.Not not = 3;
+     */
+    value: DocumentFilter_Not;
+    case: "not";
+  } | {
+    /**
+     * Compares a user-defined attribute value.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.Comparison comparison = 4;
+     */
+    value: DocumentFilter_Comparison;
+    case: "comparison";
+  } | {
+    /**
+     * Matches when a user-defined attribute exists and is not null.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.Presence exists = 5;
+     */
+    value: DocumentFilter_Presence;
+    case: "exists";
+  } | {
+    /**
+     * Matches when a user-defined attribute is absent or null.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.Presence missing = 6;
+     */
+    value: DocumentFilter_Presence;
+    case: "missing";
+  } | {
+    /**
+     * Matches text within a user-defined string attribute.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.StringMatch string_match = 7;
+     */
+    value: DocumentFilter_StringMatch;
+    case: "stringMatch";
+  } | {
+    /**
+     * Matches the built-in document URL.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.URLMatch url_match = 8;
+     */
+    value: DocumentFilter_URLMatch;
+    case: "urlMatch";
+  } | {
+    /**
+     * Matches the space that owns the document.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.SpaceMatch space_match = 9;
+     */
+    value: DocumentFilter_SpaceMatch;
+    case: "spaceMatch";
+  } | {
+    /**
+     * Matches the document path across accounts.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.PathMatch path_match = 10;
+     */
+    value: DocumentFilter_PathMatch;
+    case: "pathMatch";
+  } | { case: undefined; value?: undefined } = { case: undefined };
+
+  constructor(data?: PartialMessage<DocumentFilter>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "and", kind: "message", T: DocumentFilter_And, oneof: "filter" },
+    { no: 2, name: "or", kind: "message", T: DocumentFilter_Or, oneof: "filter" },
+    { no: 3, name: "not", kind: "message", T: DocumentFilter_Not, oneof: "filter" },
+    { no: 4, name: "comparison", kind: "message", T: DocumentFilter_Comparison, oneof: "filter" },
+    { no: 5, name: "exists", kind: "message", T: DocumentFilter_Presence, oneof: "filter" },
+    { no: 6, name: "missing", kind: "message", T: DocumentFilter_Presence, oneof: "filter" },
+    { no: 7, name: "string_match", kind: "message", T: DocumentFilter_StringMatch, oneof: "filter" },
+    { no: 8, name: "url_match", kind: "message", T: DocumentFilter_URLMatch, oneof: "filter" },
+    { no: 9, name: "space_match", kind: "message", T: DocumentFilter_SpaceMatch, oneof: "filter" },
+    { no: 10, name: "path_match", kind: "message", T: DocumentFilter_PathMatch, oneof: "filter" },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter {
+    return new DocumentFilter().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter {
+    return new DocumentFilter().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter {
+    return new DocumentFilter().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter | PlainMessage<DocumentFilter> | undefined, b: DocumentFilter | PlainMessage<DocumentFilter> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter, a, b);
+  }
+}
+
+/**
+ * Matches when all nested filters match. An empty list matches every document.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.And
+ */
+export class DocumentFilter_And extends Message<DocumentFilter_And> {
+  /**
+   * Filters to combine.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentFilter filters = 1;
+   */
+  filters: DocumentFilter[] = [];
+
+  constructor(data?: PartialMessage<DocumentFilter_And>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.And";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "filters", kind: "message", T: DocumentFilter, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_And {
+    return new DocumentFilter_And().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_And {
+    return new DocumentFilter_And().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_And {
+    return new DocumentFilter_And().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_And | PlainMessage<DocumentFilter_And> | undefined, b: DocumentFilter_And | PlainMessage<DocumentFilter_And> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_And, a, b);
+  }
+}
+
+/**
+ * Matches when at least one nested filter matches. An empty list matches no documents.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.Or
+ */
+export class DocumentFilter_Or extends Message<DocumentFilter_Or> {
+  /**
+   * Filters to combine.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentFilter filters = 1;
+   */
+  filters: DocumentFilter[] = [];
+
+  constructor(data?: PartialMessage<DocumentFilter_Or>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.Or";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "filters", kind: "message", T: DocumentFilter, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_Or {
+    return new DocumentFilter_Or().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_Or {
+    return new DocumentFilter_Or().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_Or {
+    return new DocumentFilter_Or().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_Or | PlainMessage<DocumentFilter_Or> | undefined, b: DocumentFilter_Or | PlainMessage<DocumentFilter_Or> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_Or, a, b);
+  }
+}
+
+/**
+ * Inverts a nested filter.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.Not
+ */
+export class DocumentFilter_Not extends Message<DocumentFilter_Not> {
+  /**
+   * Filter to invert.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DocumentFilter filter = 1;
+   */
+  filter?: DocumentFilter;
+
+  constructor(data?: PartialMessage<DocumentFilter_Not>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.Not";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "filter", kind: "message", T: DocumentFilter },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_Not {
+    return new DocumentFilter_Not().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_Not {
+    return new DocumentFilter_Not().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_Not {
+    return new DocumentFilter_Not().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_Not | PlainMessage<DocumentFilter_Not> | undefined, b: DocumentFilter_Not | PlainMessage<DocumentFilter_Not> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_Not, a, b);
+  }
+}
+
+/**
+ * Compares a user-defined document attribute with a typed value.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.Comparison
+ */
+export class DocumentFilter_Comparison extends Message<DocumentFilter_Comparison> {
+  /**
+   * Attribute key to compare.
+   *
+   * @generated from field: string key = 1;
+   */
+  key = "";
+
+  /**
+   * Comparison operator to apply.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DocumentFilter.Comparison.Operator operator = 2;
+   */
+  operator = DocumentFilter_Comparison_Operator.OPERATOR_UNSPECIFIED;
+
+  /**
+   * Value to compare against.
+   *
+   * @generated from field: com.seed.documents.v3alpha.AttributeValue value = 3;
+   */
+  value?: AttributeValue;
+
+  constructor(data?: PartialMessage<DocumentFilter_Comparison>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.Comparison";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "operator", kind: "enum", T: proto3.getEnumType(DocumentFilter_Comparison_Operator) },
+    { no: 3, name: "value", kind: "message", T: AttributeValue },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_Comparison {
+    return new DocumentFilter_Comparison().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_Comparison {
+    return new DocumentFilter_Comparison().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_Comparison {
+    return new DocumentFilter_Comparison().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_Comparison | PlainMessage<DocumentFilter_Comparison> | undefined, b: DocumentFilter_Comparison | PlainMessage<DocumentFilter_Comparison> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_Comparison, a, b);
+  }
+}
+
+/**
+ * Supported comparison operators.
+ *
+ * @generated from enum com.seed.documents.v3alpha.DocumentFilter.Comparison.Operator
+ */
+export enum DocumentFilter_Comparison_Operator {
+  /**
+   * No operator specified.
+   *
+   * @generated from enum value: OPERATOR_UNSPECIFIED = 0;
+   */
+  OPERATOR_UNSPECIFIED = 0,
+
+  /**
+   * Equal to.
+   *
+   * @generated from enum value: EQUAL = 1;
+   */
+  EQUAL = 1,
+
+  /**
+   * Not equal to.
+   *
+   * @generated from enum value: NOT_EQUAL = 2;
+   */
+  NOT_EQUAL = 2,
+
+  /**
+   * Less than.
+   *
+   * @generated from enum value: LESS_THAN = 3;
+   */
+  LESS_THAN = 3,
+
+  /**
+   * Less than or equal to.
+   *
+   * @generated from enum value: LESS_THAN_OR_EQUAL = 4;
+   */
+  LESS_THAN_OR_EQUAL = 4,
+
+  /**
+   * Greater than.
+   *
+   * @generated from enum value: GREATER_THAN = 5;
+   */
+  GREATER_THAN = 5,
+
+  /**
+   * Greater than or equal to.
+   *
+   * @generated from enum value: GREATER_THAN_OR_EQUAL = 6;
+   */
+  GREATER_THAN_OR_EQUAL = 6,
+}
+// Retrieve enum metadata with: proto3.getEnumType(DocumentFilter_Comparison_Operator)
+proto3.util.setEnumType(DocumentFilter_Comparison_Operator, "com.seed.documents.v3alpha.DocumentFilter.Comparison.Operator", [
+  { no: 0, name: "OPERATOR_UNSPECIFIED" },
+  { no: 1, name: "EQUAL" },
+  { no: 2, name: "NOT_EQUAL" },
+  { no: 3, name: "LESS_THAN" },
+  { no: 4, name: "LESS_THAN_OR_EQUAL" },
+  { no: 5, name: "GREATER_THAN" },
+  { no: 6, name: "GREATER_THAN_OR_EQUAL" },
+]);
+
+/**
+ * Tests whether a user-defined document attribute is present or missing.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.Presence
+ */
+export class DocumentFilter_Presence extends Message<DocumentFilter_Presence> {
+  /**
+   * Attribute key to test.
+   *
+   * @generated from field: string key = 1;
+   */
+  key = "";
+
+  constructor(data?: PartialMessage<DocumentFilter_Presence>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.Presence";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_Presence {
+    return new DocumentFilter_Presence().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_Presence {
+    return new DocumentFilter_Presence().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_Presence {
+    return new DocumentFilter_Presence().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_Presence | PlainMessage<DocumentFilter_Presence> | undefined, b: DocumentFilter_Presence | PlainMessage<DocumentFilter_Presence> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_Presence, a, b);
+  }
+}
+
+/**
+ * Matches text within a user-defined string attribute.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.StringMatch
+ */
+export class DocumentFilter_StringMatch extends Message<DocumentFilter_StringMatch> {
+  /**
+   * Attribute key to search.
+   *
+   * @generated from field: string key = 1;
+   */
+  key = "";
+
+  /**
+   * Text to search for.
+   *
+   * @generated from field: string value = 2;
+   */
+  value = "";
+
+  /**
+   * Whether matching is case-sensitive.
+   *
+   * @generated from field: bool case_sensitive = 3;
+   */
+  caseSensitive = false;
+
+  /**
+   * When false, value may occur anywhere. When true, value must be a prefix.
+   *
+   * @generated from field: bool prefix = 4;
+   */
+  prefix = false;
+
+  constructor(data?: PartialMessage<DocumentFilter_StringMatch>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.StringMatch";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "value", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 3, name: "case_sensitive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+    { no: 4, name: "prefix", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_StringMatch {
+    return new DocumentFilter_StringMatch().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_StringMatch {
+    return new DocumentFilter_StringMatch().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_StringMatch {
+    return new DocumentFilter_StringMatch().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_StringMatch | PlainMessage<DocumentFilter_StringMatch> | undefined, b: DocumentFilter_StringMatch | PlainMessage<DocumentFilter_StringMatch> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_StringMatch, a, b);
+  }
+}
+
+/**
+ * Matches the built-in URL of a document.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.URLMatch
+ */
+export class DocumentFilter_URLMatch extends Message<DocumentFilter_URLMatch> {
+  /**
+   * Canonical hm:// document URL to match.
+   *
+   * @generated from field: string url = 1;
+   */
+  url = "";
+
+  /**
+   * When false, matches the URL exactly. When true, also matches descendant URLs.
+   *
+   * @generated from field: bool prefix = 2;
+   */
+  prefix = false;
+
+  constructor(data?: PartialMessage<DocumentFilter_URLMatch>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.URLMatch";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "url", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "prefix", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_URLMatch {
+    return new DocumentFilter_URLMatch().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_URLMatch {
+    return new DocumentFilter_URLMatch().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_URLMatch {
+    return new DocumentFilter_URLMatch().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_URLMatch | PlainMessage<DocumentFilter_URLMatch> | undefined, b: DocumentFilter_URLMatch | PlainMessage<DocumentFilter_URLMatch> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_URLMatch, a, b);
+  }
+}
+
+/**
+ * Matches the built-in space that owns a document.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.SpaceMatch
+ */
+export class DocumentFilter_SpaceMatch extends Message<DocumentFilter_SpaceMatch> {
+  /**
+   * Space principal to match.
+   *
+   * @generated from field: string space = 1;
+   */
+  space = "";
+
+  constructor(data?: PartialMessage<DocumentFilter_SpaceMatch>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.SpaceMatch";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "space", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_SpaceMatch {
+    return new DocumentFilter_SpaceMatch().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_SpaceMatch {
+    return new DocumentFilter_SpaceMatch().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_SpaceMatch {
+    return new DocumentFilter_SpaceMatch().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_SpaceMatch | PlainMessage<DocumentFilter_SpaceMatch> | undefined, b: DocumentFilter_SpaceMatch | PlainMessage<DocumentFilter_SpaceMatch> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_SpaceMatch, a, b);
+  }
+}
+
+/**
+ * Matches the built-in path of a document, independently of its account.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.PathMatch
+ */
+export class DocumentFilter_PathMatch extends Message<DocumentFilter_PathMatch> {
+  /**
+   * Canonical document path. Empty selects account root documents.
+   *
+   * @generated from field: string path = 1;
+   */
+  path = "";
+
+  /**
+   * When false, matches the path exactly. When true, also matches descendant paths.
+   *
+   * @generated from field: bool prefix = 2;
+   */
+  prefix = false;
+
+  constructor(data?: PartialMessage<DocumentFilter_PathMatch>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.PathMatch";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "prefix", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_PathMatch {
+    return new DocumentFilter_PathMatch().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_PathMatch {
+    return new DocumentFilter_PathMatch().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_PathMatch {
+    return new DocumentFilter_PathMatch().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_PathMatch | PlainMessage<DocumentFilter_PathMatch> | undefined, b: DocumentFilter_PathMatch | PlainMessage<DocumentFilter_PathMatch> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_PathMatch, a, b);
+  }
+}
+
+/**
+ * Sorting configuration for QueryDocuments.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentSort
+ */
+export class DocumentSort extends Message<DocumentSort> {
+  /**
+   * User-defined attribute key to sort by.
+   *
+   * @generated from field: string key = 1;
+   */
+  key = "";
+
+  /**
+   * Whether to sort in descending order.
+   *
+   * @generated from field: bool descending = 2;
+   */
+  descending = false;
+
+  constructor(data?: PartialMessage<DocumentSort>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentSort";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "key", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "descending", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentSort {
+    return new DocumentSort().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentSort {
+    return new DocumentSort().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentSort {
+    return new DocumentSort().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentSort | PlainMessage<DocumentSort> | undefined, b: DocumentSort | PlainMessage<DocumentSort> | undefined): boolean {
+    return proto3.util.equals(DocumentSort, a, b);
+  }
+}
+
+/**
+ * Request to query current non-deleted documents by attributes.
+ *
+ * @generated from message com.seed.documents.v3alpha.QueryDocumentsRequest
+ */
+export class QueryDocumentsRequest extends Message<QueryDocumentsRequest> {
+  /**
+   * Optional. Predicate documents must satisfy. When omitted, all visible documents match.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DocumentFilter filter = 1;
+   */
+  filter?: DocumentFilter;
+
+  /**
+   * Optional. Attribute sort order, from highest to lowest priority.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentSort sort = 2;
+   */
+  sort: DocumentSort[] = [];
+
+  /**
+   * Optional. Number of results per page. Default is defined by the server.
+   *
+   * @generated from field: int32 page_size = 3;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtained from a previous response.
+   *
+   * @generated from field: string page_token = 4;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<QueryDocumentsRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.QueryDocumentsRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "filter", kind: "message", T: DocumentFilter },
+    { no: 2, name: "sort", kind: "message", T: DocumentSort, repeated: true },
+    { no: 3, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 4, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): QueryDocumentsRequest {
+    return new QueryDocumentsRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): QueryDocumentsRequest {
+    return new QueryDocumentsRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): QueryDocumentsRequest {
+    return new QueryDocumentsRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: QueryDocumentsRequest | PlainMessage<QueryDocumentsRequest> | undefined, b: QueryDocumentsRequest | PlainMessage<QueryDocumentsRequest> | undefined): boolean {
+    return proto3.util.equals(QueryDocumentsRequest, a, b);
+  }
+}
+
+/**
+ * Page of document attribute query results.
+ *
+ * @generated from message com.seed.documents.v3alpha.QueryDocumentsResponse
+ */
+export class QueryDocumentsResponse extends Message<QueryDocumentsResponse> {
+  /**
+   * Documents that matched the query.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentInfo documents = 1;
+   */
+  documents: DocumentInfo[] = [];
+
+  /**
+   * Token for the next page. Empty when there are no more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<QueryDocumentsResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.QueryDocumentsResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "documents", kind: "message", T: DocumentInfo, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): QueryDocumentsResponse {
+    return new QueryDocumentsResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): QueryDocumentsResponse {
+    return new QueryDocumentsResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): QueryDocumentsResponse {
+    return new QueryDocumentsResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: QueryDocumentsResponse | PlainMessage<QueryDocumentsResponse> | undefined, b: QueryDocumentsResponse | PlainMessage<QueryDocumentsResponse> | undefined): boolean {
+    return proto3.util.equals(QueryDocumentsResponse, a, b);
+  }
+}
+
+/**
+ * One kind observed for an attribute name.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentAttributeKindUsage
+ */
+export class DocumentAttributeKindUsage extends Message<DocumentAttributeKindUsage> {
+  /**
+   * Observed attribute kind.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DocumentAttributeKind kind = 1;
+   */
+  kind = DocumentAttributeKind.UNSPECIFIED;
+
+  constructor(data?: PartialMessage<DocumentAttributeKindUsage>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentAttributeKindUsage";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "kind", kind: "enum", T: proto3.getEnumType(DocumentAttributeKind) },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentAttributeKindUsage {
+    return new DocumentAttributeKindUsage().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentAttributeKindUsage {
+    return new DocumentAttributeKindUsage().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentAttributeKindUsage {
+    return new DocumentAttributeKindUsage().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentAttributeKindUsage | PlainMessage<DocumentAttributeKindUsage> | undefined, b: DocumentAttributeKindUsage | PlainMessage<DocumentAttributeKindUsage> | undefined): boolean {
+    return proto3.util.equals(DocumentAttributeKindUsage, a, b);
+  }
+}
+
+/**
+ * Request for user-defined attribute name autocomplete.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDocumentAttributeNamesRequest
+ */
+export class ListDocumentAttributeNamesRequest extends Message<ListDocumentAttributeNamesRequest> {
+  /**
+   * Optional. Account whose attribute names should be prioritized. When
+   * omitted, suggestions are ordered globally.
+   *
+   * @generated from field: string account = 1;
+   */
+  account = "";
+
+  /**
+   * Optional. Parent object path. Results are direct children of this path.
+   *
+   * @generated from field: repeated string parent_path = 2;
+   */
+  parentPath: string[] = [];
+
+  /**
+   * Optional. Case-insensitive name prefix.
+   *
+   * @generated from field: string prefix = 3;
+   */
+  prefix = "";
+
+  /**
+   * Optional. Number of results per page.
+   *
+   * @generated from field: int32 page_size = 4;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtained from a previous response.
+   *
+   * @generated from field: string page_token = 5;
+   */
+  pageToken = "";
+
+  /**
+   * Optional. Return complete scalar paths instead of direct children. Intended
+   * for global query builders rather than hierarchical attribute editors.
+   *
+   * @generated from field: bool recursive = 6;
+   */
+  recursive = false;
+
+  constructor(data?: PartialMessage<ListDocumentAttributeNamesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentAttributeNamesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "parent_path", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 3, name: "prefix", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 5, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 6, name: "recursive", kind: "scalar", T: 8 /* ScalarType.BOOL */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentAttributeNamesRequest {
+    return new ListDocumentAttributeNamesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentAttributeNamesRequest {
+    return new ListDocumentAttributeNamesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentAttributeNamesRequest {
+    return new ListDocumentAttributeNamesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDocumentAttributeNamesRequest | PlainMessage<ListDocumentAttributeNamesRequest> | undefined, b: ListDocumentAttributeNamesRequest | PlainMessage<ListDocumentAttributeNamesRequest> | undefined): boolean {
+    return proto3.util.equals(ListDocumentAttributeNamesRequest, a, b);
+  }
+}
+
+/**
+ * A user-defined attribute name suggestion.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentAttributeName
+ */
+export class DocumentAttributeName extends Message<DocumentAttributeName> {
+  /**
+   * Direct child name relative to the requested parent path, or a complete
+   * scalar path when recursive was requested.
+   *
+   * @generated from field: string name = 1;
+   */
+  name = "";
+
+  /**
+   * Kinds observed at this path, including object when child paths exist. For
+   * a prioritized account, these come from that account when possible.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentAttributeKindUsage kinds = 2;
+   */
+  kinds: DocumentAttributeKindUsage[] = [];
+
+  constructor(data?: PartialMessage<DocumentAttributeName>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentAttributeName";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "name", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 2, name: "kinds", kind: "message", T: DocumentAttributeKindUsage, repeated: true },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentAttributeName {
+    return new DocumentAttributeName().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentAttributeName {
+    return new DocumentAttributeName().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentAttributeName {
+    return new DocumentAttributeName().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentAttributeName | PlainMessage<DocumentAttributeName> | undefined, b: DocumentAttributeName | PlainMessage<DocumentAttributeName> | undefined): boolean {
+    return proto3.util.equals(DocumentAttributeName, a, b);
+  }
+}
+
+/**
+ * Page of user-defined attribute name suggestions.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDocumentAttributeNamesResponse
+ */
+export class ListDocumentAttributeNamesResponse extends Message<ListDocumentAttributeNamesResponse> {
+  /**
+   * Matching direct child attribute names.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentAttributeName names = 1;
+   */
+  names: DocumentAttributeName[] = [];
+
+  /**
+   * Token for the next page. Empty when there are no more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListDocumentAttributeNamesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentAttributeNamesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "names", kind: "message", T: DocumentAttributeName, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentAttributeNamesResponse {
+    return new ListDocumentAttributeNamesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentAttributeNamesResponse {
+    return new ListDocumentAttributeNamesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentAttributeNamesResponse {
+    return new ListDocumentAttributeNamesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDocumentAttributeNamesResponse | PlainMessage<ListDocumentAttributeNamesResponse> | undefined, b: ListDocumentAttributeNamesResponse | PlainMessage<ListDocumentAttributeNamesResponse> | undefined): boolean {
+    return proto3.util.equals(ListDocumentAttributeNamesResponse, a, b);
+  }
+}
+
+/**
+ * Request for user-defined attribute value autocomplete.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDocumentAttributeValuesRequest
+ */
+export class ListDocumentAttributeValuesRequest extends Message<ListDocumentAttributeValuesRequest> {
+  /**
+   * Required. Exact nested path of the user-defined attribute.
+   *
+   * @generated from field: repeated string path = 1;
+   */
+  path: string[] = [];
+
+  /**
+   * Required. Scalar kind whose values should be returned.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DocumentAttributeKind kind = 2;
+   */
+  kind = DocumentAttributeKind.UNSPECIFIED;
+
+  /**
+   * Optional. Account whose values should be searched. When omitted, values
+   * are searched globally.
+   *
+   * @generated from field: string account = 3;
+   */
+  account = "";
+
+  /**
+   * Optional. Case-insensitive prefix of the value's display representation.
+   *
+   * @generated from field: string prefix = 4;
+   */
+  prefix = "";
+
+  /**
+   * Optional. Number of results per page.
+   *
+   * @generated from field: int32 page_size = 5;
+   */
+  pageSize = 0;
+
+  /**
+   * Optional. Value from next_page_token obtained from a previous response.
+   *
+   * @generated from field: string page_token = 6;
+   */
+  pageToken = "";
+
+  constructor(data?: PartialMessage<ListDocumentAttributeValuesRequest>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentAttributeValuesRequest";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "path", kind: "scalar", T: 9 /* ScalarType.STRING */, repeated: true },
+    { no: 2, name: "kind", kind: "enum", T: proto3.getEnumType(DocumentAttributeKind) },
+    { no: 3, name: "account", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 4, name: "prefix", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+    { no: 5, name: "page_size", kind: "scalar", T: 5 /* ScalarType.INT32 */ },
+    { no: 6, name: "page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentAttributeValuesRequest {
+    return new ListDocumentAttributeValuesRequest().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentAttributeValuesRequest {
+    return new ListDocumentAttributeValuesRequest().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentAttributeValuesRequest {
+    return new ListDocumentAttributeValuesRequest().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDocumentAttributeValuesRequest | PlainMessage<ListDocumentAttributeValuesRequest> | undefined, b: ListDocumentAttributeValuesRequest | PlainMessage<ListDocumentAttributeValuesRequest> | undefined): boolean {
+    return proto3.util.equals(ListDocumentAttributeValuesRequest, a, b);
+  }
+}
+
+/**
+ * A known typed value for a user-defined document attribute.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentAttributeValue
+ */
+export class DocumentAttributeValue extends Message<DocumentAttributeValue> {
+  /**
+   * Typed scalar value.
+   *
+   * @generated from field: com.seed.documents.v3alpha.AttributeValue value = 1;
+   */
+  value?: AttributeValue;
+
+  constructor(data?: PartialMessage<DocumentAttributeValue>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentAttributeValue";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "value", kind: "message", T: AttributeValue },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentAttributeValue {
+    return new DocumentAttributeValue().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentAttributeValue {
+    return new DocumentAttributeValue().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentAttributeValue {
+    return new DocumentAttributeValue().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentAttributeValue | PlainMessage<DocumentAttributeValue> | undefined, b: DocumentAttributeValue | PlainMessage<DocumentAttributeValue> | undefined): boolean {
+    return proto3.util.equals(DocumentAttributeValue, a, b);
+  }
+}
+
+/**
+ * Page of known values for a user-defined document attribute.
+ *
+ * @generated from message com.seed.documents.v3alpha.ListDocumentAttributeValuesResponse
+ */
+export class ListDocumentAttributeValuesResponse extends Message<ListDocumentAttributeValuesResponse> {
+  /**
+   * Matching typed values.
+   *
+   * @generated from field: repeated com.seed.documents.v3alpha.DocumentAttributeValue values = 1;
+   */
+  values: DocumentAttributeValue[] = [];
+
+  /**
+   * Token for the next page. Empty when there are no more results.
+   *
+   * @generated from field: string next_page_token = 2;
+   */
+  nextPageToken = "";
+
+  constructor(data?: PartialMessage<ListDocumentAttributeValuesResponse>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.ListDocumentAttributeValuesResponse";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "values", kind: "message", T: DocumentAttributeValue, repeated: true },
+    { no: 2, name: "next_page_token", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): ListDocumentAttributeValuesResponse {
+    return new ListDocumentAttributeValuesResponse().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): ListDocumentAttributeValuesResponse {
+    return new ListDocumentAttributeValuesResponse().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): ListDocumentAttributeValuesResponse {
+    return new ListDocumentAttributeValuesResponse().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: ListDocumentAttributeValuesResponse | PlainMessage<ListDocumentAttributeValuesResponse> | undefined, b: ListDocumentAttributeValuesResponse | PlainMessage<ListDocumentAttributeValuesResponse> | undefined): boolean {
+    return proto3.util.equals(ListDocumentAttributeValuesResponse, a, b);
   }
 }
 

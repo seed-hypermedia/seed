@@ -12,10 +12,10 @@ import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
 import {getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
+import {logWindowClose, logWindowOpen} from './memory-profiler-window'
+import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
 
 const quietNodeLogs = isQuietNodeLogsEnabled()
-import {logWindowOpen, logWindowClose} from './memory-profiler-window'
-import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
 
 let windowIdCount = 1
 
@@ -72,7 +72,7 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
 }
 
 // Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set(['library', 'contacts', 'settings', 'drafts', 'agents', 'api-inspector'])
+const SINGLE_INSTANCE_ROUTES = new Set(['contacts', 'settings', 'agents', 'api-inspector'])
 
 // Check if a route key should prevent duplicate windows
 function shouldPreventDuplicateWindow(routeKey: string): boolean {
@@ -382,7 +382,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   }
 
   // Check if we should prevent duplicate windows for this route
-  const initRoutes = input?.routes || [{key: 'library'}]
+  const initRoutes = input?.routes || [defaultRoute]
   const initRouteIndex = input?.routeIndex || 0
   const targetRoute = initRoutes[initRouteIndex]
 

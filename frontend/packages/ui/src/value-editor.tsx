@@ -57,6 +57,50 @@ export type ValueEditorRules = {
   ipld: boolean
 }
 
+export type AttributeSuggestionKind = 'text' | 'number' | 'toggle' | 'object'
+
+export type AttributeNameSuggestion = {
+  name: string
+  kinds: {kind: AttributeSuggestionKind}[]
+  description?: string
+}
+
+export type AttributeValueSuggestion = {
+  value: string | number
+}
+
+export type AttributeAutocompletePage<T> = {items: T[]; nextPageToken?: string}
+
+/** Platform adapter for metadata name/value autocomplete. */
+export type AttributeAutocomplete = {
+  listNames: (input: {
+    parentPath: string[]
+    prefix: string
+    pageToken?: string
+    signal?: AbortSignal
+  }) => Promise<AttributeAutocompletePage<AttributeNameSuggestion>>
+  listValues: (input: {
+    path: string[]
+    kind: 'text' | 'number'
+    prefix: string
+    pageToken?: string
+    signal?: AbortSignal
+  }) => Promise<AttributeAutocompletePage<AttributeValueSuggestion>>
+}
+
+const AttributeAutocompleteContext = createContext<AttributeAutocomplete | undefined>(undefined)
+
+/** Makes platform-provided attribute autocomplete available to the recursive editor. */
+export function AttributeAutocompleteProvider({
+  value,
+  children,
+}: {
+  value?: AttributeAutocomplete
+  children: React.ReactNode
+}) {
+  return <AttributeAutocompleteContext.Provider value={value}>{children}</AttributeAutocompleteContext.Provider>
+}
+
 /** Rules for document metadata: what SetAttribute ops can publish. */
 export const METADATA_VALUE_RULES: ValueEditorRules = {
   lists: false,
@@ -949,6 +993,7 @@ export function FieldRow({
         existingKeys={siblingKeys}
         initialName={fieldKey}
         initialType={valueToFieldType(value)}
+        parentPath={path.slice(0, -1).filter((segment): segment is string => typeof segment === 'string')}
         onSubmit={(newKey, newType) => {
           const newValue = newType === valueToFieldType(value) ? value : coerceFieldValue(value, newType, rules)
           onEditField(newKey, newValue)
@@ -1052,10 +1097,10 @@ export function ValueEditor({
     return <Switch checked={value} onCheckedChange={(checked) => onValue(checked)} />
   }
   if (typeof value === 'number') {
-    return <NumberInput value={value} onValue={onValue} rules={rules} />
+    return <NumberInput value={value} onValue={onValue} rules={rules} path={path} />
   }
   if (typeof value === 'string') {
-    return <StringLeafEditor value={value} onValue={onValue} rules={rules} />
+    return <StringLeafEditor value={value} onValue={onValue} rules={rules} path={path} />
   }
   if (isDagJsonLink(value)) {
     return <LinkValueEditor value={value} onValue={onValue} />
@@ -1098,10 +1143,12 @@ function StringLeafEditor({
   value,
   onValue,
   rules,
+  path,
 }: {
   value: string
   onValue: (value: unknown) => void
   rules: ValueEditorRules
+  path: ValuePath
 }) {
   const {fileUpload, openFile} = useContext(SelectionStateContext)
   const [dragOver, setDragOver] = useState(false)
@@ -1157,6 +1204,8 @@ function StringLeafEditor({
           placeholder={'Empty Text'}
           // Save while typing (debounced) so edits persist without blurring.
           autosave
+          suggestionPath={path.filter((segment): segment is string => typeof segment === 'string')}
+          suggestionKind="text"
           // A pasted gateway URL (https://…/ipfs/<cid>) becomes an ipfs:// reference.
           normalize={gatewayUrlToIpfs}
           onCommit={(text) => {
@@ -1407,6 +1456,7 @@ export function ObjectEditor({
       <AddFieldForm
         compact
         rules={rules}
+        path={path.filter((segment): segment is string => typeof segment === 'string')}
         existingKeys={entries.map(([key]) => key)}
         onAdd={(key, newChild) => onValue({...value, [key]: newChild})}
       />
@@ -1653,47 +1703,131 @@ function NumberInput({
   rules,
   autoFocus,
   onFocusChange,
+  path,
 }: {
   value: number
   onValue: (value: unknown) => void
   rules: ValueEditorRules
   autoFocus?: boolean
   onFocusChange?: (focused: boolean) => void
+  path?: ValuePath
 }) {
   const initial = String(value)
   const [text, setText] = useState(initial)
   const [error, setError] = useState<string | null>(null)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const autocomplete = useContext(AttributeAutocompleteContext)
+  const debouncedText = useDebounce(text, 200)
+  const stringPath = (path ?? []).filter((segment): segment is string => typeof segment === 'string')
+  const valueLoader = useCallback(
+    (pageToken: string | undefined, signal?: AbortSignal) =>
+      autocomplete!.listValues({path: stringPath, kind: 'number', prefix: debouncedText, pageToken, signal}),
+    [autocomplete, debouncedText, JSON.stringify(stringPath)],
+  )
+  const suggestions = usePagedSuggestions(
+    !!autocomplete && suggestionsOpen && stringPath.length > 0,
+    `number:${JSON.stringify(stringPath)}:${debouncedText}`,
+    valueLoader,
+    (item) => typeof item.value === 'number',
+  )
+  const visibleSuggestions = suggestions.items.filter((item) => typeof item.value === 'number')
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  useEffect(() => {
+    setActiveIndex(null)
+  }, [suggestions.requestKey])
+  useEffect(() => {
+    if (activeIndex !== null && activeIndex >= visibleSuggestions.length) setActiveIndex(null)
+  }, [activeIndex, visibleSuggestions.length])
   useEffect(() => {
     setText(initial)
     setError(null)
   }, [initial])
   return (
     <div className="flex flex-col gap-1">
-      <Input
-        value={text}
-        inputMode="numeric"
-        autoFocus={autoFocus}
-        onFocus={() => onFocusChange?.(true)}
-        onChange={(e) => {
-          setText(e.target.value)
-          setError(null)
-        }}
-        onBlur={() => {
-          onFocusChange?.(false)
-          if (text === initial) return
-          const parsed = Number(text)
-          const valid = text.trim() !== '' && (rules.floats ? Number.isFinite(parsed) : Number.isInteger(parsed))
-          if (!valid) {
-            setError(rules.floats ? 'Enter a number' : 'Enter a whole number')
-            return
+      <div className="relative">
+        <Input
+          value={text}
+          inputMode="numeric"
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={suggestionsOpen && visibleSuggestions.length > 0}
+          aria-controls={`number-suggestions-${pathId(path ?? [])}`}
+          aria-activedescendant={
+            activeIndex === null ? undefined : `number-suggestions-${pathId(path ?? [])}-option-${activeIndex}`
           }
-          onValue(parsed)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-          if (e.key === 'Escape') setText(initial)
-        }}
-      />
+          autoFocus={autoFocus}
+          onFocus={() => {
+            setSuggestionsOpen(true)
+            setActiveIndex(null)
+            onFocusChange?.(true)
+          }}
+          onChange={(e) => {
+            setText(e.target.value)
+            setSuggestionsOpen(true)
+            setActiveIndex(null)
+            setError(null)
+          }}
+          onBlur={() => {
+            setSuggestionsOpen(false)
+            setActiveIndex(null)
+            onFocusChange?.(false)
+            if (text === initial) return
+            const parsed = Number(text)
+            const valid = text.trim() !== '' && (rules.floats ? Number.isFinite(parsed) : Number.isInteger(parsed))
+            if (!valid) {
+              setError(rules.floats ? 'Enter a number' : 'Enter a whole number')
+              return
+            }
+            onValue(parsed)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              if (visibleSuggestions.length === 0) return
+              e.preventDefault()
+              setActiveIndex((current) => {
+                if (e.key === 'ArrowDown')
+                  return current === null ? 0 : Math.min(current + 1, visibleSuggestions.length - 1)
+                return current === null ? visibleSuggestions.length - 1 : Math.max(current - 1, 0)
+              })
+            }
+            if (e.key === 'Enter') {
+              if (activeIndex !== null && visibleSuggestions[activeIndex]) {
+                e.preventDefault()
+                const item = visibleSuggestions[activeIndex]
+                setText(String(item.value))
+                setSuggestionsOpen(false)
+                setActiveIndex(null)
+                onValue(item.value)
+              } else {
+                ;(e.target as HTMLInputElement).blur()
+              }
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault()
+              setText(initial)
+              setSuggestionsOpen(false)
+              setActiveIndex(null)
+            }
+          }}
+        />
+        {suggestionsOpen && autocomplete && (
+          <SuggestionPopover
+            id={`number-suggestions-${pathId(path ?? [])}`}
+            items={visibleSuggestions}
+            activeIndex={activeIndex}
+            loading={suggestions.loading}
+            hasMore={!!suggestions.nextPageToken}
+            getKey={(item) => String(item.value)}
+            getLabel={(item) => String(item.value)}
+            onSelect={(item) => {
+              setText(String(item.value))
+              setSuggestionsOpen(false)
+              onValue(item.value)
+            }}
+            onLoadMore={suggestions.loadMore}
+          />
+        )}
+      </div>
       {error && <p className="text-destructive text-xs">{error}</p>}
     </div>
   )
@@ -1711,6 +1845,8 @@ function CommitOnBlurInput({
   onFocusChange,
   normalize,
   autosave = false,
+  suggestionPath,
+  suggestionKind,
 }: {
   initialValue: string
   placeholder?: string
@@ -1722,9 +1858,13 @@ function CommitOnBlurInput({
   normalize?: (text: string) => string | null
   /** Commit on a debounce while typing (not only on blur/Enter). */
   autosave?: boolean
+  suggestionPath?: string[]
+  suggestionKind?: 'text'
 }) {
   const [text, setText] = useState(initialValue)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
   const focusedRef = useRef(false)
+  const autocomplete = useContext(AttributeAutocompleteContext)
   const commit = (value: string) => onCommit(normalize?.(value) ?? value)
 
   // Resync from external value changes only when this field isn't being edited,
@@ -1737,6 +1877,32 @@ function CommitOnBlurInput({
   // further debounces the actual write, and the value is already staged before
   // any Publish click (which otherwise races the blur commit).
   const debouncedText = useDebounce(text, AUTOSAVE_DEBOUNCE_MS)
+  const suggestionText = useDebounce(text, 200)
+  const valueLoader = useCallback(
+    (pageToken: string | undefined, signal?: AbortSignal) =>
+      autocomplete!.listValues({
+        path: suggestionPath ?? [],
+        kind: suggestionKind!,
+        prefix: suggestionText,
+        pageToken,
+        signal,
+      }),
+    [autocomplete, suggestionKind, suggestionText, JSON.stringify(suggestionPath ?? [])],
+  )
+  const suggestions = usePagedSuggestions(
+    !!autocomplete && suggestionsOpen && !!suggestionKind && !!suggestionPath?.length,
+    `${suggestionKind}:${JSON.stringify(suggestionPath ?? [])}:${suggestionText.toLocaleLowerCase()}`,
+    valueLoader,
+    (item) => typeof item.value === 'string',
+  )
+  const visibleSuggestions = suggestions.items.filter((item) => typeof item.value === 'string')
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  useEffect(() => {
+    setActiveIndex(null)
+  }, [suggestions.requestKey])
+  useEffect(() => {
+    if (activeIndex !== null && activeIndex >= visibleSuggestions.length) setActiveIndex(null)
+  }, [activeIndex, visibleSuggestions.length])
   useEffect(() => {
     if (!autosave || !focusedRef.current) return
     if (debouncedText !== initialValue) commit(debouncedText)
@@ -1744,41 +1910,103 @@ function CommitOnBlurInput({
   }, [debouncedText])
 
   return (
-    <Input
-      value={text}
-      placeholder={placeholder}
-      className={className}
-      autoFocus={autoFocus}
-      onFocus={() => {
-        focusedRef.current = true
-        onFocusChange?.(true)
-      }}
-      onChange={(e) => setText(e.target.value)}
-      onPaste={
-        normalize
-          ? (e) => {
-              // Convert a pasted gateway URL to ipfs:// immediately (so it
-              // renders as a file tag) instead of waiting for blur.
-              const pasted = e.clipboardData.getData('text')
-              const converted = normalize(pasted)
-              if (converted && converted !== pasted) {
-                e.preventDefault()
-                setText(converted)
-                onCommit(converted)
+    <div className="relative">
+      <Input
+        value={text}
+        placeholder={placeholder}
+        className={className}
+        role={suggestionKind ? 'combobox' : undefined}
+        aria-autocomplete={suggestionKind ? 'list' : undefined}
+        aria-expanded={suggestionKind ? suggestionsOpen && visibleSuggestions.length > 0 : undefined}
+        aria-controls={suggestionKind ? `text-suggestions-${pathId(suggestionPath ?? [])}` : undefined}
+        aria-activedescendant={
+          suggestionKind && activeIndex !== null
+            ? `text-suggestions-${pathId(suggestionPath ?? [])}-option-${activeIndex}`
+            : undefined
+        }
+        autoFocus={autoFocus}
+        onFocus={() => {
+          focusedRef.current = true
+          setSuggestionsOpen(true)
+          setActiveIndex(null)
+          onFocusChange?.(true)
+        }}
+        onChange={(e) => {
+          setText(e.target.value)
+          setSuggestionsOpen(true)
+          setActiveIndex(null)
+        }}
+        onPaste={
+          normalize
+            ? (e) => {
+                // Convert a pasted gateway URL to ipfs:// immediately (so it
+                // renders as a file tag) instead of waiting for blur.
+                const pasted = e.clipboardData.getData('text')
+                const converted = normalize(pasted)
+                if (converted && converted !== pasted) {
+                  e.preventDefault()
+                  setText(converted)
+                  onCommit(converted)
+                }
               }
+            : undefined
+        }
+        onBlur={() => {
+          focusedRef.current = false
+          setSuggestionsOpen(false)
+          setActiveIndex(null)
+          if (text !== initialValue) commit(text)
+          onFocusChange?.(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            if (visibleSuggestions.length === 0) return
+            e.preventDefault()
+            setActiveIndex((current) => {
+              if (e.key === 'ArrowDown')
+                return current === null ? 0 : Math.min(current + 1, visibleSuggestions.length - 1)
+              return current === null ? visibleSuggestions.length - 1 : Math.max(current - 1, 0)
+            })
+          }
+          if (e.key === 'Enter') {
+            if (activeIndex !== null && visibleSuggestions[activeIndex]) {
+              e.preventDefault()
+              const next = String(visibleSuggestions[activeIndex].value)
+              setText(next)
+              setSuggestionsOpen(false)
+              setActiveIndex(null)
+              commit(next)
+            } else {
+              ;(e.target as HTMLInputElement).blur()
             }
-          : undefined
-      }
-      onBlur={() => {
-        focusedRef.current = false
-        if (text !== initialValue) commit(text)
-        onFocusChange?.(false)
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-        if (e.key === 'Escape') setText(initialValue)
-      }}
-    />
+          }
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            setText(initialValue)
+            setSuggestionsOpen(false)
+            setActiveIndex(null)
+          }
+        }}
+      />
+      {suggestionsOpen && autocomplete && suggestionKind && (
+        <SuggestionPopover
+          id={`text-suggestions-${pathId(suggestionPath ?? [])}`}
+          items={visibleSuggestions}
+          activeIndex={activeIndex}
+          loading={suggestions.loading}
+          hasMore={!!suggestions.nextPageToken}
+          getKey={(item) => String(item.value)}
+          getLabel={(item) => String(item.value)}
+          onSelect={(item) => {
+            const next = String(item.value)
+            setText(next)
+            setSuggestionsOpen(false)
+            commit(next)
+          }}
+          onLoadMore={suggestions.loadMore}
+        />
+      )}
+    </div>
   )
 }
 
@@ -1879,6 +2107,167 @@ export function coerceFieldValue(value: unknown, toType: NewFieldType, rules: Va
   }
 }
 
+function usePagedSuggestions<T>(
+  enabled: boolean,
+  requestKey: string,
+  load: (pageToken: string | undefined, signal?: AbortSignal) => Promise<AttributeAutocompletePage<T>>,
+  isVisible: (item: T) => boolean = () => true,
+) {
+  const [items, setItems] = useState<T[]>([])
+  const [nextPageToken, setNextPageToken] = useState<string | undefined>()
+  const [loading, setLoading] = useState(false)
+  const loadRef = useRef(load)
+  const isVisibleRef = useRef(isVisible)
+  const controllerRef = useRef<AbortController | null>(null)
+  const requestVersionRef = useRef(0)
+  loadRef.current = load
+  isVisibleRef.current = isVisible
+
+  const loadUntilVisible = useCallback(async (pageToken: string | undefined, signal: AbortSignal) => {
+    const pageTokens = new Set<string>()
+    const visibleItems: T[] = []
+    let nextToken = pageToken
+
+    while (true) {
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      if (nextToken !== undefined) {
+        if (pageTokens.has(nextToken)) return {items: visibleItems, nextPageToken: undefined}
+        pageTokens.add(nextToken)
+      }
+      const page = await loadRef.current(nextToken, signal)
+      if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
+      visibleItems.push(...page.items.filter((item) => isVisibleRef.current(item)))
+      if (visibleItems.length > 0 || !page.nextPageToken) {
+        return {items: visibleItems, nextPageToken: page.nextPageToken || undefined}
+      }
+      nextToken = page.nextPageToken
+    }
+  }, [])
+
+  useEffect(() => {
+    controllerRef.current?.abort()
+    const requestVersion = ++requestVersionRef.current
+    if (!enabled) {
+      setItems([])
+      setNextPageToken(undefined)
+      setLoading(false)
+      return
+    }
+    const controller = new AbortController()
+    controllerRef.current = controller
+    setItems([])
+    setNextPageToken(undefined)
+    setLoading(true)
+    loadUntilVisible(undefined, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted || requestVersion !== requestVersionRef.current) return
+        setItems(result.items)
+        setNextPageToken(result.nextPageToken)
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && requestVersion === requestVersionRef.current) {
+          console.warn('Attribute autocomplete failed', error)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted && requestVersion === requestVersionRef.current) setLoading(false)
+      })
+    return () => {
+      controller.abort()
+    }
+  }, [enabled, loadUntilVisible, requestKey])
+
+  const loadMore = useCallback(() => {
+    if (!enabled || loading || !nextPageToken) return
+    controllerRef.current?.abort()
+    const controller = new AbortController()
+    controllerRef.current = controller
+    const requestVersion = requestVersionRef.current
+    setLoading(true)
+    loadUntilVisible(nextPageToken, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted || requestVersion !== requestVersionRef.current) return
+        setItems((current) => [...current, ...result.items])
+        setNextPageToken(result.nextPageToken)
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && requestVersion === requestVersionRef.current) {
+          console.warn('Attribute autocomplete page failed', error)
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted && requestVersion === requestVersionRef.current) setLoading(false)
+      })
+  }, [enabled, loading, loadUntilVisible, nextPageToken])
+
+  return {items, nextPageToken, loading, loadMore, requestKey}
+}
+
+function SuggestionPopover<T>({
+  id,
+  items,
+  loading,
+  hasMore,
+  getKey,
+  getLabel,
+  getMeta,
+  getDescription,
+  activeIndex,
+  onSelect,
+  onLoadMore,
+}: {
+  id: string
+  items: T[]
+  loading: boolean
+  hasMore: boolean
+  getKey: (item: T) => string
+  getLabel: (item: T) => string
+  getMeta?: (item: T) => string
+  getDescription?: (item: T) => string | undefined
+  activeIndex: number | null
+  onSelect: (item: T) => void
+  onLoadMore: () => void
+}) {
+  if (!loading && items.length === 0) return null
+  return (
+    <div
+      id={id}
+      role="listbox"
+      className="border-border bg-popover absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border p-1 shadow-lg"
+      onMouseDown={(event) => event.preventDefault()}
+      onScroll={(event) => {
+        const target = event.currentTarget
+        if (hasMore && target.scrollTop + target.clientHeight >= target.scrollHeight - 24) onLoadMore()
+      }}
+    >
+      {items.map((item, index) => (
+        <button
+          key={getKey(item)}
+          id={`${id}-option-${index}`}
+          type="button"
+          role="option"
+          aria-selected={activeIndex === index}
+          className="hover:bg-accent focus-visible:bg-accent flex w-full items-start justify-between gap-3 rounded-sm px-2 py-1.5 text-left text-sm outline-none"
+          onClick={() => onSelect(item)}
+        >
+          <span className="min-w-0">
+            <span className="block truncate">{getLabel(item)}</span>
+            {getDescription?.(item) ? (
+              <span className="text-muted-foreground block truncate text-xs">{getDescription(item)}</span>
+            ) : null}
+          </span>
+          {getMeta && <span className="text-muted-foreground shrink-0 text-[11px]">{getMeta(item)}</span>}
+        </button>
+      ))}
+      {loading && (
+        <div className="text-muted-foreground flex items-center justify-center gap-2 px-2 py-2 text-xs">
+          <Spinner className="size-3" /> Loading suggestions…
+        </div>
+      )}
+    </div>
+  )
+}
+
 /**
  * Modal that captures a field's NAME and TYPE only — used both to add a new
  * field and to edit an existing field's name/type. The value itself is edited
@@ -1894,6 +2283,7 @@ function FieldDialog({
   existingKeys = [],
   initialName = '',
   initialType,
+  parentPath = [],
   onSubmit,
 }: {
   open: boolean
@@ -1905,11 +2295,33 @@ function FieldDialog({
   existingKeys?: string[]
   initialName?: string
   initialType: NewFieldType
+  parentPath?: string[]
   onSubmit: (name: string, type: NewFieldType) => void
 }) {
   const [name, setName] = useState(initialName)
   const [type, setType] = useState<NewFieldType>(initialType)
   const [error, setError] = useState<string | null>(null)
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false)
+  const autocomplete = useContext(AttributeAutocompleteContext)
+  const debouncedName = useDebounce(name, 200)
+  const nameLoader = useCallback(
+    (pageToken: string | undefined, signal?: AbortSignal) =>
+      autocomplete!.listNames({parentPath, prefix: debouncedName, pageToken, signal}),
+    [autocomplete, debouncedName, JSON.stringify(parentPath)],
+  )
+  const nameSuggestions = usePagedSuggestions(
+    !!autocomplete && suggestionsOpen && !itemMode,
+    `${JSON.stringify(parentPath)}:${debouncedName.toLocaleLowerCase()}:${JSON.stringify(existingKeys)}`,
+    nameLoader,
+    (item) => !existingKeys.includes(item.name),
+  )
+  const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  useEffect(() => {
+    setActiveIndex(null)
+  }, [nameSuggestions.requestKey])
+  useEffect(() => {
+    if (activeIndex !== null && activeIndex >= nameSuggestions.items.length) setActiveIndex(null)
+  }, [activeIndex, nameSuggestions.items.length])
 
   // Seed the fields from the target field each time the dialog opens.
   useEffect(() => {
@@ -1920,6 +2332,14 @@ function FieldDialog({
   }, [open])
 
   const options = fieldTypeOptions(rules)
+
+  const chooseSuggestion = (suggestion: AttributeNameSuggestion) => {
+    setName(suggestion.name)
+    const inferred = suggestion.kinds[0]?.kind
+    if (inferred && options.includes(inferred)) setType(inferred)
+    setSuggestionsOpen(false)
+    setError(null)
+  }
 
   const submit = () => {
     if (itemMode) {
@@ -1934,6 +2354,10 @@ function FieldDialog({
     }
     if (existingKeys.includes(trimmed)) {
       setError(`"${trimmed}" already exists`)
+      return
+    }
+    if (trimmed.startsWith('$')) {
+      setError('Field names beginning with "$" are reserved')
       return
     }
     if (trimmed === '/') {
@@ -1955,29 +2379,90 @@ function FieldDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+      <DialogContent
+        className={cn(
+          'w-[calc(100%-2rem)] sm:max-w-lg',
+          !itemMode && 'sm:h-[40rem] sm:max-h-[calc(var(--vvh,1vh)*100-4rem)]',
+        )}
+        contentClassName="gap-6 p-6 sm:p-7"
+        onClick={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-5">
           {!itemMode && (
             <div className="flex flex-col gap-1">
               <label htmlFor="field-dialog-name" className="text-muted-foreground text-xs">
                 Field name
               </label>
-              <Input
-                id="field-dialog-name"
-                value={name}
-                placeholder="Field name"
-                autoFocus
-                onChange={(e) => {
-                  setName(e.target.value)
-                  setError(null)
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') submit()
-                }}
-              />
+              <div className="relative">
+                <Input
+                  id="field-dialog-name"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={suggestionsOpen && nameSuggestions.items.length > 0}
+                  aria-controls="field-name-suggestions"
+                  aria-activedescendant={
+                    activeIndex === null ? undefined : `field-name-suggestions-option-${activeIndex}`
+                  }
+                  value={name}
+                  placeholder="Field name"
+                  autoFocus
+                  onFocus={() => {
+                    setSuggestionsOpen(true)
+                    setActiveIndex(null)
+                  }}
+                  onBlur={() =>
+                    window.setTimeout(() => {
+                      setSuggestionsOpen(false)
+                      setActiveIndex(null)
+                    }, 120)
+                  }
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    setSuggestionsOpen(true)
+                    setActiveIndex(null)
+                    setError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                      if (nameSuggestions.items.length === 0) return
+                      e.preventDefault()
+                      setActiveIndex((current) => {
+                        if (e.key === 'ArrowDown')
+                          return current === null ? 0 : Math.min(current + 1, nameSuggestions.items.length - 1)
+                        return current === null ? nameSuggestions.items.length - 1 : Math.max(current - 1, 0)
+                      })
+                    }
+                    if (e.key === 'Enter') {
+                      if (activeIndex !== null && nameSuggestions.items[activeIndex]) {
+                        e.preventDefault()
+                        chooseSuggestion(nameSuggestions.items[activeIndex])
+                      } else submit()
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault()
+                      setSuggestionsOpen(false)
+                      setActiveIndex(null)
+                    }
+                  }}
+                />
+                {suggestionsOpen && autocomplete && (
+                  <SuggestionPopover
+                    id="field-name-suggestions"
+                    items={nameSuggestions.items}
+                    activeIndex={activeIndex}
+                    loading={nameSuggestions.loading}
+                    hasMore={!!nameSuggestions.nextPageToken}
+                    getKey={(item) => item.name}
+                    getLabel={(item) => item.name}
+                    getDescription={(item) => item.description}
+                    onSelect={chooseSuggestion}
+                    onLoadMore={nameSuggestions.loadMore}
+                  />
+                )}
+              </div>
             </div>
           )}
           <div className="flex flex-col gap-1">
@@ -1997,7 +2482,7 @@ function FieldDialog({
           </div>
           {error && <p className="text-destructive text-xs">{error}</p>}
         </div>
-        <DialogFooter>
+        <DialogFooter className={!itemMode ? 'mt-auto' : undefined}>
           <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -2021,12 +2506,14 @@ export function AddFieldForm({
   itemMode = false,
   compact = false,
   rules,
+  path = [],
   onAdd,
 }: {
   existingKeys?: string[]
   itemMode?: boolean
   compact?: boolean
   rules: ValueEditorRules
+  path?: string[]
   onAdd: (key: string, value: unknown) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -2051,6 +2538,7 @@ export function AddFieldForm({
         existingKeys={existingKeys}
         initialName=""
         initialType="text"
+        parentPath={path}
         onSubmit={(name, type) => onAdd(name, defaultValueForType(type))}
       />
     </div>

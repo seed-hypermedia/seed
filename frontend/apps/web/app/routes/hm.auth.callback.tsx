@@ -118,6 +118,9 @@ export default function AuthCallbackRoute() {
         await writeLocalKeys(sessionSigner.keyPair, {
           delegatedAccountUid: result.accountPrincipal,
           capabilityCid: result.capability.cid.toString(),
+          // Kept locally so delegated signing (e.g. agent servers) can prove the delegation
+          // without refetching the published blob.
+          capabilityBlob: result.capability.data,
           vaultUrl,
           notifyServerUrl: result.notifyServerUrl,
         })

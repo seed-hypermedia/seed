@@ -40,6 +40,10 @@ export const desktopUniversalClient: UniversalClient = {
 
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
+  queryDocuments: (request, options) => grpcClient.documents.queryDocuments(request, options),
+  listAccounts: (request, options) => grpcClient.documents.listAccounts(request, options),
+  listDocumentAttributeNames: (request, options) => grpcClient.documents.listDocumentAttributeNames(request, options),
+  listDocumentAttributeValues: (request, options) => grpcClient.documents.listDocumentAttributeValues(request, options),
 
   subscribeEntity: ({id, recursive, scope}) => {
     const sub = {id, recursive, scope}

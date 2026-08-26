@@ -10,6 +10,12 @@
  * treated as new. Old blocks whose IDs don't appear in the new tree
  * are deleted. This gives per-block granularity — a mix of known and
  * unknown IDs is handled correctly.
+ *
+ * Tables get an extra identity pass (rebindTableIdentities): the markdown
+ * dialect only carries table, column, and row ids, so cell block ids are
+ * re-derived from (row id, column id) against the old document, and
+ * attributes markdown cannot express (column width, header column) are
+ * carried over from the old blocks.
  */
 
 import type {DocumentOperation} from './change'
@@ -93,6 +99,222 @@ export function matchBlockIds(oldNodes: APIBlockNode[], newNodes: BlockNode[]): 
   })
 }
 
+// ── Table identity rebinding ─────────────────────────────────────────────────
+
+/** Attributes of an old block minus the keys SeedBlock keeps at the top level. */
+function extraAttributes(attrs: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!attrs) return {}
+  const {childrenType: _c, language: _l, ...rest} = attrs
+  return rest
+}
+
+/** Cell text of `row`'s cell in column `columnId`, or undefined when absent. */
+function oldHeaderCellText(row: APIBlockNode | undefined, columnId: string): string | undefined {
+  if (!row) return undefined
+  for (const cell of row.children || []) {
+    if (cell.block?.attributes?.columnId === columnId) return cell.block.text || ''
+  }
+  return undefined
+}
+
+/**
+ * Rebind identity inside every Table in the new tree against the old tree.
+ *
+ * For a new Table whose id matches an old Table:
+ *  - Columns match by explicit id first, then by header-cell text (unique,
+ *    non-empty texts only), then by position among the still-unmatched.
+ *  - Rows match by explicit id first, then by position among the unmatched.
+ *  - Cells reuse the old cell's block id for (matched row, matched column) —
+ *    cell ids never travel through markdown.
+ *  - Attributes markdown cannot express (column width, header column, any
+ *    future keys) are carried over from the matched old block. A row's
+ *    isHeader comes from the new tree (the dialect does express it).
+ *  - Position-0 invariants are enforced: only the first column / first row
+ *    may carry isHeader.
+ *
+ * Fresh tables (no old match) are passed through with invariants enforced.
+ * Non-table blocks are returned unchanged (children walked recursively).
+ */
+export function rebindTableIdentities(oldNodes: APIBlockNode[], newNodes: BlockNode[]): BlockNode[] {
+  const oldTables = new Map<string, APIBlockNode>()
+  const indexTables = (nodes: APIBlockNode[]) => {
+    for (const node of nodes) {
+      if (node.block?.type === 'Table') oldTables.set(node.block.id, node)
+      if (node.children?.length) indexTables(node.children)
+    }
+  }
+  indexTables(oldNodes)
+
+  const walk = (nodes: BlockNode[]): BlockNode[] =>
+    nodes.map((node) => {
+      if (node.block.type === 'Table') {
+        return rebindTable(oldTables.get(node.block.id), node)
+      }
+      return {...node, children: walk(node.children)}
+    })
+
+  return walk(newNodes)
+}
+
+function rebindTable(oldTable: APIBlockNode | undefined, newTable: BlockNode): BlockNode {
+  const newCols = newTable.children.filter((c) => c.block.type === 'TableColumn')
+  const newRows = newTable.children.filter((c) => c.block.type === 'TableRow')
+  const otherChildren = newTable.children.filter((c) => c.block.type !== 'TableColumn' && c.block.type !== 'TableRow')
+
+  const oldCols = (oldTable?.children || []).filter((c) => c.block?.type === 'TableColumn')
+  const oldRows = (oldTable?.children || []).filter((c) => c.block?.type === 'TableRow')
+  const oldColById = new Map(oldCols.map((c) => [c.block.id, c]))
+  const oldRowById = new Map(oldRows.map((r) => [r.block.id, r]))
+
+  // ── Column matching ──
+  const usedOldCols = new Set<string>()
+  const matchedOldCol: (APIBlockNode | undefined)[] = new Array(newCols.length).fill(undefined)
+
+  // Pass 1: explicit ids.
+  newCols.forEach((col, idx) => {
+    const old = oldColById.get(col.block.id)
+    if (old && !usedOldCols.has(old.block.id)) {
+      matchedOldCol[idx] = old
+      usedOldCols.add(old.block.id)
+    }
+  })
+
+  // Pass 2: header-cell text. Old texts come from the old header row; new
+  // texts from the new header row. Only unique, non-empty texts match.
+  const oldHeaderRow = oldRows.find((r) => r.block.attributes?.isHeader === true)
+  const newHeaderRow = newRows.find((r) => r.block.attributes?.isHeader === true)
+  if (oldHeaderRow && newHeaderRow) {
+    const textToOldCol = new Map<string, APIBlockNode | null>()
+    for (const old of oldCols) {
+      if (usedOldCols.has(old.block.id)) continue
+      const text = oldHeaderCellText(oldHeaderRow, old.block.id)
+      if (!text) continue
+      textToOldCol.set(text, textToOldCol.has(text) ? null : old)
+    }
+    newCols.forEach((col, idx) => {
+      if (matchedOldCol[idx]) return
+      const cell = newHeaderRow.children.find((c) => c.block.attributes?.columnId === col.block.id)
+      const text = cell?.block.text || ''
+      const old = text ? textToOldCol.get(text) : undefined
+      if (old && !usedOldCols.has(old.block.id)) {
+        matchedOldCol[idx] = old
+        usedOldCols.add(old.block.id)
+      }
+    })
+  }
+
+  // Pass 3: positional among the still-unmatched, in order.
+  const remainingOldCols = oldCols.filter((c) => !usedOldCols.has(c.block.id))
+  let remainingIdx = 0
+  newCols.forEach((_, idx) => {
+    if (matchedOldCol[idx]) return
+    const old = remainingOldCols[remainingIdx]
+    if (old) {
+      matchedOldCol[idx] = old
+      usedOldCols.add(old.block.id)
+      remainingIdx++
+    }
+  })
+
+  // Final column ids + rebuilt column nodes with attribute carry-over.
+  const colIdMap = new Map<string, string>()
+  const finalCols: BlockNode[] = newCols.map((col, idx) => {
+    const old = matchedOldCol[idx]
+    const finalId = old ? old.block.id : col.block.id
+    colIdMap.set(col.block.id, finalId)
+    // Markdown expresses nothing about a column beyond its id and order:
+    // width / isHeader / future attributes all carry over from the old block.
+    const carried = {...extraAttributes(old?.block.attributes), ...col.block.attributes}
+    const block: SeedBlock = {
+      ...col.block,
+      id: finalId,
+      ...(Object.keys(carried).length > 0 ? {attributes: carried} : {}),
+    }
+    return {block, children: []}
+  })
+
+  // ── Row matching ──
+  const usedOldRows = new Set<string>()
+  const matchedOldRow: (APIBlockNode | undefined)[] = new Array(newRows.length).fill(undefined)
+
+  newRows.forEach((row, idx) => {
+    const old = oldRowById.get(row.block.id)
+    if (old && !usedOldRows.has(old.block.id)) {
+      matchedOldRow[idx] = old
+      usedOldRows.add(old.block.id)
+    }
+  })
+
+  const remainingOldRows = oldRows.filter((r) => !usedOldRows.has(r.block.id))
+  let remainingRowIdx = 0
+  newRows.forEach((_, idx) => {
+    if (matchedOldRow[idx]) return
+    const old = remainingOldRows[remainingRowIdx]
+    if (old) {
+      matchedOldRow[idx] = old
+      usedOldRows.add(old.block.id)
+      remainingRowIdx++
+    }
+  })
+
+  // ── Rebuild rows: reuse old row ids, rebind cells by (row, column) ──
+  const finalRows: BlockNode[] = newRows.map((row, idx) => {
+    const old = matchedOldRow[idx]
+    const rowId = old ? old.block.id : row.block.id
+
+    // isHeader comes from the new tree (markdown expresses it); everything
+    // else carries over from the old row.
+    const {isHeader: _oldIsHeader, ...oldRowExtras} = extraAttributes(old?.block.attributes)
+    const rowAttrs = {...oldRowExtras, ...row.block.attributes}
+
+    const cells = row.children.map((cell) => {
+      const newColumnId = cell.block.attributes?.columnId
+      const finalColumnId = typeof newColumnId === 'string' ? colIdMap.get(newColumnId) ?? newColumnId : newColumnId
+
+      const oldCell = old?.children.find((c) => c.block?.attributes?.columnId === finalColumnId)
+      const cellAttrs = {
+        ...extraAttributes(oldCell?.block.attributes),
+        ...cell.block.attributes,
+        columnId: finalColumnId,
+      }
+      const block: SeedBlock = {
+        ...cell.block,
+        id: oldCell ? oldCell.block.id : cell.block.id,
+        attributes: cellAttrs,
+      }
+      return {block, children: cell.children}
+    })
+
+    const block: SeedBlock = {
+      ...row.block,
+      id: rowId,
+      ...(Object.keys(rowAttrs).length > 0 ? {attributes: rowAttrs} : {}),
+    }
+    return {block, children: cells}
+  })
+
+  // ── Position-0 invariants: only the first column / row may be a header ──
+  const stripLateHeader = (nodes: BlockNode[]) => {
+    nodes.forEach((node, idx) => {
+      if (idx === 0 || node.block.attributes?.isHeader !== true) return
+      const {isHeader: _h, ...rest} = node.block.attributes!
+      node.block = {...node.block, attributes: rest}
+    })
+  }
+  stripLateHeader(finalCols)
+  stripLateHeader(finalRows)
+
+  // Table block: carry over attributes from the old table as well.
+  const tableAttrs = {...extraAttributes(oldTable?.block.attributes), ...newTable.block.attributes}
+  const tableBlock: SeedBlock = {
+    ...newTable.block,
+    ...(Object.keys(tableAttrs).length > 0 ? {attributes: tableAttrs} : {}),
+  }
+
+  // Columns before rows, matching the editor's child ordering convention.
+  return {block: tableBlock, children: [...finalCols, ...finalRows, ...otherChildren]}
+}
+
 // ── Compute minimal operations from matched tree ─────────────────────────────
 
 /**
@@ -102,17 +324,38 @@ export function matchBlockIds(oldNodes: APIBlockNode[], newNodes: BlockNode[]): 
  * - ReplaceBlock for new or content-changed blocks
  * - MoveBlocks for positioning (new blocks or position changes)
  * - DeleteBlocks for blocks removed from the document
+ *
+ * The delete pass is global: every old block whose id does not appear
+ * anywhere in the new tree is deleted, including descendants of deleted
+ * blocks (so removing a table row also removes its cells, leaving no
+ * orphans), while blocks that moved to a different parent are kept.
  */
 export function computeReplaceOps(
   oldMap: BlocksMap,
   matchedTree: BlockNode[],
   parentId: string = '',
 ): DocumentOperation[] {
-  const ops: DocumentOperation[] = []
   const touchedIds = new Set<string>()
+  const ops = computeReplaceOpsInner(oldMap, matchedTree, parentId, touchedIds)
+
+  const deletedIds = Object.keys(oldMap).filter((id) => !touchedIds.has(id))
+  if (deletedIds.length > 0) {
+    ops.push({type: 'DeleteBlocks', blocks: deletedIds})
+  }
+
+  return ops
+}
+
+function computeReplaceOpsInner(
+  oldMap: BlocksMap,
+  matchedTree: BlockNode[],
+  parentId: string,
+  touchedIds: Set<string>,
+): DocumentOperation[] {
+  const ops: DocumentOperation[] = []
   const blockIdsAtLevel: string[] = []
 
-  matchedTree.forEach((node, idx) => {
+  matchedTree.forEach((node) => {
     const blockId = node.block.id
     touchedIds.add(blockId)
     blockIdsAtLevel.push(blockId)
@@ -120,8 +363,10 @@ export function computeReplaceOps(
     const oldEntry = oldMap[blockId]
     const isNew = !oldEntry
 
-    // Build the block object for ReplaceBlock
+    // Build the block object for ReplaceBlock.
+    // Attributes are inlined at the top level of the block (not nested).
     const block: Record<string, unknown> = {
+      ...node.block.attributes,
       type: node.block.type,
       id: blockId,
       text: node.block.text,
@@ -145,22 +390,11 @@ export function computeReplaceOps(
       if (!isBlockContentEqual(oldEntry.block, node.block)) {
         ops.push({type: 'ReplaceBlock', block})
       }
-
-      // Check if position changed
-      const prevNode = idx > 0 ? matchedTree[idx - 1] : undefined
-      const expectedLeft = prevNode?.block.id ?? ''
-      if (oldEntry.parent !== parentId || oldEntry.left !== expectedLeft) {
-        // Position changed — will be handled by the MoveBlocks below
-      }
     }
 
     // Recurse into children
     if (node.children.length > 0) {
-      const childOps = computeReplaceOps(oldMap, node.children, blockId)
-      ops.push(...childOps)
-
-      // Collect touched IDs from children
-      collectIds(node.children, touchedIds)
+      ops.push(...computeReplaceOpsInner(oldMap, node.children, blockId, touchedIds))
     }
   })
 
@@ -175,27 +409,21 @@ export function computeReplaceOps(
     })
   }
 
-  // DeleteBlocks for old blocks under this parent that are no longer present
-  const deletedIds: string[] = []
-  for (const [id, entry] of Object.entries(oldMap)) {
-    if (entry.parent === parentId && !touchedIds.has(id)) {
-      deletedIds.push(id)
-    }
-  }
-  if (deletedIds.length > 0) {
-    ops.push({type: 'DeleteBlocks', blocks: deletedIds})
-  }
-
   return ops
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function collectIds(nodes: BlockNode[], set: Set<string>) {
-  for (const node of nodes) {
-    set.add(node.block.id)
-    collectIds(node.children, set)
+/** Shallow attribute equality; object/array values compared via JSON. */
+function attrsEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keys = Object.keys({...a, ...b})
+  for (const key of keys) {
+    const av = a[key]
+    const bv = b[key]
+    if (av === bv) continue
+    if (JSON.stringify(av) !== JSON.stringify(bv)) return false
   }
+  return true
 }
 
 /**
@@ -222,7 +450,38 @@ function isBlockContentEqual(old: APIBlock, newBlock: SeedBlock): boolean {
   }
   if ((oldAttrs.language || '') !== (newBlock.language || '')) return false
 
+  // Compare the remaining attributes (columnId, isHeader, width, …)
+  if (!attrsEqual(extraAttributes(oldAttrs), newBlock.attributes || {})) return false
+
   return true
+}
+
+// ── HMBlockNode → APIBlockNode conversion ────────────────────────────────────
+
+/**
+ * Normalize an HMBlockNode tree (API response shape) into APIBlockNode with
+ * all fields defaulted, for use as the "old document" side of the diff.
+ */
+export function toAPIBlockNode(node: HMBlockNode): APIBlockNode {
+  const block = node.block as {
+    id: string
+    type: string
+    text?: string
+    link?: string
+    annotations?: unknown[]
+    attributes?: Record<string, unknown>
+  }
+  return {
+    block: {
+      id: block.id,
+      type: block.type,
+      text: block.text || '',
+      link: block.link || '',
+      annotations: block.annotations || [],
+      attributes: block.attributes || {},
+    },
+    children: (node.children || []).map(toAPIBlockNode),
+  }
 }
 
 // ── HMBlockNode → BlockNode conversion ──────────────────────────────────────
@@ -232,11 +491,13 @@ function isBlockContentEqual(old: APIBlock, newBlock: SeedBlock): boolean {
  * a BlockNode tree compatible with the diff pipeline.
  *
  * HMBlockNode nests childrenType/language inside `attributes`, while
- * SeedBlock/BlockNode has them at the top level.
+ * SeedBlock/BlockNode has them at the top level. All other attributes
+ * (columnId, isHeader, width, …) are preserved in `block.attributes`.
  */
 export function hmBlockNodeToBlockNode(node: HMBlockNode): BlockNode {
   const b = node.block as Record<string, unknown>
   const attrs = (b.attributes || {}) as Record<string, unknown>
+  const extra = extraAttributes(attrs)
 
   const block: SeedBlock = {
     type: (b.type as string) || '',
@@ -246,6 +507,7 @@ export function hmBlockNodeToBlockNode(node: HMBlockNode): BlockNode {
     ...(attrs.childrenType ? {childrenType: attrs.childrenType as string} : {}),
     ...(attrs.language ? {language: attrs.language as string} : {}),
     ...(b.link ? {link: b.link as string} : {}),
+    ...(Object.keys(extra).length > 0 ? {attributes: extra} : {}),
   }
 
   return {

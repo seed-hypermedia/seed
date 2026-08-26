@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import type {AgentInfo, ModelProviderInfo, ProviderModelInfo} from '../agents-client'
+import type {AgentInfo, ModelProviderInfo, ProviderModelInfo} from '@shm/ui/agents/client'
 
 // The module under test reaches hooks in @/models/agents, which pull in the tRPC/gRPC clients;
 // neither exists outside Electron. The functions under test are pure.
@@ -77,9 +77,9 @@ describe('resolveLocalAssistantProvisioning', () => {
 })
 
 describe('buildLocalAssistantDefinition', () => {
-  it('grants read-only tools and no signing key, matching the old sidebar assistant', () => {
+  it('grants search-only callables and no signing key; the verbs cover reading', () => {
     const definition = buildLocalAssistantDefinition('p', 'm')
-    expect(definition.tools).toEqual(['read', 'search', 'list_activity_feed', 'ipfs_read'])
+    expect(definition.tools).toEqual(['search'])
     expect(definition.signingKey).toBeUndefined()
     expect(definition.signingKeys).toBeUndefined()
   })

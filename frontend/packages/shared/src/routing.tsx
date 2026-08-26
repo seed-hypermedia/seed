@@ -12,6 +12,7 @@ import {
   hypermediaUrlToRoute,
   idToUrl,
   routeToHmUrl,
+  routeToUrl,
   serializeBlockRange,
   unpackHmId,
 } from './utils'
@@ -54,6 +55,12 @@ type UniversalAppContextValue = {
    * pushOnCopy-gated push flow with toast feedback. Web/mobile may leave it
    * undefined. */
   onPushReference?: (hmId: UnpackedHypermediaId) => void
+  /** Optional platform-specific push trigger fired after locally publishing a
+   * blob that must reach the document's site fast (e.g. a capability grant —
+   * same need as comments). On desktop this delegates to the
+   * pushOnPublish-gated push flow with toast feedback; web/mobile may leave it
+   * undefined because they already publish through the site. */
+  onPushPublished?: (hmId: UnpackedHypermediaId) => void
 
   // set this to true if you want all <a href="" values to be full hm:// hypermedia urls. otherwise, web URLs will be prepared
   // you must be confused at this point, because I wrote this and I got confused! Here's why we do it:
@@ -116,6 +123,7 @@ export function UniversalAppProvider(props: {
   openRouteNewWindow?: null | ((route: NavRoute) => void)
   onCopyReference?: (hmId: UnpackedHypermediaId) => Promise<void>
   onPushReference?: (hmId: UnpackedHypermediaId) => void
+  onPushPublished?: (hmId: UnpackedHypermediaId) => void
   hmUrlHref?: boolean
   languagePack?: LanguagePack
   selectedIdentity?: StateStream<string | null>
@@ -139,6 +147,7 @@ export function UniversalAppProvider(props: {
         openRouteNewWindow: props.openRouteNewWindow,
         onCopyReference: props.onCopyReference,
         onPushReference: props.onPushReference,
+        onPushPublished: props.onPushPublished,
         hmUrlHref: props.hmUrlHref,
         languagePack: props.languagePack,
         selectedIdentity: props.selectedIdentity,
@@ -212,6 +221,26 @@ export function routeToHref(
     const viewParam = route.view ? `?view=${route.view}` : ''
     return `/hm/notifications${viewParam}`
   }
+  if (typeof route !== 'string' && route.key === 'agents') {
+    return '/hm/agents'
+  }
+  if (typeof route !== 'string' && route.key === 'agent-server') {
+    return `/hm/agents/server?url=${encodeURIComponent(route.serverUrl)}`
+  }
+  if (typeof route !== 'string' && route.key === 'agent') {
+    const query: string[] = []
+    if (route.serverUrl) query.push(`server=${encodeURIComponent(route.serverUrl)}`)
+    if (route.tab) query.push(`tab=${route.tab}`)
+    if (route.triggerId) query.push(`trigger=${encodeURIComponent(route.triggerId)}`)
+    if (route.memoryPath) query.push(`file=${encodeURIComponent(route.memoryPath)}`)
+    return `/hm/agents/agent/${encodeURIComponent(route.agentId)}${query.length ? `?${query.join('&')}` : ''}`
+  }
+  if (typeof route !== 'string' && route.key === 'agent-session') {
+    const query: string[] = []
+    if (route.serverUrl) query.push(`server=${encodeURIComponent(route.serverUrl)}`)
+    if (route.agentId) query.push(`agent=${encodeURIComponent(route.agentId)}`)
+    return `/hm/agents/session/${encodeURIComponent(route.sessionId)}${query.length ? `?${query.join('&')}` : ''}`
+  }
   if (typeof route !== 'string' && route.key === 'site-settings-emails') {
     const siteBase =
       !route.accountUid || options?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`
@@ -276,6 +305,13 @@ export function routeToHref(
     return `${basePath}/ipfs/${route.ipfsPath}`
   }
 
+  if (typeof route !== 'string' && route.key === 'explore') {
+    return routeToUrl(route, {
+      hostname: options?.hmUrlHref ? undefined : null,
+      originHomeId: options?.originHomeId,
+    })
+  }
+
   // Handle view routes (activity, comments, directory, collaborators, feed, all-documents, metadata)
   if (
     typeof route !== 'string' &&
@@ -311,6 +347,10 @@ export function routeToHref(
       viewTerm += `/${route.openComment}`
     }
     let href = basePath ? `${basePath}/${viewTerm}` : `/${viewTerm}`
+    // On comment permalinks, ?v pins the comment version (not the document version)
+    if (route.key === 'comments' && route.openComment && route.openCommentVersion) {
+      href += `?v=${route.openCommentVersion}`
+    }
     // Append panel query param if present
     const panelParam = getRoutePanelParam(route)
     if (panelParam) {
