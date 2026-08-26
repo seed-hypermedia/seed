@@ -45,8 +45,10 @@ func ResolveRedirects(conn *sqlite.Conn, iris []string) (map[string]string, erro
 
 // The walk is seeded only from the requested IRIs, so its cost is bounded by the
 // number of inputs times the chain length, regardless of how many documents in the
-// database have ever been moved. Each hop is a primary-key lookup in
-// document_attributes followed by a unique-index lookup in resources.
+// database have ever been moved. The CROSS JOINs pin the recursive step to drive
+// from the chain row, so each hop is a primary-key lookup in document_attributes
+// followed by a unique-index lookup in resources; left to itself the planner
+// walks the whole document_attributes_by_key range of redirects instead.
 // The bare `iri` column in the final SELECT comes from the row holding MAX(depth),
 // which SQLite guarantees for a single MAX() aggregate.
 var qResolveRedirects = dqb.Str(`
@@ -63,12 +65,11 @@ var qResolveRedirects = dqb.Str(`
 
 		SELECT c.origin, r.id, r.iri, c.depth + 1
 		FROM chain c
-		JOIN document_attributes da
+		CROSS JOIN document_attributes da
 			ON da.resource = c.resource
 			AND da.key = (SELECT id FROM redirect_key)
 			AND da.kind = 's'
-			AND da.value IS NOT NULL
-		JOIN resources r ON r.iri = da.value
+		CROSS JOIN resources r ON r.iri = da.value
 		WHERE r.id != c.resource
 		AND c.depth < :max_hops
 	)
