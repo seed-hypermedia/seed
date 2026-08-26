@@ -148,12 +148,6 @@ export function computeSimpleRouteBreadcrumbs(routeKey: string): {
         icon: null,
         windowTitle: 'API Inspector',
       }
-    case 'raw-blob':
-      return {
-        items: [{name: 'Blob Editor', id: null, crumbKey: 'raw-blob'}],
-        icon: null,
-        windowTitle: 'Blob Editor',
-      }
     default:
       return null
   }

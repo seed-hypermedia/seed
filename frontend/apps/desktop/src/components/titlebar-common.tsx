@@ -874,11 +874,6 @@ function useCurrentRouteUrl(): {
       return {displayUrl: url, copyableUrl: url}
     }
 
-    if (route.key === 'raw-blob') {
-      const url = route.cid ? `ipfs://${route.cid}` : null
-      return {displayUrl: url, copyableUrl: url}
-    }
-
     if (route.key === 'schema') {
       // Shown as the Schema token (below); copying yields the schema blob's ipfs URL.
       const url = `ipfs://${route.cid}`

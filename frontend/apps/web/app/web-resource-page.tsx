@@ -35,7 +35,7 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
 import {FileCode2, FileInput} from 'lucide-react'
-import {blobBuilderMenuItems} from '@/web-raw-blob'
+import {blobBuilderMenuItems} from '@shm/ui/onyx/blob-menu-items'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   EditProfileDialog,

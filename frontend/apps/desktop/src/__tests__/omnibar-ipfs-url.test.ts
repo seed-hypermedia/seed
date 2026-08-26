@@ -14,9 +14,9 @@ async function makeDagCborCid(value: unknown): Promise<string> {
 const DAG_PB_CID = 'QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG'
 
 describe('ipfsUrlToRoute', () => {
-  it('routes ipfs:// DAG-CBOR CIDs to the blob editor', async () => {
+  it('routes ipfs:// DAG-CBOR CIDs to the inspector (the one blob page: viewer + editor)', async () => {
     const cid = await makeDagCborCid({hello: 'world'})
-    expect(ipfsUrlToRoute(`ipfs://${cid}`)).toEqual({key: 'raw-blob', cid})
+    expect(ipfsUrlToRoute(`ipfs://${cid}`)).toEqual({key: 'inspect-ipfs', ipfsPath: cid})
   })
 
   it('routes non-CBOR CIDs to the raw IPFS inspector', () => {
@@ -47,6 +47,6 @@ describe('ipfsUrlToRoute', () => {
 
   it('tolerates surrounding whitespace', async () => {
     const cid = await makeDagCborCid([1, 2, 3])
-    expect(ipfsUrlToRoute(`  ipfs://${cid}  `)).toEqual({key: 'raw-blob', cid})
+    expect(ipfsUrlToRoute(`  ipfs://${cid}  `)).toEqual({key: 'inspect-ipfs', ipfsPath: cid})
   })
 })
