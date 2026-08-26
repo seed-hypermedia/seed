@@ -3,11 +3,11 @@ import {seedEditUrl} from './seedEditUrl'
 
 describe('seedEditUrl', () => {
   it('builds the editor URL when both origin and cid are present', () => {
-    expect(seedEditUrl('https://seed.example', 'bafyCID')).toBe('https://seed.example/hm/blob/ipfs/bafyCID')
+    expect(seedEditUrl('https://seed.example', 'bafyCID')).toBe('https://seed.example/hm/inspect/ipfs/bafyCID')
   })
 
   it('trims a trailing slash on the origin', () => {
-    expect(seedEditUrl('https://seed.example/', 'bafyCID')).toBe('https://seed.example/hm/blob/ipfs/bafyCID')
+    expect(seedEditUrl('https://seed.example/', 'bafyCID')).toBe('https://seed.example/hm/inspect/ipfs/bafyCID')
   })
 
   it('returns null when origin is missing', () => {

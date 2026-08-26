@@ -52,7 +52,6 @@ var Feed = lazy(() => import('./desktop-feed'))
 var NodeFeed = lazy(() => import('./desktop-node-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
-var RawBlob = lazy(() => import('./raw-blob'))
 var SchemaBrowser = lazy(() => import('./schema'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
@@ -480,11 +479,6 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: InspectIpfs,
         Fallback: DocumentPlaceholder,
-      }
-    case 'raw-blob':
-      return {
-        PageComponent: RawBlob,
-        Fallback: BaseLoading,
       }
     case 'schema':
       return {
