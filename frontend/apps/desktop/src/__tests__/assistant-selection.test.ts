@@ -1,7 +1,11 @@
 import {describe, expect, it} from 'vitest'
 import type {AgentInfo} from '@shm/ui/agents/client'
 import type {AgentSessionListEntry} from '@shm/ui/agents/models'
-import {resolveAssistantSelection, type AssistantAgentOption} from '@shm/ui/agents/assistant-selection'
+import {
+  orderAssistantAgents,
+  resolveAssistantSelection,
+  type AssistantAgentOption,
+} from '@shm/ui/agents/assistant-selection'
 
 /**
  * Selection rules for the agent-scoped assistant sidebar.
@@ -105,5 +109,40 @@ describe('resolveAssistantSelection', () => {
     const remaining = sessions.filter((entry) => entry.session.id !== 's-a2')
     const result = resolveAssistantSelection({...base, sessions: remaining, storedSession: null})
     expect(result.session).toEqual({serverUrl: LOCAL, sessionId: 's-a1'})
+  })
+})
+
+/**
+ * A space publishes agents for its readers. Since the default context is the first option, that
+ * ordering is what lets someone who just arrived open the panel and find something to talk to.
+ */
+describe('orderAssistantAgents', () => {
+  const SPACE = 'https://agents.space.example'
+  const docsBot = agent(SPACE, 'docs', 'Docs Helper')
+  const supportBot = agent(SPACE, 'support', 'Support')
+
+  it("puts the space's agents ahead of the user's own, so the default lands on the space", () => {
+    const ordered = orderAssistantAgents([docsBot, supportBot], agents)
+    expect(ordered.map((option) => option.agent.id)).toEqual(['docs', 'support', 'assistant', 'researcher'])
+    expect(resolveAssistantSelection({...base, agents: ordered}).agent?.agent.id).toBe('docs')
+  })
+
+  it('leaves the local server leading when no space publishes anything', () => {
+    expect(orderAssistantAgents([], agents)).toEqual(agents)
+  })
+
+  it('lists an agent that is both published and owned once, in the leading position', () => {
+    const ordered = orderAssistantAgents([agent(REMOTE, 'researcher', 'Researcher')], agents)
+    expect(ordered.map((option) => option.agent.id)).toEqual(['researcher', 'assistant'])
+  })
+
+  it("keeps an explicitly chosen agent over the space's default", () => {
+    const ordered = orderAssistantAgents([docsBot], agents)
+    const result = resolveAssistantSelection({
+      ...base,
+      agents: ordered,
+      chosenAgent: {serverUrl: LOCAL, agentId: 'assistant'},
+    })
+    expect(result.agent?.agent.id).toBe('assistant')
   })
 })

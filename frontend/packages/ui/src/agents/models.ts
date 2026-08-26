@@ -35,17 +35,20 @@ import {
 import {isOptimisticUserEcho} from './agent-session-rows'
 import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform} from './platform'
+import {parseSpaceAgentIds} from './space-agents'
 import {getToolReferencedUrls} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
+import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
+import {UniversalAppContext} from '@shm/shared/routing'
 import type {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 import {queryKeys} from '@shm/shared'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useContext, useEffect, useMemo, useRef, useState} from 'react'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
@@ -274,20 +277,87 @@ export function useAgentServerUrls() {
 }
 
 /**
+ * Home document metadata of the space in view, if any.
+ *
+ * The space is the account of the current route's document (a draft's edit target counts). Where
+ * the app is itself served by a space — the web app and the gateway — that space is the fallback
+ * for routes that name no document, so the /hm/agents pages are still "in" the space hosting them.
+ * The desktop app sets no origin, so there it is the route or nothing. Code rendered outside a
+ * navigation provider (settings windows) reads no space at all rather than throwing.
+ */
+function useSiteHomeMetadata(): HMMetadata | undefined {
+  const route = useNavRouteOrNull()
+  const originHomeId = useContext(UniversalAppContext).originHomeId
+  const siteUid = (route ? siteUidOfRoute(route) : undefined) ?? originHomeId?.uid
+  const home = useResource(siteUid ? hmId(siteUid) : undefined)
+  return home.data?.type === 'document' ? home.data.document?.metadata : undefined
+}
+
+/**
  * The agents server advertised by the site whose document is on screen, if any.
  *
  * Read from the site home document's `agentServerUrl` metadata — the same signed document that
  * names the site — so it is discoverable wherever the site's content is, with no server config.
- * The site is the account of the current route's document (a draft's edit target counts); routes
- * without a document, and code rendered outside a navigation provider, advertise nothing. It is
- * never persisted into the user's configured list: it applies while viewing that site.
+ * It is never persisted into the user's configured list: it applies while viewing that site.
  */
 export function useSiteAdvertisedAgentServerUrl(): string | null {
-  const route = useNavRouteOrNull()
-  const siteUid = route ? siteUidOfRoute(route) : undefined
-  const home = useResource(siteUid ? hmId(siteUid) : undefined)
-  const raw = home.data?.type === 'document' ? home.data.document?.metadata?.agentServerUrl : undefined
+  const raw = useSiteHomeMetadata()?.agentServerUrl
   return useMemo(() => (typeof raw === 'string' && raw ? tryNormalizeAgentServerUrl(raw) : null), [raw])
+}
+
+/** One agent a space publishes, paired with the server it lives on. */
+export type SpaceAgentOption = {serverUrl: string; agent: AgentInfo}
+
+/**
+ * The agents the space in view publishes to its readers, in the order it published them.
+ *
+ * A reader cannot list a space's agents — `ListAgents` only ever returns agents the caller owns or
+ * collaborates on — so each one is fetched by the id the space named in its home document. The
+ * server resolves the owning account from the id itself and answers for any signed account once the
+ * agent is public-read, which is what lets somebody who just joined a space open the assistant and
+ * find something to talk to.
+ *
+ * Agents that fail to load are dropped rather than surfaced: a space naming an agent that was since
+ * deleted, made private, or moved should quietly offer one fewer agent, not an error where a chat
+ * belongs. The queries share their cache key with {@link useAgentDetail}, so opening one of these
+ * agents in the full view renders from what the panel already loaded.
+ */
+export function useSpaceAgents(accountUid: string | null | undefined): {
+  agents: SpaceAgentOption[]
+  isLoading: boolean
+} {
+  const metadata = useSiteHomeMetadata()
+  const rawServerUrl = metadata?.agentServerUrl
+  const serverUrl = useMemo(
+    () => (typeof rawServerUrl === 'string' && rawServerUrl ? tryNormalizeAgentServerUrl(rawServerUrl) : null),
+    [rawServerUrl],
+  )
+  const agentIds = useMemo(() => parseSpaceAgentIds(metadata?.spaceAgents), [metadata?.spaceAgents])
+  const queries = useQueries({
+    queries: (serverUrl && accountUid ? agentIds : []).map((agentId) => ({
+      queryKey: ['agents', 'detail', serverUrl, accountUid, agentId],
+      queryFn: async () => {
+        const res = await sendAgentAction({
+          serverUrl: serverUrl!,
+          accountUid: accountUid!,
+          action: {_: 'GetAgent', agentId},
+        })
+        if (res._ !== 'GetAgentResponse') throw new Error('Unexpected GetAgent response')
+        return res
+      },
+      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
+      retry: false,
+      useErrorBoundary: false,
+    })),
+  })
+  const agents = serverUrl
+    ? queries
+        .map((query) => query.data?.agent)
+        .filter((agent): agent is AgentInfo => !!agent)
+        .map((agent) => ({serverUrl, agent}))
+    : []
+  return {agents, isLoading: queries.some((query) => query.isLoading)}
 }
 
 /** Account uid of the site a route is looking at, when the route is about a document. */
@@ -708,14 +778,20 @@ export function useAgentServerHealths(serverUrls: string[] | undefined) {
  * The assistant entry points key off this rather than off server availability: the desktop always
  * runs a local server, so "a server exists" is always true and says nothing about whether there is
  * anything to chat with. A server with no agents cannot start a session.
+ *
+ * The space in view counts too. A visitor owns no agents and collaborates on none, so every list
+ * comes back empty for them — without this they would be told there is nothing to chat with while
+ * standing in a space that publishes agents.
  */
 export function useHasAnyAgent(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
   const agentLists = useAgentLists(serverUrls, accountUid)
-  const hasAgents = agentLists.some((query) => (query.data?.length || 0) > 0)
+  const spaceAgents = useSpaceAgents(accountUid)
+  const hasAgents = spaceAgents.agents.length > 0 || agentLists.some((query) => (query.data?.length || 0) > 0)
   // "No agents" is only meaningful once every server has answered. Treating the in-flight state as
   // empty would hide the assistant on each launch and discard the restored sidebar state.
   const isSettled =
     serverUrls !== undefined &&
+    !spaceAgents.isLoading &&
     (agentLists.length === 0 || agentLists.every((query) => query.isSuccess || query.isError))
   return {hasAgents, isSettled}
 }
