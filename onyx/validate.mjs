@@ -577,6 +577,29 @@ failed += report("string matches pattern", validate(strPat, "hello"));
 failed += reportReject("string does not match pattern", validate(strPat, "Hello1"));
 failed += report("invalid regex is ignored (no throw, no error)", validate(S("string", { pattern: "(" }), "anything"));
 
+// `format: date` — the built-in Date type is a string refinement whose pattern
+// checks the ISO 8601 calendar-date shape (YYYY-MM-DD) without parsing.
+const dateT = load("onyx-date.json");
+failed += report("date: ISO calendar date", validate(dateT, "2026-08-26"));
+failed += report("date: leap day shape", validate(dateT, "2024-02-29"));
+failed += reportReject("date: month 13", validate(dateT, "2026-13-01"));
+failed += reportReject("date: slashes", validate(dateT, "26/08/2026"));
+failed += reportReject("date: date-time is not a date", validate(dateT, "2026-08-26T10:00:00Z"));
+failed += reportReject("date: not a string", validate(dateT, 20260826));
+const dateTimeT = load("onyx-date-time.json");
+failed += report("date-time: RFC 3339 zulu", validate(dateTimeT, "2026-08-26T14:30:00Z"));
+failed += report("date-time: offset + fraction", validate(dateTimeT, "2026-08-26T14:30:00.250+02:00"));
+failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26"));
+
+// `target` — a reference-valued string may name the schema its target should
+// conform to. Allowed on the scalar and include variants (advisory; never
+// dereferenced), rejected elsewhere because the variants are closed maps.
+failed += report("target on a scalar reference", validate(meta, { type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }));
+failed += report("target on an include reference", validate(meta, { ref: "hm://seed.hyper.media/hm-url", target: "hm://acme/place" }));
+failed += reportReject("target on a map schema", validate(meta, { type: K("map"), properties: {}, target: "hm://acme/x" }));
+failed += reportReject("target on a list schema", validate(meta, { type: K("list"), target: "hm://acme/x" }));
+failed += report("target does not affect the value", validate({ type: "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", format: "ipfs", target: "hm://acme/stats" }, "ipfs://bafyfoo"));
+
 // integer minimum / maximum
 const intRange = S("integer", { minimum: 0, maximum: 100 });
 failed += report("integer within bounds", validate(intRange, 50));
