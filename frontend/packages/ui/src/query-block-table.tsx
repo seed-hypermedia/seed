@@ -362,7 +362,7 @@ export function QueryBlockTable({
         </div>
       ) : (
         <div className="border-border max-w-full touch-pan-x overflow-x-auto overscroll-x-contain rounded-md border">
-          <Table className="table-fixed" style={{width: table.getCenterTotalSize()}}>
+          <Table className="table-fixed" style={{width: '100%', minWidth: table.getCenterTotalSize()}}>
             <TableHeader>
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id}>

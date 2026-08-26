@@ -259,7 +259,6 @@ function QuerySettings({
   editor: BlockNoteEditor<HMBlockSchema>
   beginEditIfNeeded: () => void
 }) {
-  // @ts-expect-error
   const popoverState = usePopoverState(block.props.defaultOpen === 'true')
   const [limit, setLimit] = useState(!!block.props.queryLimit)
   // Portal the popover to document.body so it escapes the .blockNode's

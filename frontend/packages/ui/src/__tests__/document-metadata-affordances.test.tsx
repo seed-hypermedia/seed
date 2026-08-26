@@ -271,6 +271,17 @@ describe('EditableDocumentMetadataFields', () => {
     expect(affordanceRow.parentElement?.className).toContain('relative')
     expect(affordanceRow.className).toContain('absolute')
     expect(affordanceRow.className).toContain('bottom-full')
+    expect(affordanceRow.className).toContain('pb-1')
+    expect(affordanceRow.className).not.toContain('mb-1')
+  })
+
+  it('keeps affordances inside the header surface when a cover is present', async () => {
+    await renderFields({metadata: {cover: 'ipfs://cover'}, fileUpload: vi.fn()})
+
+    const affordanceRow = container.querySelector('[data-document-metadata-affordances]')!
+    expect(affordanceRow.parentElement?.className).toContain('pt-8')
+    expect(affordanceRow.className).toContain('top-0')
+    expect(affordanceRow.className).not.toContain('bottom-full')
   })
 
   it('keeps editor affordances mobile-visible and desktop-hidden until hover', async () => {

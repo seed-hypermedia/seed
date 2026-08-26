@@ -151,6 +151,7 @@ export type EditorQueryBlock = EditorBaseBlock & {
     queryIncludes?: string
     querySort?: string
     banner?: 'true' | 'false'
+    defaultOpen?: 'true' | 'false'
     tableConfig?: string
   }
   content: Array<HMInlineContent>

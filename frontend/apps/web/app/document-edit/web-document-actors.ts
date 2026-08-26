@@ -131,11 +131,9 @@ function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
     const cursorPosition = editor?.getCursorPosition?.() ?? null
     const draftId = input.draftId ?? nanoid(10)
     const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
-    const content = resolveWriteDraftContent(
-      editor?.getTopLevelBlocks() ?? null,
-      existingDraft?.content,
-      input.baseBlocks,
-    )
+    const content = input.contentOverride
+      ? editorBlocksToHMBlockNodes(input.contentOverride)
+      : resolveWriteDraftContent(editor?.getTopLevelBlocks() ?? null, existingDraft?.content, input.baseBlocks)
     const currentPath = deps.docId.path ?? []
     const routeDraftId = getWebDraftPlaceholderId(currentPath)
     const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft

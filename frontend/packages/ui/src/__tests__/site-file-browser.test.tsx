@@ -17,6 +17,12 @@ function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' 
   return {id: hmId('site', {path}), path, metadata: {name}, visibility} as HMDocumentInfo
 }
 
+function makeCollection(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
+  const doc = makeDoc(path, name, visibility)
+  doc.metadata = {...doc.metadata, type: 'Collection'}
+  return doc
+}
+
 beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -30,6 +36,21 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
+  it('marks collections with a grid icon instead of a private icon', () => {
+    useDirectoryMock.mockReturnValue({
+      data: [makeCollection(['collections'], 'Collections'), makeCollection(['private'], 'Private', 'PRIVATE')],
+      isLoading: false,
+      isError: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+
+    expect(container.querySelectorAll('[aria-label="Document collection"]')).toHaveLength(2)
+    expect(container.querySelector('[aria-label="Private document"]')).toBeNull()
+  })
+
   it('reveals the active document and marks private rows', () => {
     useDirectoryMock.mockReturnValue({
       data: [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'private'], 'Private guide', 'PRIVATE')],

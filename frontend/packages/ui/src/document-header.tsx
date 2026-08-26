@@ -52,6 +52,7 @@ export function DocumentHeader({
   children,
   onRemoveIcon,
   mobileBylineAction,
+  flushByline = false,
 }: {
   docId: UnpackedHypermediaId | null
   docMetadata: HMMetadata | null
@@ -65,6 +66,8 @@ export function DocumentHeader({
   children?: React.ReactNode
   onRemoveIcon?: () => void
   mobileBylineAction?: React.ReactNode
+  /** Removes the divider and bottom padding beneath the author/date row. */
+  flushByline?: boolean
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
@@ -132,7 +135,7 @@ export function DocumentHeader({
             ) : null}
           </>
         )}
-        <div className="border-border flex flex-col gap-2 border-b pb-2 md:pb-4">
+        <div className={cn('flex flex-col gap-2', !flushByline && 'border-border border-b pb-2 md:pb-4')}>
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
             <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">

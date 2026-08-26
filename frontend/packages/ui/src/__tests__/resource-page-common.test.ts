@@ -18,7 +18,31 @@ import {
   getDocumentSyncIsPlaceholderData,
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
+  getCollectionMenuPanelRoute,
 } from '../resource-page-common'
+
+describe('getCollectionMenuPanelRoute', () => {
+  const docId = hmId('alice', {path: ['projects']})
+
+  it.each(['metadata', 'directory', 'collaborators', 'activity', 'comments'] as const)(
+    'maps the %s menu item to the matching right panel',
+    (key) => {
+      expect(getCollectionMenuPanelRoute(key, docId)).toMatchObject({key, id: docId})
+    },
+  )
+
+  it('maps versions to the versions activity panel', () => {
+    expect(getCollectionMenuPanelRoute('versions', docId)).toMatchObject({
+      key: 'activity',
+      id: docId,
+      filterEventType: ['Ref'],
+    })
+  })
+
+  it('leaves menu actions without panel support unchanged', () => {
+    expect(getCollectionMenuPanelRoute('export', docId)).toBeNull()
+  })
+})
 
 describe('getDocumentResourceRouteKey', () => {
   it('changes when only the document version changes', () => {

@@ -1,6 +1,7 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
+import {buildDocumentCollectionDraftSeed} from '@/utils/publish-utils'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {
@@ -12,7 +13,8 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {FilePlus2, Import, Lock} from 'lucide-react'
+import {FilePlus2, Import, LibraryBig, Lock} from 'lucide-react'
+import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useMemo} from 'react'
 import {useImportDialog, useImporting} from './import-doc-button'
 
@@ -66,6 +68,15 @@ export function useCreateDocumentMenuItem({
           },
         },
         {
+          key: 'new-document-collection',
+          label: 'New Document Collection',
+          icon: <LibraryBig className="size-4" />,
+          onClick: () => {
+            const seed = buildDocumentCollectionDraftSeed(nanoid(10))
+            void createDraft({initialMetadata: seed.metadata, initialContent: seed.content})
+          },
+        },
+        {
           key: 'new-private-document',
           label: 'New Private Document',
           icon: <Lock className="size-4" />,
@@ -109,9 +120,9 @@ function CreateDocumentButtonContent({locationId}: {locationId: UnpackedHypermed
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          {menuItem.children?.map((item, index) => (
+          {menuItem.children?.map((item) => (
             <div key={item.key}>
-              {index === 2 ? <DropdownMenuSeparator /> : null}
+              {item.key === 'import' ? <DropdownMenuSeparator /> : null}
               <DropdownMenuItem onClick={(event) => item.onClick?.(event as any)}>
                 {item.icon}
                 {item.label}
