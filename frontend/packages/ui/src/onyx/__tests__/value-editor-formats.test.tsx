@@ -8,6 +8,8 @@ import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {act} from 'react-dom/test-utils'
 import {createRoot} from 'react-dom/client'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {UniversalAppProvider} from '@shm/shared/routing'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {TooltipProvider} from '../../tooltip'
 import {METADATA_VALUE_RULES, ValueEditor, ValueEditorProvider} from '../../value-editor'
@@ -20,13 +22,17 @@ const characterMeta = metadataSchemaOf(ONYX_SCHEMAS['example-character-doc'])!
 
 function Field({metadata, field}: {metadata: Record<string, unknown>; field: string}) {
   return (
-    <TooltipProvider>
-      <ValueEditorProvider>
-        <OnyxSchemaProvider schema={characterMeta} registry={{}} value={metadata}>
-          <ValueEditor value={metadata[field]} onValue={() => {}} rules={METADATA_VALUE_RULES} path={[field]} />
-        </OnyxSchemaProvider>
-      </ValueEditorProvider>
-    </TooltipProvider>
+    <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
+      <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={{request: async () => ({})} as any}>
+        <TooltipProvider>
+          <ValueEditorProvider>
+            <OnyxSchemaProvider schema={characterMeta} registry={{}} value={metadata}>
+              <ValueEditor value={metadata[field]} onValue={() => {}} rules={METADATA_VALUE_RULES} path={[field]} />
+            </OnyxSchemaProvider>
+          </ValueEditorProvider>
+        </TooltipProvider>
+      </UniversalAppProvider>
+    </QueryClientProvider>
   )
 }
 
