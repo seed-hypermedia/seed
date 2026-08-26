@@ -117,7 +117,7 @@ The three deployments differ in exactly two ways — which image tag they track,
 | Hostname                           | Container        | Image tag | Code           | Data    |
 | ---------------------------------- | ---------------- | --------- | -------------- | ------- |
 | `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet |
-| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet |
+| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet, via `staging.hyper.media` |
 | `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet  |
 
 Staging is the release gate: it runs the _same code_ as dev but against _production data_, so behavior can be validated
@@ -134,7 +134,9 @@ The stack:
 - **Caddy** (`caddy:2`) terminates TLS on 80/443 and reverse-proxies each hostname above to its container on internal
   port `3050`.
 - **agents-stable / agents-staging / agents-dev** run with:
-  - `SEED_AGENTS_HM_SERVER_URL` → `https://hyper.media` (stable, staging) / `https://dev.hyper.media` (dev). Those
+  - `SEED_AGENTS_HM_SERVER_URL` → `https://hyper.media` (stable) / `https://staging.hyper.media` (staging) /
+    `https://dev.hyper.media` (dev). Staging reads through the staging web gateway — a mainnet node that also holds
+    the staging site's own documents, which the `hyper.media` gateway need not have synced yet. Those
     origins serve both typed `/api/*` and direct `/ipfs/*`, so `SEED_AGENTS_IPFS_SERVER_URL` defaults to the same value.
     Unlike every local environment, the hosted servers read and write through the public gateway — there is no
     co-located daemon.

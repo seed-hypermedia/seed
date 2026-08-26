@@ -98,7 +98,7 @@ One host runs `/opt/agentic/docker-compose.yml` with three agents containers beh
 | Hostname                           | Container        | Image tag | Code           | Data    |
 | ---------------------------------- | ---------------- | --------- | -------------- | ------- |
 | `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet |
-| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet |
+| `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet, via `staging.hyper.media` |
 | `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet  |
 
 Staging is the release gate — same code as dev, real mainnet data — so the sequence before cutting a release is: land on
