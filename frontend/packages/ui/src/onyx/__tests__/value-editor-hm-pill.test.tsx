@@ -56,8 +56,8 @@ describe('hm:// string values in the schema-less editor', () => {
     expect(openUrl).toHaveBeenCalledWith(URL)
     act(() => (container.querySelector('[aria-label="Remove reference"]') as HTMLButtonElement).click())
     expect(onValue).toHaveBeenCalledWith('')
-    // Change (pencil) is still offered for picking a different document.
-    expect(container.querySelector('[aria-label="Change document"]')).toBeTruthy()
+    // One control only: no separate pencil.
+    expect(container.querySelector('[aria-label="Change document"]')).toBeNull()
   })
 
   it('a plain string that is not an hm:// URL stays a text input', () => {

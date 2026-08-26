@@ -25,7 +25,6 @@ import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {WebFeedPage} from '@/web-feed-page'
 import {shouldBypassServerDocumentFetchForWebDraftShell} from '@/document-edit/web-draft-shell'
 import {WebInspectorPage, WebResourcePage} from '@/web-resource-page'
-import {extractRawBlobRouteFromPath, WebRawBlobPage} from '@/web-raw-blob'
 import {extractSchemaRouteFromPath, WebSchemaPage} from '@/web-schema'
 import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
@@ -44,7 +43,6 @@ import {
   hypermediaUrlToRoute,
   hmId,
   InspectTab,
-  RawBlobRoute,
   SchemaRoute,
   isSiteProfileTab,
   VIEW_TERMS,
@@ -77,13 +75,6 @@ type InspectIpfsPayload = {
   siteHost: string
 }
 
-type RawBlobPayload = {
-  kind: 'raw-blob'
-  route: RawBlobRoute
-  originHomeId: UnpackedHypermediaId
-  siteHost: string
-}
-
 type SchemaPayload = {
   kind: 'schema'
   route: SchemaRoute
@@ -95,7 +86,6 @@ type DocumentPayload =
   | ExtendedSitePayload
   | InspectIpfsPayload
   | SiteSettingsEmailsPayload
-  | RawBlobPayload
   | SchemaPayload
   | 'unregistered'
   | 'no-site'
@@ -263,10 +253,6 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'site-settings-emails') {
     return [{title: 'Email Subscribers'}]
   }
-  if ('kind' in payload && payload.kind === 'raw-blob') {
-    const {route} = payload
-    return [{title: route.cid ? `ipfs://${route.cid}` : route.schemaCid ? 'New Instance' : 'New Blob'}]
-  }
   if ('kind' in payload && payload.kind === 'schema') {
     return [{title: `Schema · ${payload.route.cid.slice(0, 12)}…`}]
   }
@@ -385,22 +371,6 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
       originHomeId: hmId(registeredAccountUid),
       siteHost: hostname,
     } satisfies InspectIpfsPayload)
-  }
-
-  // The raw blob / schema editor page (reserved `/hm/blob/…` URLs). Client-side
-  // only — the editor fetches/publishes blobs through the universal client — so
-  // the loader just hands the parsed route to the provider; no server fetch.
-  const rawBlobRoute = extractRawBlobRouteFromPath(pathParts)
-  if (rawBlobRoute) {
-    if (isDataRequest && ctx.enabled) {
-      printInstrumentationSummary(ctx)
-    }
-    return wrapJSON({
-      kind: 'raw-blob',
-      route: rawBlobRoute,
-      originHomeId: hmId(registeredAccountUid),
-      siteHost: hostname,
-    } satisfies RawBlobPayload)
   }
 
   let documentId
@@ -525,13 +495,6 @@ export default function UnifiedDocumentPage() {
         initialRoute={createInspectIpfsNavRoute(data.ipfsPath)}
       >
         <InnerInspectIpfsPage ipfsPath={data.ipfsPath} />
-      </WebSiteProvider>
-    )
-  }
-  if ('kind' in data && data.kind === 'raw-blob') {
-    return (
-      <WebSiteProvider originHomeId={data.originHomeId} siteHost={data.siteHost} initialRoute={data.route}>
-        <WebRawBlobPage />
       </WebSiteProvider>
     )
   }
