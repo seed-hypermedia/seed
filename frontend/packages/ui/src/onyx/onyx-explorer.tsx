@@ -6,20 +6,23 @@
 // and the source dag-json with clickable `ref`/`type` links. Types are
 // documents: clicking a reference navigates to that schema.
 
-import {useMemo, useState} from 'react'
+import {createContext, useContext, useMemo, useState} from 'react'
+import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
+import {isSignedBlobSchema} from './signed-blob'
 import {cn} from '../utils'
 import {
   dependencies,
   dependents,
   isInstance,
   kindOf,
+  nameForCid,
   nameToUrl,
   ONYX_SCHEMAS,
   refToName,
   resolveSchema,
   schemaCid,
-  validate,
   type OnyxSchema,
+  validate,
 } from './onyx-engine'
 
 // --- classification --------------------------------------------------------
@@ -89,6 +92,24 @@ function Tag({kind, children}: {kind: string; children?: React.ReactNode}) {
   )
 }
 
+/**
+ * How the explorer opens a reference that is NOT a bundled library schema —
+ * an `hm://` type document or an `ipfs://` schema blob. Supplied by the page
+ * hosting the explorer (route navigation); absent in the standalone tour.
+ */
+export const OnyxNavContext = createContext<{openRef?: (ref: string) => void}>({})
+export const useOnyxOpenRef = () => useContext(OnyxNavContext).openRef
+
+/** Click handler for a ref: a bundled name navigates by slug; anything else opens the ref. */
+function useRefClick(nav: (slug: string) => void) {
+  const openRef = useOnyxOpenRef()
+  return (ref: string) => {
+    const b = refToName(ref)
+    if (ONYX_SCHEMAS[b]) nav(b)
+    else if (openRef && /^(hm|ipfs):\/\//.test(ref)) openRef(ref)
+  }
+}
+
 function KindBadge({kind, nav}: {kind: string; nav: (slug: string) => void}) {
   const prim = kindPrimitive(kind)
   if (!prim) return <Tag kind={kind} />
@@ -117,7 +138,15 @@ function Chip({label, onClick, variant = 'ref'}: {label: string; onClick?: () =>
 
 /** Compact, clickable rendering of a schema reference node (the tour's `summarize`). */
 function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React.ReactElement {
+  const open = useRefClick(nav)
   if (!node) return <span className="text-muted-foreground">any</span>
+  const target =
+    typeof node.target === 'string' ? (
+      <>
+        {' '}
+        <Chip label={`→ ${refToName(node.target)}`} onClick={() => open(node.target)} variant="dep" />
+      </>
+    ) : null
   if (node.var !== undefined) return <Tag kind="var">{`⟨${node.var}⟩`}</Tag>
   if (node.anyOf)
     return (
@@ -150,8 +179,19 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         </span>
       )
     }
-    if (isPrimitive(b)) return <KindBadge kind={primitiveKind(b)} nav={nav} />
-    return <Chip label={`↳ ${b}`} onClick={() => nav(b)} />
+    if (isPrimitive(b))
+      return (
+        <span>
+          <KindBadge kind={primitiveKind(b)} nav={nav} />
+          {target}
+        </span>
+      )
+    return (
+      <span>
+        <Chip label={`↳ ${b}`} onClick={() => open(node.ref)} />
+        {target}
+      </span>
+    )
   }
   const k = kindOf(node.type)
   if (k === 'link')
@@ -207,28 +247,37 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
       </span>
     )
   }
-  if (k) return <KindBadge kind={k} nav={nav} />
+  if (k)
+    return (
+      <span>
+        <KindBadge kind={k} nav={nav} />
+        {node.format && <span className="text-muted-foreground"> · {node.format}</span>}
+        {target}
+      </span>
+    )
   return <span className="text-muted-foreground">any</span>
 }
 
 // --- source JSON with clickable hm:// refs ---------------------------------
 
 function SourceJson({schema, nav}: {schema: any; nav: (slug: string) => void}) {
+  const openRef = useOnyxOpenRef()
   const text = JSON.stringify(schema, null, 2)
-  // Split on hm:// URLs so each becomes a clickable link to its schema page.
-  const parts = text.split(/("hm:\/\/[^"]+")/g)
+  // Split on hm:// / ipfs:// URLs so each becomes a clickable link to its page.
+  const parts = text.split(/("(?:hm|ipfs):\/\/[^"]+")/g)
   return (
     <pre className="bg-muted/50 overflow-x-auto rounded-md border p-3 font-mono text-xs">
       {parts.map((p, i) => {
-        const m = /^"(hm:\/\/[^"]+)"$/.exec(p)
+        const m = /^"((?:hm|ipfs):\/\/[^"]+)"$/.exec(p)
         if (m) {
           const name = refToName(m[1]!)
           const known = !!ONYX_SCHEMAS[name]
+          const onClick = known ? () => nav(name) : openRef ? () => openRef(m[1]!) : undefined
           return (
             <span
               key={i}
-              className={known ? 'text-primary cursor-pointer underline decoration-dotted' : 'text-primary'}
-              onClick={known ? () => nav(name) : undefined}
+              className={onClick ? 'text-primary cursor-pointer underline decoration-dotted' : 'text-primary'}
+              onClick={onClick}
             >
               "{m[1]}"
             </span>
@@ -532,6 +581,65 @@ export function OnyxSchemaPage({slug, nav}: {slug: string; nav: (slug: string) =
       <DepLists name={slug} nav={nav} />
       <h2 className="mt-2 text-sm font-semibold">
         Source <span className="text-muted-foreground font-normal">(dag-json — ref/type values are links)</span>
+      </h2>
+      <SourceJson schema={schema} nav={nav} />
+    </div>
+  )
+}
+
+/**
+ * The full-page schema browser for a schema blob by CID. A bundled library
+ * schema renders its regular page; a user-published schema (resolved through
+ * the registry) renders its shape from the blob itself. Every reference is
+ * clickable: bundled names via `nav`, everything else via OnyxNavContext.
+ */
+export function OnyxSchemaByCid({cid, nav}: {cid: string; nav: (slug: string) => void}) {
+  const bundled = nameForCid(cid)
+  const {byCid, isLoading} = useOnyxSchemaRegistry(bundled ? [] : [cid])
+  const open = useRefClick(nav)
+  if (bundled) return <OnyxSchemaPage slug={bundled} nav={nav} />
+  const schema = byCid[cid]
+  if (!schema)
+    return (
+      <div className="text-muted-foreground p-4 text-sm" data-testid="schema-by-cid-loading">
+        {isLoading ? 'Fetching schema…' : `Searching the network for ipfs://${cid}…`}
+      </div>
+    )
+  const isExt = !!schema.ref && !schema.type
+  const parentName = isExt ? refToName(schema.ref) : null
+  const kind = schema.type ? kindOf(schema.type) : null
+  const isSigned = isSignedBlobSchema(schema)
+  return (
+    <div className="flex flex-col gap-2" data-testid="schema-by-cid">
+      <h1 className="text-xl font-bold">{schema.name || 'Untitled schema'}</h1>
+      <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+        <span>ipfs://</span>
+        <code className="bg-muted rounded px-1 py-0.5">{cid}</code>
+      </p>
+      {schema.description && <p className="text-sm">{schema.description}</p>}
+      {isExt && parentName && (
+        <p className="text-sm">
+          <span className="text-muted-foreground">Extends</span>{' '}
+          <Chip label={parentName} onClick={() => open(schema.ref)} />
+          {isSigned && (
+            <span className="text-muted-foreground"> — a signed blob: the envelope (signer, sig, ts) is inherited</span>
+          )}
+        </p>
+      )}
+      {schema.anyOf ? (
+        <p className="text-sm">
+          <span className="text-muted-foreground">One of </span>
+          <SchemaRef node={schema} nav={nav} />
+        </p>
+      ) : schema.properties ? (
+        <FieldsTable properties={schema.properties} required={new Set(schema.required || [])} nav={nav} />
+      ) : kind ? (
+        <p className="text-sm">
+          Root kind: <KindBadge kind={kind} nav={nav} />
+        </p>
+      ) : null}
+      <h2 className="mt-2 text-sm font-semibold">
+        Source <span className="text-muted-foreground font-normal">(dag-json — refs are links)</span>
       </h2>
       <SourceJson schema={schema} nav={nav} />
     </div>

@@ -1,11 +1,11 @@
 ---
-name: "Hypermedia blob"
-summary: "The signed base envelope embedded in every Hypermedia CBOR blob: a type discriminator, the signer's public key, a signature, and a timestamp."
+name: "Signed blob"
+summary: "The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 sig"
 ---
 
-# Hypermedia blob
+# Signed blob
 
-The signed base envelope embedded in every Hypermedia CBOR blob: a type discriminator, the signer's public key, a signature, and a timestamp.
+The signed base envelope every Hypermedia CBOR blob extends: a `type` tag (the discriminator the network dispatches on), the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a unix-millisecond timestamp. Change, Ref, Profile, Comment, Capability and Contact all extend it — and so can your own types: extend this schema, pin a `type` tag, and the app signs values with your account.
 
 
 This document describes the **hypermedia-blob** type — a Hypermedia Network blob schema. Its formal schema is attached (the `schemaDefinition` in this document's metadata), so the app can show it and create values of this type.

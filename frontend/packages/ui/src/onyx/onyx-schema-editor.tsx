@@ -15,6 +15,7 @@ import {Button} from '../button'
 import {Checkbox} from '../components/checkbox'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '../components/dialog'
 import {Input} from '../components/input'
+import {Switch} from '../components/switch'
 import {dagJsonToIpld} from '../dag-json'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
 import {toast} from '../toast'
@@ -66,6 +67,16 @@ function kindSchema(kind: string): OnyxSchema {
   return {type: kindUrl(kind)}
 }
 
+/** The signed-blob envelope every Hypermedia blob extends. */
+const SIGNED_BLOB_URL = nameToUrl('hypermedia-blob')!
+/** True when the schema extends the signed-blob envelope. */
+export const isSignedBlobType = (schema: OnyxSchema) => !schema.type && schema.ref === SIGNED_BLOB_URL
+/** The pinned `type` tag of a signed-blob schema ('' when none). */
+const signedTypeTag = (schema: OnyxSchema): string => {
+  const t = schema.properties?.type
+  return t && Array.isArray(t.enum) && typeof t.enum[0] === 'string' ? t.enum[0] : ''
+}
+
 /** Kinds whose value references something else, and so may carry a `target` type. */
 const isReferenceKind = (kind: string) => kind === 'hm-url' || kind === 'ipfs'
 
@@ -76,11 +87,38 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
   const properties: Record<string, any> = schema.properties ?? {}
   const required = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
   const entries = Object.entries(properties)
+  const signed = isSignedBlobType(schema)
 
   const commit = (nextProps: Record<string, any>, nextRequired: Set<string>) => {
     // Drop required entries whose field no longer exists.
     const req = Array.from(nextRequired).filter((k) => k in nextProps)
-    onSchema({...schema, type: MAP_URL, properties: nextProps, ...(req.length ? {required: req} : {required: []})})
+    const root = isSignedBlobType(schema) ? {ref: SIGNED_BLOB_URL} : {type: MAP_URL}
+    const {type: _t, ref: _r, ...rest} = schema
+    onSchema({...rest, ...root, properties: nextProps, ...(req.length ? {required: req} : {required: []})})
+  }
+  // Signed blob: extend the envelope (signer/sig/ts inherited) and pin a `type`
+  // tag — the discriminator the network dispatches on. Off: a plain struct.
+  const setSigned = (on: boolean) => {
+    const nextProps: Record<string, any> = {...properties}
+    const nextRequired = new Set(required)
+    const {type: _t, ref: _r, ...rest} = schema
+    if (on) {
+      const tag =
+        signedTypeTag(schema) || (typeof schema.name === 'string' ? schema.name.replace(/\s+/g, '') : '') || 'Custom'
+      nextProps.type = {type: kindUrl('string'), enum: [tag]}
+      nextRequired.add('type')
+      onSchema({...rest, ref: SIGNED_BLOB_URL, properties: nextProps, required: Array.from(nextRequired)})
+    } else {
+      delete nextProps.type
+      nextRequired.delete('type')
+      onSchema({...rest, type: MAP_URL, properties: nextProps, required: Array.from(nextRequired)})
+    }
+  }
+  const setTypeTag = (tag: string) => {
+    commit(
+      {...properties, type: {type: kindUrl('string'), enum: [tag.trim() || 'Custom']}},
+      new Set(Array.from(required).concat('type')),
+    )
   }
   const renameField = (oldName: string, newName: string) => {
     if (newName === oldName || newName in properties) return
@@ -138,54 +176,78 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
       </div>
 
       <div className="flex flex-col gap-1">
+        <Tooltip content="A signed blob extends the Hypermedia envelope — signer, signature, and timestamp are inherited and filled at signing time — and pins a type tag. Values are created with Sign & publish.">
+          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
+            <Switch checked={signed} onCheckedChange={(on) => setSigned(on)} aria-label="Signed blob type" />
+            Signed blob type
+          </label>
+        </Tooltip>
+        {signed && (
+          <div className="flex items-center gap-2 pl-6">
+            <span className="text-muted-foreground text-xs">type tag</span>
+            <Input
+              value={signedTypeTag(schema)}
+              aria-label="Type tag"
+              placeholder="e.g. Vote"
+              className="w-48 font-mono text-sm"
+              onChange={(e) => setTypeTag(e.target.value)}
+            />
+            <span className="text-muted-foreground text-xs">+ signer, sig, ts (inherited)</span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1">
         <label className="text-muted-foreground text-xs font-medium">Fields</label>
         <div className="flex flex-col gap-1.5">
           {entries.length === 0 && <p className="text-muted-foreground text-sm">No fields yet.</p>}
-          {entries.map(([name, ps], index) => (
-            // Stable index key: renaming changes the property name but not the
-            // row's identity, so the (controlled) name input never remounts and
-            // keeps focus while typing.
-            <div key={index} className="flex items-center gap-2">
-              <Input
-                value={name}
-                className="flex-1 font-mono text-sm"
-                aria-label="Field name"
-                onChange={(e) => renameField(name, e.target.value)}
-              />
-              <Select value={propKind(ps)} onValueChange={(kind) => setFieldKind(name, kind)}>
-                <SelectTrigger className="w-36 shrink-0">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {FIELD_KINDS.map(({kind, label}) => (
-                    <SelectItem key={kind} value={kind}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {isReferenceKind(propKind(ps)) && (
-                <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
-                  <Input
-                    value={typeof ps?.target === 'string' ? ps.target : ''}
-                    placeholder="target type (hm:// or ipfs://)"
-                    aria-label={`Target type for ${name}`}
-                    className="w-52 shrink-0 font-mono text-xs"
-                    onChange={(e) => setFieldTarget(name, e.target.value)}
-                  />
+          {entries
+            .filter(([name]) => !(signed && name === 'type'))
+            .map(([name, ps], index) => (
+              // Stable index key: renaming changes the property name but not the
+              // row's identity, so the (controlled) name input never remounts and
+              // keeps focus while typing.
+              <div key={index} className="flex items-center gap-2">
+                <Input
+                  value={name}
+                  className="flex-1 font-mono text-sm"
+                  aria-label="Field name"
+                  onChange={(e) => renameField(name, e.target.value)}
+                />
+                <Select value={propKind(ps)} onValueChange={(kind) => setFieldKind(name, kind)}>
+                  <SelectTrigger className="w-36 shrink-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FIELD_KINDS.map(({kind, label}) => (
+                      <SelectItem key={kind} value={kind}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isReferenceKind(propKind(ps)) && (
+                  <Tooltip content="Target type — the schema the referenced document or object should conform to (an hm:// type document or ipfs:// schema). Optional.">
+                    <Input
+                      value={typeof ps?.target === 'string' ? ps.target : ''}
+                      placeholder="target type (hm:// or ipfs://)"
+                      aria-label={`Target type for ${name}`}
+                      className="w-52 shrink-0 font-mono text-xs"
+                      onChange={(e) => setFieldTarget(name, e.target.value)}
+                    />
+                  </Tooltip>
+                )}
+                <Tooltip content="Required — a value of this type must include this field">
+                  <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
+                    <Checkbox checked={required.has(name)} onCheckedChange={(on) => setRequired(name, on === true)} />
+                    required
+                  </label>
                 </Tooltip>
-              )}
-              <Tooltip content="Required — a value of this type must include this field">
-                <label className="text-muted-foreground flex shrink-0 cursor-pointer items-center gap-1 text-xs">
-                  <Checkbox checked={required.has(name)} onCheckedChange={(on) => setRequired(name, on === true)} />
-                  required
-                </label>
-              </Tooltip>
-              <Button variant="ghost" size="iconSm" aria-label={`Remove ${name}`} onClick={() => removeField(name)}>
-                <X className="size-4" />
-              </Button>
-            </div>
-          ))}
+                <Button variant="ghost" size="iconSm" aria-label={`Remove ${name}`} onClick={() => removeField(name)}>
+                  <X className="size-4" />
+                </Button>
+              </div>
+            ))}
         </div>
         <Button variant="outline" size="sm" className="mt-1 w-fit gap-1" onClick={addField}>
           <Plus className="size-4" /> Add field

@@ -156,4 +156,27 @@ test.describe('world-builder field types', () => {
     expect(published.properties.due).toEqual({ref: `${ONYX}/date`})
     expect(published.properties.giver).toMatchObject({format: 'hm-url', target: `${ONYX}/example-character-doc`})
   })
+
+  test('the schema editor can define a signed blob type (extends the envelope, pins a type tag)', async ({page}) => {
+    await openHarness(page, {name: 'X', schemaDefinition: ''})
+    await page.getByRole('button', {name: 'Define schema'}).click()
+    const dialog = page.getByRole('dialog', {name: 'Define a type'})
+    await expect(dialog).toBeVisible()
+    await dialog.getByPlaceholder('e.g. Employee').fill('Vote')
+    await dialog.getByLabel('Signed blob type').click()
+    await expect(dialog.getByLabel('Type tag')).toHaveValue('Vote')
+    await dialog.getByLabel('Type tag').fill('DocVote')
+
+    await dialog.getByRole('button', {name: 'Add field'}).click()
+    await dialog.getByRole('textbox', {name: 'Field name'}).first().fill('choice')
+    await dialog.getByRole('button', {name: 'Create type'}).click()
+    await expect(dialog).toBeHidden()
+
+    const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
+    expect(published.ref).toBe(`${ONYX}/hypermedia-blob`)
+    expect(published.type).toBeUndefined()
+    expect(published.properties.type).toEqual({type: `${ONYX}/string`, enum: ['DocVote']})
+    expect(published.required).toContain('type')
+    expect(Object.keys(published.properties)).toEqual(['type', 'choice'])
+  })
 })
