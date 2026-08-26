@@ -237,6 +237,8 @@ test.describe('schema editor', () => {
     await expect(page.getByRole('menuitem', {name: 'Edit field'})).toBeVisible()
     await expect(page.getByRole('menuitem', {name: 'Remove surname'})).toHaveCount(0)
     await page.keyboard.press('Escape')
+    // The menu must be fully closed (it blocks pointer events while open) before the next click.
+    await expect(page.getByRole('menu')).toHaveCount(0)
 
     // Optional declared fields are offered as add-field suggestions, and the
     // required one is NOT re-offered (it's already shown as a row).
