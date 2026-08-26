@@ -18,10 +18,13 @@ ENV SITE_SENTRY_RELEASE=${COMMIT_HASH}
 ENV SITE_SENTRY_ENVIRONMENT=production
 
 RUN apk add --no-cache git python3 make g++
-RUN npm install -g pnpm
 WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY . .
+# Pin pnpm to the version declared in package.json's `packageManager` (same source
+# pnpm/action-setup uses in CI). An unpinned `npm install -g pnpm` pulls the latest major,
+# which can refuse to install against an older lockfile (ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE).
+RUN npm install -g "pnpm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
 
 
 RUN rm -rf ./frontend/apps/desktop
