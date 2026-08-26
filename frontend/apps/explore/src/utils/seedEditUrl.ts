@@ -9,5 +9,5 @@ export function seedEditUrl(webOrigin: string | undefined, cid: string | undefin
   if (!webOrigin || !cid) return null
   const originWithoutTrailingSlash = webOrigin.replace(/\/+$/, '')
   if (!originWithoutTrailingSlash) return null
-  return `${originWithoutTrailingSlash}/hm/blob/ipfs/${cid}`
+  return `${originWithoutTrailingSlash}/hm/inspect/ipfs/${cid}`
 }

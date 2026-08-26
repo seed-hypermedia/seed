@@ -1049,21 +1049,17 @@ describe('comment permalink version (?v pins the comment version)', () => {
   })
 })
 
-describe('rawBlobRouteSchema', () => {
-  test('parses with no cid (new blob)', () => {
-    expect(navRouteSchema.parse({key: 'raw-blob'})).toEqual({key: 'raw-blob'})
+describe('schemaRouteSchema + inspector draft paths', () => {
+  test('parses a schema-by-CID route', () => {
+    expect(navRouteSchema.parse({key: 'schema', cid: 'bafySchema'})).toEqual({key: 'schema', cid: 'bafySchema'})
   })
 
-  test('parses with schemaCid for new-instance seeding', () => {
-    expect(navRouteSchema.parse({key: 'raw-blob', schemaCid: 'bafySchema'})).toEqual({
-      key: 'raw-blob',
-      schemaCid: 'bafySchema',
+  test('new blobs and new instances are inspector paths, not a separate route', () => {
+    expect(navRouteSchema.parse({key: 'inspect-ipfs', ipfsPath: 'new'})).toEqual({key: 'inspect-ipfs', ipfsPath: 'new'})
+    expect(navRouteSchema.parse({key: 'inspect-ipfs', ipfsPath: 'new/bafySchema'})).toEqual({
+      key: 'inspect-ipfs',
+      ipfsPath: 'new/bafySchema',
     })
-  })
-
-  test('getRouteKey separates new-blob mounts by schemaCid', () => {
-    expect(getRouteKey({key: 'raw-blob'})).toBe('raw-blob:new:')
-    expect(getRouteKey({key: 'raw-blob', schemaCid: 'bafySchema'})).toBe('raw-blob:new:bafySchema')
-    expect(getRouteKey({key: 'raw-blob', cid: 'bafyBlob'})).toBe('raw-blob:bafyBlob')
+    expect(() => navRouteSchema.parse({key: 'raw-blob'})).toThrow()
   })
 })

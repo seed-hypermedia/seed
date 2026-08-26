@@ -239,7 +239,7 @@ export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
 
 // Experiments enabled for every web visitor. Web has no per-user experiments
 // toggle, so building-block features that desktop hides behind Developer Mode
-// are simply on here (see the blob/schema editor at /hm/blob/…).
+// are simply on here (see the blob editor at /hm/inspect/ipfs/new).
 const WEB_EXPERIMENTS = {developerMode: true} as const
 
 export function WebSiteProvider(props: {

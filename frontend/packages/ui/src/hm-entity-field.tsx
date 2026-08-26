@@ -2,7 +2,7 @@ import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {useSearch} from '@shm/shared/models/search'
 import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {FileText, Pencil, User, X} from 'lucide-react'
+import {FileText, User, X} from 'lucide-react'
 import {useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
@@ -41,18 +41,9 @@ export function HMEntityField({
     return (
       <div className="flex min-w-0 items-center gap-1">
         <HMEntityLink url={value} mode={mode} onOpen={onOpen} />
-        <Tooltip content={`Change (${unpacked.id})`}>
-          <Button
-            variant="ghost"
-            size="iconSm"
-            aria-label={`Change ${mode === 'profile' ? 'profile' : 'document'}`}
-            className="text-muted-foreground"
-            onClick={() => setEditing(true)}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-        </Tooltip>
-        {onClear && (
+        {/* One control: ✕ removes the reference; the field is then a plain input again
+            (search or paste to pick another). */}
+        {onClear ? (
           <Tooltip content="Remove reference">
             <Button
               variant="ghost"
@@ -60,6 +51,18 @@ export function HMEntityField({
               aria-label="Remove reference"
               className="text-muted-foreground"
               onClick={onClear}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </Tooltip>
+        ) : (
+          <Tooltip content={`Change (${unpacked.id})`}>
+            <Button
+              variant="ghost"
+              size="iconSm"
+              aria-label="Remove reference"
+              className="text-muted-foreground"
+              onClick={() => setEditing(true)}
             >
               <X className="size-3.5" />
             </Button>
