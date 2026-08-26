@@ -1,6 +1,6 @@
-import {useUniversalAppContext, type UniversalAppContextValue} from '@shm/shared'
+import {UniversalAppContext, useUniversalAppContext} from '@shm/shared'
 import {useNavigation, type NavigationContext} from '@shm/shared/utils/navigation'
-import {useLayoutEffect, useSyncExternalStore} from 'react'
+import {useLayoutEffect, useSyncExternalStore, type ContextType} from 'react'
 
 /**
  * Hands the current page's site contexts to UI that outlives the page.
@@ -15,7 +15,7 @@ import {useLayoutEffect, useSyncExternalStore} from 'react'
  * left without a context, and the route it reads is the page actually on screen.
  */
 export type SiteContextSnapshot = {
-  universal: UniversalAppContextValue
+  universal: ContextType<typeof UniversalAppContext>
   navigation: NavigationContext
 }
 
