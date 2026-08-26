@@ -115,13 +115,13 @@ func (s *Srv) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Srv) updateSpaceList() error {
 	f, err := os.Open(s.sitesCSV)
 	if err != nil {
-		return fmt.Errorf("Unable to read spaces file [%s]:%w ", s.sitesCSV, err)
+		return fmt.Errorf("unable to read spaces file [%s]: %w", s.sitesCSV, err)
 	}
 	defer f.Close()
 	csvReader := csv.NewReader(f)
 	records, err := csvReader.ReadAll()
 	if err != nil {
-		return fmt.Errorf("Unable to parse spaces reader as CSV for: %w", err)
+		return fmt.Errorf("unable to parse spaces reader as CSV for: %w", err)
 	}
 
 	newSpacesList := []string{}
@@ -133,7 +133,7 @@ func (s *Srv) updateSpaceList() error {
 			continue
 		}
 
-		newSpacesList = append(newSpacesList, strings.Replace(strings.Replace(row[0], " ", "", -1), ",", "", -1))
+		newSpacesList = append(newSpacesList, strings.ReplaceAll(strings.ReplaceAll(row[0], " ", ""), ",", ""))
 	}
 	sort.Strings(newSpacesList)
 	s.mu.Lock()
@@ -185,7 +185,7 @@ func (s *Srv) scan(timeout time.Duration) {
 					stat.LastCheck = lastCheck.Format("2006-01-02 15:04:05")
 					info, err := s.checkSeedAddrs(ctx, space, "")
 					if err != nil {
-						checkError := fmt.Errorf("Could not get space [%s] address from seed config page: %w", space, err)
+						checkError := fmt.Errorf("could not get space [%s] address from seed config page: %w", space, err)
 						stat.StatusDNS = err.Error()
 						stat.StatusP2P = "N/A"
 						stat.LastDNSError = lastCheck.Format("2006-01-02 15:04:05") + " " + err.Error()
