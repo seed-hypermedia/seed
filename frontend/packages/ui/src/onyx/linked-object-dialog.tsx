@@ -21,34 +21,16 @@ import {useUniversalClient} from '@shm/shared'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {Button} from '../button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '../components/dialog'
-import {Input} from '../components/input'
 import {dagJsonToIpld, isDagJsonLink} from '../dag-json'
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
 import {Spinner} from '../spinner'
 import {toast} from '../toast'
 import {CBOR_VALUE_RULES, isPlainObject, ValueEditor, ValueEditorProvider} from '../value-editor'
 import {OnyxDataEditor, seedValue} from './onyx-data-editor'
-import {isOnyxSchema, kindOf, nameToUrl, ONYX_SCHEMAS, validate} from './onyx-engine'
+import {isOnyxSchema, validate} from './onyx-engine'
 import {useResolvedSchema} from './onyx-schema-resolve'
+import {SchemaPicker} from './schema-picker'
 
 const DAG_CBOR_CODE = 0x71
-const FREE_FORM = ' free-form'
-const CUSTOM_REF = ' custom'
-
-/** Bundled schemas a person would plausibly instantiate: named structs, not meta/instances/unions. */
-function instantiableLibrarySchemas(): {name: string; label: string}[] {
-  return Object.entries(ONYX_SCHEMAS)
-    .filter(([name, s]) => {
-      if (name.startsWith('onyx-') || name.startsWith('seed-rpc')) return false
-      if (s.$type !== undefined) return false // an instance file, not a schema
-      if (s.anyOf) return false
-      const kind = s.type ? kindOf(s.type) : s.ref ? 'map' : null
-      return kind === 'map' && (s.properties || s.values)
-    })
-    .map(([name, s]) => ({name, label: typeof s.name === 'string' && s.name ? `${s.name} (${name})` : name}))
-    .sort((a, b) => a.label.localeCompare(b.label))
-}
-
 /** Encode a dag-json value as DAG-CBOR and publish it; returns the CID. */
 export async function publishObject(
   client: ReturnType<typeof useUniversalClient>,
@@ -142,19 +124,10 @@ function LinkedObjectEditor({
   )
 
   // Schema choice. `target` wins; otherwise the existing object's link, else the picker.
-  const [choice, setChoice] = useState<string>(target ? target : FREE_FORM)
-  const [customRef, setCustomRef] = useState('')
+  const [schemaRef, setSchemaRef] = useState<string | null>(target ?? null)
   useEffect(() => {
-    if (!target && existingParts?.schemaCid) setChoice(`ipfs://${existingParts.schemaCid}`)
+    if (!target && existingParts?.schemaCid) setSchemaRef(`ipfs://${existingParts.schemaCid}`)
   }, [target, existingParts?.schemaCid])
-  const schemaRef =
-    choice === FREE_FORM
-      ? null
-      : choice === CUSTOM_REF
-        ? customRef.trim() || null
-        : choice.startsWith('hm://') || choice.startsWith('ipfs://')
-          ? choice
-          : nameToUrl(choice)
   const {schema, cid: schemaBlobCid, isLoading: schemaLoading} = useResolvedSchema(schemaRef)
   const locked = !!target
   const advisory = !locked
@@ -168,7 +141,7 @@ function LinkedObjectEditor({
       return
     }
     // A fresh object re-seeds when the schema changes (until the user has typed).
-    const key = schemaRef ?? FREE_FORM
+    const key = schemaRef ?? ' free-form'
     if (seededFor === key) return
     if (schemaRef && !schema) return // still resolving
     setValue(schema ? seedValue(schema) : {})
@@ -177,7 +150,6 @@ function LinkedObjectEditor({
 
   const errors = schema && value !== undefined ? validate(schema, value) : []
   const [publishing, setPublishing] = useState(false)
-  const library = useMemo(instantiableLibrarySchemas, [])
 
   const publish = async () => {
     setPublishing(true)
@@ -211,36 +183,20 @@ function LinkedObjectEditor({
             <span className="text-muted-foreground"> · required</span>
           </span>
         ) : (
-          <>
-            <Select value={choice} onValueChange={setChoice}>
-              <SelectTrigger className="w-72" aria-label="Object schema">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={FREE_FORM}>No schema (free-form data)</SelectItem>
-                <SelectItem value={CUSTOM_REF}>Paste a schema reference…</SelectItem>
-                {existingParts?.schemaCid && (
-                  <SelectItem value={`ipfs://${existingParts.schemaCid}`}>
-                    Attached schema (ipfs://{existingParts.schemaCid.slice(0, 10)}…)
-                  </SelectItem>
-                )}
-                {library.map((s) => (
-                  <SelectItem key={s.name} value={s.name}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {choice === CUSTOM_REF && (
-              <Input
-                value={customRef}
-                onChange={(e) => setCustomRef(e.target.value)}
-                placeholder="hm://…/type-document or ipfs://<schema cid>"
-                aria-label="Schema reference"
-                className="w-80 font-mono text-xs"
-              />
-            )}
-          </>
+          <SchemaPicker
+            value={schemaRef}
+            onChange={setSchemaRef}
+            extraOptions={
+              existingParts?.schemaCid
+                ? [
+                    {
+                      ref: `ipfs://${existingParts.schemaCid}`,
+                      label: `Attached schema (ipfs://${existingParts.schemaCid.slice(0, 10)}…)`,
+                    },
+                  ]
+                : []
+            }
+          />
         )}
         {schemaLoading && <Spinner className="size-4" />}
         {schemaRef && !schema && !schemaLoading && <span className="text-destructive text-xs">schema not found</span>}
