@@ -245,6 +245,9 @@ the assistant panel's picker, where the first one becomes the default context. B
 published agent, someone arriving at a space can open the panel and start chatting without configuring anything,
 provided the agent has public chat enabled (`SetAgentPublicChat`, offered per agent on that same settings tab).
 
+A space that names no agents server offers no agents at all: the web account menu leaves out the agents entry while
+browsing it, since opening the panel there would only show an empty picker.
+
 Public read is a precondition rather than something publishing arranges: only an already-public agent can be published,
 because opening an agent to the world is a decision made on the agent (`SetAgentPublicRead`), not a side effect of
 listing it on a space. The order carries exactly one meaning — the first published agent is the default — so the

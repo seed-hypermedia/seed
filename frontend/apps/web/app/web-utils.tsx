@@ -9,7 +9,7 @@ import {
 } from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
-import {useAccount} from '@shm/shared/models/entity'
+import {useAccount, useResource} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
@@ -266,6 +266,20 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
 /**
  * Site-header join button or avatar with notifications bell
  */
+/**
+ * The agents server this space names for its readers, if any.
+ *
+ * Read straight from the home document rather than through `useSiteAdvertisedAgentServerUrl`: that
+ * lives in the agents models, and importing them here would pull the whole agents chunk — editor
+ * included — into the initial bundle, which the assistant panel and the /hm/agents pages go out of
+ * their way to avoid. `useResource` is already here via `useAccount`, so this costs nothing.
+ */
+function useSiteAgentServerUrl(siteUid: string): string | null {
+  const home = useResource(hmId(siteUid))
+  const raw = home.data?.type === 'document' ? home.data.document?.metadata?.agentServerUrl : undefined
+  return typeof raw === 'string' && raw ? raw : null
+}
+
 export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
@@ -299,6 +313,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const assistantPanel = useAssistantPanel()
+  // A space that names no agents server has nothing for its readers to talk to, so the entry point
+  // is not offered while browsing it. It stays absent until the home document has loaded, so the
+  // item appears late rather than appearing and then vanishing.
+  const hasSiteAgents = !!useSiteAgentServerUrl(siteUid)
 
   // Show the join button if not joined the site
   if (!keyPair) {
@@ -363,17 +381,21 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
-      <div className="bg-border mx-4 h-px" />
-      <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
-        onClick={() => {
-          setMobileMenuOpen(false)
-          assistantPanel.toggle()
-        }}
-      >
-        <Bot className="size-5" />
-        <span className="text-sm">{assistantPanel.isOpen ? 'Close Agents' : 'Agents'}</span>
-      </button>
+      {hasSiteAgents ? (
+        <>
+          <div className="bg-border mx-4 h-px" />
+          <button
+            className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+            onClick={() => {
+              setMobileMenuOpen(false)
+              assistantPanel.toggle()
+            }}
+          >
+            <Bot className="size-5" />
+            <span className="text-sm">{assistantPanel.isOpen ? 'Close Agents' : 'Agents'}</span>
+          </button>
+        </>
+      ) : null}
       <div className="bg-border mx-4 h-px" />
       {canCreateSpace ? (
         <button
@@ -472,11 +494,15 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 <UserCog className="size-4" />
                 Manage account
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-              <DropdownMenuItem onClick={assistantPanel.toggle}>
-                <Bot className="size-4" />
-                {assistantPanel.isOpen ? 'Close Agents' : 'Agents'}
-              </DropdownMenuItem>
+              {hasSiteAgents ? (
+                <>
+                  <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+                  <DropdownMenuItem onClick={assistantPanel.toggle}>
+                    <Bot className="size-4" />
+                    {assistantPanel.isOpen ? 'Close Agents' : 'Agents'}
+                  </DropdownMenuItem>
+                </>
+              ) : null}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               {canCreateSpace ? (
                 <DropdownMenuItem
