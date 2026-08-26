@@ -104,6 +104,7 @@ import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {Braces, Copy, FileCode2, FileInput, History, Layers, LayoutList, Split, Globe} from 'lucide-react'
+import {blobBuilderMenuItems} from '@shm/ui/onyx/blob-menu-items'
 import {WorldBuilderDialog} from '@/components/world-builder-dialog'
 import {nanoid} from 'nanoid'
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -1123,19 +1124,7 @@ export default function DesktopResourcePage() {
   // Experimental building blocks live behind Developer Mode (Settings →
   // Developers); the blob/schema editor pages themselves offer these too.
   if (experiments?.developerMode) {
-    menuItems.push({
-      key: 'new-raw-blob',
-      label: 'New Blob',
-      icon: <Braces className="size-4" />,
-      onClick: () => navigate({key: 'raw-blob'}),
-    })
-
-    menuItems.push({
-      key: 'new-schema',
-      label: 'New Schema',
-      icon: <FileCode2 className="size-4" />,
-      onClick: () => navigate({key: 'raw-blob', schemaCid: schemaCid('onyx-schema')}),
-    })
+    menuItems.push(...blobBuilderMenuItems(navigate))
 
     // The World Builder: scaffold a typed ontology (types + folders + starter
     // pages) under this document — the showcase for typed documents.

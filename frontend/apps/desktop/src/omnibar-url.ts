@@ -73,13 +73,11 @@ export function ipfsUrlToRoute(input: string): NavRoute | null {
   if (!match) return null
   const [, cidString, subPath] = match
   try {
-    const cid = CID.parse(cidString!)
-    if (!subPath && cid.code === DAG_CBOR_CODE) {
-      return {key: 'raw-blob', cid: cidString!}
-    }
+    CID.parse(cidString!)
   } catch {
     return null
   }
+  // Every ipfs:// reference opens in the inspector — the one blob page (viewer + editor).
   return createInspectIpfsNavRoute(`${cidString}${subPath || ''}`)
 }
 
