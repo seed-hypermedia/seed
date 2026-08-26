@@ -9,7 +9,7 @@
 // Zod duplicating them in hm-types.ts.
 //
 // Mapping:
-//   map          -> object type ({props} & Record<string, V> when open via `values`)
+//   map          -> object type ({props} & {[key: string]: V} when open via `values`)
 //   list         -> Array<T>
 //   scalars      -> string / number / boolean / null / OnyxBytes; constraints -> JSDoc
 //   link         -> OnyxLink (the dag-json {'/': cid} form)
@@ -134,7 +134,7 @@ function emit(node, env, pad = '') {
   }
 
   if (node.anyOf) {
-    const parts = node.anyOf.map((v) => emit(v, env, pad))
+    const parts = [...new Set(node.anyOf.map((v) => emit(v, env, pad)))]
     return parts.join(' | ')
   }
 
@@ -198,7 +198,10 @@ function emitMapBody(node, env, pad) {
   }
   let body = lines.length ? `{\n${lines.join('\n')}\n${pad}}` : '{}'
   if (node.values) {
-    const v = `Record<string, ${emit(node.values, env, pad)}>`
+    // An index signature, not Record<>: TS defers recursion through object
+    // types but not through generic aliases, so `Json = ... | Record<string, Json>`
+    // is a circular-reference error while `{[key: string]: Json}` is fine.
+    const v = `{[key: string]: ${emit(node.values, env, pad)}}`
     body = lines.length ? `${body} & ${v}` : v
   } else if (!lines.length) {
     body = 'Record<string, never>'
@@ -258,7 +261,19 @@ for (const basename of generated) {
   out.push(emitSchema(basename))
 }
 
-const content = out.join('\n')
+const content = await formatOutput(out.join('\n'))
+
+/** Run the repo's prettier config over the generated source when prettier is resolvable. */
+async function formatOutput(source) {
+  let prettier
+  try {
+    prettier = await import('prettier')
+  } catch {
+    return source
+  }
+  const config = (await prettier.resolveConfig(OUT)) || {}
+  return prettier.format(source, {...config, plugins: [], filepath: OUT})
+}
 
 if (CHECK) {
   let existing = ''
