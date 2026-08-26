@@ -207,3 +207,25 @@ What an operator must decide, in rough order of importance:
   not assume obscurity; if that matters, gate reachability at the network layer.
 - **Updates.** `docker pull` on your schedule, or run Watchtower as production does. `/api/version` tells you what a
   running server was built from.
+
+## Which agents server a client connects to
+
+Clients (desktop, web, the web gateway) can talk to any number of agents servers at once; the agents UI groups agents by
+server. The list a client uses is the union of three sources, in this order (order matters: the assistant panel's
+default agent context is the first agent of the first server):
+
+1. **The app's own local server** — desktop only (`getLocalServerUrl` on the platform seam).
+2. **The server advertised by the site on screen** — the `agentServerUrl` field in the site's home-document metadata
+   (`HMDocumentMetadataSchema`, set from the home document's options panel as "Agents Server"). While any document of
+   that site is open, its server joins the list (ahead of the user's own servers, labeled "This site" in the panel's
+   agent picker) and leaves it again when the user navigates elsewhere; it is never written into the user's configured
+   list. This is what lets the gateway, which shows many sites, use a different agents backend per site.
+3. **The user's configured servers** — persisted per client (`agent-server-urls` setting: electron-store on desktop,
+   `localStorage` under `seed.agents.setting.` on web). On first run this list is seeded with the deployment default:
+   `SEED_AGENT_SERVER_URL` for the web server (read on the server, injected into `window.ENV` for the client, e.g.
+   `https://agentic.seed.hyper.media` in production and `https://dev.agentic.seed.hyper.media` on dev deployments);
+   desktop's default lives in `frontend/apps/desktop/src/agents-defaults.ts`. Once the user has edited the list — even
+   to empty — the default is no longer re-added.
+
+The agents server itself needs no per-client configuration for this: it answers signed requests from any origin
+(`Access-Control-Allow-Origin: *`) and identifies callers by their signed account, not by where the page was served.

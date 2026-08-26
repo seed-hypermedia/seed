@@ -36,6 +36,7 @@ export function OptionsPanel({
             <OriginalPublishDate metadata={metadata} onMetadata={onMetadata} />
             <ContentWidth metadata={metadata} onMetadata={onMetadata} />
             <ActivityVisibility metadata={metadata} onMetadata={onMetadata} />
+            <AgentServerInput metadata={metadata} onMetadata={onMetadata} />
           </>
         ) : (
           <>
@@ -241,6 +242,36 @@ function OriginalPublishDate({
           onMetadata({displayPublishTime: ''})
         }}
       />
+    </div>
+  )
+}
+
+/**
+ * The agents server this site advertises to its readers. Stored on the home document, so anyone
+ * viewing the site — including gateway visitors — connects to it alongside their own servers.
+ */
+function AgentServerInput({
+  metadata,
+  onMetadata,
+}: {
+  metadata: HMMetadata
+  onMetadata: (values: Partial<HMMetadata>) => void
+}) {
+  const [value, setValue] = useState(metadata.agentServerUrl || '')
+  return (
+    <div className="flex flex-col gap-1">
+      <Label htmlFor="agent-server-url">Agents Server</Label>
+      <Input
+        id="agent-server-url"
+        type="url"
+        placeholder="https://agentic.example.com"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onBlur={() => onMetadata({agentServerUrl: value.trim() || undefined})}
+      />
+      <span className="text-muted-foreground text-xs">
+        Readers of this site will see agents hosted on this server in their agents panel.
+      </span>
     </div>
   )
 }
