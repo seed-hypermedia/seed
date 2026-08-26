@@ -67,6 +67,14 @@ Once a document has an effective schema, the Seed app changes in four visible wa
 - **Problems are shown in red and never block.** A per-field badge and a summary banner list the actual violations — "surname is required", "status must be one of draft, published, archived". Saving always works. Validation is a guardrail, not a gate; see [why Onyx](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/why).
 - **A type's home page gets actions.** A document carrying `schemaDefinition` shows a header tag that opens the schema in the explorer and a **Create** button that opens a value editor for that type and publishes a new conforming document — one whose `schema` is this page's URL.
 
+## Dates, references, and linked objects
+
+Three kinds of field make a typed document feel like a record rather than a bag of text:
+
+- **Dates.** [date](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date) and [date-time](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/date-time) are built-in refinements of string — an ISO 8601 `YYYY-MM-DD` calendar date and an RFC 3339 instant — with a `pattern` so a validator can check the shape. In the editor a date field is a **date picker**; the value on the wire is still the plain string.
+- **References with a target.** A field whose format is `hm-url` or `ipfs` may carry a `target`: the schema the referenced document or object is expected to conform to. `character.home` targets the Place type; `character.stats` targets [Character stats](hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/example-stats). A target is advisory — the validator never dereferences a reference — but the editor uses it to pre-seed and validate what you create.
+- **Linked objects.** An `ipfs` field can point at a *file* (uploaded) or at an *object* — a DAG-CBOR value authored right in the Attributes editor. Press **Create object** on an empty field: with a target, the editor is locked to that type and publishes only a conforming value; without one, pick any schema (advisory) or choose free-form data. The published object carries a `schema` link to its type, the field is set to `ipfs://<cid>`, and the pill offers to open or edit it. Editing publishes a new version and re-points the field, because blobs are immutable.
+
 ## Doing it yourself
 
 With Developer Mode on, from any document's options menu:

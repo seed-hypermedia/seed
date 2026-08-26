@@ -164,8 +164,27 @@ export function mergeExtend(parent: OnyxSchema, ext: OnyxSchema): OnyxSchema {
   if (items) merged.items = items
   const en = ext.enum ?? parent.enum
   if (en) merged.enum = en
+  // Leaf refinements are inherited by a subtype (a `{ref: date, …}` stays a
+  // date; `{ref: ipfs, target}` keeps its format and gains a target).
+  for (const k of LEAF_KEYS) {
+    const v = ext[k] ?? parent[k]
+    if (v !== undefined) merged[k] = v
+  }
   return merged
 }
+
+/** Refinements that describe a leaf value or a reference; inherited through extension. */
+const LEAF_KEYS = [
+  'format',
+  'pattern',
+  'minLength',
+  'maxLength',
+  'minimum',
+  'maximum',
+  'minItems',
+  'maxItems',
+  'target',
+]
 
 export type Resolved = {schema: OnyxSchema; env: Record<string, any>}
 
@@ -199,7 +218,11 @@ export function resolveSchema(schema: OnyxSchema, env: Record<string, any> = {},
       if (parent.schema.anyOf || parent.schema.__unbound) return parent // can't extend a union/var
       return {schema: mergeExtend(parent.schema, schema), env: parent.env}
     }
-    return parent // bare include
+    // A bare include — but an include may still name the schema its
+    // reference should point at (`{ref: hm-url, target: place}`); carry it.
+    if (schema.target !== undefined && !parent.schema.anyOf)
+      return {schema: {...parent.schema, target: schema.target}, env: parent.env}
+    return parent
   }
   return {schema, env}
 }
@@ -268,7 +291,12 @@ export function validate(
       } catch {
         re = null // uncompilable pattern is ignored
       }
-      if (re && !re.test(data)) errors.push(`${path}: does not match pattern`)
+      if (re && !re.test(data))
+        errors.push(
+          typeof schema.format === 'string'
+            ? `${path}: does not match pattern for format "${schema.format}"`
+            : `${path}: does not match pattern`,
+        )
     }
   }
   if (kind === 'integer' || kind === 'float') {

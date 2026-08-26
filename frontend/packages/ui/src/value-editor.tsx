@@ -15,6 +15,7 @@ import {
   FilePlus,
   FileText,
   FileUp,
+  Braces,
   GripVertical,
   Link2,
   MoreHorizontal,
@@ -39,6 +40,11 @@ import {cn} from './utils'
 import {seedValue} from './onyx/onyx-data-editor'
 import {onyxSubschema, useOnyxSchema, useSubschema} from './onyx/onyx-schema-context'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
+import {DateValueField, type DateFieldMode} from './onyx/date-field'
+
+/** The multicodec code of a DAG-CBOR block — an ipfs reference to an object, not a file. */
+const DAG_CBOR_CODE = 0x71
+import {LinkedObjectDialog} from './onyx/linked-object-dialog'
 import {
   EnumValueSelect,
   literalEnumOptions,
@@ -1157,12 +1163,17 @@ export function ValueEditor({
           ? ('document' as const)
           : undefined
     const ipfsMode = resolvedSchema?.format === 'ipfs'
+    const dateMode: DateFieldMode | undefined =
+      resolvedSchema?.format === 'date' || resolvedSchema?.format === 'date-time' ? resolvedSchema.format : undefined
+    const ipfsTarget = ipfsMode && typeof resolvedSchema?.target === 'string' ? resolvedSchema.target : undefined
     return (
       <StringLeafEditor
         value={value}
         literalOptions={literalOptions}
         hmMode={hmMode}
         ipfsMode={ipfsMode}
+        ipfsTarget={ipfsTarget}
+        dateMode={dateMode}
         onValue={onValue}
         rules={rules}
         path={path}
@@ -1253,6 +1264,8 @@ function StringLeafEditor({
   literalOptions,
   hmMode,
   ipfsMode,
+  ipfsTarget,
+  dateMode,
   onValue,
   rules,
   path,
@@ -1264,6 +1277,10 @@ function StringLeafEditor({
   /** Schema format ipfs: the value is an `ipfs://<cid>` file reference — offer a
    * file picker (+ paste) when empty, and the file pill once set. */
   ipfsMode?: boolean
+  /** Schema `target` on an ipfs field: the type a linked OBJECT must conform to. */
+  ipfsTarget?: string
+  /** Schema format date/date-time: author the ISO string with a picker. */
+  dateMode?: DateFieldMode
   onValue: (value: unknown) => void
   rules: ValueEditorRules
   path: ValuePath
@@ -1278,6 +1295,10 @@ function StringLeafEditor({
   const [uploading, setUploading] = useState(false)
   const canDrop = !!fileUpload && !uploading
   const cid = findIpfsUrlCid(value)
+  // An ipfs reference to a DAG-CBOR block is an OBJECT (authored here), not a file.
+  const cidIsObject = !!cid && parseCidString(cid)?.code === DAG_CBOR_CODE
+  const [objectDialog, setObjectDialog] = useState<'closed' | 'create' | 'edit'>('closed')
+  const fieldLabel = path.length ? String(path[path.length - 1]) : undefined
 
   const uploadAndSet = async (file: File | undefined | null) => {
     if (!file || !fileUpload) return
@@ -1302,6 +1323,9 @@ function StringLeafEditor({
   // focused input — blur wouldn't fire and the draft would be lost).
   if (hmMode && !editingText) {
     return <HMEntityField value={value} mode={hmMode} onValue={onValue} onOpen={openUrl} />
+  }
+  if (dateMode && !editingText) {
+    return <DateValueField value={value} mode={dateMode} onValue={onValue} onClear={() => onValue('')} />
   }
   if (literalOptions && !editingText) {
     return (
@@ -1339,7 +1363,27 @@ function StringLeafEditor({
       onDrop={canDrop ? handleDrop : undefined}
     >
       {cid ? (
-        <IpfsFileTag cid={cid} onOpen={openFile} onClear={() => onValue('')} />
+        <div className="flex items-center gap-1">
+          <IpfsFileTag
+            cid={cid}
+            variant={cidIsObject ? 'object' : 'file'}
+            onOpen={openFile}
+            onClear={() => onValue('')}
+          />
+          {cidIsObject && (
+            <Tooltip content="Edit this object (publishes a new version)">
+              <Button
+                variant="ghost"
+                size="iconSm"
+                aria-label="Edit linked object"
+                className="text-muted-foreground"
+                onClick={() => setObjectDialog('edit')}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+            </Tooltip>
+          )}
+        </div>
       ) : (
         <div className="flex items-center gap-1">
           <CommitOnBlurInput
@@ -1370,6 +1414,21 @@ function StringLeafEditor({
               onValue(text)
             }}
           />
+          {/* An ipfs-typed field can author a new OBJECT in place — locked to
+              the schema's target type when it names one, otherwise any schema
+              or free-form data. */}
+          {ipfsMode && (
+            <Tooltip content={ipfsTarget ? 'Create a new object of the required type' : 'Create a new object'}>
+              <Button
+                variant="outline"
+                size="iconSm"
+                aria-label="Create linked object"
+                onClick={() => setObjectDialog('create')}
+              >
+                <Braces className="size-4" />
+              </Button>
+            </Tooltip>
+          )}
           {/* An ipfs-typed field offers an explicit file picker (drop also works). */}
           {ipfsMode && fileUpload && (
             <>
@@ -1403,6 +1462,16 @@ function StringLeafEditor({
           <span className="text-muted-foreground text-xs">Uploading…</span>
         </div>
       )}
+      {ipfsMode && objectDialog !== 'closed' && (
+        <LinkedObjectDialog
+          open
+          onOpenChange={(o) => !o && setObjectDialog('closed')}
+          target={ipfsTarget}
+          existingCid={objectDialog === 'edit' && cidIsObject ? cid : undefined}
+          fieldLabel={fieldLabel}
+          onPublished={(newCid) => onValue(`ipfs://${newCid}`)}
+        />
+      )}
     </div>
   )
 }
@@ -1422,15 +1491,16 @@ function IpfsFileTag({
   cid: string
   onOpen?: (cid: string) => void
   onClear?: () => void
-  variant?: 'file' | 'link'
+  variant?: 'file' | 'link' | 'object'
 }) {
   const short = cid.length > 18 ? `${cid.slice(0, 9)}…${cid.slice(-6)}` : cid
-  const Icon = variant === 'link' ? Link2 : FileText
+  const Icon = variant === 'link' ? Link2 : variant === 'object' ? Braces : FileText
   return (
     <div className="flex items-center gap-1">
       <Tooltip content={onOpen ? `Open ipfs://${cid}` : `ipfs://${cid}`}>
         <button
           type="button"
+          data-testid={variant === 'object' ? 'ipfs-object-pill' : 'ipfs-file-pill'}
           disabled={!onOpen}
           onClick={onOpen ? () => onOpen(cid) : undefined}
           className={cn(
@@ -1444,11 +1514,25 @@ function IpfsFileTag({
         </button>
       </Tooltip>
       {onClear && (
-        <Tooltip content={variant === 'link' ? 'Clear link' : 'Remove file reference'}>
+        <Tooltip
+          content={
+            variant === 'link'
+              ? 'Clear link'
+              : variant === 'object'
+                ? 'Remove object reference'
+                : 'Remove file reference'
+          }
+        >
           <Button
             variant="ghost"
             size="iconSm"
-            aria-label={variant === 'link' ? 'Clear link' : 'Remove file reference'}
+            aria-label={
+              variant === 'link'
+                ? 'Clear link'
+                : variant === 'object'
+                  ? 'Remove object reference'
+                  : 'Remove file reference'
+            }
             className="text-muted-foreground"
             onClick={onClear}
           >
