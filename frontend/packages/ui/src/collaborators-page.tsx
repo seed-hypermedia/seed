@@ -349,7 +349,7 @@ export function CollaboratorsPage({
   domainResolver?: DomainResolverFn
 }) {
   if (docId.path?.length) {
-    return <DocumentCollaborators docId={docId} domainResolver={domainResolver} />
+    return <DocumentCollaborators docId={docId} />
   } else {
     return <SiteMembers docId={docId} domainResolver={domainResolver} />
   }
@@ -491,13 +491,7 @@ function MemberListItem({
   )
 }
 
-function DocumentCollaborators({
-  docId,
-  domainResolver,
-}: {
-  docId: UnpackedHypermediaId
-  domainResolver?: DomainResolverFn
-}) {
+function DocumentCollaborators({docId}: {docId: UnpackedHypermediaId}) {
   const {accounts, parentCapabilities, grantedCapabilities, publisherUid, isInitialLoading} = useCollaborators(docId)
 
   if (isInitialLoading) {
@@ -512,8 +506,6 @@ function DocumentCollaborators({
 
   return (
     <div className="flex flex-col gap-4">
-      <AddCollaboratorForm id={docId} domainResolver={domainResolver} />
-
       {/* Publisher always shown first */}
       <PublisherCollaborator uid={publisherUid} siteUid={docId.uid} account={accounts[publisherUid]} />
 

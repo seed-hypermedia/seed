@@ -231,6 +231,18 @@ describe('getRenderedCollaboratorsCount', () => {
   })
 })
 
+describe('collaborator invitations', () => {
+  it('does not render the invitation form for a sub-document', () => {
+    selectedCapabilityState.value = capability('publisher', id('publisher'))
+
+    act(() => {
+      root.render(React.createElement(CollaboratorsPage, {docId: id('publisher', ['guide'])}))
+    })
+
+    expect(container.querySelector('input[placeholder="Invite members"]')).toBeNull()
+  })
+})
+
 describe('site member writer promotion', () => {
   it('renders a visible owner-only Add as writer button for regular site members', () => {
     selectedCapabilityState.value = capability('publisher', id('publisher'))
