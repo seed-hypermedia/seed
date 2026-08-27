@@ -25,7 +25,8 @@ import {dagJsonToIpld, isDagJsonLink} from '../dag-json'
 import {Spinner} from '../spinner'
 import {toast} from '../toast'
 import {CBOR_VALUE_RULES, isPlainObject, ValueEditor, ValueEditorProvider} from '../value-editor'
-import {OnyxDataEditor, seedValue} from './onyx-data-editor'
+import {seedValue} from './onyx-data-editor'
+import {SchemaAwareEditor, schemaFormProblems, seedForSchema} from './schema-aware-editor'
 import {isOnyxSchema, validate} from './onyx-engine'
 import {useResolvedSchema} from './onyx-schema-resolve'
 import {SchemaPicker} from './schema-picker'
@@ -144,11 +145,11 @@ function LinkedObjectEditor({
     const key = schemaRef ?? ' free-form'
     if (seededFor === key) return
     if (schemaRef && !schema) return // still resolving
-    setValue(schema ? seedValue(schema) : {})
+    setValue(schema ? seedForSchema(schema, seedValue) : {})
     setSeededFor(key)
   }, [existingCid, existingParts, schema, schemaRef, seededFor, value])
 
-  const errors = schema && value !== undefined ? validate(schema, value) : []
+  const errors = schema && value !== undefined ? [...schemaFormProblems(schema, value), ...validate(schema, value)] : []
   const [publishing, setPublishing] = useState(false)
 
   const publish = async () => {
@@ -208,7 +209,7 @@ function LinkedObjectEditor({
           <Spinner className="size-4" /> Resolving schema…
         </div>
       ) : schema ? (
-        <OnyxDataEditor schema={schema} value={value} onValue={setValue} />
+        <SchemaAwareEditor schema={schema} value={value} onValue={setValue} />
       ) : (
         <ValueEditorProvider>
           <ValueEditor value={value} onValue={setValue} rules={CBOR_VALUE_RULES} />
