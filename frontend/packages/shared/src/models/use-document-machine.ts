@@ -9,7 +9,6 @@ import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
 import {
   documentMachine,
   getCollectionEditorBlocks,
-  getEffectiveDocumentMetadata,
   isDocumentCollection,
   normalizeCollectionEditorBlocks,
   DocumentMachineContext,
@@ -625,9 +624,9 @@ export function selectContext(snapshot: DocumentMachineSnapshot): DocumentMachin
   return snapshot.context
 }
 
-/** Whether the effective document metadata identifies a document collection. */
+/** Whether the document's content shape identifies it as a document collection. */
 export function selectIsDocumentCollection(snapshot: DocumentMachineSnapshot): boolean {
-  return isDocumentCollection(getEffectiveDocumentMetadata(snapshot.context))
+  return isDocumentCollection(snapshot.context)
 }
 
 /** The first root query block used by the document collection view. */

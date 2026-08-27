@@ -158,11 +158,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	otel.SetTracerProvider(tp)
 
 	a.Index = blob.OpenIndexPendingReindex(a.Storage.DB(), logging.New("seed/indexing", cfg.LogLevel))
-	// Wire the fallback-cover-image deriver before the reindex task below can
-	// start: a migration-triggered backfill reindex must derive
-	// the fallback cover for every document, and the documents server that
-	// also wires this is constructed only later in initGRPC.
-	a.Index.SetDeriveFirstContentImage(documentsv3.DeriveFirstContentImage)
+	// Wire the derived-document-fields deriver before the reindex task below can
+	// start: a migration-triggered backfill reindex must derive the fallback
+	// cover and collection flag for every document, and the documents server
+	// that also wires this is constructed only later in initGRPC.
+	a.Index.SetDeriveDocFields(documentsv3.DeriveDocFields)
 	a.clean.Add(a.Index.Domains)
 	a.taskMgr.UpdateGlobalState(daemon.State_STARTING)
 
@@ -188,6 +188,24 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			return reindexing.RunBlobReindexTask(ctx, a.Index, a.taskMgr, a.log, a.Index.MaybeReindex)
 		})
 	}
+
+	// Backfill the derived document fields for documents that were indexed
+	// before those fields existed. Deliberately not a migration-scheduled
+	// reindex — see the comment at the top of backend/blob/backfill.go for why
+	// an asynchronous backfill is the right shape for these fields.
+	//
+	// Waits for migrations so it never competes with a reindex for the write
+	// connection, and is detached from a.g so startup never waits on it: the
+	// daemon is fully usable while the backfill is still running, and documents
+	// it hasn't reached yet simply read as "not known to be a collection".
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-migratedc:
+		}
+		a.Index.StartDocFieldsBackfill(ctx, blob.DocFieldsBackfillOptions{})
+	}()
 
 	a.Net, err = initNetwork(&a.clean, a.g, a.Storage, cfg.P2P, a.Index, cfg.LogLevel, opts.extraP2PServices...)
 	if err != nil {

@@ -3916,8 +3916,21 @@ type DocumentInfo struct {
 	// Unset means the indexer hasn't derived it (yet); an empty string means
 	// the document is known to have no content image.
 	FirstImageInContent *string `protobuf:"bytes,15,opt,name=first_image_in_content,json=firstImageInContent,proto3,oneof" json:"first_image_in_content,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Output only. Whether the document is a collection: its content is a single
+	// childless Query block listing the document's own children. Derived by the
+	// indexer, which is the only place the resolved block tree exists.
+	//
+	// Documents authored by newer clients also carry `"type": "Collection"` in
+	// their metadata; this field is what identifies the ones written before that
+	// flag existed. Clients should treat either as a collection.
+	//
+	// Unset means the indexer hasn't derived it (yet). Because the derivation is
+	// backfilled asynchronously, unset is expected on older documents for a while
+	// after an upgrade and must be read as "not known to be a collection" rather
+	// than as "not a collection".
+	IsCollection  *bool `protobuf:"varint,16,opt,name=is_collection,json=isCollection,proto3,oneof" json:"is_collection,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DocumentInfo) Reset() {
@@ -4046,6 +4059,13 @@ func (x *DocumentInfo) GetFirstImageInContent() string {
 		return *x.FirstImageInContent
 	}
 	return ""
+}
+
+func (x *DocumentInfo) GetIsCollection() bool {
+	if x != nil && x.IsCollection != nil {
+		return *x.IsCollection
+	}
+	return false
 }
 
 // Information about the generation of a document.
@@ -6217,7 +6237,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x12\n" +
 	"\x04deps\x18\x03 \x03(\tR\x04deps\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xaa\x06\n" +
+	"createTime\"\xe6\x06\n" +
 	"\fDocumentInfo\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -6237,8 +6257,10 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\n" +
 	"visibility\x18\x0e \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
 	"visibility\x128\n" +
-	"\x16first_image_in_content\x18\x0f \x01(\tH\x00R\x13firstImageInContent\x88\x01\x01B\x19\n" +
-	"\x17_first_image_in_content\"J\n" +
+	"\x16first_image_in_content\x18\x0f \x01(\tH\x00R\x13firstImageInContent\x88\x01\x01\x12(\n" +
+	"\ris_collection\x18\x10 \x01(\bH\x01R\fisCollection\x88\x01\x01B\x19\n" +
+	"\x17_first_image_in_contentB\x10\n" +
+	"\x0e_is_collection\"J\n" +
 	"\x0eGenerationInfo\x12\x18\n" +
 	"\agenesis\x18\x01 \x01(\tR\agenesis\x12\x1e\n" +
 	"\n" +

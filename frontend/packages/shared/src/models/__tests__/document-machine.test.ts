@@ -4,7 +4,7 @@ import {
   createDefaultCollectionQueryBlock,
   documentMachine,
   DocumentMachineInput,
-  isDocumentCollection,
+  isCollectionContent,
   normalizeCollectionEditorBlocks,
   PushDocumentInput,
   retargetQueryBlockIncludesForPublish,
@@ -44,11 +44,68 @@ const mockDocument = {
   visibility: 'PUBLIC',
 } as unknown as HMDocument
 
+/** Content for a collection: one self-querying query block, matching mockDocumentId. */
+function collectionContent(style: 'Table' | 'Card' | 'List' = 'Table') {
+  return [
+    {
+      id: 'q1',
+      type: 'query',
+      props: {
+        style,
+        queryIncludes: JSON.stringify([{space: 'z6Mktest', path: '/doc', mode: 'Children'}]),
+      },
+      content: [],
+      children: [],
+    },
+  ] as unknown as HMDocument['content']
+}
+
 describe('document collection helpers', () => {
-  it('recognizes only the canonical Collection type', () => {
-    expect(isDocumentCollection({type: 'Collection'})).toBe(true)
-    expect(isDocumentCollection({type: 'collection'})).toBe(false)
-    expect(isDocumentCollection({})).toBe(false)
+  it('recognizes a collection by its shape, not by a metadata flag', () => {
+    const blocks = collectionContent() as unknown as EditorBlock[]
+
+    expect(isCollectionContent(blocks, mockDocumentId)).toBe(true)
+
+    // A metadata flag no longer makes anything a collection.
+    expect(isCollectionContent([], mockDocumentId)).toBe(false)
+
+    // AllDescendants counts, since it includes the direct children.
+    const allDescendants = [
+      {
+        ...(blocks[0] as any),
+        props: {
+          ...(blocks[0] as any).props,
+          queryIncludes: JSON.stringify([{space: 'z6Mktest', path: '/doc', mode: 'AllDescendants'}]),
+        },
+      },
+    ] as unknown as EditorBlock[]
+    expect(isCollectionContent(allDescendants, mockDocumentId)).toBe(true)
+
+    // A query pointed at some other document is not this document's collection.
+    const elsewhere = [
+      {
+        ...(blocks[0] as any),
+        props: {
+          ...(blocks[0] as any).props,
+          queryIncludes: JSON.stringify([{space: 'z6Mktest', path: '/other', mode: 'Children'}]),
+        },
+      },
+    ] as unknown as EditorBlock[]
+    expect(isCollectionContent(elsewhere, mockDocumentId)).toBe(false)
+
+    // A second top-level block, or a child of the query block, disqualifies it.
+    expect(
+      isCollectionContent(
+        [...blocks, {id: 'p1', type: 'paragraph', props: {}, content: [], children: []} as unknown as EditorBlock],
+        mockDocumentId,
+      ),
+    ).toBe(false)
+    expect(
+      isCollectionContent(
+        [{...(blocks[0] as any), children: [{id: 'c', type: 'paragraph'}]} as unknown as EditorBlock],
+        mockDocumentId,
+      ),
+    ).toBe(false)
   })
 
   it('adds a default table query when one is missing', () => {
@@ -86,7 +143,11 @@ describe('document collection helpers', () => {
       },
     })
     const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}}).start()
-    const collection = {...mockDocument, metadata: {name: 'Collection', type: 'Collection'}} as HMDocument
+    const collection = {
+      ...mockDocument,
+      metadata: {name: 'Collection'},
+      content: collectionContent('Card'),
+    } as HMDocument
 
     loadDocument(actor as ReturnType<typeof createTestActor>, collection)
     await vi.waitFor(() => expect(actor.getSnapshot().matches('editing')).toBe(true))
@@ -103,7 +164,7 @@ describe('document collection helpers', () => {
       actors: {writeDraft: fromPromise<WriteDraftOutput, any>(writeDraft)},
     })
     const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: false}}).start()
-    const collection = {...mockDocument, metadata: {type: 'Collection'}} as HMDocument
+    const collection = {...mockDocument, content: collectionContent('Card')} as HMDocument
 
     loadDocument(actor as ReturnType<typeof createTestActor>, collection)
     await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
@@ -113,17 +174,22 @@ describe('document collection helpers', () => {
 
   it('converts a collection back to a normal document in a local draft', async () => {
     const actor = createTestActor().start()
-    const collection = {
-      ...mockDocument,
-      metadata: {type: 'Collection'},
-      content: [],
-    } as HMDocument
+    const collection = {...mockDocument, content: collectionContent()} as HMDocument
 
     loadDocument(actor, collection)
-    await vi.waitFor(() => expect(actor.getSnapshot().matches('editing')).toBe(true))
+    // A well-formed collection needs no repair, so it settles in 'loaded'; the
+    // convert event is what takes it into editing.
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
     actor.send({type: 'collection.convertToDocument'})
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('editing')).toBe(true))
 
-    expect(actor.getSnapshot().context.metadata.type).toBeNull()
+    // Converting changes the shape rather than a flag: the query block survives
+    // and now renders inline in an ordinary document body.
+    const content = actor.getSnapshot().context.draftContent as unknown as EditorBlock[]
+    expect(content).toHaveLength(2)
+    expect((content[0] as any).type).toBe('paragraph')
+    expect((content[1] as any).type).toBe('query')
+    expect(isCollectionContent(content, mockDocumentId)).toBe(false)
   })
 })
 

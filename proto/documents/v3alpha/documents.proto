@@ -1020,6 +1020,20 @@ message DocumentInfo {
   // Unset means the indexer hasn't derived it (yet); an empty string means
   // the document is known to have no content image.
   optional string first_image_in_content = 15;
+
+  // Output only. Whether the document is a collection: its content is a single
+  // childless Query block listing the document's own children. Derived by the
+  // indexer, which is the only place the resolved block tree exists.
+  //
+  // Documents authored by newer clients also carry `"type": "Collection"` in
+  // their metadata; this field is what identifies the ones written before that
+  // flag existed. Clients should treat either as a collection.
+  //
+  // Unset means the indexer hasn't derived it (yet). Because the derivation is
+  // backfilled asynchronously, unset is expected on older documents for a while
+  // after an upgrade and must be read as "not known to be a collection" rather
+  // than as "not a collection".
+  optional bool is_collection = 16;
 }
 
 // Information about the generation of a document.

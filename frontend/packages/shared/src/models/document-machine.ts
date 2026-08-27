@@ -32,9 +32,50 @@ function getTopLevelBlockCount(blocks: unknown[] | null | undefined) {
   return Array.isArray(blocks) ? blocks.length : 0
 }
 
-/** Whether metadata identifies the canonical document collection type. */
-export function isDocumentCollection(metadata: HMMetadata | null | undefined): boolean {
-  return metadata?.type == 'Collection'
+/**
+ * Whether these editor blocks form a document collection: a single top-level
+ * Query block, with no children of its own, whose query lists this document's
+ * own children.
+ *
+ * Collections are identified by their shape, never by an authored metadata
+ * flag. The same predicate runs in the indexer (docmodel.IsCollection) to
+ * populate HMDocumentInfo.isCollection for listings; this copy is what answers
+ * the question for a draft, where nothing has been indexed yet.
+ */
+export function isCollectionContent(blocks: EditorBlock[], documentId: UnpackedHypermediaId): boolean {
+  if (blocks.length !== 1) return false
+  const block = blocks[0]
+  if (!block || block.type !== 'query') return false
+  if (block.children?.length) return false
+  return queryBlockTargetsDocument(block, documentId)
+}
+
+/** Whether a query block's inclusions list the given document's own children. */
+export function queryBlockTargetsDocument(block: EditorBlock, documentId: UnpackedHypermediaId): boolean {
+  if (block.type !== 'query') return false
+  const rawIncludes = block.props.queryIncludes
+  if (!rawIncludes) return false
+
+  let includes: unknown
+  try {
+    includes = JSON.parse(rawIncludes)
+  } catch {
+    return false
+  }
+  if (!Array.isArray(includes)) return false
+
+  // Any self-targeting inclusion is enough, and either mode counts —
+  // AllDescendants includes the direct children too. Matches
+  // documentHasSelfQuery, and the indexer's queryTargetsOwnChildren.
+  return includes.some(
+    (include) =>
+      !!include && typeof include === 'object' && includeTargetsDocument(include as QueryInclude, documentId),
+  )
+}
+
+/** Whether the document currently being edited or viewed is a collection. */
+export function isDocumentCollection(context: DocumentMachineContext): boolean {
+  return isCollectionContent(getCollectionEditorBlocks(context), context.documentId)
 }
 
 /** Creates the standard query block required by a document collection. */
@@ -283,12 +324,19 @@ export function getEffectiveDocumentMetadata(context: DocumentMachineContext): H
   return {...(context.document?.metadata ?? {}), ...context.metadata}
 }
 
-/** Whether an editable collection needs a missing query repaired or its first root query normalized to Table. */
+/**
+ * Whether an editable collection needs its query block normalized to the Table
+ * view.
+ *
+ * Being a collection now implies having exactly one query block, so unlike the
+ * metadata-flagged model there is no such thing as a collection with a missing
+ * query to repair — only one displaying itself in the wrong style.
+ */
 export function collectionNeedsRepair(context: DocumentMachineContext): boolean {
-  if (!context.canEdit || !isDocumentCollection(getEffectiveDocumentMetadata(context))) return false
+  if (!context.canEdit || !isDocumentCollection(context)) return false
   if (!shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion)) return false
   const query = getCollectionEditorBlocks(context).find((block) => block.type === 'query')
-  return !query || query.props.style !== 'Table'
+  return !!query && query.props.style !== 'Table'
 }
 
 /**
@@ -493,8 +541,24 @@ export const documentMachine = setup({
     markCollectionRepairAttempted: assign({
       collectionRepairAttempted: true,
     }),
+    // Converting away from a collection has to change the shape, because the
+    // shape is what makes it a collection — there is no flag left to clear.
+    // Prepending an empty paragraph is the least destructive way to do it: the
+    // query block survives untouched and simply renders inline in the document
+    // body, which is exactly where clearing the old metadata flag left it.
     convertCollectionToDocument: assign({
-      metadata: ({context}) => ({...context.metadata, type: null}) as HMMetadata,
+      draftContent: ({context}) => {
+        const blocks = getCollectionEditorBlocks(context)
+        if (!isCollectionContent(blocks, context.documentId)) return context.draftContent
+        const paragraph = {
+          id: nanoid(10),
+          type: 'paragraph',
+          props: {},
+          content: [],
+          children: [],
+        } as unknown as EditorBlock
+        return [paragraph, ...blocks] as unknown as HMBlockNode[]
+      },
     }),
     setNavigation: assign({
       navigation: ({event}) => {
@@ -1552,9 +1616,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
-                  contentOverride: isDocumentCollection(getEffectiveDocumentMetadata(context))
-                    ? getCollectionEditorBlocks(context)
-                    : undefined,
+                  contentOverride: isDocumentCollection(context) ? getCollectionEditorBlocks(context) : undefined,
                 }),
                 onDone: [
                   {
@@ -1678,9 +1740,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
-                  contentOverride: isDocumentCollection(getEffectiveDocumentMetadata(context))
-                    ? getCollectionEditorBlocks(context)
-                    : undefined,
+                  contentOverride: isDocumentCollection(context) ? getCollectionEditorBlocks(context) : undefined,
                 }),
                 onDone: [
                   {

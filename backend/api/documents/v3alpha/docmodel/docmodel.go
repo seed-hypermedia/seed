@@ -894,3 +894,100 @@ func VisibilityToProto(bv blob.Visibility) documents.ResourceVisibility {
 		panic(fmt.Errorf("BUG: unknown visibility %v", bv))
 	}
 }
+
+// IsCollection reports whether this document is a "collection": its content is
+// a single top-level Query block, that block has no children of its own, and
+// the query targets the document's own children.
+//
+// The predicate mirrors the two client-side rules it has to agree with:
+// the structural shape that normalizeCollectionEditorBlocks maintains, and the
+// self-query match of documentHasSelfQuery
+// (frontend/packages/client/src/auto-link.ts). Like documentHasSelfQuery it
+// accepts either inclusion mode — "AllDescendants" includes the direct children
+// too — and one self-targeting inclusion is enough.
+//
+// Newer clients author `"type": "Collection"` into the metadata, which the read
+// path checks directly. This derivation is what covers the documents written
+// before that flag existed, which have the shape but not the flag.
+func (dm *Document) IsCollection() bool {
+	if dm.mut != nil {
+		// A document with uncommitted changes has no stable committed state.
+		return false
+	}
+
+	space, path, err := dm.crdt.id.SpacePath()
+	if err != nil {
+		return false
+	}
+
+	// Both structural conditions fall out of one walk. DFT yields every visible
+	// (parent, child) pair depth-first, so the top-level blocks are the pairs
+	// rooted at "", and the candidate's own children are the pairs that arrive
+	// immediately after it parented by its ID.
+	var root string
+	var roots int
+	for pair := range dm.crdt.tree.State().DFT("") {
+		if pair.Parent == "" {
+			roots++
+			if roots > 1 {
+				return false
+			}
+			root = pair.Child
+			continue
+		}
+		if pair.Parent == root {
+			return false
+		}
+	}
+	if roots != 1 {
+		return false
+	}
+
+	bs := dm.crdt.stateBlocks[root]
+	if bs == nil {
+		return false
+	}
+
+	_, blk, ok := bs.GetLatestWithID()
+	if !ok || blk.Type != "Query" {
+		return false
+	}
+
+	return queryTargetsOwnChildren(blk, space.String(), path)
+}
+
+// queryTargetsOwnChildren reports whether any inclusion of a Query block points
+// at the document's own path, which is what makes the block list that
+// document's children.
+func queryTargetsOwnChildren(blk blob.Block, space, path string) bool {
+	query, ok := blk.Attributes()["query"].(map[string]any)
+	if !ok {
+		return false
+	}
+
+	includes, ok := query["includes"].([]any)
+	if !ok {
+		return false
+	}
+
+	for _, raw := range includes {
+		inc, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if incSpace, _ := inc["space"].(string); incSpace != space {
+			continue
+		}
+
+		// Both path encodings exist in the wild: the query-block editor writes
+		// path segments joined without a leading slash, while
+		// hmIdPathToEntityQueryPath writes "/a/b". Trimming makes them comparable,
+		// and collapses the two spellings of the root path ("" and "/").
+		if incPath, _ := inc["path"].(string); strings.Trim(incPath, "/") == strings.Trim(path, "/") {
+			return true
+		}
+	}
+
+	return false
+}

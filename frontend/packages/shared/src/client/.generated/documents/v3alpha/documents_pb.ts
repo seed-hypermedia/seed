@@ -3830,6 +3830,24 @@ export class DocumentInfo extends Message<DocumentInfo> {
    */
   firstImageInContent?: string;
 
+  /**
+   * Output only. Whether the document is a collection: its content is a single
+   * childless Query block listing the document's own children. Derived by the
+   * indexer, which is the only place the resolved block tree exists.
+   *
+   * Documents authored by newer clients also carry `"type": "Collection"` in
+   * their metadata; this field is what identifies the ones written before that
+   * flag existed. Clients should treat either as a collection.
+   *
+   * Unset means the indexer hasn't derived it (yet). Because the derivation is
+   * backfilled asynchronously, unset is expected on older documents for a while
+   * after an upgrade and must be read as "not known to be a collection" rather
+   * than as "not a collection".
+   *
+   * @generated from field: optional bool is_collection = 16;
+   */
+  isCollection?: boolean;
+
   constructor(data?: PartialMessage<DocumentInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -3852,6 +3870,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
     { no: 13, name: "redirect_info", kind: "message", T: RefTarget_Redirect },
     { no: 14, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
     { no: 15, name: "first_image_in_content", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 16, name: "is_collection", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {

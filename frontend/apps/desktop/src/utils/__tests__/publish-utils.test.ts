@@ -15,7 +15,7 @@ describe('buildDocumentCollectionDraftSeed', () => {
   it('creates Collection metadata and exactly one empty-target query block', () => {
     const seed = buildDocumentCollectionDraftSeed('query-block-id')
 
-    expect(seed.metadata).toEqual({type: 'Collection'})
+    expect(seed.metadata).toEqual({}, 'a collection is its shape, not a metadata flag')
     expect(seed.content).toEqual([
       {
         id: 'query-block-id',

@@ -148,15 +148,14 @@ type Index struct {
 	hookNotify   chan struct{}
 	hookWorkerOn sync.Once
 
-	// deriveFirstContentImage computes a document's fallback cover image (the
-	// first image block in reading order) from its full change history. It's
-	// implemented by a higher layer (the documents API, which owns docmodel)
-	// and injected via SetDeriveFirstContentImage to avoid an import cycle.
-	// May be nil, in which case the derivation is skipped. Guarded by hookMu:
-	// the daemon wires it before the migration-triggered backfill reindex
-	// starts, but the documents server also (re)sets it later while indexing
-	// may already be running.
-	deriveFirstContentImage DeriveFirstContentImage
+	// deriveDocFields computes a document's derived fields (fallback cover
+	// image, collection flag) from its full change history. It's implemented by
+	// a higher layer (the documents API, which owns docmodel) and injected via
+	// SetDeriveDocFields to avoid an import cycle. May be nil, in which case
+	// the derivation is skipped. Guarded by hookMu: the daemon wires it before
+	// the migration-triggered backfill reindex starts, but the documents server
+	// also (re)sets it later while indexing may already be running.
+	deriveDocFields DeriveDocFields
 }
 
 // indexedHookBatchSize caps how many blob ids a single hook transaction
@@ -307,28 +306,44 @@ func (idx *Index) WaitIndexedHook(ctx context.Context) error {
 	return nil
 }
 
-// DeriveFirstContentImage derives a fallback cover-image URL for a document
-// from the changes that make up its current version, in reading order.
-// Returns an empty string when the document has no image block.
-type DeriveFirstContentImage func(iri IRI, changes []ChangeRecord) (string, error)
+// DerivedDocFields are the document-level facts the indexer computes by
+// replaying a document's change history through the real document model.
+//
+// They travel together because the replay is the entire cost: once the model is
+// built, each extra field is a walk over a tree that already exists. Deriving
+// them in separate passes would double the expensive half to save nothing.
+type DerivedDocFields struct {
+	// FirstImage is the link of the first image block in reading order, used as
+	// a fallback cover. Empty means the document has no image block.
+	FirstImage string
 
-// SetDeriveFirstContentImage installs the fallback-cover-image deriver used
-// during indexing. Wire it before the backfill reindex task starts so the
+	// IsCollection reports whether the document's content is a single childless
+	// Query block that lists the document's own children.
+	IsCollection bool
+}
+
+// DeriveDocFields derives DerivedDocFields for a document from the changes that
+// make up its current version. Implemented by a higher layer (the documents
+// API, which owns docmodel) and injected to avoid an import cycle.
+type DeriveDocFields func(iri IRI, changes []ChangeRecord) (DerivedDocFields, error)
+
+// SetDeriveDocFields installs the derived-document-fields deriver used during
+// indexing. Wire it before the backfill reindex task starts so a
 // migration-triggered reindex derives for every document; setting it again
 // later (e.g. from the documents server) is safe while indexing runs.
-// See DeriveFirstContentImage and FirstImageInContentAttr.
-func (idx *Index) SetDeriveFirstContentImage(fn DeriveFirstContentImage) {
+// See DeriveDocFields, FirstImageInContentAttr and IsCollectionAttr.
+func (idx *Index) SetDeriveDocFields(fn DeriveDocFields) {
 	idx.hookMu.Lock()
-	idx.deriveFirstContentImage = fn
+	idx.deriveDocFields = fn
 	idx.hookMu.Unlock()
 }
 
-// firstImageDeriver returns the installed fallback-cover-image deriver (nil if
-// none), race-safe against a concurrent SetDeriveFirstContentImage.
-func (idx *Index) firstImageDeriver() DeriveFirstContentImage {
+// docFieldsDeriver returns the installed deriver (nil if none), race-safe
+// against a concurrent SetDeriveDocFields.
+func (idx *Index) docFieldsDeriver() DeriveDocFields {
 	idx.hookMu.RLock()
 	defer idx.hookMu.RUnlock()
-	return idx.deriveFirstContentImage
+	return idx.deriveDocFields
 }
 
 // OpenIndex creates the index and reindexes the data if necessary.
@@ -408,10 +423,10 @@ type indexOpts struct {
 	// batch contributes nothing. May be nil (no accounting).
 	Kinds *[]syncperf.KindSample
 
-	// DeriveFirstContentImage, when set, computes a document's fallback cover
-	// image during Ref indexing. Threaded from the owning Index via
-	// firstImageDeriver(). May be nil (derivation skipped).
-	DeriveFirstContentImage DeriveFirstContentImage
+	// DeriveDocFields, when set, computes a document's derived fields during
+	// Ref indexing. Threaded from the owning Index via docFieldsDeriver().
+	// May be nil (derivation skipped).
+	DeriveDocFields DeriveDocFields
 }
 
 // indexBlob runs the per-blob indexers and (optionally) forward visibility
@@ -467,7 +482,7 @@ func indexBlob(opts indexOpts, conn *sqlite.Conn, id int64, c cid.Cid, data []by
 	ictx.kinds = opts.Kinds
 	ictx.writerCache = wc
 	ictx.hookIDs = hookIDs
-	ictx.deriveFirstContentImage = opts.DeriveFirstContentImage
+	ictx.deriveDocFields = opts.DeriveDocFields
 	if err := ictx.Unstash(); err != nil {
 		return err
 	}
@@ -1687,9 +1702,9 @@ type indexingCtx struct {
 	// the cascade via the threaded pointer. May be nil (no accumulation).
 	hookIDs *[]int64
 
-	// deriveFirstContentImage, when set, computes a document's fallback cover
+	// deriveDocFields, when set, computes a document's derived
 	// image during Ref indexing. Threaded from the owning Index. May be nil.
-	deriveFirstContentImage DeriveFirstContentImage
+	deriveDocFields DeriveDocFields
 }
 
 func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *indexingCtx {
@@ -1714,11 +1729,11 @@ func newCtx(conn *sqlite.Conn, id int64, bs *blockStore, log *zap.Logger) *index
 // describe the whole transaction.
 func (idx *indexingCtx) childOpts() indexOpts {
 	return indexOpts{
-		TrackUnreads:            idx.mustTrackUnreads,
-		ObservedAt:              idx.observedAt,
-		FromNetwork:             idx.fromNetwork,
-		Kinds:                   idx.kinds,
-		DeriveFirstContentImage: idx.deriveFirstContentImage,
+		TrackUnreads:    idx.mustTrackUnreads,
+		ObservedAt:      idx.observedAt,
+		FromNetwork:     idx.fromNetwork,
+		Kinds:           idx.kinds,
+		DeriveDocFields: idx.deriveDocFields,
 	}
 }
 

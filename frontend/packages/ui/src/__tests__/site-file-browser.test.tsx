@@ -19,7 +19,7 @@ function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' 
 
 function makeCollection(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
   const doc = makeDoc(path, name, visibility)
-  doc.metadata = {...doc.metadata, type: 'Collection'}
+  doc.isCollection = true
   return doc
 }
 
@@ -49,6 +49,26 @@ describe('SiteFileBrowser', () => {
 
     expect(container.querySelectorAll('[aria-label="Document collection"]')).toHaveLength(2)
     expect(container.querySelector('[aria-label="Private document"]')).toBeNull()
+  })
+
+  it('treats a document the backfill has not reached as an ordinary document', () => {
+    // An undefined isCollection means "not derived yet", never "not a
+    // collection" — but a listing row can only render what it knows, so an
+    // underived document gets no collection marking.
+    const derived = makeCollection(['notes'], 'Notes')
+    const underived = makeDoc(['pending'], 'Pending')
+
+    useDirectoryMock.mockReturnValue({
+      data: [derived, underived],
+      isLoading: false,
+      isError: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+
+    expect(container.querySelectorAll('[aria-label="Document collection"]')).toHaveLength(1)
   })
 
   it('reveals the active document and marks private rows', () => {

@@ -6,10 +6,16 @@ import {pathNameify} from '@shm/shared/utils/path'
 import {computeInlineDraftPublishPath} from '@shm/shared/utils/publish-paths'
 export {computeInlineDraftPublishPath}
 
-/** Builds the metadata and initial query block for a document collection draft. */
+/**
+ * Builds the initial content for a document collection draft.
+ *
+ * There is no metadata flag to set: a document is a collection because of its
+ * shape — a lone self-querying block — which is what the indexer derives and
+ * what every reader checks.
+ */
 export function buildDocumentCollectionDraftSeed(blockId: string): {metadata: HMMetadata; content: EditorBlock[]} {
   return {
-    metadata: {type: 'Collection'},
+    metadata: {},
     content: [
       {
         id: blockId,

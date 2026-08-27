@@ -51,7 +51,7 @@ func TestDBMigrateManual(t *testing.T) {
 	// the reindex derives fallback cover images for every document generation.
 	// Without it the deriver is nil and this test silently skips that work,
 	// i.e. it does not reproduce what actually runs in production.
-	blobs.SetDeriveFirstContentImage(documentsv3.DeriveFirstContentImage)
+	blobs.SetDeriveDocFields(documentsv3.DeriveDocFields)
 
 	require.NoError(t, blobs.Reindex(context.Background()))
 }

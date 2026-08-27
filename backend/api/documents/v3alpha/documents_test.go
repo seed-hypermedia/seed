@@ -200,7 +200,7 @@ func TestListRootDocuments(t *testing.T) {
 	require.Equal(t, "", roots.NextPageToken, "must have no page token for a single item")
 
 	wantAlicesRoot := DocumentToListItem(profile)
-	stampEmptyFirstImage(wantAlicesRoot)
+	stampDerivedFields(wantAlicesRoot)
 
 	testutil.StructsEqual(bobsRoot, roots.Documents[0]).
 		IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
@@ -211,12 +211,14 @@ func TestListRootDocuments(t *testing.T) {
 		Compare(t, "alice's root document must match and be second")
 }
 
-// stampEmptyFirstImage sets the index-derived first_image_in_content field on
-// an expected listing item. Listings carry the field for every document
-// without a cover/icon (empty = "derived, no image"), while DocumentToListItem
-// — converting from a raw Document — leaves it unset.
-func stampEmptyFirstImage(d *documents.DocumentInfo) *documents.DocumentInfo {
+// stampDerivedFields sets the index-derived fields on an expected listing item.
+// Listings carry first_image_in_content for every document without a
+// cover/icon (empty = "derived, no image") and is_collection for every
+// document, while DocumentToListItem — converting from a raw Document — leaves
+// both unset.
+func stampDerivedFields(d *documents.DocumentInfo) *documents.DocumentInfo {
 	d.FirstImageInContent = proto.String("")
+	d.IsCollection = proto.Bool(false)
 	return d
 }
 
@@ -362,7 +364,7 @@ func TestListDocuments(t *testing.T) {
 
 	want := []*documents.DocumentInfo{DocumentToListItem(namedDoc2), DocumentToListItem(namedDoc), DocumentToListItem(profile)}
 	for _, w := range want {
-		stampEmptyFirstImage(w)
+		stampDerivedFields(w)
 	}
 	require.Len(t, list.Documents, len(want))
 
@@ -765,7 +767,7 @@ func TestTombstoneRef(t *testing.T) {
 		require.Len(t, list.Documents, 1, "only initial root document must be in the list")
 
 		wantHome := DocumentToListItem(home)
-		stampEmptyFirstImage(wantHome)
+		stampDerivedFields(wantHome)
 		testutil.StructsEqual(wantHome, list.Documents[0]).
 			IgnoreFields(documents.DocumentInfo{}, "Breadcrumbs", "ActivitySummary").
 			Compare(t, "listing must only show home document")
@@ -845,7 +847,7 @@ func TestTombstoneRef(t *testing.T) {
 			},
 		}
 		for _, w := range want.Documents {
-			stampEmptyFirstImage(w)
+			stampDerivedFields(w)
 		}
 
 		slices.SortFunc(want.Documents, func(a, b *documents.DocumentInfo) int { return cmp.Compare(a.Version, b.Version) })
@@ -1403,7 +1405,7 @@ func TestReindexDerivesFallbackCoverImage(t *testing.T) {
 	require.False(t, ok, "a doc that gained a cover must not carry a derived fallback after reindex")
 }
 
-func TestDeriveFirstContentImageHugeChange(t *testing.T) {
+func TestDeriveDocFieldsHugeChange(t *testing.T) {
 	t.Parallel()
 
 	alice := coretest.NewTester("alice").Account
@@ -1412,7 +1414,7 @@ func TestDeriveFirstContentImageHugeChange(t *testing.T) {
 	// index cap when the change is applied (the apply loop advances the index
 	// quadratically per block). Today's writer would fail authoring such a
 	// change (it re-applies its own ops), but blobs like this exist in the wild
-	// from older writers, and the indexer derives the fallback cover for every
+	// from older writers, and the indexer derives these fields for every
 	// document Ref — including during the boot-time backfill reindex — so the
 	// deriver must surface an error instead of taking down the daemon.
 	const numBlocks = 70_000
@@ -1433,7 +1435,7 @@ func TestDeriveFirstContentImageHugeChange(t *testing.T) {
 		},
 	}
 
-	_, err := DeriveFirstContentImage("hm://alice/huge", []blob.ChangeRecord{{
+	_, err := DeriveDocFields("hm://alice/huge", []blob.ChangeRecord{{
 		CID:  cid.Undef,
 		Data: ch,
 	}})
@@ -3098,4 +3100,262 @@ func signPreparedChangeBlob(unsignedBytes []byte, kp *core.KeyPair) (blob.Encode
 		Data:    blk.RawData(),
 		Decoded: &change,
 	}, nil
+}
+
+func TestListDirectoryDerivesIsCollection(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+
+	queryAttrs := func(space, path, mode string) *structpb.Struct {
+		return must.Do2(structpb.NewStruct(map[string]any{
+			"style": "Table",
+			"query": map[string]any{
+				"includes": []any{
+					map[string]any{"space": space, "path": path, "mode": mode},
+				},
+			},
+		}))
+	}
+
+	// A collection: a single childless Query block listing this document's own
+	// children. Nothing in its metadata says so — shape is the only thing that
+	// makes a document a collection, which is why the indexer has to derive it.
+	notes, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/notes",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: "Notes"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "q1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id: "q1", Type: "Query",
+					Attributes: queryAttrs(aliceSpace, "/notes", "Children"),
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// Same shape, but the query points somewhere else: it lists another
+	// document's children, so it is not this document's collection.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/elsewhere-query",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "q1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{
+					Id: "q1", Type: "Query",
+					Attributes: queryAttrs(aliceSpace, "/notes", "Children"),
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// An ordinary prose document.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/prose",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "p1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "p1", Type: "Paragraph", Text: "just prose"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	// A document carrying `"type": "Collection"` metadata but nothing like a
+	// collection's shape. The flag is no longer what identifies a collection, so
+	// this must read as an ordinary document: shape is the single source of
+	// truth, and a stray authored key cannot override it.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/flagged",
+		Account:        aliceSpace,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "type", Value: "Collection"},
+			}},
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "p1", Parent: "", LeftSibling: ""},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "p1", Type: "Paragraph", Text: "flagged but shapeless"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+		Account:       aliceSpace,
+		DirectoryPath: "",
+		Recursive:     true,
+	})
+	require.NoError(t, err)
+
+	byPath := map[string]*documents.DocumentInfo{}
+	for _, d := range list.Documents {
+		byPath[d.Path] = d
+	}
+
+	// The derived value must ride the typed field only, never the user-authored
+	// metadata map.
+	isCollection := func(path string) bool {
+		d := byPath[path]
+		require.NotNil(t, d, "expected %s in the listing", path)
+		require.NotNil(t, d.Metadata)
+		require.NotContains(t, d.Metadata.Fields, "isCollection",
+			"derived value must not pollute the metadata map")
+		require.NotNil(t, d.IsCollection, "derivation must have run for %s", path)
+		return *d.IsCollection
+	}
+
+	require.True(t, isCollection("/notes"),
+		"a single childless self-query block makes the document a collection")
+	require.False(t, isCollection("/elsewhere-query"),
+		"a query listing another document's children is not this document's collection")
+	require.False(t, isCollection("/prose"))
+	require.False(t, isCollection("/flagged"),
+		`authored "type": "Collection" metadata must not make a shapeless document a collection`)
+
+	// Adding a second top-level block stops it being a collection, and the
+	// derived value must be overwritten rather than left stale.
+	_, err = alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+		SigningKeyName: "main",
+		Path:           "/notes",
+		Account:        aliceSpace,
+		BaseVersion:    notes.Version,
+		Changes: []*documents.DocumentChange{
+			{Op: &documents.DocumentChange_MoveBlock_{
+				MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "p1", Parent: "", LeftSibling: "q1"},
+			}},
+			{Op: &documents.DocumentChange_ReplaceBlock{
+				ReplaceBlock: &documents.Block{Id: "p1", Type: "Paragraph", Text: "now with prose"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	list, err = alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+		Account:       aliceSpace,
+		DirectoryPath: "",
+		Recursive:     true,
+	})
+	require.NoError(t, err)
+	for _, d := range list.Documents {
+		byPath[d.Path] = d
+	}
+
+	require.False(t, isCollection("/notes"),
+		"a stale collection flag must not outlive the shape that produced it")
+}
+
+func TestBackfillDerivesIsCollection(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := context.Background()
+	aliceSpace := alice.me.Account.PublicKey.String()
+
+	publishCollection := func(path string) {
+		t.Helper()
+		_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: "main",
+			Path:           path,
+			Account:        aliceSpace,
+			Changes: []*documents.DocumentChange{
+				{Op: &documents.DocumentChange_MoveBlock_{
+					MoveBlock: &documents.DocumentChange_MoveBlock{BlockId: "q1", Parent: "", LeftSibling: ""},
+				}},
+				{Op: &documents.DocumentChange_ReplaceBlock{
+					ReplaceBlock: &documents.Block{
+						Id: "q1", Type: "Query",
+						Attributes: must.Do2(structpb.NewStruct(map[string]any{
+							"query": map[string]any{
+								"includes": []any{
+									map[string]any{"space": aliceSpace, "path": path, "mode": "Children"},
+								},
+							},
+						})),
+					},
+				}},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	publishCollection("/one")
+	publishCollection("/two")
+
+	isCollection := func(path string) *bool {
+		t.Helper()
+		list, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+			Account:       aliceSpace,
+			DirectoryPath: "",
+			Recursive:     true,
+		})
+		require.NoError(t, err)
+		for _, d := range list.Documents {
+			if d.Path == path {
+				return d.IsCollection
+			}
+		}
+		t.Fatalf("expected %s in the listing", path)
+		return nil
+	}
+
+	require.True(t, *isCollection("/one"))
+	require.True(t, *isCollection("/two"))
+
+	// Simulate a database indexed before the field existed: drop the derived
+	// attribute, leaving the documents exactly as an older daemon left them.
+	// This is the state the asynchronous backfill exists to repair — without a
+	// full reindex, and without blocking startup.
+	{
+		conn, release, err := alice.db.WriteConn(ctx)
+		require.NoError(t, err)
+		err = sqlitex.Exec(conn, `
+			DELETE FROM document_attributes
+			WHERE key IN (SELECT id FROM document_attribute_keys WHERE key = ?)
+		`, nil, blob.IsCollectionAttr)
+		release()
+		require.NoError(t, err)
+	}
+
+	require.Nil(t, isCollection("/one"), "an underived document must report unset, not false")
+	require.Nil(t, isCollection("/two"))
+
+	// One bounded pass picks up exactly what it was asked for, leaving the rest
+	// for the next one — the property that keeps a backfill off the write path
+	// for long.
+	n, err := alice.idx.BackfillDocFields(ctx, 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "a bounded pass must derive at most its batch size")
+
+	n, err = alice.idx.BackfillDocFields(ctx, 10)
+	require.NoError(t, err)
+	require.Equal(t, 1, n, "the second pass picks up the generation the first left")
+
+	require.True(t, *isCollection("/one"))
+	require.True(t, *isCollection("/two"))
+
+	n, err = alice.idx.BackfillDocFields(ctx, 10)
+	require.NoError(t, err)
+	require.Zero(t, n, "a drained backfill must report nothing pending, so the worker can stop")
 }

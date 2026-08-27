@@ -1,3 +1,4 @@
+import {isDocumentInfoCollection} from '@seed-hypermedia/client/hm-types'
 import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from '@shm/shared'
 import {useDirectory} from '@shm/shared/models/entity'
@@ -125,7 +126,7 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
                       onClick={() => onNavigate(doc.id)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {doc.metadata.type === 'Collection' ? (
+                      {isDocumentInfoCollection(doc) ? (
                         <Grid3X3 aria-label="Document collection" className="size-3 shrink-0" />
                       ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-3 shrink-0" />

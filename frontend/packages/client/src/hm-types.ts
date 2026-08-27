@@ -771,9 +771,32 @@ export const HMDocumentInfoSchema = z.object({
   // full document. Undefined = not derived (yet); empty string = derived, the
   // document has no content image (cards skip their fallback fetch).
   firstImageInContent: z.string().optional(),
+  // Indexer-derived collection flag: the document's content is a single
+  // childless Query block listing its own children. Undefined = not derived
+  // (yet) — the backfill is asynchronous, so read undefined as "not known to be
+  // a collection", never as "not a collection". Read it via
+  // isDocumentInfoCollection.
+  isCollection: z.boolean().optional(),
   visibility: HMResourceVisibilitySchema,
 })
 export type HMDocumentInfo = z.infer<typeof HMDocumentInfoSchema>
+
+/**
+ * Whether a listing item is a document collection.
+ *
+ * Collections are identified by their shape — content that is a single childless
+ * Query block listing the document's own children — which only the indexer can
+ * see, because resolving the block tree means replaying the document's whole
+ * change history. Listings carry the answer as a derived field so cards never
+ * have to fetch the document to find out.
+ *
+ * `isCollection === undefined` means the indexer has not derived it yet, so read
+ * it as "not known to be a collection" rather than "not a collection": the
+ * derivation is backfilled asynchronously.
+ */
+export function isDocumentInfoCollection(doc: Pick<HMDocumentInfo, 'isCollection'>): boolean {
+  return doc.isCollection === true
+}
 
 export type HMLibraryDocument = HMDocumentInfo & {
   type: 'document'

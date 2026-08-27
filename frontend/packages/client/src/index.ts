@@ -47,6 +47,7 @@ export {
   getHMQueryString,
   hmIdPathToEntityQueryPath,
   HYPERMEDIA_SCHEME,
+  isDocumentInfoCollection,
   isSurrogate,
   packBaseId,
   packHmId,
