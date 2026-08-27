@@ -48,34 +48,31 @@ describe('metadata direct edit', () => {
       ),
     )
 
-  it('offers Edit schema in context, and the object pencil edits in context, when the field is editable', () => {
+  it('every ipfs object field — schemaDefinition included — gets the in-context pencil when editable', () => {
     const onEditField = vi.fn()
     mount({isFieldEditable: () => true, onEditField})
-    const direct = container.querySelector('[data-testid="schema-definition-edit-direct"]') as HTMLButtonElement
-    expect(direct).toBeTruthy()
-    act(() => direct.click())
+    const pencils = Array.from(
+      container.querySelectorAll('[aria-label="Edit linked object"][data-direct-edit="true"]'),
+    ) as HTMLButtonElement[]
+    expect(pencils).toHaveLength(2)
+    pencils.forEach((p) => act(() => p.click()))
+    expect(onEditField.mock.calls.map((c) => c[0]).sort()).toEqual(['schemaDefinition', 'stats'])
     expect(onEditField).toHaveBeenCalledWith('schemaDefinition', stats)
-    const pencil = container.querySelector(
-      '[aria-label="Edit linked object"][data-direct-edit="true"]',
-    ) as HTMLButtonElement
-    expect(pencil).toBeTruthy()
-    act(() => pencil.click())
-    expect(onEditField).toHaveBeenLastCalledWith('stats', stats)
+    // No hardcoded schema row.
+    expect(container.textContent).not.toContain('Define schema')
+    expect(container.textContent).not.toContain('Edit as form')
   })
 
   it('hides in-context editing when the draft already overrides the field', () => {
     const onEditField = vi.fn()
     mount({isFieldEditable: (k) => k !== 'schemaDefinition' && k !== 'stats', onEditField})
-    expect(container.querySelector('[data-testid="schema-definition-edit-direct"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Edit linked object"][data-direct-edit="true"]')).toBeNull()
-    // The draft-based form dialog remains; there is no other object pencil.
-    expect(container.textContent).toContain('Edit schema')
     expect(container.querySelector('[aria-label="Edit linked object"]')).toBeNull()
+    // The pills are still there (open + ✕), just no in-context pencil.
+    expect(container.querySelectorAll('[data-testid="ipfs-object-pill"]').length).toBe(2)
   })
 
   it('has no in-context editing without a provider (unpublished document)', () => {
     mount(undefined)
-    expect(container.querySelector('[data-testid="schema-definition-edit-direct"]')).toBeNull()
     expect(container.querySelector('[data-direct-edit="true"]')).toBeNull()
   })
 })

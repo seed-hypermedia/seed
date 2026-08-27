@@ -855,7 +855,7 @@ export type HMMetadata = {
   schema?: HMHmUrl
   /** The schema this document's CHILDREN must conform to (hm:// URL or ipfs://<cid>). Children may declare their own `schema` if it descends from this one. */
   childrenSchema?: HMHmUrl
-  /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Other documents reference this document's URL as their `schema`/`childrenSchema`. */
+  /** This document DEFINES a schema: ipfs://<cid> of the schema blob it describes. Its target is the meta-schema, so an editor creates and validates the blob as an Onyx schema. Other documents reference this document's URL as their `schema`/`childrenSchema`. */
   schemaDefinition?: HMIpfs
   layout?: 'Seed/Experimental/Newspaper' | ''
   displayPublishTime?: string
