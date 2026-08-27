@@ -18,6 +18,21 @@ import {TooltipProvider} from '../tooltip'
 
 // Navigation is app plumbing; the page only needs push/replace callbacks.
 const nav = vi.hoisted(() => ({push: vi.fn(), replace: vi.fn()}))
+// The document a field edit is scoped to (a published doc at version v1).
+const contextDoc = vi.hoisted(() => ({
+  metadata: {name: 'Character'},
+  version: 'v1',
+  genesis: 'bafygenesis',
+  generationInfo: {generation: 3},
+}))
+vi.mock('@shm/shared/models/entity', async (importOriginal) => {
+  const original = await importOriginal<Record<string, unknown>>()
+  return {
+    ...original,
+    useResource: (id: unknown) => ({data: id ? {type: 'document', document: contextDoc} : undefined, isLoading: false}),
+  }
+})
+
 vi.mock('@shm/shared/utils/navigation', async (importOriginal) => {
   const original = await importOriginal<Record<string, unknown>>()
   return {
@@ -41,7 +56,11 @@ describe('InspectIpfsPage as the blob editor', () => {
     container.remove()
   })
 
-  function mount(ipfsPath: string, blobs: Record<string, unknown> = {}) {
+  function mount(
+    ipfsPath: string,
+    blobs: Record<string, unknown> = {},
+    props: {editField?: {docUrl: string; field: string}} = {},
+  ) {
     const published: {cid?: string; data: Uint8Array}[] = []
     nav.push.mockReset()
     nav.replace.mockReset()
@@ -54,13 +73,20 @@ describe('InspectIpfsPage as the blob editor', () => {
         published.push(...input.blobs)
         return {cids: input.blobs.map((b) => b.cid!)}
       }),
+      publishDocument: vi.fn(async () => {}),
     }
+    const selectedIdentity = {get: () => 'z6MkSigner', subscribe: () => () => {}}
     act(() =>
       root.render(
         <QueryClientProvider client={new QueryClient({defaultOptions: {queries: {retry: false}}})}>
-          <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={client as any}>
+          <UniversalAppProvider
+            openUrl={() => {}}
+            openRoute={null}
+            universalClient={client as any}
+            selectedIdentity={selectedIdentity as any}
+          >
             <TooltipProvider>
-              <InspectIpfsPage ipfsPath={ipfsPath} />
+              <InspectIpfsPage ipfsPath={ipfsPath} {...props} />
             </TooltipProvider>
           </UniversalAppProvider>
         </QueryClientProvider>,
@@ -144,5 +170,57 @@ describe('InspectIpfsPage as the blob editor', () => {
     act(() => (bar.querySelector('[data-testid="blob-edit"]') as HTMLButtonElement).click())
     expect(container.querySelector('[data-testid="blob-publish"]')).toBeTruthy()
     expect(container.textContent).toContain('Editing blob')
+  })
+
+  it('field context: edits the referenced object and, on confirm, publishes a direct metadata change', async () => {
+    const schema = {name: 'Stats', type: 'hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map', properties: {}}
+    const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
+    const docUrl = 'hm://z6MkOwner/world/types/character'
+    const {client, published} = mount(cid, {[cid]: schema}, {editField: {docUrl, field: 'schemaDefinition'}})
+    await flush()
+    // Opens straight into a draft, with the context spelled out.
+    expect(container.textContent).toContain('Editing schemaDefinition')
+    const banner = container.querySelector('[data-testid="edit-field-context"]')!
+    expect(banner.textContent).toContain('schemaDefinition')
+    expect(banner.textContent).toContain('Character')
+    const publish = container.querySelector('[data-testid="blob-publish"]') as HTMLButtonElement
+    // Nothing to publish until something changes.
+    expect(publish.disabled).toBe(true)
+    const nameInput = container.querySelector('input[value="Stats"]') as HTMLInputElement
+    expect(nameInput).toBeTruthy()
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+    await act(async () => {
+      setValue.call(nameInput, 'Stats v2')
+      nameInput.dispatchEvent(new Event('input', {bubbles: true}))
+      nameInput.dispatchEvent(new FocusEvent('focusout', {bubbles: true}))
+    })
+    await flush()
+    expect(publish.disabled).toBe(false)
+    // Publish asks for confirmation, naming the field and document.
+    act(() => publish.click())
+    await flush()
+    const confirm = document.querySelector('[data-testid="confirm-update-document"]') as HTMLButtonElement
+    expect(confirm).toBeTruthy()
+    expect(document.body.textContent).toContain('metadata.schemaDefinition')
+    expect(client.publishDocument).not.toHaveBeenCalled()
+    await act(async () => confirm.click())
+    await flush()
+    await flush()
+    // The blob is published, then the document's metadata is updated directly against its published version.
+    expect(published).toHaveLength(1)
+    expect(client.publishDocument).toHaveBeenCalledTimes(1)
+    const input = client.publishDocument.mock.calls[0]![0] as any
+    expect(input.account).toBe('z6MkOwner')
+    expect(input.signerAccountUid).toBe('z6MkSigner')
+    expect(input.path).toBe('/world/types/character')
+    expect(input.baseVersion).toBe('v1')
+    expect(input.genesis).toBe('bafygenesis')
+    expect(input.generation).toBe(3)
+    const op = input.changes[0].op
+    expect(op.case).toBe('setMetadata')
+    expect(op.value.key).toBe('schemaDefinition')
+    expect(op.value.value).toBe(`ipfs://${published[0]!.cid}`)
+    // …and we land back on the document.
+    expect(nav.push).toHaveBeenCalledWith({key: 'document', id: expect.objectContaining({uid: 'z6MkOwner'})})
   })
 })
