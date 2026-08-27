@@ -5,26 +5,14 @@
 // shapes the struct form doesn't cover (unions, generics, nesting). Kept visually
 // minimal and consistent with the value editor that renders the forms this
 // schema defines.
-import * as cbor from '@ipld/dag-cbor'
-import {Braces, Plus, X} from 'lucide-react'
-import {CID} from 'multiformats/cid'
-import {sha256} from 'multiformats/hashes/sha2'
-import {useState} from 'react'
-import {useUniversalClient} from '@shm/shared'
+import {Plus, X} from 'lucide-react'
 import {Button} from '../button'
 import {Checkbox} from '../components/checkbox'
-import {Dialog, DialogContent, DialogHeader, DialogTitle} from '../components/dialog'
 import {Input} from '../components/input'
 import {Switch} from '../components/switch'
-import {dagJsonToIpld} from '../dag-json'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
-import {toast} from '../toast'
 import {Tooltip} from '../tooltip'
-import {cn} from '../utils'
-import {OnyxDataEditor} from './onyx-data-editor'
-import {kindOf, kindUrl, MAP_URL, nameToUrl, ONYX_SCHEMAS, refToName, validate, type OnyxSchema} from './onyx-engine'
-
-const DAG_CBOR_CODE = 0x71
+import {kindOf, kindUrl, MAP_URL, nameToUrl, refToName, type OnyxSchema} from './onyx-engine'
 
 /** The field kinds a struct property can take (friendly labels). */
 const FIELD_KINDS: {kind: string; label: string}[] = [
@@ -254,99 +242,5 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
         </Button>
       </div>
     </div>
-  )
-}
-
-/** Publish an Onyx schema as a DAG-CBOR blob, returning its CID. */
-async function publishSchema(client: ReturnType<typeof useUniversalClient>, schema: OnyxSchema): Promise<string> {
-  const clean = {...schema}
-  if (!clean.description) delete (clean as any).description
-  const data = cbor.encode(dagJsonToIpld(clean) as any)
-  const digest = await sha256.digest(data)
-  const cid = CID.createV1(DAG_CBOR_CODE, digest).toString()
-  await client.request('PublishBlobs', {blobs: [{cid, data}]})
-  return cid
-}
-
-/**
- * The schema editor in a dialog — used to CREATE a new type or EDIT an existing
- * one. Struct form by default, with a JSON toggle for advanced shapes. On save it
- * publishes the schema blob and calls `onSaved(cid)`.
- */
-export function SchemaEditorDialog({
-  open,
-  onOpenChange,
-  initialSchema,
-  onSaved,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  /** Seed for editing an existing schema; omit to define a new one. */
-  initialSchema?: OnyxSchema
-  onSaved: (cid: string) => void
-}) {
-  const client = useUniversalClient()
-  const editing = !!initialSchema
-  const [schema, setSchema] = useState<OnyxSchema>(() => initialSchema ?? emptyStructSchema())
-  const [jsonMode, setJsonMode] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const errors = validate(ONYX_SCHEMAS['onyx-schema'], schema)
-  // The struct form only fits map schemas; unions/generics/etc. must use JSON.
-  const isStruct = kindOf(schema.type ?? '') === 'map' || !schema.type
-  const nameMissing = !(typeof schema.name === 'string' && schema.name.trim())
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      onSaved(await publishSchema(client, schema))
-      onOpenChange(false)
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to publish schema')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editing ? 'Edit schema' : 'Define a type'}</DialogTitle>
-        </DialogHeader>
-        <div className="mb-2 flex justify-end">
-          <Button
-            variant={jsonMode ? 'secondary' : 'ghost'}
-            size="sm"
-            className="gap-1"
-            onClick={() => setJsonMode((m) => !m)}
-            disabled={!isStruct && jsonMode}
-          >
-            <Braces className="size-4" /> {jsonMode ? 'Form' : 'JSON'}
-          </Button>
-        </div>
-        {jsonMode || !isStruct ? (
-          <OnyxDataEditor
-            schema={ONYX_SCHEMAS['onyx-schema']}
-            value={schema}
-            onValue={(v) => setSchema(v as OnyxSchema)}
-          />
-        ) : (
-          <OnyxSchemaEditor schema={schema} onSchema={setSchema} />
-        )}
-        <div className="mt-4 flex items-center justify-between border-t pt-3">
-          <span className={cn('text-xs', errors.length ? 'text-destructive' : 'text-green-600')}>
-            {errors.length ? `${errors.length} issue${errors.length > 1 ? 's' : ''} — not yet valid` : '✓ valid schema'}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" onClick={save} disabled={saving || errors.length > 0 || nameMissing}>
-              {saving ? 'Publishing…' : editing ? 'Save & republish' : 'Create type'}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }
