@@ -573,7 +573,7 @@ export function InspectIpfsPage({
         }
         cid={cid}
         shortCid={editField ? null : shortCid}
-        draft={mode === 'edit'}
+        status={mode !== 'edit' ? null : isDraft ? 'Unpublished draft' : isDirty ? 'Unpublished changes' : null}
         trafficLightInset={trafficLightInset}
         windowControls={windowControls}
         actions={
@@ -667,7 +667,7 @@ function BlobHeader({
   subject,
   cid,
   shortCid,
-  draft,
+  status,
   actions,
   trafficLightInset,
   windowControls,
@@ -677,7 +677,8 @@ function BlobHeader({
   subject?: ReactNode
   cid?: string
   shortCid: string | null
-  draft: boolean
+  /** A state badge: "Unpublished draft" for a new blob, "Unpublished changes" once a published blob is edited. */
+  status: string | null
   actions: ReactNode
   trafficLightInset?: boolean
   windowControls?: ReactNode
@@ -694,9 +695,12 @@ function BlobHeader({
         <FileText className="text-muted-foreground size-4 shrink-0" />
         <span className="shrink-0 font-medium">{title}</span>
         {subject}
-        {draft && (
-          <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
-            Unpublished draft
+        {status && (
+          <span
+            className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium"
+            data-testid="blob-status"
+          >
+            {status}
           </span>
         )}
         {shortCid && (

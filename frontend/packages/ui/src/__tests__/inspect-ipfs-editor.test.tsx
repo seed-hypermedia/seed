@@ -99,6 +99,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     const {published} = mount('new')
     await flush()
     expect(container.textContent).toContain('New blob')
+    expect(container.querySelector('[data-testid="blob-status"]')!.textContent).toBe('Unpublished draft')
     const publish = container.querySelector('[data-testid="blob-publish"]') as HTMLButtonElement
     expect(publish.disabled).toBe(false)
     await act(async () => publish.click())
@@ -189,6 +190,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     const publish = container.querySelector('[data-testid="blob-publish"]') as HTMLButtonElement
     // Nothing to publish until something changes.
     expect(publish.disabled).toBe(true)
+    expect(container.textContent).not.toContain('Unpublished')
     const nameInput = container.querySelector('input[value="Stats"]') as HTMLInputElement
     expect(nameInput).toBeTruthy()
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
@@ -199,6 +201,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     })
     await flush()
     expect(publish.disabled).toBe(false)
+    expect(container.querySelector('[data-testid="blob-status"]')!.textContent).toBe('Unpublished changes')
     // Publish asks for confirmation, naming the field and document.
     act(() => publish.click())
     await flush()
