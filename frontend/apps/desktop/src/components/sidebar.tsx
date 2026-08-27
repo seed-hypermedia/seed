@@ -1,18 +1,10 @@
-import {useComments} from '@/models/comments'
 import {useContactList} from '@/models/contacts'
 import {useSubscribedDocuments} from '@/models/library'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
 import {useCreateSpaceDialog} from './create-space-dialog'
 import {useNavigate} from '@/utils/useNavigate'
-import {
-  HMAccountsMetadata,
-  HMActivitySummary,
-  HMComment,
-  HMContactRecord,
-  HMMetadata,
-  UnpackedHypermediaId,
-} from '@seed-hypermedia/client/hm-types'
+import {HMContactRecord, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {defaultJoinedSiteUid, useRouteLink} from '@shm/shared'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -21,7 +13,6 @@ import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {LibraryEntryUpdateSummary} from '@shm/ui/activity'
 import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {
@@ -243,16 +234,7 @@ function SubscriptionsSection() {
   const route = useNavRoute()
 
   const accountsMetadata = accountList.data?.accountsMetadata
-
-  // Fetch document-level activity
   const subscribedDocs = useSubscribedDocuments()
-
-  // Fetch comments for account-level activity
-  const commentIds = accounts
-    .map((acc) => acc.activitySummary?.latestCommentId)
-    .filter((id): id is string => !!id && id.length > 0)
-    .map((id) => hmId(id))
-  const comments = useComments(commentIds)
 
   return (
     <SidebarSection title="Joined Spaces">
@@ -275,23 +257,8 @@ function SubscriptionsSection() {
           if (!name && siteResource?.isLoading && selectedAccountId) return null
           if (!name && selectedAccountId) return null
 
-          // Get activity data
-          const docData = subscribedDocs.data?.get(id.id)
-
-          let activitySummary: HMActivitySummary | undefined
-          let latestComment: HMComment | undefined
-
-          if (account?.activitySummary) {
-            activitySummary = account.activitySummary as HMActivitySummary
-            latestComment = activitySummary?.latestCommentId
-              ? comments.data?.find((c) => c?.id === activitySummary?.latestCommentId)
-              : undefined
-          } else {
-            activitySummary = docData?.activitySummary
-            latestComment = docData?.latestComment ?? undefined
-          }
-
-          const isUnread = activitySummary?.isUnread ?? false
+          const isUnread =
+            account?.activitySummary?.isUnread ?? subscribedDocs.data?.get(id.id)?.activitySummary?.isUnread ?? false
           return (
             <SidebarMenuItem key={id.id}>
               <JoinedSiteListItem
@@ -300,9 +267,6 @@ function SubscriptionsSection() {
                 metadata={metadata}
                 active={isSiteDocumentsActiveRoute(route, id)}
                 isUnread={isUnread}
-                activitySummary={activitySummary}
-                latestComment={latestComment}
-                accountsMetadata={accountsMetadata}
                 canLeave={!!selectedAccountId}
               />
             </SidebarMenuItem>
@@ -326,9 +290,6 @@ function JoinedSiteListItem({
   metadata,
   active,
   isUnread,
-  activitySummary,
-  latestComment,
-  accountsMetadata,
   canLeave = true,
 }: {
   id: UnpackedHypermediaId
@@ -336,9 +297,6 @@ function JoinedSiteListItem({
   metadata: HMMetadata
   active: boolean
   isUnread: boolean
-  activitySummary?: HMActivitySummary
-  latestComment?: HMComment
-  accountsMetadata?: HMAccountsMetadata
   canLeave?: boolean
 }) {
   const linkProps = useRouteLink({key: 'document', id})
@@ -356,18 +314,9 @@ function JoinedSiteListItem({
         onClick={linkProps.onClick}
       >
         <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="mt-0.5 shrink-0 self-center" />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <span className={cn('truncate text-left text-sm select-none', isUnread && 'font-bold')}>
-            {metadata?.name || 'Untitled'}
-          </span>
-          {activitySummary && (
-            <LibraryEntryUpdateSummary
-              accountsMetadata={accountsMetadata}
-              latestComment={latestComment}
-              activitySummary={activitySummary}
-            />
-          )}
-        </div>
+        <span className={cn('min-w-0 flex-1 truncate text-left text-sm select-none', isUnread && 'font-bold')}>
+          {metadata?.name || 'Untitled'}
+        </span>
       </SidebarMenuButton>
       <OptionsDropdown
         side="right"
