@@ -4,9 +4,10 @@ import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResources} from '@shm/shared/models/entity'
 import {createDocumentNavRoute, type ProfileTab} from '@shm/shared/routes'
-import {viewTermToRouteKey, type ViewTerm} from '@shm/shared/utils/entity-id-url'
+import {hmId, viewTermToRouteKey, type ViewTerm} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {HMIcon} from '@shm/ui/hm-icon'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {
@@ -17,12 +18,13 @@ import {
   History,
   Lock,
   MessageSquare,
+  MessagesSquare,
   Quote,
   User,
   Users,
   X,
 } from 'lucide-react'
-import React, {useState, type ElementType, type KeyboardEvent, type MouseEvent} from 'react'
+import {useState, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode} from 'react'
 
 /** Return a copy of the stored bookmark list ordered from newest to oldest. */
 export function newestBookmarksFirst<T>(bookmarks: readonly T[]): T[] {
@@ -31,7 +33,7 @@ export function newestBookmarksFirst<T>(bookmarks: readonly T[]): T[] {
 
 const VIEW_TERM_ICONS: Record<string, ElementType> = {
   ':content': FileText,
-  ':comments': MessageSquare,
+  ':comments': MessagesSquare,
   ':activity': Quote,
   ':collaborators': Users,
   ':directory': Folder,
@@ -51,11 +53,26 @@ function profileTabFromViewTerm(viewTerm: ViewTerm | null): ProfileTab {
   }
 }
 
+/** Build the navigation destination for a persisted bookmark. */
+export function bookmarkRoute(bookmark: BookmarkItem) {
+  if (bookmark.key === 'comment') {
+    return {key: 'comments' as const, id: bookmark.targetId, openComment: bookmark.commentId}
+  }
+  if (bookmark.key === 'profile') {
+    return {key: 'profile' as const, id: bookmark.id, tab: profileTabFromViewTerm(bookmark.viewTerm)}
+  }
+  return bookmark.viewTerm
+    ? createDocumentNavRoute(bookmark.id, viewTermToRouteKey(bookmark.viewTerm))
+    : {key: 'document' as const, id: bookmark.id}
+}
+
 /** Titlebar control and popover for navigating and removing saved bookmarks. */
 export function BookmarksPopover() {
   const [open, setOpen] = useState(false)
   const bookmarks = newestBookmarksFirst(useBookmarks())
-  const bookmarkEntities = useResources(bookmarks.map((bookmark) => bookmark.id))
+  const bookmarkEntities = useResources(
+    bookmarks.map((bookmark) => (bookmark.key === 'comment' ? hmId(bookmark.authorAccountId) : bookmark.id)),
+  )
   const contacts = useSelectedAccountContacts()
   const removeBookmark = useRemoveBookmark()
 
@@ -91,6 +108,33 @@ export function BookmarksPopover() {
             {bookmarks.map((bookmark, index) => {
               const entity = bookmarkEntities[index]
               const deleting = removeBookmark.isLoading && removeBookmark.variables === bookmark.url
+
+              if (bookmark.key === 'comment') {
+                const authorId = hmId(bookmark.authorAccountId)
+                const authorMetadata = getContactMetadata(
+                  bookmark.authorAccountId,
+                  entity?.data?.type === 'document' ? entity.data.document?.metadata : undefined,
+                  contacts.data,
+                )
+                return (
+                  <BookmarkRow
+                    key={bookmark.url}
+                    bookmark={bookmark}
+                    title={bookmark.title}
+                    leading={
+                      <span className="relative size-8 shrink-0">
+                        <HMIcon id={authorId} name={authorMetadata.name} icon={authorMetadata.icon} size={32} />
+                        <span className="bg-background ring-background absolute -right-1 -bottom-1 z-10 flex size-4 items-center justify-center rounded-full ring-2">
+                          <MessageSquare className="text-foreground size-3" />
+                        </span>
+                      </span>
+                    }
+                    deleting={deleting}
+                    onRemove={() => removeBookmark.mutate(bookmark.url)}
+                    onNavigate={() => setOpen(false)}
+                  />
+                )
+              }
 
               if (!entity?.data || entity.data.type !== 'document') {
                 if (entity?.isLoading) return null
@@ -147,6 +191,7 @@ function BookmarkRow({
   title,
   titleClassName,
   icon: Icon,
+  leading,
   privateDocument,
   deleting,
   onRemove,
@@ -156,17 +201,13 @@ function BookmarkRow({
   title: string
   titleClassName?: string
   icon?: ElementType
+  leading?: ReactNode
   privateDocument?: boolean
   deleting: boolean
   onRemove: () => void
   onNavigate: () => void
 }) {
-  const route =
-    bookmark.key === 'profile'
-      ? {key: 'profile' as const, id: bookmark.id, tab: profileTabFromViewTerm(bookmark.viewTerm)}
-      : bookmark.viewTerm
-        ? createDocumentNavRoute(bookmark.id, viewTermToRouteKey(bookmark.viewTerm))
-        : {key: 'document' as const, id: bookmark.id}
+  const route = bookmarkRoute(bookmark)
   const linkProps = useRouteLink(route)
   const LeadingIcon =
     Icon ||
@@ -191,9 +232,11 @@ function BookmarkRow({
         }
       }}
     >
-      <span className="bg-muted-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
-        <LeadingIcon className="size-4" />
-      </span>
+      {leading || (
+        <span className="bg-muted-foreground/15 text-foreground flex size-8 shrink-0 items-center justify-center rounded-full">
+          <LeadingIcon className="size-4" />
+        </span>
+      )}
       <span className={cn('min-w-0 flex-1 truncate text-sm font-medium', titleClassName)} title={title}>
         {title}
       </span>

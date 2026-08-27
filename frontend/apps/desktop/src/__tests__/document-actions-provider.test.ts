@@ -13,3 +13,12 @@ describe('DesktopDocumentActionsProvider restore action wiring', () => {
     )
   })
 })
+
+describe('DesktopDocumentActionsProvider bookmark wiring', () => {
+  it('passes comment snapshot metadata to bookmark storage', () => {
+    const source = readFileSync(join(__dirname, '../components/document-actions-provider.tsx'), 'utf8')
+
+    expect(source).toContain('onBookmarkToggle = useCallback(')
+    expect(source).toContain('setBookmark.mutate({url: id.id, isBookmark: !bookmarked, metadata})')
+  })
+})

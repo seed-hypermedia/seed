@@ -29,6 +29,9 @@ import {
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {commentToText} from '@shm/shared/content-to-text'
+import {extractAllContentRefs, getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {
   useBlockDiscussions,
   useCommentReplyCount,
@@ -36,11 +39,12 @@ import {
   useDocumentComments,
   useDocumentDiscussions,
 } from '@shm/shared/models/comments'
-import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
+import {useIsCurrentUser, useResource, useResources} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
@@ -57,6 +61,11 @@ import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {cn} from './utils'
+
+/** Return a normalized 50-character snapshot for a comment bookmark title. */
+export function commentBookmarkTitle(content: HMBlockNode[], resolvedNames?: Readonly<Record<string, string>>): string {
+  return commentToText({comment: {content}, resolvedNames, lineBreaks: false}).replace(/\s+/g, ' ').trim().slice(0, 50)
+}
 
 export function CommentDiscussions({
   targetId,
@@ -617,12 +626,42 @@ export const Comment = memo(function Comment({
   const updateCommentMutation = useUpdateComment()
   const deleteCommentDialog = useDeleteCommentDialog()
   const currentRoute = useNavRoute()
+  const documentActions = useDocumentActions()
+  const {contacts, origin: appOrigin} = useUniversalAppContext()
+
+  const bookmarkRefs = useMemo(
+    () => Array.from(new Map(extractAllContentRefs(comment.content).map((ref) => [ref.link, ref])).values()),
+    [comment.content],
+  )
+  const bookmarkRefIds = useMemo(
+    () => bookmarkRefs.map(({refId}) => (refId.path?.[0] === ':profile' ? hmId(refId.path[1] || refId.uid) : refId)),
+    [bookmarkRefs],
+  )
+  const bookmarkRefResources = useResources(bookmarkRefIds, {subscribed: true})
+  const bookmarkResolvedNames = useMemo(() => {
+    const names: Record<string, string> = {}
+    bookmarkRefs.forEach((ref, index) => {
+      const id = unpackHmId(ref.link)
+      const resource = bookmarkRefResources[index]?.data
+      if (!id || resource?.type !== 'document') return
+
+      const profileAccountUid = id.path?.[0] === ':profile' ? id.path[1] || id.uid : null
+      names[ref.link] =
+        profileAccountUid || !id.path?.length
+          ? getContactMetadata(profileAccountUid || id.uid, resource.document.metadata, contacts).name
+          : getDocumentTitle(resource.document)
+    })
+    return names
+  }, [bookmarkRefs, bookmarkRefResources, contacts])
 
   const authorHmId = comment.author || authorId ? hmId(authorId || comment.author) : null
   const docId = getCommentTargetId(comment)
+  const commentHmId = commentIdToHmId(comment.id)
+  const bookmarkTitle = commentBookmarkTitle(comment.content, bookmarkResolvedNames)
+  const bookmarkAuthorAccountId = comment.author || authorId
+  const isBookmarked = documentActions.isBookmarked?.(commentHmId) ?? false
   const authorLink = useRouteLink(getContextualProfileRoute(currentRoute, authorHmId, docId?.uid))
   const copyHmLink = useCopyHmLink()
-  const {origin: appOrigin} = useUniversalAppContext()
 
   const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
 
@@ -762,6 +801,26 @@ export const Comment = memo(function Comment({
               </InlineDescriptor>
             )}
             <div className="flex items-center gap-2">
+              {!isEditing && documentActions.onBookmarkToggle && docId && bookmarkTitle && bookmarkAuthorAccountId ? (
+                <Tooltip content={tx(isBookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks')}>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    aria-label={isBookmarked ? 'Remove Comment from Bookmarks' : 'Add Comment to Bookmarks'}
+                    className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
+                    onClick={() =>
+                      documentActions.onBookmarkToggle?.(commentHmId, {
+                        title: bookmarkTitle,
+                        commentId: comment.id,
+                        targetUrl: hmId(docId.uid, {path: docId.path}).id,
+                        authorAccountId: bookmarkAuthorAccountId,
+                      })
+                    }
+                  >
+                    <MessageSquare className={cn('size-3', isBookmarked && 'fill-current')} />
+                  </Button>
+                </Tooltip>
+              ) : null}
               {!isEditing && (
                 <Tooltip content={tx('Copy Comment Link')}>
                   <Button

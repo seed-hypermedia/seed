@@ -1,6 +1,5 @@
 import {GRPCClient} from '.'
-import {isSurrogate} from './client/unicode'
-import {HMBlock, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMBlock, HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from './utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
 
@@ -18,6 +17,68 @@ interface DocumentToTextOptions {
   resolveInlineEmbeds?: boolean
   lineBreaks?: boolean
   debug?: boolean
+}
+
+type ContentToTextOptions = {
+  content: HMBlockNode[]
+  resolvedNames?: Readonly<Record<string, string>>
+  lineBreaks?: boolean
+}
+
+/** Converts already-loaded block content to text without fetching referenced data. */
+export function contentToText({content, resolvedNames = {}, lineBreaks = true}: ContentToTextOptions): string {
+  const textParts: string[] = []
+
+  for (const node of content) {
+    const blockText = blockToPlainText(node.block, resolvedNames)
+    if (blockText) textParts.push(blockText)
+
+    if (node.children?.length) {
+      const childrenText = contentToText({content: node.children, resolvedNames, lineBreaks})
+      if (childrenText) textParts.push(childrenText)
+    }
+  }
+
+  return textParts.join(lineBreaks ? '\n\n' : ' ')
+}
+
+/** Converts an already-loaded comment to text without fetching referenced data. */
+export function commentToText({
+  comment,
+  resolvedNames,
+  lineBreaks = true,
+}: {
+  comment: Pick<HMComment, 'content'>
+  resolvedNames?: Readonly<Record<string, string>>
+  lineBreaks?: boolean
+}): string {
+  return contentToText({content: comment.content, resolvedNames, lineBreaks})
+}
+
+function blockToPlainText(block: HMBlock, resolvedNames: Readonly<Record<string, string>>): string {
+  if (block.type === 'Query') return ''
+  if (block.type === 'Button') {
+    const attributes = (block as any).attributes
+    const attrs = attributes?.toJson ? attributes.toJson({emitDefaultValues: true, enumAsInteger: false}) : attributes
+    return attrs?.name || (block as any).text || ''
+  }
+  if (block.type === 'Embed') return resolvedNames[(block as any).link] || ''
+
+  const text = (block as any).text || ''
+  const annotations = (block as any).annotations || []
+  if (!annotations.length) return text || (block as any).link || ''
+
+  const embeds = new Map<number, string>()
+  for (const annotation of annotations) {
+    const name = annotation.type === 'Embed' ? resolvedNames[annotation.link] : undefined
+    if (!name) continue
+    annotation.starts?.forEach((start: number) => embeds.set(start, name))
+  }
+  if (!embeds.size) return text
+
+  return Array.from(text)
+    .map((character, index) => embeds.get(index) || character)
+    .join('')
 }
 
 /**
@@ -171,47 +232,17 @@ async function processTextBlock(block: HMBlock, context: ConversionContext): Pro
  * Processes text with standoff annotations, replacing inline embeds with document names
  */
 async function processAnnotations(text: string, annotations: any[], context: ConversionContext): Promise<string> {
-  // Build a map of positions to inline embed links
-  const embedMap = new Map<number, string>()
-
+  const resolvedNames: Record<string, string> = {}
   for (const annotation of annotations) {
     if (annotation.type === 'Embed' && annotation.link) {
-      // Find all positions where this embed annotation applies
-      for (let i = 0; i < annotation.starts.length; i++) {
-        const start = annotation.starts[i]
-        embedMap.set(start, annotation.link)
-      }
+      resolvedNames[annotation.link] = `[${await resolveInlineEmbed(annotation.link, context)}]`
     }
   }
-
-  if (embedMap.size === 0) {
-    return text
-  }
-
-  // Walk through the text and replace embed positions with document names
-  let result = ''
-  let pos = 0
-  let i = 0
-
-  while (i < text.length) {
-    // Check for surrogate pairs
-    const ul = isSurrogate(text, i) ? 2 : 1
-
-    // Check if current position has an inline embed
-    if (embedMap.has(pos)) {
-      const link = embedMap.get(pos)!
-      const docName = await resolveInlineEmbed(link, context)
-      result += `[${docName}]`
-    } else {
-      // Add the current character(s)
-      result += text.substr(i, ul)
-    }
-
-    pos++
-    i += ul
-  }
-
-  return result
+  return contentToText({
+    content: [{block: {type: 'Paragraph', text, annotations} as HMBlock, children: []}],
+    resolvedNames,
+    lineBreaks: false,
+  })
 }
 
 /**

@@ -1,5 +1,5 @@
 import {describe, it, expect, vi} from 'vitest'
-import {documentToText} from '../document-to-text'
+import {commentToText, contentToText, documentToText} from '../content-to-text'
 import {hmId} from '../utils/entity-id-url'
 import type {GRPCClient} from '..'
 
@@ -20,6 +20,44 @@ const createMockGrpcClient = (mockDocs: Record<string, any>) => {
     },
   } as unknown as GRPCClient
 }
+
+describe('contentToText', () => {
+  it('converts nested content and expands inline embeds from resolved names', () => {
+    const content = [
+      {
+        block: {
+          id: 'one',
+          type: 'Paragraph',
+          text: 'wdyt \uFEFF and \uFEFF',
+          annotations: [
+            {type: 'Embed', link: 'hm://alice', starts: [5], ends: [6]},
+            {type: 'Embed', link: 'hm://docs/roadmap', starts: [11], ends: [12]},
+          ],
+        },
+        children: [{block: {id: 'two', type: 'Paragraph', text: 'nested text'}, children: []}],
+      },
+    ] as any
+
+    expect(
+      contentToText({
+        content,
+        resolvedNames: {
+          'hm://alice': 'Alice',
+          'hm://docs/roadmap': 'Roadmap',
+        },
+        lineBreaks: false,
+      }),
+    ).toBe('wdyt Alice and Roadmap nested text')
+  })
+
+  it('converts comment content through the shared converter', () => {
+    const comment = {
+      content: [{block: {id: 'one', type: 'Paragraph', text: 'Comment text'}, children: []}],
+    } as any
+
+    expect(commentToText({comment, lineBreaks: false})).toBe('Comment text')
+  })
+})
 
 describe('documentToText', () => {
   it('converts simple paragraph to text', async () => {

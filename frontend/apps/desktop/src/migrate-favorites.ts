@@ -4,6 +4,10 @@ const LEGACY_FAVORITES_KEY = 'Favorites-v001'
 export type BookmarksState = {
   bookmarks: {
     url: string
+    title?: string
+    commentId?: string
+    targetUrl?: string
+    authorAccountId?: string
   }[]
 }
 

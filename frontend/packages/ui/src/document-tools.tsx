@@ -16,7 +16,6 @@ import {
   History,
   Info,
   LucideIcon,
-  MessageSquare,
   MessagesSquare,
   Newspaper,
   Quote,
@@ -160,7 +159,7 @@ export function DocumentTools({
               tab: 'comments' as const,
               label: 'Comments',
               tooltip: 'Inspect Comments',
-              icon: MessageSquare,
+              icon: MessagesSquare,
             },
             {
               tab: 'citations' as const,
@@ -237,7 +236,7 @@ export function DocumentTools({
           {
             label: 'Comments',
             tooltip: 'Open Document Comments',
-            icon: MessageSquare,
+            icon: MessagesSquare,
             active: activeTab == 'comments',
             count: commentsCount,
             route: {key: 'comments', id: idWithoutBlock, panel: panelFor()},

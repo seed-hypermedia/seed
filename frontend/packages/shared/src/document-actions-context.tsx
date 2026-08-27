@@ -10,7 +10,10 @@ export type DocumentActionsContextValue = {
 
   // Bookmark
   isBookmarked?: (id: UnpackedHypermediaId) => boolean
-  onBookmarkToggle?: (id: UnpackedHypermediaId) => void
+  onBookmarkToggle?: (
+    id: UnpackedHypermediaId,
+    metadata?: {title: string; commentId: string; targetUrl: string; authorAccountId: string},
+  ) => void
 
   // Document actions — dialogs hoisted to provider
   onEditDocument?: (id: UnpackedHypermediaId, existingDraftId?: string) => void

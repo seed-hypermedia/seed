@@ -1,5 +1,18 @@
 import {describe, expect, it, vi} from 'vitest'
+import {readFileSync} from 'node:fs'
 import {migrateFromFavorites} from '../migrate-favorites'
+
+describe('comment bookmark storage', () => {
+  it('persists optional comment snapshot metadata', () => {
+    const source = readFileSync('src/app-bookmarks.ts', 'utf8')
+
+    expect(source).toContain('title: z.string().max(50).optional()')
+    expect(source).toContain('commentId: z.string().optional()')
+    expect(source).toContain('targetUrl: z.string().optional()')
+    expect(source).toContain('authorAccountId: z.string().optional()')
+    expect(source).toContain('newBookmarks.push({url: input.url, ...input.metadata})')
+  })
+})
 
 function createMockStore(initial: Record<string, any> = {}) {
   const data = {...initial}

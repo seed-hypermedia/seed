@@ -45,7 +45,11 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   const deleteDialog = useDeleteDialog()
 
   const setBookmark = useMutation({
-    mutationFn: (input: {url: string; isBookmark: boolean}) => client.bookmarks.setBookmark.mutate(input),
+    mutationFn: (input: {
+      url: string
+      isBookmark: boolean
+      metadata?: {title: string; commentId: string; targetUrl: string; authorAccountId: string}
+    }) => client.bookmarks.setBookmark.mutate(input),
     onSuccess: () => {
       invalidateQueries([queryKeys.BOOKMARKS])
     },
@@ -71,9 +75,12 @@ export function DesktopDocumentActionsProvider({children}: PropsWithChildren) {
   )
 
   const onBookmarkToggle = useCallback(
-    (id: UnpackedHypermediaId) => {
+    (
+      id: UnpackedHypermediaId,
+      metadata?: {title: string; commentId: string; targetUrl: string; authorAccountId: string},
+    ) => {
       const bookmarked = bookmarks?.some((bookmark) => bookmark.url === id.id) ?? false
-      setBookmark.mutate({url: id.id, isBookmark: !bookmarked})
+      setBookmark.mutate({url: id.id, isBookmark: !bookmarked, metadata})
     },
     [bookmarks, setBookmark],
   )

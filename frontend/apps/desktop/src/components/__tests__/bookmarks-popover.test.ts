@@ -14,7 +14,7 @@ vi.mock('@shm/shared/models/contacts', () => ({useSelectedAccountContacts: () =>
 vi.mock('@shm/shared/models/entity', () => ({useResources: () => []}))
 vi.mock('@shm/shared', () => ({useRouteLink: () => ({onClick: vi.fn()})}))
 
-import {BookmarksPopover, newestBookmarksFirst} from '../bookmarks-popover'
+import {bookmarkRoute, BookmarksPopover, newestBookmarksFirst} from '../bookmarks-popover'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 describe('newestBookmarksFirst', () => {
@@ -75,5 +75,42 @@ describe('bookmark popover focus', () => {
     const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
 
     expect(popover).toContain('onOpenAutoFocus={(event) => event.preventDefault()}')
+  })
+})
+
+describe('comments icons', () => {
+  it('uses MessagesSquare in bookmarks and document tools', () => {
+    const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
+    const documentTools = readFileSync('../../packages/ui/src/document-tools.tsx', 'utf8')
+
+    expect(popover).toContain("':comments': MessagesSquare")
+    expect(documentTools).not.toMatch(/\bMessageSquare\b/)
+  })
+})
+
+describe('comment bookmarks', () => {
+  it('routes directly to the bookmarked comment', () => {
+    expect(
+      bookmarkRoute({
+        key: 'comment',
+        id: {id: 'hm://alice/comment', uid: 'alice', path: ['comment']},
+        url: 'hm://alice/comment',
+        viewTerm: null,
+        title: 'Saved comment',
+        commentId: 'alice/comment',
+        targetId: {id: 'hm://space/doc', uid: 'space', path: ['doc']},
+        authorAccountId: 'alice',
+      } as any),
+    ).toEqual({key: 'comments', id: expect.objectContaining({uid: 'space'}), openComment: 'alice/comment'})
+  })
+
+  it('renders the author avatar with a comment badge', () => {
+    const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
+
+    expect(popover).toContain('<HMIcon id={authorId}')
+    expect(popover).toContain(
+      'bg-muted-foreground/20 ring-background absolute -right-1 -bottom-1 z-10 flex size-5 items-center justify-center rounded-full ring-2',
+    )
+    expect(popover).toContain('<MessageSquare className="text-foreground size-3" />')
   })
 })
