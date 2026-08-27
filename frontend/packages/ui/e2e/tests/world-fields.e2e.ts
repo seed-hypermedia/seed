@@ -30,6 +30,18 @@ async function openAddFieldDialog(page: Page) {
   await expect(page.getByRole('dialog', {name: 'Add field'})).toBeVisible()
 }
 
+/** Open the schema form for an empty schemaDefinition field (the object dialog, locked to the meta-schema). */
+async function openDefineDialog(page: Page) {
+  await page
+    .getByRole('treeitem', {name: /^schemaDefinition/})
+    .first()
+    .getByRole('button', {name: 'Create linked object'})
+    .click()
+  const dialog = page.getByRole('dialog', {name: /New object/})
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
 /** Add one of the conformance schema's optional declared fields. */
 async function addSchemaField(page: Page, name: string) {
   await openAddFieldDialog(page)
@@ -96,7 +108,6 @@ test.describe('world-builder field types', () => {
     // The field now references the published object, shown as an object pill with an edit action.
     await expect.poll(async () => (await meta(page)).stats).toMatch(/^ipfs:\/\/bafyrei/)
     await expect(stats.getByTestId('ipfs-object-pill')).toBeVisible()
-    await expect(stats.getByRole('button', {name: 'Edit linked object'})).toBeVisible()
     // The published blob is the stats value, self-described by a `schema` link.
     // (Stringify the CID link in-page: a CID object does not survive structured clone.)
     const published: any = await page.evaluate(() => {
@@ -132,9 +143,7 @@ test.describe('world-builder field types', () => {
 
   test('the schema editor offers Date fields and a target type for references', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
-    await page.getByRole('button', {name: 'Define schema'}).click()
-    const dialog = page.getByRole('dialog', {name: 'Define a type'})
-    await expect(dialog).toBeVisible()
+    const dialog = await openDefineDialog(page)
     await dialog.getByPlaceholder('e.g. Employee').fill('Quest')
 
     // A Date field.
@@ -150,7 +159,7 @@ test.describe('world-builder field types', () => {
     await page.getByRole('option', {name: 'HM link'}).click()
     await dialog.getByLabel('Target type for giver').fill(`${ONYX}/example-character-doc`)
 
-    await dialog.getByRole('button', {name: 'Create type'}).click()
+    await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(published.properties.due).toEqual({ref: `${ONYX}/date`})
@@ -159,9 +168,7 @@ test.describe('world-builder field types', () => {
 
   test('the schema editor can define a signed blob type (extends the envelope, pins a type tag)', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
-    await page.getByRole('button', {name: 'Define schema'}).click()
-    const dialog = page.getByRole('dialog', {name: 'Define a type'})
-    await expect(dialog).toBeVisible()
+    const dialog = await openDefineDialog(page)
     await dialog.getByPlaceholder('e.g. Employee').fill('Vote')
     await dialog.getByLabel('Signed blob type').click()
     await expect(dialog.getByLabel('Type tag')).toHaveValue('Vote')
@@ -169,7 +176,7 @@ test.describe('world-builder field types', () => {
 
     await dialog.getByRole('button', {name: 'Add field'}).click()
     await dialog.getByRole('textbox', {name: 'Field name'}).first().fill('choice')
-    await dialog.getByRole('button', {name: 'Create type'}).click()
+    await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
 
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)

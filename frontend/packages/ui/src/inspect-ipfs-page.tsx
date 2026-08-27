@@ -24,6 +24,8 @@ import {useFileProxyUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
 import {blobBuilderMenuItems, META_SCHEMA_CID, NEW_BLOB_PATH, newInstanceRoute} from './onyx/blob-menu-items'
 import {seedValue} from './onyx/onyx-data-editor'
+import {emptyStructSchema} from './onyx/onyx-schema-editor'
+import {SchemaAwareEditor} from './onyx/schema-aware-editor'
 import {isOnyxSchema, ONYX_SCHEMAS, schemaCid} from './onyx/onyx-engine'
 import {useResolvedSchema} from './onyx/onyx-schema-resolve'
 import {SchemaPicker} from './onyx/schema-picker'
@@ -235,7 +237,7 @@ export function InspectIpfsPage({
     }
     if (!seedSchema) return
     const starter = seedValue(seedSchema)
-    if (isMetaSeed) setEditJson(starter)
+    if (isMetaSeed) setEditJson(emptyStructSchema())
     else if (isPlainObject(starter)) setEditJson({...starter, schema: {'/': seedSchemaCid}})
     else setEditJson(starter !== undefined ? starter : {schema: {'/': seedSchemaCid}})
   }, [isDraft, editJson, seedSchemaCid, seedSchema, isMetaSeed])
@@ -467,6 +469,10 @@ export function InspectIpfsPage({
                   }}
                   onCancel={() => setRawMode(false)}
                 />
+              ) : valueIsSchema ? (
+                // The blob IS a schema: the struct form (name, fields, kinds, targets,
+                // signed-blob toggle) — "Edit raw" is the JSON escape hatch.
+                <SchemaAwareEditor schema={ONYX_SCHEMAS['onyx-schema']!} value={editJson} onValue={update} />
               ) : (
                 <ValueEditor value={editJson} onValue={update} rules={CBOR_VALUE_RULES} />
               )}
