@@ -65,11 +65,12 @@ describe('value editor formats', () => {
     expect(container.querySelector('[aria-label="Create linked object"]')).toBeNull()
   })
 
-  it('a DAG-CBOR reference renders the object pill with an edit action; a file renders the file pill', async () => {
+  it('a DAG-CBOR reference renders the object pill; a file renders the file pill', async () => {
     const objectCid = CID.createV1(0x71, await sha256.digest(cbor.encode({strength: 5}))).toString()
     act(() => root.render(<Field metadata={{stats: `ipfs://${objectCid}`}} field="stats" />))
     expect(container.querySelector('[data-testid="ipfs-object-pill"]')).toBeTruthy()
-    expect(container.querySelector('[aria-label="Edit linked object"]')).toBeTruthy()
+    // No pencil outside a document-field context.
+    expect(container.querySelector('[aria-label="Edit linked object"]')).toBeNull()
 
     const fileCid = CID.createV1(0x55, await sha256.digest(new Uint8Array([104, 101, 108, 108, 111]))).toString()
     act(() => root.render(<Field metadata={{portrait: `ipfs://${fileCid}`}} field="portrait" />))
