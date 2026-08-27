@@ -89,6 +89,7 @@ import {ResourcePage} from '@shm/ui/resource-page-common'
 import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
+import {pageFrameStyles} from '@shm/ui/container'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {blobBuilderMenuItems} from '@shm/ui/onyx/blob-menu-items'
 import {WorldBuilderDialog} from '@/components/world-builder-dialog'
@@ -1110,7 +1111,7 @@ export default function DesktopResourcePage() {
   const followIntent = useFollowProfileIntent(route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid)
 
   return (
-    <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
+    <div className={pageFrameStyles}>
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
