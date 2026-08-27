@@ -114,11 +114,11 @@ compose file it writes to `/opt/agentic/docker-compose.yml`.
 
 The three deployments differ in exactly two ways — which image tag they track, and which HM network they read:
 
-| Hostname                           | Container        | Image tag | Code           | Data    |
-| ---------------------------------- | ---------------- | --------- | -------------- | ------- |
-| `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet |
+| Hostname                           | Container        | Image tag | Code           | Data                               |
+| ---------------------------------- | ---------------- | --------- | -------------- | ---------------------------------- |
+| `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet                            |
 | `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet, via `staging.hyper.media` |
-| `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet  |
+| `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet                             |
 
 Staging is the release gate: it runs the _same code_ as dev but against _production data_, so behavior can be validated
 on real mainnet content before a release tag promotes that code to `agents-stable`. Dev keeps devnet data, which is
@@ -135,11 +135,10 @@ The stack:
   port `3050`.
 - **agents-stable / agents-staging / agents-dev** run with:
   - `SEED_AGENTS_HM_SERVER_URL` → `https://hyper.media` (stable) / `https://staging.hyper.media` (staging) /
-    `https://dev.hyper.media` (dev). Staging reads through the staging web gateway — a mainnet node that also holds
-    the staging site's own documents, which the `hyper.media` gateway need not have synced yet. Those
-    origins serve both typed `/api/*` and direct `/ipfs/*`, so `SEED_AGENTS_IPFS_SERVER_URL` defaults to the same value.
-    Unlike every local environment, the hosted servers read and write through the public gateway — there is no
-    co-located daemon.
+    `https://dev.hyper.media` (dev). Staging reads through the staging web gateway — a mainnet node that also holds the
+    staging site's own documents, which the `hyper.media` gateway need not have synced yet. Those origins serve both
+    typed `/api/*` and direct `/ipfs/*`, so `SEED_AGENTS_IPFS_SERVER_URL` defaults to the same value. Unlike every local
+    environment, the hosted servers read and write through the public gateway — there is no co-located daemon.
   - `devices: /dev/kvm:/dev/kvm` — hardware virtualization for the execute microVMs. Without the device the service runs
     but every execution fails 502. (This requires an OVH flavor that exposes KVM.)
   - Named volumes: `agents-*-data:/data` (the sqlite DB + agent state; `SEED_AGENTS_DB_PATH=/data/agents.sqlite` and

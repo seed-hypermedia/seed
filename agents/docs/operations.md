@@ -95,11 +95,11 @@ It stamps the current git `HEAD` (commit/branch/date) into the image and pushes 
 
 One host runs `/opt/agentic/docker-compose.yml` with three agents containers behind Caddy:
 
-| Hostname                           | Container        | Image tag | Code           | Data    |
-| ---------------------------------- | ---------------- | --------- | -------------- | ------- |
-| `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet |
+| Hostname                           | Container        | Image tag | Code           | Data                               |
+| ---------------------------------- | ---------------- | --------- | -------------- | ---------------------------------- |
+| `agentic.seed.hyper.media`         | `agents-stable`  | `:latest` | newest release | mainnet                            |
 | `staging.agentic.seed.hyper.media` | `agents-staging` | `:dev`    | `main`         | mainnet, via `staging.hyper.media` |
-| `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet  |
+| `dev.agentic.seed.hyper.media`     | `agents-dev`     | `:dev`    | `main`         | devnet                             |
 
 Staging is the release gate — same code as dev, real mainnet data — so the sequence before cutting a release is: land on
 `main`, wait for `:dev` to deploy, exercise `staging.agentic.seed.hyper.media`, then tag. See `environments.md` for the
