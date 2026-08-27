@@ -10,7 +10,7 @@ import {code as DAG_CBOR_CODE} from '@shm/shared/cbor'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useOpenUrl, useRouteLink, useUniversalClient} from '@shm/shared/routing'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Braces, Check, Copy, ExternalLink, FileCode2, FileEdit, FileText, Pencil} from 'lucide-react'
+import {Braces, Check, Copy, ExternalLink, FileCode2, FileEdit, FileText} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
@@ -420,13 +420,13 @@ export function InspectIpfsPage({
         <ValueEditorProvider onUndo={undo} onRedo={redo} openUrl={openHmUrl} openFile={openLinkedBlob}>
           <OnyxSchemaProvider schema={schema} registry={{}} value={advisoryValue}>
             <div className="flex flex-col gap-4">
-              <p className="text-muted-foreground text-xs" data-testid="draft-note">
-                {cid
-                  ? 'Editing a published blob — publishing creates a new blob with a new CID.'
-                  : valueIsSchema
+              {!cid && (
+                <p className="text-muted-foreground text-xs" data-testid="draft-note">
+                  {valueIsSchema
                     ? 'New schema — publish to store it and create instances from it.'
                     : 'New blob — publish to encode as DAG-CBOR and store it on your IPFS node.'}
-              </p>
+                </p>
+              )}
               {showSchemaPicker && (
                 <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="new-blob-schema-picker">
                   <span className="text-muted-foreground">Schema</span>
@@ -536,7 +536,7 @@ export function InspectIpfsPage({
 
   const shortCid = cid ? `${cid.slice(0, 10)}…${cid.slice(-6)}` : null
   const title = editField
-    ? `Editing ${editField.field}`
+    ? 'Editing'
     : isDraft
       ? valueIsSchema
         ? 'New schema'
@@ -555,8 +555,24 @@ export function InspectIpfsPage({
     <div className="bg-background flex h-full max-h-full flex-col overflow-hidden">
       <BlobHeader
         title={title}
+        subject={
+          editField ? (
+            <>
+              <code className="bg-muted rounded px-1 text-xs">{editField.field}</code>
+              <span className="text-muted-foreground">of</span>
+              <button
+                type="button"
+                className="text-primary truncate font-medium hover:underline"
+                data-testid="edit-field-doc-link"
+                onClick={() => contextRoute && navigate(contextRoute)}
+              >
+                {contextDocTitle ?? editField.docUrl}
+              </button>
+            </>
+          ) : null
+        }
         cid={cid}
-        shortCid={shortCid}
+        shortCid={editField ? null : shortCid}
         draft={mode === 'edit'}
         trafficLightInset={trafficLightInset}
         windowControls={windowControls}
@@ -564,13 +580,8 @@ export function InspectIpfsPage({
           <>
             {mode === 'edit' ? (
               <>
-                {(cid || editField) && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => (editField && contextRoute ? navigate(contextRoute) : cancelEdit())}
-                    disabled={publishing}
-                  >
+                {cid && !editField && (
+                  <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={publishing}>
                     Cancel
                   </Button>
                 )}
@@ -608,30 +619,7 @@ export function InspectIpfsPage({
       />
       <div className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-900">
         <div className="mx-auto w-full px-4 py-4" style={{maxWidth: 960}}>
-          <div className="flex flex-col gap-4">
-            {editField && (
-              <div
-                className="bg-muted/40 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border p-2 text-sm"
-                data-testid="edit-field-context"
-              >
-                <Pencil className="text-muted-foreground size-3.5" />
-                <span>
-                  Editing <code className="bg-muted rounded px-1">{editField.field}</code> of{' '}
-                  <button
-                    type="button"
-                    className="text-primary font-medium hover:underline"
-                    onClick={() => contextRoute && navigate(contextRoute)}
-                  >
-                    {contextDocTitle ?? editField.docUrl}
-                  </button>
-                </span>
-                <span className="text-muted-foreground">
-                  — publishing updates that document's metadata directly (no document draft).
-                </span>
-              </div>
-            )}
-            {body}
-          </div>
+          <div className="flex flex-col gap-4">{body}</div>
           {editField && (
             <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
               <DialogContent>
@@ -676,6 +664,7 @@ export function InspectIpfsPage({
  */
 function BlobHeader({
   title,
+  subject,
   cid,
   shortCid,
   draft,
@@ -684,6 +673,8 @@ function BlobHeader({
   windowControls,
 }: {
   title: string
+  /** What is being edited, right after the title (e.g. the field and its document). */
+  subject?: ReactNode
   cid?: string
   shortCid: string | null
   draft: boolean
@@ -702,6 +693,7 @@ function BlobHeader({
       <div className="flex min-w-0 flex-1 items-center gap-2 text-sm">
         <FileText className="text-muted-foreground size-4 shrink-0" />
         <span className="shrink-0 font-medium">{title}</span>
+        {subject}
         {draft && (
           <span className="bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium">
             Unpublished draft
