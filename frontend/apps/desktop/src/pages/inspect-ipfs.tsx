@@ -43,6 +43,7 @@ export default function DesktopInspectIpfsPage() {
   return (
     <InspectIpfsPage
       ipfsPath={route.ipfsPath}
+      editField={route.editField}
       exitRoute={exitRoute}
       getRouteForUrl={getRouteForUrl}
       gatewayUrl={gatewayUrl}
