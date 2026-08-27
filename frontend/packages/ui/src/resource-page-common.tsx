@@ -3391,6 +3391,25 @@ function DocumentMetadataPage({
   // sentinel path puts the viewer into create mode.
   const onCreateBlob = useCallback(() => openUrl('hm://inspect/ipfs/new', true), [openUrl])
 
+  // Direct, in-context editing of the IPFS objects a PUBLISHED document's
+  // metadata references (schemaDefinition, …): the blob page opens in the
+  // field's context and publishing updates the document directly. Not offered
+  // for a field the draft has already changed — the draft would win on publish.
+  const navigate = useNavigate()
+  const isPublished = !!(ctx.document?.version || document.version)
+  const draftPatch = ctx.metadata || {}
+  const directEdit = useMemo(
+    () =>
+      isPublished && canEditCurrentRoute
+        ? {
+            isFieldEditable: (key: string) => (draftPatch as Record<string, unknown>)[key] === undefined,
+            onEditField: (key: string, cid: string) =>
+              navigate({key: 'inspect-ipfs', ipfsPath: cid, editField: {docUrl: docId.id, field: key}}),
+          }
+        : undefined,
+    [isPublished, canEditCurrentRoute, draftPatch, navigate, docId.id],
+  )
+
   return (
     <DocumentMetadataView
       metadata={metadata as any}
@@ -3405,6 +3424,7 @@ function DocumentMetadataPage({
       openFile={openFile}
       openUrl={openUrl}
       onCreateBlob={onCreateBlob}
+      directEdit={directEdit}
     />
   )
 }

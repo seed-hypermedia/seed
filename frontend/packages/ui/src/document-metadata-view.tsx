@@ -1,5 +1,5 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {Braces, Check, FileCode2, X} from 'lucide-react'
+import {Braces, Check, FileCode2, X, Pencil} from 'lucide-react'
 import {useEffect, useMemo, useState} from 'react'
 import {seedValue} from './onyx/onyx-data-editor'
 import {OnyxSchemaProvider} from './onyx/onyx-schema-context'
@@ -32,6 +32,8 @@ import {
   useValueHistory,
   ValueDisplay,
   ValueEditorProvider,
+  MetadataDirectEditContext,
+  type MetadataDirectEdit,
 } from './value-editor'
 
 /**
@@ -108,6 +110,7 @@ export function DocumentMetadataView({
   openFile,
   openUrl,
   onCreateBlob,
+  directEdit,
 }: {
   metadata?: HMMetadata | null
   canEdit?: boolean
@@ -127,6 +130,13 @@ export function DocumentMetadataView({
   openUrl?: (url: string) => void
   /** Opens a blank blob editor (new IPFS object) in its own window. */
   onCreateBlob?: () => void
+  /**
+   * Direct, in-context editing of IPFS objects referenced by metadata fields
+   * (schemaDefinition and friends): opens the blob page in the field's context;
+   * publishing updates the document's metadata directly, bypassing its draft.
+   * Absent for unpublished documents.
+   */
+  directEdit?: MetadataDirectEdit
 }) {
   const [jsonMode, setJsonMode] = useState(false)
   const [attachMode, setAttachMode] = useState(false)
@@ -229,170 +239,177 @@ export function DocumentMetadataView({
       openUrl={openUrl}
       onCreateBlob={editable ? onCreateBlob : undefined}
     >
-      <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={validationValue}>
-        <div className="flex flex-col gap-4 py-6">
-          {/* No title here — the tab/breadcrumb (main view) and the panel header
+      <MetadataDirectEditContext.Provider value={directEdit ?? null}>
+        <OnyxSchemaProvider schema={schemaRoot} registry={{}} value={validationValue}>
+          <div className="flex flex-col gap-4 py-6">
+            {/* No title here — the tab/breadcrumb (main view) and the panel header
               already label this "Attributes". */}
-          {editable && <SchemaErrorSummary />}
-          <div className="flex items-center justify-end">
-            <div className="flex items-center gap-1">
-              {editable && !jsonMode && (
-                <Tooltip content="Attach a schema as a metadata field (the field key is the schema's ipfs:// URL)">
+            {editable && <SchemaErrorSummary />}
+            <div className="flex items-center justify-end">
+              <div className="flex items-center gap-1">
+                {editable && !jsonMode && (
+                  <Tooltip content="Attach a schema as a metadata field (the field key is the schema's ipfs:// URL)">
+                    <Button
+                      variant={attachMode ? 'secondary' : 'ghost'}
+                      size="icon"
+                      aria-label="Attach schema field"
+                      onClick={() => setAttachMode((mode) => !mode)}
+                    >
+                      <FileCode2 className="size-4" />
+                    </Button>
+                  </Tooltip>
+                )}
+                <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
                   <Button
-                    variant={attachMode ? 'secondary' : 'ghost'}
+                    variant={jsonMode ? 'secondary' : 'ghost'}
                     size="icon"
-                    aria-label="Attach schema field"
-                    onClick={() => setAttachMode((mode) => !mode)}
+                    aria-label={jsonMode ? 'Edit as fields' : 'Edit as JSON'}
+                    onClick={() => setJsonMode((mode) => !mode)}
                   >
-                    <FileCode2 className="size-4" />
+                    <Braces className="size-4" />
                   </Button>
                 </Tooltip>
-              )}
-              <Tooltip content={jsonMode ? 'Edit as fields' : 'Edit as JSON'}>
-                <Button
-                  variant={jsonMode ? 'secondary' : 'ghost'}
-                  size="icon"
-                  aria-label={jsonMode ? 'Edit as fields' : 'Edit as JSON'}
-                  onClick={() => setJsonMode((mode) => !mode)}
-                >
-                  <Braces className="size-4" />
-                </Button>
-              </Tooltip>
+              </div>
             </div>
-          </div>
-          {editable && attachMode && !jsonMode && (
-            <AttachSchemaFieldBar
-              existingKeys={visibleKeys}
-              registry={byCid}
-              onPendingCid={setPendingSchemaCid}
-              onCancel={() => {
-                setPendingSchemaCid(null)
-                setAttachMode(false)
-              }}
-              onAttach={(key, value) => {
-                stage({[key]: value})
-                setPendingSchemaCid(null)
-                setAttachMode(false)
-              }}
-            />
-          )}
-          {editable && schemaEditorOpen && (
-            <SchemaEditorDialog
-              open={schemaEditorOpen}
-              onOpenChange={(open) => {
-                setSchemaEditorOpen(open)
-                if (!open) setEditingSchema(undefined)
-              }}
-              initialSchema={editingSchema}
-              onSaved={(cid) => stage({[SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`})}
-            />
-          )}
-          {jsonMode ? (
-            <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
-          ) : editable ? (
-            <>
-              {requiredRows.length === 0 && otherEntries.length === 0 ? (
-                <p className="text-muted-foreground text-sm">This document has no metadata.</p>
-              ) : (
-                <div className="flex flex-col">
-                  {/* Required fields declared by the schema come first and are
+            {editable && attachMode && !jsonMode && (
+              <AttachSchemaFieldBar
+                existingKeys={visibleKeys}
+                registry={byCid}
+                onPendingCid={setPendingSchemaCid}
+                onCancel={() => {
+                  setPendingSchemaCid(null)
+                  setAttachMode(false)
+                }}
+                onAttach={(key, value) => {
+                  stage({[key]: value})
+                  setPendingSchemaCid(null)
+                  setAttachMode(false)
+                }}
+              />
+            )}
+            {editable && schemaEditorOpen && (
+              <SchemaEditorDialog
+                open={schemaEditorOpen}
+                onOpenChange={(open) => {
+                  setSchemaEditorOpen(open)
+                  if (!open) setEditingSchema(undefined)
+                }}
+                initialSchema={editingSchema}
+                onSaved={(cid) => stage({[SCHEMA_DEFINITION_KEY]: `ipfs://${cid}`})}
+              />
+            )}
+            {jsonMode ? (
+              <MetadataJsonEditor metadata={current} editable={editable} onMetadata={editable ? stage : undefined} />
+            ) : editable ? (
+              <>
+                {requiredRows.length === 0 && otherEntries.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">This document has no metadata.</p>
+                ) : (
+                  <div className="flex flex-col">
+                    {/* Required fields declared by the schema come first and are
                       ALWAYS shown (seeded if the value is absent), so a mandatory
                       field never has to be "added" by hand. */}
-                  {requiredRows.map(({key, value}) => (
-                    <FieldRow
-                      key={key}
-                      className="border-border border-b py-3 last:border-b-0"
-                      fieldKey={key}
-                      value={value}
-                      // Schema-required fields are always present and cannot be
-                      // removed; their name is fixed by the schema.
-                      canRemove={false}
-                      siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
-                      onValue={(newValue) => stage({[key]: newValue})}
-                      onEditField={(_newKey, newValue) => stage({[key]: newValue})}
-                      onRemove={() => {}}
-                      rules={METADATA_VALUE_RULES}
-                      path={[key]}
-                    />
-                  ))}
-                  {otherEntries.map(([key, value]) =>
-                    // The reserved schemaDefinition field describes the document's
-                    // type — edit it with the schema editor, never as a raw string.
-                    key === SCHEMA_DEFINITION_KEY ? (
-                      <SchemaDefinitionRow
-                        key={key}
-                        typeName={typeof schemaDefSchema?.name === 'string' ? schemaDefSchema.name : undefined}
-                        state={schemaDefCid ? (schemaDefSchema ? 'edit' : 'loading') : 'define'}
-                        onOpen={() => {
-                          // Empty/invalid schemaDefinition → define a fresh type;
-                          // a resolved one → edit it.
-                          setEditingSchema(schemaDefCid ? schemaDefSchema : undefined)
-                          setSchemaEditorOpen(true)
-                        }}
-                        onRemove={() => stage({[key]: null})}
-                      />
-                    ) : (
+                    {requiredRows.map(({key, value}) => (
                       <FieldRow
                         key={key}
                         className="border-border border-b py-3 last:border-b-0"
                         fieldKey={key}
                         value={value}
+                        // Schema-required fields are always present and cannot be
+                        // removed; their name is fixed by the schema.
+                        canRemove={false}
                         siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
                         onValue={(newValue) => stage({[key]: newValue})}
-                        onEditField={(newKey, newValue) =>
-                          stage(newKey === key ? {[key]: newValue} : {[key]: null, [newKey]: newValue})
-                        }
-                        onRemove={() => stage({[key]: null})}
+                        onEditField={(_newKey, newValue) => stage({[key]: newValue})}
+                        onRemove={() => {}}
                         rules={METADATA_VALUE_RULES}
                         path={[key]}
                       />
-                    ),
-                  )}
-                </div>
-              )}
-              <AddFieldForm
-                rules={METADATA_VALUE_RULES}
-                path={[]}
-                existingKeys={[...entries.map(([key]) => key), ...requiredKeys]}
-                onKeyTextChange={(keyText) => {
-                  const trimmed = keyText.trim()
-                  // Typing the reserved `schemaDefinition` key opens the schema editor.
-                  if (trimmed === SCHEMA_DEFINITION_KEY) {
-                    setEditingSchema(undefined)
-                    setSchemaEditorOpen(true)
-                  }
-                  const cidText = trimmed.replace(/^ipfs:\/\//, '')
-                  setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))
-                }}
-                onAdd={(key, value) => {
-                  // schemaDefinition is authored via the schema editor dialog, not
-                  // added as a plain field — never stage an empty string for it.
-                  if (key.trim() === SCHEMA_DEFINITION_KEY) {
-                    setEditingSchema(undefined)
-                    setSchemaEditorOpen(true)
-                    return
-                  }
-                  stage({[key]: value})
-                  setPendingSchemaCid(null)
-                }}
-              />
-            </>
-          ) : entries.length === 0 ? (
-            <p className="text-muted-foreground text-sm">This document has no metadata.</p>
-          ) : (
-            <dl className="flex flex-col">
-              {entries.map(([key, value]) => (
-                <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
-                  <dt className={FIELD_LABEL_CLASS}>{key}</dt>
-                  <dd>
-                    <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          )}
-        </div>
-      </OnyxSchemaProvider>
+                    ))}
+                    {otherEntries.map(([key, value]) =>
+                      // The reserved schemaDefinition field describes the document's
+                      // type — edit it with the schema editor, never as a raw string.
+                      key === SCHEMA_DEFINITION_KEY ? (
+                        <SchemaDefinitionRow
+                          key={key}
+                          typeName={typeof schemaDefSchema?.name === 'string' ? schemaDefSchema.name : undefined}
+                          state={schemaDefCid ? (schemaDefSchema ? 'edit' : 'loading') : 'define'}
+                          onEditDirect={
+                            schemaDefCid && directEdit?.isFieldEditable(SCHEMA_DEFINITION_KEY)
+                              ? () => directEdit.onEditField(SCHEMA_DEFINITION_KEY, schemaDefCid)
+                              : undefined
+                          }
+                          onOpen={() => {
+                            // Empty/invalid schemaDefinition → define a fresh type;
+                            // a resolved one → edit it.
+                            setEditingSchema(schemaDefCid ? schemaDefSchema : undefined)
+                            setSchemaEditorOpen(true)
+                          }}
+                          onRemove={() => stage({[key]: null})}
+                        />
+                      ) : (
+                        <FieldRow
+                          key={key}
+                          className="border-border border-b py-3 last:border-b-0"
+                          fieldKey={key}
+                          value={value}
+                          siblingKeys={entries.map(([k]) => k).filter((k) => k !== key)}
+                          onValue={(newValue) => stage({[key]: newValue})}
+                          onEditField={(newKey, newValue) =>
+                            stage(newKey === key ? {[key]: newValue} : {[key]: null, [newKey]: newValue})
+                          }
+                          onRemove={() => stage({[key]: null})}
+                          rules={METADATA_VALUE_RULES}
+                          path={[key]}
+                        />
+                      ),
+                    )}
+                  </div>
+                )}
+                <AddFieldForm
+                  rules={METADATA_VALUE_RULES}
+                  path={[]}
+                  existingKeys={[...entries.map(([key]) => key), ...requiredKeys]}
+                  onKeyTextChange={(keyText) => {
+                    const trimmed = keyText.trim()
+                    // Typing the reserved `schemaDefinition` key opens the schema editor.
+                    if (trimmed === SCHEMA_DEFINITION_KEY) {
+                      setEditingSchema(undefined)
+                      setSchemaEditorOpen(true)
+                    }
+                    const cidText = trimmed.replace(/^ipfs:\/\//, '')
+                    setPendingSchemaCid(schemaKeyCid(`ipfs://${cidText}`))
+                  }}
+                  onAdd={(key, value) => {
+                    // schemaDefinition is authored via the schema editor dialog, not
+                    // added as a plain field — never stage an empty string for it.
+                    if (key.trim() === SCHEMA_DEFINITION_KEY) {
+                      setEditingSchema(undefined)
+                      setSchemaEditorOpen(true)
+                      return
+                    }
+                    stage({[key]: value})
+                    setPendingSchemaCid(null)
+                  }}
+                />
+              </>
+            ) : entries.length === 0 ? (
+              <p className="text-muted-foreground text-sm">This document has no metadata.</p>
+            ) : (
+              <dl className="flex flex-col">
+                {entries.map(([key, value]) => (
+                  <div key={key} className="border-border flex flex-col gap-1 border-b py-3 last:border-b-0">
+                    <dt className={FIELD_LABEL_CLASS}>{key}</dt>
+                    <dd>
+                      <ValueDisplay value={value} rules={METADATA_VALUE_RULES} />
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        </OnyxSchemaProvider>
+      </MetadataDirectEditContext.Provider>
     </ValueEditorProvider>
   )
 }
@@ -406,6 +423,7 @@ function SchemaDefinitionRow({
   typeName,
   state,
   onOpen,
+  onEditDirect,
   onRemove,
 }: {
   typeName?: string
@@ -413,6 +431,8 @@ function SchemaDefinitionRow({
    * empty/invalid value (recover by authoring a schema). */
   state: 'edit' | 'loading' | 'define'
   onOpen: () => void
+  /** Edit the schema in context (full blob page; publish updates this document directly). */
+  onEditDirect?: () => void
   onRemove: () => void
 }) {
   const title =
@@ -420,7 +440,11 @@ function SchemaDefinitionRow({
       ? 'This document describes a type'
       : typeName || (state === 'loading' ? 'Loading schema…' : 'Untitled type')
   const subtitle =
-    state === 'define' ? 'No schema set yet — define one as a form.' : 'Its schema — edit it as a form, not raw JSON.'
+    state === 'define'
+      ? 'No schema set yet — define one as a form.'
+      : onEditDirect
+        ? 'Its schema — Edit opens it in context; publishing updates this document directly.'
+        : 'Its schema — edit it as a form, not raw JSON.'
   return (
     <div className="border-border flex items-center justify-between gap-2 border-b py-3 last:border-b-0">
       <div className="flex items-center gap-2">
@@ -431,8 +455,19 @@ function SchemaDefinitionRow({
         </div>
       </div>
       <div className="flex items-center gap-1">
-        <Button variant="outline" size="sm" onClick={onOpen} disabled={state === 'loading'}>
-          {state === 'define' ? 'Define schema' : 'Edit schema'}
+        {onEditDirect && state === 'edit' && (
+          <Button variant="outline" size="sm" onClick={onEditDirect} data-testid="schema-definition-edit-direct">
+            <Pencil className="size-3.5" />
+            Edit schema
+          </Button>
+        )}
+        <Button
+          variant={onEditDirect && state === 'edit' ? 'ghost' : 'outline'}
+          size="sm"
+          onClick={onOpen}
+          disabled={state === 'loading'}
+        >
+          {state === 'define' ? 'Define schema' : onEditDirect ? 'Edit as form (draft)' : 'Edit schema'}
         </Button>
         <Button variant="ghost" size="iconSm" aria-label="Remove schema" onClick={onRemove}>
           <X className="size-4" />

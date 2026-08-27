@@ -71,6 +71,7 @@ type ExtendedSitePayload = SiteDocumentPayload & {
 type InspectIpfsPayload = {
   kind: 'inspect-ipfs'
   ipfsPath: string
+  editField?: {docUrl: string; field: string}
   originHomeId: UnpackedHypermediaId
   siteHost: string
 }
@@ -365,9 +366,12 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (isDataRequest && ctx.enabled) {
       printInstrumentationSummary(ctx)
     }
+    const editFieldKey = url.searchParams.get('editField')
+    const editDoc = url.searchParams.get('editDoc')
     return wrapJSON({
       kind: 'inspect-ipfs',
       ipfsPath: inspectIpfsPath,
+      editField: editFieldKey && editDoc ? {field: editFieldKey, docUrl: editDoc} : undefined,
       originHomeId: hmId(registeredAccountUid),
       siteHost: hostname,
     } satisfies InspectIpfsPayload)
@@ -492,9 +496,9 @@ export default function UnifiedDocumentPage() {
       <WebSiteProvider
         originHomeId={data.originHomeId}
         siteHost={data.siteHost}
-        initialRoute={createInspectIpfsNavRoute(data.ipfsPath)}
+        initialRoute={createInspectIpfsNavRoute(data.ipfsPath, data.editField)}
       >
-        <InnerInspectIpfsPage ipfsPath={data.ipfsPath} />
+        <InnerInspectIpfsPage ipfsPath={data.ipfsPath} editField={data.editField} />
       </WebSiteProvider>
     )
   }
@@ -580,7 +584,7 @@ function InnerInspectorPage({docId}: {docId: UnpackedHypermediaId}) {
   return <WebInspectorPage docId={docId} />
 }
 
-function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
+function InnerInspectIpfsPage({ipfsPath, editField}: {ipfsPath: string; editField?: {docUrl: string; field: string}}) {
   const navState = useNavigationState()
   const getRouteForUrl = useCallback((url: string) => {
     if (url.startsWith('ipfs://')) {
@@ -603,6 +607,7 @@ function InnerInspectIpfsPage({ipfsPath}: {ipfsPath: string}) {
   return (
     <InspectIpfsPage
       ipfsPath={ipfsPath}
+      editField={editField}
       exitRoute={exitRoute}
       getRouteForUrl={getRouteForUrl}
       gatewayUrl={gatewayUrl}

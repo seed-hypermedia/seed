@@ -137,9 +137,20 @@ export const inspectRouteSchema = z.object({
 export type InspectRoute = z.infer<typeof inspectRouteSchema>
 
 /** Route schema for raw IPFS inspection inside the inspector. */
+/** Edit a blob IN THE CONTEXT of a document's metadata field: publishing the
+ * blob also publishes a metadata change on that document (no draft). */
+export const inspectIpfsEditFieldSchema = z.object({
+  /** The document (hm:// URL) whose metadata field references the blob. */
+  docUrl: z.string(),
+  /** The metadata key (e.g. `schemaDefinition`). */
+  field: z.string(),
+})
+export type InspectIpfsEditField = z.infer<typeof inspectIpfsEditFieldSchema>
+
 export const inspectIpfsRouteSchema = z.object({
   key: z.literal('inspect-ipfs'),
   ipfsPath: z.string(),
+  editField: inspectIpfsEditFieldSchema.optional(),
 })
 /** Navigation route for raw IPFS inspection inside the inspector. */
 export type InspectIpfsRoute = z.infer<typeof inspectIpfsRouteSchema>
@@ -732,10 +743,11 @@ export function createInspectNavRoute(
 }
 
 /** Creates an inspector route for a raw IPFS object. */
-export function createInspectIpfsNavRoute(ipfsPath: string): InspectIpfsRoute {
+export function createInspectIpfsNavRoute(ipfsPath: string, editField?: InspectIpfsEditField): InspectIpfsRoute {
   return {
     key: 'inspect-ipfs',
     ipfsPath,
+    ...(editField ? {editField} : {}),
   }
 }
 
