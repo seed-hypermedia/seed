@@ -10,12 +10,38 @@ import {createSpaceMetadata} from '@shm/ui/create-space-platform'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useMemo, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
+
+/**
+ * Track the visual viewport height and size the panel to it for mobile form.
+ */
+function useVisualViewportHeight(): number | null {
+  const [height, setHeight] = useState<number | null>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const vv = window.visualViewport
+    const update = () => setHeight(vv ? vv.height : window.innerHeight)
+    update()
+    vv?.addEventListener('resize', update)
+    vv?.addEventListener('scroll', update)
+    window.addEventListener('resize', update)
+    return () => {
+      vv?.removeEventListener('resize', update)
+      vv?.removeEventListener('scroll', update)
+      window.removeEventListener('resize', update)
+    }
+  }, [])
+  return height
+}
 
 function Panel({children}: {children: React.ReactNode}) {
+  const viewportHeight = useVisualViewportHeight()
   return (
-    <div className="flex min-h-screen w-full justify-end bg-black/5 dark:bg-black/30">
-      <div className="bg-background flex w-full max-w-[440px] flex-col shadow-xl">{children}</div>
+    <div
+      className="flex w-full justify-end bg-black/5 dark:bg-black/30"
+      style={viewportHeight ? {height: viewportHeight} : {height: '100dvh'}}
+    >
+      <div className="bg-background flex h-full w-full max-w-[440px] flex-col shadow-xl">{children}</div>
     </div>
   )
 }
