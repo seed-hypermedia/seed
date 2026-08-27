@@ -335,6 +335,19 @@ type SelectionState = {
   onCreateBlob?: () => void
 }
 
+/**
+ * Direct, in-context editing of an IPFS OBJECT referenced from a document's
+ * metadata field (e.g. `schemaDefinition`): the pencil on the pill opens the
+ * blob page in that field's context, and publishing there updates the
+ * document's metadata directly — bypassing its draft. Supplied by the
+ * Attributes page; only fields the draft hasn't overridden are editable.
+ */
+export type MetadataDirectEdit = {
+  isFieldEditable: (key: string) => boolean
+  onEditField: (key: string, cid: string) => void
+}
+export const MetadataDirectEditContext = createContext<MetadataDirectEdit | null>(null)
+
 const SelectionActionsContext = createContext<SelectionActions | null>(null)
 const SelectionStateContext = createContext<SelectionState>({selectedId: null, tabbableId: null})
 
@@ -1300,6 +1313,11 @@ function StringLeafEditor({
   const cidIsObject = !!cid && parseCidString(cid)?.code === DAG_CBOR_CODE
   const [objectDialog, setObjectDialog] = useState<'closed' | 'create' | 'edit'>('closed')
   const fieldLabel = path.length ? String(path[path.length - 1]) : undefined
+  // A top-level metadata field of a published document can be edited in place
+  // (full blob page + direct metadata publish) when its draft hasn't touched it.
+  const directEdit = useContext(MetadataDirectEditContext)
+  const topLevelKey = path.length === 1 && typeof path[0] === 'string' ? path[0] : null
+  const canEditInContext = !!directEdit && !!topLevelKey && cidIsObject && directEdit.isFieldEditable(topLevelKey)
 
   const uploadAndSet = async (file: File | undefined | null) => {
     if (!file || !fileUpload) return
@@ -1384,13 +1402,22 @@ function StringLeafEditor({
             onClear={() => onValue('')}
           />
           {cidIsObject && (
-            <Tooltip content="Edit this object (publishes a new version)">
+            <Tooltip
+              content={
+                canEditInContext
+                  ? `Edit this object in the context of ${fieldLabel} — publishing updates the document directly`
+                  : 'Edit this object (publishes a new version)'
+              }
+            >
               <Button
                 variant="ghost"
                 size="iconSm"
                 aria-label="Edit linked object"
+                data-direct-edit={canEditInContext ? 'true' : undefined}
                 className="text-muted-foreground"
-                onClick={() => setObjectDialog('edit')}
+                onClick={() =>
+                  canEditInContext ? directEdit!.onEditField(topLevelKey!, cid!) : setObjectDialog('edit')
+                }
               >
                 <Pencil className="size-3.5" />
               </Button>
