@@ -108,10 +108,10 @@ export function createResourceResolver(grpcClient: GRPCClient) {
     while (true) {
       const key = packHmId(current)
       if (visited.has(key)) {
-        throw new HMRedirectCycleError([...visited, key])
+        throw new HMRedirectCycleError(Array.from(visited).concat(key))
       }
       if (visited.size > MAX_REDIRECT_HOPS) {
-        throw new HMRedirectCycleError([...visited], {limitExceeded: true})
+        throw new HMRedirectCycleError(Array.from(visited), {limitExceeded: true})
       }
       visited.add(key)
       const resource = await fetchResource(current)
