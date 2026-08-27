@@ -31,9 +31,18 @@ const meta = (page: Page) => page.evaluate(() => (window as any).__meta() as Met
 const bundledEmployeeCid = (page: Page) =>
   page.evaluate(() => (window as any).__schemaCid('example-employee') as string)
 
-/** The struct schema-editor dialog (accessible name comes from its DialogTitle). */
-const defineDialog = (page: Page) => page.getByRole('dialog', {name: 'Define a type'})
-const editDialog = (page: Page) => page.getByRole('dialog', {name: 'Edit schema'})
+/** The object dialog for a `schemaDefinition` field: locked to the meta-schema, it shows the struct schema form. */
+const defineDialog = (page: Page) => page.getByRole('dialog', {name: /New object/})
+/** Open the schema form for an (empty) schemaDefinition field. */
+async function openDefineDialog(page: Page) {
+  await page
+    .getByRole('treeitem', {name: /^schemaDefinition/})
+    .first()
+    .getByRole('button', {name: 'Create linked object'})
+    .click()
+  await expect(defineDialog(page)).toBeVisible()
+  await expect(defineDialog(page).getByTestId('linked-object-target')).toContainText('Onyx schema')
+}
 
 /** Open the "Add field" dialog from the DocumentMetadataView add-field form. */
 async function openAddFieldDialog(page: Page) {
@@ -42,29 +51,26 @@ async function openAddFieldDialog(page: Page) {
 }
 
 test.describe('schema editor', () => {
-  test('regression: typing the reserved schemaDefinition key opens the schema editor and stages NOTHING', async ({
+  test('schemaDefinition is an ordinary field: adding it stages an empty ipfs value, no special dialog', async ({
     page,
   }) => {
     await openHarness(page, {name: 'Foo'})
     await openAddFieldDialog(page)
-
-    // Type the reserved key as a field name.
     await page.getByLabel('Field name').fill('schemaDefinition')
-
-    // The struct schema editor dialog opens instead...
-    await expect(defineDialog(page)).toBeVisible()
-    // ...and no empty `schemaDefinition` string is staged into the metadata.
-    expect(await meta(page)).not.toHaveProperty('schemaDefinition')
-    expect(await meta(page)).toEqual({name: 'Foo'})
+    await page.getByRole('dialog', {name: 'Add field'}).getByRole('button', {name: 'Add', exact: true}).click()
+    expect(await meta(page)).toEqual({name: 'Foo', schemaDefinition: ''})
+    // The empty field offers to create the object — locked to the meta-schema.
+    await expect(
+      page.getByRole('treeitem', {name: /^schemaDefinition/}).getByRole('button', {name: 'Create linked object'}),
+    ).toBeVisible()
   })
 
-  test('define a new type via the struct form -> stages an ipfs:// schemaDefinition', async ({page}) => {
+  test('define a new type from the schemaDefinition field: the object dialog shows the struct form and links the blob', async ({
+    page,
+  }) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
-
-    // The schemaDefinition row (empty value) offers to define a schema.
-    await page.getByRole('button', {name: 'Define schema'}).click()
+    await openDefineDialog(page)
     const dialog = defineDialog(page)
-    await expect(dialog).toBeVisible()
 
     // Name the type.
     await dialog.getByPlaceholder('e.g. Employee').fill('Widget')
@@ -76,16 +82,16 @@ test.describe('schema editor', () => {
     await fieldName.fill('width')
 
     // Radix Select: open + pick "Whole number" (integer).
-    await dialog.getByRole('combobox').click()
+    await dialog.getByRole('combobox').first().click()
     await page.getByRole('option', {name: 'Whole number'}).click()
-    await expect(dialog.getByRole('combobox')).toContainText('Whole number')
+    await expect(dialog.getByRole('combobox').first()).toContainText('Whole number')
 
     const required = dialog.getByRole('checkbox')
     await required.click()
     await expect(required).toHaveAttribute('aria-checked', 'true')
 
-    await expect(dialog.getByText('✓ valid schema')).toBeVisible()
-    await dialog.getByRole('button', {name: 'Create type'}).click()
+    await expect(dialog.getByText('✓ conforms to schema')).toBeVisible()
+    await dialog.getByTestId('linked-object-publish').click()
 
     // Dialog closes; schemaDefinition becomes an ipfs:// pointer.
     await expect(dialog).toBeHidden()
@@ -102,37 +108,35 @@ test.describe('schema editor', () => {
     })
   })
 
-  test('schemaDefinition row: empty value shows "Define schema" (enabled)', async ({page}) => {
+  test('the schema form insists on a type name before publishing', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
-    const define = page.getByRole('button', {name: 'Define schema'})
-    await expect(define).toBeVisible()
-    await expect(define).toBeEnabled()
-    // No "Edit schema" affordance when there is no schema yet.
-    await expect(page.getByRole('button', {name: 'Edit schema'})).toHaveCount(0)
+    await openDefineDialog(page)
+    const dialog = defineDialog(page)
+    await expect(dialog.getByTestId('linked-object-publish')).toBeDisabled()
+    await dialog.getByPlaceholder('e.g. Employee').fill('Thing')
+    await expect(dialog.getByTestId('linked-object-publish')).toBeEnabled()
   })
 
-  test('schemaDefinition row: a bundled schema CID shows "Edit schema" (enabled) and names the type', async ({
-    page,
-  }) => {
+  test('a schemaDefinition pointing at a schema shows the schema name as a pill', async ({page}) => {
     await openHarness(page)
     const cid = await bundledEmployeeCid(page)
     expect(cid).toBeTruthy()
-
     await openHarness(page, {name: 'X', schemaDefinition: `ipfs://${cid}`})
-    const edit = page.getByRole('button', {name: 'Edit schema'})
-    await expect(edit).toBeVisible()
-    await expect(edit).toBeEnabled()
-    // The bundled schema resolves synchronously, so the row names the type.
-    await expect(page.getByText('Employee', {exact: true})).toBeVisible()
+    const row = page.getByRole('treeitem', {name: /^schemaDefinition/})
+    await expect(row.getByTestId('ipfs-object-pill')).toContainText('Employee')
+    // No special row: no "Define schema" / "Edit schema" affordances.
+    await expect(page.getByRole('button', {name: 'Define schema'})).toHaveCount(0)
+    await expect(page.getByRole('button', {name: 'Edit schema'})).toHaveCount(0)
   })
 
-  test('schemaDefinition row: "Remove schema" deletes the field', async ({page}) => {
+  test('✕ clears the schemaDefinition value; the row menu removes the field', async ({page}) => {
     await openHarness(page)
     const cid = await bundledEmployeeCid(page)
     await openHarness(page, {name: 'X', schemaDefinition: `ipfs://${cid}`})
-
-    await page.getByRole('button', {name: 'Remove schema'}).click()
-    expect(await meta(page)).not.toHaveProperty('schemaDefinition')
+    await page.getByRole('button', {name: 'Remove object reference'}).click()
+    expect(await meta(page)).toEqual({name: 'X', schemaDefinition: ''})
+    await page.getByRole('button', {name: 'Actions for schemaDefinition'}).click()
+    await page.getByRole('menuitem', {name: 'Remove schemaDefinition'}).click()
     expect(await meta(page)).toEqual({name: 'X'})
   })
 
@@ -140,9 +144,8 @@ test.describe('schema editor', () => {
     page,
   }) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
-    await page.getByRole('button', {name: 'Define schema'}).click()
+    await openDefineDialog(page)
     const dialog = defineDialog(page)
-    await expect(dialog).toBeVisible()
 
     await dialog.getByPlaceholder('e.g. Employee').fill('Point')
 
@@ -163,7 +166,7 @@ test.describe('schema editor', () => {
     await expect(dialog.getByRole('textbox', {name: 'Field name'})).toHaveCount(1)
     await expect(dialog.getByRole('textbox', {name: 'Field name'})).toHaveValue('x')
 
-    await dialog.getByRole('button', {name: 'Create type'}).click()
+    await dialog.getByTestId('linked-object-publish').click()
     await expect(dialog).toBeHidden()
 
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
@@ -177,7 +180,7 @@ test.describe('schema editor', () => {
     // blurring the input so only one char could be typed. `.fill()` hides this
     // (single op), so type char-by-char and assert focus survives.
     await openHarness(page, {name: 'X', schemaDefinition: ''})
-    await page.getByRole('button', {name: 'Define schema'}).click()
+    await openDefineDialog(page)
     const dialog = defineDialog(page)
     await dialog.getByPlaceholder('e.g. Employee').fill('Comp')
     await dialog.getByRole('button', {name: 'Add field'}).click()
@@ -193,16 +196,15 @@ test.describe('schema editor', () => {
 
     // Commit on blur → the property is renamed.
     await fieldName.blur()
-    await dialog.getByRole('button', {name: 'Create type'}).click()
+    await dialog.getByTestId('linked-object-publish').click()
     const published: any = await page.evaluate(() => (window as any).__lastPublishedSchema)
     expect(Object.keys(published.properties)).toEqual(['salary'])
   })
 
   test('JSON toggle: switch to raw JSON view and back to the struct form', async ({page}) => {
     await openHarness(page, {name: 'X', schemaDefinition: ''})
-    await page.getByRole('button', {name: 'Define schema'}).click()
+    await openDefineDialog(page)
     const dialog = defineDialog(page)
-    await expect(dialog).toBeVisible()
     await dialog.getByPlaceholder('e.g. Employee').fill('Thing')
 
     // Struct form is shown first (the "Type name" field + "Add field").
