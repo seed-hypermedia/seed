@@ -73,7 +73,7 @@ describe('InspectIpfsPage as the blob editor', () => {
         published.push(...input.blobs)
         return {cids: input.blobs.map((b) => b.cid!)}
       }),
-      publishDocument: vi.fn(async () => {}),
+      publishDocument: vi.fn(async (_input: unknown) => {}),
     }
     const selectedIdentity = {get: () => 'z6MkSigner', subscribe: () => () => {}}
     act(() =>
@@ -178,11 +178,14 @@ describe('InspectIpfsPage as the blob editor', () => {
     const docUrl = 'hm://z6MkOwner/world/types/character'
     const {client, published} = mount(cid, {[cid]: schema}, {editField: {docUrl, field: 'schemaDefinition'}})
     await flush()
-    // Opens straight into a draft, with the context spelled out.
-    expect(container.textContent).toContain('Editing schemaDefinition')
-    const banner = container.querySelector('[data-testid="edit-field-context"]')!
-    expect(banner.textContent).toContain('schemaDefinition')
-    expect(banner.textContent).toContain('Character')
+    // Opens straight into a draft; the title row says what is being edited, once.
+    const bar = container.querySelector('[data-document-top-bar]')!
+    expect(bar.textContent).toMatch(/Editing\s*schemaDefinition\s*of\s*Character/)
+    expect(container.querySelectorAll('[data-testid="edit-field-doc-link"]')).toHaveLength(1)
+    expect((container.textContent!.match(/schemaDefinition/g) || []).length).toBe(1)
+    // No CID and no Cancel in this bar.
+    expect(bar.textContent).not.toContain(cid.slice(0, 10))
+    expect(Array.from(bar.querySelectorAll('button')).some((b) => b.textContent === 'Cancel')).toBe(false)
     const publish = container.querySelector('[data-testid="blob-publish"]') as HTMLButtonElement
     // Nothing to publish until something changes.
     expect(publish.disabled).toBe(true)
