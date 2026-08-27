@@ -51,7 +51,7 @@ export function createAppMenu() {
         {
           label: 'Check for Updates',
           accelerator: 'CmdOrCtrl+Option+u',
-          click: checkForUpdates,
+          click: () => checkForUpdates(),
         },
         {type: 'separator'},
         {role: 'services'},

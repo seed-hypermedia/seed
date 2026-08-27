@@ -24,6 +24,7 @@ export interface UpdateInfo {
 
 export type UpdateStatus =
   | {type: 'idle'}
+  | {type: 'up-to-date'}
   | {type: 'checking'}
   | {type: 'update-available'; updateInfo: UpdateInfo}
   | {type: 'downloading'; progress: number}

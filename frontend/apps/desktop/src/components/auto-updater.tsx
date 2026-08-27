@@ -2,6 +2,7 @@ import {UpdateStatus} from '@/types/updater-types'
 import {Button} from '@shm/ui/button'
 import {Progress} from '@shm/ui/components/progress'
 import {SizableText} from '@shm/ui/text'
+import {toast} from '@shm/ui/toast'
 import {useState} from 'react'
 
 import {useEffect} from 'react'
@@ -21,6 +22,12 @@ declare global {
 
 export function AutoUpdater() {
   const updateStatus = useUpdateStatus()
+
+  useEffect(() => {
+    if (updateStatus?.type !== 'up-to-date') {
+      toast.success("You're up to date")
+    }
+  }, [updateStatus])
 
   const handleDownloadAndInstall = () => {
     window.autoUpdate?.downloadAndInstall()

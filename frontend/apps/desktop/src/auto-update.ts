@@ -39,7 +39,7 @@ export default function autoUpdate() {
 
   setTimeout(() => {
     log.debug('[AUTO-UPDATE]: TIMEOUT 5000')
-    checkForUpdates()
+    customAutoUpdates(false)
   }, 5000)
 }
 
@@ -84,7 +84,7 @@ function handleAppImageUpdates() {
   }
 }
 
-export function customAutoUpdates() {
+export function customAutoUpdates(manualCheck = true) {
   // Check if running inside Flatpak
   if (isRunningInFlatpak()) {
     handleFlatpakUpdates()
@@ -104,7 +104,7 @@ export function customAutoUpdates() {
 
   updater.startAutoCheck()
   log.info(`[AUTO-UPDATE] Starting auto-check on ${JSONUrl}`)
-  updater.checkForUpdates()
+  updater.checkForUpdates(manualCheck)
 }
 
 export class AutoUpdater {
@@ -176,7 +176,7 @@ export class AutoUpdater {
 
     ipcMain.on('auto-update:check-for-updates', () => {
       log.info('[AUTO-UPDATE] Received check for updates request')
-      this.checkForUpdates()
+      this.checkForUpdates(true)
     })
 
     console.log(`[AUTO-UPDATE] AutoUpdater constructor call FINISH`)
@@ -197,7 +197,7 @@ export class AutoUpdater {
     }
   }
 
-  async checkForUpdates(): Promise<void> {
+  async checkForUpdates(manualCheck = false): Promise<void> {
     log.info('[AUTO-UPDATE] Checking for updates START')
     log.info(`[AUTO-UPDATE] Update URL: ${this.updateUrl}`)
     log.info(`[AUTO-UPDATE] Current app version: ${app.getVersion()}`)
@@ -241,7 +241,7 @@ export class AutoUpdater {
         await this.handleUpdate(updateInfo)
       } else {
         log.info('[AUTO-UPDATE] Application is up to date')
-        this.status = {type: 'idle'}
+        this.status = {type: manualCheck ? 'up-to-date' : 'idle'}
         win.webContents.send('auto-update:status', this.status)
         this.currentUpdateInfo = null
       }
