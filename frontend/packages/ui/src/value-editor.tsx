@@ -1401,23 +1401,17 @@ function StringLeafEditor({
             onOpen={openFile}
             onClear={() => onValue('')}
           />
-          {cidIsObject && (
+          {canEditInContext && (
             <Tooltip
-              content={
-                canEditInContext
-                  ? `Edit this object in the context of ${fieldLabel} — publishing updates the document directly`
-                  : 'Edit this object (publishes a new version)'
-              }
+              content={`Edit this object in the context of ${fieldLabel} — publishing updates the document directly`}
             >
               <Button
                 variant="ghost"
                 size="iconSm"
                 aria-label="Edit linked object"
-                data-direct-edit={canEditInContext ? 'true' : undefined}
+                data-direct-edit="true"
                 className="text-muted-foreground"
-                onClick={() =>
-                  canEditInContext ? directEdit!.onEditField(topLevelKey!, cid!) : setObjectDialog('edit')
-                }
+                onClick={() => directEdit!.onEditField(topLevelKey!, cid!)}
               >
                 <Pencil className="size-3.5" />
               </Button>

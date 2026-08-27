@@ -42,6 +42,11 @@ vi.mock('@shm/shared/utils/navigation', async (importOriginal) => {
 })
 
 const flush = () => act(async () => await new Promise((r) => setTimeout(r, 0)))
+/** Flush until `ready()` holds (mocked fetches resolve across a few ticks under load). */
+async function waitFor(ready: () => boolean, tries = 20) {
+  for (let i = 0; i < tries && !ready(); i++) await flush()
+  expect(ready()).toBe(true)
+}
 
 describe('InspectIpfsPage as the blob editor', () => {
   let container: HTMLDivElement
@@ -112,7 +117,7 @@ describe('InspectIpfsPage as the blob editor', () => {
 
   it('`new/<meta-schema>` seeds a new schema (self-describing, no schema link)', async () => {
     mount(`new/${META_SCHEMA_CID}`)
-    await flush()
+    await waitFor(() => container.textContent!.includes('This blob is a schema'))
     expect(container.textContent).toContain('New schema')
     expect(container.textContent).toContain('This blob is a schema')
     expect(container.textContent).not.toContain('Schema attached')
@@ -121,7 +126,7 @@ describe('InspectIpfsPage as the blob editor', () => {
   it('`new/<schemaCid>` seeds an instance linked to its schema, with its required fields', async () => {
     const employee = schemaCid('example-employee')!
     const {published} = mount(`new/${employee}`)
-    await flush()
+    await waitFor(() => container.textContent!.includes('Schema attached'))
     expect(container.textContent).toContain('Schema attached')
     expect(container.textContent).toContain('employeeId')
     const publish = container.querySelector('[data-testid="blob-publish"]') as HTMLButtonElement
@@ -136,7 +141,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     const value = {hello: 'world', n: 3}
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(value))).toString()
     mount(cid, {[cid]: value})
-    await flush()
+    await waitFor(() => container.textContent!.includes('hello'))
     expect(container.querySelector('[data-testid="blob-publish"]')).toBeNull()
     expect(container.textContent).toContain('hello')
     expect(container.textContent).toContain('world')
@@ -160,7 +165,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     const value = {hello: 'world'}
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(value))).toString()
     mount(cid, {[cid]: value})
-    await flush()
+    await waitFor(() => !!container.querySelector('[data-testid="blob-edit"]'))
     const bar = container.querySelector('[data-document-top-bar]')!
     expect(bar.textContent).toContain('IPFS blob')
     expect(bar.textContent).toContain(cid.slice(0, 10))
@@ -178,7 +183,7 @@ describe('InspectIpfsPage as the blob editor', () => {
     const cid = CID.createV1(0x71, await sha256.digest(cbor.encode(schema))).toString()
     const docUrl = 'hm://z6MkOwner/world/types/character'
     const {client, published} = mount(cid, {[cid]: schema}, {editField: {docUrl, field: 'schemaDefinition'}})
-    await flush()
+    await waitFor(() => !!container.querySelector('input[value="Stats"]'))
     // Opens straight into a draft; the title row says what is being edited, once.
     const bar = container.querySelector('[data-document-top-bar]')!
     expect(bar.textContent).toMatch(/Editing\s*schemaDefinition\s*of\s*Character/)
