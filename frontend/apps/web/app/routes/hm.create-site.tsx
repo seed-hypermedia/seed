@@ -5,8 +5,8 @@ import {webUniversalClient} from '@/universal-client'
 import {useHasExistingSpace} from '@/web-create-space-dialog'
 import {useNavigate} from '@remix-run/react'
 import {Button} from '@shm/ui/button'
-import {createSpaceMetadata} from '@shm/ui/create-space-platform'
 import {CreateSpaceForm, type CreateSpaceFormState} from '@shm/ui/create-space-form'
+import {createSpaceMetadata} from '@shm/ui/create-space-platform'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
@@ -34,7 +34,7 @@ export default function CreateSiteRoute() {
   const fileUpload = useMemo(() => makeWebFileUpload(webUniversalClient), [])
 
   // When signed in, check whether this account already has a space.
-  const existingSpace = useHasExistingSpace(accountUid)
+  const existingSpace = useHasExistingSpace(accountUid, webUniversalClient)
 
   async function handleComplete(state: CreateSpaceFormState) {
     setBusy(true)
@@ -65,7 +65,8 @@ export default function CreateSiteRoute() {
     )
   }
 
-  if (accountUid && existingSpace.data) {
+  if (accountUid && existingSpace.data?.exists) {
+    const existingSiteUrl = existingSpace.data.siteUrl
     return (
       <Panel>
         <div className="flex flex-col gap-4 p-6">
@@ -76,7 +77,15 @@ export default function CreateSiteRoute() {
             This account already has a space, and each account can have one. To create another, sign in with a different
             identity.
           </SizableText>
-          <Button variant="default" onClick={() => navigate(`/hm/${accountUid}`)}>
+          <Button
+            variant="default"
+            onClick={() => {
+              // Prefer the site's canonical custom domain. Fall back to the
+              // gateway path only when the site has no custom domain.
+              if (existingSiteUrl) window.location.href = existingSiteUrl
+              else navigate(`/hm/${accountUid}`)
+            }}
+          >
             Go to your space
           </Button>
         </div>

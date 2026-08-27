@@ -6,6 +6,7 @@ import {
   useJoinSite,
   useRouteLink,
   useUniversalAppContext,
+  useUniversalClient,
 } from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
@@ -287,8 +288,9 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const {isJoined, joinSite} = useJoinSite({siteUid})
   const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
-  const {data: hasExistingSpace} = useHasExistingSpace(accountId)
-  const canCreateSpace = !hasExistingSpace
+  const universalClient = useUniversalClient()
+  const {data: existingSpace} = useHasExistingSpace(accountId, universalClient)
+  const canCreateSpace = !existingSpace?.exists
 
   const myAccount = useAccount(accountId || undefined, {
     retry: 3,

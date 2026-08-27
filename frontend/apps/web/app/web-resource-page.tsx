@@ -338,7 +338,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   // "Create a space" side panel, opened from the profile header.
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
-  const {data: hasExistingSpace} = useHasExistingSpace(isOwnProfile ? ownAccountUid : undefined)
+  const {data: existingSpace} = useHasExistingSpace(isOwnProfile ? ownAccountUid : undefined, universalClient)
+  const hasExistingSpace = !!existingSpace?.exists
 
   // Profile header buttons (account settings + logout + create space) - only for own profile.
   const profileHeaderButtons = useMemo(() => {

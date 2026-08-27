@@ -3,6 +3,7 @@ import {createSpaceHomeDraft} from '@/document-edit/web-create-space-draft'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
 import {useNavigate} from '@remix-run/react'
 import {useUniversalClient} from '@shm/shared'
+import type {UniversalClient} from '@shm/shared/universal-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Dialog, DialogSideContent, DialogTitle} from '@shm/ui/components/dialog'
 import {CreateSpaceForm, type CreateSpaceFormState} from '@shm/ui/create-space-form'
@@ -13,19 +14,28 @@ import {toast} from '@shm/ui/toast'
 import {useQuery} from '@tanstack/react-query'
 import {useCallback, useMemo, useState} from 'react'
 
-/** Whether the account already has a published home document. */
-export function useHasExistingSpace(accountUid: string | null | undefined) {
-  const client = useUniversalClient()
-  return useQuery({
+/** Whether the account already has a space, plus the site's canonical URL. */
+export type ExistingSpaceInfo = {exists: boolean; siteUrl: string | null}
+
+/**
+ * Whether the account already has a published home document,
+ * and the site's canonical URL (custom domain) from its metadata.
+ */
+export function useHasExistingSpace(accountUid: string | null | undefined, client: UniversalClient) {
+  return useQuery<ExistingSpaceInfo>({
     queryKey: ['create-space-existing-home', accountUid],
     enabled: !!accountUid,
     queryFn: async () => {
-      if (!accountUid) return false
+      if (!accountUid) return {exists: false, siteUrl: null}
       try {
-        const res = (await client.request('Resource', hmId(accountUid, {path: []}))) as {type?: string}
-        return res?.type === 'document'
+        const res = (await client.request('Resource', hmId(accountUid, {path: []}))) as {
+          type?: string
+          document?: {metadata?: {siteUrl?: string | null}}
+        }
+        if (res?.type !== 'document') return {exists: false, siteUrl: null}
+        return {exists: true, siteUrl: res.document?.metadata?.siteUrl ?? null}
       } catch {
-        return false
+        return {exists: false, siteUrl: null}
       }
     },
   })
