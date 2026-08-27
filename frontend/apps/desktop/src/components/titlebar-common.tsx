@@ -870,6 +870,16 @@ function useCurrentRouteUrl(): {
     }
 
     if (route.key === 'inspect-ipfs') {
+      // Editing a blob in a document field's context: the logical location is
+      // the document's Attributes tab, at that field.
+      if (route.editField) {
+        const docId = unpackHmId(route.editField.docUrl)
+        if (docId) {
+          const attributesUrl = routeToUrl({key: 'metadata', id: docId}, {hostname: validatedSiteUrl || gwUrl})
+          const url = `${attributesUrl}/${route.editField.field}`
+          return {displayUrl: url, copyableUrl: attributesUrl}
+        }
+      }
       const url = routeToUrl(route, {hostname: validatedSiteUrl || gwUrl})
       return {displayUrl: url, copyableUrl: url}
     }
