@@ -162,6 +162,37 @@ describe('queryResource', () => {
     expect(client.request).toHaveBeenCalledTimes(6)
   })
 
+  test('returns an error when redirects form a cycle instead of burning all hops', async () => {
+    const client = createMockClient((_key, input) => {
+      if (input.id === docA.id) return redirectResponse(docA, docB)
+      if (input.id === docB.id) return redirectResponse(docB, docA)
+      throw new Error(`Unexpected request: ${input.id}`)
+    })
+
+    const result = await queryResource(client, docA).queryFn!()
+
+    expect(result).toMatchObject({
+      type: 'error',
+      id: docA,
+      message: 'Redirect cycle detected while resolving resource',
+    })
+    // the cycle is detected as soon as an address repeats, before refetching it
+    expect(client.request).toHaveBeenCalledTimes(2)
+  })
+
+  test('returns an error when a document redirects to itself', async () => {
+    const client = createMockClient(() => redirectResponse(docA, docA))
+
+    const result = await queryResource(client, docA).queryFn!()
+
+    expect(result).toMatchObject({
+      type: 'error',
+      id: docA,
+      message: 'Redirect cycle detected while resolving resource',
+    })
+    expect(client.request).toHaveBeenCalledTimes(1)
+  })
+
   test('does not copy source version onto redirect target', async () => {
     const versionedDocA = hmId('uid1', {path: ['old-name'], version: 'v123'})
     const client = createMockClient((_key, input) => {

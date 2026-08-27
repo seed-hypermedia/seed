@@ -26,6 +26,7 @@ import type {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {HMQueryBlockPayloadSchema, HMQueryResultSchema, HMResourceSchema} from '@seed-hypermedia/client/hm-types'
+import {MAX_REDIRECT_HOPS} from '../redirects'
 import type {UniversalClient} from '../universal-client'
 import {hmIdPathToEntityQueryPath} from '../utils'
 import {hmId} from '../utils/entity-id-url'
@@ -79,12 +80,18 @@ export function queryResource(client: UniversalClient, id: UnpackedHypermediaId 
         // Republish refs are special: they should render the target content while
         // preserving the source route/ID, so the omnibar and navigation stay on
         // the republished path instead of being treated like a move redirect.
-        let maxRedirects = 5
-        while (res?.type === 'redirect' && maxRedirects-- > 0) {
+        // Redirects are daemon-served data, so the chain can be cyclic — stop on a
+        // revisited address instead of burning hops on a loop that cannot resolve.
+        const visited = new Set<string>([id.id])
+        while (res?.type === 'redirect' && visited.size <= MAX_REDIRECT_HOPS) {
           const nextTarget = {
             ...res.redirectTarget,
             hostname: res.redirectTarget.hostname || res.id.hostname || id.hostname,
           }
+          if (visited.has(nextTarget.id)) {
+            return {type: 'error', id, message: 'Redirect cycle detected while resolving resource'}
+          }
+          visited.add(nextTarget.id)
           if (res.republish && !republishSourceId) {
             republishSourceId = res.id
           }
