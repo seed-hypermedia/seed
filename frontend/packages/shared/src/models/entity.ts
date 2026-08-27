@@ -24,6 +24,7 @@ import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions}
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
+import {MAX_REDIRECT_HOPS} from '../redirects'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
 import {createWebHMUrl, entityQueryPathToHmIdPath, extractViewTermFromUrl, hmId, latestId, unpackHmId} from '../utils'
@@ -317,15 +318,25 @@ export function useResolvedResource(
     queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<HMResolvedResource | null> => {
       if (!id) return null
 
-      async function loadResolvedResource(id: UnpackedHypermediaId): Promise<HMResolvedResource | null> {
-        let resource = await client.request('Resource', id, {signal})
+      // Redirects are daemon-served data, so the chain can be cyclic — bound the walk
+      // instead of recursing, or a cycle spins forever.
+      const visited = new Set<string>()
+      let current = id
+      while (true) {
+        if (visited.has(current.id)) {
+          throw new Error(`Redirect cycle detected while resolving ${id.id}`)
+        }
+        if (visited.size > MAX_REDIRECT_HOPS) {
+          throw new Error(`Too many redirects while resolving ${id.id} (limit ${MAX_REDIRECT_HOPS})`)
+        }
+        visited.add(current.id)
+        const resource = await client.request('Resource', current, {signal})
         if (resource?.type === 'redirect') {
-          return await loadResolvedResource(resource.redirectTarget)
+          current = resource.redirectTarget
+          continue
         }
         return resource as HMResolvedResource
       }
-
-      return await loadResolvedResource(id)
     },
     ...options,
   })
