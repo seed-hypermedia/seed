@@ -285,12 +285,16 @@ export function useAgentServerUrls() {
  * The desktop app sets no origin, so there it is the route or nothing. Code rendered outside a
  * navigation provider (settings windows) reads no space at all rather than throwing.
  */
-function useSiteHomeMetadata(): HMMetadata | undefined {
+function useSiteHomeMetadata(): {metadata: HMMetadata | undefined; isLoading: boolean} {
   const route = useNavRouteOrNull()
   const originHomeId = useContext(UniversalAppContext).originHomeId
   const siteUid = (route ? siteUidOfRoute(route) : undefined) ?? originHomeId?.uid
   const home = useResource(siteUid ? hmId(siteUid) : undefined)
-  return home.data?.type === 'document' ? home.data.document?.metadata : undefined
+  return {
+    metadata: home.data?.type === 'document' ? home.data.document?.metadata : undefined,
+    // A disabled query (no space in view) also reports loading; only a real fetch counts.
+    isLoading: !!siteUid && !!home.isLoading && home.data === undefined,
+  }
 }
 
 /**
@@ -301,7 +305,7 @@ function useSiteHomeMetadata(): HMMetadata | undefined {
  * It is never persisted into the user's configured list: it applies while viewing that site.
  */
 export function useSiteAdvertisedAgentServerUrl(): string | null {
-  const raw = useSiteHomeMetadata()?.agentServerUrl
+  const raw = useSiteHomeMetadata().metadata?.agentServerUrl
   return useMemo(() => (typeof raw === 'string' && raw ? tryNormalizeAgentServerUrl(raw) : null), [raw])
 }
 
@@ -321,12 +325,24 @@ export type SpaceAgentOption = {serverUrl: string; agent: AgentInfo}
  * deleted, made private, or moved should quietly offer one fewer agent, not an error where a chat
  * belongs. The queries share their cache key with {@link useAgentDetail}, so opening one of these
  * agents in the full view renders from what the panel already loaded.
+ *
+ * The same `GetAgent` answer carries every session of the agent, and that is the only way a reader
+ * gets to see them: the account-wide `ListSessions` the sidebar otherwise relies on covers agents
+ * the account owns or collaborates on, never public ones — so a visitor's own chats with a space's
+ * agent, let alone everybody else's, would stay hidden behind "no chats yet". They are returned
+ * here as list entries (top level only; children nest under their parent's disclosure) for the
+ * sidebar to merge into its session list.
+ *
+ * `isLoading` covers the space's home document as well as the agent fetches: until the home has
+ * loaded there is no way to know whether the space publishes anything, and callers that settle
+ * their selection on "the agent lists are in" must not settle on that gap.
  */
 export function useSpaceAgents(accountUid: string | null | undefined): {
   agents: SpaceAgentOption[]
+  sessions: AgentSessionListEntry[]
   isLoading: boolean
 } {
-  const metadata = useSiteHomeMetadata()
+  const {metadata, isLoading: isHomeLoading} = useSiteHomeMetadata()
   const rawServerUrl = metadata?.agentServerUrl
   const serverUrl = useMemo(
     () => (typeof rawServerUrl === 'string' && rawServerUrl ? tryNormalizeAgentServerUrl(rawServerUrl) : null),
@@ -351,13 +367,23 @@ export function useSpaceAgents(accountUid: string | null | undefined): {
       useErrorBoundary: false,
     })),
   })
+  const responses = queries.map((query) => query.data)
   const agents = serverUrl
-    ? queries
-        .map((query) => query.data?.agent)
+    ? responses
+        .map((response) => response?.agent)
         .filter((agent): agent is AgentInfo => !!agent)
         .map((agent) => ({serverUrl, agent}))
     : []
-  return {agents, isLoading: queries.some((query) => query.isLoading)}
+  const sessions: AgentSessionListEntry[] = serverUrl
+    ? responses.flatMap((response) =>
+        response
+          ? response.sessions
+              .filter((session) => !session.parentSessionId)
+              .map((session): AgentSessionListEntry => ({serverUrl, session, agent: response.agent}))
+          : [],
+      )
+    : []
+  return {agents, sessions, isLoading: isHomeLoading || queries.some((query) => query.isLoading)}
 }
 
 /** Account uid of the site a route is looking at, when the route is about a document. */
@@ -2585,6 +2611,13 @@ export function removeOptimisticSessionFromLists(serverUrl: string, accountUid: 
   getQueryClient().setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) => {
     if (!Array.isArray(old)) return old
     return old.filter((entry: AgentSessionListEntry) => entry.session.id !== sessionId)
+  })
+  // A space agent's sessions reach the sidebar through its cached GetAgent answer (see
+  // useSpaceAgents), so that copy of the list must forget the session too.
+  getQueryClient().setQueriesData({queryKey: ['agents', 'detail', serverUrl, accountUid]}, (old: any) => {
+    if (!old || old._ !== 'GetAgentResponse' || !Array.isArray(old.sessions)) return old
+    if (!old.sessions.some((session: SessionInfo) => session.id === sessionId)) return old
+    return {...old, sessions: old.sessions.filter((session: SessionInfo) => session.id !== sessionId)}
   })
 }
 

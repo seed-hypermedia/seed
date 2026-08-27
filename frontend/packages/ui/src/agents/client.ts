@@ -202,6 +202,22 @@ function omitUndefined<T>(value: T): T {
   return output as T
 }
 
+/**
+ * An error the agent server answered with (as opposed to a failed connection).
+ *
+ * Callers that hold onto a remembered resource across transient outages use the distinction: a
+ * server that replied "not found" or "forbidden" has settled the question, while a fetch that never
+ * reached it has not.
+ */
+export class AgentServerError extends Error {
+  readonly status: number
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'AgentServerError'
+    this.status = status
+  }
+}
+
 export async function sendAgentAction(input: {
   serverUrl: string
   accountUid: string
@@ -217,7 +233,10 @@ export async function sendAgentAction(input: {
   })
   const decoded = cbor.decode<AgentsResponse>(new Uint8Array(await res.arrayBuffer()))
   if (!res.ok || decoded._ === 'Error') {
-    throw new Error(decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`)
+    throw new AgentServerError(
+      decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`,
+      res.status,
+    )
   }
   return decoded
 }

@@ -35,3 +35,26 @@ export function decodeAssistantSessionRef(value: string | null | undefined): Ass
   if (!serverUrl || !sessionId) return null
   return {serverUrl, sessionId}
 }
+
+/**
+ * Identity of an agent chosen in the assistant sidebar, serialized the same way as a session ref.
+ *
+ * The sidebar remembers the agent context the user last picked so a reload (or, on web, a return
+ * to the site) reopens in that context even when it holds no session yet — a draft with a freshly
+ * created or empty agent would otherwise fall back to whatever agent lists first.
+ */
+export type AssistantAgentRef = {
+  serverUrl: string
+  agentId: string
+}
+
+/** Serializes an agent reference for storage beside the session ref. */
+export function encodeAssistantAgentRef(ref: AssistantAgentRef): string {
+  return `${ref.serverUrl}${SEPARATOR}${ref.agentId}`
+}
+
+/** Parses a stored agent choice; null for anything unparseable. */
+export function decodeAssistantAgentRef(value: string | null | undefined): AssistantAgentRef | null {
+  const decoded = decodeAssistantSessionRef(value)
+  return decoded ? {serverUrl: decoded.serverUrl, agentId: decoded.sessionId} : null
+}

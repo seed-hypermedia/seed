@@ -35,8 +35,10 @@ export default function WebAssistantPanelContent({
   return (
     <AssistantPanel
       initialSessionId={panel.sessionId}
+      initialAgentId={panel.agentId}
       newChatRequest={panel.newChatRequest}
       onSessionChange={panel.setSessionId}
+      onAgentChange={panel.setAgentId}
       onClose={onClose}
     />
   )
