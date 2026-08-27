@@ -169,6 +169,7 @@ describe('CommentDiscussions', () => {
 
     renderCommentDiscussions()
     const button = document.body.querySelector<HTMLButtonElement>('button[aria-label="Add Comment to Bookmarks"]')
+    expect(button?.querySelector('.lucide-bookmark')).not.toBeNull()
     act(() => button?.click())
 
     expect(onBookmarkToggleMock).toHaveBeenCalledWith(expect.objectContaining({uid: 'alice', path: ['comment']}), {

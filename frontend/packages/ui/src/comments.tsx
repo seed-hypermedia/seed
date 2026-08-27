@@ -45,7 +45,7 @@ import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
+import {Bookmark, Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
 import {getBlockNodeById} from './blocks-content-utils'
@@ -817,7 +817,7 @@ export const Comment = memo(function Comment({
                       })
                     }
                   >
-                    <MessageSquare className={cn('size-3', isBookmarked && 'fill-current')} />
+                    <Bookmark className={cn('size-3', isBookmarked && 'fill-current')} />
                   </Button>
                 </Tooltip>
               ) : null}

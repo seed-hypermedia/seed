@@ -24,14 +24,14 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import {useState, type ElementType, type KeyboardEvent, type MouseEvent, type ReactNode} from 'react'
+import React, {useState} from 'react'
 
 /** Return a copy of the stored bookmark list ordered from newest to oldest. */
 export function newestBookmarksFirst<T>(bookmarks: readonly T[]): T[] {
   return [...bookmarks].reverse()
 }
 
-const VIEW_TERM_ICONS: Record<string, ElementType> = {
+const VIEW_TERM_ICONS: Record<string, React.ElementType> = {
   ':content': FileText,
   ':comments': MessagesSquare,
   ':activity': Quote,
@@ -200,8 +200,8 @@ function BookmarkRow({
   bookmark: BookmarkItem
   title: string
   titleClassName?: string
-  icon?: ElementType
-  leading?: ReactNode
+  icon?: React.ElementType
+  leading?: React.ReactNode
   privateDocument?: boolean
   deleting: boolean
   onRemove: () => void
@@ -214,8 +214,8 @@ function BookmarkRow({
     (bookmark.viewTerm ? VIEW_TERM_ICONS[bookmark.viewTerm] : null) ||
     (bookmark.key === 'profile' ? User : FileText)
 
-  const navigate = (event: MouseEvent<HTMLDivElement> | KeyboardEvent<HTMLDivElement>) => {
-    linkProps.onClick?.(event as MouseEvent<HTMLDivElement>)
+  const navigate = (event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>) => {
+    linkProps.onClick?.(event as React.MouseEvent<HTMLDivElement>)
     onNavigate()
   }
 

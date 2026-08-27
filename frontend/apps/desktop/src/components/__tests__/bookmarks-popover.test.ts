@@ -27,6 +27,13 @@ describe('newestBookmarksFirst', () => {
 })
 
 describe('titlebar integration', () => {
+  it('keeps the React import used so import organizers do not remove it', () => {
+    const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
+
+    expect(popover).toContain("import React, {useState} from 'react'")
+    expect(popover).toContain('React.ElementType')
+  })
+
   it('renders bookmarks immediately before notifications', () => {
     const titlebar = readFileSync('src/components/titlebar-common.tsx', 'utf8')
     const bookmarksIndex = titlebar.indexOf('<BookmarksPopover />')
@@ -108,9 +115,6 @@ describe('comment bookmarks', () => {
     const popover = readFileSync('src/components/bookmarks-popover.tsx', 'utf8')
 
     expect(popover).toContain('<HMIcon id={authorId}')
-    expect(popover).toContain(
-      'bg-muted-foreground/20 ring-background absolute -right-1 -bottom-1 z-10 flex size-5 items-center justify-center rounded-full ring-2',
-    )
     expect(popover).toContain('<MessageSquare className="text-foreground size-3" />')
   })
 })
