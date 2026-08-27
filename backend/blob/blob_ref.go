@@ -460,22 +460,23 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	// and only when this Ref actually advanced them — duplicate and out-of-date
 	// Refs can't change the result, so they skip the full history replay.
 	if !isTombstone && appliedNewChanges && ictx.deriveFirstContentImage != nil && len(dg.Heads) > 0 {
-		if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
-			headIDs := slices.Collect(maps.Keys(dg.Heads))
-			changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
-			if cerr != nil {
-				ictx.log.Warn("FailedToLoadChangesForCoverImage", zap.String("iri", string(iri)), zap.Error(cerr))
-			} else if firstImage, derr := ictx.deriveFirstContentImage(iri, changes); derr != nil {
-				ictx.log.Warn("FailedToDeriveCoverImage", zap.String("iri", string(iri)), zap.Error(derr))
-			} else {
-				// Always record the result — empty means "derived: no image" — so a
-				// value derived at older heads can never outlive the image's removal,
-				// and clients can skip the fallback document fetch entirely. The
-				// timestamp rides at the generation's latest alive Ref time so that a
-				// late-arriving older Ref which completes the merge still wins the
-				// LWW register over a value derived from fewer heads.
+		headIDs := slices.Collect(maps.Keys(dg.Heads))
+		changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
+		if cerr != nil {
+			ictx.log.Warn("FailedToLoadChangesForCoverImage", zap.String("iri", string(iri)), zap.Error(cerr))
+		} else if firstImage, isFolder, derr := ictx.deriveFirstContentImage(iri, changes); derr != nil {
+			ictx.log.Warn("FailedToDeriveCoverImage", zap.String("iri", string(iri)), zap.Error(derr))
+		} else {
+			// Always record the result — empty means "derived: no image" — so a
+			// value derived at older heads can never outlive the image's removal,
+			// and clients can skip the fallback document fetch entirely. The
+			// timestamp rides at the generation's latest alive Ref time so that a
+			// late-arriving older Ref which completes the merge still wins the
+			// LWW register over a value derived from fewer heads.
+			if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
 				dg.Metadata.set(FirstImageInContentAttr, firstImage, max(refTime, dg.LastAliveRefTime))
 			}
+			dg.Metadata.set(DocumentTypeAttr, map[bool]string{true: "folder", false: "document"}[isFolder], max(refTime, dg.LastAliveRefTime))
 		}
 	}
 
@@ -993,6 +994,9 @@ type IndexedValue struct {
 // means derivation hasn't run.
 const FirstImageInContentAttr = "$db.firstImageInContent"
 
+// DocumentTypeAttr is the internal indexed-attrs key holding the derived document type.
+const DocumentTypeAttr = "$db.documentType"
+
 // DocIndexedAttrs is a map of indexed document attributes with CRDT metadata.
 type DocIndexedAttrs map[string]IndexedValue
 
@@ -1044,10 +1048,6 @@ func deriveFirstContentImages(conn *sqlite.Conn, bs *blockStore, log *zap.Logger
 		// Must be evaluated in Go, not folded into the SQL filter above:
 		// hasNonEmptyAttr treats a nil value and an empty string as absent but any
 		// non-string value as present, which metadata->>'$.cover.v' cannot express.
-		if hasNonEmptyAttr(dg.Metadata, "cover") || hasNonEmptyAttr(dg.Metadata, "icon") {
-			continue
-		}
-
 		headIDs := slices.Collect(maps.Keys(dg.Heads))
 		changes, cerr := changesFromHeadIDsConn(conn, bs, headIDs, dg.Generation)
 		if cerr != nil {
@@ -1056,7 +1056,7 @@ func deriveFirstContentImages(conn *sqlite.Conn, bs *blockStore, log *zap.Logger
 		}
 		changesReplayed += len(changes)
 
-		firstImage, derr := derive(k.IRI, changes)
+		firstImage, isFolder, derr := derive(k.IRI, changes)
 		if derr != nil {
 			log.Warn("FailedToDeriveCoverImage", zap.String("iri", string(k.IRI)), zap.Error(derr))
 			continue
@@ -1065,7 +1065,10 @@ func deriveFirstContentImages(conn *sqlite.Conn, bs *blockStore, log *zap.Logger
 		// LastAliveRefTime is already the max over every alive Ref of this
 		// generation, which is exactly what max(refTime, dg.LastAliveRefTime) in
 		// the per-Ref path resolves to once the last Ref has been applied.
-		dg.Metadata.set(FirstImageInContentAttr, firstImage, dg.LastAliveRefTime)
+		if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
+			dg.Metadata.set(FirstImageInContentAttr, firstImage, dg.LastAliveRefTime)
+		}
+		dg.Metadata.set(DocumentTypeAttr, map[bool]string{true: "folder", false: "document"}[isFolder], dg.LastAliveRefTime)
 
 		if err := dg.save(conn); err != nil {
 			return scanned, derived, changesReplayed, err

@@ -310,7 +310,7 @@ func (idx *Index) WaitIndexedHook(ctx context.Context) error {
 // DeriveFirstContentImage derives a fallback cover-image URL for a document
 // from the changes that make up its current version, in reading order.
 // Returns an empty string when the document has no image block.
-type DeriveFirstContentImage func(iri IRI, changes []ChangeRecord) (string, error)
+type DeriveFirstContentImage func(iri IRI, changes []ChangeRecord) (firstImage string, isFolder bool, err error)
 
 // SetDeriveFirstContentImage installs the fallback-cover-image deriver used
 // during indexing. Wire it before the backfill reindex task starts so the

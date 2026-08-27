@@ -14,6 +14,7 @@ import {parseMarkdown, markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {hmIdPathToEntityQueryPath, pathMatches} from '@shm/shared'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {deriveDocumentType} from '@shm/shared/models/document-machine'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
@@ -575,6 +576,10 @@ export const draftsApi = t.router({
         visibility: input.visibility,
         deps: input.deps,
         navigation: input.navigation,
+        documentType: deriveDocumentType(
+          input.content,
+          hmId(input.editUid ?? input.locationUid ?? '', {path: input.editPath ?? input.locationPath ?? []}),
+        ),
       } as HMListedDraft
 
       draftIndex = [...draftIndex.filter((d) => d.id !== draftId), newDraft]

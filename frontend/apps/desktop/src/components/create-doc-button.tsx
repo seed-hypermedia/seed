@@ -1,7 +1,7 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
-import {buildDocumentCollectionDraftSeed} from '@/utils/publish-utils'
+import {buildDocumentFolderDraftSeed} from '@/utils/publish-utils'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {
@@ -68,11 +68,11 @@ export function useCreateDocumentMenuItem({
           },
         },
         {
-          key: 'new-document-collection',
-          label: 'New Document Collection',
+          key: 'new-document-folder',
+          label: 'New Folder',
           icon: <LibraryBig className="size-4" />,
           onClick: () => {
-            const seed = buildDocumentCollectionDraftSeed(nanoid(10))
+            const seed = buildDocumentFolderDraftSeed(nanoid(10))
             void createDraft({initialMetadata: seed.metadata, initialContent: seed.content})
           },
         },

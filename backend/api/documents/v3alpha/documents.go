@@ -119,7 +119,7 @@ func (srv *Server) clampPageSize(rpc string, pageSize *int32, defaultSize int32)
 // The changes are supplied by the indexer (already loaded on its transaction's
 // connection), so this does no database I/O and is safe to call mid-indexing.
 // It mirrors loadDocument's in-memory build but never touches the pool.
-func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link string, err error) {
+func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link string, isFolder bool, err error) {
 	// The docmodel panics on changes it considers impossible, but such changes
 	// exist in the wild: a single move op with ~5.8k+ blocks overflows the op ID
 	// index (the apply loop advances idx quadratically), which panics ApplyChange.
@@ -130,17 +130,18 @@ func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link st
 	defer func() {
 		if r := recover(); r != nil {
 			link = ""
+			isFolder = false
 			err = fmt.Errorf("panic while deriving first content image for %s: %v", iri, r)
 		}
 	}()
 
 	if len(changes) == 0 {
-		return "", nil
+		return "", false, nil
 	}
 
 	doc, err := docmodel.New(iri, cclock.New())
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	for _, ch := range changes {
@@ -149,11 +150,15 @@ func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link st
 			doc.Generation = maybe.New(ch.Generation)
 		}
 		if err := doc.ApplyChange(ch.CID, ch.Data); err != nil {
-			return "", err
+			return "", false, err
 		}
 	}
 
-	return doc.FirstContentImage(), nil
+	hydrated, err := doc.Hydrate(context.Background())
+	if err != nil {
+		return "", false, err
+	}
+	return doc.FirstContentImage(), isFolderContent(hydrated.Account, hydrated.Path, hydrated.Content), nil
 }
 
 // SetTelemetry wires the journeys profiler. Optional; when nil, all
@@ -2345,6 +2350,10 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			firstImageInContent = &s
 		}
 	}
+	documentType := documents.DocumentType_DOCUMENT_TYPE_DOCUMENT
+	if v, ok := attrs[blob.DocumentTypeAttr]; ok && v.Value == "folder" {
+		documentType = documents.DocumentType_DOCUMENT_TYPE_FOLDER
+	}
 
 	var authorIDs []int64
 	if err := json.Unmarshal(authorsJSON, &authorIDs); err != nil {
@@ -2430,6 +2439,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		Path:                path,
 		Metadata:            metastruct,
 		FirstImageInContent: firstImageInContent,
+		DocumentType:        documentType,
 		Authors:             authors,
 		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
 		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),
@@ -3034,6 +3044,10 @@ func (srv *Server) denyPrivateComment(ctx context.Context, account core.Principa
 
 // DocumentToListItem converts a document to a document list item.
 func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
+	documentType := documents.DocumentType_DOCUMENT_TYPE_DOCUMENT
+	if isFolderContent(doc.Account, doc.Path, doc.Content) {
+		documentType = documents.DocumentType_DOCUMENT_TYPE_FOLDER
+	}
 	return &documents.DocumentInfo{
 		Account:        doc.Account,
 		Path:           doc.Path,
@@ -3045,5 +3059,37 @@ func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
 		Version:        doc.Version,
 		GenerationInfo: doc.GenerationInfo,
 		Visibility:     doc.Visibility,
+		DocumentType:   documentType,
 	}
+}
+
+func isFolderContent(account, path string, content []*documents.BlockNode) bool {
+	if len(content) != 1 || content[0].Block.GetType() != "Query" {
+		return false
+	}
+	query := content[0].Block.GetAttributes().GetFields()["query"].GetStructValue()
+	if query == nil {
+		return true
+	}
+	includesValue, exists := query.Fields["includes"]
+	if !exists || includesValue.GetKind() == nil {
+		return true
+	}
+	includes := includesValue.GetListValue()
+	if includes == nil {
+		return false
+	}
+	if len(includes.Values) == 0 {
+		return true
+	}
+	if len(includes.Values) != 1 {
+		return false
+	}
+	include := includes.Values[0].GetStructValue()
+	if include == nil {
+		return false
+	}
+	space := include.Fields["space"].GetStringValue()
+	includePath := strings.Trim(include.Fields["path"].GetStringValue(), "/")
+	return (space == "" && includePath == "") || (space == account && includePath == strings.Trim(path, "/"))
 }

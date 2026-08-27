@@ -32,13 +32,11 @@ function getTopLevelBlockCount(blocks: unknown[] | null | undefined) {
   return Array.isArray(blocks) ? blocks.length : 0
 }
 
-/** Whether metadata identifies the canonical document collection type. */
-export function isDocumentCollection(metadata: HMMetadata | null | undefined): boolean {
-  return metadata?.type == 'Collection'
-}
+/** Type derived from a document's top-level content. */
+export type DerivedDocumentType = 'document' | 'folder'
 
-/** Creates the standard query block required by a document collection. */
-export function createDefaultCollectionQueryBlock(blockId: string): EditorBlock {
+/** Creates the canonical query block used by new document Folders. */
+export function createDefaultFolderQueryBlock(blockId: string): EditorQueryBlock {
   return {
     id: blockId,
     type: 'query',
@@ -56,17 +54,6 @@ export function createDefaultCollectionQueryBlock(blockId: string): EditorBlock 
   }
 }
 
-/** Ensures the first root query block exists and uses the collection Table view. */
-export function normalizeCollectionEditorBlocks(blocks: EditorBlock[], blockId: string): EditorBlock[] {
-  const queryIndex = blocks.findIndex((block) => block.type === 'query')
-  if (queryIndex === -1) return [...blocks, createDefaultCollectionQueryBlock(blockId)]
-  const query = blocks[queryIndex]
-  if (!query || query.type !== 'query' || query.props.style === 'Table') return blocks
-  const result = [...blocks]
-  result[queryIndex] = {...query, props: {...query.props, style: 'Table'}}
-  return result
-}
-
 type QueryInclude = {
   space?: unknown
   path?: unknown
@@ -82,6 +69,45 @@ function includeTargetsDocument(include: QueryInclude, documentId: UnpackedHyper
   if (include.space !== documentId.uid) return false
   const includePath = entityQueryPathToHmIdPath(typeof include.path === 'string' ? include.path : '')
   return includePath.join('/') === (documentId.path ?? []).join('/')
+}
+
+function includeIsEmpty(include: QueryInclude) {
+  const space = typeof include.space === 'string' ? include.space : ''
+  const path = typeof include.path === 'string' ? include.path : ''
+  return space === '' && path === ''
+}
+
+/** Derives whether top-level content represents a normal document or a Folder. */
+export function deriveDocumentType(
+  content: HMBlockNode[] | EditorBlock[] | null | undefined,
+  documentId: UnpackedHypermediaId,
+): DerivedDocumentType {
+  if (!Array.isArray(content) || content.length !== 1) return 'document'
+
+  const root = content[0]
+  let includes: unknown
+  if (root && 'block' in root) {
+    if (root.block.type !== 'Query') return 'document'
+    includes = root.block.attributes?.query?.includes
+  } else {
+    if (!root || root.type !== 'query') return 'document'
+    const rawIncludes = root.props.queryIncludes
+    if (!rawIncludes) return 'folder'
+    try {
+      includes = JSON.parse(rawIncludes)
+    } catch {
+      return 'document'
+    }
+  }
+
+  if (includes == null) return 'folder'
+  if (!Array.isArray(includes)) return 'document'
+  if (includes.length === 0) return 'folder'
+  if (includes.length !== 1) return 'document'
+  const include = includes[0]
+  if (!include || typeof include !== 'object') return 'document'
+  const queryInclude = include as QueryInclude
+  return includeIsEmpty(queryInclude) || includeTargetsDocument(queryInclude, documentId) ? 'folder' : 'document'
 }
 
 function retargetQueryBlock(block: EditorBlock, fromId: UnpackedHypermediaId, toId: UnpackedHypermediaId) {
@@ -194,6 +220,8 @@ export type PendingRebase =
 /** Full context managed by the machine. */
 export type DocumentMachineContext = {
   documentId: UnpackedHypermediaId
+  /** Type derived from the effective published or draft content. */
+  documentType: DerivedDocumentType
   draftId: string | null
   document: HMDocument | null
   metadata: HMDraft['metadata']
@@ -260,8 +288,6 @@ export type DocumentMachineContext = {
   transientResourceError: TransientResourceError
   /** True after this old-version visit has already warned about blocked edit attempts. */
   oldVersionEditNoticeShown: boolean
-  /** Prevents a failed automatic collection repair from retrying in a tight loop. */
-  collectionRepairAttempted: boolean
 }
 
 function contentToEditorBlocks(content: HMBlockNode[] | EditorBlock[] | null | undefined): EditorBlock[] {
@@ -272,8 +298,8 @@ function contentToEditorBlocks(content: HMBlockNode[] | EditorBlock[] | null | u
     : (content as EditorBlock[])
 }
 
-/** Returns the machine's authoritative editor content for collection rendering and repair. */
-export function getCollectionEditorBlocks(context: DocumentMachineContext): EditorBlock[] {
+/** Returns the machine's authoritative editor content for folder rendering and repair. */
+export function getFolderEditorBlocks(context: DocumentMachineContext): EditorBlock[] {
   const useDraft = shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && context.draftContent
   return contentToEditorBlocks(useDraft || context.document?.content)
 }
@@ -281,14 +307,6 @@ export function getCollectionEditorBlocks(context: DocumentMachineContext): Edit
 /** Returns the effective metadata derived from the published document and draft overlay. */
 export function getEffectiveDocumentMetadata(context: DocumentMachineContext): HMMetadata {
   return {...(context.document?.metadata ?? {}), ...context.metadata}
-}
-
-/** Whether an editable collection needs a missing query repaired or its first root query normalized to Table. */
-export function collectionNeedsRepair(context: DocumentMachineContext): boolean {
-  if (!context.canEdit || !isDocumentCollection(getEffectiveDocumentMetadata(context))) return false
-  if (!shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion)) return false
-  const query = getCollectionEditorBlocks(context).find((block) => block.type === 'query')
-  return !query || query.props.style !== 'Table'
 }
 
 /**
@@ -313,8 +331,9 @@ export type DocumentMachineEvent =
   | {type: 'rootChildrenType.change'; childrenType: HMBlockChildrenType}
   | {type: 'change.navigation'; navigation: HMNavigationItem[]}
   | {type: 'reset.content'}
-  | {type: 'collection.query.change'; props: Partial<EditorQueryBlock['props']>}
-  | {type: 'collection.convertToDocument'}
+  | {type: 'folder.query.change'; props: Partial<EditorQueryBlock['props']>}
+  | {type: 'folder.convertToFolder'}
+  | {type: 'folder.convertToDocument'}
   | {
       type: 'publish.start'
       /**
@@ -453,7 +472,14 @@ export const documentMachine = setup({
         }
         return null
       },
-      collectionRepairAttempted: false,
+      documentType: ({context, event}) => {
+        if (event.type !== 'document.loaded' && event.type !== 'document.remoteUpdate') return context.documentType
+        const content =
+          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && context.draftContent
+            ? context.draftContent
+            : event.document.content
+        return deriveDocumentType(content, context.documentId)
+      },
     }),
     setTransientResourceError: assign({
       transientResourceError: ({context, event}) => {
@@ -478,10 +504,10 @@ export const documentMachine = setup({
         return context.metadata
       },
     }),
-    updateCollectionQuery: assign({
+    updateFolderQuery: assign({
       draftContent: ({context, event}) => {
-        if (event.type !== 'collection.query.change') return context.draftContent
-        const blocks = normalizeCollectionEditorBlocks(getCollectionEditorBlocks(context), nanoid(10))
+        if (event.type !== 'folder.query.change') return context.draftContent
+        const blocks = getFolderEditorBlocks(context)
         const queryIndex = blocks.findIndex((block) => block.type === 'query')
         const query = blocks[queryIndex]
         if (!query || query.type !== 'query') return context.draftContent
@@ -489,12 +515,15 @@ export const documentMachine = setup({
         next[queryIndex] = {...query, props: {...query.props, ...event.props}}
         return next as unknown as HMBlockNode[]
       },
+      documentType: 'folder',
     }),
-    markCollectionRepairAttempted: assign({
-      collectionRepairAttempted: true,
+    convertToFolder: assign({
+      draftContent: () => [createDefaultFolderQueryBlock(nanoid(10))] as unknown as HMBlockNode[],
+      documentType: 'folder',
     }),
-    convertCollectionToDocument: assign({
-      metadata: ({context}) => ({...context.metadata, type: null}) as HMMetadata,
+    convertToDocument: assign({
+      draftContent: [],
+      documentType: 'document',
     }),
     setNavigation: assign({
       navigation: ({event}) => {
@@ -779,6 +808,14 @@ export const documentMachine = setup({
         if (event.type === 'draft.resolved') return event.content ?? null
         return null
       },
+      documentType: ({context, event}) => {
+        if (event.type !== 'draft.resolved') return context.documentType
+        const content =
+          shouldAllowDraftOverlay(context.isLatestVersion, context.routeVersion) && event.content
+            ? event.content
+            : context.document?.content
+        return deriveDocumentType(content, context.documentId)
+      },
       draftCursorPosition: ({event}) => {
         if (event.type === 'draft.resolved') return event.cursorPosition ?? null
         return null
@@ -807,7 +844,6 @@ export const documentMachine = setup({
         if (event.type === 'draft.resolved' && event.content) return collectChildDraftIds(event.content)
         return context.referencedChildDraftIds
       },
-      collectionRepairAttempted: false,
     }),
     setExistingDraft: assign({
       draftId: ({event}) => {
@@ -1058,7 +1094,6 @@ export const documentMachine = setup({
     hasExistingDraft: ({context}) => context.shouldAutoEdit,
     hasRemoteUpdate: ({context}) => context.pendingRemoteDocument !== null,
     bothSourcesReady: ({context}) => context.documentReady && context.draftReady,
-    collectionNeedsRepair: ({context}) => !context.collectionRepairAttempted && collectionNeedsRepair(context),
     capabilityLost: ({event}) => event.type === 'capability.changed' && !event.canEdit,
     hasPendingPublish: ({context}) => context.pendingPublish,
     hasPendingExitEditingAfterSave: ({context}) => context.pendingExitEditingAfterSave,
@@ -1112,6 +1147,7 @@ export const documentMachine = setup({
   },
   context: ({input}) => ({
     documentId: input.documentId,
+    documentType: 'document',
     draftId: input.existingDraftId ?? input.reservedDraftId ?? null,
     document: null,
     metadata: {},
@@ -1148,7 +1184,6 @@ export const documentMachine = setup({
     error: null,
     transientResourceError: null,
     oldVersionEditNoticeShown: false,
-    collectionRepairAttempted: false,
   }),
   initial: 'loading',
   states: {
@@ -1179,52 +1214,11 @@ export const documentMachine = setup({
           actions: ['setRouteVersionState'],
         },
       },
-      always: [
-        {
-          target: 'repairingCollection',
-          guard: ({context}) =>
-            context.documentReady &&
-            context.draftReady &&
-            !context.collectionRepairAttempted &&
-            collectionNeedsRepair(context),
-        },
-        {target: 'loaded', guard: 'bothSourcesReady'},
-      ],
+      always: [{target: 'loaded', guard: 'bothSourcesReady'}],
       after: {
         loadingTimeout: {
           target: 'error',
         },
-      },
-    },
-
-    repairingCollection: {
-      entry: ['markCollectionRepairAttempted', 'setDepsFromPublished', 'snapshotBaseBlocks'],
-      invoke: {
-        src: 'writeDraft',
-        input: ({context}) => ({
-          draftId: context.draftId,
-          metadata: getEffectiveDocumentMetadata(context),
-          deps: context.deps,
-          navigation: context.navigation,
-          locationUid: context.locationUid,
-          locationPath: context.locationPath,
-          editUid: context.editUid,
-          editPath: context.editPath,
-          signingAccountId: context.signingAccountId,
-          mineTouchedIds: context.mineTouchedIds,
-          baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
-          contentOverride: normalizeCollectionEditorBlocks(getCollectionEditorBlocks(context), nanoid(10)),
-        }),
-        onDone: {
-          target: 'editing',
-          actions: [
-            'setDraftCreated',
-            {type: 'setDraftIdFromResult', params: ({event}: {event: any}) => event.output},
-            {type: 'setDraftSavedSnapshotFromResult', params: ({event}: {event: any}) => event.output},
-            'clearShouldAutoEdit',
-          ],
-        },
-        onError: {target: 'loaded'},
       },
     },
 
@@ -1264,20 +1258,20 @@ export const documentMachine = setup({
         'version.changed': {
           actions: ['setRouteVersionState'],
         },
-        'collection.query.change': {
+        'folder.query.change': {
           target: 'editing',
           guard: 'canTransitionToEditing',
-          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'updateCollectionQuery'],
+          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'updateFolderQuery'],
         },
-        'collection.convertToDocument': {
+        'folder.convertToFolder': {
           target: 'editing',
           guard: 'canTransitionToEditing',
-          actions: [
-            'setDepsFromPublished',
-            'snapshotBaseBlocks',
-            'convertCollectionToDocument',
-            raise({type: 'change'}),
-          ],
+          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'convertToFolder', raise({type: 'change'})],
+        },
+        'folder.convertToDocument': {
+          target: 'editing',
+          guard: 'canTransitionToEditing',
+          actions: ['setDepsFromPublished', 'snapshotBaseBlocks', 'convertToDocument', raise({type: 'change'})],
         },
         'draft.existing': [
           {
@@ -1291,7 +1285,6 @@ export const documentMachine = setup({
         ],
       },
       always: [
-        {target: 'repairingCollection', guard: 'collectionNeedsRepair'},
         {
           target: 'editing',
           guard: ({context}) =>
@@ -1319,8 +1312,11 @@ export const documentMachine = setup({
         {type: 'setEditorReadOnly'},
       ],
       on: {
-        'collection.convertToDocument': {
-          actions: ['convertCollectionToDocument', raise({type: 'change'})],
+        'folder.convertToFolder': {
+          actions: ['convertToFolder', raise({type: 'change'})],
+        },
+        'folder.convertToDocument': {
+          actions: ['convertToDocument', raise({type: 'change'})],
         },
         // Already editing: only move the cursor when the event explicitly asks
         // for a position (e.g. the click-below-content affordance sends 'end').
@@ -1390,9 +1386,9 @@ export const documentMachine = setup({
           states: {
             idle: {
               on: {
-                'collection.query.change': {
+                'folder.query.change': {
                   target: 'changed',
-                  actions: ['updateCollectionQuery'],
+                  actions: ['updateFolderQuery'],
                 },
                 change: {
                   target: 'changed',
@@ -1436,9 +1432,9 @@ export const documentMachine = setup({
             },
             changed: {
               on: {
-                'collection.query.change': {
+                'folder.query.change': {
                   target: 'changed',
-                  actions: ['updateCollectionQuery'],
+                  actions: ['updateFolderQuery'],
                   reenter: true,
                 },
                 change: {
@@ -1505,8 +1501,8 @@ export const documentMachine = setup({
             creating: {
               entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
-                'collection.query.change': {
-                  actions: ['setHasChangedWhileSaving', 'updateCollectionQuery'],
+                'folder.query.change': {
+                  actions: ['setHasChangedWhileSaving', 'updateFolderQuery'],
                 },
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
@@ -1552,9 +1548,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
-                  contentOverride: isDocumentCollection(getEffectiveDocumentMetadata(context))
-                    ? getCollectionEditorBlocks(context)
-                    : undefined,
+                  contentOverride: context.documentType === 'folder' ? getFolderEditorBlocks(context) : undefined,
                 }),
                 onDone: [
                   {
@@ -1630,8 +1624,8 @@ export const documentMachine = setup({
             saving: {
               entry: ['logSaveStarted', 'resetChangeWhileSaving', raise({type: '_save.started'})],
               on: {
-                'collection.query.change': {
-                  actions: ['setHasChangedWhileSaving', 'updateCollectionQuery'],
+                'folder.query.change': {
+                  actions: ['setHasChangedWhileSaving', 'updateFolderQuery'],
                 },
                 change: {
                   actions: ['setHasChangedWhileSaving', 'setMetadata'],
@@ -1678,9 +1672,7 @@ export const documentMachine = setup({
                   // the existing content instead of persisting an empty draft
                   // body that blanks the Content tab and wipes content on publish.
                   baseBlocks: context.baseBlocks ?? context.document?.content ?? null,
-                  contentOverride: isDocumentCollection(getEffectiveDocumentMetadata(context))
-                    ? getCollectionEditorBlocks(context)
-                    : undefined,
+                  contentOverride: context.documentType === 'folder' ? getFolderEditorBlocks(context) : undefined,
                 }),
                 onDone: [
                   {

@@ -1,4 +1,5 @@
 import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {
   createInspectNavRouteFromRoute,
   hmId,
@@ -10,6 +11,7 @@ import {
 } from '@shm/shared'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {createDefaultFolderQueryBlock} from '@shm/shared/models/document-machine'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL} from '@shm/shared/utils/entity-id-url'
@@ -44,6 +46,7 @@ import {
   Bot,
   ExternalLink,
   FilePlus2,
+  LibraryBig,
   Globe,
   History,
   Import as ImportIcon,
@@ -56,6 +59,7 @@ import {
   User,
   UserCog,
 } from 'lucide-react'
+import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
@@ -173,7 +177,7 @@ export function useWebCreateDocumentMenuItem({
   const importInputRef = useRef<HTMLInputElement>(null)
 
   const createDraft = useCallback(
-    (visibility?: HMResourceVisibility) => {
+    (visibility?: HMResourceVisibility, folder = false) => {
       if (!signingAccountId) return
       console.log('[web-create-doc] menu createDraft', {
         locationId: locationId.id,
@@ -186,6 +190,9 @@ export function useWebCreateDocumentMenuItem({
         visibility,
         capabilityCid,
         persist: false,
+        ...(folder
+          ? {content: editorBlocksToHMBlockNodes([createDefaultFolderQueryBlock(nanoid(10))]), persist: true}
+          : {}),
         navigate: (route) => navigate(route),
       })
     },
@@ -204,6 +211,12 @@ export function useWebCreateDocumentMenuItem({
           label: 'New Document',
           icon: <FilePlus2 className="size-4" />,
           onClick: () => createDraft('PUBLIC'),
+        },
+        {
+          key: 'new-folder',
+          label: 'New Folder',
+          icon: <LibraryBig className="size-4" />,
+          onClick: () => createDraft('PUBLIC', true),
         },
         {
           key: 'new-private-document',

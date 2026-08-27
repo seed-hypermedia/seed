@@ -22,7 +22,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions} from '@tanstack/react-query'
 import {useEffect, useMemo, useRef, useState} from 'react'
-import {DocumentInfo, RedirectErrorDetails} from '../client'
+import {DocumentInfo, DocumentType, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
 import {MAX_REDIRECT_HOPS} from '../redirects'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
@@ -88,6 +88,7 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
   return HMDocumentInfoSchema.parse({
     ...docInfo,
     metadata: prepareHMDocumentMetadata(doc.metadata),
+    documentType: docInfo.documentType === DocumentType.FOLDER ? 'folder' : 'document',
     type: 'document',
     createTime,
     updateTime: prepareHMDate(docInfo.updateTime),

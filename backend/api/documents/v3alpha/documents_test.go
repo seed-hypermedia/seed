@@ -1433,7 +1433,7 @@ func TestDeriveFirstContentImageHugeChange(t *testing.T) {
 		},
 	}
 
-	_, err := DeriveFirstContentImage("hm://alice/huge", []blob.ChangeRecord{{
+	_, _, err := DeriveFirstContentImage("hm://alice/huge", []blob.ChangeRecord{{
 		CID:  cid.Undef,
 		Data: ch,
 	}})

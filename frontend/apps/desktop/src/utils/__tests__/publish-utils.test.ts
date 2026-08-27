@@ -5,17 +5,17 @@ import {
   computeInlineDraftPublishPath,
   computeNewDraftParams,
   computePublishPath,
-  buildDocumentCollectionDraftSeed,
+  buildDocumentFolderDraftSeed,
   resolvePublishPath,
   shouldAutoLinkParent,
   validatePublishPath,
 } from '../publish-utils'
 
-describe('buildDocumentCollectionDraftSeed', () => {
-  it('creates Collection metadata and exactly one empty-target query block', () => {
-    const seed = buildDocumentCollectionDraftSeed('query-block-id')
+describe('buildDocumentFolderDraftSeed', () => {
+  it('creates no type metadata and exactly one empty-target query block', () => {
+    const seed = buildDocumentFolderDraftSeed('query-block-id')
 
-    expect(seed.metadata).toEqual({type: 'Collection'})
+    expect(seed.metadata).toEqual({})
     expect(seed.content).toEqual([
       {
         id: 'query-block-id',
@@ -27,6 +27,7 @@ describe('buildDocumentCollectionDraftSeed', () => {
           queryIncludes: '[{"space":"","path":"","mode":"Children"}]',
           querySort: '[{"term":"UpdateTime","reverse":false}]',
           defaultOpen: 'true',
+          tableConfig: '',
         },
         content: [],
         children: [],

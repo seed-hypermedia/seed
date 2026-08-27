@@ -1,0 +1,193 @@
+# ADR: Derive Document Folders from Content
+
+- **Status:** Accepted
+- **Date:** 2026-08-27
+- **Decision owners:** Seed document experience
+- **Related design:** `docs/superpowers/specs/2026-08-27-document-folders-design.md`
+
+## Context
+
+Document Folders were previously identified by a user-authored metadata value. The UI then inspected that metadata to
+choose a Folder icon and table-first rendering.
+
+This makes a user metadata attribute responsible for application behavior, duplicates type decisions in UI code, and
+does not give the backend index a typed value suitable for fast document listings. It also makes draft behavior
+inconsistent: the document page can know that a draft is Folder-shaped while a file-browser row cannot know until
+publication.
+
+The product term is now **Folder**, not Folder. A Folder is a document whose content consists of a single top-level
+query block that targets itself implicitly or explicitly.
+
+## Decision drivers
+
+- Folder status must follow document content rather than mutable user metadata.
+- Draft conversions must update rendering immediately without publishing.
+- Published document lists must render Folder icons without fetching full documents.
+- Unpublished Folder icons must remain correct after navigating away from a draft.
+- Desktop and web must have full feature parity.
+- The shared document machine should own document behavior; resource-page effects and UI callbacks should not coordinate
+  state.
+- Query view is not part of Folder identity because Table, Card, List, and future views are all valid Folder
+  presentations.
+- Existing documents and drafts must remain readable without destructive migrations.
+
+## Decision
+
+### Use Folder terminology everywhere
+
+Rename the feature's identifiers, events, selectors, components, tests, accessible labels, and user-facing text to
+Folder. New code uses:
+
+```ts
+documentType: 'document' | 'folder'
+```
+
+The legacy stored metadata value is discussed only for compatibility and is not used to control behavior.
+
+### Define Folder identity structurally
+
+A document is a Folder when:
+
+1. it has exactly one top-level block;
+2. that block is a query block; and
+3. the query has no includes, or exactly one include that is empty or resolves to the document's own account and
+   normalized path.
+
+An absent includes field, an empty includes list, and an absent or empty editor includes property all mean no includes.
+A partially empty target, multiple includes, another target, or malformed non-empty include data does not qualify.
+
+The query block's view/style and nested children do not affect Folder identity.
+
+### Make the document machine authoritative at runtime
+
+The shared document machine derives `context.documentType` from effective content, including an applicable draft
+overlay. Machine events and actions own both conversion flows, content replacement, editing transitions, and the
+existing autosave intent.
+
+The shared resource page renders selectors, sends intent events, and presents confirmation dialogs. It does not derive
+Folder status, coordinate it with Folder-specific effects, or implement machine transitions in UI callbacks.
+
+### Derive again at persistence boundaries
+
+Runtime machine state and persisted indexes have different lifetimes, so each authoritative persistence boundary derives
+the type from the content it writes rather than trusting a caller-provided type.
+
+- Desktop stores `documentType` in each JSON draft index entry.
+- Web stores `documentType` in each IndexedDB `WebDocDraft` record and exposes it through the listed-draft adapter.
+- The backend stores a derived internal `$db.*` value for each published document generation.
+
+Matching draft values override published values in file-browser rows. Once publication removes the draft, the published
+backend index becomes authoritative again.
+
+### Expose a typed published API value
+
+Add a protobuf `DocumentType` enum with unspecified, document, and folder values, and expose it as
+`DocumentInfo.document_type`. Missing or unknown indexed values map to document and render as normal documents.
+
+### Keep conversions draft-first and confirmed
+
+- **Convert to Folder** warns that all existing content will be removed, then replaces effective content with one
+  canonical query block in the local draft.
+- **Convert to Document** warns that the Folder query will be removed, then leaves the local draft with empty content.
+- Both conversions use normal autosave and Publish flows.
+- Conversion success and Undo toasts are removed.
+
+### Render Table for now without making it identity
+
+Desktop and web render every Folder with the shared table view today. The stored query view is preserved and does not
+affect classification, allowing other views to be rendered later without changing the data model.
+
+## Considered options
+
+### Continue using `metadata.type`
+
+**Rejected.** It makes application behavior depend on a user-authored attribute, requires writers to keep metadata and
+content synchronized, and keeps the file browser coupled to legacy metadata.
+
+### Make the backend the only authority
+
+**Rejected.** The backend only sees published content, so local conversions could not change the editor/table view or
+icon until publication and reindexing.
+
+### Derive document type only in UI components
+
+**Rejected.** This would duplicate parsing and state coordination across resource pages and file-browser rows, encourage
+Folder-specific effects, and weaken the document machine as the runtime authority.
+
+### Derive document type only in the document machine
+
+**Rejected.** Machine state disappears after navigation and does not cover other listed drafts or backend document
+listings. Persisted draft and published indexes are still required.
+
+### Fetch full document or draft content for every file-browser row
+
+**Rejected.** It adds list-time I/O and parsing, makes rendering slower, and ignores the existing lightweight directory
+and draft indexes.
+
+### Store only `is_folder: boolean`
+
+**Rejected.** An explicit typed document value matches the machine model, distinguishes an unavailable derivation from a
+known normal document, and provides a clearer API contract.
+
+### Treat only Table queries as Folders
+
+**Rejected.** View is presentation, not identity. Restricting identity to Table would require repair drafts and block
+Card, List, and future views.
+
+### Require exactly one include
+
+**Rejected.** A query with no includes is implicitly self-referential and is a valid Folder. Exactly one empty or
+explicit self target is also valid.
+
+### Let query children disqualify a Folder
+
+**Rejected.** Only the top-level document shape and query target define the Folder. Query-block children do not change
+its identity.
+
+### Migrate or delete legacy metadata
+
+**Rejected.** Existing structurally valid documents will be classified correctly during derivation and reindexing.
+Rewriting user documents adds risk without affecting the new behavior.
+
+### Show unpublished icons only for the active machine
+
+**Rejected.** The icon would disappear after navigating away. Storing the derived type in each local draft index
+preserves correct rows across navigation and reloads.
+
+### Convert immediately on the published document
+
+**Rejected.** Conversions should be reversible through the existing editing workflow and should not bypass normal draft
+review, autosave, and publication behavior.
+
+## Consequences
+
+### Positive
+
+- Content is the canonical source of Folder identity.
+- Runtime behavior is centralized in the shared machine.
+- File-browser rows remain fast and draft-aware.
+- Desktop and web behave consistently.
+- New Folder views can be added without changing classification.
+- Legacy data remains readable without migration.
+
+### Negative
+
+- The structural predicate must have equivalent TypeScript and Go implementations.
+- Draft schemas and both local stores gain another derived field.
+- Published type derivation adds work to incremental indexing and full reindexing.
+- Until reindexing succeeds, old published rows appear as normal documents.
+
+### Risk controls
+
+- Keep matching predicate fixtures in frontend and backend tests.
+- Derive persisted values at write boundaries rather than accepting caller claims.
+- Always overwrite a successfully derived published value with either document or folder so stale Folder values cannot
+  survive conversion.
+- Treat malformed input and missing legacy values conservatively as normal documents.
+- Keep index derivation best-effort so a type failure cannot block document indexing.
+
+## Follow-up decisions deferred
+
+- Rendering Card, List, or future Folder views.
+- Removing legacy Folder metadata from stored documents.
+- Extending Folder type to other resource APIs beyond `DocumentInfo`.

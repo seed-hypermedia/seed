@@ -963,6 +963,13 @@ message DocumentChangeInfo {
 
 // Basic data about a document with some aggregations and metadata.
 // It's like Document, without the content, but with some additional info.
+// Type derived from a document's published content.
+enum DocumentType {
+  DOCUMENT_TYPE_UNSPECIFIED = 0;
+  DOCUMENT_TYPE_DOCUMENT = 1;
+  DOCUMENT_TYPE_FOLDER = 2;
+}
+
 message DocumentInfo {
   // Account to which the document belongs.
   string account = 1;
@@ -1020,6 +1027,9 @@ message DocumentInfo {
   // Unset means the indexer hasn't derived it (yet); an empty string means
   // the document is known to have no content image.
   optional string first_image_in_content = 15;
+
+  // Output only. Type derived from the document's published content.
+  DocumentType document_type = 16;
 }
 
 // Information about the generation of a document.

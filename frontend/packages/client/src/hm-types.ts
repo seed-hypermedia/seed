@@ -751,6 +751,11 @@ export const HMRedirectInfoSchema = z.object({
 })
 export type HMRedirectInfo = z.infer<typeof HMRedirectInfoSchema>
 
+/** Document type derived from effective content. */
+export const HMDocumentTypeSchema = z.enum(['document', 'folder'])
+/** Document type derived from effective content. */
+export type HMDocumentType = z.infer<typeof HMDocumentTypeSchema>
+
 export const HMDocumentInfoSchema = z.object({
   type: z.literal('document'),
   id: unpackedHmIdSchema,
@@ -766,6 +771,7 @@ export const HMDocumentInfoSchema = z.object({
   generationInfo: HMGenerationInfoSchema,
   redirectInfo: HMRedirectInfoSchema.optional(),
   metadata: HMDocumentMetadataSchema,
+  documentType: HMDocumentTypeSchema.optional(),
   // Indexer-derived first image block of the document's content (reading
   // order), used as a fallback cover on directory cards without fetching the
   // full document. Undefined = not derived (yet); empty string = derived, the
@@ -1323,6 +1329,7 @@ const HMDraftMetaBaseSchema = z.object({
   // (for .json drafts they come from the content file for backwards compat)
   deps: z.array(z.string().min(1)).default([]),
   navigation: z.array(HMNavigationItemSchema).optional(),
+  documentType: HMDocumentTypeSchema.default('document'),
 })
 
 const draftLocationRefinement = (data: {editUid?: string; locationUid?: string}) => data.editUid || data.locationUid
@@ -1341,6 +1348,7 @@ type HMDraftMetaBase = {
   visibility: HMResourceVisibility
   deps: string[]
   navigation?: HMNavigationItem[]
+  documentType?: HMDocumentType
 }
 
 export type HMDraftMeta = HMDraftMetaBase & {

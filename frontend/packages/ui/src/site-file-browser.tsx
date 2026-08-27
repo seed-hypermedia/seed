@@ -1,5 +1,6 @@
 import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {getMetadataName} from '@shm/shared'
+import {getMetadataName, hmId} from '@shm/shared'
+import {useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {useDirectory} from '@shm/shared/models/entity'
 import {
   buildDocumentTree,
@@ -30,6 +31,7 @@ function titleOf(doc: HMDocumentInfo) {
 /** Renders the searchable, expandable document hierarchy for a site. */
 export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetch}: SiteFileBrowserProps) {
   const directory = useDirectory(siteId, {mode: 'AllDescendants'})
+  const drafts = useDraftsForAccountSafe(siteId.uid)
   const [query, setQuery] = useState('')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
 
@@ -39,7 +41,36 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
     setExpandedPaths((current) => new Set(Array.from(current).concat(activeAncestors)))
   }, [activeDocumentId?.id])
 
-  const documents = directory.data ?? []
+  const documents = useMemo(() => {
+    const listedDrafts = drafts.data ?? []
+    const draftTypes = new Map(
+      listedDrafts.filter((draft) => draft.editId).map((draft) => [draft.editId!.id, draft.documentType ?? 'document']),
+    )
+    const published = (directory.data ?? []).map((document) => ({
+      ...document,
+      documentType: draftTypes.get(document.id.id) ?? document.documentType,
+    }))
+    const publishedIds = new Set(published.map((document) => document.id.id))
+    const unpublished = listedDrafts.flatMap((draft) => {
+      if (draft.editId || !draft.locationId || draft.locationId.uid !== siteId.uid) return []
+      const path = [
+        ...(draft.locationId.path ?? []),
+        `${draft.visibility === 'PRIVATE' ? '-private-' : '-'}${draft.id}`,
+      ]
+      const id = hmId(siteId.uid, {path})
+      if (publishedIds.has(id.id)) return []
+      return [
+        {
+          id,
+          path,
+          metadata: draft.metadata,
+          documentType: draft.documentType ?? 'document',
+          visibility: draft.visibility ?? 'PUBLIC',
+        } as HMDocumentInfo,
+      ]
+    })
+    return [...published, ...unpublished]
+  }, [directory.data, drafts.data, siteId.uid])
   const tree = useMemo(() => buildDocumentTree(documents), [documents])
   const rows = useMemo(() => flattenTree(tree, expandedPaths), [expandedPaths, tree])
   const matches = useMemo(() => filterDocumentsByTitle(documents, query), [documents, query])
@@ -125,8 +156,8 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
                       onClick={() => onNavigate(doc.id)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {doc.metadata.type === 'Collection' ? (
-                        <Grid3X3 aria-label="Document collection" className="size-3 shrink-0" />
+                      {doc.documentType === 'folder' ? (
+                        <Grid3X3 aria-label="Folder" className="size-3 shrink-0" />
                       ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-3 shrink-0" />
                       ) : null}

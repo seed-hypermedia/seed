@@ -17,9 +17,9 @@ function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' 
   return {id: hmId('site', {path}), path, metadata: {name}, visibility} as HMDocumentInfo
 }
 
-function makeCollection(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
+function makeFolder(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
   const doc = makeDoc(path, name, visibility)
-  doc.metadata = {...doc.metadata, type: 'Collection'}
+  doc.documentType = 'folder'
   return doc
 }
 
@@ -36,9 +36,9 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
-  it('marks collections with a grid icon instead of a private icon', () => {
+  it('marks folders with a grid icon instead of a private icon', () => {
     useDirectoryMock.mockReturnValue({
-      data: [makeCollection(['collections'], 'Collections'), makeCollection(['private'], 'Private', 'PRIVATE')],
+      data: [makeFolder(['folders'], 'Folders'), makeFolder(['private'], 'Private', 'PRIVATE')],
       isLoading: false,
       isError: false,
     })
@@ -47,7 +47,7 @@ describe('SiteFileBrowser', () => {
       root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
     })
 
-    expect(container.querySelectorAll('[aria-label="Document collection"]')).toHaveLength(2)
+    expect(container.querySelectorAll('[aria-label="Folder"]')).toHaveLength(2)
     expect(container.querySelector('[aria-label="Private document"]')).toBeNull()
   })
 
