@@ -18,6 +18,8 @@ const mockState = vi.hoisted(() => ({
   homeMetadata: {} as Record<string, unknown>,
   requests: [] as {serverUrl: string; accountUid: string; agentId: string}[],
   missingAgentIds: new Set<string>(),
+  sessionsByAgent: {} as Record<string, Array<Record<string, unknown>>>,
+  homeLoading: false,
 }))
 
 vi.mock('../agents/platform', () => ({
@@ -45,14 +47,18 @@ vi.mock('../agents/client', async (importOriginal) => ({
     return {
       _: 'GetAgentResponse',
       agent: {id: action.agentId, definition: {name: `Agent ${action.agentId}`}},
-      sessions: [],
+      sessions: mockState.sessionsByAgent[action.agentId] ?? [],
     }
   },
 }))
 vi.mock('@shm/shared/utils/navigation', () => ({useNavRouteOrNull: () => mockState.route}))
 vi.mock('@shm/shared/models/entity', () => ({
   useResource: (id: {uid: string} | undefined) =>
-    id ? {data: {type: 'document', document: {metadata: mockState.homeMetadata}}} : {data: undefined},
+    !id
+      ? {data: undefined, isLoading: true}
+      : mockState.homeLoading
+        ? {data: undefined, isLoading: true}
+        : {data: {type: 'document', document: {metadata: mockState.homeMetadata}}, isLoading: false},
 }))
 
 import {UniversalAppContext} from '@shm/shared/routing'
@@ -91,6 +97,8 @@ beforeEach(() => {
   mockState.homeMetadata = {}
   mockState.requests = []
   mockState.missingAgentIds = new Set()
+  mockState.sessionsByAgent = {}
+  mockState.homeLoading = false
   latest = null
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -135,6 +143,37 @@ describe('useSpaceAgents', () => {
     mockState.originHomeId = {uid: 'origin-uid'}
     mockState.homeMetadata = {agentServerUrl: 'https://agents.space.example', spaceAgents: {only: 0}}
     await render()
+    expect(latest!.agents.map((option) => option.agent.id)).toEqual(['only'])
+  })
+
+  it("carries each agent's top-level sessions along, since no listing shows a reader those", async () => {
+    mockState.route = {key: 'document', id: {uid: 'space-uid', path: []}}
+    mockState.homeMetadata = {agentServerUrl: 'https://agents.space.example', spaceAgents: {docs: 0}}
+    mockState.sessionsByAgent = {
+      docs: [
+        {id: 's-2', agentId: 'docs', title: 'Latest', updatedAt: 200},
+        {id: 's-child', agentId: 'docs', title: 'Child', parentSessionId: 's-2', updatedAt: 150},
+        {id: 's-1', agentId: 'docs', title: 'First', updatedAt: 100},
+      ],
+    }
+    await render()
+    expect(latest!.sessions.map((entry) => entry.session.id)).toEqual(['s-2', 's-1'])
+    expect(latest!.sessions[0]!.serverUrl).toBe('https://agents.space.example')
+    expect(latest!.sessions[0]!.agent?.id).toBe('docs')
+  })
+
+  it('reports loading while the space home document is still on its way', async () => {
+    // Before the home loads nothing is known about what the space publishes; a caller settling its
+    // selection on "the lists are in" must not settle on this gap.
+    mockState.route = {key: 'document', id: {uid: 'space-uid', path: []}}
+    mockState.homeLoading = true
+    await render()
+    expect(latest!.isLoading).toBe(true)
+    expect(latest!.agents).toEqual([])
+    mockState.homeLoading = false
+    mockState.homeMetadata = {agentServerUrl: 'https://agents.space.example', spaceAgents: {only: 0}}
+    await render()
+    expect(latest!.isLoading).toBe(false)
     expect(latest!.agents.map((option) => option.agent.id)).toEqual(['only'])
   })
 

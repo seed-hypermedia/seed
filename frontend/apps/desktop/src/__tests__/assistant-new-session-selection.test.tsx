@@ -71,9 +71,9 @@ describe('sidebar new-chat selection after CreateSession', () => {
     queryClient.clear()
   })
 
-  it('without the seed, a stale list resolves to the old session (the bug this guards)', () => {
+  it('without the seed, a stale list cannot place the new session, so it is not shown (the bug this guards)', () => {
     queryClient.setQueryData(listKey, [{serverUrl: SERVER, session: session('s-old', 100)}])
-    expect(resolveFromCaches('s-new').session).toEqual({serverUrl: SERVER, sessionId: 's-old'})
+    expect(resolveFromCaches('s-new').session).toBeNull()
   })
 
   it('the seed makes the resolver keep the just-created session over a stale list', () => {

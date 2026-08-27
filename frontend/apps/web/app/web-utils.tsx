@@ -30,7 +30,7 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
-import {useAssistantPanel} from '@/assistant-panel-state'
+import {useAssistantAutoOpen, useAssistantPanel} from '@/assistant-panel-state'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
 import {toast} from '@shm/ui/toast'
@@ -38,6 +38,7 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useMedia} from '@shm/ui/use-media'
 import {cn} from '@shm/ui/utils'
+import {parseSpaceAgentIds} from '@shm/ui/agents/space-agents'
 import {
   Bell,
   Bot,
@@ -275,10 +276,14 @@ function PlaceholderAvatar({onClick}: {onClick: () => void}) {
  * included — into the initial bundle, which the assistant panel and the /hm/agents pages go out of
  * their way to avoid. `useResource` is already here via `useAccount`, so this costs nothing.
  */
-function useSiteAgentServerUrl(siteUid: string): string | null {
+function useSiteAgents(siteUid: string): {serverUrl: string | null; publishesAgents: boolean} {
   const home = useResource(hmId(siteUid))
-  const raw = home.data?.type === 'document' ? home.data.document?.metadata?.agentServerUrl : undefined
-  return typeof raw === 'string' && raw ? raw : null
+  const metadata = home.data?.type === 'document' ? home.data.document?.metadata : undefined
+  const raw = metadata?.agentServerUrl
+  return {
+    serverUrl: typeof raw === 'string' && raw ? raw : null,
+    publishesAgents: parseSpaceAgentIds(metadata?.spaceAgents).length > 0,
+  }
 }
 
 export function WebHeaderActions({siteUid}: {siteUid: string}) {
@@ -318,7 +323,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   // A space that names no agents server has nothing for its readers to talk to, so the entry point
   // is not offered while browsing it. It stays absent until the home document has loaded, so the
   // item appears late rather than appearing and then vanishing.
-  const hasSiteAgents = !!useSiteAgentServerUrl(siteUid)
+  const siteAgents = useSiteAgents(siteUid)
+  const hasSiteAgents = !!siteAgents.serverUrl
+  // First arrival: a signed-in reader of a space that publishes agents finds the panel already
+  // open, once, on a viewport wide enough to show it beside the page. Closing it is remembered.
+  useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)
 
   // Show the join button if not joined the site
   if (!keyPair) {

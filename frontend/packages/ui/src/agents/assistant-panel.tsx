@@ -69,7 +69,14 @@ import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
 import {useChatAutoScroll} from './chat-autoscroll'
-import {decodeAssistantSessionRef, encodeAssistantSessionRef, type AssistantSessionRef} from './assistant-session-ref'
+import {
+  decodeAssistantAgentRef,
+  decodeAssistantSessionRef,
+  encodeAssistantAgentRef,
+  encodeAssistantSessionRef,
+  type AssistantSessionRef,
+} from './assistant-session-ref'
+import {AgentServerError} from './client'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {AgentRichMessageComposer, SUB_SESSION_DRIVEN_MESSAGE, TERMINAL_RUN_STATUSES} from './rich-message-composer'
 import type {AgentsRichEditorSubmitHandle} from './platform'
@@ -91,14 +98,20 @@ import {SessionStatusDot, SessionSummaryBanner, SubSessionsDisclosure} from './s
  */
 export function AssistantPanel({
   initialSessionId,
+  initialAgentId,
   newChatRequest,
   onSessionChange,
+  onAgentChange,
   onClose,
 }: {
   /** Serialized {@link AssistantSessionRef} restored from window state. */
   initialSessionId?: string | null
+  /** Serialized agent ref (see `encodeAssistantAgentRef`) the user last chose, restored from window state. */
+  initialAgentId?: string | null
   newChatRequest?: number
   onSessionChange?: (sessionId: string | null) => void
+  /** Reports the user's explicit agent choice (serialized), for the host to persist beside the session. */
+  onAgentChange?: (agentId: string | null) => void
   /** Renders a close button in the header when the host has no other way to dismiss the panel. */
   onClose?: () => void
 }) {
@@ -106,10 +119,32 @@ export function AssistantPanel({
   const serverUrls = useAgentServerUrls()
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
-  const sessions = useAllAgentSessions(serverUrls.data, accountUid)
+  const ownSessions = useAllAgentSessions(serverUrls.data, accountUid)
   const navigate = useNavigate()
 
   const spaceAgents = useSpaceAgents(accountUid)
+
+  // The account-wide session lists never include a public agent's sessions — the space's agents
+  // reach a visitor through GetAgent instead, which carries them along. Merge both sources so the
+  // context of a space agent lists its chats (the visitor's own included) like any other agent.
+  const sessions = useMemo(() => {
+    if (spaceAgents.sessions.length === 0) return ownSessions
+    const seen = new Set(ownSessions.entries.map((entry) => `${entry.serverUrl}:${entry.session.id}`))
+    const extra = spaceAgents.sessions.filter((entry) => !seen.has(`${entry.serverUrl}:${entry.session.id}`))
+    if (extra.length === 0) return ownSessions
+    return {
+      ...ownSessions,
+      entries: [...ownSessions.entries, ...extra].sort((a, b) => b.session.updatedAt - a.session.updatedAt),
+    }
+  }, [ownSessions, spaceAgents.sessions])
+
+  // "No agents" and "not this agent" only mean something once every list has answered. Until then
+  // the remembered selection is held rather than resolved against a partial picture.
+  const agentsSettled =
+    !accountUid ||
+    (serverUrls.data !== undefined &&
+      !spaceAgents.isLoading &&
+      agentQueries.every((query) => query.isSuccess || query.isError))
 
   const agents: AssistantAgentOption[] = useMemo(
     () =>
@@ -123,7 +158,9 @@ export function AssistantPanel({
   )
 
   const [stored, setStoredRaw] = useState<AssistantSessionRef | null>(() => decodeAssistantSessionRef(initialSessionId))
-  const [chosenAgent, setChosenAgent] = useState<AssistantAgentKey | null>(null)
+  const [chosenAgent, setChosenAgentRaw] = useState<AssistantAgentKey | null>(() =>
+    decodeAssistantAgentRef(initialAgentId),
+  )
   const [isDraft, setIsDraft] = useState(false)
   const lastNewChatRequestRef = useRef(0)
   // Handle onto whichever rich composer is mounted (session chat or draft), for imperative focus.
@@ -139,6 +176,11 @@ export function AssistantPanel({
     chosenAgent,
     storedSession: stored,
     storedSessionAgentId: storedSessionQuery.data?.session.agentId,
+    // Only a refusal from the server gives the session up; a server that could not be reached may
+    // simply be down (the desktop's local one is still booting on launch), so the session is held
+    // and its fetch keeps polling.
+    storedSessionUnavailable: storedSessionQuery.error instanceof AgentServerError,
+    agentsSettled,
     isDraft,
   })
 
@@ -150,17 +192,27 @@ export function AssistantPanel({
     [onSessionChange],
   )
 
-  // Keep window state in step with what is actually shown (e.g. the resolver replaced a stored
-  // session from another agent with the active agent's newest). A draft is exempt: it shows no
+  const setChosenAgent = useCallback(
+    (key: AssistantAgentKey | null) => {
+      setChosenAgentRaw(key)
+      onAgentChange?.(key ? encodeAssistantAgentRef(key) : null)
+    },
+    [onAgentChange],
+  )
+
+  // Keep window state in step with what is actually shown (e.g. the resolver dropped a stored
+  // session that belongs to another agent after a context switch). A draft is exempt: it shows no
   // session by design, and the stored ref doubles as the record of which agent the user was last
   // in — clearing it would make every new chat forget its context and fall back to the first
-  // agent.
+  // agent. Nor is anything written while the agent lists are still loading: the resolver only
+  // holds the remembered session through that gap, and a null or substitute written back now would
+  // overwrite the very selection being restored.
   useEffect(() => {
-    if (isDraft) return
+    if (isDraft || !agentsSettled) return
     const resolved = selection.session
     const same = resolved?.serverUrl === stored?.serverUrl && resolved?.sessionId === stored?.sessionId
     if (!same && !(resolved === null && stored === null)) setStored(resolved)
-  }, [selection.session, stored, setStored, isDraft])
+  }, [selection.session, stored, setStored, isDraft, agentsSettled])
 
   const focusInput = useCallback(() => {
     composerRef.current?.focus({moveCursorToEnd: true})
@@ -341,7 +393,7 @@ export function AssistantPanel({
         />
       ) : (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
-          {sessions.isLoading ? 'Loading…' : 'No agents yet. Create one from the Agents menu above.'}
+          {sessions.isLoading || !agentsSettled ? 'Loading…' : 'No agents yet. Create one from the Agents menu above.'}
         </div>
       )}
     </div>

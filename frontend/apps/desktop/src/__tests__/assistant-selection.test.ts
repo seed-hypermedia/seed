@@ -41,10 +41,12 @@ const sessions = [
 const base = {agents, sessions, chosenAgent: null, storedSession: null, isDraft: false}
 
 describe('resolveAssistantSelection', () => {
-  it('defaults to the first agent (local server first) and its newest session', () => {
+  it('defaults to the first agent (local server first) as a draft, with its sessions listed', () => {
+    // Nothing remembered means a new chat, never whichever chat happens to be newest — for a
+    // public agent that is somebody else's conversation.
     const result = resolveAssistantSelection(base)
     expect(result.agent?.agent.id).toBe('assistant')
-    expect(result.session).toEqual({serverUrl: LOCAL, sessionId: 's-a2'})
+    expect(result.session).toBeNull()
     expect(result.agentSessions.map((entry) => entry.session.id)).toEqual(['s-a2', 's-a1'])
   })
 
@@ -54,7 +56,7 @@ describe('resolveAssistantSelection', () => {
     expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
   })
 
-  it("lets an explicit agent choice override the stored session, landing on that agent's newest", () => {
+  it('lets an explicit agent choice override the stored session, landing on a draft with that agent', () => {
     const result = resolveAssistantSelection({
       ...base,
       storedSession: {serverUrl: LOCAL, sessionId: 's-a1'},
@@ -62,7 +64,8 @@ describe('resolveAssistantSelection', () => {
     })
     expect(result.agent?.agent.id).toBe('researcher')
     // Keeping s-a1 here would show one agent's transcript under another agent's header.
-    expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r2'})
+    expect(result.session).toBeNull()
+    expect(result.agentSessions.map((entry) => entry.session.id)).toEqual(['s-r2', 's-r1'])
   })
 
   it('drafting keeps the agent context but no active session', () => {
@@ -104,11 +107,90 @@ describe('resolveAssistantSelection', () => {
     expect(result.agentSessions).toEqual([])
   })
 
-  it("after deleting the active session, selects the agent's next newest — not the deleted one", () => {
+  it('holds a stored session whose agent has not been listed yet while the lists are still loading', () => {
+    // Launch: the local server answered first; the remote one (owning the stored session) has not.
+    // Settling on the local agent's newest here would be written back as the remembered selection.
+    const result = resolveAssistantSelection({
+      ...base,
+      agents: [agent(LOCAL, 'assistant', 'Assistant')],
+      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
+      storedSessionAgentId: 'researcher',
+      agentsSettled: false,
+    })
+    expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
+  })
+
+  it('holds a stored session even before any agent is known, so the transcript shows at once', () => {
+    const result = resolveAssistantSelection({
+      ...base,
+      agents: [],
+      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
+      agentsSettled: false,
+    })
+    expect(result.agent).toBeNull()
+    expect(result.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
+  })
+
+  it('moves on from a stored session once the lists have settled without its agent', () => {
+    const result = resolveAssistantSelection({
+      ...base,
+      agents: [agent(LOCAL, 'assistant', 'Assistant')],
+      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
+      storedSessionAgentId: 'researcher',
+      agentsSettled: true,
+    })
+    expect(result.agent?.agent.id).toBe('assistant')
+    expect(result.session).toBeNull()
+  })
+
+  it('gives up a stored session the server refused, instead of holding it until its agent turns up', () => {
+    // Deleted from another window: the lists will never name it and its fetch answered 404.
+    const result = resolveAssistantSelection({
+      ...base,
+      sessions,
+      storedSession: {serverUrl: LOCAL, sessionId: 's-gone'},
+      storedSessionUnavailable: true,
+    })
+    expect(result.session).toBeNull()
+  })
+
+  it('holds the stored session while a remembered agent choice is still loading, then honors the choice', () => {
+    const loading = resolveAssistantSelection({
+      ...base,
+      agents: [agent(LOCAL, 'assistant', 'Assistant')],
+      storedSession: {serverUrl: LOCAL, sessionId: 's-a1'},
+      chosenAgent: {serverUrl: REMOTE, agentId: 'researcher'},
+      agentsSettled: false,
+    })
+    expect(loading.session).toEqual({serverUrl: LOCAL, sessionId: 's-a1'})
+
+    const settled = resolveAssistantSelection({
+      ...base,
+      storedSession: {serverUrl: LOCAL, sessionId: 's-a1'},
+      chosenAgent: {serverUrl: REMOTE, agentId: 'researcher'},
+      agentsSettled: true,
+    })
+    expect(settled.agent?.agent.id).toBe('researcher')
+    expect(settled.session).toBeNull()
+  })
+
+  it('a remembered agent with no chats yet opens as an empty context, not another agent', () => {
+    const result = resolveAssistantSelection({
+      ...base,
+      agents: [...agents, agent(REMOTE, 'fresh', 'Fresh')],
+      chosenAgent: {serverUrl: REMOTE, agentId: 'fresh'},
+    })
+    expect(result.agent?.agent.id).toBe('fresh')
+    expect(result.session).toBeNull()
+  })
+
+  it('after deleting the active session, opens a draft in the same context — not the deleted one', () => {
     // Delete flow: the session is removed from the cached lists and the stored selection cleared.
     const remaining = sessions.filter((entry) => entry.session.id !== 's-a2')
     const result = resolveAssistantSelection({...base, sessions: remaining, storedSession: null})
-    expect(result.session).toEqual({serverUrl: LOCAL, sessionId: 's-a1'})
+    expect(result.agent?.agent.id).toBe('assistant')
+    expect(result.session).toBeNull()
+    expect(result.agentSessions.map((entry) => entry.session.id)).toEqual(['s-a1'])
   })
 })
 
