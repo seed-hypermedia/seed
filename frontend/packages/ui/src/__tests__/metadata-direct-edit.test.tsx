@@ -68,9 +68,9 @@ describe('metadata direct edit', () => {
     mount({isFieldEditable: (k) => k !== 'schemaDefinition' && k !== 'stats', onEditField})
     expect(container.querySelector('[data-testid="schema-definition-edit-direct"]')).toBeNull()
     expect(container.querySelector('[aria-label="Edit linked object"][data-direct-edit="true"]')).toBeNull()
-    // The draft-based flows remain: the form dialog button and the object pencil (dialog).
+    // The draft-based form dialog remains; there is no other object pencil.
     expect(container.textContent).toContain('Edit schema')
-    expect(container.querySelector('[aria-label="Edit linked object"]')).toBeTruthy()
+    expect(container.querySelector('[aria-label="Edit linked object"]')).toBeNull()
   })
 
   it('has no in-context editing without a provider (unpublished document)', () => {
