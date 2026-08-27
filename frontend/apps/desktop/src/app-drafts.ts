@@ -576,10 +576,11 @@ export const draftsApi = t.router({
         visibility: input.visibility,
         deps: input.deps,
         navigation: input.navigation,
-        documentType: deriveDocumentType(
-          input.content,
-          hmId(input.editUid ?? input.locationUid ?? '', {path: input.editPath ?? input.locationPath ?? []}),
-        ),
+        isFolder:
+          deriveDocumentType(
+            input.content,
+            hmId(input.editUid ?? input.locationUid ?? '', {path: input.editPath ?? input.locationPath ?? []}),
+          ) === 'folder',
       } as HMListedDraft
 
       draftIndex = [...draftIndex.filter((d) => d.id !== draftId), newDraft]

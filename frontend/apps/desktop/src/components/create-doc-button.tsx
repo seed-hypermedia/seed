@@ -72,7 +72,7 @@ export function useCreateDocumentMenuItem({
           label: 'New Folder',
           icon: <LibraryBig className="size-4" />,
           onClick: () => {
-            const seed = buildDocumentFolderDraftSeed(nanoid(10))
+            const seed = buildDocumentFolderDraftSeed(nanoid(8))
             void createDraft({initialMetadata: seed.metadata, initialContent: seed.content})
           },
         },

@@ -518,7 +518,7 @@ export const documentMachine = setup({
       documentType: 'folder',
     }),
     convertToFolder: assign({
-      draftContent: () => [createDefaultFolderQueryBlock(nanoid(10))] as unknown as HMBlockNode[],
+      draftContent: () => [createDefaultFolderQueryBlock(nanoid(8))] as unknown as HMBlockNode[],
       documentType: 'folder',
     }),
     convertToDocument: assign({

@@ -894,3 +894,80 @@ func VisibilityToProto(bv blob.Visibility) documents.ResourceVisibility {
 		panic(fmt.Errorf("BUG: unknown visibility %v", bv))
 	}
 }
+
+// IsFolder reports whether this document has exactly one top-level Query block
+// whose includes are absent, empty, or contain exactly one empty or self target.
+// Query-block children and presentation style do not affect the result.
+func (dm *Document) IsFolder() bool {
+	if dm.mut != nil {
+		// A document with uncommitted changes has no stable committed state.
+		return false
+	}
+
+	space, path, err := dm.crdt.id.SpacePath()
+	if err != nil {
+		return false
+	}
+
+	// DFT yields every visible (parent, child) pair depth-first. Only pairs rooted
+	// at "" count toward the top-level shape; descendants are intentionally ignored.
+	var root string
+	var roots int
+	for pair := range dm.crdt.tree.State().DFT("") {
+		if pair.Parent == "" {
+			roots++
+			if roots > 1 {
+				return false
+			}
+			root = pair.Child
+			continue
+		}
+	}
+	if roots != 1 {
+		return false
+	}
+
+	bs := dm.crdt.stateBlocks[root]
+	if bs == nil {
+		return false
+	}
+
+	_, blk, ok := bs.GetLatestWithID()
+	if !ok || blk.Type != "Query" {
+		return false
+	}
+
+	return queryTargetsDocumentOrIsEmpty(blk, space.String(), path)
+}
+
+func queryTargetsDocumentOrIsEmpty(blk blob.Block, space, path string) bool {
+	query, ok := blk.Attributes()["query"].(map[string]any)
+	if !ok {
+		return true
+	}
+
+	rawIncludes, exists := query["includes"]
+	if !exists || rawIncludes == nil {
+		return true
+	}
+	includes, ok := rawIncludes.([]any)
+	if !ok {
+		return false
+	}
+	if len(includes) == 0 {
+		return true
+	}
+	if len(includes) != 1 {
+		return false
+	}
+	inc, ok := includes[0].(map[string]any)
+	if !ok {
+		return false
+	}
+	incSpace, _ := inc["space"].(string)
+	incPath, _ := inc["path"].(string)
+	if incSpace == "" && incPath == "" {
+		return true
+	}
+	return incSpace == space && strings.Trim(incPath, "/") == strings.Trim(path, "/")
+}

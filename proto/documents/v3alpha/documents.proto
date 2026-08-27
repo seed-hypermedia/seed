@@ -964,12 +964,6 @@ message DocumentChangeInfo {
 // Basic data about a document with some aggregations and metadata.
 // It's like Document, without the content, but with some additional info.
 // Type derived from a document's published content.
-enum DocumentType {
-  DOCUMENT_TYPE_UNSPECIFIED = 0;
-  DOCUMENT_TYPE_DOCUMENT = 1;
-  DOCUMENT_TYPE_FOLDER = 2;
-}
-
 message DocumentInfo {
   // Account to which the document belongs.
   string account = 1;
@@ -1028,8 +1022,10 @@ message DocumentInfo {
   // the document is known to have no content image.
   optional string first_image_in_content = 15;
 
-  // Output only. Type derived from the document's published content.
-  DocumentType document_type = 16;
+  // Output only. Whether the published document has the Folder shape. Derived
+  // by the indexer and backfilled incrementally for existing documents.
+  // Unset means the indexer has not derived the value yet.
+  optional bool is_folder = 16;
 }
 
 // Information about the generation of a document.

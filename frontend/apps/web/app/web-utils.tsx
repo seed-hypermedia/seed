@@ -191,7 +191,7 @@ export function useWebCreateDocumentMenuItem({
         capabilityCid,
         persist: false,
         ...(folder
-          ? {content: editorBlocksToHMBlockNodes([createDefaultFolderQueryBlock(nanoid(10))]), persist: true}
+          ? {content: editorBlocksToHMBlockNodes([createDefaultFolderQueryBlock(nanoid(8))]), persist: true}
           : {}),
         navigate: (route) => navigate(route),
       })

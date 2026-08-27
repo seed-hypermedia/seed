@@ -43,12 +43,12 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
 
   const documents = useMemo(() => {
     const listedDrafts = drafts.data ?? []
-    const draftTypes = new Map(
-      listedDrafts.filter((draft) => draft.editId).map((draft) => [draft.editId!.id, draft.documentType ?? 'document']),
+    const draftFolderStatus = new Map(
+      listedDrafts.filter((draft) => draft.editId).map((draft) => [draft.editId!.id, draft.isFolder ?? false]),
     )
     const published = (directory.data ?? []).map((document) => ({
       ...document,
-      documentType: draftTypes.get(document.id.id) ?? document.documentType,
+      isFolder: draftFolderStatus.get(document.id.id) ?? document.isFolder,
     }))
     const publishedIds = new Set(published.map((document) => document.id.id))
     const unpublished = listedDrafts.flatMap((draft) => {
@@ -64,7 +64,7 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
           id,
           path,
           metadata: draft.metadata,
-          documentType: draft.documentType ?? 'document',
+          isFolder: draft.isFolder ?? false,
           visibility: draft.visibility ?? 'PUBLIC',
         } as HMDocumentInfo,
       ]
@@ -156,7 +156,7 @@ export function SiteFileBrowser({siteId, activeDocumentId, onNavigate, onPrefetc
                       onClick={() => onNavigate(doc.id)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {doc.documentType === 'folder' ? (
+                      {doc.isFolder ? (
                         <Grid3X3 aria-label="Folder" className="size-3 shrink-0" />
                       ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-3 shrink-0" />

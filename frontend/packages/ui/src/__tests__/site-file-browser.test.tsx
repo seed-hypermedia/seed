@@ -19,7 +19,7 @@ function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' 
 
 function makeFolder(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
   const doc = makeDoc(path, name, visibility)
-  doc.documentType = 'folder'
+  doc.isFolder = true
   return doc
 }
 

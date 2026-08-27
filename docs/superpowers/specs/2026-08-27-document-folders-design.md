@@ -65,16 +65,16 @@ draft or mutate its query.
 ### Backend indexer
 
 The indexer reconstructs each published document from its merged heads, applies the same Folder predicate, and stores
-`document` or `folder` under an internal `$db.*` indexed attribute. The internal attribute is excluded from public user
-metadata.
+`isFolder` under an internal `$db.*` indexed attribute. The internal attribute is excluded from authored document data
+and public user metadata.
 
 Derivation occurs:
 
 - incrementally when a newly applied ref changes the merged heads; and
-- once per document generation during full reindexing.
+- in bounded asynchronous background batches for existing generations.
 
-The indexer always writes either `document` or `folder` after successful derivation. This ensures conversion from Folder
-to Document clears a previously derived Folder value.
+Adding this field does not schedule a full reindex. The indexer always writes true or false after successful derivation,
+so conversion from Folder to Document clears a previously derived Folder value.
 
 The derivation should follow the existing injected document-deriver pattern used for the first content image so the blob
 index remains independent of the document model.
@@ -84,7 +84,7 @@ index remains independent of the document model.
 Both platforms store the lightweight derived type with every locally listed draft:
 
 ```ts
-documentType: 'document' | 'folder'
+isFolder: boolean
 ```
 
 On desktop this is stored in the JSON draft index entry. On web it is stored in the IndexedDB `WebDocDraft` record and
@@ -94,29 +94,22 @@ Each platform's draft write boundary derives this value from the content being p
 caller-provided value. This keeps every draft writer consistent with the stored content, including writers that do not
 use the document machine. Every draft autosave refreshes the indexed value.
 
-Legacy desktop and web draft records without `documentType` remain readable and default to `document`; no draft-store
-migration is required.
+Legacy desktop and web draft records without `isFolder` remain readable and default to false; no draft-store migration
+is required.
 
 ### Documents API
 
-Add a typed protobuf enum and `DocumentInfo` field:
+Add an optional indexed `DocumentInfo` field:
 
 ```proto
-enum DocumentType {
-  DOCUMENT_TYPE_UNSPECIFIED = 0;
-  DOCUMENT_TYPE_DOCUMENT = 1;
-  DOCUMENT_TYPE_FOLDER = 2;
-}
-
 message DocumentInfo {
   // Existing fields...
-  DocumentType document_type = 16;
+  optional bool is_folder = 16;
 }
 ```
 
-Regenerate the Go and TypeScript bindings through the repository protobuf workflow. The documents API maps the internal
-indexed value to the enum. A missing or unknown indexed value maps to `DOCUMENT_TYPE_UNSPECIFIED`; clients treat it as a
-normal document.
+Regenerate the Go and TypeScript bindings through the repository protobuf workflow. A missing indexed value means the
+background backfill has not reached the document yet; clients treat it as a normal document.
 
 ## Creation
 
@@ -178,7 +171,7 @@ The shared file browser combines the typed published value from `DocumentInfo` w
 desktop or web draft entries:
 
 ```ts
-effectiveDocumentType = matchingDraft?.documentType ?? publishedDocument.documentType
+effectiveIsFolder = matchingDraft?.isFolder ?? publishedDocument.isFolder
 ```
 
 The matching draft value takes precedence so the browser updates immediately for:
@@ -188,7 +181,7 @@ The matching draft value takes precedence so the browser updates immediately for
 - a published Folder converted to a Document draft.
 
 The local draft value remains available after navigating away from the draft on either platform. After publication
-removes the draft, the backend-indexed `DocumentInfo.documentType` becomes authoritative.
+removes the draft, the backend-indexed `DocumentInfo.isFolder` becomes authoritative.
 
 The file browser never reads legacy metadata and does not fetch or parse full draft or document content while rendering
 rows.
@@ -234,13 +227,13 @@ rendering from `context.documentType` and that Folder state changes do not depen
 ### Creation and publishing
 
 Test on desktop and web that New Folder seeds no type metadata, creates the canonical query block, derives immediately
-as a Folder, records `folder` in the local draft store, and retargets its empty include on publication.
+as a Folder, records `isFolder: true` in the local draft store, and retargets its empty include on publication.
 
 ### Local draft indexes
 
-Test both the desktop JSON index and web IndexedDB paths. Each draft write boundary must derive and persist
-`documentType` from content on every write; Folder-to-Document and Document-to-Folder autosaves replace stale values;
-list adapters return the value; and legacy entries without the field default to `document`.
+Test both the desktop JSON index and web IndexedDB paths. Each draft write boundary must derive and persist `isFolder`
+from content on every write; Folder-to-Document and Document-to-Folder autosaves replace stale values; list adapters
+return the value; and legacy entries without the field default to false.
 
 ### User interface
 
@@ -249,14 +242,14 @@ rendering switches after confirmation, renamed labels and accessible names, and 
 
 ### Backend and API
 
-Use matching Go predicate cases. Test incremental derivation, full-reindex derivation, Folder-to-Document clearing,
-mapping to the protobuf enum, and `GetDocumentInfo`/document-list responses.
+Use matching Go predicate cases. Test incremental derivation, bounded background backfill, Folder-to-Document clearing,
+and `GetDocumentInfo`/document-list responses without scheduling a full reindex.
 
 ### File browser
 
-Test on desktop and web that the Folder icon uses `DocumentInfo.documentType` without a matching draft, prefers a
-matching local draft's `documentType`, stays correct after navigating away, treats legacy missing values as normal
-documents, and ignores legacy metadata.
+Test on desktop and web that the Folder icon uses `DocumentInfo.isFolder` without a matching draft, prefers a matching
+local draft's `isFolder`, stays correct after navigating away, treats legacy missing values as normal documents, and
+ignores legacy metadata.
 
 ## Out of Scope
 

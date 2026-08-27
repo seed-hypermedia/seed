@@ -72,17 +72,20 @@ Folder status, coordinate it with Folder-specific effects, or implement machine 
 Runtime machine state and persisted indexes have different lifetimes, so each authoritative persistence boundary derives
 the type from the content it writes rather than trusting a caller-provided type.
 
-- Desktop stores `documentType` in each JSON draft index entry.
-- Web stores `documentType` in each IndexedDB `WebDocDraft` record and exposes it through the listed-draft adapter.
-- The backend stores a derived internal `$db.*` value for each published document generation.
+- Desktop stores `isFolder` in each JSON draft index entry.
+- Web stores `isFolder` in each IndexedDB `WebDocDraft` record and exposes it through the listed-draft adapter.
+- The backend stores only the derived internal `$db.isFolder` index value for each published document generation.
 
 Matching draft values override published values in file-browser rows. Once publication removes the draft, the published
 backend index becomes authoritative again.
 
-### Expose a typed published API value
+### Expose the indexed published value
 
-Add a protobuf `DocumentType` enum with unspecified, document, and folder values, and expose it as
-`DocumentInfo.document_type`. Missing or unknown indexed values map to document and render as normal documents.
+Expose the optional indexed value as `DocumentInfo.is_folder`. An unset value means background derivation has not
+reached the document yet and renders as a normal document.
+
+Existing published documents are processed by a bounded asynchronous backfill after migrations finish. It shares the
+document replay used for other derived document fields, runs in small transactions, and never schedules a full reindex.
 
 ### Keep conversions draft-first and confirmed
 
@@ -124,10 +127,11 @@ listings. Persisted draft and published indexes are still required.
 **Rejected.** It adds list-time I/O and parsing, makes rendering slower, and ignores the existing lightweight directory
 and draft indexes.
 
-### Store only `is_folder: boolean`
+### Store a published document-type enum
 
-**Rejected.** An explicit typed document value matches the machine model, distinguishes an unavailable derivation from a
-known normal document, and provides a clearer API contract.
+**Rejected.** Published listings only need the indexed Folder fact. Keeping `documentType` in the runtime machine
+remains useful for rendering transitions, but persisting an enum would duplicate a boolean fact in the published index
+and local draft indexes.
 
 ### Treat only Table queries as Folders
 
@@ -151,8 +155,8 @@ Rewriting user documents adds risk without affecting the new behavior.
 
 ### Show unpublished icons only for the active machine
 
-**Rejected.** The icon would disappear after navigating away. Storing the derived type in each local draft index
-preserves correct rows across navigation and reloads.
+**Rejected.** The icon would disappear after navigating away. Storing the derived `isFolder` value in each local draft
+index preserves correct rows across navigation and reloads.
 
 ### Convert immediately on the published document
 
@@ -174,15 +178,15 @@ review, autosave, and publication behavior.
 
 - The structural predicate must have equivalent TypeScript and Go implementations.
 - Draft schemas and both local stores gain another derived field.
-- Published type derivation adds work to incremental indexing and full reindexing.
-- Until reindexing succeeds, old published rows appear as normal documents.
+- Published Folder derivation adds work to incremental indexing and the bounded background backfill.
+- Until the background backfill reaches them, old published rows appear as normal documents.
 
 ### Risk controls
 
 - Keep matching predicate fixtures in frontend and backend tests.
 - Derive persisted values at write boundaries rather than accepting caller claims.
-- Always overwrite a successfully derived published value with either document or folder so stale Folder values cannot
-  survive conversion.
+- Always overwrite a successfully derived published value with true or false so stale Folder values cannot survive
+  conversion.
 - Treat malformed input and missing legacy values conservatively as normal documents.
 - Keep index derivation best-effort so a type failure cannot block document indexing.
 

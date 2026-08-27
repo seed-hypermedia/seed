@@ -83,12 +83,12 @@ func NewServer(cfg config.Base, keys core.KeyStore, idx *blob.Index, db *sqlitex
 		hydrated: newHydrateCache(),
 	}
 
-	// Let the indexer derive a fallback cover image at index time, reusing the
-	// real docmodel so the result matches what the read path renders. This is
-	// how the derived cover field gets populated. The daemon also wires this
-	// earlier (before the backfill reindex task starts); this keeps embedders
-	// and tests that construct the server directly working.
-	idx.SetDeriveFirstContentImage(DeriveFirstContentImage)
+	// Let the indexer derive the document-level fields at index time, reusing
+	// the real docmodel so the results match what the read path renders. This is
+	// how the derived cover and folder fields get populated. The daemon also
+	// wires this earlier (before the backfill reindex task starts); this keeps
+	// embedders and tests that construct the server directly working.
+	idx.SetDeriveDocFields(DeriveDocFields)
 
 	return srv
 }
@@ -107,41 +107,44 @@ func (srv *Server) clampPageSize(rpc string, pageSize *int32, defaultSize int32)
 	}
 }
 
-// DeriveFirstContentImage rebuilds a document in memory from the given changes
-// and returns the link of its first image block in reading order (or "" if it
-// has none). It's injected into the indexer (SetDeriveFirstContentImage) to
-// populate DocumentInfo.first_image_in_content, letting directory
-// cards render a fallback cover from fast metadata instead of fetching each
-// child's full document. It's a pure function so the daemon can wire it before
-// the migration-triggered backfill reindex starts, long before this server
-// exists.
+// DeriveDocFields rebuilds a document in memory from the given changes and
+// returns the fields the indexer derives from a document's full history: the
+// link of the first image block in reading order, and whether the document is a
+// folder. It's injected into the indexer (SetDeriveDocFields) to populate
+// DocumentInfo.first_image_in_content and DocumentInfo.is_folder, letting
+// directory cards render a fallback cover and the file browser mark folders
+// from fast metadata instead of fetching each child's full document. It's a
+// pure function so the daemon can wire it before the migration-triggered
+// backfill reindex starts, long before this server exists.
+//
+// Both fields come out of one replay on purpose: rebuilding the model is the
+// entire cost, and each field is then a walk over a tree that already exists.
 //
 // The changes are supplied by the indexer (already loaded on its transaction's
 // connection), so this does no database I/O and is safe to call mid-indexing.
 // It mirrors loadDocument's in-memory build but never touches the pool.
-func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link string, isFolder bool, err error) {
+func DeriveDocFields(iri blob.IRI, changes []blob.ChangeRecord) (fields blob.DerivedDocFields, err error) {
 	// The docmodel panics on changes it considers impossible, but such changes
 	// exist in the wild: a single move op with ~5.8k+ blocks overflows the op ID
 	// index (the apply loop advances idx quadratically), which panics ApplyChange.
 	// The indexer calls this for every document Ref — including the boot-time
 	// backfill reindex — so an unrecovered panic crash-loops the whole daemon on
-	// one bad blob. Turn panics into errors: the caller logs them and leaves the
-	// field underived, which clients handle by falling back to a content fetch.
+	// one bad blob. Turn panics into errors: the caller logs them and records the
+	// zero value, which clients handle by falling back to a content fetch.
 	defer func() {
 		if r := recover(); r != nil {
-			link = ""
-			isFolder = false
-			err = fmt.Errorf("panic while deriving first content image for %s: %v", iri, r)
+			fields = blob.DerivedDocFields{}
+			err = fmt.Errorf("panic while deriving document fields for %s: %v", iri, r)
 		}
 	}()
 
 	if len(changes) == 0 {
-		return "", false, nil
+		return blob.DerivedDocFields{}, nil
 	}
 
 	doc, err := docmodel.New(iri, cclock.New())
 	if err != nil {
-		return "", false, err
+		return blob.DerivedDocFields{}, err
 	}
 
 	for _, ch := range changes {
@@ -150,15 +153,14 @@ func DeriveFirstContentImage(iri blob.IRI, changes []blob.ChangeRecord) (link st
 			doc.Generation = maybe.New(ch.Generation)
 		}
 		if err := doc.ApplyChange(ch.CID, ch.Data); err != nil {
-			return "", false, err
+			return blob.DerivedDocFields{}, err
 		}
 	}
 
-	hydrated, err := doc.Hydrate(context.Background())
-	if err != nil {
-		return "", false, err
-	}
-	return doc.FirstContentImage(), isFolderContent(hydrated.Account, hydrated.Path, hydrated.Content), nil
+	return blob.DerivedDocFields{
+		FirstImage: doc.FirstContentImage(),
+		IsFolder:   doc.IsFolder(),
+	}, nil
 }
 
 // SetTelemetry wires the journeys profiler. Optional; when nil, all
@@ -2350,9 +2352,20 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 			firstImageInContent = &s
 		}
 	}
-	documentType := documents.DocumentType_DOCUMENT_TYPE_DOCUMENT
-	if v, ok := attrs[blob.DocumentTypeAttr]; ok && v.Value == "folder" {
-		documentType = documents.DocumentType_DOCUMENT_TYPE_FOLDER
+
+	// Whether this document has the structurally derived Folder shape. This is the single source of truth —
+	// folders are identified by their shape, not by an authored metadata
+	// flag, so the answer stays correct no matter which client wrote the
+	// document or how old it is.
+	//
+	// Unset means the indexer has not derived it yet, which clients must read as
+	// "not known to be a folder" rather than "not a folder": the
+	// derivation is backfilled asynchronously.
+	var isFolder *bool
+	if v, ok := attrs[blob.IsFolderAttr]; ok {
+		if b, isBool := indexedAttrBool(v); isBool {
+			isFolder = &b
+		}
 	}
 
 	var authorIDs []int64
@@ -2439,7 +2452,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		Path:                path,
 		Metadata:            metastruct,
 		FirstImageInContent: firstImageInContent,
-		DocumentType:        documentType,
+		IsFolder:            isFolder,
 		Authors:             authors,
 		CreateTime:          timestamppb.New(time.UnixMilli(genesisChangeTime)),
 		UpdateTime:          timestamppb.New(time.UnixMilli(lastChangeTime)),
@@ -3042,12 +3055,28 @@ func (srv *Server) denyPrivateComment(ctx context.Context, account core.Principa
 	return nil
 }
 
+// indexedAttrBool reads a boolean indexed attribute.
+//
+// It has to tolerate two representations of the same value. In memory an
+// attribute of kind "b" holds a real Go bool, but the listing rebuilds its
+// attributes by unmarshalling a JSON aggregate assembled in SQL, and SQLite has
+// no boolean type — the value makes the round trip as the INTEGER 1 or 0 and
+// arrives here as a JSON number.
+func indexedAttrBool(v blob.IndexedValue) (bool, bool) {
+	switch value := v.Value.(type) {
+	case bool:
+		return value, true
+	case float64:
+		return value != 0, true
+	case int64:
+		return value != 0, true
+	default:
+		return false, false
+	}
+}
+
 // DocumentToListItem converts a document to a document list item.
 func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
-	documentType := documents.DocumentType_DOCUMENT_TYPE_DOCUMENT
-	if isFolderContent(doc.Account, doc.Path, doc.Content) {
-		documentType = documents.DocumentType_DOCUMENT_TYPE_FOLDER
-	}
 	return &documents.DocumentInfo{
 		Account:        doc.Account,
 		Path:           doc.Path,
@@ -3059,37 +3088,5 @@ func DocumentToListItem(doc *documents.Document) *documents.DocumentInfo {
 		Version:        doc.Version,
 		GenerationInfo: doc.GenerationInfo,
 		Visibility:     doc.Visibility,
-		DocumentType:   documentType,
 	}
-}
-
-func isFolderContent(account, path string, content []*documents.BlockNode) bool {
-	if len(content) != 1 || content[0].Block.GetType() != "Query" {
-		return false
-	}
-	query := content[0].Block.GetAttributes().GetFields()["query"].GetStructValue()
-	if query == nil {
-		return true
-	}
-	includesValue, exists := query.Fields["includes"]
-	if !exists || includesValue.GetKind() == nil {
-		return true
-	}
-	includes := includesValue.GetListValue()
-	if includes == nil {
-		return false
-	}
-	if len(includes.Values) == 0 {
-		return true
-	}
-	if len(includes.Values) != 1 {
-		return false
-	}
-	include := includes.Values[0].GetStructValue()
-	if include == nil {
-		return false
-	}
-	space := include.Fields["space"].GetStringValue()
-	includePath := strings.Trim(include.Fields["path"].GetStringValue(), "/")
-	return (space == "" && includePath == "") || (space == account && includePath == strings.Trim(path, "/"))
 }

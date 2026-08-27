@@ -7,7 +7,7 @@
  */
 
 import type {HMBlockNode, HMMetadata, HMNavigationItem, HMResourceVisibility} from '@seed-hypermedia/client/hm-types'
-import {deriveDocumentType, type DerivedDocumentType} from '@shm/shared/models/document-machine'
+import {deriveDocumentType} from '@shm/shared/models/document-machine'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import type {HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 
@@ -43,7 +43,7 @@ export interface WebDocDraft {
   /** Wall-clock timestamp of last save. Used for cleanup. */
   updatedAt: number
   /** Type derived from the persisted draft content. */
-  documentType?: DerivedDocumentType
+  isFolder?: boolean
 }
 
 const DB_NAME = 'web-doc-drafts-01'
@@ -128,7 +128,7 @@ export async function putWebDocDraft(draft: Omit<WebDocDraft, 'updatedAt'> & {up
   const documentId = unpackHmId(draft.docId) ?? hmId(draft.editUid ?? draft.locationUid ?? '')
   const record: WebDocDraft = {
     ...draft,
-    documentType: deriveDocumentType(draft.content, documentId),
+    isFolder: deriveDocumentType(draft.content, documentId) === 'folder',
     updatedAt: draft.updatedAt ?? Date.now(),
   }
   const existing = await getWebDocDraft(record.draftId)
@@ -245,7 +245,7 @@ export function webDraftToListedDraft(draft: WebDocDraft): HMListedDraftWithLoca
     deps: draft.deps,
     navigation: draft.navigation ?? undefined,
     lastUpdateTime: draft.updatedAt,
-    documentType: draft.documentType ?? 'document',
+    isFolder: draft.isFolder ?? false,
     locationId: locationUid ? hmId(locationUid, {path: locationPath ?? []}) : undefined,
     editId: editUid ? hmId(editUid, {path: editPath ?? []}) : undefined,
   } as HMListedDraftWithLocation

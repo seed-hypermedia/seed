@@ -121,8 +121,8 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 
 	// Resolved once instead of once per blob: the reindex holds the only write
 	// connection for its entire duration, so this can't meaningfully change
-	// mid-run, and firstImageDeriver() takes a RWMutex on every call.
-	deriver := idx.firstImageDeriver()
+	// mid-run, and docFieldsDeriver() takes a RWMutex on every call.
+	deriver := idx.docFieldsDeriver()
 
 	if err := sqlitex.WithTx(conn, func() error {
 		truncateStart := time.Now()
@@ -197,10 +197,10 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 			// Full reindex rebuilds the derived tables (incl. the RBSR index) from
 			// scratch, so no incremental hook is needed here — pass nil.
 			//
-			// A nil DeriveFirstContentImage is load-bearing, not an omission: it is
-			// what disables the per-Ref fallback-cover derivation, which replays a
-			// document's entire history on every Ref that advances its heads and so
-			// costs O(refs × changes) across a full reindex. deriveFirstContentImages
+			// A nil DeriveDocFields is load-bearing, not an omission: it is
+			// what disables the per-Ref derivation, which replays a document's
+			// entire history on every Ref that advances its heads and so costs
+			// O(refs × changes) across a full reindex. deriveAllDocFields
 			// below does the same work once per generation after the loop. The nil
 			// also rides into the unstash cascade via childOpts(), which is what we
 			// want — the end pass covers every generation regardless of how it got
@@ -222,7 +222,7 @@ func (idx *Index) reindex(conn *sqlite.Conn) (err error) {
 		blobLoopDur = time.Since(blobLoopStart)
 
 		coverStart := time.Now()
-		gensScanned, gensDerived, coverChangesReplay, err = deriveFirstContentImages(conn, idx.bs, idx.log, deriver)
+		gensScanned, gensDerived, coverChangesReplay, err = deriveAllDocFields(conn, idx.bs, idx.log, deriver)
 		if err != nil {
 			return err
 		}

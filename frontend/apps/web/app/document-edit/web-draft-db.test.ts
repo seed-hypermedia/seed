@@ -65,6 +65,35 @@ describe('web-draft-db', () => {
     expect(typeof loaded?.updatedAt).toBe('number')
   })
 
+  it('indexes Folder status from persisted content', async () => {
+    await putWebDocDraft(
+      makeDraft({
+        draftId: 'folder',
+        docId: 'hm://abc/folder',
+        content: [
+          {
+            block: {
+              id: 'query123',
+              type: 'Query',
+              attributes: {query: {includes: []}},
+            },
+            children: [],
+          } as any,
+        ],
+      }),
+    )
+    await putWebDocDraft(
+      makeDraft({
+        draftId: 'document',
+        content: [{block: {id: 'p1', type: 'Paragraph', text: 'text'}, children: []} as any],
+        isFolder: true,
+      }),
+    )
+
+    expect((await getWebDocDraft('folder'))?.isFolder).toBe(true)
+    expect((await getWebDocDraft('document'))?.isFolder).toBe(false)
+  })
+
   it('lists drafts filtered by docId, newest first', async () => {
     await putWebDocDraft(makeDraft({draftId: 'd-1', docId: 'hm://A', updatedAt: 1}))
     await putWebDocDraft(makeDraft({draftId: 'd-2', docId: 'hm://A', updatedAt: 2}))

@@ -2760,7 +2760,7 @@ function DocumentBody({
       {/* Main content based on activeView */}
       <div className={cn('flex-1', !isFolder && activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
         {isFolder ? (
-          <DocumentFolderTable docId={docId} queryBlock={folderQueryBlock} canEdit={canEditCurrentRoute} />
+          <DocumentFolder docId={docId} queryBlock={folderQueryBlock} canEdit={canEditCurrentRoute} />
         ) : (
           <MainContent
             docId={docId}
@@ -3283,7 +3283,7 @@ function DocumentMetadataPage({
   )
 }
 
-function DocumentFolderTable({
+function DocumentFolder({
   docId,
   queryBlock,
   canEdit,
