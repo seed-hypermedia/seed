@@ -316,7 +316,10 @@ export function routeToHref(
       return routeToHmUrl(route)
     }
     const basePath = options?.originHomeId ? '/inspect' : '/hm/inspect'
-    return `${basePath}/ipfs/${route.ipfsPath}`
+    const query = route.editField
+      ? `?editField=${encodeURIComponent(route.editField.field)}&editDoc=${encodeURIComponent(route.editField.docUrl)}`
+      : ''
+    return `${basePath}/ipfs/${route.ipfsPath}${query}`
   }
 
   if (typeof route !== 'string' && route.key === 'explore') {

@@ -1,14 +1,22 @@
-import {createInspectIpfsNavRoute, NavRoute, useCID} from '@shm/shared'
+import {createInspectIpfsNavRoute, NavRoute, useCID, useUniversalAppContext} from '@shm/shared'
+import {getMetadataName} from '@shm/shared/content'
+import {useResource} from '@shm/shared/models/entity'
+import type {InspectIpfsEditField} from '@shm/shared/routes'
+import {DocumentChange} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {useStream} from '@shm/shared/use-stream'
+import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {code as DAG_CBOR_CODE} from '@shm/shared/cbor'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useOpenUrl, useRouteLink, useUniversalClient} from '@shm/shared/routing'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Braces, Check, Copy, ExternalLink, FileCode2, FileEdit, FileText} from 'lucide-react'
+import {Braces, Check, Copy, ExternalLink, FileCode2, FileEdit, FileText, Pencil} from 'lucide-react'
 import {base58btc} from 'multiformats/bases/base58'
 import {CID} from 'multiformats/cid'
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
 import {AttachSchemaBar, BlobJsonMode, RawDagJsonView, SchemaStatusRow} from './blob-editor-parts'
 import {Button} from './button'
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
 import {Textarea} from './components/textarea'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {base64ToBytes, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
@@ -104,12 +112,17 @@ function useIpfsText(url: string): {text: string | null; loading: boolean} {
  */
 export function InspectIpfsPage({
   ipfsPath,
+  editField,
   exitRoute,
   windowControls,
   trafficLightInset = false,
   gatewayUrl = DEFAULT_GATEWAY_URL,
 }: {
   ipfsPath: string
+  /** Edit this blob in the context of a document's metadata field: opens straight
+   * into a draft; publishing also publishes the metadata change on the document
+   * (no document draft involved). */
+  editField?: InspectIpfsEditField
   exitRoute?: NavRoute | null
   /** Retained for API compatibility; hm:// / ipfs:// links route via the app openUrl. */
   getRouteForUrl?: (url: string) => NavRoute | string | null
@@ -172,21 +185,37 @@ export function InspectIpfsPage({
   const textUrl = kind === 'text' && !hasSubpath && cid ? getFileUrl(`ipfs://${cid}`) : ''
   const {text: rawText, loading: textLoading} = useIpfsText(textUrl)
 
+  // ── field context (document › field) ──
+  const contextDocId = useMemo(() => (editField ? unpackHmId(editField.docUrl) : null), [editField?.docUrl])
+  const contextResource = useResource(contextDocId)
+  const contextDoc =
+    contextResource.data?.type === 'document' ? (contextResource.data.document as Record<string, any>) : undefined
+  const contextDocTitle = contextDoc ? getMetadataName(contextDoc.metadata) : undefined
+  const {selectedIdentity} = useUniversalAppContext()
+  const signerUid = useStream(selectedIdentity) ?? null
+  const contextRoute: NavRoute | null = contextDocId ? {key: 'document', id: contextDocId} : null
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
   // ── draft / edit state ──
-  const [mode, setMode] = useState<'view' | 'edit'>(isDraft ? 'edit' : 'view')
+  const startsEditing = isDraft || !!editField
+  const [mode, setMode] = useState<'view' | 'edit'>(startsEditing ? 'edit' : 'view')
   const [rawMode, setRawMode] = useState(false)
   const [editJson, setEditJson] = useState<unknown>(undefined)
   const [editText, setEditText] = useState<string | null>(null)
   const [attachMode, setAttachMode] = useState(false)
   const [publishing, setPublishing] = useState(false)
   useEffect(() => {
-    setMode(isDraft ? 'edit' : 'view')
+    setMode(startsEditing ? 'edit' : 'view')
     setRawMode(false)
     setEditJson(undefined)
     setEditText(null)
     setAttachMode(false)
     setPublishing(false)
-  }, [ipfsPath, isDraft])
+  }, [ipfsPath, startsEditing])
+  // In field context the published value IS the draft, once it loads.
+  useEffect(() => {
+    if (editField && editJson === undefined && rawValue !== undefined) setEditJson(rawValue)
+  }, [editField, editJson, rawValue])
 
   // A new instance seeds from its schema (bundled ones resolve at once, others
   // are fetched) and links it via the reserved `schema` key. A new schema is
@@ -279,9 +308,34 @@ export function InspectIpfsPage({
   const isDirty =
     mode === 'edit' && (isDraft || JSON.stringify(editJson) !== JSON.stringify(rawValue) || editText !== null)
 
+  /** Field context: publish the blob, then a metadata change on the document pointing at it. */
+  const publishInContext = async () => {
+    if (!editField || !contextDocId || !contextDoc) return
+    if (!client.publishDocument) throw new Error('This app cannot publish documents')
+    if (!signerUid) throw new Error('Select an account to publish with')
+    const newCid = await publishCborBlob(client, editJson)
+    await client.publishDocument({
+      account: contextDocId.uid,
+      signerAccountUid: signerUid,
+      path: hmIdPathToEntityQueryPath(contextDocId.path),
+      changes: [
+        new DocumentChange({op: {case: 'setMetadata', value: {key: editField.field, value: `ipfs://${newCid}`}}}),
+      ] as any,
+      baseVersion: contextDoc.version || '',
+      genesis: contextDoc.genesis,
+      generation: contextDoc.generationInfo?.generation,
+    })
+    toast.success(`Updated ${editField.field} of ${contextDocTitle ?? 'the document'}`)
+    if (contextRoute) navigate(contextRoute)
+  }
+
   const publish = async () => {
     setPublishing(true)
     try {
+      if (editField) {
+        await publishInContext()
+        return
+      }
       const newCid =
         kind === 'text' ? await publishTextBlob(client, editText ?? '') : await publishCborBlob(client, editJson)
       toast.success(`Published ipfs://${newCid}`)
@@ -481,19 +535,21 @@ export function InspectIpfsPage({
   }
 
   const shortCid = cid ? `${cid.slice(0, 10)}…${cid.slice(-6)}` : null
-  const title = isDraft
-    ? valueIsSchema
-      ? 'New schema'
-      : 'New blob'
-    : mode === 'edit'
-      ? 'Editing blob'
-      : valueIsSchema
-        ? 'Schema blob'
-        : kind === 'image'
-          ? 'Image'
-          : kind === 'text'
-            ? 'Text file'
-            : 'IPFS blob'
+  const title = editField
+    ? `Editing ${editField.field}`
+    : isDraft
+      ? valueIsSchema
+        ? 'New schema'
+        : 'New blob'
+      : mode === 'edit'
+        ? 'Editing blob'
+        : valueIsSchema
+          ? 'Schema blob'
+          : kind === 'image'
+            ? 'Image'
+            : kind === 'text'
+              ? 'Text file'
+              : 'IPFS blob'
 
   return (
     <div className="bg-background flex h-full max-h-full flex-col overflow-hidden">
@@ -508,15 +564,20 @@ export function InspectIpfsPage({
           <>
             {mode === 'edit' ? (
               <>
-                {cid && (
-                  <Button size="sm" variant="ghost" onClick={cancelEdit} disabled={publishing}>
+                {(cid || editField) && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => (editField && contextRoute ? navigate(contextRoute) : cancelEdit())}
+                    disabled={publishing}
+                  >
                     Cancel
                   </Button>
                 )}
                 <Button
                   size="sm"
-                  onClick={publish}
-                  disabled={!(isDirty && !publishing && editJson !== undefined)}
+                  onClick={() => (editField ? setConfirmOpen(true) : publish())}
+                  disabled={!(isDirty && !publishing && editJson !== undefined) || (!!editField && !contextDoc)}
                   data-testid="blob-publish"
                 >
                   {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
@@ -547,7 +608,61 @@ export function InspectIpfsPage({
       />
       <div className="flex-1 overflow-y-auto bg-zinc-100 dark:bg-zinc-900">
         <div className="mx-auto w-full px-4 py-4" style={{maxWidth: 960}}>
-          <div className="flex flex-col gap-4">{body}</div>
+          <div className="flex flex-col gap-4">
+            {editField && (
+              <div
+                className="bg-muted/40 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-md border p-2 text-sm"
+                data-testid="edit-field-context"
+              >
+                <Pencil className="text-muted-foreground size-3.5" />
+                <span>
+                  Editing <code className="bg-muted rounded px-1">{editField.field}</code> of{' '}
+                  <button
+                    type="button"
+                    className="text-primary font-medium hover:underline"
+                    onClick={() => contextRoute && navigate(contextRoute)}
+                  >
+                    {contextDocTitle ?? editField.docUrl}
+                  </button>
+                </span>
+                <span className="text-muted-foreground">
+                  — publishing updates that document's metadata directly (no document draft).
+                </span>
+              </div>
+            )}
+            {body}
+          </div>
+          {editField && (
+            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Update {contextDocTitle ?? 'the document'}?</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm">
+                  This publishes the edited object as a new IPFS blob and sets{' '}
+                  <code className="bg-muted rounded px-1">metadata.{editField.field}</code> of{' '}
+                  <span className="font-medium">{contextDocTitle ?? editField.docUrl}</span> to the new CID — a new
+                  version of the document, published directly. The document's draft (if any) is not involved.
+                </p>
+                <DialogFooter>
+                  <Button variant="ghost" onClick={() => setConfirmOpen(false)} disabled={publishing}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={async () => {
+                      await publish()
+                      setConfirmOpen(false)
+                    }}
+                    disabled={publishing}
+                    data-testid="confirm-update-document"
+                  >
+                    {publishing ? <Spinner className="size-4" /> : <Check className="size-4" />}
+                    Publish & update {editField.field}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
     </div>
