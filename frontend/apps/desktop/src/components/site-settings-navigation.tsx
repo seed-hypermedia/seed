@@ -18,7 +18,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
-import {ChevronDown, EllipsisVertical, HelpCircle, Pencil, Plus, Trash} from 'lucide-react'
+import {ChevronDown, EllipsisVertical, HelpCircle, Lock, Pencil, Plus, Trash} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef, useState} from 'react'
 
@@ -50,6 +50,11 @@ function readPublishedNav(document: HMDocument): HMNavigationItem[] {
       })
       .filter((item): item is HMNavigationItem => item !== null) ?? []
   )
+}
+
+/** Returns preview navigation with the fixed Home destination first. */
+export function getNavigationPreviewItems(items: HMNavigationItem[]): HMNavigationItem[] {
+  return [{id: '__site_home__', type: 'Link', text: 'Home', link: ''}, ...items]
 }
 
 export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
@@ -239,7 +244,13 @@ function HeaderPreview({
   items: HMNavigationItem[]
   isCenter: boolean
 }) {
-  const labelItems = useMemo(() => items.filter((i) => i.text.trim()).map((i) => ({key: i.id, text: i.text})), [items])
+  const labelItems = useMemo(
+    () =>
+      getNavigationPreviewItems(items)
+        .filter((i) => i.text.trim())
+        .map((i) => ({key: i.id, text: i.text})),
+    [items],
+  )
   // Overflow items collapse into a caret dropdown instead of wrapping, mirroring
   // the real site header.
   const {containerRef, itemRefs, visibleItems, overflowItems} = useResponsiveItems({
@@ -361,21 +372,27 @@ function NavItemList({
     })
   }, [items, onReorder])
 
-  if (!items.length) {
-    return (
-      <button
-        type="button"
-        onClick={onAdd}
-        className="border-border text-muted-foreground flex w-full items-center gap-2 rounded-md border border-dashed px-4 py-5 transition-colors hover:border-neutral-400 dark:hover:border-neutral-500"
-      >
-        <Plus className="size-4" />
-        <SizableText color="muted">Add navigation item</SizableText>
-      </button>
-    )
-  }
+  const emptyItem = !items.length ? (
+    <button
+      type="button"
+      onClick={onAdd}
+      className="border-border text-muted-foreground flex w-full items-center gap-2 rounded-md border border-dashed px-4 py-5 transition-colors hover:border-neutral-400 dark:hover:border-neutral-500"
+    >
+      <Plus className="size-4" />
+      <SizableText color="muted">Add navigation item</SizableText>
+    </button>
+  ) : null
 
   return (
     <div ref={containerRef} className="flex flex-col gap-2">
+      <div className="border-border bg-muted/40 flex items-center gap-3 rounded-md border px-3 py-2.5">
+        <Lock className="text-muted-foreground size-4" />
+        <SizableText className="flex-1">Home</SizableText>
+        <SizableText size="sm" color="muted">
+          Fixed
+        </SizableText>
+      </div>
+      {emptyItem}
       {items.map((item) => (
         <NavItemRow
           key={item.id}

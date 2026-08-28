@@ -19,7 +19,6 @@ import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {Activity, FolderTree, Lock} from 'lucide-react'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
-import {useHighlighter} from './highlight-context'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {HeaderSearch, MobileSearch} from './search'
 import {Separator} from './separator'
@@ -30,6 +29,38 @@ import {cn} from './utils'
 
 // Stable width estimator functions
 const getNavItemWidth = () => 150
+const HOME_NAVIGATION_KEY = '__site_home__'
+
+/** Returns site navigation with the fixed Home destination first. */
+export function getSiteHeaderItems(
+  siteHomeId: UnpackedHypermediaId,
+  items: DocNavigationItem[] = [],
+): DocNavigationItem[] {
+  return [
+    {
+      key: HOME_NAVIGATION_KEY,
+      id: {...siteHomeId, path: [], version: null, latest: true},
+      metadata: {name: 'Home'},
+      isPublished: true,
+    },
+    ...items,
+  ]
+}
+
+/** Returns whether a navigation item contains the current document route. */
+export function isSiteHeaderItemActive(item: DocNavigationItem, docId: UnpackedHypermediaId | null): boolean {
+  if (!item.id || !docId || item.id.uid !== docId.uid) return false
+  const itemPath = item.id.path ?? []
+  const docPath = docId.path ?? []
+  if (item.key === HOME_NAVIGATION_KEY) return docPath.length === 0
+  return itemPath.length <= docPath.length && itemPath.every((segment, index) => docPath[index] === segment)
+}
+
+function getActiveSiteHeaderItemKey(items: DocNavigationItem[], docId: UnpackedHypermediaId | null) {
+  return items
+    .filter((item) => isSiteHeaderItemActive(item, docId))
+    .sort((a, b) => (b.id?.path?.length ?? 0) - (a.id?.path?.length ?? 0))[0]?.key
+}
 
 export function SiteHeader({
   siteHomeId,
@@ -158,6 +189,7 @@ export function SiteHeader({
   if (!homeDoc) return null
   const headerHomeId = homeDoc.id
   if (!headerHomeId) return null
+  const navigationItems = getSiteHeaderItems(siteHomeId, items ?? [])
   return (
     <header
       ref={headerRef}
@@ -178,7 +210,7 @@ export function SiteHeader({
           'flex-start': !isCenterLayout,
         })}
       >
-        <div className="flex flex-1 justify-center overflow-hidden">
+        <div className={cn('flex overflow-hidden', isCenterLayout ? 'flex-1 justify-center' : 'shrink-0')}>
           <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
         </div>
         {routeType != 'draft' && isCenterLayout ? (
@@ -195,7 +227,7 @@ export function SiteHeader({
         })}
       >
         <SiteHeaderMenu
-          items={items}
+          items={navigationItems}
           docId={docId}
           isCenterLayout={isCenterLayout}
           editNavPane={editNavPane}
@@ -231,10 +263,10 @@ export function SiteHeader({
 
               <div className="relative z-0">
                 {/* Always show the same navigation items as the desktop header */}
-                {items && items.length > 0 && (
+                {navigationItems.length > 0 && (
                   <div className="mt-2.5 mb-4 flex flex-col gap-2 px-1">
                     <NavItems
-                      items={items}
+                      items={navigationItems}
                       onClick={() => {
                         setIsMobileMenuOpen(false)
                       }}
@@ -394,7 +426,6 @@ function HeaderLinkItem({
   webUrl?: string | undefined
   visibility?: HMResourceVisibility
 }) {
-  const highlighter = useHighlighter()
   const {linkProps} = useValidatedWebRouteLink(
     draftId
       ? {
@@ -410,12 +441,11 @@ function HeaderLinkItem({
         : webUrl || null,
   )
   return (
-    <div className={cn('flex items-center gap-1 px-1')} {...highlighter(id)}>
+    <div className={cn('flex items-center gap-1 px-1')}>
       <a
         className={cn(
-          'cursor-pointer truncate px-1 font-bold transition-colors select-none',
-          active ? 'text-foreground' : 'text-muted-foreground',
-          'hover:text-foreground',
+          'cursor-pointer truncate border-b-2 px-1 pb-1 font-bold transition-colors select-none',
+          active ? 'border-foreground text-foreground' : 'text-muted-foreground hover:border-accent border-transparent',
         )}
         {...linkProps}
       >
@@ -447,26 +477,13 @@ export function SiteHeaderMenu({
   const editNavPaneRef = useRef<HTMLDivElement | null>(null)
   const feedLinkButtonRef = useRef<HTMLAnchorElement>(null)
 
-  // Calculate reserved width for the dropdown button, edit pane, and feed button
+  // Calculate reserved width for the edit pane and feed button. The responsive
+  // hook reserves the overflow trigger only when it is needed.
   const editNavPaneWidth = editNavPaneRef.current?.getBoundingClientRect().width || 0
   const feedLinkButtonWidth = feedLinkButtonRef.current?.getBoundingClientRect().width || 0
-  const reservedWidth = editNavPaneWidth + feedLinkButtonWidth + 8 + 32 + 40 // padding + button + gaps
+  const reservedWidth = editNavPaneWidth + feedLinkButtonWidth + 48
 
-  // Determine active key based on current docId
-  const activeKey = useMemo(() => {
-    if (!docId || !items?.length) return undefined
-
-    const activeItem = items.find(
-      (item) =>
-        !!item.id &&
-        item.id.uid === docId.uid &&
-        !!docId?.path &&
-        !!item.id?.path &&
-        docId.path.join('/').startsWith(item.id.path.join('/')),
-    )
-
-    return activeItem?.key
-  }, [docId, items])
+  const activeKey = useMemo(() => getActiveSiteHeaderItemKey(items ?? [], docId), [docId, items])
 
   const {containerRef, itemRefs, visibleItems, overflowItems} = useResponsiveItems({
     items: items || [],
@@ -487,19 +504,9 @@ export function SiteHeaderMenu({
       className={cn(
         'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
         'md:flex md:py-2 md:pr-0 md:pl-2',
-        isCenterLayout ? 'justify-center' : 'justify-end',
+        isCenterLayout ? 'justify-center' : 'justify-start',
       )}
     >
-      {(editNavPane || editNavPanePortalRef) && (
-        <div
-          ref={(node) => {
-            editNavPaneRef.current = node
-            editNavPanePortalRef?.(node)
-          }}
-        >
-          {editNavPane}
-        </div>
-      )}
       {/* Hidden measurement container */}
       <div className="pointer-events-none absolute top-0 left-0 flex items-center gap-5 p-0 opacity-0 md:flex md:p-2">
         {items?.map((item) => {
@@ -518,7 +525,7 @@ export function SiteHeaderMenu({
                 id={item.id}
                 metadata={item.metadata}
                 draftId={item.draftId}
-                active={true}
+                active={item.key === activeKey}
                 visibility={item.visibility}
               />
             </div>
@@ -536,14 +543,7 @@ export function SiteHeaderMenu({
             metadata={item.metadata}
             draftId={item.draftId}
             webUrl={item.webUrl}
-            active={
-              !!item.id &&
-              !!docId &&
-              item.id.uid === docId.uid &&
-              !!docId?.path &&
-              !!item.id?.path &&
-              docId.path.join('/').startsWith(item.id.path.join('/'))
-            }
+            active={item.key === activeKey}
             visibility={item.visibility}
           />
         )
@@ -565,6 +565,17 @@ export function SiteHeaderMenu({
             </DropdownMenuContent>
           </DropdownMenu>
         </Tooltip>
+      )}
+      {(editNavPane || editNavPanePortalRef) && (
+        <div
+          className="shrink-0"
+          ref={(node) => {
+            editNavPaneRef.current = node
+            editNavPanePortalRef?.(node)
+          }}
+        >
+          {editNavPane}
+        </div>
       )}
       <Tooltip content="Activity Feed">
         <Button

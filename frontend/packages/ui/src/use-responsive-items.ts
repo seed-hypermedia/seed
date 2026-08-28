@@ -3,6 +3,48 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 // Default width estimator - stable reference
 const defaultGetItemWidth = () => 150
 
+/** Splits responsive items into ordered visible and overflow collections. */
+export function splitResponsiveItems<T extends {key: string}>({
+  items,
+  activeKey,
+  containerWidth,
+  reservedWidth = 0,
+  overflowTriggerWidth = 32,
+  getWidth,
+}: {
+  items: T[]
+  activeKey?: string
+  containerWidth: number
+  reservedWidth?: number
+  overflowTriggerWidth?: number
+  getWidth: (item: T) => number
+}) {
+  const widths = items.map((item) => ({item, width: getWidth(item)}))
+  const availableWidth = Math.max(0, containerWidth - reservedWidth)
+  const needsOverflow = widths.reduce((total, entry) => total + entry.width, 0) > availableWidth
+  let remainingWidth = availableWidth - (needsOverflow ? overflowTriggerWidth : 0)
+  const visibleKeys = new Set<string>()
+  const activeEntry = widths.find(({item}) => item.key === activeKey)
+
+  if (activeEntry) {
+    visibleKeys.add(activeEntry.item.key)
+    remainingWidth -= activeEntry.width
+  }
+  for (const {item, width} of widths) {
+    if (visibleKeys.has(item.key)) continue
+    if (width <= remainingWidth) {
+      visibleKeys.add(item.key)
+      remainingWidth -= width
+    }
+  }
+  if (visibleKeys.size === 0 && items[0]) visibleKeys.add(items[0].key)
+
+  return {
+    visibleItems: items.filter((item) => visibleKeys.has(item.key)),
+    overflowItems: items.filter((item) => !visibleKeys.has(item.key)),
+  }
+}
+
 /**
  * Custom hook for responsive overflow behavior
  * Automatically moves items to an overflow state when they don't fit in the container
@@ -45,65 +87,19 @@ export function useResponsiveItems<T extends {key: string}>({
       return
     }
 
-    const availableWidth = containerWidth - reservedWidth
+    const result = splitResponsiveItems({
+      items,
+      activeKey,
+      containerWidth,
+      reservedWidth,
+      getWidth: (item) => {
+        const element = itemRefs.current.get(item.key)
+        return element ? element.getBoundingClientRect().width + gapWidth : getItemWidth(item)
+      },
+    })
 
-    const visible: T[] = []
-    const overflow: T[] = []
-
-    // Create array of items with their measured widths
-    const itemWidths: Array<{item: T; width: number; isActive: boolean}> = []
-
-    for (const item of items) {
-      const element = itemRefs.current.get(item.key)
-      const isActive = activeKey === item.key
-      if (element) {
-        const width = element.getBoundingClientRect().width + gapWidth
-        itemWidths.push({item, width, isActive})
-      } else {
-        // If we can't measure, use the provided estimate
-        itemWidths.push({item, width: getItemWidth(item), isActive})
-      }
-    }
-
-    // Find the active item and reserve space for it first
-    const activeItemData = itemWidths.find(({isActive}) => isActive)
-    let remainingWidth = availableWidth
-
-    if (activeItemData) {
-      remainingWidth -= activeItemData.width
-    }
-
-    // Now go through items in original order and add them if they fit
-    for (const {item, width, isActive} of itemWidths) {
-      if (isActive) {
-        // Always include the active item (space already reserved)
-        visible.push(item)
-      } else {
-        // For non-active items, only add if there's remaining space
-        if (width <= remainingWidth) {
-          visible.push(item)
-          remainingWidth -= width
-        } else {
-          overflow.push(item)
-        }
-      }
-    }
-
-    // Ensure we show at least one item (fallback)
-    if (visible.length === 0 && items.length > 0) {
-      // @ts-ignore
-      visible.push(items[0])
-      const firstOverflowIndex = overflow.findIndex(
-        // @ts-ignore
-        (item) => item.key === items[0].key,
-      )
-      if (firstOverflowIndex !== -1) {
-        overflow.splice(firstOverflowIndex, 1)
-      }
-    }
-
-    setMeasuredVisible(visible)
-    setOverflowItems(overflow)
+    setMeasuredVisible(result.visibleItems)
+    setOverflowItems(result.overflowItems)
   }, [items, activeKey, getItemWidth, reservedWidth, gapWidth])
 
   // Debounced version of updateVisibility
