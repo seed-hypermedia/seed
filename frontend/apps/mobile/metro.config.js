@@ -7,6 +7,11 @@ const monorepoRoot = path.resolve(projectRoot, '../../..')
 
 const config = getDefaultConfig(projectRoot)
 
+// On EAS the app installs alone with npm, so the monorepo root has no node_modules —
+// referencing the missing directory makes Metro's Transformer refuse to start.
+const monorepoNodeModules = path.resolve(monorepoRoot, 'node_modules')
+const hasMonorepoNodeModules = require('fs').existsSync(monorepoNodeModules)
+
 // 1. Watch the in-repo packages this app resolves from — NOT the monorepo root.
 //
 // Watching the root means watchman crawls and subscribes to the whole tree: ~1.17M files, most of
@@ -25,13 +30,13 @@ config.watchFolders = [
   path.resolve(monorepoRoot, 'frontend/packages/shared'),
   path.resolve(monorepoRoot, 'frontend/packages/ui/src/agents'),
   path.resolve(monorepoRoot, 'agents/protocol'),
-  path.resolve(monorepoRoot, 'node_modules'),
+  ...(hasMonorepoNodeModules ? [monorepoNodeModules] : []),
 ]
 
 // 2. Let Metro know where to resolve packages and in what order
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
-  path.resolve(monorepoRoot, 'node_modules'),
+  ...(hasMonorepoNodeModules ? [monorepoNodeModules] : []),
 ]
 
 // 3. Enable package exports support for ESM packages like multiformats

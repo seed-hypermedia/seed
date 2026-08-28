@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "Seed Hypermedia 2026.1",
-    "slug": "seed",
+    "slug": "seed-app",
+    "owner": "seed-hypermedia",
     "scheme": "hm",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,11 +16,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "media.hyper.seed.gamma",
+      "bundleIdentifier": "media.hyper.seed.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleDisplayName": "Seed 2026",
-        "CFBundleName": "Seed Hypermedia Gamma 2026.1"
+        "CFBundleName": "Seed Hypermedia 2026.1"
       }
     },
     "android": {
@@ -27,16 +28,18 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "media.hyper.seed.gamma"
+      "package": "media.hyper.seed.mobile"
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": ["expo-secure-store"],
+    "plugins": [
+      "expo-secure-store"
+    ],
     "extra": {
       "eas": {
-        "projectId": "89c694bd-957b-40ec-938c-0e963c4094d1"
+        "projectId": "0301d196-dd70-4611-9c17-5b55534e48a6"
       }
     }
   }
