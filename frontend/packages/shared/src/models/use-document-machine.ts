@@ -8,10 +8,7 @@ import {ActorRefFrom, SnapshotFrom} from 'xstate'
 import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
 import {
   documentMachine,
-  getCollectionEditorBlocks,
-  getEffectiveDocumentMetadata,
-  isDocumentCollection,
-  normalizeCollectionEditorBlocks,
+  getFolderEditorBlocks,
   DocumentMachineContext,
   DocumentMachineEvent,
   DocumentMachineInput,
@@ -625,18 +622,19 @@ export function selectContext(snapshot: DocumentMachineSnapshot): DocumentMachin
   return snapshot.context
 }
 
-/** Whether the effective document metadata identifies a document collection. */
-export function selectIsDocumentCollection(snapshot: DocumentMachineSnapshot): boolean {
-  return isDocumentCollection(getEffectiveDocumentMetadata(snapshot.context))
+/** The type derived by the document machine from effective content. */
+export function selectDocumentType(snapshot: DocumentMachineSnapshot) {
+  return snapshot.context.documentType
 }
 
-/** The first root query block used by the document collection view. */
-export function selectCollectionQueryBlock(snapshot: DocumentMachineSnapshot): EditorBlock | null {
-  return (
-    normalizeCollectionEditorBlocks(getCollectionEditorBlocks(snapshot.context), 'collection-query-preview').find(
-      (block) => block.type === 'query',
-    ) ?? null
-  )
+/** Whether the document machine derives the effective document as a Folder. */
+export function selectIsFolder(snapshot: DocumentMachineSnapshot): boolean {
+  return snapshot.context.documentType === 'folder'
+}
+
+/** The sole root query block used by the Folder view. */
+export function selectFolderQueryBlock(snapshot: DocumentMachineSnapshot): EditorBlock | null {
+  return getFolderEditorBlocks(snapshot.context).find((block) => block.type === 'query') ?? null
 }
 
 /** Whether draft content is allowed to overlay the published document for the current route. */

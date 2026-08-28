@@ -248,11 +248,11 @@ describe('DocumentHeader Breadcrumbs', () => {
     expect(container.textContent).not.toContain('Merged')
   })
 
-  it('removes the byline divider and bottom padding for collection headers', () => {
+  it('removes the byline divider and bottom padding for folder headers', () => {
     renderWithProvider(
       <DocumentHeader
-        docId={hmId('site', {path: ['collection']})}
-        docMetadata={{name: 'Collection'} as any}
+        docId={hmId('site', {path: ['folder']})}
+        docMetadata={{name: 'Folder'} as any}
         authors={[]}
         updateTime={null}
         flushByline

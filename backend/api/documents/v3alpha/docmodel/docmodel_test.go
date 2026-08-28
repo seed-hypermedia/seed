@@ -12,6 +12,7 @@ import (
 
 	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestDocmodelSmoke(t *testing.T) {
@@ -412,5 +413,172 @@ func TestApplyChangeOpIndexOverflow(t *testing.T) {
 		err := doc.ApplyChange(cid.Undef, hugeMove(70_000))
 		require.ErrorContains(t, err, "op ID index")
 		require.ErrorContains(t, err, "overflows")
+	})
+}
+
+func TestIsFolder(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	space := alice.Principal().String()
+
+	// The shape the folder editor maintains: one top-level Query block whose
+	// query lists this very document's children.
+	queryBlock := func(id string, includes ...map[string]any) *documents.Block {
+		list := make([]any, len(includes))
+		for i, inc := range includes {
+			list[i] = inc
+		}
+		return &documents.Block{
+			Id:   id,
+			Type: "Query",
+			Attributes: must.Do2(structpb.NewStruct(map[string]any{
+				"style": "Table",
+				"query": map[string]any{"includes": list},
+			})),
+		}
+	}
+
+	self := func(path string) map[string]any {
+		return map[string]any{"space": space, "path": path, "mode": "Children"}
+	}
+
+	// Round-trips through a signed change so the predicate runs against a
+	// committed document, exactly as the indexer sees it.
+	load := func(iri blob.IRI, build func(dm *Document)) *Document {
+		doc := must.Do2(New(iri, cclock.New()))
+		build(doc)
+		c := must.Do2(doc.SignChange(alice))
+
+		out := must.Do2(New(iri, cclock.New()))
+		must.Do(out.ApplyChange(c.CID, c.Decoded))
+		return out
+	}
+
+	notes := blob.IRI("hm://" + space + "/notes")
+
+	t.Run("single self-query block is a Folder", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", self("/notes"))))
+		})
+		require.True(t, doc.IsFolder())
+	})
+
+	t.Run("path without a leading slash still matches", func(t *testing.T) {
+		// The query-block editor writes id.path.join('/'), with no leading slash,
+		// while hmIdPathToEntityQueryPath writes "/notes". Both are in the wild.
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", self("notes"))))
+		})
+		require.True(t, doc.IsFolder())
+	})
+
+	t.Run("AllDescendants counts, since it includes the direct children", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", map[string]any{
+				"space": space, "path": "/notes", "mode": "AllDescendants",
+			})))
+		})
+		require.True(t, doc.IsFolder())
+	})
+
+	t.Run("multiple includes do not qualify", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1",
+				map[string]any{"space": space, "path": "/elsewhere", "mode": "Children"},
+				self("/notes"),
+			)))
+		})
+		require.False(t, doc.IsFolder())
+	})
+
+	t.Run("a root document collecting its own children", func(t *testing.T) {
+		home := blob.IRI("hm://" + space)
+		doc := load(home, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", self(""))))
+		})
+		require.True(t, doc.IsFolder())
+	})
+
+	t.Run("query for another path is not a folder", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", self("/other"))))
+		})
+		require.False(t, doc.IsFolder())
+	})
+
+	t.Run("query for another space is not a folder", func(t *testing.T) {
+		bob := coretest.NewTester("bob").Account
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", map[string]any{
+				"space": bob.Principal().String(), "path": "/notes", "mode": "Children",
+			})))
+		})
+		require.False(t, doc.IsFolder())
+	})
+
+	t.Run("one empty include is implicitly self-referential", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", map[string]any{
+				"space": "", "path": "", "mode": "Children",
+			})))
+		})
+		require.True(t, doc.IsFolder())
+	})
+
+	t.Run("a second top-level block disqualifies it", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", self("/notes"))))
+			must.Do(dm.MoveBlock("p1", "", "q1"))
+			must.Do(dm.ReplaceBlock(&documents.Block{Id: "p1", Type: "Paragraph", Text: "and a note"}))
+		})
+		require.False(t, doc.IsFolder())
+	})
+
+	t.Run("a child of the query block does not affect the type", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(queryBlock("q1", self("/notes"))))
+			must.Do(dm.MoveBlock("q1.1", "q1", ""))
+			must.Do(dm.ReplaceBlock(&documents.Block{Id: "q1.1", Type: "Paragraph", Text: "nested"}))
+		})
+		require.True(t, doc.IsFolder())
+	})
+
+	t.Run("a single non-Query block is not a folder", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("p1", "", ""))
+			must.Do(dm.ReplaceBlock(&documents.Block{Id: "p1", Type: "Paragraph", Text: "just prose"}))
+		})
+		require.False(t, doc.IsFolder())
+	})
+
+	t.Run("an empty document is not a folder", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.SetMetadata("title", "Notes"))
+		})
+		require.False(t, doc.IsFolder())
+	})
+
+	t.Run("a query block with no query attribute is implicitly self-referential", func(t *testing.T) {
+		doc := load(notes, func(dm *Document) {
+			must.Do(dm.MoveBlock("q1", "", ""))
+			must.Do(dm.ReplaceBlock(&documents.Block{Id: "q1", Type: "Query"}))
+		})
+		require.True(t, doc.IsFolder())
+	})
+
+	t.Run("an uncommitted document is never a folder", func(t *testing.T) {
+		doc := must.Do2(New(notes, cclock.New()))
+		must.Do(doc.MoveBlock("q1", "", ""))
+		must.Do(doc.ReplaceBlock(queryBlock("q1", self("/notes"))))
+		require.False(t, doc.IsFolder(), "a dirty document has no stable committed state")
 	})
 }

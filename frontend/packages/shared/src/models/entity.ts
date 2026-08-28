@@ -88,6 +88,7 @@ export function prepareHMDocumentInfo(doc: DocumentInfo): HMDocumentInfo {
   return HMDocumentInfoSchema.parse({
     ...docInfo,
     metadata: prepareHMDocumentMetadata(doc.metadata),
+    isFolder: docInfo.isFolder,
     type: 'document',
     createTime,
     updateTime: prepareHMDate(docInfo.updateTime),

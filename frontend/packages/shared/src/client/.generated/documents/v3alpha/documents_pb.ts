@@ -3713,6 +3713,7 @@ export class DocumentChangeInfo extends Message<DocumentChangeInfo> {
 /**
  * Basic data about a document with some aggregations and metadata.
  * It's like Document, without the content, but with some additional info.
+ * Type derived from a document's published content.
  *
  * @generated from message com.seed.documents.v3alpha.DocumentInfo
  */
@@ -3830,6 +3831,15 @@ export class DocumentInfo extends Message<DocumentInfo> {
    */
   firstImageInContent?: string;
 
+  /**
+   * Output only. Whether the published document has the Folder shape. Derived
+   * by the indexer and backfilled incrementally for existing documents.
+   * Unset means the indexer has not derived the value yet.
+   *
+   * @generated from field: optional bool is_folder = 16;
+   */
+  isFolder?: boolean;
+
   constructor(data?: PartialMessage<DocumentInfo>) {
     super();
     proto3.util.initPartial(data, this);
@@ -3852,6 +3862,7 @@ export class DocumentInfo extends Message<DocumentInfo> {
     { no: 13, name: "redirect_info", kind: "message", T: RefTarget_Redirect },
     { no: 14, name: "visibility", kind: "enum", T: proto3.getEnumType(ResourceVisibility) },
     { no: 15, name: "first_image_in_content", kind: "scalar", T: 9 /* ScalarType.STRING */, opt: true },
+    { no: 16, name: "is_folder", kind: "scalar", T: 8 /* ScalarType.BOOL */, opt: true },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentInfo {

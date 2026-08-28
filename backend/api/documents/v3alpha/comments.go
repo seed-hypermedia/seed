@@ -698,6 +698,15 @@ func (srv *Server) UpdateComment(ctx context.Context, in *documents.UpdateCommen
 	}
 
 	clock := cclock.New()
+	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		originalComment, err := srv.getComment(conn, comment.Id)
+		if err != nil {
+			return err
+		}
+		return clock.Track(originalComment.Comment.Ts)
+	}); err != nil {
+		return nil, err
+	}
 
 	var (
 		threadRoot  cid.Cid

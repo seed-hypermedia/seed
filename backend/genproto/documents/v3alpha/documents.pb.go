@@ -3871,6 +3871,7 @@ func (x *DocumentChangeInfo) GetCreateTime() *timestamppb.Timestamp {
 
 // Basic data about a document with some aggregations and metadata.
 // It's like Document, without the content, but with some additional info.
+// Type derived from a document's published content.
 type DocumentInfo struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Account to which the document belongs.
@@ -3916,8 +3917,12 @@ type DocumentInfo struct {
 	// Unset means the indexer hasn't derived it (yet); an empty string means
 	// the document is known to have no content image.
 	FirstImageInContent *string `protobuf:"bytes,15,opt,name=first_image_in_content,json=firstImageInContent,proto3,oneof" json:"first_image_in_content,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// Output only. Whether the published document has the Folder shape. Derived
+	// by the indexer and backfilled incrementally for existing documents.
+	// Unset means the indexer has not derived the value yet.
+	IsFolder      *bool `protobuf:"varint,16,opt,name=is_folder,json=isFolder,proto3,oneof" json:"is_folder,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DocumentInfo) Reset() {
@@ -4046,6 +4051,13 @@ func (x *DocumentInfo) GetFirstImageInContent() string {
 		return *x.FirstImageInContent
 	}
 	return ""
+}
+
+func (x *DocumentInfo) GetIsFolder() bool {
+	if x != nil && x.IsFolder != nil {
+		return *x.IsFolder
+	}
+	return false
 }
 
 // Information about the generation of a document.
@@ -6217,7 +6229,7 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x12\x12\n" +
 	"\x04deps\x18\x03 \x03(\tR\x04deps\x12;\n" +
 	"\vcreate_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"createTime\"\xaa\x06\n" +
+	"createTime\"\xda\x06\n" +
 	"\fDocumentInfo\x12\x18\n" +
 	"\aaccount\x18\x01 \x01(\tR\aaccount\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x123\n" +
@@ -6237,8 +6249,11 @@ const file_documents_v3alpha_documents_proto_rawDesc = "" +
 	"\n" +
 	"visibility\x18\x0e \x01(\x0e2..com.seed.documents.v3alpha.ResourceVisibilityR\n" +
 	"visibility\x128\n" +
-	"\x16first_image_in_content\x18\x0f \x01(\tH\x00R\x13firstImageInContent\x88\x01\x01B\x19\n" +
-	"\x17_first_image_in_content\"J\n" +
+	"\x16first_image_in_content\x18\x0f \x01(\tH\x00R\x13firstImageInContent\x88\x01\x01\x12 \n" +
+	"\tis_folder\x18\x10 \x01(\bH\x01R\bisFolder\x88\x01\x01B\x19\n" +
+	"\x17_first_image_in_contentB\f\n" +
+	"\n" +
+	"_is_folder\"J\n" +
 	"\x0eGenerationInfo\x12\x18\n" +
 	"\agenesis\x18\x01 \x01(\tR\agenesis\x12\x1e\n" +
 	"\n" +

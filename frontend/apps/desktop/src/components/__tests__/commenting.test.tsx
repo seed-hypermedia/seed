@@ -110,9 +110,13 @@ vi.mock('@shm/shared/models/contacts', () => ({
   useContacts: () => [],
 }))
 
-vi.mock('@shm/shared/models/entity', () => ({
-  useResource: () => ({data: {type: 'document', document: {visibility: 'PUBLIC'}}}),
-}))
+vi.mock('@shm/shared/models/entity', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shm/shared/models/entity')>()
+  return {
+    ...actual,
+    useResource: () => ({data: {type: 'document', document: {visibility: 'PUBLIC'}}}),
+  }
+})
 
 vi.mock('@shm/shared/models/query-client', () => ({
   invalidateQueries: invalidateQueriesMock,

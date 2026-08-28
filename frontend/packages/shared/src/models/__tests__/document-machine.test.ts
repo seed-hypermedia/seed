@@ -1,11 +1,10 @@
 import {describe, expect, it, vi} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
 import {
-  createDefaultCollectionQueryBlock,
+  createDefaultFolderQueryBlock,
+  deriveDocumentType,
   documentMachine,
   DocumentMachineInput,
-  isDocumentCollection,
-  normalizeCollectionEditorBlocks,
   PushDocumentInput,
   retargetQueryBlockIncludesForPublish,
   WriteDraftOutput,
@@ -44,86 +43,88 @@ const mockDocument = {
   visibility: 'PUBLIC',
 } as unknown as HMDocument
 
-describe('document collection helpers', () => {
-  it('recognizes only the canonical Collection type', () => {
-    expect(isDocumentCollection({type: 'Collection'})).toBe(true)
-    expect(isDocumentCollection({type: 'collection'})).toBe(false)
-    expect(isDocumentCollection({})).toBe(false)
+describe('document folder helpers', () => {
+  function queryWithIncludes(includes: unknown): EditorBlock {
+    const query = createDefaultFolderQueryBlock('query')
+    return {...query, props: {...query.props, queryIncludes: JSON.stringify(includes)}} as EditorBlock
+  }
+
+  it('recognizes a sole query with implicit, empty, or explicit self includes', () => {
+    const implicit = createDefaultFolderQueryBlock('implicit')
+    delete implicit.props.queryIncludes
+
+    expect(deriveDocumentType([implicit], mockDocumentId)).toBe('folder')
+    expect(deriveDocumentType([queryWithIncludes([])], mockDocumentId)).toBe('folder')
+    expect(deriveDocumentType([queryWithIncludes([{space: '', path: '', mode: 'Children'}])], mockDocumentId)).toBe(
+      'folder',
+    )
+    expect(
+      deriveDocumentType(
+        [queryWithIncludes([{space: mockDocumentId.uid, path: '/doc/', mode: 'Children'}])],
+        mockDocumentId,
+      ),
+    ).toBe('folder')
   })
 
-  it('adds a default table query when one is missing', () => {
-    const result = normalizeCollectionEditorBlocks([], 'query-id')
+  it('ignores query view and children when deriving a folder', () => {
+    const query = queryWithIncludes([])
+    ;(query.props as {style: string}).style = 'Card'
+    query.children = [{id: 'child', type: 'paragraph', props: {}, content: [], children: []} as EditorBlock]
 
-    expect(result).toEqual([createDefaultCollectionQueryBlock('query-id')])
+    expect(deriveDocumentType([query], mockDocumentId)).toBe('folder')
   })
 
-  it('normalizes only the first root query to Table', () => {
-    const blocks: EditorBlock[] = [
-      {
-        ...createDefaultCollectionQueryBlock('first'),
-        props: {...createDefaultCollectionQueryBlock('first').props, style: 'Card'},
-      } as EditorBlock,
-      {
-        ...createDefaultCollectionQueryBlock('second'),
-        props: {...createDefaultCollectionQueryBlock('second').props, style: 'List'},
-      } as EditorBlock,
-    ]
+  it('rejects non-canonical top-level content and query targets', () => {
+    const paragraph = {id: 'p', type: 'paragraph', props: {}, content: [], children: []} as EditorBlock
+    const malformed = createDefaultFolderQueryBlock('malformed')
+    malformed.props.queryIncludes = '{broken'
 
-    const result = normalizeCollectionEditorBlocks(blocks, 'unused')
-
-    expect((result[0] as any).props.style).toBe('Table')
-    expect((result[1] as any).props.style).toBe('List')
+    expect(deriveDocumentType([], mockDocumentId)).toBe('document')
+    expect(deriveDocumentType([paragraph], mockDocumentId)).toBe('document')
+    expect(deriveDocumentType([queryWithIncludes([]), paragraph], mockDocumentId)).toBe('document')
+    expect(deriveDocumentType([queryWithIncludes([{space: '', path: 'doc'}])], mockDocumentId)).toBe('document')
+    expect(deriveDocumentType([queryWithIncludes([{space: mockDocumentId.uid, path: ''}])], mockDocumentId)).toBe(
+      'document',
+    )
+    expect(deriveDocumentType([queryWithIncludes([{space: 'other', path: 'doc'}])], mockDocumentId)).toBe('document')
+    expect(
+      deriveDocumentType(
+        [
+          queryWithIncludes([
+            {space: '', path: ''},
+            {space: mockDocumentId.uid, path: 'doc'},
+          ]),
+        ],
+        mockDocumentId,
+      ),
+    ).toBe('document')
+    expect(deriveDocumentType([malformed], mockDocumentId)).toBe('document')
   })
 
-  it('repairs an editable collection into a local Table draft and enters editing', async () => {
-    let repairInput: any
-    const machine = documentMachine.provide({
-      actors: {
-        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
-          repairInput = input
-          return {id: 'collection-draft', content: input.contentOverride}
-        }),
-      },
-    })
-    const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}}).start()
-    const collection = {...mockDocument, metadata: {name: 'Collection', type: 'Collection'}} as HMDocument
-
-    loadDocument(actor as ReturnType<typeof createTestActor>, collection)
-    await vi.waitFor(() => expect(actor.getSnapshot().matches('editing')).toBe(true))
-
-    expect(repairInput.contentOverride).toHaveLength(1)
-    expect(repairInput.contentOverride[0].type).toBe('query')
-    expect(repairInput.contentOverride[0].props.style).toBe('Table')
-    expect(actor.getSnapshot().context.draftId).toBe('collection-draft')
-  })
-
-  it('does not create a repair draft for a reader', async () => {
-    const writeDraft = vi.fn(async () => ({id: 'unexpected-draft'}))
-    const machine = documentMachine.provide({
-      actors: {writeDraft: fromPromise<WriteDraftOutput, any>(writeDraft)},
-    })
-    const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: false}}).start()
-    const collection = {...mockDocument, metadata: {type: 'Collection'}} as HMDocument
-
-    loadDocument(actor as ReturnType<typeof createTestActor>, collection)
-    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
-
-    expect(writeDraft).not.toHaveBeenCalled()
-  })
-
-  it('converts a collection back to a normal document in a local draft', async () => {
+  it('stores the derived type and converts in machine-owned draft content', async () => {
     const actor = createTestActor().start()
-    const collection = {
-      ...mockDocument,
-      metadata: {type: 'Collection'},
-      content: [],
-    } as HMDocument
+    loadDocument(actor)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+    expect(actor.getSnapshot().context.documentType).toBe('document')
 
-    loadDocument(actor, collection)
-    await vi.waitFor(() => expect(actor.getSnapshot().matches('editing')).toBe(true))
-    actor.send({type: 'collection.convertToDocument'})
+    actor.send({type: 'folder.convertToFolder'})
+    expect(actor.getSnapshot().context.documentType).toBe('folder')
+    expect(actor.getSnapshot().context.draftContent).toHaveLength(1)
 
-    expect(actor.getSnapshot().context.metadata.type).toBeNull()
+    actor.send({type: 'folder.convertToDocument'})
+    expect(actor.getSnapshot().context.documentType).toBe('document')
+    expect(actor.getSnapshot().context.draftContent).toEqual([])
+  })
+
+  it('derives a loaded folder without creating a style repair draft', async () => {
+    const actor = createTestActor().start()
+    const query = createDefaultFolderQueryBlock('query')
+    query.props.style = 'Card'
+    loadDocument(actor, {...mockDocument, content: [query]} as unknown as HMDocument)
+
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+    expect(actor.getSnapshot().context.documentType).toBe('folder')
+    expect(actor.getSnapshot().context.draftId).toBeNull()
   })
 })
 

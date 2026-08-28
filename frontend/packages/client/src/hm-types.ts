@@ -766,6 +766,8 @@ export const HMDocumentInfoSchema = z.object({
   generationInfo: HMGenerationInfoSchema,
   redirectInfo: HMRedirectInfoSchema.optional(),
   metadata: HMDocumentMetadataSchema,
+  /** Folder status derived by the published-document indexer. */
+  isFolder: z.boolean().optional(),
   // Indexer-derived first image block of the document's content (reading
   // order), used as a fallback cover on directory cards without fetching the
   // full document. Undefined = not derived (yet); empty string = derived, the
@@ -1323,6 +1325,8 @@ const HMDraftMetaBaseSchema = z.object({
   // (for .json drafts they come from the content file for backwards compat)
   deps: z.array(z.string().min(1)).default([]),
   navigation: z.array(HMNavigationItemSchema).optional(),
+  /** Folder status derived from the locally persisted draft content. */
+  isFolder: z.boolean().default(false),
 })
 
 const draftLocationRefinement = (data: {editUid?: string; locationUid?: string}) => data.editUid || data.locationUid
@@ -1341,6 +1345,7 @@ type HMDraftMetaBase = {
   visibility: HMResourceVisibility
   deps: string[]
   navigation?: HMNavigationItem[]
+  isFolder?: boolean
 }
 
 export type HMDraftMeta = HMDraftMetaBase & {

@@ -448,34 +448,43 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	dg.Visibility = Visibility(resolvedVisibility.Value.(string))
 	dg.VisibilityTimestamp = resolvedVisibility.Ts
 
-	// Derive a fallback cover image (the first image block in reading order) for
-	// documents that carry neither an explicit cover nor icon, so directory cards
-	// can render a thumbnail from fast metadata instead of fetching each child's
-	// full document. Stored under an internal "$db." key (stripped by PublicMap,
-	// so it never pollutes user-authored metadata) and exposed as the typed
-	// DocumentInfo.first_image_in_content field. Best-effort: a derivation
-	// failure is logged but must not fail Ref indexing.
+	// Derive the document-level fields that need the full change history: the
+	// fallback cover image (first image block in reading order) and the
+	// folder flag. Both are stored under internal "$db." keys (stripped by
+	// PublicMap, so they never pollute user-authored metadata) and exposed as
+	// typed DocumentInfo fields. Best-effort: a derivation failure is logged but
+	// must not fail Ref indexing.
 	//
 	// Derives from the generation's MERGED heads (what the read path renders),
 	// and only when this Ref actually advanced them — duplicate and out-of-date
 	// Refs can't change the result, so they skip the full history replay.
-	if !isTombstone && appliedNewChanges && ictx.deriveFirstContentImage != nil && len(dg.Heads) > 0 {
-		if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
-			headIDs := slices.Collect(maps.Keys(dg.Heads))
-			changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
-			if cerr != nil {
-				ictx.log.Warn("FailedToLoadChangesForCoverImage", zap.String("iri", string(iri)), zap.Error(cerr))
-			} else if firstImage, derr := ictx.deriveFirstContentImage(iri, changes); derr != nil {
-				ictx.log.Warn("FailedToDeriveCoverImage", zap.String("iri", string(iri)), zap.Error(derr))
-			} else {
-				// Always record the result — empty means "derived: no image" — so a
-				// value derived at older heads can never outlive the image's removal,
-				// and clients can skip the fallback document fetch entirely. The
-				// timestamp rides at the generation's latest alive Ref time so that a
-				// late-arriving older Ref which completes the merge still wins the
-				// LWW register over a value derived from fewer heads.
-				dg.Metadata.set(FirstImageInContentAttr, firstImage, max(refTime, dg.LastAliveRefTime))
+	//
+	// Note the replay is NOT gated on cover/icon the way it once was. That gate
+	// existed when the cover image was the only derived field and an explicit
+	// cover made it moot; IsFolder is needed for every document, and a
+	// folder may well carry an icon. Only the storing of FirstImage stays
+	// gated.
+	if !isTombstone && appliedNewChanges && ictx.deriveDocFields != nil && len(dg.Heads) > 0 {
+		headIDs := slices.Collect(maps.Keys(dg.Heads))
+		changes, cerr := changesFromHeadIDsConn(conn, ictx.blockStore, headIDs, v.Generation)
+		if cerr != nil {
+			ictx.log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(iri)), zap.Error(cerr))
+		} else if fields, derr := ictx.deriveDocFields(iri, changes); derr != nil {
+			ictx.log.Warn("FailedToDeriveDocFields", zap.String("iri", string(iri)), zap.Error(derr))
+		} else {
+			// The timestamp rides at the generation's latest alive Ref time so that
+			// a late-arriving older Ref which completes the merge still wins the LWW
+			// register over a value derived from fewer heads.
+			ts := max(refTime, dg.LastAliveRefTime)
+
+			// Always record the result — empty means "derived: no image" — so a
+			// value derived at older heads can never outlive the image's removal,
+			// and clients can skip the fallback document fetch entirely.
+			if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
+				dg.Metadata.set(FirstImageInContentAttr, fields.FirstImage, ts)
 			}
+
+			dg.Metadata.set(IsFolderAttr, fields.IsFolder, ts)
 		}
 	}
 
@@ -993,11 +1002,93 @@ type IndexedValue struct {
 // means derivation hasn't run.
 const FirstImageInContentAttr = "$db.firstImageInContent"
 
+// IsFolderAttr is the internal indexed-attrs key holding the derived
+// Folder flag derived from document structure. Like FirstImageInContentAttr the
+// "$db." prefix keeps it out of the public metadata map; it reaches clients as
+// the typed DocumentInfo.is_folder field.
+//
+// A missing key means derivation hasn't run yet, which is what lets the
+// backfill be asynchronous: the read path treats "not derived" as "not known to
+// be a Folder", so a lagging backfill only delays the Folder icon.
+const IsFolderAttr = "$db.isFolder"
+
 // DocIndexedAttrs is a map of indexed document attributes with CRDT metadata.
 type DocIndexedAttrs map[string]IndexedValue
 
-// deriveFirstContentImages derives the fallback cover image once per document
-// generation, from that generation's final merged heads.
+// deriveDocFieldsForGeneration derives and stores the document-level derived
+// fields (fallback cover image, folder flag) for a single generation, from
+// that generation's final merged heads.
+//
+// Best-effort by construction: a generation whose changes fail to load is
+// logged and skipped, and a generation whose derivation fails still records the
+// folder flag so the asynchronous backfill treats it as handled. See the
+// failure branch for why that stamp covers the folder flag only.
+func deriveDocFieldsForGeneration(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveDocFields, k generationKey) (changesReplayed int, stored bool, err error) {
+	var dg documentGeneration
+	if err := dg.load(conn, k.Resource, k.Generation, k.Genesis); err != nil {
+		return 0, false, err
+	}
+
+	// Callers filter out empty head sets in SQL, but load() synthesizes a blank
+	// generation when the row is missing, so re-check the same condition the
+	// per-Ref path guards on.
+	if len(dg.Heads) == 0 {
+		return 0, false, nil
+	}
+
+	headIDs := slices.Collect(maps.Keys(dg.Heads))
+	changes, cerr := changesFromHeadIDsConn(conn, bs, headIDs, dg.Generation)
+	if cerr != nil {
+		log.Warn("FailedToLoadChangesForDerivedDocFields", zap.String("iri", string(k.IRI)), zap.Error(cerr))
+		return 0, false, nil
+	}
+	changesReplayed = len(changes)
+
+	// LastAliveRefTime is already the max over every alive Ref of this
+	// generation, which is exactly what max(refTime, dg.LastAliveRefTime) in the
+	// per-Ref path resolves to once the last Ref has been applied.
+	ts := dg.LastAliveRefTime
+
+	fields, derr := derive(k.IRI, changes)
+	if derr != nil {
+		log.Warn("FailedToDeriveDocFields", zap.String("iri", string(k.IRI)), zap.Error(derr))
+
+		// Record the folder flag's zero value even though nothing was
+		// derived. Its presence is this backfill's only bookkeeping, so leaving
+		// it absent would make every future pass re-pick the same undecodable
+		// document, forever. Recording false is also very likely right: a
+		// document the model cannot rebuild is in practice an enormous one, which
+		// is overwhelmingly unlikely to have the minimal Folder shape.
+		//
+		// The cover image is deliberately left alone. Empty there does not mean
+		// "unknown", it means "derived, this document has no content image", and
+		// clients act on it by skipping their fallback fetch — a claim this
+		// failure gives no grounds to make.
+		dg.Metadata.set(IsFolderAttr, false, ts)
+		if err := dg.save(conn); err != nil {
+			return changesReplayed, false, err
+		}
+
+		return changesReplayed, true, nil
+	}
+
+	// The cover/icon gate must be evaluated in Go, not folded into a SQL filter:
+	// hasNonEmptyAttr treats a nil value and an empty string as absent but any
+	// non-string value as present, which metadata->>'$.cover.v' cannot express.
+	if !hasNonEmptyAttr(dg.Metadata, "cover") && !hasNonEmptyAttr(dg.Metadata, "icon") {
+		dg.Metadata.set(FirstImageInContentAttr, fields.FirstImage, ts)
+	}
+	dg.Metadata.set(IsFolderAttr, fields.IsFolder, ts)
+
+	if err := dg.save(conn); err != nil {
+		return changesReplayed, false, err
+	}
+
+	return changesReplayed, true, nil
+}
+
+// deriveAllDocFields derives the document-level derived fields once per document
+// generation.
 //
 // This is the full-reindex counterpart of the per-Ref derivation in
 // crossLinkRefMaybe. Incrementally, deriving per Ref is correct and cheap: a
@@ -1010,10 +1101,7 @@ type DocIndexedAttrs map[string]IndexedValue
 // the merged head set, and heads merge commutatively: whatever order the blob
 // loop visited Refs in, the final head set is the same one the last advancing
 // Ref would have derived from.
-//
-// Best-effort, matching the per-Ref path: a generation whose changes fail to
-// load or whose derivation fails is logged and skipped, never fatal.
-func deriveFirstContentImages(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveFirstContentImage) (scanned, derived, changesReplayed int, err error) {
+func deriveAllDocFields(conn *sqlite.Conn, bs *blockStore, log *zap.Logger, derive DeriveDocFields) (scanned, derived, changesReplayed int, err error) {
 	if derive == nil {
 		return 0, 0, 0, nil
 	}
@@ -1029,48 +1117,14 @@ func deriveFirstContentImages(conn *sqlite.Conn, bs *blockStore, log *zap.Logger
 	for _, k := range keys {
 		scanned++
 
-		var dg documentGeneration
-		if err := dg.load(conn, k.Resource, k.Generation, k.Genesis); err != nil {
+		replayed, stored, err := deriveDocFieldsForGeneration(conn, bs, log, derive, k)
+		if err != nil {
 			return scanned, derived, changesReplayed, err
 		}
-
-		// The query already filters out empty head sets, but load() synthesizes a
-		// blank generation when the row is missing, so re-check the same condition
-		// the per-Ref path guards on.
-		if len(dg.Heads) == 0 {
-			continue
+		changesReplayed += replayed
+		if stored {
+			derived++
 		}
-
-		// Must be evaluated in Go, not folded into the SQL filter above:
-		// hasNonEmptyAttr treats a nil value and an empty string as absent but any
-		// non-string value as present, which metadata->>'$.cover.v' cannot express.
-		if hasNonEmptyAttr(dg.Metadata, "cover") || hasNonEmptyAttr(dg.Metadata, "icon") {
-			continue
-		}
-
-		headIDs := slices.Collect(maps.Keys(dg.Heads))
-		changes, cerr := changesFromHeadIDsConn(conn, bs, headIDs, dg.Generation)
-		if cerr != nil {
-			log.Warn("FailedToLoadChangesForCoverImage", zap.String("iri", string(k.IRI)), zap.Error(cerr))
-			continue
-		}
-		changesReplayed += len(changes)
-
-		firstImage, derr := derive(k.IRI, changes)
-		if derr != nil {
-			log.Warn("FailedToDeriveCoverImage", zap.String("iri", string(k.IRI)), zap.Error(derr))
-			continue
-		}
-
-		// LastAliveRefTime is already the max over every alive Ref of this
-		// generation, which is exactly what max(refTime, dg.LastAliveRefTime) in
-		// the per-Ref path resolves to once the last Ref has been applied.
-		dg.Metadata.set(FirstImageInContentAttr, firstImage, dg.LastAliveRefTime)
-
-		if err := dg.save(conn); err != nil {
-			return scanned, derived, changesReplayed, err
-		}
-		derived++
 	}
 
 	return scanned, derived, changesReplayed, nil
