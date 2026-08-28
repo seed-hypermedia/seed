@@ -5,6 +5,11 @@ import {useCallback, useEffect, useMemo, useRef} from 'react'
 
 const JOINED_SITE_ORDER_KEY = 'joined-site-order-v001'
 
+/** Returns whether a pointer target belongs to a control that must not initiate row dragging. */
+export function isJoinedSiteDragBlocked(target: Element | null): boolean {
+  return !!target?.closest('[data-no-joined-site-drag]')
+}
+
 function arraysEqual(a: string[], b: string[]) {
   return a.length === b.length && a.every((value, index) => value === b[index])
 }
@@ -46,6 +51,27 @@ export function reorderJoinedSites(order: string[], sourceUid: string, targetUid
   const targetAfterRemoval = next.indexOf(targetUid)
   next.splice(from < target ? targetAfterRemoval + 1 : targetAfterRemoval, 0, moved)
   return next
+}
+
+/** The vertical edge of a joined-space row used as an insertion point. */
+export type JoinedSiteDropEdge = 'top' | 'bottom'
+
+/** Places a joined site at the requested edge of another site. */
+export function reorderJoinedSitesAtEdge(
+  order: string[],
+  sourceUid: string,
+  targetUid: string,
+  edge: JoinedSiteDropEdge,
+): string[] | null {
+  const from = order.indexOf(sourceUid)
+  const target = order.indexOf(targetUid)
+  if (from === -1 || target === -1 || from === target) return null
+
+  const next = [...order]
+  const [moved] = next.splice(from, 1)
+  const targetAfterRemoval = next.indexOf(targetUid)
+  next.splice(edge === 'top' ? targetAfterRemoval : targetAfterRemoval + 1, 0, moved)
+  return arraysEqual(next, order) ? null : next
 }
 
 /** Creates a writer that completes persistence requests in the same order they were requested. */

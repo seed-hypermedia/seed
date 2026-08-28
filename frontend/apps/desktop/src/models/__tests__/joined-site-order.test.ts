@@ -5,10 +5,46 @@ vi.mock('@/trpc', () => ({client: {}}))
 
 import {
   createJoinedSiteOrderWriter,
+  isJoinedSiteDragBlocked,
   parseJoinedSiteOrder,
   reconcileJoinedSiteOrder,
   selectJoinedSiteOrder,
+  reorderJoinedSitesAtEdge,
 } from '../joined-site-order'
+
+describe('isJoinedSiteDragBlocked', () => {
+  it('blocks drags from controls marked as non-draggable', () => {
+    const options = document.createElement('button')
+    options.dataset.noJoinedSiteDrag = ''
+    const icon = document.createElement('svg')
+    options.append(icon)
+
+    expect(isJoinedSiteDragBlocked(icon)).toBe(true)
+  })
+
+  it('allows drags from the rest of the row', () => {
+    const label = document.createElement('span')
+    expect(isJoinedSiteDragBlocked(label)).toBe(false)
+    expect(isJoinedSiteDragBlocked(null)).toBe(false)
+  })
+})
+
+describe('reorderJoinedSitesAtEdge', () => {
+  const sites = ['site-a', 'site-b', 'site-c']
+
+  it('places a dragged site above the target', () => {
+    expect(reorderJoinedSitesAtEdge(sites, 'site-c', 'site-a', 'top')).toEqual(['site-c', 'site-a', 'site-b'])
+  })
+
+  it('places a dragged site below the target', () => {
+    expect(reorderJoinedSitesAtEdge(sites, 'site-a', 'site-c', 'bottom')).toEqual(['site-b', 'site-c', 'site-a'])
+  })
+
+  it('returns null when the requested edge produces no order change', () => {
+    expect(reorderJoinedSitesAtEdge(sites, 'site-a', 'site-b', 'top')).toBeNull()
+    expect(reorderJoinedSitesAtEdge(sites, 'site-c', 'site-b', 'bottom')).toBeNull()
+  })
+})
 
 describe('parseJoinedSiteOrder', () => {
   it('rejects invalid stored values', () => {

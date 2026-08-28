@@ -1,5 +1,11 @@
 import {useContactList} from '@/models/contacts'
-import {reorderJoinedSites, useJoinedSiteOrder} from '@/models/joined-site-order'
+import {
+  isJoinedSiteDragBlocked,
+  JoinedSiteDropEdge,
+  reorderJoinedSites,
+  reorderJoinedSitesAtEdge,
+  useJoinedSiteOrder,
+} from '@/models/joined-site-order'
 import {useSubscribedDocuments} from '@/models/library'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
@@ -40,17 +46,7 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {
-  ArrowDown,
-  ArrowUp,
-  Bot,
-  ChevronDown,
-  ChevronRight,
-  GripVertical,
-  LayoutList,
-  MoreHorizontal,
-  Settings,
-} from 'lucide-react'
+import {ArrowDown, ArrowUp, Bot, ChevronDown, ChevronRight, LayoutList, MoreHorizontal, Settings} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {isSiteDocumentsActiveRoute} from './sidebar-active'
@@ -240,7 +236,7 @@ function SubscriptionsSection() {
   })
   const contactsByUid = new Map(siteSubscribed?.map((contact) => [contact.subject, contact]))
   const orderedContacts = order.map((siteUid) => contactsByUid.get(siteUid)).filter((contact) => !!contact)
-  const [draggingOverUid, setDraggingOverUid] = React.useState<string | null>(null)
+  const [dropIndicator, setDropIndicator] = React.useState<{siteUid: string; edge: JoinedSiteDropEdge} | null>(null)
   const [reorderAnnouncement, setReorderAnnouncement] = React.useState('')
 
   React.useEffect(() => {
@@ -248,14 +244,23 @@ function SubscriptionsSection() {
       onDrag: ({source, location}) => {
         if (source.data.type !== 'joined-site') return
         const target = location.current.dropTargets.find((dropTarget) => dropTarget.data.type === 'joined-site')
-        setDraggingOverUid((target?.data.siteUid as string | undefined) ?? null)
+        const targetUid = target?.data.siteUid
+        const edge = target?.data.edge
+        if (typeof targetUid !== 'string' || (edge !== 'top' && edge !== 'bottom')) {
+          setDropIndicator(null)
+          return
+        }
+        const nextOrder = reorderJoinedSitesAtEdge(order, source.data.siteUid as string, targetUid, edge)
+        setDropIndicator(nextOrder ? {siteUid: targetUid, edge} : null)
       },
       onDrop: ({source, location}) => {
         if (source.data.type !== 'joined-site') return
-        setDraggingOverUid(null)
+        setDropIndicator(null)
         const target = location.current.dropTargets.find((dropTarget) => dropTarget.data.type === 'joined-site')
-        if (!target) return
-        const nextOrder = reorderJoinedSites(order, source.data.siteUid as string, target.data.siteUid as string)
+        const targetUid = target?.data.siteUid
+        const edge = target?.data.edge
+        if (typeof targetUid !== 'string' || (edge !== 'top' && edge !== 'bottom')) return
+        const nextOrder = reorderJoinedSitesAtEdge(order, source.data.siteUid as string, targetUid, edge)
         if (nextOrder) persistOrder(nextOrder)
       },
     })
@@ -311,7 +316,7 @@ function SubscriptionsSection() {
                 active={isSiteDocumentsActiveRoute(route, id)}
                 isUnread={isUnread}
                 canLeave={!!selectedAccountId}
-                isDraggingOver={draggingOverUid === contact.subject}
+                dropEdge={dropIndicator?.siteUid === contact.subject ? dropIndicator.edge : null}
                 canMoveUp={index > 0}
                 canMoveDown={index < orderedContacts.length - 1}
                 onMoveUp={() => moveSite(contact.subject, metadata.name || 'Untitled', -1)}
@@ -339,7 +344,7 @@ function JoinedSiteListItem({
   active,
   isUnread,
   canLeave = true,
-  isDraggingOver,
+  dropEdge,
   canMoveUp,
   canMoveDown,
   onMoveUp,
@@ -351,7 +356,7 @@ function JoinedSiteListItem({
   active: boolean
   isUnread: boolean
   canLeave?: boolean
-  isDraggingOver: boolean
+  dropEdge: JoinedSiteDropEdge | null
   canMoveUp: boolean
   canMoveDown: boolean
   onMoveUp: () => void
@@ -361,34 +366,38 @@ function JoinedSiteListItem({
   const navigate = useNavigate()
   const {leaveSite, isPending} = useLeaveSite({siteUid: contact.subject})
   const rowRef = React.useRef<HTMLDivElement>(null)
-  const handleRef = React.useRef<HTMLButtonElement>(null)
 
   React.useEffect(() => {
-    if (!rowRef.current || !handleRef.current) return
+    if (!rowRef.current) return
     const data = {type: 'joined-site', siteUid: contact.subject}
     return combine(
-      draggable({element: rowRef.current, dragHandle: handleRef.current, getInitialData: () => data}),
-      dropTargetForElements({element: rowRef.current, getData: () => data}),
+      draggable({
+        element: rowRef.current,
+        canDrag: ({input}) => !isJoinedSiteDragBlocked(document.elementFromPoint(input.clientX, input.clientY)),
+        getInitialData: () => data,
+      }),
+      dropTargetForElements({
+        element: rowRef.current,
+        getData: ({input, element}) => {
+          const rect = element.getBoundingClientRect()
+          return {...data, edge: input.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom'}
+        },
+      }),
     )
   }, [contact.subject])
 
   return (
-    <div
-      ref={rowRef}
-      className={cn(
-        'group/joined-site relative rounded-md transition-shadow motion-reduce:transition-none',
-        isDraggingOver && 'ring-primary/50 ring-2',
-      )}
-    >
-      <button
-        ref={handleRef}
-        type="button"
-        aria-label={`Reorder ${metadata?.name || 'Untitled'}`}
-        onClick={(event) => event.stopPropagation()}
-        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1/2 -left-3 z-10 flex size-5 -translate-y-1/2 cursor-grab items-center justify-center rounded-sm opacity-40 transition-opacity outline-none group-hover/joined-site:opacity-100 focus-visible:ring-2 active:cursor-grabbing active:opacity-100 motion-reduce:transition-none"
-      >
-        <GripVertical className="size-3" />
-      </button>
+    <div ref={rowRef} className="group/joined-site relative cursor-grab rounded-md active:cursor-grabbing">
+      {dropEdge ? (
+        <div
+          className={cn(
+            'bg-primary pointer-events-none absolute right-0 left-0 z-20 h-0.5 rounded-full',
+            dropEdge === 'top' ? '-top-px' : '-bottom-px',
+          )}
+        >
+          <span className="bg-primary absolute top-1/2 left-0 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full" />
+        </div>
+      ) : null}
       <SidebarMenuButton
         isActive={active}
         className={cn(
@@ -407,7 +416,11 @@ function JoinedSiteListItem({
         side="right"
         align="start"
         button={
-          <SidebarMenuAction aria-label="Joined space options" onClick={(e) => e.stopPropagation()}>
+          <SidebarMenuAction
+            data-no-joined-site-drag
+            aria-label="Joined space options"
+            onClick={(e) => e.stopPropagation()}
+          >
             <MoreHorizontal className="size-4" />
           </SidebarMenuAction>
         }
