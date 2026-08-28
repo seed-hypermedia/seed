@@ -148,6 +148,23 @@ describe('agent memory', () => {
     })
   })
 
+  test('refuses operations through symlinked parent directories', () => {
+    withStateDir((stateDir) => {
+      const outside = path.join(stateDir, 'outside')
+      fs.mkdirSync(outside)
+      fs.writeFileSync(path.join(outside, 'existing.txt'), 'secret')
+      fs.mkdirSync(memoryRootPath(stateDir), {recursive: true})
+      fs.symlinkSync(outside, path.join(memoryRootPath(stateDir), 'link'))
+
+      expect(() => readMemoryFile(stateDir, 'link/existing.txt')).toThrow(AgentMemoryError)
+      expect(() => listMemoryDir(stateDir, 'link')).toThrow(AgentMemoryError)
+      expect(() => writeMemoryFile(stateDir, 'link/escaped.txt', 'escaped')).toThrow(AgentMemoryError)
+      expect(() => deleteMemoryPath(stateDir, 'link/existing.txt')).toThrow(AgentMemoryError)
+      expect(fs.readFileSync(path.join(outside, 'existing.txt'), 'utf8')).toBe('secret')
+      expect(fs.existsSync(path.join(outside, 'escaped.txt'))).toBe(false)
+    })
+  })
+
   test('errors when reading a directory or a missing file', () => {
     withStateDir((stateDir) => {
       writeMemoryFile(stateDir, 'dir/file.txt', 'x')
