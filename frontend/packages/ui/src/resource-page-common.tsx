@@ -105,11 +105,12 @@ import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
-import {FilePen, FileText, Grid3X3, Info, Quote, Search} from 'lucide-react'
+import {ArrowUp, FilePen, FileText, Grid3X3, Info, Quote, Search} from 'lucide-react'
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
 import {AllDocumentsPage} from './all-documents-page'
+import {Button} from './button'
 import {CollaboratorsPage, getRenderedCollaboratorsCount} from './collaborators-page'
 import {
   AlertDialog,
@@ -1610,6 +1611,9 @@ function TransientResourceBanner({error}: {error: TransientResourceError}) {
   )
 }
 
+/** Distance the document must scroll before its back-to-top control appears. */
+export const BACK_TO_TOP_SCROLL_OFFSET = 200
+
 // Document body with content
 function DocumentBody({
   routeDocId,
@@ -2176,6 +2180,37 @@ function DocumentBody({
   // because the layout uses overflow-hidden containers that prevent document scroll.
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
+  const documentScrollAreaRef = useRef<HTMLDivElement>(null)
+  const documentTopSentinelRef = useRef<HTMLDivElement>(null)
+  const backToTopButtonRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    const root = documentScrollAreaRef.current?.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    const sentinel = documentTopSentinelRef.current
+    const button = backToTopButtonRef.current
+    if (activeView !== 'content' || !root || !sentinel || !button || typeof IntersectionObserver === 'undefined') {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        const visible = !entry.isIntersecting
+        button.dataset.visible = String(visible)
+        button.ariaHidden = String(!visible)
+        button.tabIndex = visible ? 0 : -1
+      },
+      {root, rootMargin: `${BACK_TO_TOP_SCROLL_OFFSET}px 0px 0px`},
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [activeView, docId.id])
+
+  const scrollDocumentToTop = useCallback(() => {
+    const viewport = documentScrollAreaRef.current?.querySelector<HTMLElement>('[data-slot="scroll-area-viewport"]')
+    viewport?.scrollTo({top: 0, behavior: 'smooth'})
+  }, [])
 
   // Block tools handlers
   const blockCitations = useMemo(() => interactionSummary.data?.blocks || null, [interactionSummary.data?.blocks])
@@ -2918,16 +2953,34 @@ function DocumentBody({
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
       >
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
           <ScrollArea
+            ref={documentScrollAreaRef}
             id="scroll-page-wrapper"
             className="min-h-0 flex-1"
             viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
             fillViewportContent
           >
+            <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
             {mainPageContent}
           </ScrollArea>
+          {activeView === 'content' ? (
+            <Button
+              ref={backToTopButtonRef}
+              type="button"
+              variant="inverse"
+              size="sm"
+              aria-hidden="true"
+              tabIndex={-1}
+              data-visible="false"
+              className="pointer-events-none invisible absolute bottom-4 left-1/2 z-20 -translate-x-1/2 translate-y-2 opacity-0 shadow-sm transition-[opacity,transform] duration-200 data-[visible=true]:pointer-events-auto data-[visible=true]:visible data-[visible=true]:translate-y-0 data-[visible=true]:opacity-100 motion-reduce:transition-none"
+              onClick={scrollDocumentToTop}
+            >
+              <ArrowUp />
+              Back to Top
+            </Button>
+          ) : null}
         </div>
       </PanelLayout>
     </div>

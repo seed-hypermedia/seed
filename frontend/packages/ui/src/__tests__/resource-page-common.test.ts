@@ -19,7 +19,14 @@ import {
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
   getFolderMenuPanelRoute,
+  BACK_TO_TOP_SCROLL_OFFSET,
 } from '../resource-page-common'
+
+describe('back to top visibility', () => {
+  it('uses a 200px visibility threshold', () => {
+    expect(BACK_TO_TOP_SCROLL_OFFSET).toBe(200)
+  })
+})
 
 describe('getFolderMenuPanelRoute', () => {
   const docId = hmId('alice', {path: ['projects']})
