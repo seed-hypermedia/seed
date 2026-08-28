@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
+import type {HMDocumentInfo, HMListedDraft} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
@@ -7,14 +7,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {SiteFileBrowser} from '../site-file-browser'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const useDirectoryMock = vi.hoisted(() => vi.fn())
-vi.mock('@shm/shared/models/entity', () => ({useDirectory: useDirectoryMock}))
+const useDirectoryWithDraftsMock = vi.hoisted(() => vi.fn())
+vi.mock('@shm/shared/models/entity', () => ({useDirectoryWithDrafts: useDirectoryWithDraftsMock}))
 
 let container: HTMLDivElement
 let root: Root
 
 function makeDoc(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
-  return {id: hmId('site', {path}), path, metadata: {name}, visibility} as HMDocumentInfo
+  return {id: hmId('site', {path}), path, metadata: {name}, visibility} as unknown as HMDocumentInfo
 }
 
 function makeFolder(path: string[], name: string, visibility: 'PUBLIC' | 'PRIVATE' = 'PUBLIC') {
@@ -36,11 +36,43 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
-  it('marks folders with a grid icon instead of a private icon', () => {
-    useDirectoryMock.mockReturnValue({
-      data: [makeFolder(['folders'], 'Folders'), makeFolder(['private'], 'Private', 'PRIVATE')],
+  it('renders unpublished drafts in their parent directory', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [makeDoc(['guides'], 'Guides')],
+      drafts: [
+        {
+          id: 'draft-1',
+          metadata: {name: 'Unpublished guide'},
+          locationId: hmId('site', {path: ['guides']}),
+          editId: hmId('site', {path: ['guides', '-draft-1']}),
+        } as unknown as HMListedDraft,
+      ],
       isLoading: false,
-      isError: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+
+    act(() => (container.querySelector('[aria-label="Expand Guides"]') as HTMLButtonElement).click())
+
+    const draftRow = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Unpublished guide'),
+    )
+    expect(draftRow?.querySelector('[aria-label="Unpublished draft"]')?.getAttribute('class')).toContain(
+      'text-yellow-500',
+    )
+  })
+
+  it('marks folders with a grid icon instead of a private icon', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [
+        makeFolder(['folders'], 'Folders'),
+        makeFolder(['private'], 'Private', 'PRIVATE'),
+        makeDoc(['document'], 'Document'),
+      ],
+      drafts: [],
+      isLoading: false,
     })
 
     act(() => {
@@ -49,13 +81,14 @@ describe('SiteFileBrowser', () => {
 
     expect(container.querySelectorAll('[aria-label="Folder"]')).toHaveLength(2)
     expect(container.querySelector('[aria-label="Private document"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
   })
 
   it('reveals the active document and marks private rows', () => {
-    useDirectoryMock.mockReturnValue({
-      data: [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'private'], 'Private guide', 'PRIVATE')],
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'private'], 'Private guide', 'PRIVATE')],
+      drafts: [],
       isLoading: false,
-      isError: false,
     })
 
     act(() => {
@@ -86,7 +119,11 @@ describe('SiteFileBrowser', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed')
     const onNavigate = vi.fn()
     const onPrefetch = vi.fn()
-    useDirectoryMock.mockReturnValue({data: [makeDoc(['guides'], 'Guides'), install], isLoading: false, isError: false})
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [makeDoc(['guides'], 'Guides'), install],
+      drafts: [],
+      isLoading: false,
+    })
 
     act(() => {
       root.render(
@@ -119,7 +156,7 @@ describe('SiteFileBrowser', () => {
   })
 
   it('hides search by default and focuses it when revealed', () => {
-    useDirectoryMock.mockReturnValue({data: [], isLoading: false, isError: false})
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
     const props = {siteId: hmId('site'), activeDocumentId: null, onNavigate: vi.fn()}
 
     act(() => root.render(<SiteFileBrowser {...props} />))
@@ -130,7 +167,11 @@ describe('SiteFileBrowser', () => {
   })
 
   it('clears and closes document filtering from the input', () => {
-    useDirectoryMock.mockReturnValue({data: [makeDoc(['guides'], 'Guides')], isLoading: false, isError: false})
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [makeDoc(['guides'], 'Guides')],
+      drafts: [],
+      isLoading: false,
+    })
     const onSearchVisibleChange = vi.fn()
     act(() =>
       root.render(
@@ -159,7 +200,7 @@ describe('SiteFileBrowser', () => {
   })
 
   it('closes document filtering with Escape while the input is focused', () => {
-    useDirectoryMock.mockReturnValue({data: [], isLoading: false, isError: false})
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
     const onSearchVisibleChange = vi.fn()
     act(() =>
       root.render(
@@ -183,7 +224,11 @@ describe('SiteFileBrowser', () => {
 
   it('keeps Home above filtered documents and navigates to the site root', () => {
     const onNavigate = vi.fn()
-    useDirectoryMock.mockReturnValue({data: [makeDoc(['guides'], 'Guides')], isLoading: false, isError: false})
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [makeDoc(['guides'], 'Guides')],
+      drafts: [],
+      isLoading: false,
+    })
     act(() =>
       root.render(
         <SiteFileBrowser
@@ -209,7 +254,7 @@ describe('SiteFileBrowser', () => {
   })
 
   it('shows root creation actions only when a creation menu is provided', () => {
-    useDirectoryMock.mockReturnValue({data: [], isLoading: false, isError: false})
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
     const createDocument = vi.fn()
     const props = {siteId: hmId('site'), activeDocumentId: null, onNavigate: vi.fn()}
 

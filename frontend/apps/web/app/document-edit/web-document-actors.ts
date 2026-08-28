@@ -126,50 +126,57 @@ export function resolveWriteDraftContent(
 }
 
 function makeWriteDraftActor(deps: CreateWebDocumentMachineDeps) {
-  return fromPromise<WriteDraftOutput, WriteDraftInput>(async ({input}) => {
-    const editor = deps.getEditor()
-    const cursorPosition = editor?.getCursorPosition?.() ?? null
-    const draftId = input.draftId ?? nanoid(10)
-    const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
-    const content = input.contentOverride
-      ? editorBlocksToHMBlockNodes(input.contentOverride)
-      : resolveWriteDraftContent(editor?.getTopLevelBlocks() ?? null, existingDraft?.content, input.baseBlocks)
-    const currentPath = deps.docId.path ?? []
-    const routeDraftId = getWebDraftPlaceholderId(currentPath)
-    const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId && !existingDraft
-    const isReservedPrivateDraft = isReservedRouteDraft && isWebPrivateDraftPlaceholderPath(currentPath)
-    const isReservedPublicDraft = isReservedRouteDraft && !isReservedPrivateDraft
-    const locationPath = isReservedPublicDraft ? currentPath.slice(0, -1) : input.locationPath
-    const editPath = isReservedRouteDraft ? (isReservedPrivateDraft ? currentPath : []) : input.editPath
-    const record: Omit<WebDocDraft, 'updatedAt'> = {
-      draftId,
-      docId: deps.docId.id,
-      signingAccountId: input.signingAccountId ?? '',
-      capabilityCid: existingDraft?.capabilityCid ?? deps.getCapabilityCid(),
-      content,
-      // Merge over the stored metadata rather than replacing it. The session
-      // overlay (input.metadata) can be empty/partial before the draft resolves,
-      // and a full replace would wipe those fields on the first autosave.
-      metadata: {...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})},
-      deps: input.deps,
-      navigation: input.navigation ?? null,
-      locationUid: isReservedRouteDraft ? deps.docId.uid : input.locationUid || null,
-      locationPath: locationPath?.length ? locationPath : null,
-      editUid: isReservedPublicDraft ? null : input.editUid || null,
-      editPath: editPath?.length ? editPath : null,
-      visibility:
-        existingDraft?.visibility ??
-        (isReservedPrivateDraft
-          ? 'PRIVATE'
-          : currentPath.some((segment) => segment.startsWith('-'))
-            ? 'PUBLIC'
-            : undefined),
-      cursorPosition,
-    }
-    await putWebDocDraft(record)
-    invalidateQueries(['web-doc-draft', deps.docId.id])
-    return {id: draftId, content, cursorPosition}
-  })
+  return fromPromise<WriteDraftOutput, WriteDraftInput>(({input}) => writeWebDraft(deps, input))
+}
+
+/** Persist a web draft and refresh account-level draft consumers. */
+export async function writeWebDraft(
+  deps: CreateWebDocumentMachineDeps,
+  input: WriteDraftInput,
+): Promise<WriteDraftOutput> {
+  const editor = deps.getEditor()
+  const cursorPosition = editor?.getCursorPosition?.() ?? null
+  const draftId = input.draftId ?? nanoid(10)
+  const existingDraft = input.draftId ? await getWebDocDraft(input.draftId) : null
+  const content = input.contentOverride
+    ? editorBlocksToHMBlockNodes(input.contentOverride)
+    : resolveWriteDraftContent(editor?.getTopLevelBlocks() ?? null, existingDraft?.content, input.baseBlocks)
+  const currentPath = deps.docId.path ?? []
+  const routeDraftId = getWebDraftPlaceholderId(currentPath)
+  const isReservedRouteDraft = !!routeDraftId && routeDraftId === draftId
+  const isReservedPrivateDraft = isReservedRouteDraft && isWebPrivateDraftPlaceholderPath(currentPath)
+  const isReservedPublicDraft = isReservedRouteDraft && !isReservedPrivateDraft
+  const locationPath = isReservedPublicDraft ? currentPath.slice(0, -1) : input.locationPath
+  const editPath = isReservedRouteDraft ? (isReservedPrivateDraft ? currentPath : []) : input.editPath
+  const record: Omit<WebDocDraft, 'updatedAt'> = {
+    draftId,
+    docId: deps.docId.id,
+    signingAccountId: input.signingAccountId ?? '',
+    capabilityCid: existingDraft?.capabilityCid ?? deps.getCapabilityCid(),
+    content,
+    // Merge over the stored metadata rather than replacing it. The session
+    // overlay (input.metadata) can be empty/partial before the draft resolves,
+    // and a full replace would wipe those fields on the first autosave.
+    metadata: {...(existingDraft?.metadata ?? {}), ...(input.metadata ?? {})},
+    deps: input.deps,
+    navigation: input.navigation ?? null,
+    locationUid: isReservedRouteDraft ? deps.docId.uid : input.locationUid || null,
+    locationPath: locationPath?.length ? locationPath : null,
+    editUid: isReservedPublicDraft ? null : input.editUid || null,
+    editPath: editPath?.length ? editPath : null,
+    visibility:
+      existingDraft?.visibility ??
+      (isReservedPrivateDraft
+        ? 'PRIVATE'
+        : currentPath.some((segment) => segment.startsWith('-'))
+          ? 'PUBLIC'
+          : undefined),
+    cursorPosition,
+  }
+  await putWebDocDraft(record)
+  invalidateQueries(['web-doc-draft', deps.docId.id])
+  invalidateQueries([queryKeys.DRAFTS_LIST_ACCOUNT, record.editUid ?? record.locationUid ?? deps.docId.uid])
+  return {id: draftId, content, cursorPosition}
 }
 
 function makePublishDocumentActor(deps: CreateWebDocumentMachineDeps) {

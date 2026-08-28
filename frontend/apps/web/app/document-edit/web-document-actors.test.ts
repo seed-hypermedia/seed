@@ -13,6 +13,7 @@ import {
   deleteAllDocumentDrafts,
   publishWebDocument,
   resolveWriteDraftContent,
+  writeWebDraft,
   type CreateWebDocumentMachineDeps,
   type WebEditorAccessor,
 } from './web-document-actors'
@@ -160,6 +161,46 @@ function makeDeps(overrides: {
 }
 
 const draftId = 'draft-pub-1'
+
+describe('writeWebDraft', () => {
+  beforeEach(async () => {
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+
+  afterEach(async () => {
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+
+  it('keeps a new placeholder document classified as an unpublished draft after later saves', async () => {
+    const newDraftId = 'new-draft'
+    const deps = makeDeps({docId: makeDocId(OWNER, [`-${newDraftId}`])})
+    const input = {
+      draftId: newDraftId,
+      metadata: {name: 'New document'},
+      deps: [],
+      navigation: undefined,
+      locationUid: OWNER,
+      locationPath: [],
+      editUid: OWNER,
+      editPath: [`-${newDraftId}`],
+      signingAccountId: OWNER,
+      mineTouchedIds: [],
+      baseBlocks: [],
+    }
+
+    await writeWebDraft(deps, input)
+    await writeWebDraft(deps, {...input, metadata: {name: 'Updated document'}})
+
+    const saved = await getWebDocDraft(newDraftId)
+    expect(saved?.locationUid).toBe(OWNER)
+    expect(saved?.locationPath).toBeNull()
+    expect(saved?.editUid).toBeNull()
+    expect(saved?.editPath).toBeNull()
+    expect(saved?.metadata.name).toBe('Updated document')
+  })
+})
 
 const baseInput: PublishInput = {
   documentId: makeDocId(OWNER),

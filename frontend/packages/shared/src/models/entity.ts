@@ -10,7 +10,6 @@ import {
   HMGetCIDOutput,
   HMListAccountsOutput,
   HMListCommentsByAuthorOutput,
-  HMListedDraft,
   HMListEventsOutput,
   HMMetadata,
   HMMetadataPayload,
@@ -24,6 +23,7 @@ import {useInfiniteQuery, useQueries, useQuery, useQueryClient, UseQueryOptions}
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {DocumentInfo, RedirectErrorDetails} from '../client'
 import {DISCOVERY_TIMEOUT_MS} from '../constants'
+import {useDraftsForAccountSafe} from '../draft-breadcrumb-context'
 import {MAX_REDIRECT_HOPS} from '../redirects'
 import {useUniversalAppContext, useUniversalClient} from '../routing'
 import {useStream} from '../use-stream'
@@ -605,40 +605,21 @@ export function useDirectory(
   return useQuery(queryDirectory(client, id, mode))
 }
 
-function useAccountDrafts(accountUid: string | undefined) {
-  const client = useUniversalClient()
-  return useQuery({
-    queryKey: [queryKeys.ACCOUNT_DRAFTS, accountUid],
-    queryFn: async (): Promise<HMListedDraft[]> => {
-      if (!accountUid || !client.drafts) return []
-      return client.drafts.listAccountDrafts(accountUid)
-    },
-    enabled: !!accountUid && !!client.drafts,
-  })
-}
-
 export function useDirectoryWithDrafts(
   id: UnpackedHypermediaId | null | undefined,
   options?: {mode?: 'Children' | 'AllDescendants'},
 ) {
   const directory = useDirectory(id, options)
-  const drafts = useAccountDrafts(id?.uid)
+  const drafts = useDraftsForAccountSafe(id?.uid)
 
   return useMemo(() => {
     return {
       directory: directory.data,
       drafts: drafts.data ?? [],
       isLoading: directory.isLoading || drafts.isLoading,
-      isInitialLoading: directory.isInitialLoading || drafts.isInitialLoading,
+      isInitialLoading: directory.isInitialLoading || drafts.isLoading,
     }
-  }, [
-    directory.data,
-    drafts.data,
-    directory.isLoading,
-    drafts.isLoading,
-    directory.isInitialLoading,
-    drafts.isInitialLoading,
-  ])
+  }, [directory.data, drafts.data, directory.isLoading, drafts.isLoading, directory.isInitialLoading])
 }
 
 export function useRootDocuments() {

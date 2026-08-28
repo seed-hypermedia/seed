@@ -1,7 +1,7 @@
-import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMDocumentInfo, HMListedDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName, hmId} from '@shm/shared'
-import {useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
-import {useDirectory} from '@shm/shared/models/entity'
+import {isDraftPlaceholderPath, type HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
+import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
 import {
   buildDocumentTree,
   filterDocumentsByTitle,
@@ -11,12 +11,12 @@ import {
 import {ChevronDown, ChevronRight, FileText, Folder, Grid3X3, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
-import {Input} from './components/input'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
+import {Input} from './components/input'
 import {ScrollArea} from './components/scroll-area'
+import type {MenuItemType} from './options-dropdown'
 import {Spinner} from './spinner'
 import {cn} from './utils'
-import type {MenuItemType} from './options-dropdown'
 
 /** Props for the shared site document browser. */
 export interface SiteFileBrowserProps {
@@ -45,8 +45,7 @@ export function SiteFileBrowser({
   createMenuItem,
   onCreate,
 }: SiteFileBrowserProps) {
-  const directory = useDirectory(siteId, {mode: 'AllDescendants'})
-  const drafts = useDraftsForAccountSafe(siteId.uid)
+  const {directory, drafts, isLoading} = useDirectoryWithDrafts(siteId, {mode: 'AllDescendants'})
   const [query, setQuery] = useState('')
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -61,27 +60,25 @@ export function SiteFileBrowser({
     setExpandedPaths((current) => new Set(Array.from(current).concat(activeAncestors)))
   }, [activeDocumentId?.id])
 
-  const documents = useMemo(() => {
-    const listedDrafts = drafts.data ?? []
-    const draftFolderStatus = new Map(
-      listedDrafts.filter((draft) => draft.editId).map((draft) => [draft.editId!.id, draft.isFolder ?? false]),
+  const {documents, unpublishedDraftIds} = useMemo(() => {
+    const draftEdits = new Map(
+      drafts
+        .filter((draft): draft is HMListedDraft & {editId: UnpackedHypermediaId} =>
+          Boolean((draft as HMListedDraftWithLocation).editId),
+        )
+        .map((draft) => [draft.editId.id, draft]),
     )
-    const published = (directory.data ?? []).map((document) => ({
-      ...document,
-      isFolder: draftFolderStatus.get(document.id.id) ?? document.isFolder,
-    }))
-    const publishedIds = new Set(published.map((document) => document.id.id))
-    const unpublished = listedDrafts.flatMap((draft) => {
-      if (draft.editId || !draft.locationId || draft.locationId.uid !== siteId.uid) return []
-      const path = [
-        ...(draft.locationId.path ?? []),
-        `${draft.visibility === 'PRIVATE' ? '-private-' : '-'}${draft.id}`,
-      ]
-      const id = hmId(siteId.uid, {path})
-      if (publishedIds.has(id.id)) return []
+    const published = (directory ?? []).map((document) => {
+      const draft = draftEdits.get(document.id.id)
+      return draft ? {...document, metadata: draft.metadata, isFolder: draft.isFolder ?? document.isFolder} : document
+    })
+    const unpublished = drafts.flatMap((draft) => {
+      const {editId, locationId} = draft as HMListedDraftWithLocation
+      if (!locationId || (editId && !isDraftPlaceholderPath(editId.path, draft.id))) return []
+      const path = [...(locationId.path ?? []), `-${draft.id}`]
       return [
         {
-          id,
+          id: hmId(locationId.uid, {path}),
           path,
           metadata: draft.metadata,
           isFolder: draft.isFolder ?? false,
@@ -89,8 +86,11 @@ export function SiteFileBrowser({
         } as HMDocumentInfo,
       ]
     })
-    return [...published, ...unpublished]
-  }, [directory.data, drafts.data, siteId.uid])
+    return {
+      documents: [...published, ...unpublished],
+      unpublishedDraftIds: new Set(unpublished.map((draft) => draft.id.id)),
+    }
+  }, [directory, drafts])
   const tree = useMemo(() => buildDocumentTree(documents), [documents])
   const rows = useMemo(() => flattenTree(tree, expandedPaths), [expandedPaths, tree])
   const matches = useMemo(() => filterDocumentsByTitle(documents, query), [documents, query])
@@ -193,16 +193,9 @@ export function SiteFileBrowser({
               </DropdownMenu>
             ) : null}
           </div>
-          {directory.isLoading ? (
+          {isLoading ? (
             <div className="flex h-24 items-center justify-center" aria-label="Loading documents">
               <Spinner />
-            </div>
-          ) : directory.isError ? (
-            <div className="flex flex-col items-center gap-3 p-6 text-center text-sm">
-              <p>Couldn’t load documents.</p>
-              <Button size="sm" variant="outline" onClick={() => directory.refetch()}>
-                Retry
-              </Button>
             </div>
           ) : visibleDocuments.length === 0 ? (
             <p className="text-muted-foreground p-6 text-center text-sm">
@@ -250,7 +243,11 @@ export function SiteFileBrowser({
                         <Grid3X3 aria-label="Folder" className="size-3 shrink-0" />
                       ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-3 shrink-0" />
-                      ) : null}
+                      ) : unpublishedDraftIds.has(doc.id.id) ? (
+                        <FileText aria-label="Unpublished draft" className="size-3 shrink-0 text-yellow-500" />
+                      ) : (
+                        <FileText aria-label="Document" className="text-muted-foreground size-3 shrink-0" />
+                      )}
                       <span className="truncate">{titleOf(doc)}</span>
                     </button>
                   </div>

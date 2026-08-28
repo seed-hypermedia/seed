@@ -213,7 +213,6 @@ export function useDirectoryDataWithActivity(docId: UnpackedHypermediaId) {
 
     // Add unpublished drafts (new docs not yet published) that belong to this directory
     const unpublishedDraftItems: DirectoryItemWithActivity[] = draftsArray
-      // @ts-expect-error locationId exists on drafts
       .filter((draft) => draft.locationId && draft.locationId.id === docId.id)
       .map((draft) => ({
         draftId: draft.id,
