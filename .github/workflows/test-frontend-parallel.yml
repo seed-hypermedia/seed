@@ -205,6 +205,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential cmake lsof
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
+      # The mobile integration tests boot a vault server with bun and an Expo
+      # dev server from the mobile app, which installs standalone with npm.
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+      - name: Install mobile app dependencies
+        run: cd frontend/apps/mobile && npm ci
       - name: Cache GGUF model
         uses: actions/cache@v4
         with:

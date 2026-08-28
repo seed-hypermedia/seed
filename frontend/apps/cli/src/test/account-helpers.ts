@@ -8,9 +8,12 @@ import {
   createGenesisChange,
   createChangeOps,
   createChange,
+  createSeedClient,
   createVersionRef,
+  resolveDocumentState,
   type DocumentOperation,
 } from '@seed-hypermedia/client'
+import {CID} from 'multiformats/cid'
 import {generateMnemonic, deriveKeyPairFromMnemonic} from '../utils/key-derivation'
 import {createSignerFromKey} from '../utils/signer'
 
@@ -183,8 +186,47 @@ export async function createDocumentUpdate(
       throw new Error(`Failed to update document: ${response.status} - ${text}`)
     }
   } else {
-    // Existing document - use its current version
-    throw new Error('Updating existing documents not yet implemented in tests')
+    // Existing document - depend on its current heads
+    const client = createSeedClient(serverUrl)
+    const state = await resolveDocumentState(client, `hm://${accountId}${normalizedPath}`)
+    const genesisCid = CID.parse(state.genesis)
+    const deps = state.heads.map((head) => CID.parse(head))
+
+    const {unsignedBytes, ts} = createChangeOps({
+      ops: operations,
+      genesisCid,
+      deps,
+      depth: state.headDepth + 1,
+    })
+    const changeBlock = await createChange(unsignedBytes, signer)
+
+    const refInput = await createVersionRef(
+      {
+        space: accountId,
+        path: normalizedPath,
+        genesis: state.genesis,
+        version: changeBlock.cid.toString(),
+        generation: Number(ts),
+      },
+      signer,
+    )
+
+    const payload = {
+      change: {data: changeBlock.bytes, cid: changeBlock.cid.toString()},
+      ref: refInput.blobs[0],
+      blobs: [],
+    }
+
+    const response = await fetch(`${serverUrl}/hm/api/document-update`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/cbor'},
+      body: new Uint8Array(cborEncode(payload)) as unknown as BodyInit,
+    })
+
+    if (!response.ok) {
+      const text = await response.text()
+      throw new Error(`Failed to update document: ${response.status} - ${text}`)
+    }
   }
 }
 

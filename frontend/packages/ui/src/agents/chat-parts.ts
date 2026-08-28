@@ -1,4 +1,5 @@
-import type {SessionEventMeta} from './client'
+import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import type {SessionActor, SessionAttachmentInfo, SessionEventMeta} from './client'
 
 /** A streamed or persisted tool invocation attached to an assistant message. */
 export type ChatToolCall = {
@@ -51,6 +52,40 @@ export type ChatToolPart = {
 
 /** Ordered assistant message content used to interleave text and tool activity. */
 export type ChatMessagePart = ChatTextPart | ChatToolPart
+
+/**
+ * One message as the chat surfaces read it.
+ *
+ * This is a data shape, not a rendering concern, so it lives beside the other chat data types
+ * rather than in the web renderer: the row model (`agent-session-rows`) and the React Native
+ * client both need it without pulling in a DOM component library.
+ */
+export type ChatBubbleMessage = {
+  role?: string
+  content?: string
+  parts?: ChatMessagePart[]
+  toolCalls?: Array<{id: string; name: string; args: Record<string, unknown>}>
+  toolResults?: Array<{id: string; name: string; result: string; rawOutput?: unknown}>
+  errorMessage?: string
+  rawMarkdown?: string
+  blocks?: HMBlockNode[]
+  eventId?: string
+  sessionId?: string
+  seq?: number
+  shareUrl?: string
+  /** Client context (e.g. the sender's current window) attached to this message for the model. */
+  contextLines?: string[]
+  /** Session-private attachments that accompanied this user message. */
+  attachments?: SessionAttachmentInfo[]
+  /**
+   * Who wrote this message on the shared log. `role` says how the model reads it; this says who put
+   * it there — and they disagree exactly where it matters, on the runtime's own messages, which the
+   * model must read as instruction (role 'user') and the reader must not mistake for the user.
+   */
+  actor?: SessionActor
+  /** User origin or model/provider/usage/timing, as the writer stamped it. */
+  meta?: SessionEventMeta
+}
 
 /** Appends streamed text while coalescing adjacent text fragments into one part. */
 export function appendChatTextPart(parts: ChatMessagePart[], delta: string): ChatMessagePart[] {

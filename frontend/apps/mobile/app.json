@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Seed Hypermedia 2026.1",
+    "slug": "seed-app",
+    "owner": "seed-hypermedia",
+    "scheme": "hm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1F3838"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "media.hyper.seed.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleDisplayName": "Seed 2026",
+        "CFBundleName": "Seed Hypermedia 2026.1"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "media.hyper.seed.mobile"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "0301d196-dd70-4611-9c17-5b55534e48a6"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0301d196-dd70-4611-9c17-5b55534e48a6"
+    }
+  }
+}

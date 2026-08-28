@@ -8,6 +8,14 @@
     "test:install-browsers": "npx playwright install chromium"
   },
   "devDependencies": {
+    "@bufbuild/protobuf": "1.10.0",
+    "@connectrpc/connect": "1.4.0",
+    "@connectrpc/connect-node": "1.4.0",
+    "@exodus/slip10": "^2.2.2",
+    "@noble/ed25519": "^3.0.0",
+    "@noble/hashes": "^2.0.1",
+    "bip39": "^3.1.0",
+    "multiformats": "^13.4.2",
     "playwright": "1.57.0",
     "vitest": "4.1.8"
   },

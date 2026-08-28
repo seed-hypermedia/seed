@@ -1,0 +1,29 @@
+diff --git a/node_modules/react-native-screens/ios/RNSScreenStack.mm b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+index 229dc58..b504e0c 100644
+--- a/node_modules/react-native-screens/ios/RNSScreenStack.mm
++++ b/node_modules/react-native-screens/ios/RNSScreenStack.mm
+@@ -230,13 +230,17 @@ - (BOOL)navigationBar:(UINavigationBar *)navigationBar shouldPopItem:(UINavigati
+     // which we check indirectly by checking if transitionCoordinator is set.
+     // If it's not, we are safe to proceed.
+     if (self.transitionCoordinator == nil) {
+-      // We still need to disable interactions for back button so click effects are not applied,
+-      // and there is unfortunately no better place for it currently
+-      UIView *button = [navigationBar rnscreens_findBackButtonWrapperView];
+-      if (button != nil) {
+-        button.userInteractionEnabled = false;
+-      }
+-
++      // PATCHED (see patches/react-native-screens+4.16.0.patch): upstream disables the back
++      // button here so iOS 26 does not paint its press effect during the pop, and re-enables it
++      // in navigationBar:didPopItem:. That re-enable is a no-op whenever the screen being
++      // revealed has no back button of its own (a root screen, or one with headerShown: false):
++      // rnscreens_findBackButtonWrapperView returns nil, nothing is reset, and UIKit recycles the
++      // very same _UIButtonBarButton for the NEXT push -- still userInteractionEnabled = NO. The
++      // back button is then permanently dead for the rest of the app's life.
++      //
++      // The repeated-press protection is the transitionCoordinator check above, not this flag, so
++      // dropping the disable costs only the press highlight. Upstream removed this mechanism
++      // entirely in 4.19.0; this keeps the 4.16.0 line that Expo SDK 54 pins.
+       return true;
+     }
+ 

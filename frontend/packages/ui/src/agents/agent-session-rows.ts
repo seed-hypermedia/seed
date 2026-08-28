@@ -7,7 +7,7 @@ import {
   type SessionEventMeta,
   type SessionEventPayload,
 } from './client'
-import {type ChatBubbleMessage} from './message-rendering'
+import {type ChatBubbleMessage} from './chat-parts'
 import {type ChatToolPart} from './chat-parts'
 import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'

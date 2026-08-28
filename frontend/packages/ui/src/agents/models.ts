@@ -45,7 +45,10 @@ import {UniversalAppContext} from '@shm/shared/routing'
 import type {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
-import {queryKeys} from '@shm/shared'
+// Deep import, not the `@shm/shared` barrel: that barrel pulls in protobuf, connectrpc, cheerio,
+// katex, lowlight and react-tweet, none of which belong in a React Native bundle. This module is
+// otherwise platform-neutral and is consumed by the mobile app.
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {useContext, useEffect, useMemo, useRef, useState} from 'react'

@@ -144,6 +144,126 @@ export async function deserialize(compressed: Uint8Array): Promise<State> {
   return decodeState(decoded)
 }
 
+// ─── Go-parity codec (backend/storage/vault/state.go encodeState/decodeState) ─
+//
+// The legacy `serialize`/`deserialize` above dedupe accounts by canonical
+// display NAME on both encode and decode (normalizeAccounts). The Go daemon
+// never does that: its merge keys accounts by principal and can legitimately
+// produce two accounts sharing a display name (created independently on two
+// devices). Running such a state through the deduping codec silently drops an
+// identity. Device-role code (mobile) must use `serializeState`/
+// `deserializeState` below, which match Go exactly: no dedupe ever, and the
+// only name rewrite is filling a whitespace-empty name with the principal.
+
+/**
+ * Go-parity serialize: CBOR encode → gzip, matching backend/storage/vault
+ * state.go `encodeState`. Never dedupes or renames accounts; only fills
+ * whitespace-empty names with the account principal.
+ */
+export async function serializeState(data: State): Promise<Uint8Array> {
+  const encodedCb = cborg.encode(encodeStateGoParity(data as InternalState), cborEncodeOpts)
+  return compress(new Uint8Array(encodedCb))
+}
+
+/**
+ * Go-parity deserialize: gzip decompress → CBOR decode, matching
+ * backend/storage/vault state.go `decodeState`. Never dedupes or renames
+ * accounts; only fills whitespace-empty names with the account principal.
+ * Throws if the schema version mismatches.
+ */
+export async function deserializeState(compressed: Uint8Array): Promise<State> {
+  const decodedCb = await decompress(compressed)
+  const decoded = dagCBOR.decode(decodedCb) as Record<string, unknown>
+
+  if (decoded.version !== VAULT_VERSION) {
+    throw new Error(
+      `Vault schema version mismatch: stored version is ${decoded.version}, but this client expects version ${VAULT_VERSION}. ` +
+        'The vault data is incompatible with this version of the application.',
+    )
+  }
+
+  return decodeStateGoParity(decoded)
+}
+
+function decodeStateGoParity(decoded: Record<string, unknown>): State {
+  const accounts = Array.isArray(decoded.accounts)
+    ? decoded.accounts.map((account) => fillEmptyAccountName(decodeAccountRaw(account as Record<string, unknown>)))
+    : []
+
+  const restored: InternalState = {
+    version: VAULT_VERSION,
+    accounts,
+  }
+  if (typeof decoded.notificationServerUrl === 'string') {
+    restored.notificationServerUrl = decoded.notificationServerUrl
+  }
+  if (isDeletedAccounts(decoded.deletedAccounts)) {
+    restored.deletedAccounts = {...decoded.deletedAccounts}
+  }
+  restored[stateExtraKey] = omitKnown(decoded, ['version', 'notificationServerUrl', 'deletedAccounts', 'accounts'])
+  return restored
+}
+
+function encodeStateGoParity(data: InternalState): Record<string, unknown> {
+  const encoded: Record<string, unknown> = {
+    ...data[stateExtraKey],
+    version: VAULT_VERSION,
+    accounts: (data.accounts as InternalAccount[]).map((account) => encodeAccountGoParity(account)),
+  }
+  if (data.notificationServerUrl) {
+    encoded.notificationServerUrl = data.notificationServerUrl
+  }
+  if (data.deletedAccounts && Object.keys(data.deletedAccounts).length > 0) {
+    encoded.deletedAccounts = data.deletedAccounts
+  }
+  return encoded
+}
+
+function encodeAccountGoParity(account: InternalAccount): Record<string, unknown> {
+  const filled = fillEmptyAccountName(account)
+  return {
+    ...filled[accountExtraKey],
+    seed: filled.seed,
+    createTime: filled.createTime,
+    delegations: (filled.delegations ?? []).map((delegation) => encodeDelegation(delegation as InternalDelegation)),
+    name: filled.name,
+  }
+}
+
+/** Go's fill-empty-name-only rule: whitespace-empty names get the principal, everything else is kept as-is. */
+function fillEmptyAccountName(account: InternalAccount): InternalAccount {
+  if (typeof account.name === 'string' && account.name.trim() !== '') return account
+  return {...account, name: accountIdFromSeed(account.seed)}
+}
+
+// ─── Unknown-field (forward-compat) accessors ────────────────────────────────
+
+/**
+ * Read the unknown CBOR fields preserved on a decoded vault object (Go's
+ * `Extra` / mapstructure ",remain" fields). Returns the live extras object
+ * (empty when none) — treat it as read-only.
+ */
+export function getUnknownFields(target: State | Account | DelegatedSession | CapabilityMeta): UnknownFields {
+  return (
+    ((target as unknown as Record<symbol, unknown>)[unknownFieldsKeyFor(target)] as UnknownFields | undefined) ?? {}
+  )
+}
+
+/** Replace the unknown CBOR fields carried by a vault object (stores a shallow copy). */
+export function setUnknownFields(
+  target: State | Account | DelegatedSession | CapabilityMeta,
+  extras: UnknownFields,
+): void {
+  ;(target as unknown as Record<symbol, unknown>)[unknownFieldsKeyFor(target)] = {...extras}
+}
+
+function unknownFieldsKeyFor(target: State | Account | DelegatedSession | CapabilityMeta): symbol {
+  if ('accounts' in target) return stateExtraKey
+  if ('seed' in target) return accountExtraKey
+  if ('capability' in target) return delegationExtraKey
+  return capabilityExtraKey
+}
+
 /** Ensure account name compatibility for older vault records that have no label. */
 export function getAccountName(account: Pick<Account, 'name' | 'seed'>): string {
   const normalized = typeof account.name === 'string' ? account.name.trim() : ''
@@ -210,6 +330,10 @@ function decodeState(decoded: Record<string, unknown>): State {
 }
 
 function decodeAccount(decoded: Record<string, unknown>): Account {
+  return normalizeAccount(decodeAccountRaw(decoded))
+}
+
+function decodeAccountRaw(decoded: Record<string, unknown>): InternalAccount {
   const account: InternalAccount = {
     name: typeof decoded.name === 'string' ? decoded.name : undefined,
     seed: new Uint8Array(decoded.seed as Uint8Array),
@@ -219,7 +343,7 @@ function decodeAccount(decoded: Record<string, unknown>): Account {
       : [],
   }
   account[accountExtraKey] = omitKnown(decoded, ['name', 'seed', 'createTime', 'delegations'])
-  return normalizeAccount(account)
+  return account
 }
 
 function decodeDelegation(decoded: Record<string, unknown>): DelegatedSession {
