@@ -142,7 +142,7 @@ export function DocumentCover({cover, className, onRemove, onChangeCover}: Docum
         {hasCoverActions ? (
           <div
             data-document-cover-controls
-            className="absolute right-4 bottom-4 z-20 flex items-center gap-1 rounded-lg bg-black/45 p-1 text-white opacity-100 shadow-sm backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none md:pointer-events-none md:opacity-0 md:group-hover/cover:pointer-events-auto md:group-hover/cover:opacity-100 md:focus-within:pointer-events-auto md:focus-within:opacity-100"
+            className="absolute top-4 right-4 z-20 flex items-center gap-1 rounded-lg bg-black/45 p-1 text-white opacity-100 shadow-sm backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none md:pointer-events-none md:opacity-0 md:group-hover/cover:pointer-events-auto md:group-hover/cover:opacity-100 md:focus-within:pointer-events-auto md:focus-within:opacity-100"
             onClick={(event) => {
               event.stopPropagation()
             }}

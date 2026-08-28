@@ -105,4 +105,13 @@ describe('DocumentCover', () => {
     expect(controls?.className).toContain('md:opacity-0')
     expect(controls?.className).toContain('md:group-hover/cover:opacity-100')
   })
+
+  it('positions cover actions in the top-right corner', () => {
+    renderCover(<DocumentCover cover="ipfs://cover-cid" onRemove={vi.fn()} onChangeCover={vi.fn()} />)
+
+    const controls = container.querySelector<HTMLElement>('[data-document-cover-controls]')
+    expect(controls?.classList.contains('top-4')).toBe(true)
+    expect(controls?.classList.contains('right-4')).toBe(true)
+    expect(controls?.classList.contains('bottom-4')).toBe(false)
+  })
 })
