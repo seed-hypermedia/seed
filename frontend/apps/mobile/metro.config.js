@@ -82,6 +82,7 @@ config.resolver.extraNodeModules = {
 // This hook, unlike extraNodeModules, sees every request regardless of which package it came from.
 const fs = require('fs')
 const SINGLETON_PACKAGES = ['react', 'react-dom', '@tanstack/react-query']
+const NODE_ONLY_PACKAGES = ['cheerio', 'pdfjs-dist']
 const AGENTS_UI_DIR = path.resolve(monorepoRoot, 'frontend/packages/ui/src/agents')
 const multiformatsSha2Pattern = /multiformats[\/\\]dist[\/\\]src[\/\\]hashes[\/\\]sha2\.js$/
 const originalResolveRequest = config.resolver.resolveRequest
@@ -89,6 +90,17 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (moduleName === 'expo/AppEntry' || moduleName.endsWith('expo/AppEntry.js')) {
     return {
       filePath: path.resolve(projectRoot, 'index.ts'),
+      type: 'sourceFile',
+    }
+  }
+  // Node-only packages reachable through the @seed-hypermedia/client barrel but never
+  // invoked on mobile: cheerio (tei/html-to-blocks) needs node:stream, and pdfjs-dist
+  // (pdf-to-blocks) uses syntax Hermes cannot parse. Resolve them to a stub that
+  // throws at call time.
+  const nodeOnly = NODE_ONLY_PACKAGES.find((name) => moduleName === name || moduleName.startsWith(`${name}/`))
+  if (platform !== 'web' && nodeOnly) {
+    return {
+      filePath: path.resolve(projectRoot, 'src/shims/node-only.js'),
       type: 'sourceFile',
     }
   }
