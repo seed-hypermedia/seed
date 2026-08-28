@@ -2,6 +2,8 @@ import React from 'react'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {describe, expect, it, vi} from 'vitest'
 
+vi.mock('@/trpc', () => ({client: {}}))
+
 vi.mock('@shm/ui/components/dropdown-menu', () => ({
   DropdownMenu: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
   DropdownMenuContent: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
@@ -20,7 +22,25 @@ vi.mock('@shm/ui/components/dropdown-menu', () => ({
 vi.mock('@shm/ui/components/sidebar', () => ({
   SidebarMenuAction: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
 }))
+import {reorderJoinedSites} from '../../models/joined-site-order'
 import {isSiteDocumentsActiveRoute} from '../sidebar-active'
+
+describe('reorderJoinedSites', () => {
+  const sites = ['site-a', 'site-b', 'site-c']
+
+  it('moves a site upward', () => {
+    expect(reorderJoinedSites(sites, 'site-c', 'site-a')).toEqual(['site-c', 'site-a', 'site-b'])
+  })
+
+  it('moves a site downward', () => {
+    expect(reorderJoinedSites(sites, 'site-a', 'site-c')).toEqual(['site-b', 'site-c', 'site-a'])
+  })
+
+  it('returns null for invalid and no-op moves', () => {
+    expect(reorderJoinedSites(sites, 'site-a', 'site-a')).toBeNull()
+    expect(reorderJoinedSites(sites, 'missing', 'site-a')).toBeNull()
+  })
+})
 
 describe('isSiteDocumentsActiveRoute', () => {
   const siteId = hmId('site')

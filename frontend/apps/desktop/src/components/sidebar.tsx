@@ -1,10 +1,13 @@
 import {useContactList} from '@/models/contacts'
+import {reorderJoinedSites, useJoinedSiteOrder} from '@/models/joined-site-order'
 import {useSubscribedDocuments} from '@/models/library'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
 import {useCreateSpaceDialog} from './create-space-dialog'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMContactRecord, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
+import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
 import {defaultJoinedSiteUid, useRouteLink} from '@shm/shared'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -37,7 +40,17 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
-import {Bot, ChevronDown, ChevronRight, LayoutList, MoreHorizontal, Settings} from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  GripVertical,
+  LayoutList,
+  MoreHorizontal,
+  Settings,
+} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
 import {isSiteDocumentsActiveRoute} from './sidebar-active'
@@ -168,7 +181,6 @@ function SidebarSection({
 function SubscriptionsSection() {
   const selectedAccountId = useSelectedAccountId()
   const contacts = useSelectedAccountContacts()
-  // accountList is already sorted by activity from backend (default sort)
   const accountList = useContactList()
 
   const defaultJoinedSiteContact: HMContactRecord = {
@@ -219,17 +231,45 @@ function SubscriptionsSection() {
   const siteIds = siteSubscribed?.map((contact) => hmId(contact.subject)) || []
   const siteResources = useResources(siteIds, {subscribed: true})
 
-  // Sort by activity using the backend's account order (already sorted by activity desc)
   const accounts = accountList.data?.accounts || []
-  const sortedContacts = [...(siteSubscribed || [])].sort((a, b) => {
-    const indexA = accounts.findIndex((acc) => acc.id === a.subject)
-    const indexB = accounts.findIndex((acc) => acc.id === b.subject)
-    // items not found in accounts list go to end
-    if (indexA === -1 && indexB === -1) return 0
-    if (indexA === -1) return 1
-    if (indexB === -1) return -1
-    return indexA - indexB
+  const sourceOrder = siteSubscribed?.map((contact) => contact.subject) ?? []
+  const {order, persistOrder} = useJoinedSiteOrder({
+    identityUid: selectedAccountId,
+    sourceOrder,
+    isAuthoritative: !!selectedAccountId && contacts.isSuccess && !contacts.isFetching,
   })
+  const contactsByUid = new Map(siteSubscribed?.map((contact) => [contact.subject, contact]))
+  const orderedContacts = order.map((siteUid) => contactsByUid.get(siteUid)).filter((contact) => !!contact)
+  const [draggingOverUid, setDraggingOverUid] = React.useState<string | null>(null)
+  const [reorderAnnouncement, setReorderAnnouncement] = React.useState('')
+
+  React.useEffect(() => {
+    return monitorForElements({
+      onDrag: ({source, location}) => {
+        if (source.data.type !== 'joined-site') return
+        const target = location.current.dropTargets.find((dropTarget) => dropTarget.data.type === 'joined-site')
+        setDraggingOverUid((target?.data.siteUid as string | undefined) ?? null)
+      },
+      onDrop: ({source, location}) => {
+        if (source.data.type !== 'joined-site') return
+        setDraggingOverUid(null)
+        const target = location.current.dropTargets.find((dropTarget) => dropTarget.data.type === 'joined-site')
+        if (!target) return
+        const nextOrder = reorderJoinedSites(order, source.data.siteUid as string, target.data.siteUid as string)
+        if (nextOrder) persistOrder(nextOrder)
+      },
+    })
+  }, [order, persistOrder])
+
+  function moveSite(siteUid: string, siteName: string, direction: -1 | 1) {
+    const from = order.indexOf(siteUid)
+    const targetUid = order[from + direction]
+    if (from === -1 || !targetUid) return
+    const nextOrder = reorderJoinedSites(order, siteUid, targetUid)
+    if (!nextOrder) return
+    persistOrder(nextOrder)
+    setReorderAnnouncement(`${siteName} moved to position ${nextOrder.indexOf(siteUid) + 1}`)
+  }
 
   const route = useNavRoute()
 
@@ -238,8 +278,11 @@ function SubscriptionsSection() {
 
   return (
     <SidebarSection title="Joined Spaces">
-      {sortedContacts.length ? (
-        sortedContacts.map((contact) => {
+      <span className="sr-only" aria-live="polite">
+        {reorderAnnouncement}
+      </span>
+      {orderedContacts.length ? (
+        orderedContacts.map((contact, index) => {
           const id = hmId(contact.subject)
           // Get account from the backend's account list (has metadata)
           const account = accounts.find((acc) => acc.id === contact.subject)
@@ -268,6 +311,11 @@ function SubscriptionsSection() {
                 active={isSiteDocumentsActiveRoute(route, id)}
                 isUnread={isUnread}
                 canLeave={!!selectedAccountId}
+                isDraggingOver={draggingOverUid === contact.subject}
+                canMoveUp={index > 0}
+                canMoveDown={index < orderedContacts.length - 1}
+                onMoveUp={() => moveSite(contact.subject, metadata.name || 'Untitled', -1)}
+                onMoveDown={() => moveSite(contact.subject, metadata.name || 'Untitled', 1)}
               />
             </SidebarMenuItem>
           )
@@ -291,6 +339,11 @@ function JoinedSiteListItem({
   active,
   isUnread,
   canLeave = true,
+  isDraggingOver,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
 }: {
   id: UnpackedHypermediaId
   contact: HMContactRecord
@@ -298,22 +351,54 @@ function JoinedSiteListItem({
   active: boolean
   isUnread: boolean
   canLeave?: boolean
+  isDraggingOver: boolean
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
 }) {
   const linkProps = useRouteLink({key: 'document', id})
   const navigate = useNavigate()
   const {leaveSite, isPending} = useLeaveSite({siteUid: contact.subject})
+  const rowRef = React.useRef<HTMLDivElement>(null)
+  const handleRef = React.useRef<HTMLButtonElement>(null)
+
+  React.useEffect(() => {
+    if (!rowRef.current || !handleRef.current) return
+    const data = {type: 'joined-site', siteUid: contact.subject}
+    return combine(
+      draggable({element: rowRef.current, dragHandle: handleRef.current, getInitialData: () => data}),
+      dropTargetForElements({element: rowRef.current, getData: () => data}),
+    )
+  }, [contact.subject])
+
   return (
-    <>
+    <div
+      ref={rowRef}
+      className={cn(
+        'group/joined-site relative rounded-md transition-shadow motion-reduce:transition-none',
+        isDraggingOver && 'ring-primary/50 ring-2',
+      )}
+    >
+      <button
+        ref={handleRef}
+        type="button"
+        aria-label={`Reorder ${metadata?.name || 'Untitled'}`}
+        onClick={(event) => event.stopPropagation()}
+        className="text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1/2 -left-3 z-10 flex size-5 -translate-y-1/2 cursor-grab items-center justify-center rounded-sm opacity-40 transition-opacity outline-none group-hover/joined-site:opacity-100 focus-visible:ring-2 active:cursor-grabbing active:opacity-100 motion-reduce:transition-none"
+      >
+        <GripVertical className="size-3" />
+      </button>
       <SidebarMenuButton
         isActive={active}
         className={cn(
-          'min-h-10 items-start pr-8',
+          'min-h-10 items-center pr-8',
           active &&
             'data-[active=true]:bg-accent data-[active=true]:text-accent-foreground data-[active=true]:hover:bg-accent/90 data-[active=true]:hover:text-accent-foreground',
         )}
         onClick={linkProps.onClick}
       >
-        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="mt-0.5 shrink-0 self-center" />
+        <HMIcon id={id} name={metadata?.name} icon={metadata?.icon} size={20} className="shrink-0" />
         <span className={cn('min-w-0 flex-1 truncate text-left text-sm select-none', isUnread && 'font-bold')}>
           {metadata?.name || 'Untitled'}
         </span>
@@ -327,6 +412,20 @@ function JoinedSiteListItem({
           </SidebarMenuAction>
         }
         menuItems={[
+          {
+            key: 'move-up',
+            label: 'Move Up',
+            icon: <ArrowUp className="size-4" />,
+            disabled: !canMoveUp,
+            onClick: onMoveUp,
+          },
+          {
+            key: 'move-down',
+            label: 'Move Down',
+            icon: <ArrowDown className="size-4" />,
+            disabled: !canMoveDown,
+            onClick: onMoveDown,
+          },
           {
             key: 'all-documents',
             label: 'All Documents',
@@ -347,7 +446,7 @@ function JoinedSiteListItem({
             : []),
         ]}
       />
-    </>
+    </div>
   )
 }
 
