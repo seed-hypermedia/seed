@@ -205,6 +205,44 @@ describe('DocumentHeader Breadcrumbs', () => {
     expect(onRemoveIcon).toHaveBeenCalledOnce()
   })
 
+  it('overlaps the document header with the cover', () => {
+    renderWithProvider(
+      <DocumentHeader
+        docId={hmId('site', {path: ['doc']})}
+        docMetadata={{name: 'Doc', cover: 'ipfs://cover-cid', icon: 'ipfs://icon-cid'} as any}
+        authors={[]}
+        updateTime={null}
+      />,
+    )
+
+    const header = container.firstElementChild as HTMLElement
+    const icon = Array.from(header.querySelectorAll<HTMLElement>('div')).find((element) =>
+      element.classList.contains('group/icon'),
+    )!
+
+    expect(Number.parseInt(header.style.marginTop)).toBeLessThan(0)
+    expect(icon.style.marginTop).toBe('-40px')
+  })
+
+  it('removes the gap after a document icon', () => {
+    renderWithProvider(
+      <DocumentHeader
+        docId={hmId('site', {path: ['doc']})}
+        docMetadata={{name: 'Doc', icon: 'ipfs://icon-cid'} as any}
+        authors={[]}
+        updateTime={null}
+      />,
+    )
+
+    const header = container.firstElementChild as HTMLElement
+    const icon = Array.from(header.querySelectorAll<HTMLElement>('div')).find((element) =>
+      element.classList.contains('group/icon'),
+    )!
+
+    expect(icon.classList.contains('-mb-2')).toBe(true)
+    expect(icon.classList.contains('md:-mb-4')).toBe(true)
+  })
+
   it('renders the optional mobile byline action without adding one to read-only headers', () => {
     const docId = hmId('site', {path: ['doc']})
     renderWithProvider(
