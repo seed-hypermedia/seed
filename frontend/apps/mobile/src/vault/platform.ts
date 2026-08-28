@@ -294,4 +294,36 @@ if (typeof g.DecompressionStream === 'undefined') {
   g.DecompressionStream = DecompressionStreamPolyfill as unknown as typeof DecompressionStream
 }
 
+// Hermes has no DOM Event global, but progress-events (a dependency of
+// ipfs-unixfs-importer, reached through @seed-hypermedia/client's file-to-ipfs)
+// declares `class CustomProgressEvent extends Event` at module scope, which
+// crashes the whole bundle at startup in release builds. Its instances only
+// carry `type`/`detail` to onProgress callbacks, so a minimal Event suffices.
+if (typeof g.Event === 'undefined') {
+  class EventPolyfill {
+    type: string
+    bubbles: boolean
+    cancelable: boolean
+    composed: boolean
+    defaultPrevented = false
+    isTrusted = false
+    timeStamp = Date.now()
+    constructor(type: string, init?: {bubbles?: boolean; cancelable?: boolean; composed?: boolean}) {
+      if (arguments.length === 0) {
+        throw new TypeError("Failed to construct 'Event': 1 argument required, but only 0 present.")
+      }
+      this.type = String(type)
+      this.bubbles = !!init?.bubbles
+      this.cancelable = !!init?.cancelable
+      this.composed = !!init?.composed
+    }
+    preventDefault() {
+      if (this.cancelable) this.defaultPrevented = true
+    }
+    stopPropagation() {}
+    stopImmediatePropagation() {}
+  }
+  g.Event = EventPolyfill as unknown as typeof Event
+}
+
 export {}
