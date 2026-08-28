@@ -10,7 +10,8 @@
       "env": {
         "CI": "1",
         "EXPO_NO_METRO_WORKSPACE_ROOT": "1"
-      }
+      },
+      "channel": "base"
     },
     "development": {
       "extends": "base",
@@ -18,15 +19,18 @@
       "distribution": "internal",
       "ios": {
         "simulator": true
-      }
+      },
+      "channel": "development"
     },
     "preview": {
       "extends": "base",
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview"
     },
     "production": {
       "extends": "base",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {

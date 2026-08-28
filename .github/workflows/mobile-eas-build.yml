@@ -1,0 +1,55 @@
+name: Mobile - EAS Build & Submit
+
+# Manually triggered full native build on EAS, optionally auto-submitted to
+# TestFlight. Needed when native code changes (new pods, SDK upgrades,
+# app.json native config) or to ship a new store version; day-to-day JS
+# changes reach installed apps via the "Mobile - EAS Update (OTA)" workflow
+# instead. The build runs on EAS servers (--no-wait), so this job finishes in
+# a couple of minutes; watch progress at
+# https://expo.dev/accounts/seed-hypermedia/projects/seed-app/builds
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile"
+        type: choice
+        options: [production, preview, development]
+        default: production
+      submit:
+        description: "Auto-submit to TestFlight after the build"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/apps/mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.18.0
+          cache: npm
+          cache-dependency-path: frontend/apps/mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: EAS Build
+        run: >
+          npx eas-cli build -p ios
+          --profile ${{ inputs.profile }}
+          ${{ inputs.submit && '--auto-submit' || '' }}
+          --non-interactive --no-wait
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
