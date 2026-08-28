@@ -1,6 +1,6 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {IS_DESKTOP} from '@shm/shared/constants'
-import {FileSearch2 as FileSearchCorner, PanelLeftClose, X} from 'lucide-react'
+import {FileSearch2 as FileSearchCorner, ListFilter, PanelLeftClose, Search, X} from 'lucide-react'
 import {createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
@@ -8,6 +8,7 @@ import {Button} from './button'
 import {SiteFileBrowser} from './site-file-browser'
 import {Tooltip} from './tooltip'
 import {useMedia} from './use-media'
+import type {MenuItemType} from './options-dropdown'
 
 /** Collapse state of the inline file browser, shared with the page chrome below it. */
 export interface SiteFileBrowserControls {
@@ -36,6 +37,7 @@ export interface SiteFileBrowserLayoutProps {
   onMobileOpenChange: (open: boolean) => void
   onNavigate: (id: UnpackedHypermediaId) => void
   onPrefetch?: (id: UnpackedHypermediaId) => void
+  createMenuItem?: MenuItemType | null
   children: ReactNode
 }
 
@@ -48,12 +50,14 @@ export function SiteFileBrowserLayout({
   onMobileOpenChange,
   onNavigate,
   onPrefetch,
+  createMenuItem,
   children,
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
   const [isClient, setIsClient] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [searchVisible, setSearchVisible] = useState(false)
   const desktopContainerRef = useRef<HTMLDivElement>(null)
   const browserPanelRef = useRef<ImperativePanelHandle>(null)
   const [minimumPercent, setMinimumPercent] = useState(20)
@@ -65,6 +69,12 @@ export function SiteFileBrowserLayout({
       activeDocumentId={activeDocumentId}
       onNavigate={onNavigate}
       onPrefetch={onPrefetch}
+      searchVisible={searchVisible}
+      onSearchVisibleChange={setSearchVisible}
+      createMenuItem={createMenuItem}
+      onCreate={() => {
+        if (isMobile) onMobileOpenChange(false)
+      }}
     />
   )
   // Only the inline (wide) layout has a collapse affordance; the mobile drawer is
@@ -155,6 +165,14 @@ export function SiteFileBrowserLayout({
                     <Button
                       variant="ghost"
                       size="icon"
+                      aria-label="Search documents"
+                      onClick={() => setSearchVisible(true)}
+                    >
+                      <Search className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       aria-label="Close file browser"
                       onClick={() => onMobileOpenChange(false)}
                     >
@@ -194,6 +212,18 @@ export function SiteFileBrowserLayout({
                 <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
                   <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
                     <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
+                    {!searchVisible ? (
+                      <Tooltip content="Filter Document List">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Filter documents"
+                          onClick={() => setSearchVisible(true)}
+                        >
+                          <ListFilter className="size-4" />
+                        </Button>
+                      </Tooltip>
+                    ) : null}
                     <Tooltip content="Hide file explorer">
                       <Button
                         variant="ghost"

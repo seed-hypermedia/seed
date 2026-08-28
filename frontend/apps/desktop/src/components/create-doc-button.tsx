@@ -61,7 +61,7 @@ export function useCreateDocumentMenuItem({
       children: [
         {
           key: 'new-document',
-          label: 'New Document',
+          label: 'Document',
           icon: <FilePlus2 className="size-4" />,
           onClick: () => {
             void createDraft()
@@ -69,7 +69,7 @@ export function useCreateDocumentMenuItem({
         },
         {
           key: 'new-document-folder',
-          label: 'New Folder',
+          label: 'Folder',
           icon: <LibraryBig className="size-4" />,
           onClick: () => {
             const seed = buildDocumentFolderDraftSeed(nanoid(8))
@@ -78,7 +78,7 @@ export function useCreateDocumentMenuItem({
         },
         {
           key: 'new-private-document',
-          label: 'New Private Document',
+          label: 'Private',
           icon: <Lock className="size-4" />,
           onClick: () => {
             void createDraft({visibility: 'PRIVATE'})

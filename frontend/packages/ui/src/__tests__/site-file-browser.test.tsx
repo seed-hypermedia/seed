@@ -95,6 +95,7 @@ describe('SiteFileBrowser', () => {
           activeDocumentId={null}
           onNavigate={onNavigate}
           onPrefetch={onPrefetch}
+          searchVisible
         />,
       )
     })
@@ -115,5 +116,123 @@ describe('SiteFileBrowser', () => {
     expect(onPrefetch).toHaveBeenNthCalledWith(2, install.id)
     act(() => result.click())
     expect(onNavigate).toHaveBeenCalledWith(install.id)
+  })
+
+  it('hides search by default and focuses it when revealed', () => {
+    useDirectoryMock.mockReturnValue({data: [], isLoading: false, isError: false})
+    const props = {siteId: hmId('site'), activeDocumentId: null, onNavigate: vi.fn()}
+
+    act(() => root.render(<SiteFileBrowser {...props} />))
+    expect(container.querySelector('[aria-label="Filter documents"]')).toBeNull()
+
+    act(() => root.render(<SiteFileBrowser {...props} searchVisible />))
+    expect(container.querySelector('[aria-label="Filter documents"]')).toBe(document.activeElement)
+  })
+
+  it('clears and closes document filtering from the input', () => {
+    useDirectoryMock.mockReturnValue({data: [makeDoc(['guides'], 'Guides')], isLoading: false, isError: false})
+    const onSearchVisibleChange = vi.fn()
+    act(() =>
+      root.render(
+        <SiteFileBrowser
+          siteId={hmId('site')}
+          activeDocumentId={null}
+          onNavigate={vi.fn()}
+          searchVisible
+          onSearchVisibleChange={onSearchVisibleChange}
+        />,
+      ),
+    )
+
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Filter documents"]')!
+    act(() => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setValue?.call(input, 'missing')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    expect(container.textContent).toContain('No documents found')
+
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="Close document search"]')?.click())
+
+    expect(onSearchVisibleChange).toHaveBeenCalledWith(false)
+    expect(container.textContent).toContain('Guides')
+  })
+
+  it('closes document filtering with Escape while the input is focused', () => {
+    useDirectoryMock.mockReturnValue({data: [], isLoading: false, isError: false})
+    const onSearchVisibleChange = vi.fn()
+    act(() =>
+      root.render(
+        <SiteFileBrowser
+          siteId={hmId('site')}
+          activeDocumentId={null}
+          onNavigate={vi.fn()}
+          searchVisible
+          onSearchVisibleChange={onSearchVisibleChange}
+        />,
+      ),
+    )
+
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Filter documents"]')!
+    const escapeEvent = new KeyboardEvent('keydown', {key: 'Escape', bubbles: true, cancelable: true})
+    act(() => input.dispatchEvent(escapeEvent))
+
+    expect(onSearchVisibleChange).toHaveBeenCalledWith(false)
+    expect(escapeEvent.defaultPrevented).toBe(true)
+  })
+
+  it('keeps Home above filtered documents and navigates to the site root', () => {
+    const onNavigate = vi.fn()
+    useDirectoryMock.mockReturnValue({data: [makeDoc(['guides'], 'Guides')], isLoading: false, isError: false})
+    act(() =>
+      root.render(
+        <SiteFileBrowser
+          siteId={hmId('site')}
+          activeDocumentId={hmId('site', {path: ['guides']})}
+          onNavigate={onNavigate}
+          searchVisible
+        />,
+      ),
+    )
+
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Filter documents"]')!
+    act(() => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setValue?.call(input, 'missing')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    const home = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Home')!
+    expect(home).toBeTruthy()
+    expect(home.querySelector('svg')).toBeNull()
+    act(() => home.click())
+    expect(onNavigate).toHaveBeenCalledWith(hmId('site'))
+  })
+
+  it('shows root creation actions only when a creation menu is provided', () => {
+    useDirectoryMock.mockReturnValue({data: [], isLoading: false, isError: false})
+    const createDocument = vi.fn()
+    const props = {siteId: hmId('site'), activeDocumentId: null, onNavigate: vi.fn()}
+
+    act(() => root.render(<SiteFileBrowser {...props} />))
+    expect(container.querySelector('[aria-label="Create root document"]')).toBeNull()
+
+    act(() =>
+      root.render(
+        <SiteFileBrowser
+          {...props}
+          createMenuItem={{
+            key: 'new',
+            label: 'New',
+            icon: null,
+            children: [
+              {key: 'new-document', label: 'Document', icon: null, onClick: createDocument},
+              {key: 'new-document-collection', label: 'Folder', icon: null, onClick: vi.fn()},
+              {key: 'new-private-document', label: 'Private', icon: null, onClick: vi.fn()},
+            ],
+          }}
+        />,
+      ),
+    )
+    expect(container.querySelector('[aria-label="Create root document"]')).toBeTruthy()
   })
 })

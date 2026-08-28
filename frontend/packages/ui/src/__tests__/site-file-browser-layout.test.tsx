@@ -9,11 +9,11 @@ import {SiteFileBrowserLayout} from '../site-file-browser-layout'
 
 const mediaMock = vi.hoisted(() => ({value: {xs: false}}))
 const fileBrowserPropsMock = vi.hoisted(() => ({
-  value: null as null | {onPrefetch?: (id: ReturnType<typeof hmId>) => void},
+  value: null as null | {onPrefetch?: (id: ReturnType<typeof hmId>) => void; searchVisible?: boolean},
 }))
 vi.mock('../use-media', () => ({useMedia: () => mediaMock.value}))
 vi.mock('../site-file-browser', () => ({
-  SiteFileBrowser: (props: {onPrefetch?: (id: ReturnType<typeof hmId>) => void}) => {
+  SiteFileBrowser: (props: {onPrefetch?: (id: ReturnType<typeof hmId>) => void; searchVisible?: boolean}) => {
     fileBrowserPropsMock.value = props
     return <div data-testid="site-file-browser" />
   },
@@ -30,7 +30,9 @@ vi.mock('lucide-react', async () => {
   const makeIcon = (testId: string) => (props: React.SVGProps<SVGSVGElement>) => <svg data-testid={testId} {...props} />
   return {
     FileSearch2: makeIcon('file-search-corner-icon'),
+    ListFilter: makeIcon('list-filter-icon'),
     PanelLeftClose: makeIcon('panel-left-close-icon'),
+    Search: makeIcon('search-icon'),
     X: makeIcon('x-icon'),
   }
 })
@@ -148,6 +150,19 @@ describe('SiteFileBrowserLayout', () => {
     expect(container.querySelector('[data-testid="main-scroll-area"]')).toBeNull()
     expect(container.textContent).toContain('Document body')
     expect(container.querySelector('[data-testid="document-body"]')?.parentElement?.className).toContain('flex-col')
+  })
+
+  it('reveals document filtering from the header search button', () => {
+    renderLayout()
+
+    expect(fileBrowserPropsMock.value?.searchVisible).toBe(false)
+    expect(container.querySelector('[data-testid="list-filter-icon"]')).toBeTruthy()
+
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Filter documents"]')?.click()
+    })
+
+    expect(fileBrowserPropsMock.value?.searchVisible).toBe(true)
   })
 
   it('keeps the mobile drawer pinned to 80 percent of the viewport', () => {

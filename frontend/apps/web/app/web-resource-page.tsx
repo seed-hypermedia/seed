@@ -471,6 +471,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     canCreateChildren: canCreateChildDocs,
     capabilityCid: effectiveCapabilityCid,
   })
+  const {menuItem: fileBrowserCreateMenuItem} = useWebCreateDocumentMenuItem({
+    locationId: hmId(docId.uid),
+    signingAccountId: signingAccountId ?? undefined,
+    canCreate: effectiveCanEdit && !!signingAccountId,
+    capabilityCid: effectiveCapabilityCid,
+  })
   const webMenuItems = useWebMenuItems(docId, {includeInspect: false})
   const deleteCapabilityId = capability && capability.id !== '_owner' ? capability.id : undefined
   const deleteDialog = useWebDeleteDocumentDialog({
@@ -658,6 +664,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                           onFollowClick={onFollowClick}
                           rightActions={<WebHeaderActions siteUid={docId.uid} />}
                           optionsMenuItems={optionsMenuItems}
+                          fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
                           inlineInsert={inlineInsert}
                           DocumentContentComponent={DocumentContentComponent}
                           ssrContentHTML={ssrContentHTML}

@@ -1,3 +1,4 @@
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {
@@ -63,6 +64,7 @@ import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useMemo, useRef, useState} from 'react'
 import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
+import {buildFolderDraftSeed} from '@shm/shared/folder'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
@@ -184,10 +186,13 @@ export function useWebCreateDocumentMenuItem({
         visibility,
         signingAccountId,
       })
+      const seed = folder ? buildFolderDraftSeed(crypto.randomUUID()) : null
       void createWebDocumentDraft({
         locationId,
         signingAccountId,
         visibility,
+        metadata: seed?.metadata,
+        content: seed ? editorBlocksToHMBlockNodes(seed.content) : undefined,
         capabilityCid,
         persist: false,
         ...(folder
@@ -208,19 +213,19 @@ export function useWebCreateDocumentMenuItem({
       children: [
         {
           key: 'new-document',
-          label: 'New Document',
+          label: 'Document',
           icon: <FilePlus2 className="size-4" />,
           onClick: () => createDraft('PUBLIC'),
         },
         {
           key: 'new-folder',
-          label: 'New Folder',
+          label: 'Folder',
           icon: <LibraryBig className="size-4" />,
           onClick: () => createDraft('PUBLIC', true),
         },
         {
           key: 'new-private-document',
-          label: 'New Private Document',
+          label: 'Private',
           icon: <Lock className="size-4" />,
           onClick: () => createDraft('PRIVATE'),
         },

@@ -746,6 +746,8 @@ export interface ResourcePageProps {
   CommentEditor?: React.ComponentType<CommentEditorProps>
   /** Complete platform-specific menu items for the options dropdown */
   optionsMenuItems?: MenuItemType[]
+  /** Root-level creation menu shown beside Home in the file explorer. */
+  fileBrowserCreateMenuItem?: MenuItemType | null
   /** @deprecated use optionsMenuItems */
   extraMenuItems?: MenuItemType[]
   /** Existing draft info for showing draft indicator in toolbar */
@@ -845,6 +847,7 @@ export function ResourcePage({
   resourceId,
   CommentEditor,
   optionsMenuItems,
+  fileBrowserCreateMenuItem,
   extraMenuItems,
   existingDraft,
   reservedDraftId,
@@ -883,6 +886,10 @@ export function ResourcePage({
   attributeAutocomplete,
 }: ResourcePageProps) {
   const route = useNavRoute()
+  const effectiveFileBrowserCreateMenuItem =
+    fileBrowserCreateMenuItem === undefined
+      ? optionsMenuItems?.find((item) => item.key === 'new')
+      : fileBrowserCreateMenuItem
   const replaceRoute = useNavigate('replace')
   const isSiteProfile = route.key === 'site-profile'
   const media = useMedia()
@@ -981,6 +988,7 @@ export function ResourcePage({
         document={siteHomeDocument || undefined}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <DocumentTopBar
           breadcrumbs={[{id: siteHomeId, metadata: siteHomeDocument?.metadata ?? {}}, {label: 'Profile'}]}
@@ -1007,6 +1015,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
@@ -1037,6 +1046,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
@@ -1055,6 +1065,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <PageDiscovery />
         {pageFooter}
@@ -1071,6 +1082,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <PageNotFound />
         {pageFooter}
@@ -1088,6 +1100,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <PageDeleted entityType={isCommentRoute ? 'comment' : 'document'} />
         {pageFooter}
@@ -1104,6 +1117,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <PagePrivate />
         {pageFooter}
@@ -1121,6 +1135,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <div className="flex flex-1 items-center justify-center p-8">
           <div className="text-destructive">{resource.data.message}</div>
@@ -1141,6 +1156,7 @@ export function ResourcePage({
           headerData={headerData}
           rightActions={rightActions}
           onPrefetchDocument={onPrefetchDocument}
+          fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
         >
           <PageNotFound />
           {pageFooter}
@@ -1155,6 +1171,7 @@ export function ResourcePage({
           headerData={headerData}
           rightActions={rightActions}
           onPrefetchDocument={onPrefetchDocument}
+          fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
         >
           <div className="flex flex-1 items-center justify-center">
             <Spinner />
@@ -1171,6 +1188,7 @@ export function ResourcePage({
           headerData={headerData}
           rightActions={rightActions}
           onPrefetchDocument={onPrefetchDocument}
+          fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
         >
           <PageNotFound />
           {pageFooter}
@@ -1187,6 +1205,7 @@ export function ResourcePage({
           document={targetDocument}
           rightActions={rightActions}
           onPrefetchDocument={onPrefetchDocument}
+          fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
         >
           <DocumentBody
             routeDocId={targetDocId}
@@ -1241,6 +1260,7 @@ export function ResourcePage({
         headerData={headerData}
         rightActions={rightActions}
         onPrefetchDocument={onPrefetchDocument}
+        fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       >
         <PageNotFound />
         {pageFooter}
@@ -1267,6 +1287,7 @@ export function ResourcePage({
       document={document}
       rightActions={rightActions}
       onPrefetchDocument={onPrefetchDocument}
+      fileBrowserCreateMenuItem={effectiveFileBrowserCreateMenuItem}
       editNavPanePortalRef={setEditNavPanePortalElement}
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
@@ -1450,6 +1471,7 @@ export interface PageShellProps {
   liveNavigationItems?: DocNavigationItem[]
   /** Starts loading a document route before navigation when the platform supports it. */
   onPrefetchDocument?: (id: UnpackedHypermediaId) => void
+  fileBrowserCreateMenuItem?: MenuItemType | null
 }
 
 /** Persistent site chrome for the header and file browser around route content. */
@@ -1466,6 +1488,7 @@ export function PageShell({
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
+  fileBrowserCreateMenuItem,
 }: PageShellProps) {
   // Mobile: let content flow naturally (document scroll)
   // Desktop: fixed height container (element scroll via ScrollArea in children)
@@ -1514,6 +1537,7 @@ export function PageShell({
         mobileOpen={isFileBrowserOpen}
         onMobileOpenChange={setIsFileBrowserOpen}
         onPrefetch={onPrefetchDocument}
+        createMenuItem={fileBrowserCreateMenuItem}
         onNavigate={(id) => {
           setIsFileBrowserOpen(false)
           navigate({key: 'document', id})
@@ -1539,6 +1563,7 @@ export function PageWrapper({
   transientResourceError,
   liveNavigationItems,
   onPrefetchDocument,
+  fileBrowserCreateMenuItem,
 }: {
   siteHomeId: UnpackedHypermediaId
   docId: UnpackedHypermediaId
@@ -1555,6 +1580,7 @@ export function PageWrapper({
   liveNavigationItems?: DocNavigationItem[]
   /** Starts loading a document route before navigation when the platform supports it. */
   onPrefetchDocument?: (id: UnpackedHypermediaId) => void
+  fileBrowserCreateMenuItem?: MenuItemType | null
 }) {
   // Live-preview the in-flight nav while the user edits the home doc, so
   // additions/reorders/deletions in the EditNavPopover show immediately in
@@ -1580,6 +1606,7 @@ export function PageWrapper({
       transientResourceError={transientResourceError}
       liveNavigationItems={liveItems}
       onPrefetchDocument={onPrefetchDocument}
+      fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
     >
       {children}
     </PageShell>

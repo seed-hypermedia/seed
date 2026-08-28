@@ -759,6 +759,9 @@ export default function DesktopResourcePage() {
     locationId: docId,
     canCreateChildren: canCreateChildDocs,
   })
+  const {menuItem: fileBrowserCreateMenuItem} = useCreateDocumentMenuItem({
+    locationId: hmId(docId.uid),
+  })
 
   // Bottom-of-doc "draft cards" — disabled while inline-draft UX is still
   // being settled. Restore by uncommenting these blocks, the related imports
@@ -1115,6 +1118,7 @@ export default function DesktopResourcePage() {
                     canEdit={canEdit}
                     CommentEditor={CommentBox}
                     optionsMenuItems={menuItems}
+                    fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
                     existingDraft={existingDraft}
                     reservedDraftId={
                       placeholderDraftId &&
