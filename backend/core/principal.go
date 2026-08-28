@@ -43,10 +43,7 @@ func (p Principal) PeerID() (peer.ID, error) {
 	if err != nil {
 		return "", err
 	}
-	_ = pk
-	panic("TODO")
-
-	// return pk.PeerID(), nil
+	return peer.IDFromPublicKey(pk.Libp2pKey())
 }
 
 // Explode splits the principal into it's multicodec and raw key bytes.
