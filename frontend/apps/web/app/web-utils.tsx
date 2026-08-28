@@ -1,6 +1,5 @@
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {
   createInspectNavRouteFromRoute,
   hmId,

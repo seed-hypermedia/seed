@@ -1,4 +1,5 @@
-import {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {HMDocument, HMMetadata, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, hmIdPathToEntityQueryPath} from '@shm/shared'
 import {documentContainsLinkToChild, documentHasSelfQuery} from '@seed-hypermedia/client'
 import {pathNameify} from '@shm/shared/utils/path'
