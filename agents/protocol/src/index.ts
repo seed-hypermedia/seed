@@ -1,4 +1,5 @@
 export * from './tool-registry'
+import type {JsonSchema} from './tool-registry'
 export * from './reasoning'
 export * from './model-capabilities'
 
@@ -53,6 +54,12 @@ export type AgentDefinition = {
    */
   enabledModels?: AgentModelRef[]
   tools?: string[]
+  /**
+   * Names of the account's MCP servers this agent may call. Each enabled server's tools are
+   * projected into the agent's `~/tools/` as `mcp` tool documents named `<server>__<tool>`, so
+   * they flow through `call`, the Space index, and promotion exactly like builtins and lambdas.
+   */
+  mcpServers?: string[]
   signingKey?: string
   signingKeys?: string[]
   metadata?: Record<string, unknown>
@@ -173,6 +180,10 @@ export type UnsignedAgentAction =
   | DeleteSigningIdentity
   | SetModelProvider
   | DeleteModelProvider
+  | ListMcpServers
+  | SetMcpServer
+  | DeleteMcpServer
+  | RefreshMcpServer
   | StartProviderOAuth
   | SubmitProviderOAuthCode
   | GetProviderOAuthStatus
@@ -394,6 +405,34 @@ export type SetModelProvider = {
 /** Deletes a named model provider and its API key secret for the account. */
 export type DeleteModelProvider = {
   _: 'DeleteModelProvider'
+  name: string
+}
+
+/** Lists the account's configured MCP servers, with their last discovered tools and status. */
+export type ListMcpServers = {
+  _: 'ListMcpServers'
+}
+
+/**
+ * Creates or updates a named MCP server for the account. The server connects to it right away to
+ * discover its tools; the response carries the result so a client can show "connected, N tools"
+ * or the exact failure without a second round trip. A failed discovery still saves the record.
+ */
+export type SetMcpServer = {
+  _: 'SetMcpServer'
+  name: string
+  config: McpServerConfig
+}
+
+/** Deletes a named MCP server, the header secrets it owns, and every agent's projection of it. */
+export type DeleteMcpServer = {
+  _: 'DeleteMcpServer'
+  name: string
+}
+
+/** Reconnects to one MCP server and re-discovers its tools. */
+export type RefreshMcpServer = {
+  _: 'RefreshMcpServer'
   name: string
 }
 
@@ -1357,6 +1396,61 @@ export type RedactedModelProvider = {
   updatedAt: number
 }
 
+/** Transport used to reach a remote MCP server. */
+export type McpServerTransport = 'http' | 'sse'
+
+/**
+ * Configuration for a remote (Streamable HTTP / SSE) MCP server, stored as CBOR. Only remote
+ * transports exist here: the hosted, multi-tenant service never spawns local stdio processes.
+ */
+export type McpServerConfig = {
+  /** http(s) endpoint of the MCP server. */
+  url: string
+  /** Transport; absent means Streamable HTTP first, falling back to SSE when the connect fails. */
+  transport?: McpServerTransport
+  /** Non-secret headers sent on every request. */
+  headers?: Record<string, string>
+  /** Header name → account secret name, resolved to plaintext at connect time. */
+  secretRefs?: Record<string, string>
+}
+
+/** What the last discovery of an MCP server found. */
+export type McpServerStatus = {
+  state: 'ok' | 'error' | 'unknown'
+  /** Failure message when `state` is `error`. */
+  error?: string
+  /** When the discovery ran. Absent when the server was never reached. */
+  checkedAt?: number
+}
+
+/** One tool an MCP server advertises, as last discovered. */
+export type McpToolInfo = {
+  /** The tool's name on the MCP server. */
+  name: string
+  /** The name of the agent-side tool document (`<server>__<tool>`), which is what `call` uses. */
+  toolName: string
+  description?: string
+  inputSchema?: JsonSchema
+}
+
+/** Redacted MCP server record returned to clients; never carries secret values. */
+export type RedactedMcpServer = {
+  id: string
+  name: string
+  url: string
+  transport: McpServerTransport
+  /** Non-secret header names. */
+  headerNames: string[]
+  /** Header names backed by encrypted account secrets. */
+  secretHeaderNames: string[]
+  hasSecrets: boolean
+  /** Tools found at the last successful discovery (kept across a later failed refresh). */
+  tools: McpToolInfo[]
+  status: McpServerStatus
+  createdAt: number
+  updatedAt: number
+}
+
 /** Public model metadata returned from a configured model provider. */
 export type ProviderModelInfo = {
   id: string
@@ -1486,6 +1580,24 @@ export type DeleteModelProviderResponse = {
   name: string
 }
 
+/** Successful response for `ListMcpServers`. */
+export type ListMcpServersResponse = {
+  _: 'ListMcpServersResponse'
+  servers: RedactedMcpServer[]
+}
+
+/** Successful response for `SetMcpServer` and `RefreshMcpServer`. */
+export type SetMcpServerResponse = {
+  _: 'SetMcpServerResponse'
+  server: RedactedMcpServer
+}
+
+/** Successful response for `DeleteMcpServer`. */
+export type DeleteMcpServerResponse = {
+  _: 'DeleteMcpServerResponse'
+  name: string
+}
+
 /** Successful response for `StartProviderOAuth`. */
 export type StartProviderOAuthResponse = {
   _: 'StartProviderOAuthResponse'
@@ -1607,10 +1719,14 @@ export type ListAgentMemoryResponse = {
   totalBytes: number
 }
 
-/** One tool document from an agent's `~/tools`: a builtin binding or an authored lambda. */
+/** One tool document from an agent's `~/tools`: a builtin binding, an authored lambda, or an MCP projection. */
 export type AgentToolInfo = {
   name: string
-  kind: 'builtin' | 'lambda'
+  kind: 'builtin' | 'lambda' | 'mcp'
+  /** MCP tools: the account MCP server this tool is projected from. */
+  server?: string
+  /** MCP tools: the tool's name on that server (the document name is `<server>__<remoteName>`). */
+  remoteName?: string
   /** One line for listings and the Space index. */
   summary: string
   /** Full model-facing instructions, shown on expansion. */
@@ -1878,6 +1994,9 @@ export type AgentResponse =
   | CreateAgentResponse
   | SetModelProviderResponse
   | DeleteModelProviderResponse
+  | ListMcpServersResponse
+  | SetMcpServerResponse
+  | DeleteMcpServerResponse
   | StartProviderOAuthResponse
   | SubmitProviderOAuthCodeResponse
   | ProviderOAuthStatusResponse

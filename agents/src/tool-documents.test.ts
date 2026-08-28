@@ -2,6 +2,7 @@ import {Database} from 'bun:sqlite'
 import {afterEach, describe, expect, test} from 'bun:test'
 import * as sqlite from '@/sqlite'
 import * as toolDocs from '@/tool-documents'
+import * as dagCbor from '@shm/shared/cbor'
 
 const cleanups: Array<() => void> = []
 afterEach(() => {
@@ -103,5 +104,104 @@ describe('tool documents', () => {
     expect(markdown).toContain('## Input schema')
     expect(markdown).toContain('## Output schema')
     expect(markdown).toContain('## Source')
+  })
+})
+
+describe('mcp tool documents', () => {
+  function seedServer(
+    db: Database,
+    name: string,
+    tools: Array<{name: string; description?: string; inputSchema?: unknown}>,
+  ) {
+    const now = Date.now()
+    db.run(
+      `INSERT INTO mcp_servers (id, account_id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+       ON CONFLICT(account_id, name) DO UPDATE SET tools_cbor = excluded.tools_cbor, updated_at = excluded.updated_at`,
+      [
+        `id-${name}`,
+        'acct',
+        name,
+        dagCbor.encode({url: 'http://127.0.0.1:1/mcp'}),
+        dagCbor.encode(
+          tools.map((tool) => toolDocs.mcpToolInfoFromDescriptor(name, tool as {name: string; description?: string})),
+        ),
+        now,
+        now,
+      ],
+    )
+  }
+
+  test('projects enabled servers into <server>__<tool> documents and removes them when disabled', () => {
+    const db = makeDb()
+    seedServer(db, 'weather', [
+      {
+        name: 'forecast',
+        description: 'Forecast for a city. Returns highs and lows.',
+        inputSchema: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      },
+      {name: 'alerts'},
+    ])
+    seedServer(db, 'github', [{name: 'create_issue', description: 'Open an issue.'}])
+
+    const first = toolDocs.syncMcpToolDocuments(db, 'acct', 'agent', ['weather'])
+    expect(first.changed).toBe(true)
+    const names = toolDocs.listToolDocuments(db, 'acct', 'agent').map((row) => row.doc.name)
+    expect(names).toEqual(['weather__alerts', 'weather__forecast'])
+    const forecast = toolDocs.getToolDocument(db, 'acct', 'agent', 'weather__forecast')!
+    expect(forecast.doc).toMatchObject({
+      kind: 'mcp',
+      server: 'weather',
+      remoteName: 'forecast',
+      summary: 'Forecast for a city.',
+      input: {type: 'object', required: ['city']},
+    })
+    // A tool with no description still reads as something, and an absent schema is an open object.
+    expect(toolDocs.getToolDocument(db, 'acct', 'agent', 'weather__alerts')!.doc).toMatchObject({
+      description: 'Tool "alerts" from the weather MCP server.',
+      input: {type: 'object'},
+    })
+
+    // Idempotent: nothing rewritten when nothing changed.
+    expect(toolDocs.syncMcpToolDocuments(db, 'acct', 'agent', ['weather']).changed).toBe(false)
+
+    // Enabling the second server adds its tools; a changed remote contract is a new CID.
+    toolDocs.syncMcpToolDocuments(db, 'acct', 'agent', ['weather', 'github'])
+    expect(toolDocs.getToolDocument(db, 'acct', 'agent', 'github__create_issue')?.doc.kind).toBe('mcp')
+    seedServer(db, 'github', [{name: 'create_issue', description: 'Open an issue with labels.'}])
+    const before = toolDocs.getToolDocument(db, 'acct', 'agent', 'github__create_issue')!.cid
+    toolDocs.syncMcpToolDocuments(db, 'acct', 'agent', ['weather', 'github'])
+    expect(toolDocs.getToolDocument(db, 'acct', 'agent', 'github__create_issue')!.cid).not.toBe(before)
+
+    // Disabling a server removes exactly its documents.
+    expect(toolDocs.syncMcpToolDocuments(db, 'acct', 'agent', ['github']).changed).toBe(true)
+    expect(toolDocs.listToolDocuments(db, 'acct', 'agent').map((row) => row.doc.name)).toEqual(['github__create_issue'])
+    toolDocs.syncMcpToolDocuments(db, 'acct', 'agent', [])
+    expect(toolDocs.listToolDocuments(db, 'acct', 'agent')).toEqual([])
+  })
+
+  test('an authored tool keeps its name against a remote tool, and remote tools cannot be deleted or replaced', () => {
+    const db = makeDb()
+    toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {
+      name: 'weather__forecast',
+      description: 'Mine.',
+      source: 'export default () => 1',
+    })
+    seedServer(db, 'weather', [{name: 'forecast'}, {name: 'alerts'}])
+    const result = toolDocs.syncMcpToolDocuments(db, 'acct', 'agent', ['weather'])
+    expect(result.conflicts).toEqual(['weather__forecast'])
+    expect(toolDocs.getToolDocument(db, 'acct', 'agent', 'weather__forecast')?.doc.kind).toBe('lambda')
+
+    expect(() =>
+      toolDocs.saveLambdaToolDocument(db, 'acct', 'agent', {
+        name: 'weather__alerts',
+        description: 'Shadow.',
+        source: 'export default () => 1',
+      }),
+    ).toThrow(/weather MCP server/)
+    expect(() => toolDocs.deleteToolDocument(db, 'acct', 'agent', 'weather__alerts')).toThrow(/disable that server/)
+    expect(
+      toolDocs.toolDocumentContractMarkdown(toolDocs.getToolDocument(db, 'acct', 'agent', 'weather__alerts')!),
+    ).toContain('`alerts` on the weather MCP server')
   })
 })

@@ -59,8 +59,18 @@ export type ProviderModelInfo = AgentsProtocol.ProviderModelInfo
 export type ModelProviderAuthMode = NonNullable<AgentsProtocol.ModelProviderConfig['authMode']>
 /** Snapshot of a pending or finished provider OAuth sign-in. */
 export type ProviderOAuthStatus = AgentsProtocol.ProviderOAuthStatusResponse
-/** One tool document from an agent's ~/tools: a builtin binding or an authored lambda. */
+/** One tool document from an agent's ~/tools: a builtin binding, an authored lambda, or an MCP projection. */
 export type AgentToolInfo = AgentsProtocol.AgentToolInfo
+/** Redacted MCP server record: config minus secrets, plus its last discovered tools and status. */
+export type McpServerInfo = AgentsProtocol.RedactedMcpServer
+/** Configuration submitted for a remote MCP server. */
+export type McpServerConfig = AgentsProtocol.McpServerConfig
+/** Transport used to reach a remote MCP server. */
+export type McpServerTransport = AgentsProtocol.McpServerTransport
+/** One tool an MCP server advertises. */
+export type McpToolInfo = AgentsProtocol.McpToolInfo
+/** What the last discovery of an MCP server found. */
+export type McpServerStatus = AgentsProtocol.McpServerStatus
 /** Every editable field submitted when creating or updating an authored tool. */
 export type AgentToolInput = AgentsProtocol.AgentToolInput
 /** One file or directory inside an agent's private memory filesystem. */

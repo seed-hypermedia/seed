@@ -46,7 +46,7 @@ to the network later means publishing bytes that already exist.
 ```ts
 type ToolDocument = {
   name: string
-  kind: 'builtin' | 'lambda'
+  kind: 'builtin' | 'lambda' | 'mcp'
   summary: string // one line, for the Space index and ~/tools listing
   description: string // full model-facing instructions
   input: JsonSchema
@@ -54,6 +54,8 @@ type ToolDocument = {
   source?: string // lambda source
   runtime?: 'typescript' | 'python' // lambda language, default typescript
   binding?: string // builtin executor id, bound at boot
+  server?: string // mcp: the account MCP server the call is proxied to
+  remoteName?: string // mcp: the tool's name on that server
 }
 ```
 
@@ -66,6 +68,10 @@ type ToolDocument = {
   cannot be replaced, a description is required (≤ 16 KiB), source is required (≤ 256 KiB), and both schemas must pass
   `validateJsonSchemaShape`. `write ~/tools/<name>` with `{delete: true}` removes an authored tool; builtins refuse
   deletion and point at the agent's grants instead.
+- **MCP projections** are the tools of the remote MCP servers an agent enables (`definition.mcpServers`), one document
+  per tool named `<server>__<tool>`, reconciled by `syncMcpToolDocuments()` from the server's cached discovery. They
+  carry the remote description and input schema plus `server`/`remoteName`, cannot be deleted or replaced by a lambda
+  (disable the server instead), and are proxied to the server when called. See [`mcp.md`](./mcp.md).
 
 `ListAgentTools` returns the desktop's view of the same documents — name, kind, summary, description, schemas, `source`,
 `runtime`, `cid`, `enabled`, and `granted` (whether the agent's grant set actually offers it). Writers can also use
@@ -75,9 +81,10 @@ can rename an existing authored tool atomically; it refuses to overwrite another
 ## The Space index
 
 Every system prompt carries a compact `<space>` block built by `buildSpaceIndex()`: one line per enabled tool document
-(`- name — summary`, authored tools tagged `(authored)`), a one-line memory top-level summary, and a triggers line that
-names active triggers and advertises the `read ~/triggers/` / `write ~/triggers/<name>` affordance even when no triggers
-exist — so an agent asked "do this every morning" knows it can create the automation. It is cached per
+(`- name — summary`, authored tools tagged `(authored)`, remote tools tagged `(<server> MCP)` — an MCP server with more
+than six tools collapses to one `- <server>__* — N tools …` line), a one-line memory top-level summary, and a triggers
+line that names active triggers and advertises the `read ~/triggers/` / `write ~/triggers/<name>` affordance even when
+no triggers exist — so an agent asked "do this every morning" knows it can create the automation. It is cached per
 `(account, agent, callable set)` and invalidated on memory, tool, or trigger writes. Over `SPACE_INDEX_BUDGET_BYTES`
 (2048) the per-tool lines collapse to a count, so the index stays honest but tiny.
 
@@ -95,16 +102,19 @@ durable `tool_call` events (`expandedCallablesFromEvents()`, `api-service.ts:722
 compaction all reconstruct the same set. Events with actor `user` are skipped: a user's palette call must not silently
 reshape the agent's active toolset.
 
-Promotion is intersected with the agent's enabled callables before anything reaches Pi (`api-service.ts:4322`):
+Promotion is intersected with the agent's enabled callables — plus its own enabled non-builtin documents (authored
+lambdas and MCP projections, re-derived from the definition at run start) — before anything reaches Pi (`#runPiAgent`):
 
 ```ts
 const expandedCallables = this.#expandedCallablesForSession(sessionId)
   .map(normalizeSeedToolName)
-  .filter((name) => enabledCallables.includes(name))
+  .filter((name) => enabledCallables.includes(name) || documentTools.has(name))
 ```
 
 This filter is load-bearing security, not tidiness: a hallucinated `call {tool: 'bash'}` durably stores that name, and
-an unfiltered allowlist would hand `bash` to Pi, activating Pi's own host builtins outside the sandbox.
+an unfiltered allowlist would hand `bash` to Pi, activating Pi's own host builtins outside the sandbox. A promoted
+document tool is defined from its own document (`toolMetadataFromDocument`): the contract the model read is the schema
+the provider now validates against, and its executor is the same `call` dispatch.
 
 ## Grants
 
@@ -292,7 +302,8 @@ Dispatch order in `executeCallVerb` (`api-service.ts:7794`):
 
 1. Resolve the name through `normalizeSeedToolName` and the registry. For `execute`, swap in the server-narrowed
    contract.
-2. If it is not a granted builtin, look for an enabled **lambda** document of that name and run it.
+2. If it is not a granted builtin, look for an enabled document of that name: a **lambda** runs in the sandbox
+   (`executeLambdaTool`), an **MCP projection** is proxied to its server (`executeMcpTool`, see [`mcp.md`](./mcp.md)).
 3. Otherwise return the `~/tools` listing with a "no callable tool named …" summary.
 4. Validate `input` against the tool's schema; on failure return the contract (touch-expand).
 5. Execute: `search` → `executeAgentServiceSearch`, `web_search` → `executeWebSearch`, `execute` → the sandbox.

@@ -105,6 +105,7 @@ import {
   type AgentServerWebCapabilities,
 } from './agent-tools'
 import {AgentMemoryTab} from './memory'
+import {AgentMcpServersSection} from './mcp-servers'
 import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
 import {
   AddModelProviderDialog,
@@ -1575,13 +1576,26 @@ function AgentToolsTab({
     definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools,
   )
   const [signingKeys, setSigningKeys] = useState<string[]>(definitionSigningKeys)
+  const [mcpServers, setMcpServers] = useState<string[]>(definition.mcpServers ?? [])
   const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
   const [newIdentityName, setNewIdentityName] = useState('Agent publisher')
 
   useEffect(() => {
     setEnabledTools(definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools)
     setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
+    setMcpServers(definition.mcpServers ?? [])
   }, [definition])
+
+  /** Which of the account's MCP servers this agent may call; the server re-projects their tools. */
+  async function saveMcpServers(next: string[]) {
+    setMcpServers(next)
+    try {
+      await onSave({...definition, mcpServers: next})
+    } catch (error) {
+      setMcpServers(definition.mcpServers ?? [])
+      toast.error(error instanceof Error ? error.message : 'Could not update MCP servers')
+    }
+  }
 
   async function saveTools(nextTools: string[], nextSigningKeys: string[]) {
     setEnabledTools(nextTools)
@@ -1892,6 +1906,19 @@ function AgentToolsTab({
           ) : null}
         </div>
       </div>
+
+      <AgentMcpServersSection
+        serverUrl={serverUrl}
+        accountUid={accountUid}
+        enabledServers={mcpServers}
+        onToggleServer={(name, enabled) =>
+          void saveMcpServers(
+            enabled ? Array.from(new Set([...mcpServers, name])) : mcpServers.filter((n) => n !== name),
+          )
+        }
+        readOnly={readOnly}
+        saving={saving}
+      />
 
       {toolInfoDialog.content}
       {authoredToolDialog.content}

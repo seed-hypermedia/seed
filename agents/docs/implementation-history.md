@@ -5,6 +5,23 @@ future agents can reconstruct why the system looks the way it does.
 
 ## Recent commit notes
 
+### MCP servers as tool documents (2026-08-28)
+
+Remote Model Context Protocol servers, rebuilt from the pre-verbs PR #823 onto the harness. An account connects a server
+(`mcp_servers`, one new table and migration) the way it configures a model provider; an agent enables servers by name
+(`definition.mcpServers`). Nothing was added to the model-facing surface: every tool a server advertises becomes an
+`mcp` **tool document** named `<server>__<tool>` in the agent's `~/tools/` (`syncMcpToolDocuments`), so it rides the
+existing rails — Space index, `read ~/tools/<name>`, `call` with touch-expand, promotion — and a large server collapses
+to one index line. Discovery runs on save (the response says "connected, N tools" or the failure; a failed discovery
+still saves and keeps the last good list), on refresh, and quietly whenever a run connects. Connections are lazy and per
+run (`McpConnectionPool` in the agent turn, script `ctx.call`, and the user's palette verb), closed with the run.
+`executeMcpTool` re-checks the grant before proxying, throws server and transport errors as `tool_result.error`, and
+hands image content to vision models inline. Promotion now also covers the agent's own enabled documents (lambdas and
+MCP projections), defined from the document itself. Desktop/web Tools tab gained the MCP servers section
+(`mcp-servers.tsx`): per-agent checkbox rows with status/tool-count chips, inline tool lists, a URL-first add dialog
+that connects on save. Docs: new `mcp.md`, plus `tools.md`, `security.md`, `persistence.md`, `signed-api.md`,
+`desktop-ui.md`, `glossary.md`.
+
 ### Agent introspection: ~/triggers/, ~/self, thread listing (2026-08-18/19)
 
 Agents became introspective: they can read everything about themselves and manage their own automations. Three

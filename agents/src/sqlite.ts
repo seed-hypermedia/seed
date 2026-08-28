@@ -13,6 +13,23 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Account-scoped remote MCP servers (like model providers). The tools a server advertises are
+  // discovered on save/refresh and cached in tools_cbor; status_cbor records what the last
+  // discovery found. Agents enable servers by name (definition.mcpServers) and their tools are
+  // projected into the agent's tool_documents as kind 'mcp'.
+  `CREATE TABLE mcp_servers (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      name TEXT NOT NULL,
+      config_cbor BLOB NOT NULL,
+      tools_cbor BLOB,
+      status_cbor BLOB,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE (account_id, name)
+  ) WITHOUT ROWID;
+
+  CREATE INDEX mcp_servers_by_account ON mcp_servers (account_id, name);`,
   // Public chat: while an agent is publicly readable, this additionally lets every signed account
   // create sessions and message them (the `chatter` access role). Never set without public_read;
   // SetAgentPublicRead(false) clears it.
