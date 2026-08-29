@@ -183,11 +183,28 @@ describe('agent memory', () => {
 
       const summary = summarizeMemoryTopLevel(stateDir)
       expect(summary.totalFiles).toBe(4)
+      expect(summary.truncated).toBe(false)
       expect(summary.entries).toEqual([
         {name: 'MEMORY.md', type: 'file', size: 5},
         {name: 'media', type: 'dir', size: 4, fileCount: 1},
         {name: 'notes', type: 'dir', size: 5, fileCount: 2},
       ])
+    })
+  })
+
+  test('bounds the recursive walk so a huge memory cannot block the server', () => {
+    withStateDir((stateDir) => {
+      for (let i = 0; i < 8; i++) writeMemoryFile(stateDir, `bulk/file-${String(i).padStart(2, '0')}.txt`, `${i}`)
+
+      const unbounded = listMemory(stateDir)
+      expect(unbounded.truncated).toBe(false)
+      expect(unbounded.entries).toHaveLength(9) // the dir plus its 8 files
+
+      const capped = listMemory(stateDir, {maxEntries: 4})
+      expect(capped.truncated).toBe(true)
+      expect(capped.entries).toHaveLength(4)
+      // The cap stops the walk itself, not just the result: bytes cover only visited files.
+      expect(capped.totalBytes).toBeLessThan(unbounded.totalBytes)
     })
   })
 

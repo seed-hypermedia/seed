@@ -1516,25 +1516,39 @@ export function useAgentTrigger(
   })
 }
 
-/** Lists the files and directories in one agent's private memory. */
-export function useAgentMemory(
+/**
+ * Lists directory levels of one agent's private memory — one query per path, so the Memory tab
+ * loads the tree lazily as directories are expanded and a huge memory never forces a full
+ * recursive walk on the server (one agent's imported 192k-file tree used to freeze it).
+ *
+ * No polling: every memory mutation — user actions and agent `memory_*`/upload writes alike —
+ * emits an account-change over the WebSocket, and that already invalidates the `['agents']`
+ * queries (see {@link useAgentWebSocketSubscription}), so listings refresh the moment memory
+ * actually changes.
+ */
+export function useAgentMemoryDirs(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
   agentId: string | undefined,
+  paths: string[],
 ) {
-  return useQuery({
-    queryKey: ['agents', 'memory', serverUrl, accountUid, agentId],
-    queryFn: async () => {
-      if (!serverUrl || !accountUid || !agentId) return null
-      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentMemory', agentId}})
-      if (res._ !== 'ListAgentMemoryResponse') throw new Error('Unexpected ListAgentMemory response')
-      return res
-    },
-    enabled: !!serverUrl && !!accountUid && !!agentId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
-    retry: false,
-    useErrorBoundary: false,
+  return useQueries({
+    queries: paths.map((path) => ({
+      queryKey: ['agents', 'memory', serverUrl, accountUid, agentId, path],
+      queryFn: async () => {
+        if (!serverUrl || !accountUid || !agentId) return null
+        const res = await sendAgentAction({
+          serverUrl,
+          accountUid,
+          action: {_: 'ListAgentMemoryDir', agentId, ...(path ? {path} : {})},
+        })
+        if (res._ !== 'ListAgentMemoryDirResponse') throw new Error('Unexpected ListAgentMemoryDir response')
+        return res
+      },
+      enabled: !!serverUrl && !!accountUid && !!agentId,
+      retry: false,
+      useErrorBoundary: false,
+    })),
   })
 }
 

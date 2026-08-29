@@ -198,6 +198,7 @@ export type UnsignedAgentAction =
   | UpdateAgentTrigger
   | DeleteAgentTrigger
   | ListAgentMemory
+  | ListAgentMemoryDir
   | ListAgentTools
   | SaveAgentTool
   | DeleteAgentTool
@@ -597,6 +598,8 @@ export type AgentMemoryEntry = {
   updatedAt: number
   /** MIME type inferred from the file extension, when recognized. */
   mimeType?: string
+  /** For directories in single-level listings: how many entries the directory holds. */
+  entryCount?: number
 }
 
 /** Contents of one agent memory file: UTF-8 text or raw binary bytes. */
@@ -614,10 +617,20 @@ export type AgentMemoryFile = {
   data?: Uint8Array
 }
 
-/** Lists every file and directory in an agent's memory. */
+/** Lists every file and directory in an agent's memory, up to the server's entry cap. */
 export type ListAgentMemory = {
   _: 'ListAgentMemory'
   agentId: string
+}
+
+/**
+ * Lists one directory level of an agent's memory without descending — the scalable listing for
+ * browsing UIs. Omit `path` (or pass '') for the memory root.
+ */
+export type ListAgentMemoryDir = {
+  _: 'ListAgentMemoryDir'
+  agentId: string
+  path?: string
 }
 
 /**
@@ -1732,8 +1745,27 @@ export type ListAgentMemoryResponse = {
   _: 'ListAgentMemoryResponse'
   agentId: string
   entries: AgentMemoryEntry[]
-  /** Total bytes across all memory files. */
+  /** Total bytes across the listed memory files. */
   totalBytes: number
+  /** True when the walk hit the server's entry cap; `entries` and `totalBytes` are then partial. */
+  truncated?: boolean
+}
+
+/** Successful response for `ListAgentMemoryDir`. */
+export type ListAgentMemoryDirResponse = {
+  _: 'ListAgentMemoryDirResponse'
+  agentId: string
+  /** Normalized directory path this level lists; '' is the memory root. */
+  path: string
+  /** The entries directly inside `path`; directory entries carry `entryCount`. */
+  entries: AgentMemoryEntry[]
+  /** Total bytes of the files at this level only. */
+  totalBytes: number
+  /**
+   * Whole-memory rollup, present only on root listings. Computed over a bounded walk: counts and
+   * bytes are minimums when `truncated` is set.
+   */
+  totals?: {files: number; bytes: number; truncated: boolean}
 }
 
 /** One tool document from an agent's `~/tools`: a builtin binding, an authored lambda, or an MCP projection. */
@@ -2027,6 +2059,7 @@ export type AgentResponse =
   | UpdateAgentTriggerResponse
   | DeleteAgentTriggerResponse
   | ListAgentMemoryResponse
+  | ListAgentMemoryDirResponse
   | ListAgentToolsResponse
   | SaveAgentToolResponse
   | DeleteAgentToolResponse

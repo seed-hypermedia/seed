@@ -16,6 +16,7 @@ import {
   writeGuideRegistry,
   type JsonSchema,
   type SeedToolMetadata,
+  type WriteGuide,
 } from '@seed-hypermedia/agents-protocol'
 import {validateJsonSchemaShape, validateJsonSchemaValue} from '@/json-schema'
 import * as activityTriggers from '@/activity-triggers'
@@ -108,6 +109,13 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 const MAX_NAME_BYTES = 256
+/**
+ * Entry cap for the full recursive `ListAgentMemory` walk. The walk is synchronous on the
+ * server's only thread, so it must stay bounded against pathological memories (an imported
+ * 192k-file source tree once froze the event loop 6–8s per call); clients needing more use the
+ * per-directory `ListAgentMemoryDir` listing.
+ */
+const MAX_MEMORY_LIST_ENTRIES = 2_000
 const MAX_PROMPT_BYTES = 64 * 1024
 const MAX_MODEL_BYTES = 256
 const MAX_ENABLED_MODEL_COUNT = 32
@@ -870,6 +878,8 @@ export class Service {
         return this.#deleteAgentTrigger(accountId, envelope.action.triggerId)
       case 'ListAgentMemory':
         return this.#listAgentMemory(accountId, envelope.action.agentId)
+      case 'ListAgentMemoryDir':
+        return this.#listAgentMemoryDir(accountId, envelope.action.agentId, envelope.action.path)
       case 'ListAgentTools':
         return this.#listAgentTools(accountId, envelope.action.agentId)
       case 'SaveAgentTool':
@@ -1049,6 +1059,7 @@ export class Service {
       case 'GetAgent':
       case 'ListAgentTriggers':
       case 'ListAgentMemory':
+      case 'ListAgentMemoryDir':
       case 'ListAgentTools':
       case 'ReadAgentMemoryFile':
         return fromAgent(action.agentId)
@@ -2615,8 +2626,32 @@ export class Service {
 
   #listAgentMemory(accountId: string, agentId: string): api.ListAgentMemoryResponse {
     const stateDir = this.#agentMemoryStateDir(accountId, agentId)
-    const {entries, totalBytes} = withMemoryErrors(() => agentMemory.listMemory(stateDir))
-    return {_: 'ListAgentMemoryResponse', agentId, entries, totalBytes}
+    const {entries, totalBytes, truncated} = withMemoryErrors(() =>
+      agentMemory.listMemory(stateDir, {maxEntries: MAX_MEMORY_LIST_ENTRIES}),
+    )
+    return {_: 'ListAgentMemoryResponse', agentId, entries, totalBytes, ...(truncated ? {truncated: true} : {})}
+  }
+
+  #listAgentMemoryDir(accountId: string, agentId: string, path?: string): api.ListAgentMemoryDirResponse {
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const level = withMemoryErrors(() => agentMemory.listMemoryDir(stateDir, path))
+    // Root listings carry the whole-memory rollup so browsing UIs can show totals without ever
+    // requesting the full recursive listing.
+    const totals =
+      level.path === ''
+        ? (() => {
+            const summary = withMemoryErrors(() => agentMemory.summarizeMemoryTopLevel(stateDir))
+            return {files: summary.totalFiles, bytes: summary.totalBytes, truncated: summary.truncated}
+          })()
+        : undefined
+    return {
+      _: 'ListAgentMemoryDirResponse',
+      agentId,
+      path: level.path,
+      entries: level.entries,
+      totalBytes: level.totalBytes,
+      ...(totals ? {totals} : {}),
+    }
   }
 
   /**
@@ -9528,7 +9563,8 @@ export async function executeReadVerb(
     const name = address.slice('~/tools/'.length).replace(/\/+$/, '')
     const [root, guideName, ...extra] = name.split('/')
     if (root === seedVerbRegistry.write.name && guideName) {
-      const guide = extra.length === 0 ? writeGuideRegistry[guideName] : undefined
+      const guide =
+        extra.length === 0 ? (writeGuideRegistry as Record<string, WriteGuide | undefined>)[guideName] : undefined
       if (guide) {
         return {
           summary: `Write guide for ${guideName}: ${guide.summary}`,

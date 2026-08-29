@@ -22,7 +22,7 @@ const preamble = `All Seed resource operations use the write verb. The common sh
 The address identifies the signed account and, for document operations, usually the document. Select an enabled signer with \`options.signer.publicKey\` or \`options.signer.profileName\`. Put fields for dotted actions in \`options.input\`, not loose inside \`options\`. Use top-level \`dryRun: true\` to validate an hm:// operation without publishing.`
 
 /** Detailed Seed write guides, loaded progressively through reads of ~/tools/write/<resource>. */
-export const writeGuideRegistry: Record<string, WriteGuide> = {
+export const writeGuideRegistry = {
   memory: {
     summary: 'Replace or delete private memory files, download URLs, and save conversation attachments.',
     markdown: `# Writing private memory
@@ -246,4 +246,4 @@ Use \`draft.publish\` with \`draftId\`. A draft with an \`edit\` target updates 
 
 Although draft get/list operations are read-like, they live here because they are commands in the write resource workflow.`,
   },
-}
+} satisfies Record<string, WriteGuide>

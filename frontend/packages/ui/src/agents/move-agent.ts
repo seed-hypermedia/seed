@@ -93,6 +93,13 @@ export async function moveAgentToServer(options: MoveAgentOptions): Promise<Move
 
   const memoryRes = await send({serverUrl: sourceServerUrl, accountUid, action: {_: 'ListAgentMemory', agentId}})
   if (memoryRes._ !== 'ListAgentMemoryResponse') throw new Error('Unexpected memory list response')
+  // The move deletes the original after copying, so a capped listing must abort — copying only the
+  // listed prefix of a huge memory would silently lose the rest.
+  if (memoryRes.truncated) {
+    throw new Error(
+      'This agent has too many memory files to move automatically. Trim its memory (or move files out) and try again.',
+    )
+  }
   const memoryFiles = memoryRes.entries.filter((entry) => entry.type === 'file')
 
   const toolsRes = await send({serverUrl: sourceServerUrl, accountUid, action: {_: 'ListAgentTools', agentId}})

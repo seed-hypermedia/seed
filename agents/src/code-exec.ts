@@ -638,8 +638,16 @@ function createOutputCollector(): OutputCollector {
 
 type MemorySnapshot = {files: Map<string, string>; totalBytes: number}
 
+/**
+ * Bounds the before/after snapshot walks so a pathological memory (one agent imported a 192k-file
+ * source tree) cannot freeze the event loop around every code execution. Past the cap the reported
+ * file-change list is best-effort: both snapshots truncate at the same walk order, so changes
+ * within the visited prefix still diff correctly.
+ */
+const MAX_SNAPSHOT_ENTRIES = 20_000
+
 function snapshotMemory(stateDir: string): MemorySnapshot {
-  const {entries, totalBytes} = listMemory(stateDir)
+  const {entries, totalBytes} = listMemory(stateDir, {maxEntries: MAX_SNAPSHOT_ENTRIES})
   const files = new Map<string, string>()
   for (const entry of entries) {
     if (entry.type === 'file') files.set(entry.path, `${entry.size}:${entry.updatedAt}`)

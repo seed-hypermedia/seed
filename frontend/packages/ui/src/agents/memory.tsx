@@ -1,7 +1,7 @@
 import type {AgentMemoryEntry, AgentMemoryFile} from './client'
 import {
   uploadFileToAgentServer,
-  useAgentMemory,
+  useAgentMemoryDirs,
   useAgentMemoryFile,
   useDeleteAgentMemoryFile,
   useDownloadAgentMemoryFile,
@@ -61,7 +61,39 @@ export function AgentMemoryTab({
   /** Reports the opened file back to the host so the route (and its copyable URL) can follow. */
   onOpenPathChange?: (path: string) => void
 }) {
-  const memory = useAgentMemory(serverUrl, accountUid, agentId)
+  /** Directories currently expanded in the tree; everything starts collapsed. */
+  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
+  // The tree loads one directory level per query — the root plus each expanded directory — so a
+  // huge memory never needs a full recursive walk. Levels refresh over the WebSocket: every memory
+  // mutation invalidates these queries, so there is no polling.
+  const dirPaths = useMemo(() => ['', ...Array.from(expandedDirs).sort()], [expandedDirs])
+  const dirQueries = useAgentMemoryDirs(serverUrl, accountUid, agentId, dirPaths)
+  const rootQuery = dirQueries[0]
+  /** Loaded listing per directory path; a collapsed-then-reexpanded dir serves from cache. */
+  const loadedLevels = useMemo(() => {
+    const levels = new Map<string, {entries: AgentMemoryEntry[]; totalBytes: number}>()
+    dirQueries.forEach((query, index) => {
+      const path = dirPaths[index]
+      if (query.data && path !== undefined) levels.set(path, query.data)
+    })
+    return levels
+  }, [dirQueries, dirPaths])
+  /** Union of all loaded levels, sorted so the flat tree renders parents before children. */
+  const entries = useMemo(() => {
+    const merged: AgentMemoryEntry[] = []
+    for (const level of loadedLevels.values()) merged.push(...level.entries)
+    merged.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+    return merged
+  }, [loadedLevels])
+  /** Expanded directories whose listing has not arrived yet, for the loading rows. */
+  const loadingDirs = useMemo(() => {
+    const loading = new Set<string>()
+    dirQueries.forEach((query, index) => {
+      const path = dirPaths[index]
+      if (path && !query.data && !query.isError) loading.add(path)
+    })
+    return loading
+  }, [dirQueries, dirPaths])
   const writeFile = useWriteAgentMemoryFile(serverUrl, accountUid)
   const deleteFile = useDeleteAgentMemoryFile(serverUrl, accountUid)
   const downloadFromWeb = useDownloadAgentMemoryFile(serverUrl, accountUid)
@@ -79,12 +111,10 @@ export function AgentMemoryTab({
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   /** Last IPFS publish result per memory path, kept so the URL stays visible/copyable. */
   const [ipfsUrls, setIpfsUrls] = useState<Record<string, string>>({})
-  /** Directories currently expanded in the tree; everything starts collapsed. */
-  const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set())
   const uploadInputRef = useRef<HTMLInputElement>(null)
   // Reading a file pulls its full bytes over the wire; very large files (multi-hundred-MB
   // uploads) would stall or crash the preview, so those render a size card instead of fetching.
-  const selectedEntry = memory.data?.entries.find((entry) => entry.type === 'file' && entry.path === selectedPath)
+  const selectedEntry = entries.find((entry) => entry.type === 'file' && entry.path === selectedPath)
   const selectedTooLarge = (selectedEntry?.size ?? 0) > MAX_MEMORY_PREVIEW_BYTES
   const file = useAgentMemoryFile(
     serverUrl,
@@ -93,19 +123,20 @@ export function AgentMemoryTab({
     selectedTooLarge ? undefined : selectedPath ?? undefined,
   )
 
-  const entries = memory.data?.entries ?? []
-  const fileCount = entries.filter((entry) => entry.type === 'file').length
+  const totals = rootQuery?.data?.totals
   const visibleEntries = entries.filter((entry) => isPathVisible(entry.path, expandedDirs))
 
-  // Drop the selection when the selected file disappears from the listing (e.g. the
-  // agent or another window deleted it).
+  // Drop the selection when the selected file disappears from its directory's listing (e.g. the
+  // agent or another window deleted it). Only a loaded parent level can prove absence.
   useEffect(() => {
-    if (!selectedPath || !memory.data) return
-    if (!memory.data.entries.some((entry) => entry.type === 'file' && entry.path === selectedPath)) {
+    if (!selectedPath) return
+    const parentLevel = loadedLevels.get(parentDirPath(selectedPath))
+    if (!parentLevel) return
+    if (!parentLevel.entries.some((entry) => entry.type === 'file' && entry.path === selectedPath)) {
       setSelectedPath(null)
       setDraftText(null)
     }
-  }, [memory.data, selectedPath])
+  }, [loadedLevels, selectedPath])
 
   function selectFile(path: string) {
     setSelectedPath(path)
@@ -125,20 +156,23 @@ export function AgentMemoryTab({
   }
 
   // Arriving from a `~/memory/…` link: open that file (or reveal that folder) ONCE per requested
-  // path — a later poll of the listing must not yank the user back off whatever they opened next.
+  // path — a later refresh of the listing must not yank the user back off whatever they opened
+  // next. Ancestors expand first so their levels load; the file-or-directory decision waits for
+  // the parent level, which also keeps a directory link from being opened as if it were a file.
   const openedPathRef = useRef<string | undefined>(undefined)
   useEffect(() => {
-    // Waiting for the listing keeps a directory link from being opened as if it were a file.
-    if (!openPath || !memory.data || openedPathRef.current === openPath) return
+    if (!openPath || openedPathRef.current === openPath) return
+    revealPath(openPath)
+    const parentLevel = loadedLevels.get(parentDirPath(openPath))
+    if (!parentLevel) return
     openedPathRef.current = openPath
-    if (memory.data.entries.some((entry) => entry.path === openPath && entry.type === 'dir')) {
+    if (parentLevel.entries.some((entry) => entry.path === openPath && entry.type === 'dir')) {
       setExpandedDirs((current) => new Set(current).add(openPath))
-      revealPath(openPath)
       return
     }
     selectFile(openPath)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one reveal per requested path
-  }, [openPath, memory.data])
+  }, [openPath, loadedLevels])
 
   /** Expands every ancestor directory of a path so it is visible in the tree. */
   function revealPath(path: string) {
@@ -277,8 +311,10 @@ export function AgentMemoryTab({
           <SizableText size="xs" color="muted">
             Private files this agent reads and writes across sessions.{' '}
             {readOnly ? 'You have read-only access.' : 'You can edit everything here.'}
-            {memory.data
-              ? ` ${fileCount} file${fileCount === 1 ? '' : 's'}, ${formatBytes(memory.data.totalBytes)}.`
+            {totals
+              ? ` ${totals.files}${totals.truncated ? '+' : ''} file${
+                  totals.files === 1 && !totals.truncated ? '' : 's'
+                }, ${formatBytes(totals.bytes)}${totals.truncated ? '+' : ''}.`
               : ''}
           </SizableText>
         </div>
@@ -420,11 +456,11 @@ export function AgentMemoryTab({
             void handleDroppedItems(event.dataTransfer)
           }}
         >
-          {memory.isLoading ? (
+          {!rootQuery || rootQuery.isLoading ? (
             <div className="flex items-center justify-center p-4">
               <Spinner />
             </div>
-          ) : memory.isError ? (
+          ) : rootQuery.isError ? (
             <SizableText size="sm" color="muted" className="p-2">
               Could not load memory from the agent server.
             </SizableText>
@@ -438,6 +474,7 @@ export function AgentMemoryTab({
               <MemoryEntryRow
                 key={entry.path}
                 entry={entry}
+                loadingChildren={entry.type === 'dir' && expandedDirs.has(entry.path) && loadingDirs.has(entry.path)}
                 selected={entry.type === 'file' && entry.path === selectedPath}
                 confirmingDelete={confirmDeletePath === entry.path}
                 expanded={entry.type === 'dir' && expandedDirs.has(entry.path)}
@@ -679,6 +716,7 @@ function MemoryEntryRow({
   confirmingDelete,
   deleting,
   expanded,
+  loadingChildren,
   onToggle,
   onSelect,
   onRequestDelete,
@@ -694,6 +732,8 @@ function MemoryEntryRow({
   deleting: boolean
   /** True when this directory's contents are shown. */
   expanded?: boolean
+  /** True while this expanded directory's listing is still loading. */
+  loadingChildren?: boolean
   /** Collapses/expands this directory. */
   onToggle?: () => void
   onSelect: () => void
@@ -727,6 +767,7 @@ function MemoryEntryRow({
           <ChevronRight className={`size-3 flex-none transition-transform ${expanded ? 'rotate-90' : ''}`} />
           <Folder className="size-3.5 flex-none" />
           <span className="truncate font-mono text-xs">{name}</span>
+          {loadingChildren ? <Spinner className="ml-1 size-3 flex-none" /> : null}
         </button>
       ) : (
         <button
@@ -761,6 +802,11 @@ function MemoryEntryRow({
       ) : null}
     </div>
   )
+}
+
+/** Directory path holding `path`: '' for root-level entries. */
+function parentDirPath(path: string): string {
+  return path.split('/').slice(0, -1).join('/')
 }
 
 /** True when every ancestor directory of the path is expanded (root entries are always visible). */
