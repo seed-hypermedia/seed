@@ -100,11 +100,13 @@ export function TriggerSourceFields({
   onChange,
   trailing,
   lockSourceType = false,
+  allowWebhook = true,
 }: {
   source: AgentTriggerSource
   onChange: (source: AgentTriggerSource) => void
   trailing?: React.ReactNode
   lockSourceType?: boolean
+  allowWebhook?: boolean
 }) {
   return (
     <div className="grid gap-3">
@@ -114,7 +116,11 @@ export function TriggerSourceFields({
             Trigger Session on:
           </SizableText>
           <SelectDropdown
-            options={TRIGGER_TYPE_OPTIONS}
+            options={
+              allowWebhook || source.type === 'webhook'
+                ? TRIGGER_TYPE_OPTIONS
+                : TRIGGER_TYPE_OPTIONS.filter((option) => option.value !== 'webhook')
+            }
             value={source.type}
             onValue={(value) => onChange(defaultSourceForType(value as AgentTriggerSource['type']))}
             disabled={lockSourceType}
@@ -353,7 +359,7 @@ function DocumentAutocompleteField({
         placeholder={placeholder}
       />
       {focused && documents.length ? (
-        <div className="border-border bg-popover absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-auto rounded-md border p-1 shadow-lg">
+        <div className="border-border bg-popover absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-md border p-1 shadow-lg">
           {documents.map((document) => {
             const nextValue = packHmId(document.id)
             return (
@@ -418,7 +424,7 @@ function AccountAutocompleteField({
         placeholder={placeholder}
       />
       {focused && accounts.length ? (
-        <div className="border-border bg-popover absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-auto rounded-md border p-1 shadow-lg">
+        <div className="border-border bg-popover absolute left-0 right-0 top-full z-20 mt-1 max-h-64 overflow-auto rounded-md border p-1 shadow-lg">
           {accounts.map((account) => {
             const nextValue = valueFormat === 'hm-url' ? `hm://${account.id.uid}` : account.id.uid
             return (
@@ -553,7 +559,7 @@ export function TriggerContextView({
     : null
 
   return (
-    <div className="bg-muted/40 mr-6 ml-6 rounded-lg border px-3 py-2 text-xs">
+    <div className="bg-muted/40 ml-6 mr-6 rounded-lg border px-3 py-2 text-xs">
       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
         <Icon className="size-3.5 shrink-0 opacity-70" />
         <span className="shrink-0">Triggered by</span>
@@ -581,13 +587,13 @@ export function TriggerContextView({
       </div>
       {context.error ? <div className="text-destructive mt-1">{context.error}</div> : null}
       <TriggerDisclosure label="Activity details">
-        <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+        <pre className="bg-background/60 text-foreground max-h-72 overflow-auto whitespace-pre-wrap rounded-md border p-2 text-[11px]">
           {JSON.stringify(context.activity, null, 2)}
         </pre>
       </TriggerDisclosure>
       {instructions ? (
         <TriggerDisclosure label="Trigger instructions">
-          <p className="bg-background/60 text-foreground rounded-md border p-2 text-[11px] whitespace-pre-wrap">
+          <p className="bg-background/60 text-foreground whitespace-pre-wrap rounded-md border p-2 text-[11px]">
             {instructions}
           </p>
         </TriggerDisclosure>

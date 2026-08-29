@@ -466,7 +466,7 @@ function AgentDetailPage({
     <PanelContainer className="flex flex-col overflow-hidden">
       <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
         <Container
-          className={isTriggerDetail ? 'max-w-4xl gap-4 pt-4 pb-4' : 'min-h-0 max-w-4xl flex-1 gap-4 pt-4 pb-0'}
+          className={isTriggerDetail ? 'max-w-4xl gap-4 pb-4 pt-4' : 'min-h-0 max-w-4xl flex-1 gap-4 pb-0 pt-4'}
         >
           {agent.isLoading ? (
             <div className="flex flex-1 items-center justify-center py-12">
@@ -683,13 +683,13 @@ function AgentDetailPage({
                     </SizableText>
                   </div>
                   {promptEditorDisabled ? (
-                    <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm whitespace-pre-wrap">
+                    <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 whitespace-pre-wrap rounded-lg border p-4 text-sm">
                       {!canWrite
                         ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
                         : 'Connect to the agent server to edit this prompt.'}
                     </pre>
                   ) : (
-                    <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-4">
+                    <div className="min-h-0 flex-1 overflow-y-auto pb-4 pr-1">
                       <AgentPromptEditor
                         key={promptEditorKey}
                         initialBlocks={systemPrompt}
@@ -914,7 +914,7 @@ function AgentCollaboratorsTab({
             {selected.length ? (
               <Button
                 size="sm"
-                className="h-auto rounded-tl-none rounded-bl-none"
+                className="h-auto rounded-bl-none rounded-tl-none"
                 onClick={() => void handleInvite()}
                 disabled={invite.isLoading}
                 aria-label="Send collaborator invitation"
@@ -1060,7 +1060,7 @@ function AgentCollaboratorRow({
           {metadata?.name || abbreviateUid(member.accountId)}
         </SizableText>
         {member.status === 'pending' ? (
-          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
             Pending
           </span>
         ) : null}
@@ -1206,7 +1206,7 @@ function AuthoredToolDialog({
   }
 
   return (
-    <form className="flex max-h-[78vh] w-full max-w-3xl min-w-0 flex-col gap-4 overflow-y-auto" onSubmit={handleSave}>
+    <form className="flex max-h-[78vh] w-full min-w-0 max-w-3xl flex-col gap-4 overflow-y-auto" onSubmit={handleSave}>
       <div className="flex flex-col gap-1">
         <DialogTitle>{tool ? 'Edit authored tool' : 'Add authored tool'}</DialogTitle>
         <DialogDescription>
@@ -1430,7 +1430,7 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
         <SizableText size="sm" weight="bold">
           Input schema
         </SizableText>
-        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+        <pre className="bg-muted overflow-x-auto whitespace-pre rounded-lg p-3 text-xs">
           {JSON.stringify(meta.inputSchema, null, 2)}
         </pre>
       </div>
@@ -1439,7 +1439,7 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
           <SizableText size="sm" weight="bold">
             Output schema
           </SizableText>
-          <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+          <pre className="bg-muted overflow-x-auto whitespace-pre rounded-lg p-3 text-xs">
             {JSON.stringify(meta.outputSchema, null, 2)}
           </pre>
         </div>
@@ -1523,7 +1523,7 @@ function AuthorIdentityChip({
 
   if (!profileRoute) {
     return (
-      <div className="flex min-w-0 items-center gap-1.5 py-0.5 pr-2 pl-0.5" title={displayName}>
+      <div className="flex min-w-0 items-center gap-1.5 py-0.5 pl-0.5 pr-2" title={displayName}>
         {content}
       </div>
     )
@@ -1689,7 +1689,7 @@ function AgentToolsTab({
                     {group.title}
                   </SizableText>
                   {!groupAvailable ? (
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                       {setupAction ? 'Setup required' : 'Unavailable'}
                     </span>
                   ) : null}
@@ -1848,11 +1848,11 @@ function AgentToolsTab({
               <SizableText size="sm" weight="bold" className="shrink-0 font-mono">
                 {tool.name}
               </SizableText>
-              <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+              <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                 {tool.runtime === 'python' ? 'Python' : 'TypeScript'}
               </span>
               {!tool.enabled ? (
-                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                   Disabled
                 </span>
               ) : null}
@@ -2195,7 +2195,7 @@ function AgentTriggersTab({
                     <SizableText size="sm" weight="bold">
                       Prompt
                     </SizableText>
-                    <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
+                    <pre className="border-border bg-muted/40 min-h-40 whitespace-pre-wrap rounded-lg border p-3 text-sm">
                       {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
                     </pre>
                   </div>
@@ -2205,6 +2205,7 @@ function AgentTriggersTab({
                   <TriggerSourceFields
                     source={source}
                     lockSourceType={source.type === 'webhook'}
+                    allowWebhook={false}
                     onChange={(nextSource) => {
                       setSource(nextSource)
                       setDetailsDirty(true)
@@ -2337,9 +2338,11 @@ function TriggerMeta({label, value}: {label: string; value?: number | string | n
 function CreateAgentTriggerDialog({
   input,
   onClose,
+  setDialogCloseProtection,
 }: {
   input: {serverUrl: string; selectedAccountId: string | null | undefined; agentId: string}
   onClose: () => void
+  setDialogCloseProtection?: (state: {preventClose: boolean; showCloseButton: boolean}) => void
 }) {
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
   const [name, setName] = useState('New activity trigger')
@@ -2349,6 +2352,12 @@ function CreateAgentTriggerDialog({
   )
   const [createdWebhook, setCreatedWebhook] = useState<{endpoint: string; secret: string; curl: string} | null>(null)
   const createRequestId = useRef(crypto.randomUUID())
+  const createRequestKey = useRef('')
+
+  useEffect(() => {
+    setDialogCloseProtection?.({preventClose: !!createdWebhook, showCloseButton: !createdWebhook})
+    return () => setDialogCloseProtection?.({preventClose: false, showCloseButton: true})
+  }, [createdWebhook, setDialogCloseProtection])
 
   async function handleCreateTrigger() {
     try {
@@ -2358,6 +2367,11 @@ function CreateAgentTriggerDialog({
         source,
         prompt: promptBlocksForRequest(prompt),
       }
+      const requestKey = JSON.stringify(trigger)
+      if (createRequestKey.current && createRequestKey.current !== requestKey) {
+        createRequestId.current = crypto.randomUUID()
+      }
+      createRequestKey.current = requestKey
       const result = await createTrigger.mutateAsync({
         agentId: input.agentId,
         trigger,

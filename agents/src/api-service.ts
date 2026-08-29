@@ -6742,7 +6742,16 @@ export class Service {
           if (!bytesEqual(existing.request_cbor, requestCBOR))
             throw new APIError(409, 'Client request ID payload mismatch')
           this.#db.run('COMMIT')
-          return cbor.decode<T>(existing.response_cbor)
+          const stored = cbor.decode<T | {encryptedIdempotencyResponse: Uint8Array}>(existing.response_cbor)
+          if (
+            stored &&
+            typeof stored === 'object' &&
+            'encryptedIdempotencyResponse' in stored &&
+            stored.encryptedIdempotencyResponse instanceof Uint8Array
+          ) {
+            return cbor.decode<T>(await decryptSecret(this.#db, stored.encryptedIdempotencyResponse))
+          }
+          return stored
         }
       }
 
@@ -6751,7 +6760,18 @@ export class Service {
         this.#db.run(
           `INSERT INTO action_idempotency (account_id, action, client_request_id, request_cbor, response_cbor, created_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
-          [accountId, action, normalizedId, requestCBOR, cbor.encode(response), Date.now()],
+          [
+            accountId,
+            action,
+            normalizedId,
+            requestCBOR,
+            cbor.encode(
+              response._ === 'CreateAgentTriggerResponse' && response.webhookSecret
+                ? {encryptedIdempotencyResponse: await encryptSecret(this.#db, cbor.encode(response))}
+                : response,
+            ),
+            Date.now(),
+          ],
         )
       }
       this.#db.run('COMMIT')

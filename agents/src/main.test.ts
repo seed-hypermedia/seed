@@ -170,6 +170,12 @@ describe('main routes', () => {
       expect(created.webhookSecret).toMatch(/^[A-Za-z0-9_-]{43}$/)
       const retried = await svc.message(await apisvc.createSignedEnvelope(account, {action: createAction}))
       expect(retried).toEqual(created)
+      const idempotency = db
+        .query<{response_cbor: Uint8Array}, []>(`SELECT response_cbor FROM action_idempotency`)
+        .get()
+      expect(idempotency).toBeTruthy()
+      expect(new TextDecoder().decode(idempotency!.response_cbor)).not.toContain(created.webhookSecret)
+      expect(cbor.decode(idempotency!.response_cbor)).toHaveProperty('encryptedIdempotencyResponse')
 
       const listed = await svc.message(
         await apisvc.createSignedEnvelope(account, {

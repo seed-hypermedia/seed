@@ -1806,6 +1806,11 @@ export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid:
       clientRequestId?: string
     }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (trigger.source.type === 'webhook' && !isSafeAgentServerSecretTarget(serverUrl)) {
+        throw new Error(
+          'Refusing to create a webhook over a non-local HTTP agent server. Use HTTPS for remote servers.',
+        )
+      }
       return sendAgentAction({
         serverUrl,
         accountUid,
