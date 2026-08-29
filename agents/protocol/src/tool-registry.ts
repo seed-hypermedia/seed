@@ -154,12 +154,18 @@ const writeVerb = {
   label: 'Write',
   description: [
     'Write anything you can address. The address shape picks the destination:',
-    '- `~/memory/<path>` — write `content` to a memory file (parent folders are created automatically; writing an existing file replaces its whole content — there is no append). Options: {delete: true} removes a file or directory; {fromUrl} downloads a URL to the path instead of writing content; {fromAttachment: "<id>"} saves a conversation attachment to the path.',
-    '- `~/triggers/<name>` — create or edit one of your triggers: a standing rule that starts a session (or wakes a parked run) when something happens — a schedule, a comment, a mention, site activity, or a finished run. `content` is JSON {source, prompt, enabled?, continuation?} (read ~/triggers/ for the source shapes); enabled defaults to true, and writing with enabled false turns a trigger off. {delete: true} removes a trigger.',
-    '- `ipfs://` — publish to IPFS and get a CID URL back. Provide {fromPath: "~/memory/<path>"} or {fromAttachment: "<id>"} in options.',
-    '- `hm://<account>/<path>` — publish a hypermedia document with markdown `content`. The default creates a NEW document; pass {action: "update"} to revise an existing document in place (same address, new version); an update with `content` replaces the whole body, while omitting `content` changes only name/metadata and leaves the body untouched. Options: {name} sets the document name, REQUIRED when creating (it is stored as metadata.name; a # heading is body content, not the name); {metadata} sets further document metadata attributes as an object (e.g. {summary, icon, cover, or custom keys}) — metadata belongs here, never in the body text; {signer} picks the signing identity by profileName or publicKey; {action} also covers "comment" (with {target, replyTo}), "move" (with {toPath}), "redirect" (with {toUrl}), "delete", "fork" (with {fromUrl}). Unrecognized option keys are refused, not ignored. Parent documents must exist before nested paths.',
-    'Writing to hm:// publishes signed content other people can see — be sure the content is ready. Pass top-level dryRun: true to validate an hm:// write without publishing anything.',
-    'Every hm:// link inside document or comment content is checked before publishing: malformed links always fail the write, and links whose targets do not exist on the server fail it too — fix them (read each link to verify), or pass {skipLinkCheck: true} in options only when a linked target is about to be created.',
+    '- `~/memory/<path>` — files: replace content, delete, download a URL, or save an attachment. Details: `~/tools/write/memory`.',
+    '- `~/tools/<name>` — authored callable tools: create, replace, or delete. Details: `~/tools/write/tools`.',
+    '- `~/triggers/<name>` — automations: create, edit, enable, disable, or delete. Details: `~/tools/write/triggers`.',
+    '- `ipfs://` — publish a memory file or attachment. Details: `~/tools/write/ipfs`.',
+    '- `hm://<account>/<path>` — signed Seed resources. Features are grouped below; read the exact guide before an unfamiliar operation:',
+    '  - `~/tools/write/documents` — create, replace, rename, move, redirect, fork, or delete documents; metadata and memory-file publishing.',
+    '  - `~/tools/write/comments` — comment, reply, edit, or delete comments.',
+    '  - `~/tools/write/capabilities` — grant WRITER or AGENT access to an account or path.',
+    '  - `~/tools/write/contacts` — create named contacts or delete contact records.',
+    '  - `~/tools/write/profiles` — update a profile name, description, or icon; publish profile aliases.',
+    '  - `~/tools/write/drafts` — stage, inspect, list, revise, delete, or publish document drafts.',
+    'Writing to hm:// or ipfs:// publishes content other people can see. The resource guides document exact action names, fields, examples, signer behavior, and dry-run support without loading unrelated details here.',
   ].join('\n'),
   inputSchema: {
     type: 'object',
@@ -177,7 +183,8 @@ const writeVerb = {
       },
       options: {
         type: 'object',
-        description: 'Destination-specific options; read ~/tools/write for the full contract per address form.',
+        description:
+          'Destination-specific options. Read the matching ~/tools/write/<resource> guide before an unfamiliar Seed write.',
       },
       dryRun: {
         type: 'boolean',

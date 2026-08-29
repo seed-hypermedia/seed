@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'bun:test'
-import {getToolReferencedUrls} from './tool-registry'
+import {getToolReferencedUrls, seedVerbRegistry} from './tool-registry'
+import {writeGuideRegistry} from './write-guides'
 
 describe('tool reference extraction', () => {
   test('includes the exact version of a newly created document', () => {
@@ -33,5 +34,20 @@ describe('tool reference extraction', () => {
       'hm://z6MkOwner/notes',
       'hm://z6MkAgent',
     ])
+  })
+})
+
+describe('write contract', () => {
+  test('indexes every detailed resource guide without loading action schemas up front', () => {
+    const description = seedVerbRegistry.write.description
+    for (const resource of Object.keys(writeGuideRegistry)) {
+      expect(description).toContain(`~/tools/write/${resource}`)
+    }
+    expect(description).toContain('grant WRITER or AGENT access')
+    expect(description).not.toContain('capability.grant')
+    expect(writeGuideRegistry.capabilities.markdown).toContain('capability.grant')
+    expect(writeGuideRegistry.contacts.markdown).toContain('contact.create')
+    expect(writeGuideRegistry.profiles.markdown).toContain('profile.update')
+    expect(writeGuideRegistry.drafts.markdown).toContain('draft.create')
   })
 })
