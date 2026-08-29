@@ -732,7 +732,9 @@ function promotedDocumentToolMetadata(name: string): SeedToolMetadata | undefine
     ...call,
     name,
     label,
-    render: {...call.render, label, primaryArg: undefined, summaryArg: undefined},
+    // The label already names the tool, so the row reads the executor's `argument` (an MCP
+    // call's subject) and falls back to its `summary` through getToolSummary.
+    render: {...call.render, label, primaryArg: undefined, summaryArg: undefined, summaryOutputPath: 'argument'},
   }
 }
 
@@ -760,6 +762,12 @@ function getToolLinks(item: ChatToolPart) {
 
 function getToolSummary(item: ChatToolPart): string | undefined {
   if (item.summaryOverride) return item.summaryOverride
+  // The model's own one-line intent on a `call` outranks anything derived from the input or the
+  // result — it is the row the user was meant to read.
+  if (item.name === 'call') {
+    const intent = getToolString(item.args, 'description')
+    if (intent) return intent
+  }
   const metadata = getRowToolMetadata(item)
   const outputSummary = firstInlinePathValue(item.rawOutput, metadata?.render.summaryOutputPath)
   if (outputSummary) return outputSummary
@@ -767,7 +775,8 @@ function getToolSummary(item: ChatToolPart): string | undefined {
   const inputSummary = firstInlinePathValue(item.args, metadata?.render.summaryArg || metadata?.render.primaryArg)
   if (inputSummary) return inputSummary
 
-  return item.result
+  // Any executor that wrote a `summary` field has said what happened better than raw result text.
+  return getToolString(item.rawOutput, 'summary') ?? item.result
 }
 
 function getToolDetails(item: ChatToolPart) {

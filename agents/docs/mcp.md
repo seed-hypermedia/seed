@@ -79,9 +79,12 @@ palette verb (`InvokeSessionTool`) — and is absent nowhere a call could happen
 3. proxy the call over the pool with a 120s timeout;
 4. a server-reported error (`isError`) and any transport failure are **thrown**, so they land on the log as
    `tool_result.error` the model can react to;
-5. the result is `{summary, text?, result?, images?, durationMs}` — `text` is the joined text content (bounded at 256
-   KiB), `result` is the server's `structuredContent`. Image content rides to vision models as inline parts; the durable
-   event keeps only the count.
+5. the result is `{summary, argument?, text?, result?, images?, durationMs}` — `argument` is the call's first string
+   argument short enough (≤ 80 chars) to name what happened, `summary` is `<tool> · <argument>` (or "Ran <tool> on the
+   <server> MCP server" without one), `text` is the joined text content (bounded at 256 KiB), `result` is the server's
+   `structuredContent`. Image content rides to vision models as inline parts; the durable event keeps only the count.
+   The chat row shows `summary` on a `call` row and just `argument` on a promoted row (whose label already names the
+   server and tool); a `description` on the `call` outranks both.
 
 **Promotion** covers remote tools: once `read ~/tools/github__create_issue` or a `call` of it has entered the
 transcript, the next turn hands the provider that document's name, description, and schema as a first-class tool

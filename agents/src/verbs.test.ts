@@ -340,14 +340,50 @@ describe('call verb', () => {
         execute: executeSpy,
       } as never,
     })
-    const result = await executeCallVerb(
+    // No description: the contract comes back and nothing runs — the row the user reads is the
+    // description, so a run without one is a run the user cannot follow.
+    const undescribed = await executeCallVerb(
       context,
       {tool: 'execute', input: {runtime: 'python', code: 'print(1)'}},
+      'tc0',
+    )
+    expect(String(undescribed.summary)).toContain('did not match its contract')
+    expect(undescribed.validationErrors).toEqual(['$.description: required property is missing'])
+    expect(executeSpy).not.toHaveBeenCalled()
+
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Count the words in notes', runtime: 'python', code: 'print(1)'}},
       'tc1',
     )
-    expect(String(result.summary)).toContain('Ran python code')
+    // The summary leads with the agent's own account of the run, then only what changed the picture.
+    expect(result.summary).toBe('Count the words in notes · 1 memory file changed')
     expect(executeSpy).toHaveBeenCalledTimes(1)
     expect(context.onMemoryChange).toHaveBeenCalled()
+  })
+
+  test('a failed execute keeps the description and adds the exit code', async () => {
+    const context = makeContext({
+      codeExec: {
+        runtimes: ['python', 'shell'],
+        availability: async () => ({available: true, runtimes: ['python', 'shell']}),
+        execute: async () => ({
+          exitCode: 2,
+          success: false,
+          stdout: '',
+          stderr: 'boom',
+          truncated: false,
+          durationMs: 5,
+          changedFiles: [],
+        }),
+      } as never,
+    })
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Validate the CSV', runtime: 'python', code: 'raise SystemExit(2)'}},
+      'tc2',
+    )
+    expect(result.summary).toBe('Validate the CSV · exit 2')
   })
 
   test('the execute contract offers only the runtimes this server can actually run', async () => {
@@ -362,7 +398,11 @@ describe('call verb', () => {
     })
     // A model asking for TypeScript on a server with no bun image gets the contract back — with ts
     // absent from the enum — instead of a sandbox failure it cannot diagnose.
-    const result = await executeCallVerb(context, {tool: 'execute', input: {runtime: 'ts', code: 'x'}}, undefined)
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Try TypeScript', runtime: 'ts', code: 'x'}},
+      undefined,
+    )
     expect(String(result.summary)).toContain('did not match its contract')
     expect(String(result.contract)).toContain('"python"')
     expect(String(result.contract)).not.toContain('"ts"')
@@ -780,12 +820,35 @@ describe('mcp tools through the call verb', () => {
     })
     seedMcp(context, 'weather', [forecastTool])
 
-    const result = await executeCallVerb(context, {tool: 'weather__forecast', input: {city: 'Lisbon'}}, 'tc-mcp')
+    const result = await executeCallVerb(
+      context,
+      {tool: 'weather__forecast', input: {city: 'Lisbon'}, description: 'Check the weather for the trip'},
+      'tc-mcp',
+    )
+    // The call-level description never reaches the server; the row reads it from the event.
     expect(calls).toEqual([['weather', 'forecast', {city: 'Lisbon'}]])
     expect(result.text).toBe('Sunny, 24°C')
     expect(result.result).toEqual({tempC: 24})
-    expect(String(result.summary)).toContain('Ran forecast on the weather MCP server')
+    // The summary names the call by its first short argument; a promoted row reads `argument` alone.
+    expect(result.summary).toBe('forecast · Lisbon')
+    expect(result.argument).toBe('Lisbon')
     expect(context.onToolProgress).toHaveBeenCalledWith('call', expect.objectContaining({toolCallId: 'tc-mcp'}))
+  })
+
+  test('a call whose arguments are long or non-string falls back to naming the server', async () => {
+    const context = makeContext({
+      mcp: {callTool: mock(async () => ({text: 'ok', images: [], isError: false}))},
+    })
+    seedMcp(context, 'notes', [{name: 'append'}])
+    const result = await executeCallVerb(
+      context,
+      {tool: 'notes__append', input: {count: 3, body: 'x'.repeat(200)}},
+      'tc-long',
+    )
+    expect(result.summary).toBe('Ran append on the notes MCP server')
+    expect(result.argument).toBeUndefined()
+    expect(apisvc.firstShortStringArgument({a: '  spaced   out  ', b: 'second'})).toBe('spaced out')
+    expect(apisvc.firstShortStringArgument({a: '', b: 'second'})).toBe('second')
   })
 
   test('a miss answers with the contract; server errors and transport failures are thrown', async () => {

@@ -255,6 +255,7 @@ const callVerb = {
   description: [
     'Invoke a tool by name with a JSON input. Your available tools are listed in your context with one-line summaries; read `~/tools/<name>` for a full contract.',
     'Calling a tool with missing or invalid input does not fail: the result is the tool contract itself — read it and call again correctly. Do not guess elaborate inputs for a tool you have not expanded.',
+    'When the input alone would not tell a reader what the call is for, add `description`: one short line of intent that the user sees as the row label instead of the raw input.',
   ].join('\n'),
   inputSchema: {
     type: 'object',
@@ -262,6 +263,13 @@ const callVerb = {
     properties: {
       tool: {type: 'string', minLength: 1, description: 'The tool name, as listed under ~/tools/.'},
       input: {type: 'object', description: "The tool's input, matching its contract."},
+      description: {
+        type: 'string',
+        minLength: 3,
+        maxLength: 120,
+        description:
+          'Optional one-line intent for the user ("Look up the repo\'s docs structure"), shown as the row label. Not passed to the tool.',
+      },
     },
     required: ['tool'],
   },
@@ -594,6 +602,13 @@ const executeTool = {
     type: 'object',
     additionalProperties: false,
     properties: {
+      description: {
+        type: 'string',
+        minLength: 3,
+        maxLength: 120,
+        description:
+          'What this run does, in one short line the user reads instead of the code — say the intent, not the mechanics: "Count words across the notes folder", "Convert the cover photo to WebP", "Check whether the CSV has duplicate ids". Under 80 characters, no trailing period. Required.',
+      },
       runtime: {
         type: 'string',
         enum: ['ts', 'python', 'shell'],
@@ -607,7 +622,7 @@ const executeTool = {
         description: 'Optional timeout override in seconds. Defaults to the server limit (typically 60).',
       },
     },
-    required: ['runtime', 'code'],
+    required: ['description', 'runtime', 'code'],
   },
   outputSchema: {
     type: 'object',
@@ -636,8 +651,11 @@ const executeTool = {
     kind: 'write',
     label: 'Execute Code',
     color: 'amber',
-    primaryArg: 'runtime',
-    summaryArg: 'runtime',
+    // The row reads the agent's own one-line description of the run — live while the sandbox is
+    // up, and afterwards through the summary, which leads with it. Old transcripts without one
+    // fall back to the runtime name.
+    primaryArg: 'description',
+    summaryArg: 'description',
     summaryOutputPath: 'summary',
     details: [
       {label: 'Code', source: 'input', path: 'code'},
