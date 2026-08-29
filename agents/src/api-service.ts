@@ -591,6 +591,8 @@ export class Service {
   readonly #web: WebToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
+  /** Async idempotent actions keyed while their external preparation is in flight. */
+  readonly #pendingIdempotentActions = new Map<string, {requestCBOR: Uint8Array; promise: Promise<api.AgentResponse>}>()
   /** Accepted collaborator audiences, cached because partial text events can arrive per token. */
   readonly #collaboratorAudience = new Map<string, Array<{account_id: string; role: api.AgentCollaboratorRole}>>()
   /** Short-lived profile labels for model-facing member rosters; account IDs remain authoritative. */
@@ -1593,49 +1595,59 @@ export class Service {
     rawLabel?: string,
     clientRequestId?: string,
   ): Promise<api.CreateSigningIdentityResponse> {
-    return this.#withIdempotency(accountId, 'CreateSigningIdentity', clientRequestId, {label: rawLabel}, async () => {
-      const label =
-        rawLabel === undefined ? undefined : normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
-      const keyPair = blobs.generateNobleKeyPair()
-      const identityAccountId = blobs.principalToString(keyPair.principal)
-      const name = `hm-account-${identityAccountId.slice(0, 16)}`
-      const displayName = label || `Agent account ${identityAccountId.slice(0, 10)}`
-      try {
-        await publishSigningIdentityProfileAndHome(this.#hmServerUrl, keyPair, displayName)
-      } catch (error) {
-        throw new APIError(502, `Failed to publish agent account to ${this.#hmServerUrl}: ${errorMessage(error)}`)
-      }
-      const metadata: Record<string, unknown> = {
-        kind: 'hm-account-key',
-        accountId: identityAccountId,
-        label: displayName,
-        serverUrl: this.#hmServerUrl,
-        generatedBy: 'seed-agents-server',
-      }
-      const now = Date.now()
-      const ciphertext = await encryptSecret(this.#db, keyPair.seed)
-      const id = crypto.randomUUID()
-
-      this.#ensureAccount(accountId, now)
-      this.#db.run(
-        `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
-      )
-
-      return {
-        _: 'CreateSigningIdentityResponse',
-        identity: {
-          id,
-          name,
+    return this.#withAsyncIdempotency(
+      accountId,
+      'CreateSigningIdentity',
+      clientRequestId,
+      {label: rawLabel},
+      async () => {
+        const label =
+          rawLabel === undefined
+            ? undefined
+            : normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
+        const keyPair = blobs.generateNobleKeyPair()
+        const identityAccountId = blobs.principalToString(keyPair.principal)
+        const name = `hm-account-${identityAccountId.slice(0, 16)}`
+        const displayName = label || `Agent account ${identityAccountId.slice(0, 10)}`
+        try {
+          await publishSigningIdentityProfileAndHome(this.#hmServerUrl, keyPair, displayName)
+        } catch (error) {
+          throw new APIError(502, `Failed to publish agent account to ${this.#hmServerUrl}: ${errorMessage(error)}`)
+        }
+        const metadata: Record<string, unknown> = {
+          kind: 'hm-account-key',
           accountId: identityAccountId,
-          label: String(metadata.label),
+          label: displayName,
           serverUrl: this.#hmServerUrl,
-          createdAt: now,
-          updatedAt: now,
-        },
-      }
-    })
+          generatedBy: 'seed-agents-server',
+        }
+        const now = Date.now()
+        const ciphertext = await encryptSecret(this.#db, keyPair.seed)
+        const id = crypto.randomUUID()
+
+        return () => {
+          this.#ensureAccount(accountId, now)
+          this.#db.run(
+            `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
+          )
+
+          return {
+            _: 'CreateSigningIdentityResponse',
+            identity: {
+              id,
+              name,
+              accountId: identityAccountId,
+              label: String(metadata.label),
+              serverUrl: this.#hmServerUrl,
+              createdAt: now,
+              updatedAt: now,
+            },
+          }
+        }
+      },
+    )
   }
 
   /**
@@ -1653,54 +1665,65 @@ export class Service {
     rawLabel?: string,
     clientRequestId?: string,
   ): Promise<api.ImportSigningIdentityResponse> {
-    return this.#withIdempotency(accountId, 'ImportSigningIdentity', clientRequestId, {label: rawLabel}, async () => {
-      if (!(seed instanceof Uint8Array) || seed.byteLength !== 32) {
-        throw new APIError(400, 'Key seed must be exactly 32 bytes')
-      }
-      const label =
-        rawLabel === undefined ? undefined : normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
-      const keyPair = blobs.nobleKeyPairFromSeed(seed)
-      const identityAccountId = blobs.principalToString(keyPair.principal)
-      const name = `hm-account-${identityAccountId.slice(0, 16)}`
-      const existing = this.#db
-        .query<{id: string}, [string, string]>(`SELECT id FROM secrets WHERE account_id = ? AND name = ?`)
-        .get(accountId, name)
-      if (existing) throw new APIError(409, `This account key is already on the server (${identityAccountId})`)
-      // No fabricated display name: import publishes nothing, so any label stored here must be a
-      // truthful snapshot of the account's real profile name — the client resolves and sends it.
-      // Without one, the identity shows by its account id until the user renames it (which goes
-      // through UpdateSigningIdentity's explicit profile publish).
-      const metadata: Record<string, unknown> = {
-        kind: 'hm-account-key',
-        accountId: identityAccountId,
-        ...(label ? {label} : {}),
-        serverUrl: this.#hmServerUrl,
-        importedBy: 'user',
-      }
-      const now = Date.now()
-      const ciphertext = await encryptSecret(this.#db, seed)
-      const id = crypto.randomUUID()
-
-      this.#ensureAccount(accountId, now)
-      this.#db.run(
-        `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
-      )
-
-      return {
-        _: 'ImportSigningIdentityResponse',
-        identity: {
-          id,
-          name,
+    return this.#withAsyncIdempotency(
+      accountId,
+      'ImportSigningIdentity',
+      clientRequestId,
+      {label: rawLabel},
+      async () => {
+        if (!(seed instanceof Uint8Array) || seed.byteLength !== 32) {
+          throw new APIError(400, 'Key seed must be exactly 32 bytes')
+        }
+        const label =
+          rawLabel === undefined
+            ? undefined
+            : normalizeBoundedString(rawLabel, 'Signing identity label', MAX_NAME_BYTES)
+        const keyPair = blobs.nobleKeyPairFromSeed(seed)
+        const identityAccountId = blobs.principalToString(keyPair.principal)
+        const name = `hm-account-${identityAccountId.slice(0, 16)}`
+        // No fabricated display name: import publishes nothing, so any label stored here must be a
+        // truthful snapshot of the account's real profile name — the client resolves and sends it.
+        // Without one, the identity shows by its account id until the user renames it (which goes
+        // through UpdateSigningIdentity's explicit profile publish).
+        const metadata: Record<string, unknown> = {
+          kind: 'hm-account-key',
           accountId: identityAccountId,
           ...(label ? {label} : {}),
           serverUrl: this.#hmServerUrl,
-          createdAt: now,
-          updatedAt: now,
-        },
-      }
-    })
+          importedBy: 'user',
+        }
+        const now = Date.now()
+        const ciphertext = await encryptSecret(this.#db, seed)
+        const id = crypto.randomUUID()
+
+        return () => {
+          const existing = this.#db
+            .query<{id: string}, [string, string]>(`SELECT id FROM secrets WHERE account_id = ? AND name = ?`)
+            .get(accountId, name)
+          if (existing) throw new APIError(409, `This account key is already on the server (${identityAccountId})`)
+
+          this.#ensureAccount(accountId, now)
+          this.#db.run(
+            `INSERT INTO secrets (id, account_id, name, ciphertext, metadata_cbor, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id, accountId, name, ciphertext, cbor.encode(metadata), now, now],
+          )
+
+          return {
+            _: 'ImportSigningIdentityResponse',
+            identity: {
+              id,
+              name,
+              accountId: identityAccountId,
+              ...(label ? {label} : {}),
+              serverUrl: this.#hmServerUrl,
+              createdAt: now,
+              updatedAt: now,
+            },
+          }
+        }
+      },
+    )
   }
 
   async #updateSigningIdentity(
@@ -6291,6 +6314,84 @@ export class Service {
       systemPromptMarkdown: await this.#agentSystemPrompt(accountId, agent.id, definition, agent.state_dir),
       ...(triggerContext ? {triggerContext} : {}),
     }
+  }
+
+  async #withAsyncIdempotency<T extends api.AgentResponse>(
+    accountId: string,
+    action: string,
+    clientRequestId: string | undefined,
+    request: unknown,
+    prepare: () => Promise<() => T>,
+  ): Promise<T> {
+    const normalizedId =
+      clientRequestId === undefined
+        ? undefined
+        : normalizeBoundedString(clientRequestId, 'Client request ID', MAX_NAME_BYTES)
+    const requestCBOR = normalizedId === undefined ? undefined : cbor.encode(request)
+    const key = normalizedId === undefined ? undefined : JSON.stringify([accountId, action, normalizedId])
+
+    if (normalizedId !== undefined && requestCBOR !== undefined && key !== undefined) {
+      const existing = this.#db
+        .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+          `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+        )
+        .get(accountId, action, normalizedId)
+      if (existing) {
+        if (!bytesEqual(existing.request_cbor, requestCBOR))
+          throw new APIError(409, 'Client request ID payload mismatch')
+        return cbor.decode<T>(existing.response_cbor)
+      }
+
+      const pending = this.#pendingIdempotentActions.get(key)
+      if (pending) {
+        if (!bytesEqual(pending.requestCBOR, requestCBOR)) throw new APIError(409, 'Client request ID payload mismatch')
+        return pending.promise as Promise<T>
+      }
+    }
+
+    const run = async (): Promise<T> => {
+      const commit = await prepare()
+      this.#db.run('BEGIN IMMEDIATE')
+      try {
+        if (normalizedId !== undefined && requestCBOR !== undefined) {
+          const existing = this.#db
+            .query<{request_cbor: Uint8Array; response_cbor: Uint8Array}, [string, string, string]>(
+              `SELECT request_cbor, response_cbor FROM action_idempotency WHERE account_id = ? AND action = ? AND client_request_id = ?`,
+            )
+            .get(accountId, action, normalizedId)
+          if (existing) {
+            if (!bytesEqual(existing.request_cbor, requestCBOR))
+              throw new APIError(409, 'Client request ID payload mismatch')
+            this.#db.run('COMMIT')
+            return cbor.decode<T>(existing.response_cbor)
+          }
+        }
+
+        const response = commit()
+        if (normalizedId !== undefined && requestCBOR !== undefined) {
+          this.#db.run(
+            `INSERT INTO action_idempotency (account_id, action, client_request_id, request_cbor, response_cbor, created_at)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [accountId, action, normalizedId, requestCBOR, cbor.encode(response), Date.now()],
+          )
+        }
+        this.#db.run('COMMIT')
+        return response
+      } catch (error) {
+        this.#db.run('ROLLBACK')
+        throw error
+      }
+    }
+
+    const promise = run()
+    if (key !== undefined && requestCBOR !== undefined) {
+      this.#pendingIdempotentActions.set(key, {requestCBOR, promise})
+      const clear = () => {
+        if (this.#pendingIdempotentActions.get(key)?.promise === promise) this.#pendingIdempotentActions.delete(key)
+      }
+      void promise.then(clear, clear)
+    }
+    return promise
   }
 
   async #withIdempotency<T extends api.AgentResponse>(
