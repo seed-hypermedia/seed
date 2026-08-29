@@ -398,9 +398,9 @@ describe('integrated step rows', () => {
     expect(onCancelRun).toHaveBeenCalledWith('child-coda')
   })
 
-  it('marks a step the runtime settled, and leaves the ones the agent closed unmarked', () => {
-    // A step closed from finished sub-agents is still done — but the agent never said so, and a
-    // checklist that reads identically either way credits its own bookkeeping to the agent.
+  it('renders runtime-settled and agent-closed steps identically', () => {
+    // Provenance lives in the attached sub-agent row (click through to the sub-session), so
+    // runtime-settled steps carry no extra marker.
     const mixedPlan = {
       title: 'Research',
       steps: [
@@ -419,13 +419,7 @@ describe('integrated step rows', () => {
         onCancelRun={vi.fn()}
       />,
     )
-    const markers = Array.from(container.querySelectorAll('[data-testid="step-resolved-by-runtime"]'))
-    expect(markers).toHaveLength(1)
-    expect(markers[0]!.textContent).toBe('auto')
-    expect(markers[0]!.getAttribute('title')).toBe('Settled by the runtime from completed sub-agent results')
-    // It rides the step it belongs to, not the one the agent closed itself.
-    expect(markers[0]!.parentElement!.textContent).toContain('Research both tools')
-    expect(markers[0]!.parentElement!.textContent).not.toContain('Write the comparison')
+    expect(container.querySelectorAll('[data-testid="step-resolved-by-runtime"]')).toHaveLength(0)
   })
 
   it('a step with exactly one attached child stays the integrated row', () => {

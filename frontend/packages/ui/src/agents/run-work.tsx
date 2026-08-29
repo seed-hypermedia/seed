@@ -471,18 +471,6 @@ export function PlanStepRow({
           row genuinely runs out — percentage caps collapse inside shrink-wrapped ancestors and
           were cutting short labels at a fraction of the available width. */}
       <span className={`min-w-0 flex-[2] truncate ${STEP_CLASSES[status]}`}>{step.label}</span>
-      {/* Who closed it. A step the runtime settled from finished sub-agents is still done — but the
-          agent never said so, and a checklist that reads identically either way quietly attributes
-          the runtime's bookkeeping to the agent's judgment. */}
-      {step.resolvedBy === 'runtime' ? (
-        <span
-          data-testid="step-resolved-by-runtime"
-          title="Settled by the runtime from completed sub-agent results"
-          className="text-muted-foreground flex-none text-[10px] tracking-wide uppercase opacity-70"
-        >
-          auto
-        </span>
-      ) : null}
       {child ? (
         <ChildRunPresence
           run={child}
