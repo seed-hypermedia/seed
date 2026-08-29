@@ -4806,6 +4806,23 @@ export class Service {
       maxAttempts: AGENT_RUN_MAX_ATTEMPTS,
     })
     runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
+    // The parent transcript names its child from this moment: the call stays parked (no
+    // tool_result) until the child finishes, and a client that had to discover the child through
+    // the run tree instead could sit on "starting" for the child's whole life.
+    this.#appendSessionEvent(
+      accountId,
+      parentAgentId,
+      parentSessionId,
+      {
+        type: 'tool_spawn',
+        toolCallId,
+        name: seedVerbRegistry.delegate.name,
+        runId: childRunId,
+        sessionId: session.sessionId,
+        title,
+      },
+      Date.now(),
+    )
     console.info('[agents/runtime] sub-session spawned', {
       accountId,
       parentRunId: parentRun.id,
@@ -5023,6 +5040,15 @@ export class Service {
       maxAttempts: 1,
     })
     runningSession.parkToolCallIds = [...(runningSession.parkToolCallIds ?? []), toolCallId]
+    // Same durable link a model child gets (see #spawnSubSession): the row can show the run's own
+    // work the moment it exists rather than after the run tree happens to be re-read.
+    this.#appendSessionEvent(
+      accountId,
+      parentAgentId,
+      parentSessionId,
+      {type: 'tool_spawn', toolCallId, name: seedVerbRegistry.delegate.name, runId: childRunId, title},
+      Date.now(),
+    )
     console.info('[agents/workflow] workflow spawned from chat', {
       accountId,
       parentRunId: parentRun.id,

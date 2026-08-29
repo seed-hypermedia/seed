@@ -1302,6 +1302,23 @@ export type SessionEventPayload =
     }
   | {type: 'tool_call'; id: string; name: string; input: unknown; actor?: SessionActor}
   | {
+      /**
+       * A `delegate` call spawned its child. Appended the moment the child exists — before it has
+       * run a single step — so the transcript names the child while the call is still parked on it
+       * and a client can open the child without discovering it through the run tree. The call's
+       * `tool_result` still arrives from the child's finalizer; this event never stands in for it.
+       */
+      type: 'tool_spawn'
+      toolCallId: string
+      name: string
+      /** The child run. Present for every kind of child. */
+      runId: string
+      /** The child's session. Present for model children; a script child has a run and no session. */
+      sessionId?: string
+      title: string
+      actor?: SessionActor
+    }
+  | {
       type: 'tool_result'
       toolCallId: string
       name: string

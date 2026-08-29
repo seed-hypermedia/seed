@@ -41,6 +41,73 @@ describe('buildAgentSessionChatRows', () => {
     expect(part).toMatchObject({args: {query: 'seed'}})
   })
 
+  it('folds a tool_spawn onto its delegate call, naming the child before any result exists', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'd1', name: 'delegate', input: {title: 'Researcher', brief: 'Go.'}}),
+        event(2, {
+          type: 'tool_spawn',
+          toolCallId: 'd1',
+          name: 'delegate',
+          runId: 'run-child',
+          sessionId: 'session-child',
+          title: 'Researcher',
+        }),
+      ],
+      CONTEXT,
+    )
+
+    // One row, still pending (the spawn is not a result), but it already knows its child.
+    expect(rows).toHaveLength(1)
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    const part = row.message.parts?.[0]
+    expect(part).toMatchObject({
+      type: 'tool',
+      id: 'd1',
+      args: {title: 'Researcher', brief: 'Go.'},
+      child: {runId: 'run-child', sessionId: 'session-child', title: 'Researcher'},
+    })
+    expect(part && 'result' in part ? part.result : undefined).toBeUndefined()
+  })
+
+  it('keeps the spawned child on the row once the delegate result lands', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'd1', name: 'delegate', input: {title: 'Researcher'}}),
+        event(2, {type: 'tool_spawn', toolCallId: 'd1', name: 'delegate', runId: 'run-child', title: 'Researcher'}),
+        event(3, {type: 'tool_result', toolCallId: 'd1', name: 'delegate', output: {status: 'succeeded'}}),
+      ],
+      CONTEXT,
+    )
+
+    expect(rows).toHaveLength(1)
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    expect(row.message.parts?.[0]).toMatchObject({
+      id: 'd1',
+      rawOutput: {status: 'succeeded'},
+      child: {runId: 'run-child', title: 'Researcher'},
+    })
+  })
+
+  it('a tool_spawn whose call event is missing still becomes a row into the child', () => {
+    const rows = buildAgentSessionChatRows(
+      [event(1, {type: 'tool_spawn', toolCallId: 'd1', name: 'delegate', runId: 'run-child', sessionId: 's-child'})],
+      CONTEXT,
+    )
+
+    expect(rows).toHaveLength(1)
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    expect(row.message.parts?.[0]).toMatchObject({
+      type: 'tool',
+      id: 'd1',
+      name: 'delegate',
+      child: {runId: 'run-child', sessionId: 's-child'},
+    })
+  })
+
   it('renders a tool result with no preceding call as its own row', () => {
     const rows = buildAgentSessionChatRows(
       [event(1, {type: 'tool_result', toolCallId: 'orphan', name: 'read', output: {summary: 'Read it.'}})],

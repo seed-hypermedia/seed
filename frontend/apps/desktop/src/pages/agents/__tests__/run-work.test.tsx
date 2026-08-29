@@ -671,6 +671,53 @@ describe('delegate expanded view', () => {
     )
   })
 
+  it('a delegate stamped with its child is a way in with no run-tree lookup at all', () => {
+    // The runtime stamps the child onto the call as it spawns. Nothing else is available here — no
+    // session runs, no tree — and the row must still open the child and show its work, so a child
+    // that is only warming up (queued, prompt processing) is never hidden behind "Starting the child…".
+    mockState.run = makeRun({
+      id: 'child-stamped',
+      status: 'queued',
+      rootRunId: 'turn-4',
+      parentRunId: 'turn-4',
+      sessionId: 'child-session-stamped',
+      parentToolCallId: 'call-stamped',
+      title: 'Researcher',
+      plan: {steps: [{id: 's1', label: 'Read the pricing page', status: 'pending'}]},
+    } as never)
+    render(
+      <ChatMessageBubble
+        message={{
+          role: 'assistant',
+          sessionId: 'session-1',
+          parts: [
+            {
+              type: 'tool',
+              id: 'call-stamped',
+              name: 'delegate',
+              args: {title: 'Researcher', brief: 'Go.'},
+              child: {runId: 'child-stamped', sessionId: 'child-session-stamped', title: 'Researcher'},
+            },
+          ],
+        }}
+        serverUrl="http://localhost:3050"
+        accountUid="account-1"
+      />,
+    )
+    const link = container.querySelector('button[title="Open Researcher"]')
+    expect(link).not.toBeNull()
+    click(link)
+    expect(mockState.navigate).toHaveBeenCalledWith(
+      {key: 'agent-session', sessionId: 'child-session-stamped', serverUrl: 'http://localhost:3050'},
+      expect.anything(),
+    )
+
+    click(container.querySelector('button[title="Show tool details"]'))
+    expect(container.textContent).toContain('Read the pricing page')
+    expect(container.textContent).toContain('Open transcript')
+    expect(container.textContent).not.toContain('Starting the child')
+  })
+
   it('a detached child that outlives its finished turn still resolves, to the newest continueAsNew link', () => {
     // Eric's live repro: "until I tell you to stop" spawned a detached monitoring workflow, the
     // turn succeeded, and the delegate row spun on "Starting the child…" forever — the child

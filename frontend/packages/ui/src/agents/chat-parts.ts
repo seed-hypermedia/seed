@@ -23,6 +23,16 @@ export type ChatTextPart = {
   text: string
 }
 
+/**
+ * The child a `delegate` call spawned, known from the moment it exists (the `tool_spawn` event).
+ * A model child has a session; a script child has only its run.
+ */
+export type ChatToolChild = {
+  runId: string
+  sessionId?: string
+  title?: string
+}
+
 /** A tool item within an assistant message, optionally updated with a result later. */
 export type ChatToolPart = {
   type: 'tool'
@@ -31,6 +41,11 @@ export type ChatToolPart = {
   args?: Record<string, unknown>
   result?: string
   rawOutput?: unknown
+  /**
+   * The child this delegation is parked on, stamped durably when it spawned — so the row is a way
+   * into the child's work for its whole life, not only once its result has come back.
+   */
+  child?: ChatToolChild
   /** Durable timestamp of the result event; the row itself stays positioned at the call event. */
   completedAt?: number
   /** The result was an error (validation failure, tool crash) — `result` holds the message. */

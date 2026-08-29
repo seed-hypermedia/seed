@@ -1760,17 +1760,24 @@ function DelegateWorkDetails({
   const selectedAccountId = useSelectedAccountId()
   const {sessionId: transcriptSessionId} = React.useContext(ToolRowContext)
   const signingAccount = accountUid || selectedAccountId
-  const reportedRunId = getToolString(item.rawOutput, 'runId')
+  const reportedRunId = getToolString(item.rawOutput, 'runId') ?? item.child?.runId
   const brief = getToolString(item.args, 'brief')
   const isPending = item.result === undefined && item.rawOutput === undefined
   const typedOutput = getFirstToolValue(item.rawOutput, ['output'])
-  // A model child reports no runId until it comes back, so while it works the only link is the one
-  // the run itself carries. Only an unresolved call looks: a finished one always has its runId, so
-  // a transcript of them opens nothing. (On the session page these queries are the very ones the
-  // pinned card already holds, so resolving costs no extra traffic.)
-  const spawnedChild = useSpawnedChildRun(serverUrl, signingAccount, transcriptSessionId, item.id, isPending)
+  // The runtime stamps the child onto the call the moment it spawns (`item.child`), so a live
+  // delegation normally knows its run and session outright. Transcripts from before that stamp
+  // only name the child in its result — for those, while the call is still open, the run tree is
+  // the one place the link exists: the child run records the call that started it. (On the session
+  // page these queries are the very ones the pinned card already holds, so resolving costs no
+  // extra traffic.)
+  const spawnedChild = useSpawnedChildRun(
+    serverUrl,
+    signingAccount,
+    transcriptSessionId,
+    item.id,
+    isPending && !reportedRunId,
+  )
   const runId = reportedRunId ?? spawnedChild?.id
-  // Same for the transcript link: the child's session exists from the moment it spawns.
   const sessionId = getToolSessionId(item) ?? spawnedChild?.sessionId
 
   return (
@@ -1921,7 +1928,8 @@ function DelegateRunView({
  */
 function getToolSessionId(item: ChatToolPart): string | undefined {
   if (item.name !== 'delegate' && item.name !== 'sub_session') return undefined
-  return getToolString(item.rawOutput, 'sessionId')
+  // The result names the child once it is back; the spawn stamp names it from the start.
+  return getToolString(item.rawOutput, 'sessionId') ?? item.child?.sessionId
 }
 
 /**
@@ -1992,14 +2000,15 @@ export function ToolCallLine({
     : isScriptWorkflow
       ? 'Workflow'
       : render?.label || item.name
-  // An awaited delegation reports its child only when it finishes — but the child run records the
-  // call that started it the moment it spawns, so the row is a way in DURING the work, not after.
+  // The row is a way into the child DURING the work, not after: the runtime stamps the child onto
+  // the call as it spawns (`item.child`, read by getToolSessionId). Only a transcript from before
+  // that stamp falls back to the run tree, where the child run records the call that started it.
   const spawnedChild = useSpawnedChildRun(
     serverUrl,
     accountUid,
     sessionId,
     item.id,
-    isDelegateToolName(item.name) && isPending && !reportedSessionId,
+    isDelegateToolName(item.name) && isPending && !reportedSessionId && !item.child,
   )
   const childSessionId = reportedSessionId ?? spawnedChild?.sessionId
   const details = getToolDetails(item)
