@@ -31,6 +31,36 @@ export function formatTokenCount(tokens: number): string {
   return Math.round(tokens).toLocaleString('en-US')
 }
 
+/**
+ * An absolute event timestamp, second-precise, in the reader's locale and timezone. The date is
+ * always included: info dialogs get opened on transcripts hours or days old, where a bare clock
+ * time quietly misleads.
+ */
+export function formatEventTime(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return ''
+  return new Date(ms).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+/**
+ * When the event happened, as the dialogs label it: one instant for a message, start/finish for a
+ * tool call whose two durable events bound its execution.
+ */
+export type EventTimes = {
+  /** When a message was appended to the log. */
+  sentAt?: number
+  /** When a tool call was issued. */
+  startedAt?: number
+  /** When its result landed. */
+  completedAt?: number
+}
+
 /** Sum of the categories when the stamp did not carry its own total. */
 function usageTotal(usage: AgentRunUsage): number {
   if (typeof usage.total === 'number' && usage.total > 0) return usage.total
@@ -41,17 +71,29 @@ function usageTotal(usage: AgentRunUsage): number {
  * The rows an info dialog shows for one event: model, provider, timing, and the turn's token
  * breakdown. Empty when nothing is known — which is the signal to render no stats section at all.
  */
-export function eventMetaRows(meta: SessionEventMeta | undefined): EventMetaRow[] {
-  if (!meta) return []
+export function eventMetaRows(meta: SessionEventMeta | undefined, times?: EventTimes): EventMetaRow[] {
+  if (!meta && !times) return []
   const rows: EventMetaRow[] = []
-  if (meta.accountId) rows.push({label: 'Originator', value: meta.accountId})
-  if (meta.signerId) rows.push({label: 'Signer', value: meta.signerId})
-  if (meta.model) rows.push({label: 'Model', value: meta.model})
-  if (meta.provider) rows.push({label: 'Provider', value: meta.provider})
-  if (typeof meta.durationMs === 'number' && meta.durationMs >= 0) {
+  if (meta?.accountId) rows.push({label: 'Originator', value: meta.accountId})
+  if (meta?.signerId) rows.push({label: 'Signer', value: meta.signerId})
+  if (meta?.model) rows.push({label: 'Model', value: meta.model})
+  if (meta?.provider) rows.push({label: 'Provider', value: meta.provider})
+  if (times?.sentAt) {
+    const value = formatEventTime(times.sentAt)
+    if (value) rows.push({label: 'Time', value})
+  }
+  if (times?.startedAt) {
+    const value = formatEventTime(times.startedAt)
+    if (value) rows.push({label: 'Started', value})
+  }
+  if (times?.completedAt) {
+    const value = formatEventTime(times.completedAt)
+    if (value) rows.push({label: 'Finished', value})
+  }
+  if (typeof meta?.durationMs === 'number' && meta.durationMs >= 0) {
     rows.push({label: 'Duration', value: formatEventDuration(meta.durationMs)})
   }
-  const usage = meta.usage
+  const usage = meta?.usage
   if (usage) {
     const total = usageTotal(usage)
     if (total > 0) rows.push({label: 'Tokens', value: `${formatTokenCount(total)} tokens`})

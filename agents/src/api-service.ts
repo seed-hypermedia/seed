@@ -5083,12 +5083,19 @@ export class Service {
     // Append the durable result at most once, but ALWAYS resolve the wait: a crash (or double
     // resolution) can leave the tool_result written while the parent still parks on the call.
     const alreadyAnswered = this.#sessionHasToolResult(parent.sessionId, parentToolCallId)
+    const childMeta = delegationMeta(child)
     if (!alreadyAnswered) {
       this.#appendSessionEvent(
         child.accountId,
         parent.agentId ?? '',
         parent.sessionId,
-        {type: 'tool_result', toolCallId: parentToolCallId, name: toolName, output: result},
+        {
+          type: 'tool_result',
+          toolCallId: parentToolCallId,
+          name: toolName,
+          output: result,
+          ...(childMeta ? {meta: childMeta} : {}),
+        },
         Date.now(),
       )
     } else if (child.status === 'succeeded' && child.sessionId) {
@@ -6180,6 +6187,16 @@ export class Service {
       ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
       durationMs: Math.max(0, Date.now() - turnStartedAt),
     })
+    // Provenance for tool events: which model/provider issued the call and what its turn cost.
+    // No duration here — the tool's own span is stamped on the result once it is known.
+    const toolTurnMeta = (): api.SessionEventMeta | undefined => {
+      const meta: api.SessionEventMeta = {
+        ...(definition.model ? {model: definition.model} : {}),
+        ...(model.provider ? {provider: model.provider} : {}),
+        ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
+      }
+      return Object.keys(meta).length ? meta : undefined
+    }
 
     const appendAssistantMessage = (content: string): void => {
       if (!content.trim()) return
@@ -6294,11 +6311,18 @@ export class Service {
           },
         })
         appendedToolCalls.add(event.toolCallId)
+        const callMeta = toolTurnMeta()
         this.#appendSessionEvent(
           accountId,
           session.agentId,
           sessionId,
-          {type: 'tool_call', id: event.toolCallId, name: event.toolName, input: event.args},
+          {
+            type: 'tool_call',
+            id: event.toolCallId,
+            name: event.toolName,
+            input: event.args,
+            ...(callMeta ? {meta: callMeta} : {}),
+          },
           Date.now(),
         )
         return
@@ -6325,14 +6349,24 @@ export class Service {
             accountId,
             session.agentId,
             sessionId,
-            {type: 'tool_call', id: event.toolCallId, name: event.toolName, input: {}},
+            {
+              type: 'tool_call',
+              id: event.toolCallId,
+              name: event.toolName,
+              input: {},
+              ...(toolTurnMeta() ? {meta: toolTurnMeta()} : {}),
+            },
             Date.now(),
           )
         }
         // How long the tool actually ran, stamped while the start time is still in hand: the pair of
-        // event timestamps is a decent guess, but only the executor knows the real span.
-        const toolMeta: api.SessionEventMeta | undefined =
-          startedAt === undefined ? undefined : {durationMs: Math.max(0, Date.now() - startedAt)}
+        // event timestamps is a decent guess, but only the executor knows the real span. The issuing
+        // turn's model/provider/usage ride along so the result explains itself on its own.
+        const resultMeta: api.SessionEventMeta = {
+          ...toolTurnMeta(),
+          ...(startedAt === undefined ? {} : {durationMs: Math.max(0, Date.now() - startedAt)}),
+        }
+        const toolMeta: api.SessionEventMeta | undefined = Object.keys(resultMeta).length ? resultMeta : undefined
         this.#appendSessionEvent(
           accountId,
           session.agentId,
@@ -12654,6 +12688,30 @@ function normalizeOptionalNumber(value: unknown, label: string): number | undefi
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * What a finished delegation can say about itself on the parent's tool_result: how long the whole
+ * child run took (spawn to finish — the span the parent actually waited), which model it ran, and
+ * the tokens it spent, descendants included. Absent when the run recorded none of it.
+ */
+function delegationMeta(child: runs.RunRecord): api.SessionEventMeta | undefined {
+  const meta: api.SessionEventMeta = {}
+  if (child.model) meta.model = child.model
+  const endedAt = child.finishedAt ?? Date.now()
+  if (endedAt >= child.createdAt) meta.durationMs = endedAt - child.createdAt
+  if (child.usage) {
+    const kids = child.usage.children
+    const usage = {
+      input: child.usage.input + (kids?.input ?? 0),
+      output: child.usage.output + (kids?.output ?? 0),
+      cacheRead: child.usage.cacheRead + (kids?.cacheRead ?? 0),
+      cacheWrite: child.usage.cacheWrite + (kids?.cacheWrite ?? 0),
+      total: child.usage.total + (kids?.total ?? 0),
+    }
+    if (usage.total > 0) meta.usage = usage
+  }
+  return Object.keys(meta).length ? meta : undefined
 }
 
 function piAssistantText(message: {content?: unknown} | undefined): string {

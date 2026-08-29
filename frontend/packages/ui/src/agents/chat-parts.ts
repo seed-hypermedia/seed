@@ -46,6 +46,8 @@ export type ChatToolPart = {
    * into the child's work for its whole life, not only once its result has come back.
    */
   child?: ChatToolChild
+  /** Durable timestamp of the call event — when the tool was invoked. */
+  calledAt?: number
   /** Durable timestamp of the result event; the row itself stays positioned at the call event. */
   completedAt?: number
   /** The result was an error (validation failure, tool crash) — `result` holds the message. */
@@ -100,6 +102,8 @@ export type ChatBubbleMessage = {
   actor?: SessionActor
   /** User origin or model/provider/usage/timing, as the writer stamped it. */
   meta?: SessionEventMeta
+  /** Durable timestamp of the message event — when it was appended to the log. */
+  createdAt?: number
 }
 
 /** Appends streamed text while coalescing adjacent text fragments into one part. */

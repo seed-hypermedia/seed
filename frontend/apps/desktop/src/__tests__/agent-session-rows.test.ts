@@ -709,6 +709,36 @@ describe('symmetric log actors', () => {
     expect(metas[1]).toMatchObject({meta: {durationMs: 8_000, model: 'gpt-5-mini'}})
   })
 
+  it('merges the call stamp (model/provider/usage) with the result stamp (duration) into one tool meta', () => {
+    const usage = {input: 1200, output: 40, cacheRead: 0, cacheWrite: 0, total: 1240}
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {
+          type: 'tool_call',
+          id: 'c1',
+          name: 'read',
+          input: {address: '~/memory/x'},
+          meta: {model: 'gpt-5-mini', provider: 'openai', usage},
+        }),
+        event(3, {
+          type: 'tool_result',
+          toolCallId: 'c1',
+          name: 'read',
+          output: {summary: 'Read.'},
+          meta: {durationMs: 950},
+        }),
+      ],
+      CONTEXT,
+    )
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    const part = row.message.parts?.[0] as {meta?: unknown; calledAt?: number; completedAt?: number}
+    expect(part.meta).toEqual({model: 'gpt-5-mini', provider: 'openai', usage, durationMs: 950})
+    // The absolute times bound the execution: the info dialog shows both, not just the span.
+    expect(part.calledAt).toBe(row.createdAt)
+    expect(part.completedAt).toBe(part.calledAt! + 2)
+  })
+
   it('leaves a tool row with nothing to say carrying no stat block at all', () => {
     const rows = buildAgentSessionChatRows(
       [event(1, {type: 'tool_result', toolCallId: 'orphan', name: 'read', output: {summary: 'Read.'}})],
