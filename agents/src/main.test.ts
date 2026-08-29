@@ -79,7 +79,7 @@ describe('main routes', () => {
       const account = blobs.generateNobleKeyPair()
       const routes = createAPIRoutes(new apisvc.Service(db, dataDir))
       const handler = getPostHandler(routes, '/api/message')
-      const envelope = await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}, ts: Date.now() - 31_000})
+      const envelope = await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}, ts: Date.now() - 5 * 60_000 - 1_000})
 
       const res = await handler(
         new Request('http://agents.test/api/message', {
