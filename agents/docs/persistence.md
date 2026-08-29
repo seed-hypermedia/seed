@@ -408,6 +408,15 @@ type SessionEventPayload =
     }
   | {type: 'tool_call'; id: string; name: string; input: unknown; actor?: SessionActor}
   | {
+      type: 'tool_spawn'
+      toolCallId: string
+      name: string
+      runId: string
+      sessionId?: string
+      title: string
+      actor?: SessionActor
+    }
+  | {
       type: 'tool_result'
       toolCallId: string
       name: string
@@ -419,6 +428,11 @@ type SessionEventPayload =
   | {type: 'error'; message: string; actor?: SessionActor}
   | Record<string, unknown>
 ```
+
+`tool_spawn` is appended by `delegate` the moment its child exists — before the child has run a step — and names the
+child run (and session, for a model child). The call stays parked without a `tool_result` until the child finishes, so
+this event is what lets a transcript open the child while it works; it is not replayed to the model, and it never stands
+in for the result, which the child's finalizer appends later.
 
 `actor` and `meta` are both optional because events predating them exist. Never treat either as required structure:
 `sessionEventActor()` in the protocol package derives the actor of an older event from its shape (a user-role message is

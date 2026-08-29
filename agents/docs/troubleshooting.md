@@ -121,6 +121,15 @@ that finalized inside a crash window. If a session still shows `streaming`:
    any run id is the finer-grained kill switch (cascades to its subtree).
 4. Restarting the service is always safe: sweep + reconcile recover every documented crash window.
 
+## A delegate row says "Starting the child…" but the child is alive
+
+The row links into its child through the parent transcript's `tool_spawn` event, appended by `delegate` the moment the
+child run and session exist — so a live delegation is openable even while the child is still queued or its model is
+processing the prompt. Only a transcript from before that event (or a call whose spawn threw before the child was
+enqueued) falls back to finding the child through the run tree, where the child run's `parent_tool_call_id` names the
+call. If a row with a live child still shows the spinner text, check `GetSession` for a `tool_spawn` with that
+`toolCallId`; its absence means the server that ran the turn predates the event.
+
 ## Children ran but the parent never resumed
 
 Checklist, in order:

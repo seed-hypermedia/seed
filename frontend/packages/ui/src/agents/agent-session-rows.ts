@@ -8,7 +8,7 @@ import {
   type SessionEventPayload,
 } from './client'
 import {type ChatBubbleMessage} from './chat-parts'
-import {type ChatToolPart} from './chat-parts'
+import {type ChatToolChild, type ChatToolPart} from './chat-parts'
 import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 
@@ -388,6 +388,10 @@ export function buildAgentSessionChatRows(
       contextLines?: unknown
       attachments?: unknown
       meta?: SessionEventMeta
+      /** tool_spawn: the child run and (for a model child) its session. */
+      runId?: string
+      sessionId?: string
+      title?: string
     }
 
     if (payload.type === 'message' && typeof payload.content === 'string') {
@@ -459,6 +463,50 @@ export function buildAgentSessionChatRows(
       }
       rows.push(row)
       toolRowsById.set(payload.id, row)
+      continue
+    }
+
+    if (payload.type === 'tool_spawn' && typeof payload.toolCallId === 'string' && typeof payload.runId === 'string') {
+      // The child's identity, folded onto the call it answers. The call event always lands first
+      // (it is appended when the tool starts, the spawn while it runs), but a transcript that lost
+      // the call still gets a row: the child exists, and this is the only way into it.
+      const child: ChatToolChild = {
+        runId: payload.runId,
+        ...(typeof payload.sessionId === 'string' ? {sessionId: payload.sessionId} : {}),
+        ...(typeof payload.title === 'string' ? {title: payload.title} : {}),
+      }
+      const existingRow = toolRowsById.get(payload.toolCallId)
+      if (existingRow) {
+        const existingPart = existingRow.message.parts?.[0] as ChatToolPart | undefined
+        existingRow.message = {
+          ...existingRow.message,
+          parts: [{...(existingPart || {type: 'tool', id: payload.toolCallId, name: 'delegate'}), child}],
+        }
+      } else {
+        const row: Extract<AgentSessionChatRow, {kind: 'message'}> = {
+          key: event.id,
+          kind: 'message',
+          createdAt: event.createdAt,
+          message: {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool',
+                id: payload.toolCallId,
+                name: typeof payload.name === 'string' ? payload.name : 'delegate',
+                child,
+                actor: sessionEventActor(event.event),
+              },
+            ],
+            eventId: event.id,
+            sessionId: event.sessionId,
+            seq: event.seq,
+            shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+          },
+        }
+        rows.push(row)
+        toolRowsById.set(payload.toolCallId, row)
+      }
       continue
     }
 

@@ -5628,6 +5628,24 @@ describe('api service', () => {
       if (tree._ !== 'ListRunsResponse') throw new Error('unexpected response')
       const child = tree.runs.find((run) => run.depth === 1)
       expect(child?.status).toBe('succeeded')
+      // The parent transcript named its child the moment it spawned — durably, and before the
+      // result — so a client could open the child while it was riding out the outage.
+      const parentEvents = session.events.map(
+        (event) => event.event as {type?: string; id?: string; toolCallId?: string; name?: string},
+      )
+      const callIndex = parentEvents.findIndex((event) => event.type === 'tool_call' && event.name === 'delegate')
+      const spawnIndex = parentEvents.findIndex((event) => event.type === 'tool_spawn')
+      const resultIndex = parentEvents.findIndex((event) => event.type === 'tool_result' && event.name === 'delegate')
+      expect(callIndex).toBeGreaterThanOrEqual(0)
+      expect(spawnIndex).toBeGreaterThan(callIndex)
+      expect(spawnIndex).toBeLessThan(resultIndex)
+      expect(parentEvents[spawnIndex]).toMatchObject({
+        toolCallId: parentEvents[callIndex]!.id,
+        name: 'delegate',
+        runId: child!.id,
+        sessionId: child!.sessionId,
+        title: 'Worker',
+      })
       // The proof it was the QUEUE's doing: the same run row was claimed more than once.
       const attempts = db.query<{attempt: number}, [string]>(`SELECT attempt FROM runs WHERE id = ?`).get(child!.id)
         ?.attempt
