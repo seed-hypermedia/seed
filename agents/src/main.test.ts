@@ -183,6 +183,20 @@ describe('main routes', () => {
         }),
       )
       expect(JSON.stringify(listed)).not.toContain(created.webhookSecret)
+      const fetched = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetAgentTrigger', triggerId: created.trigger.id},
+        }),
+      )
+      if (fetched._ !== 'GetAgentTriggerResponse') throw new Error('unexpected response')
+      expect(fetched.webhookSecret).toBe(created.webhookSecret)
+      const storedCiphertext = db
+        .query<{secret_ciphertext: Uint8Array | null}, [string]>(
+          `SELECT secret_ciphertext FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+        )
+        .get(created.trigger.id)
+      expect(storedCiphertext?.secret_ciphertext?.byteLength).toBeGreaterThan(0)
+      expect(new TextDecoder().decode(storedCiphertext!.secret_ciphertext!)).not.toContain(created.webhookSecret)
       const credential = db
         .query<{secret_hash: Uint8Array}, [string]>(
           `SELECT secret_hash FROM webhook_trigger_credentials WHERE trigger_id = ?`,

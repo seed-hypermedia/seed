@@ -707,7 +707,8 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
 
     const read = await executeReadVerb(context, {address: '~/triggers/inbound'})
     expect(read.prompt).toBe('Summarize the posted deployment event.')
-    expect(JSON.stringify(read)).not.toContain(webhook.secret)
+    expect((read.webhook as {endpointPath: string}).endpointPath).toBe(webhook.endpointPath)
+    expect((read.webhook as {secret: string}).secret).toBe(webhook.secret)
 
     const edited = await executeWriteVerb(context, {
       address: '~/triggers/inbound',

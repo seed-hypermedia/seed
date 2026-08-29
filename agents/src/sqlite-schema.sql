@@ -101,6 +101,7 @@ CREATE INDEX agent_triggers_by_agent ON agent_triggers (agent_id, updated_at DES
 CREATE TABLE webhook_trigger_credentials (
     trigger_id TEXT PRIMARY KEY REFERENCES agent_triggers (id),
     secret_hash BLOB NOT NULL,
+    secret_ciphertext BLOB,
     created_at INTEGER NOT NULL
 ) WITHOUT ROWID;
 

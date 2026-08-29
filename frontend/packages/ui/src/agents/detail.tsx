@@ -2191,6 +2191,13 @@ function AgentTriggersTab({
                       {summarizeTriggerSource(source)}
                     </SizableText>
                   </div>
+                  {source.type === 'webhook' ? (
+                    <WebhookEndpointSection
+                      serverUrl={serverUrl}
+                      triggerId={selected.id}
+                      secret={trigger.data?.webhookSecret}
+                    />
+                  ) : null}
                   <div className="flex flex-col gap-1">
                     <SizableText size="sm" weight="bold">
                       Prompt
@@ -2222,6 +2229,13 @@ function AgentTriggersTab({
                       </label>
                     }
                   />
+                  {source.type === 'webhook' ? (
+                    <WebhookEndpointSection
+                      serverUrl={serverUrl}
+                      triggerId={selected.id}
+                      secret={trigger.data?.webhookSecret}
+                    />
+                  ) : null}
                   <div className="flex flex-col gap-1">
                     <SizableText size="sm" weight="bold">
                       Prompt
@@ -2345,8 +2359,9 @@ function CreateAgentTriggerDialog({
   setDialogCloseProtection?: (state: {preventClose: boolean; showCloseButton: boolean}) => void
 }) {
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
-  const [name, setName] = useState('New activity trigger')
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
+  const [name, setName] = useState(() => defaultTriggerName(source.type))
+  const nameEdited = useRef(false)
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
     agentPromptToBlocks('Respond to the event, performing the action requested.'),
   )
@@ -2401,20 +2416,13 @@ function CreateAgentTriggerDialog({
   }
 
   if (createdWebhook) {
-    const copy = (value: string, label: string) => {
-      toast.promise(copyTextToClipboard(value), {
-        loading: '',
-        success: `${label} copied`,
-        error: `Could not copy ${label.toLowerCase()}`,
-      })
-    }
+    const copy = copyWithToast
     return (
       <div className="flex w-full max-w-full min-w-0 flex-col gap-5">
         <div>
           <DialogTitle>Webhook trigger created</DialogTitle>
           <DialogDescription>
-            Save the webhook URL now. It contains the secret, which is not stored in plaintext and cannot be shown
-            again.
+            Point your sender at this URL. It contains the secret; agent editors can see it again on the trigger's page.
           </DialogDescription>
         </div>
         <WebhookCredential
@@ -2464,9 +2472,21 @@ function CreateAgentTriggerDialog({
         <SizableText size="sm" weight="bold">
           Name
         </SizableText>
-        <Input value={name} onChange={(event) => setName(event.target.value)} />
+        <Input
+          value={name}
+          onChange={(event) => {
+            nameEdited.current = true
+            setName(event.target.value)
+          }}
+        />
       </label>
-      <TriggerSourceFields source={source} onChange={setSource} />
+      <TriggerSourceFields
+        source={source}
+        onChange={(nextSource) => {
+          setSource(nextSource)
+          if (!nameEdited.current) setName(defaultTriggerName(nextSource.type))
+        }}
+      />
       <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Prompt
@@ -2487,6 +2507,59 @@ function CreateAgentTriggerDialog({
           Create trigger
         </Button>
       </div>
+    </div>
+  )
+}
+
+/** The name a new trigger starts with; the user replaces it, but it should already say what it is. */
+function defaultTriggerName(sourceType: AgentTriggerSource['type']): string {
+  if (sourceType === 'webhook') return 'New webhook trigger'
+  return 'New activity trigger'
+}
+
+function copyWithToast(value: string, label: string) {
+  toast.promise(copyTextToClipboard(value), {
+    loading: '',
+    success: `${label} copied`,
+    error: `Could not copy ${label.toLowerCase()}`,
+  })
+}
+
+/** The delivery URL of an existing webhook trigger, shown on its detail page. */
+function WebhookEndpointSection({
+  serverUrl,
+  triggerId,
+  secret,
+}: {
+  serverUrl: string
+  triggerId: string
+  secret: string | undefined
+}) {
+  if (!secret) {
+    return (
+      <div className="border-border bg-muted/40 flex flex-col gap-1 rounded-lg border p-3">
+        <SizableText size="sm" weight="bold">
+          Webhook URL
+        </SizableText>
+        <SizableText size="sm" className="font-mono break-all">
+          {getAgentWebhookUrl(serverUrl, triggerId)}/&lt;secret&gt;
+        </SizableText>
+        <SizableText size="xs" color="muted">
+          The secret is only shown to accounts that can edit this agent. If you are an editor and still see this, the
+          trigger predates secret storage; delete it and create a new webhook trigger.
+        </SizableText>
+      </div>
+    )
+  }
+  const url = getAgentWebhookUrl(serverUrl, triggerId, secret)
+  return (
+    <div className="flex flex-col gap-2">
+      <WebhookCredential label="Webhook URL" value={url} onCopy={() => copyWithToast(url, 'Webhook URL')} />
+      <SizableText size="xs" color="muted">
+        POST JSON to this URL. Senders that cannot use a secret URL may instead post to the URL without the last segment
+        and send <code>Authorization: Bearer &lt;secret&gt;</code>. An optional <code>Idempotency-Key</code> header
+        deduplicates retries.
+      </SizableText>
     </div>
   )
 }

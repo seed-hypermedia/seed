@@ -865,7 +865,7 @@ export class Service {
       case 'ListAgentTriggers':
         return this.#listAgentTriggers(accountId, envelope.action.agentId)
       case 'GetAgentTrigger':
-        return this.#getAgentTrigger(accountId, envelope.action.triggerId)
+        return this.#getAgentTrigger(accountId, verified.accountId, envelope.action.triggerId)
       case 'CreateAgentTrigger':
         return this.#createAgentTrigger(
           accountId,
@@ -2835,9 +2835,19 @@ export class Service {
     return {_: 'ListAgentTriggersResponse', triggers: rows.map(agentTriggerRowToInfo)}
   }
 
-  #getAgentTrigger(accountId: string, triggerId: string): api.GetAgentTriggerResponse {
+  async #getAgentTrigger(
+    accountId: string,
+    actorAccountId: string,
+    triggerId: string,
+  ): Promise<api.GetAgentTriggerResponse> {
     const trigger = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!trigger) throw new APIError(404, 'Agent trigger not found')
+    // Anyone who can edit the agent can see the delivery URL again; readers only see that the
+    // trigger is a webhook.
+    let webhookSecret: string | undefined
+    if (trigger.source.type === 'webhook' && this.#canEditAgent(actorAccountId, trigger.agentId)) {
+      webhookSecret = await this.#webhookTriggerSecret(triggerId)
+    }
     const sessions = this.#db
       .query<SessionRow, [string, string]>(
         `SELECT sessions.id, sessions.account_id, sessions.agent_id, sessions.title, sessions.status,
@@ -2848,7 +2858,27 @@ export class Service {
          ORDER BY trigger_firings.created_at DESC`,
       )
       .all(accountId, triggerId)
-    return {_: 'GetAgentTriggerResponse', trigger, sessions: this.#sessionRowsToInfo(accountId, sessions)}
+    return {
+      _: 'GetAgentTriggerResponse',
+      trigger,
+      sessions: this.#sessionRowsToInfo(accountId, sessions),
+      ...(webhookSecret ? {webhookSecret} : {}),
+    }
+  }
+
+  #canEditAgent(actorAccountId: string, agentId: string): boolean {
+    try {
+      this.#requireAgentAccess(actorAccountId, agentId, 'writer')
+      return true
+    } catch (error) {
+      if (error instanceof APIError && (error.status === 403 || error.status === 404)) return false
+      throw error
+    }
+  }
+
+  /** The stored webhook secret, or undefined when the trigger predates the encrypted copy. */
+  async #webhookTriggerSecret(triggerId: string): Promise<string | undefined> {
+    return readWebhookTriggerSecret(this.#db, triggerId)
   }
 
   async #createAgentTrigger(
@@ -2862,17 +2892,20 @@ export class Service {
     )
   }
 
-  #createAgentTriggerOnce(
+  async #createAgentTriggerOnce(
     accountId: string,
     agentId: string,
     rawTrigger: api.AgentTriggerInput,
-  ): api.CreateAgentTriggerResponse {
+  ): Promise<api.CreateAgentTriggerResponse> {
     this.#requireAgent(accountId, agentId)
     const trigger = normalizeAgentTriggerInput(rawTrigger)
     const now = Date.now()
     const id = crypto.randomUUID()
     const webhookSecret =
       trigger.source.type === 'webhook' ? nodeCrypto.randomBytes(32).toString('base64url') : undefined
+    const webhookCiphertext = webhookSecret
+      ? await encryptSecret(this.#db, new TextEncoder().encode(webhookSecret))
+      : undefined
     this.#db.run(
       `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt,
          continuation_cbor, created_at, updated_at)
@@ -2891,11 +2924,11 @@ export class Service {
       ],
     )
     if (webhookSecret) {
-      this.#db.run(`INSERT INTO webhook_trigger_credentials (trigger_id, secret_hash, created_at) VALUES (?, ?, ?)`, [
-        id,
-        nodeCrypto.createHash('sha256').update(webhookSecret).digest(),
-        now,
-      ])
+      this.#db.run(
+        `INSERT INTO webhook_trigger_credentials (trigger_id, secret_hash, secret_ciphertext, created_at)
+         VALUES (?, ?, ?, ?)`,
+        [id, nodeCrypto.createHash('sha256').update(webhookSecret).digest(), webhookCiphertext ?? null, now],
+      )
     }
     const info = this.#getAgentTriggerInfo(accountId, id)
     if (!info) throw new APIError(500, 'Agent trigger was not created')
@@ -9296,7 +9329,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
       'write ~/triggers/<name> with JSON content {source, prompt, enabled?, continuation?}.',
       'source shapes: {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}} · {type: "document-comment", resource, author?} · {type: "user-mention", mentionedAccounts: [..], resourcePrefix?} · {type: "site-update", resourcePrefix, eventTypes?} · {type: "run-completed", agentId?, status?, titleMatch?} · {type: "webhook"}.',
       'prompt: customizable markdown that starts the session when the trigger fires; webhook JSON is appended separately as untrusted trigger context.',
-      'Creating a webhook through write returns its secret endpoint path exactly once (the secret is part of the URL; it may also be sent as a Bearer header instead). Save it immediately; later reads and edits never reveal it.',
+      'Creating a webhook through write returns its secret endpoint path (the secret is the last URL segment; it may also be sent as a Bearer header instead), and read ~/triggers/<name> shows it again.',
       'continuation (optional): {kind: "newThread"} (default) or {kind: "wake", signal, runId?, payload?} to deliver into a parked run.',
       'enabled defaults to true; write with enabled false to turn a trigger off. {delete: true} removes one.',
     ].join('\n'),
@@ -9304,7 +9337,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
 }
 
 /** Reads one trigger for `read ~/triggers/<name>`: the full rule plus its recent firings. */
-function readTriggerAddress(context: AgentServicePiToolContext, name: string): Record<string, unknown> {
+async function readTriggerAddress(context: AgentServicePiToolContext, name: string): Promise<Record<string, unknown>> {
   const rows = triggerRowsByAddressName(context.db, context.accountId, context.agentId, name)
   if (rows.length === 0) return {...triggersListing(context), summary: `No trigger named ${name}.`}
   if (rows.length > 1) {
@@ -9317,6 +9350,7 @@ function readTriggerAddress(context: AgentServicePiToolContext, name: string): R
   }
   const row = rows[0]!
   const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
+  const webhookSecret = source.type === 'webhook' ? await readWebhookTriggerSecret(context.db, row.id) : undefined
   const firings = context.db
     .query<
       {id: string; session_id: string | null; status: string; error: string | null; created_at: number},
@@ -9338,6 +9372,25 @@ function readTriggerAddress(context: AgentServicePiToolContext, name: string): R
     updatedAt: row.updated_at,
     ...(row.last_fired_at === null ? {} : {lastFiredAt: row.last_fired_at}),
     ...(row.last_error === null ? {} : {lastError: row.last_error}),
+    ...(source.type === 'webhook'
+      ? {
+          webhook: webhookSecret
+            ? {
+                endpointPath: `/agents/api/webhooks/${row.id}/${webhookSecret}`,
+                secret: webhookSecret,
+                alternative: `POST to /agents/api/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
+                requiredHeaders: {'Content-Type': 'application/json'},
+                optionalHeaders: {
+                  'Idempotency-Key': '<unique delivery id; retries with the same key and body are deduplicated>',
+                },
+              }
+            : {
+                endpointPath: `/agents/api/webhooks/${row.id}/<secret>`,
+                secret: null,
+                note: 'The secret for this trigger was not kept; recreate the trigger to get a new one.',
+              },
+        }
+      : {}),
     recentFirings: firings.map((firing) => ({
       firingId: firing.id,
       ...(firing.session_id ? {sessionId: firing.session_id, thread: `thread:${firing.session_id}`} : {}),
@@ -9353,12 +9406,12 @@ function readTriggerAddress(context: AgentServicePiToolContext, name: string): R
  * agent manages its own triggers directly — `enabled` is honored as written (defaulting to true),
  * so "do this every morning" becomes a trigger that is live the moment the agent writes it.
  */
-function writeTriggerAddress(
+async function writeTriggerAddress(
   context: AgentServicePiToolContext,
   name: string,
   content: string | undefined,
   options: Record<string, unknown>,
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   if (!name || name.includes('/')) throw new APIError(400, 'write ~/triggers/<name> needs a single trigger name')
   const existing = triggerRowsByAddressName(context.db, context.accountId, context.agentId, name)
   if (existing.length > 1) {
@@ -9443,11 +9496,16 @@ function writeTriggerAddress(
     )
     if (trigger.source.type === 'webhook') {
       webhookSecret = nodeCrypto.randomBytes(32).toString('base64url')
-      context.db.run(`INSERT INTO webhook_trigger_credentials (trigger_id, secret_hash, created_at) VALUES (?, ?, ?)`, [
-        id,
-        nodeCrypto.createHash('sha256').update(webhookSecret).digest(),
-        now,
-      ])
+      context.db.run(
+        `INSERT INTO webhook_trigger_credentials (trigger_id, secret_hash, secret_ciphertext, created_at)
+         VALUES (?, ?, ?, ?)`,
+        [
+          id,
+          nodeCrypto.createHash('sha256').update(webhookSecret).digest(),
+          await encryptSecret(context.db, new TextEncoder().encode(webhookSecret)),
+          now,
+        ],
+      )
     }
   }
   context.onTriggersChange?.()
@@ -9471,7 +9529,7 @@ function writeTriggerAddress(
               'Idempotency-Key':
                 '<unique delivery id; a retry with the same key and identical body is deduplicated, a different body is rejected>',
             },
-            warning: 'Save this URL now. The secret is stored only as a hash and cannot be read again.',
+            note: 'read ~/triggers/<name> shows this URL again.',
           },
         }
       : {}),
@@ -12583,6 +12641,17 @@ async function encryptSecret(db: Database, plaintext: Uint8Array): Promise<Uint8
   out.set(nonce)
   out.set(encrypted, nonce.byteLength)
   return out
+}
+
+/** The plaintext webhook secret for a trigger, or undefined when none was kept. */
+async function readWebhookTriggerSecret(db: Database, triggerId: string): Promise<string | undefined> {
+  const row = db
+    .query<{secret_ciphertext: Uint8Array | null}, [string]>(
+      `SELECT secret_ciphertext FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+    )
+    .get(triggerId)
+  if (!row?.secret_ciphertext) return undefined
+  return new TextDecoder().decode(await decryptSecret(db, row.secret_ciphertext))
 }
 
 async function decryptSecret(db: Database, ciphertext: Uint8Array): Promise<Uint8Array> {
