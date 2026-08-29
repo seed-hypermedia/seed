@@ -11,7 +11,16 @@ import {getEventRoute} from '@shm/ui/feed'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {AtSign, CalendarClock, ChevronDown, ChevronRight, FileText, MessageSquare, Workflow} from 'lucide-react'
+import {
+  AtSign,
+  CalendarClock,
+  ChevronDown,
+  ChevronRight,
+  FileText,
+  MessageSquare,
+  Webhook,
+  Workflow,
+} from 'lucide-react'
 import React, {useMemo, useState} from 'react'
 
 /**
@@ -28,6 +37,7 @@ export const TRIGGER_TYPE_OPTIONS: {value: AgentTriggerSource['type']; label: st
   {value: 'user-mention', label: 'User mention'},
   {value: 'site-update', label: 'Space update'},
   {value: 'schedule', label: 'Schedule'},
+  {value: 'webhook', label: 'Webhook'},
 ]
 
 const SCHEDULE_MODE_OPTIONS = [
@@ -42,6 +52,7 @@ const SCHEDULE_UNIT_OPTIONS = [
 ] as const
 
 export function defaultSourceForType(type: AgentTriggerSource['type']): AgentTriggerSource {
+  if (type === 'webhook') return {type}
   if (type === 'user-mention') return {type, mentionedAccounts: []}
   if (type === 'site-update') return {type, resourcePrefix: '', eventTypes: ['doc-update', 'comment']}
   if (type === 'schedule') return {type, schedule: {kind: 'interval', every: 1, unit: 'hours'}}
@@ -56,6 +67,7 @@ export function mentionedAccountsOf(source: Extract<AgentTriggerSource, {type: '
 
 /** Compact human-readable description of how a trigger is configured. */
 export function summarizeTriggerSource(source: AgentTriggerSource): string {
+  if (source.type === 'webhook') return 'Incoming webhook request'
   if (source.type === 'document-comment') {
     return `Comment in ${source.resource}${source.author ? ` by ${source.author}` : ''}`
   }
@@ -87,10 +99,12 @@ export function TriggerSourceFields({
   source,
   onChange,
   trailing,
+  lockSourceType = false,
 }: {
   source: AgentTriggerSource
   onChange: (source: AgentTriggerSource) => void
   trailing?: React.ReactNode
+  lockSourceType?: boolean
 }) {
   return (
     <div className="grid gap-3">
@@ -103,6 +117,7 @@ export function TriggerSourceFields({
             options={TRIGGER_TYPE_OPTIONS}
             value={source.type}
             onValue={(value) => onChange(defaultSourceForType(value as AgentTriggerSource['type']))}
+            disabled={lockSourceType}
           />
         </label>
         {trailing}
@@ -165,6 +180,11 @@ export function TriggerSourceFields({
         </div>
       ) : null}
       {source.type === 'schedule' ? <ScheduleTriggerFields source={source} onChange={onChange} /> : null}
+      {source.type === 'webhook' ? (
+        <SizableText size="sm" color="muted">
+          Creates a private HTTP endpoint. The endpoint and bearer secret are shown once after creation.
+        </SizableText>
+      ) : null}
     </div>
   )
 }
@@ -506,6 +526,7 @@ const TRIGGER_TYPE_ICONS: Record<AgentTriggerSource['type'], React.ComponentType
   'site-update': FileText,
   schedule: CalendarClock,
   'run-completed': Workflow,
+  webhook: Webhook,
 }
 
 /**

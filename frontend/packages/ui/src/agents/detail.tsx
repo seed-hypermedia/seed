@@ -10,6 +10,7 @@ import {
   type AgentTriggerSource,
   type SessionInfo,
   type SigningIdentity,
+  getAgentWebhookUrl,
 } from './client'
 import {
   addOptimisticSessionMessage,
@@ -81,6 +82,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {
   ArrowRight,
   ArrowRightLeft,
+  Copy,
   ExternalLink,
   Globe,
   Info,
@@ -2202,6 +2204,7 @@ function AgentTriggersTab({
                 <div className="grid gap-4">
                   <TriggerSourceFields
                     source={source}
+                    lockSourceType={source.type === 'webhook'}
                     onChange={(nextSource) => {
                       setSource(nextSource)
                       setDetailsDirty(true)
@@ -2342,8 +2345,10 @@ function CreateAgentTriggerDialog({
   const [name, setName] = useState('New activity trigger')
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
-    agentPromptToBlocks('Respond to the mention, performing the action requested.'),
+    agentPromptToBlocks('Respond to the event, performing the action requested.'),
   )
+  const [createdWebhook, setCreatedWebhook] = useState<{endpoint: string; secret: string; curl: string} | null>(null)
+  const createRequestId = useRef(crypto.randomUUID())
 
   async function handleCreateTrigger() {
     try {
@@ -2353,8 +2358,29 @@ function CreateAgentTriggerDialog({
         source,
         prompt: promptBlocksForRequest(prompt),
       }
-      const result = await createTrigger.mutateAsync({agentId: input.agentId, trigger})
+      const result = await createTrigger.mutateAsync({
+        agentId: input.agentId,
+        trigger,
+        clientRequestId: createRequestId.current,
+      })
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
+      if (source.type === 'webhook') {
+        if (!result.webhookSecret) throw new Error('Webhook secret was not returned')
+        const endpoint = getAgentWebhookUrl(input.serverUrl, result.trigger.id)
+        const secret = result.webhookSecret
+        setCreatedWebhook({
+          endpoint,
+          secret,
+          curl: [
+            `curl -X POST "${endpoint}" \\`,
+            `  -H "Authorization: Bearer ${secret}" \\`,
+            '  -H "Content-Type: application/json" \\',
+            `  -H "Idempotency-Key: test-${crypto.randomUUID()}" \\`,
+            `  -d '{"message":"hello"}'`,
+          ].join('\n'),
+        })
+        return
+      }
       toast.success('Trigger created')
       onClose()
     } catch (error) {
@@ -2362,11 +2388,63 @@ function CreateAgentTriggerDialog({
     }
   }
 
+  if (createdWebhook) {
+    const copy = (value: string, label: string) => {
+      toast.promise(copyTextToClipboard(value), {
+        loading: '',
+        success: `${label} copied`,
+        error: `Could not copy ${label.toLowerCase()}`,
+      })
+    }
+    return (
+      <div className="flex w-full min-w-0 max-w-full flex-col gap-5">
+        <div>
+          <DialogTitle>Webhook trigger created</DialogTitle>
+          <DialogDescription>
+            Save the bearer secret now. It is not stored in plaintext and cannot be shown again.
+          </DialogDescription>
+        </div>
+        <WebhookCredential
+          label="Endpoint"
+          value={createdWebhook.endpoint}
+          onCopy={() => copy(createdWebhook.endpoint, 'Endpoint')}
+        />
+        <WebhookCredential
+          label="Bearer secret"
+          value={createdWebhook.secret}
+          onCopy={() => copy(createdWebhook.secret, 'Bearer secret')}
+        />
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between gap-2">
+            <SizableText size="sm" weight="bold">
+              Test request
+            </SizableText>
+            <Button type="button" size="sm" variant="ghost" onClick={() => copy(createdWebhook.curl, 'cURL command')}>
+              <Copy className="size-4" /> Copy cURL
+            </Button>
+          </div>
+          <pre className="border-border bg-muted/40 overflow-x-auto whitespace-pre-wrap rounded-lg border p-3 font-mono text-xs">
+            {createdWebhook.curl}
+          </pre>
+        </div>
+        <div className="border-border bg-muted/40 rounded-lg border p-3">
+          <SizableText size="xs" color="muted">
+            Send JSON with <code>Authorization: Bearer &lt;secret&gt;</code> and a unique <code>Idempotency-Key</code>
+            header. Reusing a key with a different body is rejected.
+          </SizableText>
+        </div>
+        <div className="flex justify-end">
+          <Button onClick={onClose}>Done</Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex w-full max-w-full min-w-0 flex-col gap-5">
+    <div className="flex w-full min-w-0 max-w-full flex-col gap-5">
       <div>
         <DialogTitle>New trigger</DialogTitle>
-        <DialogDescription>Start a new agent session when matching Seed activity appears.</DialogDescription>
+        <DialogDescription>Start a new agent session when the selected event occurs.</DialogDescription>
       </div>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
@@ -2380,6 +2458,12 @@ function CreateAgentTriggerDialog({
           Prompt
         </SizableText>
         <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
+        {source.type === 'webhook' ? (
+          <SizableText size="xs" color="muted">
+            This prompt tells the agent how to handle each delivery. The posted JSON is supplied separately as untrusted
+            trigger data.
+          </SizableText>
+        ) : null}
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>
@@ -2390,6 +2474,22 @@ function CreateAgentTriggerDialog({
         </Button>
       </div>
     </div>
+  )
+}
+
+function WebhookCredential({label, value, onCopy}: {label: string; value: string; onCopy: () => void}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <SizableText size="sm" weight="bold">
+        {label}
+      </SizableText>
+      <div className="flex min-w-0 gap-2">
+        <Input className="min-w-0 flex-1 font-mono" value={value} readOnly />
+        <Button type="button" variant="outline" onClick={onCopy} aria-label={`Copy ${label.toLowerCase()}`}>
+          <Copy className="size-4" /> Copy
+        </Button>
+      </div>
+    </label>
   )
 }
 

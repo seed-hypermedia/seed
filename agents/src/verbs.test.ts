@@ -673,6 +673,55 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     expect(rows.length).toBe(1)
   })
 
+  test('agents create and edit webhook triggers with a customizable prompt and one-time credential', async () => {
+    const context = makeContext()
+    const created = await executeWriteVerb(context, {
+      address: '~/triggers/inbound',
+      content: JSON.stringify({
+        source: {type: 'webhook'},
+        prompt: 'Summarize the posted deployment event.',
+        enabled: true,
+      }),
+    })
+    const webhook = created.webhook as {
+      endpointPath: string
+      secret: string
+      authorization: string
+      requiredHeaders: Record<string, string>
+    }
+    expect(created.prompt).toBe('Summarize the posted deployment event.')
+    expect(webhook.endpointPath).toBe(`/agents/api/webhooks/${created.id}`)
+    expect(webhook.secret).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(webhook.authorization).toBe(`Bearer ${webhook.secret}`)
+    expect(webhook.requiredHeaders['Idempotency-Key']).toContain('unique')
+
+    const stored = context.db
+      .query<{secret_hash: Uint8Array}, [string]>(
+        `SELECT secret_hash FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+      )
+      .get(String(created.id))
+    expect(stored?.secret_hash.byteLength).toBe(32)
+    expect(new TextDecoder().decode(stored!.secret_hash)).not.toContain(webhook.secret)
+
+    const read = await executeReadVerb(context, {address: '~/triggers/inbound'})
+    expect(read.prompt).toBe('Summarize the posted deployment event.')
+    expect(JSON.stringify(read)).not.toContain(webhook.secret)
+
+    const edited = await executeWriteVerb(context, {
+      address: '~/triggers/inbound',
+      content: JSON.stringify({
+        source: {type: 'webhook'},
+        prompt: 'Route the posted event by severity.',
+        enabled: true,
+      }),
+    })
+    expect(edited.prompt).toBe('Route the posted event by severity.')
+    expect(edited.webhook).toBeUndefined()
+    expect(
+      context.db.query<{count: number}, []>(`SELECT count(*) AS count FROM webhook_trigger_credentials`).get()?.count,
+    ).toBe(1)
+  })
+
   test('delete, unknown options, and bad JSON are handled loudly', async () => {
     const context = makeContext()
     await executeWriteVerb(context, {address: '~/triggers/x', content: scheduleTrigger})

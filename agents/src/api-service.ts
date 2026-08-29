@@ -9274,8 +9274,9 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
     triggers: rows.map(triggerListingEntry),
     contract: [
       'write ~/triggers/<name> with JSON content {source, prompt, enabled?, continuation?}.',
-      'source shapes: {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}} · {type: "document-comment", resource, author?} · {type: "user-mention", mentionedAccounts: [..], resourcePrefix?} · {type: "site-update", resourcePrefix, eventTypes?} · {type: "run-completed", agentId?, status?, titleMatch?} · {type: "webhook"} (create through the signed API so its one-time secret is returned).',
-      'prompt: markdown that starts the session when the trigger fires (runtime context about the matching event is appended).',
+      'source shapes: {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}} · {type: "document-comment", resource, author?} · {type: "user-mention", mentionedAccounts: [..], resourcePrefix?} · {type: "site-update", resourcePrefix, eventTypes?} · {type: "run-completed", agentId?, status?, titleMatch?} · {type: "webhook"}.',
+      'prompt: customizable markdown that starts the session when the trigger fires; webhook JSON is appended separately as untrusted trigger context.',
+      'Creating a webhook through write returns its endpoint path and bearer secret exactly once. Save the secret immediately; later reads and edits never reveal it.',
       'continuation (optional): {kind: "newThread"} (default) or {kind: "wake", signal, runId?, payload?} to deliver into a parked run.',
       'enabled defaults to true; write with enabled false to turn a trigger off. {delete: true} removes one.',
     ].join('\n'),
@@ -9371,9 +9372,6 @@ function writeTriggerAddress(
   }
   // The address is the name; a name inside the content must not silently retarget the write.
   const trigger = normalizeAgentTriggerInput({...parsed, name} as api.AgentTriggerInput)
-  if (!row && trigger.source.type === 'webhook') {
-    throw new APIError(400, 'Webhook triggers must be created through CreateAgentTrigger to return the one-time secret')
-  }
   if (row) {
     const existingSource = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
     if (
@@ -9385,6 +9383,7 @@ function writeTriggerAddress(
   }
   const now = Date.now()
   let id: string
+  let webhookSecret: string | undefined
   if (row) {
     id = row.id
     context.db.run(
@@ -9422,6 +9421,14 @@ function writeTriggerAddress(
         now,
       ],
     )
+    if (trigger.source.type === 'webhook') {
+      webhookSecret = nodeCrypto.randomBytes(32).toString('base64url')
+      context.db.run(`INSERT INTO webhook_trigger_credentials (trigger_id, secret_hash, created_at) VALUES (?, ?, ?)`, [
+        id,
+        nodeCrypto.createHash('sha256').update(webhookSecret).digest(),
+        now,
+      ])
+    }
   }
   context.onTriggersChange?.()
   return {
@@ -9432,6 +9439,18 @@ function writeTriggerAddress(
     name: trigger.name,
     enabled: trigger.enabled,
     source: trigger.source,
+    prompt: promptBlocksToMarkdown(normalizePromptBlocks(trigger.prompt, 'Trigger prompt')),
+    ...(webhookSecret
+      ? {
+          webhook: {
+            endpointPath: `/agents/api/webhooks/${id}`,
+            secret: webhookSecret,
+            authorization: `Bearer ${webhookSecret}`,
+            requiredHeaders: {'Content-Type': 'application/json', 'Idempotency-Key': '<unique delivery id>'},
+            warning: 'Save this secret now. It is stored only as a hash and cannot be read again.',
+          },
+        }
+      : {}),
   }
 }
 
