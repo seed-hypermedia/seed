@@ -40,6 +40,7 @@ type FakeCall = {
   exec?: {cmd: string; args: string[]; timeoutMs?: number}
   stopped?: boolean
   killed?: boolean
+  streamKilled?: boolean
 }
 
 /** Fake microsandbox SDK capturing builder configuration and returning a canned exec output. */
@@ -49,6 +50,12 @@ function fakeSdk(
     output?: Partial<ExecOutputLike> & {stdoutText?: string; stderrText?: string}
     /** When set, the sandbox also offers execStreamWith replaying these events. */
     stream?: ExecStreamEventLike[]
+    /** After replaying `stream`, recv hangs forever instead of ending — a wedged guest. */
+    streamHangs?: boolean
+    /** Buffered execWith never resolves — a wedged guest with no streaming API. */
+    execHangs?: boolean
+    /** Graceful stop never resolves, forcing the kill escalation. */
+    stopHangs?: boolean
     onExec?: () => void
     createError?: Error
     execError?: Error
@@ -111,8 +118,15 @@ function fakeSdk(
                     if (behavior.execError) throw behavior.execError
                     const events = [...behavior.stream!]
                     return {
-                      recv: async () => events.shift() ?? null,
-                      kill: async () => {},
+                      recv: () => {
+                        const next = events.shift()
+                        if (next) return Promise.resolve(next)
+                        if (behavior.streamHangs) return new Promise<never>(() => {})
+                        return Promise.resolve(null)
+                      },
+                      kill: async () => {
+                        call.streamKilled = true
+                      },
                     }
                   },
                 }
@@ -129,6 +143,7 @@ function fakeSdk(
                 call.exec = exec
                 behavior.onExec?.()
                 if (behavior.execError) throw behavior.execError
+                if (behavior.execHangs) return new Promise<never>(() => {})
                 return {
                   code: behavior.output?.code ?? 0,
                   success: behavior.output?.success ?? true,
@@ -136,8 +151,10 @@ function fakeSdk(
                   stderr: () => behavior.output?.stderrText ?? '',
                 }
               },
-              stop: async () => {
+              stop: () => {
+                if (behavior.stopHangs) return new Promise<never>(() => {})
                 call.stopped = true
+                return Promise.resolve()
               },
               kill: async () => {
                 call.killed = true
@@ -339,6 +356,61 @@ describe('code exec', () => {
       expect(result.stdout).toBe('partial\n')
       expect(result.stderr).toContain('without an exit status')
       expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('the host watchdog kills a streaming execution the sandbox fails to stop', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      // The guest wedges: it emits some output, then the SDK's own timeout never fires and recv
+      // hangs forever — exactly the production failure this watchdog exists for.
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), timeoutGraceMs: 50}, async () =>
+        fakeSdk(call, {
+          stream: [
+            {kind: 'started', pid: 42},
+            {kind: 'stdout', data: new TextEncoder().encode('compiling…\n')},
+          ],
+          streamHangs: true,
+        }),
+      )
+      const startedAt = Date.now()
+      const result = await executor.execute({stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
+      expect(Date.now() - startedAt).toBeLessThan(5_000)
+      expect(result.exitCode).toBe(-1)
+      expect(result.success).toBe(false)
+      // The model still sees what ran before the kill, and why it ended.
+      expect(result.stdout).toBe('compiling…\n')
+      expect(result.stderr).toContain('killed by the server')
+      expect(call.streamKilled).toBe(true)
+      expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('the host watchdog also bounds a buffered execution with no streaming API', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), timeoutGraceMs: 50}, async () =>
+        fakeSdk(call, {execHangs: true}),
+      )
+      const result = await executor.execute({stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
+      expect(result.exitCode).toBe(-1)
+      expect(result.success).toBe(false)
+      expect(result.stderr).toContain('killed by the server')
+      expect(call.stopped).toBe(true)
+    })
+  })
+
+  test('teardown escalates to kill when the graceful stop hangs', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), teardownTimeoutMs: 50}, async () =>
+        fakeSdk(call, {stopHangs: true}),
+      )
+      const result = await executor.execute({stateDir, runtime: 'python', code: 'print("hi")'})
+      // The execution itself succeeded; a wedged stop must not lose the result or leak the VM.
+      expect(result.success).toBe(true)
+      expect(call.stopped).toBeUndefined()
+      expect(call.killed).toBe(true)
     })
   })
 
