@@ -156,9 +156,22 @@ export function resolveMemoryPath(stateDir: string, rawPath: unknown): {relPath:
   return {relPath, absPath}
 }
 
+function assertNoSymlinkComponents(stateDir: string, relPath: string): void {
+  let current = memoryRootPath(stateDir)
+  for (const segment of ['', ...relPath.split('/').filter(Boolean)]) {
+    if (segment) current = path.join(current, segment)
+    const stat = lstatOrNull(current)
+    if (!stat) return
+    if (stat.isSymbolicLink()) {
+      throw new AgentMemoryError(400, `Memory path cannot traverse symbolic links: ${relPath || '/'}`)
+    }
+  }
+}
+
 /** Lists every file and directory in the agent's memory, sorted by path. */
 export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; totalBytes: number} {
   const root = memoryRootPath(stateDir)
+  assertNoSymlinkComponents(stateDir, '')
   const entries: AgentMemoryEntry[] = []
   let totalBytes = 0
   const walk = (dirAbs: string, dirRel: string): void => {
@@ -203,6 +216,7 @@ export function listMemoryDir(
   const {relPath, absPath} = atRoot
     ? {relPath: '', absPath: memoryRootPath(stateDir)}
     : resolveMemoryPath(stateDir, rawPath)
+  assertNoSymlinkComponents(stateDir, relPath)
   if (!atRoot) {
     const stat = lstatOrNull(absPath)
     if (!stat || stat.isSymbolicLink()) throw new AgentMemoryError(404, `Memory directory not found: ${relPath}`)
@@ -243,6 +257,7 @@ export function listMemoryDir(
  */
 export function readMemoryFile(stateDir: string, rawPath: unknown): AgentMemoryFileData {
   const {relPath, absPath} = resolveMemoryPath(stateDir, rawPath)
+  assertNoSymlinkComponents(stateDir, relPath)
   const stat = lstatOrNull(absPath)
   if (!stat || stat.isSymbolicLink()) throw new AgentMemoryError(404, `Memory file not found: ${relPath}`)
   if (stat.isDirectory()) throw new AgentMemoryError(400, `Memory path is a directory, not a file: ${relPath}`)
@@ -272,11 +287,17 @@ export function writeMemoryFile(stateDir: string, rawPath: unknown, content: unk
     throw new AgentMemoryError(400, 'Memory file content must be a string or bytes')
   }
   const {relPath, absPath} = resolveMemoryPath(stateDir, rawPath)
-  return writeMemoryBytes(relPath, absPath, contentBytes)
+  return writeMemoryBytes(stateDir, relPath, absPath, contentBytes)
 }
 
 /** Shared write path used by text/binary writes and web downloads after content is in hand. */
-function writeMemoryBytes(relPath: string, absPath: string, contentBytes: Uint8Array): AgentMemoryEntry {
+function writeMemoryBytes(
+  stateDir: string,
+  relPath: string,
+  absPath: string,
+  contentBytes: Uint8Array,
+): AgentMemoryEntry {
+  assertNoSymlinkComponents(stateDir, relPath)
   const existing = lstatOrNull(absPath)
   if (existing?.isSymbolicLink()) throw new AgentMemoryError(400, `Memory path is not writable: ${relPath}`)
   if (existing?.isDirectory()) throw new AgentMemoryError(400, `Memory path is a directory, not a file: ${relPath}`)
@@ -370,7 +391,7 @@ export async function downloadToMemory(
     const ext = extensionForMimeType(contentType)
     if (ext) ({relPath, absPath} = resolveMemoryPath(stateDir, `${relPath}.${ext}`))
   }
-  const entry = writeMemoryBytes(relPath, absPath, content)
+  const entry = writeMemoryBytes(stateDir, relPath, absPath, content)
   return {entry, finalUrl: response.url || url.toString(), contentType}
 }
 
@@ -415,6 +436,7 @@ export function summarizeMemoryTopLevel(stateDir: string): {
 /** Deletes one memory file, or one directory recursively. Returns false when nothing existed. */
 export function deleteMemoryPath(stateDir: string, rawPath: unknown): {path: string; deleted: boolean} {
   const {relPath, absPath} = resolveMemoryPath(stateDir, rawPath)
+  assertNoSymlinkComponents(stateDir, relPath)
   const stat = lstatOrNull(absPath)
   if (!stat) return {path: relPath, deleted: false}
   fs.rmSync(absPath, {recursive: true, force: true})
