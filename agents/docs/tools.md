@@ -295,8 +295,14 @@ Other write behavior worth knowing:
 ## `call`
 
 ```ts
-type CallInput = {tool: string; input?: object}
+type CallInput = {tool: string; input?: object; description?: string}
 ```
+
+`description` is optional intent for the user — one short line the chat row shows instead of the raw input. It is read
+from the durable `tool_call` event and never passed to the tool (scripts have the same affordance as
+`ctx.call(tool, input, {description})`). It is not required: `search`, `web_search`, `read`, and `write` rows already
+name their subject, and MCP rows read the call's first short string argument. Only `execute`, whose input is opaque,
+requires a description in its own input.
 
 Dispatch order in `executeCallVerb` (`api-service.ts:7794`):
 

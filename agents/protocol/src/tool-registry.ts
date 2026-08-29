@@ -255,6 +255,7 @@ const callVerb = {
   description: [
     'Invoke a tool by name with a JSON input. Your available tools are listed in your context with one-line summaries; read `~/tools/<name>` for a full contract.',
     'Calling a tool with missing or invalid input does not fail: the result is the tool contract itself — read it and call again correctly. Do not guess elaborate inputs for a tool you have not expanded.',
+    'When the input alone would not tell a reader what the call is for, add `description`: one short line of intent that the user sees as the row label instead of the raw input.',
   ].join('\n'),
   inputSchema: {
     type: 'object',
@@ -262,6 +263,13 @@ const callVerb = {
     properties: {
       tool: {type: 'string', minLength: 1, description: 'The tool name, as listed under ~/tools/.'},
       input: {type: 'object', description: "The tool's input, matching its contract."},
+      description: {
+        type: 'string',
+        minLength: 3,
+        maxLength: 120,
+        description:
+          'Optional one-line intent for the user ("Look up the repo\'s docs structure"), shown as the row label. Not passed to the tool.',
+      },
     },
     required: ['tool'],
   },

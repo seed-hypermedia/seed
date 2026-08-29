@@ -820,12 +820,35 @@ describe('mcp tools through the call verb', () => {
     })
     seedMcp(context, 'weather', [forecastTool])
 
-    const result = await executeCallVerb(context, {tool: 'weather__forecast', input: {city: 'Lisbon'}}, 'tc-mcp')
+    const result = await executeCallVerb(
+      context,
+      {tool: 'weather__forecast', input: {city: 'Lisbon'}, description: 'Check the weather for the trip'},
+      'tc-mcp',
+    )
+    // The call-level description never reaches the server; the row reads it from the event.
     expect(calls).toEqual([['weather', 'forecast', {city: 'Lisbon'}]])
     expect(result.text).toBe('Sunny, 24°C')
     expect(result.result).toEqual({tempC: 24})
-    expect(String(result.summary)).toContain('Ran forecast on the weather MCP server')
+    // The summary names the call by its first short argument; a promoted row reads `argument` alone.
+    expect(result.summary).toBe('forecast · Lisbon')
+    expect(result.argument).toBe('Lisbon')
     expect(context.onToolProgress).toHaveBeenCalledWith('call', expect.objectContaining({toolCallId: 'tc-mcp'}))
+  })
+
+  test('a call whose arguments are long or non-string falls back to naming the server', async () => {
+    const context = makeContext({
+      mcp: {callTool: mock(async () => ({text: 'ok', images: [], isError: false}))},
+    })
+    seedMcp(context, 'notes', [{name: 'append'}])
+    const result = await executeCallVerb(
+      context,
+      {tool: 'notes__append', input: {count: 3, body: 'x'.repeat(200)}},
+      'tc-long',
+    )
+    expect(result.summary).toBe('Ran append on the notes MCP server')
+    expect(result.argument).toBeUndefined()
+    expect(apisvc.firstShortStringArgument({a: '  spaced   out  ', b: 'second'})).toBe('spaced out')
+    expect(apisvc.firstShortStringArgument({a: '', b: 'second'})).toBe('second')
   })
 
   test('a miss answers with the contract; server errors and transport failures are thrown', async () => {

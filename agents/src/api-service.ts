@@ -10161,8 +10161,13 @@ async function executeMcpTool(
     throw new APIError(400, `Tool ${doc.name} reported an error: ${result.text || 'no details were given'}`)
   }
   const durationMs = Date.now() - startedAt
+  // The row reads the call's own argument when one is short enough to name what happened
+  // ("read_wiki_structure · facebook/react"); a promoted row, already labeled with the tool,
+  // shows just the argument. Duration stays in the details and the event meta.
+  const argument = firstShortStringArgument(toolInput)
   const output: Record<string, unknown> = {
-    summary: `Ran ${remoteName} on the ${server} MCP server (${durationMs}ms).`,
+    summary: argument ? `${remoteName} · ${argument}` : `Ran ${remoteName} on the ${server} MCP server`,
+    ...(argument ? {argument} : {}),
     ...(result.text ? {text: result.text} : {}),
     ...(result.structured !== undefined ? {result: result.structured} : {}),
     ...(result.images.length ? {images: result.images.length} : {}),
@@ -10177,7 +10182,29 @@ async function executeMcpTool(
   return output
 }
 
-/** Executes the call verb: contract-on-miss dispatch into the callable tool set. */
+/** Longest argument value a chat row will show in place of a tool summary. */
+const MAX_ROW_ARGUMENT_CHARS = 80
+
+/**
+ * The first string argument short enough to stand for the call in a chat row — a repo name, a
+ * query, a question. Arguments are read in the order the model wrote them, which tends to put the
+ * subject first; long strings (bodies, code) are skipped rather than truncated, since a cut-off
+ * body names nothing.
+ */
+export function firstShortStringArgument(input: Record<string, unknown>): string | undefined {
+  for (const value of Object.values(input)) {
+    if (typeof value !== 'string') continue
+    const trimmed = value.trim().replace(/\s+/g, ' ')
+    if (trimmed && trimmed.length <= MAX_ROW_ARGUMENT_CHARS) return trimmed
+  }
+  return undefined
+}
+
+/**
+ * Executes the call verb: contract-on-miss dispatch into the callable tool set. `description` is
+ * the model's optional one-line intent for the user; it is read by the chat row from the durable
+ * call event and never reaches the tool.
+ */
 export async function executeCallVerb(
   context: AgentServicePiToolContext,
   raw: unknown,
