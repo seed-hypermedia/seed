@@ -81,7 +81,7 @@ export function AgentMemoryTab({
   /** Union of all loaded levels, sorted so the flat tree renders parents before children. */
   const entries = useMemo(() => {
     const merged: AgentMemoryEntry[] = []
-    for (const level of loadedLevels.values()) merged.push(...level.entries)
+    loadedLevels.forEach((level) => merged.push(...level.entries))
     merged.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
     return merged
   }, [loadedLevels])
