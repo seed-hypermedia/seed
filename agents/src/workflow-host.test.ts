@@ -284,6 +284,67 @@ describe('workflow host', () => {
     expect(outcome).toEqual({type: 'succeeded', output: [1, 2, 3]})
   })
 
+  test('workflow failure waits for sibling parallel effects to finish', async () => {
+    let resolveSlow!: (value: unknown) => void
+    const slowStarted = Promise.withResolvers<void>()
+    const {adapters, journal} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        await ctx.parallel([
+          () => ctx.call('slow', {}),
+          () => { throw new Error('parallel failed') },
+        ])
+      }`,
+      callTool: () =>
+        new Promise((resolve) => {
+          resolveSlow = resolve
+          slowStarted.resolve()
+        }),
+    })
+
+    let settled = false
+    const outcomePromise = runWorkflowVM(adapters).then((outcome) => {
+      settled = true
+      return outcome
+    })
+    await slowStarted.promise
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(settled).toBe(false)
+    expect(journal.filter((entry) => entry.kind === 'result')).toHaveLength(0)
+
+    resolveSlow({ok: true})
+    const outcome = await outcomePromise
+    expect(outcome).toMatchObject({type: 'failed', error: {message: 'parallel failed'}})
+    expect(journal.filter((entry) => entry.kind === 'result')).toHaveLength(1)
+  })
+
+  test('cancellation wins when an in-flight tool later succeeds', async () => {
+    let canceled = false
+    let releaseTool!: () => void
+    const toolStarted = Promise.withResolvers<void>()
+    const {adapters} = fakeAdapters({
+      source: `export default async function (input, ctx) {
+        await ctx.call('slow', {})
+        return 'done'
+      }`,
+      callTool: async () => {
+        toolStarted.resolve()
+        await new Promise<void>((resolve) => {
+          releaseTool = resolve
+        })
+        return {ok: true}
+      },
+      isCanceled: () => canceled,
+    })
+
+    const outcomePromise = runWorkflowVM(adapters)
+    await toolStarted.promise
+    canceled = true
+    releaseTool()
+
+    expect(await outcomePromise).toEqual({type: 'canceled'})
+  })
+
   test('replay returns journaled results without re-executing tools, byte-identical output', async () => {
     const source = `export default async function (input, ctx) {
       const one = await ctx.call('op', {step: 1})

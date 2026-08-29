@@ -402,6 +402,7 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
   const deliveries: Delivery[] = []
   const inflight = new Map<number, Promise<void>>()
   let finished: {ok: boolean; value: unknown} | null = null
+  let cancellationRequested = false
   const parkState: {
     timer: {wakeAt: number} | null
     event: {waitId: string; timeoutAt?: number; label?: string; answerWith?: string} | null
@@ -875,6 +876,15 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
         }
         continue
       }
+      cancellationRequested ||= adapters.isCanceled()
+      if ((finished || cancellationRequested) && inflight.size > 0) {
+        // Effects already issued by a failing parallel sibling or a canceled run cannot be stopped.
+        // Keep the run non-terminal until they are journaled so tools and children cannot mutate
+        // external state or append results after clients have observed completion.
+        await Promise.race(inflight.values())
+        continue
+      }
+      if (cancellationRequested) return {type: 'canceled'}
       if (finished) {
         const done: {ok: boolean; value: unknown} = finished
         if (done.ok) {
@@ -912,7 +922,6 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           },
         }
       }
-      if (adapters.isCanceled()) return {type: 'canceled'}
       if (continuation.requested && inflight.size === 0) {
         return {type: 'continued', state: continuation.requested.state}
       }
