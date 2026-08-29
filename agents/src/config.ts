@@ -12,11 +12,15 @@ export type Server = {
   port: number
 }
 
+import {parseLogLevel, type LogLevel} from '@/log'
+
 /** Runtime configuration for the Agents service. */
 export type Config = {
   http: Server
   dbPath: string
   dataDir: string
+  /** Minimum log level emitted; `debug` turns the per-delta/per-poll hot-path lines back on. */
+  logLevel: LogLevel
   /**
    * Offer subscription (OAuth) provider sign-in ("Sign in with ChatGPT").
    * Explicit opt-in: the flow needs a client that can catch the provider's
@@ -85,6 +89,7 @@ export type Flags = {
   'exec-timeout-secs': number
   'exec-allow-network': string
   'exec-dns': string
+  'log-level': string
 }
 
 /** Creates default flag values from the current environment. */
@@ -112,6 +117,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
     'exec-allow-network': env.SEED_AGENTS_EXEC_ALLOW_NETWORK ?? '',
     'exec-dns': env.SEED_AGENTS_EXEC_DNS || '',
+    'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
   }
 }
 
@@ -171,6 +177,7 @@ export function create(pflags: Flags): Config {
     },
     dbPath: pflags['db-path'],
     dataDir: pflags['data-dir'],
+    logLevel: parseLogLevel(pflags['log-level']),
     activity: {
       hmServerUrl: normalizeHttpUrl(pflags['hm-server-url'], 'HM server URL'),
       ipfsServerUrl: normalizeHttpUrl(pflags['ipfs-server-url'] || pflags['hm-server-url'], 'IPFS server URL'),

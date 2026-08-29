@@ -157,6 +157,7 @@ Config source: `agents/src/config.ts`.
 | `SEED_AGENTS_EXEC_TIMEOUT_SECS`         | `60`                   | Default per-execution timeout (tool may request up to 300s).                                       |
 | `SEED_AGENTS_EXEC_ALLOW_NETWORK`        | `true`                 | Sandbox internet access. Set `false`/`off`/`0` to isolate sandboxes.                               |
 | `SEED_AGENTS_EXEC_DNS`                  | `1.1.1.1,8.8.8.8`      | Comma-separated DNS resolvers used inside execution sandboxes.                                     |
+| `SEED_AGENTS_LOG_LEVEL`                 | `info`                 | Minimum log level (`debug`, `info`, `warn`, `error`). `debug` re-enables hot-path lines.           |
 
 CLI flags override env/defaults:
 
@@ -496,7 +497,15 @@ not browser origin.
 ## Diagnostics and logs
 
 Current logs intentionally include IDs, counts, statuses, sizes, timings, trigger sources, and compact activity metadata
-— not secrets or full message/session content. Activity trigger diagnostics use:
+— not secrets or full message/session content.
+
+Logging is leveled (`agents/src/log.ts`, `SEED_AGENTS_LOG_LEVEL` / `--log-level`, default `info`). The per-event hot
+paths — every WebSocket partial (`publish partial`, `send partial`, `skip partial`) and every no-op activity poll
+(`Polling feed`, `Feed page received`, `Processing feed events` with nothing new) — log at `debug` and are silent by
+default: measured in production, they were ~90% of ~440k lines/hour. Set the level to `debug` when tracing streaming or
+trigger delivery.
+
+Activity trigger diagnostics use:
 
 - `[Agents Activity] Polling feed`
 - `[Agents Activity] Feed page received`

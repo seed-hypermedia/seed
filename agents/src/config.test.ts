@@ -36,4 +36,13 @@ describe('config', () => {
       ipfsServerUrl: 'https://hyper.media',
     })
   })
+
+  test('log level defaults to info, honors env and flag, and rejects unknown levels', () => {
+    expect(config.create(config.flags({} as NodeJS.ProcessEnv)).logLevel).toBe('info')
+    expect(config.create(config.flags({SEED_AGENTS_LOG_LEVEL: 'debug'} as NodeJS.ProcessEnv)).logLevel).toBe('debug')
+    expect(config.create(config.parseArgs(['--log-level', 'warn'], {} as NodeJS.ProcessEnv)).logLevel).toBe('warn')
+    expect(() => config.create(config.flags({SEED_AGENTS_LOG_LEVEL: 'loud'} as NodeJS.ProcessEnv))).toThrow(
+      'Invalid log level',
+    )
+  })
 })

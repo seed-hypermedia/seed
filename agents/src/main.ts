@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
+import {log, setLogLevel} from '@/log'
 import {withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
@@ -225,11 +226,11 @@ function sendIfSubscribed(
   const accountWide = accountKey ? ws.data.subscriptions.has(accountKey) : false
   if (direct || accountWide) {
     if (event._ === 'appendPartial') {
-      console.info('[agents/ws] send partial', {...summarizeWSEvent(event), direct, accountWide})
+      log.debug('[agents/ws] send partial', {...summarizeWSEvent(event), direct, accountWide})
     }
     sendWS(ws, event)
   } else if (event._ === 'appendPartial') {
-    console.info('[agents/ws] skip partial; no subscription', {
+    log.debug('[agents/ws] skip partial; no subscription', {
       key,
       accountId: ws.data.accountId,
       subscriptions: Array.from(ws.data.subscriptions),
@@ -273,6 +274,7 @@ async function main(): Promise<void> {
   }
 
   const cfg = config.create(config.parseArgs())
+  setLogLevel(cfg.logLevel)
   const result = sqlite.open(cfg.dbPath)
 
   if (!result.ok) {
@@ -294,7 +296,7 @@ async function main(): Promise<void> {
   const clients = new Set<ServerWebSocket<WSData>>()
   const publish = (event: apisvc.ServiceEvent) => {
     if (event.type === 'session-partial') {
-      console.info('[agents/ws] publish partial', {
+      log.debug('[agents/ws] publish partial', {
         accountId: event.accountId,
         sessionId: event.sessionId,
         partialId: event.partialId,
