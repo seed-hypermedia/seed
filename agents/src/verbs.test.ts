@@ -106,6 +106,36 @@ describe('read verb', () => {
     expect(String(contract.markdown)).toContain('## Input schema')
     expect(String(contract.markdown)).toContain('web_search')
 
+    const writeIndex = await executeReadVerb(context, {address: '~/tools/write'})
+    expect(String(writeIndex.markdown)).toContain('~/tools/write/capabilities')
+    expect(String(writeIndex.markdown)).toContain('grant WRITER or AGENT access')
+    expect(String(writeIndex.markdown)).not.toContain('capability.grant')
+
+    for (const guideName of [
+      'memory',
+      'tools',
+      'triggers',
+      'ipfs',
+      'documents',
+      'comments',
+      'capabilities',
+      'contacts',
+      'profiles',
+      'drafts',
+    ]) {
+      const guide = await executeReadVerb(context, {address: `~/tools/write/${guideName}`})
+      expect(guide.name).toBe(`write/${guideName}`)
+      expect(guide.kind).toBe('guide')
+    }
+    const capabilityGuide = await executeReadVerb(context, {address: '~/tools/write/capabilities'})
+    expect(String(capabilityGuide.markdown)).toContain('capability.grant')
+    expect(String(capabilityGuide.markdown)).toContain('delegate')
+    expect(String(capabilityGuide.markdown)).not.toContain('contact.create')
+
+    const unknownGuide = await executeReadVerb(context, {address: '~/tools/write/unknown'})
+    expect(String(unknownGuide.summary)).toContain('No write guide named unknown')
+    expect(String(unknownGuide.markdown)).toContain('~/tools/write/documents')
+
     // The execute contract is the one a server can honor only partly, so reading it shows the
     // runtimes THIS server offers rather than everything the shipped document lists.
     const narrowed = await executeReadVerb(makeContext({codeExec: {runtimes: ['python', 'shell']} as never}), {
@@ -581,6 +611,7 @@ describe('space index and touch-expand pins', () => {
     append(2, {type: 'tool_call', id: 't1', name: 'read', input: {address: '~/tools/web_search'}})
     append(3, {type: 'tool_call', id: 't2', name: 'call', input: {tool: 'execute', input: {}}})
     append(4, {type: 'tool_call', id: 't3', name: 'read', input: {address: '~/memory/x'}})
+    append(5, {type: 'tool_call', id: 't4', name: 'read', input: {address: '~/tools/write/capabilities'}})
     expect(apisvc.expandedCallablesFromEvents(context.db, 's1').sort()).toEqual(['execute', 'web_search'])
     expect(apisvc.expandedCallablesFromEvents(context.db, 'missing')).toEqual([])
   })
