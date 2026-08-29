@@ -35,6 +35,7 @@ import {
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
+import * as mcp from '@/mcp'
 import * as runs from '@/runs'
 import * as runEvents from '@/run-events'
 import * as toolDocs from '@/tool-documents'
@@ -113,6 +114,10 @@ const MAX_METADATA_CBOR_BYTES = 16 * 1024
 const MAX_TOOL_COUNT = 32
 const MAX_TOOL_NAME_BYTES = 128
 const MAX_TOOLS_TOTAL_BYTES = 4 * 1024
+const MAX_MCP_SERVERS_PER_AGENT = 16
+const MAX_MCP_URL_BYTES = 2048
+const MAX_MCP_HEADER_COUNT = 16
+const MAX_MCP_HEADER_VALUE_BYTES = 4096
 const MAX_SECRET_BYTES = 64 * 1024
 const MAX_MESSAGE_TEXT_BYTES = 64 * 1024
 /** Longest chain of agent-started sessions (A starts B starts C…) before start_session refuses. */
@@ -818,6 +823,14 @@ export class Service {
         return this.#setModelProvider(verified.accountId, envelope.action.name, envelope.action.provider)
       case 'DeleteModelProvider':
         return this.#deleteModelProvider(verified.accountId, envelope.action.name)
+      case 'ListMcpServers':
+        return this.#listMcpServers(verified.accountId)
+      case 'SetMcpServer':
+        return this.#setMcpServer(verified.accountId, envelope.action.name, envelope.action.config)
+      case 'DeleteMcpServer':
+        return this.#deleteMcpServer(verified.accountId, envelope.action.name)
+      case 'RefreshMcpServer':
+        return this.#refreshMcpServer(verified.accountId, envelope.action.name)
       case 'StartProviderOAuth':
         return this.#startProviderOAuth(verified.accountId, envelope.action.providerType)
       case 'SubmitProviderOAuthCode':
@@ -1452,6 +1465,7 @@ export class Service {
     )
     fs.mkdirSync(stateDir, {recursive: true})
     this.#createDefaultMentionTrigger(accountId, agentId, definition)
+    this.#syncAgentMcpTools(accountId, agentId, definition)
     const agentInfo = this.#getAgentInfo(accountId, agentId)
     if (agentInfo) {
       this.#emit({type: 'agent-change', accountId, agent: agentInfo})
@@ -1911,6 +1925,188 @@ export class Service {
     return {_: 'DeleteModelProviderResponse', name}
   }
 
+  // ---------------------------------------------------------------------------------------------
+  // MCP servers: account-scoped like model providers, enabled per agent, projected into ~/tools/.
+  // ---------------------------------------------------------------------------------------------
+
+  #listMcpServers(accountId: string): api.ListMcpServersResponse {
+    const rows = this.#db
+      .query<McpServerRow, [string]>(
+        `SELECT id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at
+         FROM mcp_servers WHERE account_id = ? ORDER BY name ASC`,
+      )
+      .all(accountId)
+    return {_: 'ListMcpServersResponse', servers: rows.map(mcpServerRowToRedacted)}
+  }
+
+  #getMcpServerRow(accountId: string, name: string): McpServerRow | undefined {
+    return (
+      this.#db
+        .query<McpServerRow, [string, string]>(
+          `SELECT id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at
+           FROM mcp_servers WHERE account_id = ? AND name = ?`,
+        )
+        .get(accountId, name) ?? undefined
+    )
+  }
+
+  /**
+   * Saves a server, then discovers its tools in the same request so the client learns
+   * "connected, N tools" or the exact failure at once. A failed discovery still saves the record:
+   * the owner may be fixing a header, and the server may simply be down right now.
+   */
+  async #setMcpServer(
+    accountId: string,
+    rawName: string,
+    rawConfig: api.McpServerConfig,
+  ): Promise<api.SetMcpServerResponse> {
+    const name = normalizeMcpServerName(rawName)
+    const config = normalizeMcpServerConfig(rawConfig)
+    const now = Date.now()
+    this.#ensureAccount(accountId, now)
+    const existing = this.#getMcpServerRow(accountId, name)
+    const id = existing?.id ?? crypto.randomUUID()
+    this.#db.run(
+      `INSERT INTO mcp_servers (id, account_id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, NULL, NULL, ?, ?)
+       ON CONFLICT(account_id, name) DO UPDATE SET
+         config_cbor = excluded.config_cbor,
+         updated_at = excluded.updated_at`,
+      [id, accountId, name, cbor.encode(config), existing?.created_at ?? now, now],
+    )
+    return {_: 'SetMcpServerResponse', server: await this.#discoverMcpServer(accountId, name)}
+  }
+
+  async #refreshMcpServer(accountId: string, rawName: string): Promise<api.SetMcpServerResponse> {
+    const name = normalizeMcpServerName(rawName)
+    if (!this.#getMcpServerRow(accountId, name)) throw new APIError(404, 'MCP server not found')
+    return {_: 'SetMcpServerResponse', server: await this.#discoverMcpServer(accountId, name)}
+  }
+
+  /** Connects, lists tools, records what it found, and re-projects the server onto the agents that enable it. */
+  async #discoverMcpServer(accountId: string, name: string): Promise<api.RedactedMcpServer> {
+    const row = this.#getMcpServerRow(accountId, name)
+    if (!row) throw new APIError(404, 'MCP server not found')
+    const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
+    let tools: api.McpToolInfo[] | undefined
+    let status: api.McpServerStatus
+    try {
+      const descriptors = await mcp.discoverMcpServerTools(name, config, (secretName) =>
+        this.#getSecretPlaintextString(accountId, secretName),
+      )
+      tools = descriptors.map((descriptor) => toolDocs.mcpToolInfoFromDescriptor(name, descriptor))
+      status = {state: 'ok', checkedAt: Date.now()}
+      console.info('[agents/mcp] discovered MCP server tools', {name, tools: tools.length})
+    } catch (error) {
+      status = {state: 'error', error: errorMessage(error), checkedAt: Date.now()}
+      console.warn('[agents/mcp] could not reach MCP server', {name, error: status.error})
+    }
+    return this.#storeMcpDiscovery(accountId, name, tools, status)
+  }
+
+  /**
+   * Records a discovery on the server row. A changed tool list re-projects onto every agent that
+   * enables the server; a failed discovery keeps the last good tool list so an outage does not
+   * strip tools from agents that will call them once the server is back.
+   */
+  #storeMcpDiscovery(
+    accountId: string,
+    name: string,
+    tools: api.McpToolInfo[] | undefined,
+    status: api.McpServerStatus,
+    options: {quiet?: boolean} = {},
+  ): api.RedactedMcpServer {
+    const row = this.#getMcpServerRow(accountId, name)
+    if (!row) throw new APIError(404, 'MCP server not found')
+    const now = Date.now()
+    let toolsChanged = false
+    if (tools !== undefined) {
+      const encoded = cbor.encode(tools)
+      toolsChanged = !row.tools_cbor || Buffer.compare(Buffer.from(row.tools_cbor), Buffer.from(encoded)) !== 0
+      this.#db.run(`UPDATE mcp_servers SET tools_cbor = ?, status_cbor = ?, updated_at = ? WHERE id = ?`, [
+        encoded,
+        cbor.encode(status),
+        now,
+        row.id,
+      ])
+    } else {
+      this.#db.run(`UPDATE mcp_servers SET status_cbor = ?, updated_at = ? WHERE id = ?`, [
+        cbor.encode(status),
+        now,
+        row.id,
+      ])
+    }
+    if (toolsChanged) this.#syncMcpServerAcrossAgents(accountId, name)
+    if (toolsChanged || !options.quiet) {
+      this.#emit({type: 'account-change', accountId, reason: 'mcp-servers-changed'})
+    }
+    return mcpServerRowToRedacted(this.#getMcpServerRow(accountId, name)!)
+  }
+
+  #deleteMcpServer(accountId: string, rawName: string): api.DeleteMcpServerResponse {
+    const name = normalizeMcpServerName(rawName)
+    const row = this.#getMcpServerRow(accountId, name)
+    if (!row) throw new APIError(404, 'MCP server not found')
+    const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
+    this.#db.run(`DELETE FROM mcp_servers WHERE id = ?`, [row.id])
+    // Header secrets created for this server (the `mcp-<name>-…` convention) go with it.
+    for (const secretName of Object.values(config.secretRefs ?? {})) {
+      if (typeof secretName === 'string' && secretName.startsWith(`mcp-${name}-`)) {
+        this.#db.run(`DELETE FROM secrets WHERE account_id = ? AND name = ?`, [accountId, secretName])
+      }
+    }
+    // Agents that enabled it lose the grant and its projected tools, so no run ever names a server
+    // that no longer exists.
+    const agents = this.#db
+      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
+        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+      )
+      .all(accountId)
+    for (const agent of agents) {
+      const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+      if (!definition.mcpServers?.includes(name)) continue
+      definition.mcpServers = definition.mcpServers.filter((server) => server !== name)
+      this.#db.run(`UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE id = ?`, [
+        cbor.encode(definition),
+        Date.now(),
+        agent.id,
+      ])
+      this.#syncAgentMcpTools(accountId, agent.id, definition)
+      const agentInfo = this.#getAgentInfo(accountId, agent.id)
+      if (agentInfo) this.#emit({type: 'agent-change', accountId, agent: agentInfo})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: agent.id})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-tools-changed', agentId: agent.id})
+    }
+    this.#emit({type: 'account-change', accountId, reason: 'mcp-servers-changed'})
+    return {_: 'DeleteMcpServerResponse', name}
+  }
+
+  /**
+   * One run's lazily-opened MCP connections. Servers resolve by name at call time, so a server
+   * edited mid-run is used as edited on its next fresh connect, and every successful connect
+   * refreshes the cached discovery quietly.
+   */
+  #createMcpPool(accountId: string): mcp.McpConnectionPool {
+    return new mcp.McpConnectionPool(
+      async (serverName) => {
+        const row = this.#getMcpServerRow(accountId, serverName)
+        return row ? cbor.decode<api.McpServerConfig>(row.config_cbor) : undefined
+      },
+      (secretName) => this.#getSecretPlaintextString(accountId, secretName),
+      (serverName, descriptors) => {
+        try {
+          this.#storeMcpDiscovery(
+            accountId,
+            serverName,
+            descriptors.map((descriptor) => toolDocs.mcpToolInfoFromDescriptor(serverName, descriptor)),
+            {state: 'ok', checkedAt: Date.now()},
+            {quiet: true},
+          )
+        } catch {}
+      },
+    )
+  }
+
   async #startProviderOAuth(accountId: string, rawProviderType: string): Promise<api.StartProviderOAuthResponse> {
     if (!this.#subscriptionAuthEnabled) {
       throw new APIError(403, 'Subscription sign-in is not enabled on this server')
@@ -2290,11 +2486,49 @@ export class Service {
       accountId,
       agentId,
     ])
+    // The agent's ~/tools/ is a projection of its grants: re-derive the MCP documents now so the
+    // next listing, Space index, and call see exactly the servers this definition enables.
+    const mcpSync = this.#syncAgentMcpTools(accountId, agentId, definition)
     const response = this.#getAgent(accountId, agentId, viewerAccountId)
     this.#emit({type: 'agent-change', accountId, agent: response.agent})
     invalidateSpaceIndex(accountId, agentId)
     this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+    if (mcpSync.changed) this.#emit({type: 'account-change', accountId, reason: 'agent-tools-changed', agentId})
     return response
+  }
+
+  /** Reconciles one agent's `mcp` tool documents with the servers its definition enables. */
+  #syncAgentMcpTools(
+    accountId: string,
+    agentId: string,
+    definition: api.AgentDefinition,
+  ): {changed: boolean; conflicts: string[]} {
+    const result = toolDocs.syncMcpToolDocuments(this.#db, accountId, agentId, definition.mcpServers ?? [])
+    if (result.changed) invalidateSpaceIndex(accountId, agentId)
+    if (result.conflicts.length) {
+      console.warn('[agents/mcp] remote tools shadowed by authored tools of the same name', {
+        agentId,
+        names: result.conflicts,
+      })
+    }
+    return result
+  }
+
+  /** Re-projects an MCP server's tools onto every agent of the account that enables it. */
+  #syncMcpServerAcrossAgents(accountId: string, serverName: string): void {
+    const agents = this.#db
+      .query<{id: string; definition_cbor: Uint8Array}, [string]>(
+        `SELECT id, definition_cbor FROM agents WHERE account_id = ?`,
+      )
+      .all(accountId)
+    for (const agent of agents) {
+      const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+      if (!definition.mcpServers?.includes(serverName)) continue
+      const result = this.#syncAgentMcpTools(accountId, agent.id, definition)
+      if (result.changed) {
+        this.#emit({type: 'account-change', accountId, reason: 'agent-tools-changed', agentId: agent.id})
+      }
+    }
   }
 
   #deleteAgent(accountId: string, agentId: string): api.DeleteAgentResponse {
@@ -2394,10 +2628,13 @@ export class Service {
     const codeExecAvailable = (await this.#codeExec.availability()).available
     const callables = enabledCallableTools(agent.definition, codeExecAvailable)
     toolDocs.ensureBuiltinToolDocuments(this.#db, accountId, agentId)
+    this.#syncAgentMcpTools(accountId, agentId, agent.definition)
     const tools = toolDocs.listToolDocuments(this.#db, accountId, agentId).map(
       (row): api.AgentToolInfo => ({
         name: row.doc.name,
         kind: row.doc.kind,
+        ...(row.doc.server ? {server: row.doc.server} : {}),
+        ...(row.doc.remoteName ? {remoteName: row.doc.remoteName} : {}),
         summary: row.doc.summary,
         description: row.doc.description,
         input: row.doc.input as Record<string, unknown>,
@@ -3324,6 +3561,8 @@ export class Service {
     if (!agent) throw new APIError(404, 'Agent not found')
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const codeExecAvailable = (await this.#codeExec.availability()).available
+    this.#syncAgentMcpTools(accountId, session.agentId, definition)
+    const mcpPool = this.#createMcpPool(accountId)
     const context: AgentServicePiToolContext = {
       db: this.#db,
       accountId,
@@ -3347,6 +3586,7 @@ export class Service {
       codeExec: this.#codeExec,
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
+      mcp: mcpPool,
       startSession: () => {
         throw new APIError(400, 'Delegation is a conversational ask; message the agent instead')
       },
@@ -3372,6 +3612,7 @@ export class Service {
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught)
     } finally {
+      await mcpPool.close()
       const remaining = (this.#liveUserVerbs.get(sessionId) ?? 1) - 1
       if (remaining <= 0) this.#liveUserVerbs.delete(sessionId)
       else this.#liveUserVerbs.set(sessionId, remaining)
@@ -4888,18 +5129,20 @@ export class Service {
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const codeExecAvailable = (await this.#codeExec.availability()).available
     // Scripts always hold the read/write verbs; definition.tools narrows only the built-in
-    // callable set. Enabled authored tools are callable too — the same execute grant and runtime
-    // checks as a chat `call` still apply inside executeLambdaTool.
-    const authoredTools = toolDocs
+    // callable set. Enabled authored tools and projected MCP tools are callable too — the same
+    // grant and runtime checks as a chat `call` still apply inside their executors.
+    this.#syncAgentMcpTools(run.accountId, run.agentId, definition)
+    const documentTools = toolDocs
       .listToolDocuments(this.#db, run.accountId, run.agentId)
-      .filter((row) => row.enabled && row.doc.kind === 'lambda')
+      .filter((row) => row.enabled && row.doc.kind !== 'builtin')
       .map((row) => row.doc.name)
     const allowedTools = new Set([
       seedVerbRegistry.read.name,
       seedVerbRegistry.write.name,
       ...enabledCallableTools(definition, codeExecAvailable),
-      ...authoredTools,
+      ...documentTools,
     ])
+    const mcpPool = this.#createMcpPool(run.accountId)
     const stateDir = this.#agentMemoryStateDir(run.accountId, run.agentId)
     const partialId = crypto.randomUUID()
     const emitRunPartial = (patch: {
@@ -4957,6 +5200,7 @@ export class Service {
         }),
       callableTools: enabledCallableTools(definition, codeExecAvailable),
       publishEnabled: publishGrantEnabled(definition),
+      mcp: mcpPool,
       startSession: () => {
         throw new APIError(400, 'Detached delegation is not available in scripts; use ctx.delegate')
       },
@@ -4974,128 +5218,134 @@ export class Service {
         .get(run.id)?.b ?? 0
     let toolCallCounter = 0
 
-    const outcome = await runWorkflowVM({
-      runId: run.id,
-      input: (run.input as {input?: unknown} | null)?.input ?? null,
-      source: run.sourceText,
-      journal: {
-        load: () =>
-          this.#db
-            .query<{entry_cbor: Uint8Array}, [string]>(
-              `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
-            )
-            .all(run.id)
-            .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor)),
-        append: (entry) => {
-          const encoded = cbor.encode(entry)
-          if (
-            journalCount + 1 > WORKFLOW_JOURNAL_MAX_ENTRIES ||
-            journalBytes + encoded.byteLength > WORKFLOW_JOURNAL_MAX_BYTES
-          ) {
-            throw {code: 'journal-cap'}
-          }
-          journalCount += 1
-          journalBytes += encoded.byteLength
-          const seq = journalCount
-          const createdAt = Date.now()
-          this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
-            run.id,
-            seq,
-            encoded,
-            createdAt,
-          ])
-          this.#emit({
-            type: 'run-append',
-            accountId: run.accountId,
-            rootRunId: run.rootRunId,
-            entry: {runId: run.id, seq, entry: entry as unknown as Record<string, unknown>, createdAt},
-          })
-        },
-      },
-      effects: {
-        callTool: async (rawTool, input, description) => {
-          // Models occasionally leak the provider's function namespace into tool names
-          // (`functions.memory_write`); accept it rather than failing a real workflow over it.
-          const tool = rawTool.replace(/^functions\./, '')
-          if (!allowedTools.has(normalizeSeedToolName(tool))) {
-            const error = new Error(
-              `Tool "${tool}" is not available in this workflow. Available: ${[...allowedTools].join(
-                ', ',
-              )}. Chat-session tools are not callable here — use ctx.plan/ctx.step for progress and ctx.agent for delegation.`,
-            ) as Error & {code: string}
-            error.code = 'unknown-tool'
-            throw error
-          }
-          const name = normalizeSeedToolName(tool)
-          const metadata = getSeedTool(name)
-          if (metadata) {
-            const inputErrors = validateJsonSchemaValue(metadata.inputSchema, input ?? {})
-            if (inputErrors.length > 0) {
-              const error = new Error(
-                `Invalid input for ${tool}: ${inputErrors.map((e) => `${e.path}: ${e.message}`).join('; ')}`,
-              ) as Error & {code: string}
-              error.code = 'invalid-input'
-              throw error
-            }
-          }
-          toolCallCounter += 1
-          emitRunPartial({activity: {phase: 'tool', toolName: tool, ...(description ? {detail: description} : {})}})
-          try {
-            // Callable tools (search, web_search, execute, …) and authored lambdas have no
-            // standalone provider tool — scripts reach both through the same call-verb dispatch
-            // the model uses. The authored name was admitted into allowedTools above.
-            if (piToolContext.callableTools.includes(name) || authoredTools.includes(name)) {
-              const result = await executeCallVerb(
-                piToolContext,
-                {tool: name, input},
-                `wf-${run.id}-${toolCallCounter}`,
+    let outcome: Awaited<ReturnType<typeof runWorkflowVM>>
+    try {
+      outcome = await runWorkflowVM({
+        runId: run.id,
+        input: (run.input as {input?: unknown} | null)?.input ?? null,
+        source: run.sourceText,
+        journal: {
+          load: () =>
+            this.#db
+              .query<{entry_cbor: Uint8Array}, [string]>(
+                `SELECT entry_cbor FROM run_journal WHERE run_id = ? ORDER BY seq ASC`,
               )
-              return result
+              .all(run.id)
+              .map((row) => cbor.decode<WorkflowJournalEntry>(row.entry_cbor)),
+          append: (entry) => {
+            const encoded = cbor.encode(entry)
+            if (
+              journalCount + 1 > WORKFLOW_JOURNAL_MAX_ENTRIES ||
+              journalBytes + encoded.byteLength > WORKFLOW_JOURNAL_MAX_BYTES
+            ) {
+              throw {code: 'journal-cap'}
             }
-            const def = toolsByName.get(name)
-            if (!def) {
-              const error = new Error(`Tool "${tool}" has no workflow executor`) as Error & {code: string}
+            journalCount += 1
+            journalBytes += encoded.byteLength
+            const seq = journalCount
+            const createdAt = Date.now()
+            this.#db.run(`INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`, [
+              run.id,
+              seq,
+              encoded,
+              createdAt,
+            ])
+            this.#emit({
+              type: 'run-append',
+              accountId: run.accountId,
+              rootRunId: run.rootRunId,
+              entry: {runId: run.id, seq, entry: entry as unknown as Record<string, unknown>, createdAt},
+            })
+          },
+        },
+        effects: {
+          callTool: async (rawTool, input, description) => {
+            // Models occasionally leak the provider's function namespace into tool names
+            // (`functions.memory_write`); accept it rather than failing a real workflow over it.
+            const tool = rawTool.replace(/^functions\./, '')
+            if (!allowedTools.has(normalizeSeedToolName(tool))) {
+              const error = new Error(
+                `Tool "${tool}" is not available in this workflow. Available: ${[...allowedTools].join(
+                  ', ',
+                )}. Chat-session tools are not callable here — use ctx.plan/ctx.step for progress and ctx.agent for delegation.`,
+              ) as Error & {code: string}
               error.code = 'unknown-tool'
               throw error
             }
-            const execute = def.execute as unknown as (
-              toolCallId: string,
-              params: unknown,
-            ) => Promise<{details?: unknown}>
-            const result = await execute(`wf-${run.id}-${toolCallCounter}`, input)
-            return result.details ?? null
-          } finally {
-            emitRunPartial({activity: {phase: 'thinking'}})
-          }
+            const name = normalizeSeedToolName(tool)
+            const metadata = getSeedTool(name)
+            if (metadata) {
+              const inputErrors = validateJsonSchemaValue(metadata.inputSchema, input ?? {})
+              if (inputErrors.length > 0) {
+                const error = new Error(
+                  `Invalid input for ${tool}: ${inputErrors.map((e) => `${e.path}: ${e.message}`).join('; ')}`,
+                ) as Error & {code: string}
+                error.code = 'invalid-input'
+                throw error
+              }
+            }
+            toolCallCounter += 1
+            emitRunPartial({activity: {phase: 'tool', toolName: tool, ...(description ? {detail: description} : {})}})
+            try {
+              // Callable tools (search, web_search, execute, …), authored lambdas, and MCP tools
+              // have no standalone provider tool — scripts reach them through the same call-verb
+              // dispatch the model uses. The document names were admitted into allowedTools above.
+              if (piToolContext.callableTools.includes(name) || documentTools.includes(name)) {
+                const result = await executeCallVerb(
+                  piToolContext,
+                  {tool: name, input},
+                  `wf-${run.id}-${toolCallCounter}`,
+                )
+                return result
+              }
+              const def = toolsByName.get(name)
+              if (!def) {
+                const error = new Error(`Tool "${tool}" has no workflow executor`) as Error & {code: string}
+                error.code = 'unknown-tool'
+                throw error
+              }
+              const execute = def.execute as unknown as (
+                toolCallId: string,
+                params: unknown,
+              ) => Promise<{details?: unknown}>
+              const result = await execute(`wf-${run.id}-${toolCallCounter}`, input)
+              return result.details ?? null
+            } finally {
+              emitRunPartial({activity: {phase: 'thinking'}})
+            }
+          },
+          spawnAgent: (spec, stepLabel) => this.#spawnWorkflowChildAgent(run, spec, stepLabel),
+          awaitChild: async (childRunId): Promise<WorkflowChildResolution> => {
+            const child = await this.#awaitRunTerminal(run.accountId, childRunId)
+            if (child.status === 'succeeded') {
+              return {status: 'succeeded', output: child.output ?? null, sessionId: child.sessionId}
+            }
+            if (child.status === 'canceled') return {status: 'canceled', sessionId: child.sessionId}
+            return {
+              status: 'failed',
+              error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-agent failed'},
+              sessionId: child.sessionId,
+            }
+          },
+          updatePlan: (plan) => {
+            this.#runQueue.updatePlan(run.id, plan)
+          },
+          progress: (patch) => emitRunPartial({progress: patch}),
+          registerEventWait: (wait) =>
+            runEvents.putRunEventWait(this.#db, {
+              runId: run.id,
+              waitId: wait.waitId,
+              accountId: run.accountId,
+              match: (isPlainRecord(wait.match) ? wait.match : {}) as runEvents.RunEventMatch,
+              ...(wait.timeoutAt === undefined ? {} : {timeoutAt: wait.timeoutAt}),
+            }),
         },
-        spawnAgent: (spec, stepLabel) => this.#spawnWorkflowChildAgent(run, spec, stepLabel),
-        awaitChild: async (childRunId): Promise<WorkflowChildResolution> => {
-          const child = await this.#awaitRunTerminal(run.accountId, childRunId)
-          if (child.status === 'succeeded') {
-            return {status: 'succeeded', output: child.output ?? null, sessionId: child.sessionId}
-          }
-          if (child.status === 'canceled') return {status: 'canceled', sessionId: child.sessionId}
-          return {
-            status: 'failed',
-            error: {code: child.error?.code ?? 'run-failed', message: child.error?.message ?? 'Sub-agent failed'},
-            sessionId: child.sessionId,
-          }
-        },
-        updatePlan: (plan) => {
-          this.#runQueue.updatePlan(run.id, plan)
-        },
-        progress: (patch) => emitRunPartial({progress: patch}),
-        registerEventWait: (wait) =>
-          runEvents.putRunEventWait(this.#db, {
-            runId: run.id,
-            waitId: wait.waitId,
-            accountId: run.accountId,
-            match: (isPlainRecord(wait.match) ? wait.match : {}) as runEvents.RunEventMatch,
-            ...(wait.timeoutAt === undefined ? {} : {timeoutAt: wait.timeoutAt}),
-          }),
-      },
-      isCanceled: () => this.#workflowCancelFlags.has(run.id),
-    })
+        isCanceled: () => this.#workflowCancelFlags.has(run.id),
+      })
+    } finally {
+      // Whatever MCP connections the script's calls opened close with the run.
+      await mcpPool.close()
+    }
 
     if (outcome.type === 'parked') return {type: 'parked', wait: outcome.wait}
     if (outcome.type === 'continued') {
@@ -5477,12 +5727,22 @@ export class Service {
     // the contract) promotes that callable to a first-class provider tool for the rest of the
     // thread — resume, park, and restart reconstruct the same set from the same events.
     const enabledCallables = enabledCallableTools(definition, codeExecAvailable)
-    // SECURITY: promotion must never exceed the enabled callable set — a hallucinated
-    // `call {tool: 'bash'}` durably stores that name, and an unfiltered allowlist would hand it
-    // to Pi, activating Pi's own host bash/edit builtins outside the sandbox.
+    // The agent's own documents — authored lambdas and the tools of its enabled MCP servers — are
+    // promotable too; the projection is re-derived here so it matches the definition being run.
+    this.#syncAgentMcpTools(accountId, session.agentId, definition)
+    const documentTools = new Set(
+      toolDocs
+        .listToolDocuments(this.#db, accountId, session.agentId)
+        .filter((row) => row.enabled && row.doc.kind !== 'builtin')
+        .map((row) => row.doc.name),
+    )
+    // SECURITY: promotion must never exceed the enabled callable set plus this agent's own enabled
+    // documents — a hallucinated `call {tool: 'bash'}` durably stores that name, and an unfiltered
+    // allowlist would hand it to Pi, activating Pi's own host bash/edit builtins outside the sandbox.
     const expandedCallables = this.#expandedCallablesForSession(sessionId)
       .map(normalizeSeedToolName)
-      .filter((name) => enabledCallables.includes(name))
+      .filter((name) => enabledCallables.includes(name) || documentTools.has(name))
+    const mcpPool = this.#createMcpPool(accountId)
     const {session: piSession} = await pi.createAgentSession({
       cwd,
       agentDir: path.join(this.#dataDir, 'pi'),
@@ -5527,6 +5787,7 @@ export class Service {
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
         callableTools: enabledCallables,
         publishEnabled: publishGrantEnabled(definition),
+        mcp: mcpPool,
         expandedCallables,
         ...this.#subSessionToolContext(
           accountId,
@@ -5932,6 +6193,7 @@ export class Service {
       this.#runningSessions.delete(runningSessionKey)
       unsubscribe()
       piSession.dispose()
+      await mcpPool.close()
       if (run && runUsage.total > 0) this.#runQueue.updateUsage(run.id, {...runUsage})
       logRun('agent run finished', {
         durationMs: Date.now() - runStartedAt,
@@ -6185,6 +6447,10 @@ export class Service {
     }
     flushPendingAssistant()
     return messages
+  }
+
+  async #getSecretPlaintextString(accountId: string, name: string): Promise<string> {
+    return new TextDecoder().decode(await this.#getSecretPlaintext(accountId, name))
   }
 
   async #getSecretPlaintext(accountId: string, name: string): Promise<Uint8Array> {
@@ -7222,6 +7488,8 @@ async function publishSigningIdentityProfileAndHome(
  * long sessions stop paying a recursive tree walk on every turn.
  */
 const SPACE_INDEX_BUDGET_BYTES = 2048
+/** An MCP server with more tools than this collapses to one line in the Space index. */
+const SPACE_INDEX_MCP_INLINE_LIMIT = 6
 
 type SpaceIndexInput = {
   db: Database
@@ -7250,9 +7518,26 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
   const tools = toolDocs
     .listToolDocuments(input.db, input.accountId, input.agentId)
     .filter((row) => row.enabled && (row.doc.kind !== 'builtin' || input.callableTools.includes(row.doc.name)))
-  const toolLines = tools.map(
-    (row) => `- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`,
-  )
+  // MCP servers can advertise dozens of tools; past a handful, one line per server keeps the index
+  // small while still telling the agent the tools exist and how to list them.
+  const mcpByServer = new Map<string, toolDocs.ToolDocumentRow[]>()
+  const toolLines: string[] = []
+  for (const row of tools) {
+    if (row.doc.kind === 'mcp' && row.doc.server) {
+      const group = mcpByServer.get(row.doc.server) ?? []
+      group.push(row)
+      mcpByServer.set(row.doc.server, group)
+      continue
+    }
+    toolLines.push(`- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`)
+  }
+  for (const [server, rows] of mcpByServer) {
+    if (rows.length > SPACE_INDEX_MCP_INLINE_LIMIT) {
+      toolLines.push(`- ${server}__* — ${rows.length} tools from the ${server} MCP server (read ~/tools/ to list them)`)
+    } else {
+      for (const row of rows) toolLines.push(`- ${row.doc.name} — ${row.doc.summary} (${server} MCP)`)
+    }
+  }
 
   let memoryLine = 'memory/ — empty'
   try {
@@ -7684,6 +7969,12 @@ function normalizeDefinition(raw: api.AgentDefinition): api.AgentDefinition {
     definition.tools = tools
   }
 
+  if (raw.mcpServers !== undefined) {
+    if (!Array.isArray(raw.mcpServers)) throw new APIError(400, 'MCP servers must be an array')
+    if (raw.mcpServers.length > MAX_MCP_SERVERS_PER_AGENT) throw new APIError(400, 'Too many MCP servers')
+    definition.mcpServers = [...new Set(raw.mcpServers.map((name) => normalizeMcpServerName(name)))]
+  }
+
   if (raw.metadata !== undefined) {
     if (!raw.metadata || typeof raw.metadata !== 'object' || Array.isArray(raw.metadata)) {
       throw new APIError(400, 'Metadata must be an object')
@@ -7944,6 +8235,96 @@ function normalizeProvider(raw: api.ModelProviderConfig): api.ModelProviderConfi
   }
 
   return provider
+}
+
+type McpServerRow = {
+  id: string
+  name: string
+  config_cbor: Uint8Array
+  tools_cbor: Uint8Array | null
+  status_cbor: Uint8Array | null
+  created_at: number
+  updated_at: number
+}
+
+/** Server names are slugs: they prefix every projected tool's document name, which must be provider-safe. */
+function normalizeMcpServerName(raw: unknown): string {
+  const name = typeof raw === 'string' ? raw.trim() : ''
+  if (!mcp.MCP_SERVER_NAME_PATTERN.test(name)) {
+    throw new APIError(400, 'MCP server name must be lowercase letters, digits, - or _ (1–32 characters)')
+  }
+  return name
+}
+
+function normalizeMcpServerConfig(raw: api.McpServerConfig): api.McpServerConfig {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'MCP server config is required')
+  const url = normalizeBoundedString(raw.url, 'MCP server URL', MAX_MCP_URL_BYTES)
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new APIError(400, 'MCP server URL is invalid')
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new APIError(400, 'MCP server URL must start with http:// or https://')
+  }
+  const config: api.McpServerConfig = {url}
+
+  if (raw.transport !== undefined) {
+    if (raw.transport !== 'http' && raw.transport !== 'sse') throw new APIError(400, 'MCP transport is unsupported')
+    config.transport = raw.transport
+  }
+
+  const normalizeHeaderMap = (value: unknown, label: string, valueLabel: string, valueLimit: number) => {
+    if (value === undefined) return undefined
+    if (!value || typeof value !== 'object' || Array.isArray(value))
+      throw new APIError(400, `${label} must be an object`)
+    const entries: Record<string, string> = {}
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      const headerName = normalizeBoundedString(key, `${label} name`, MAX_NAME_BYTES)
+      if (!/^[A-Za-z0-9-]+$/.test(headerName)) throw new APIError(400, `${label} name is not a valid header name`)
+      entries[headerName] = normalizeBoundedString(item, valueLabel, valueLimit)
+    }
+    if (Object.keys(entries).length > MAX_MCP_HEADER_COUNT) throw new APIError(400, `Too many ${label.toLowerCase()}s`)
+    return Object.keys(entries).length ? entries : undefined
+  }
+  const headers = normalizeHeaderMap(raw.headers, 'MCP header', 'MCP header value', MAX_MCP_HEADER_VALUE_BYTES)
+  if (headers) config.headers = headers
+  const secretRefs = normalizeHeaderMap(raw.secretRefs, 'MCP secret header', 'MCP secret name', MAX_NAME_BYTES)
+  if (secretRefs) config.secretRefs = secretRefs
+  return config
+}
+
+function mcpServerRowToRedacted(row: McpServerRow): api.RedactedMcpServer {
+  const config = cbor.decode<api.McpServerConfig>(row.config_cbor)
+  let tools: api.McpToolInfo[] = []
+  if (row.tools_cbor) {
+    try {
+      const decoded = cbor.decode<unknown>(row.tools_cbor)
+      if (Array.isArray(decoded)) tools = decoded as api.McpToolInfo[]
+    } catch {}
+  }
+  let status: api.McpServerStatus = {state: 'unknown'}
+  if (row.status_cbor) {
+    try {
+      const decoded = cbor.decode<api.McpServerStatus>(row.status_cbor)
+      if (decoded && typeof decoded === 'object' && typeof decoded.state === 'string') status = decoded
+    } catch {}
+  }
+  const secretHeaderNames = Object.keys(config.secretRefs ?? {})
+  return {
+    id: row.id,
+    name: row.name,
+    url: config.url,
+    transport: config.transport ?? 'http',
+    headerNames: Object.keys(config.headers ?? {}),
+    secretHeaderNames,
+    hasSecrets: secretHeaderNames.length > 0,
+    tools,
+    status,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
 }
 
 function normalizeOptionalMetadata(raw: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
@@ -8271,6 +8652,11 @@ export type AgentServicePiToolContext = WriteToolContext & {
   /** Whether signed public publishing (hm://, ipfs://) is granted; memory writes are never gated. */
   publishEnabled: boolean
   /**
+   * This run's MCP connections, opened lazily by the first call of a server's tool and closed by
+   * the run's teardown. Absent where no run owns a teardown; MCP tools then refuse to run.
+   */
+  mcp?: Pick<mcp.McpConnectionPool, 'callTool'>
+  /**
    * Callables the transcript shows the model has expanded (read the contract / hit touch-expand).
    * Promoted to first-class provider tools so later turns get provider-side schema validation.
    * Derived from durable events, so resume and compaction reconstruct the same set.
@@ -8317,6 +8703,20 @@ type PiToolRichOutput = {
 
 function hasPiContent(value: unknown): value is PiToolRichOutput & Record<string, unknown> {
   return isRecord(value) && Array.isArray((value as PiToolRichOutput).piContent)
+}
+
+/** The provider-facing shape of a promoted tool document: name, label, contract text, input schema. */
+function toolMetadataFromDocument(row: toolDocs.ToolDocumentRow): SeedToolMetadata {
+  const {doc} = row
+  const label = doc.kind === 'mcp' ? `${doc.server} · ${doc.remoteName ?? doc.name}` : doc.name
+  return {
+    ...seedVerbRegistry.call,
+    name: doc.name,
+    label,
+    description: doc.description,
+    inputSchema: doc.input,
+    ...(doc.output ? {outputSchema: doc.output} : {}),
+  }
 }
 
 function defineSeedPiTool(
@@ -8446,6 +8846,13 @@ function parseHmAddress(address: string): {account: string; path: string} | null
   return {account: match[1]!, path}
 }
 
+/** The provenance suffix a listing line carries: authored, or which MCP server a tool comes from. */
+function toolDocumentTag(doc: toolDocs.ToolDocument): string {
+  if (doc.kind === 'lambda') return ' (authored)'
+  if (doc.kind === 'mcp') return ` (${doc.server} MCP)`
+  return ''
+}
+
 /** Renders the ~/tools listing from the agent's tool documents, one summary line each. */
 function toolsListing(context: AgentServicePiToolContext): Record<string, unknown> {
   const verbs = Object.values(seedVerbRegistry as Record<string, SeedToolMetadata>).filter(
@@ -8462,7 +8869,7 @@ function toolsListing(context: AgentServicePiToolContext): Record<string, unknow
     ...verbs.map((tool) => `- ${toolSummaryLine(tool)}`),
     '',
     '## Callable with the call verb',
-    ...rows.map((row) => `- ${row.doc.name} — ${row.doc.summary}${row.doc.kind === 'lambda' ? ' (authored)' : ''}`),
+    ...rows.map((row) => `- ${row.doc.name} — ${row.doc.summary}${toolDocumentTag(row.doc)}`),
     '',
     'Write a document to ~/tools/<name> ({description, input, output?, source, runtime?}) to author a new tool, then call it by name.',
     'Its source runs in the execute sandbox and receives the validated input: TypeScript (default) `export default (input) => result`; python `def main(input): return result`. Whatever it returns is the tool result; anything it prints comes back as logs.',
@@ -8892,7 +9299,11 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
     modelProvider: provider ? {id: provider.id, name: provider.name, type: provider.type} : definition.modelProvider,
     ...(definition.reasoningLevel ? {reasoningLevel: definition.reasoningLevel} : {}),
     systemPrompt,
-    grants: {callableTools: context.callableTools, publish: context.publishEnabled},
+    grants: {
+      callableTools: context.callableTools,
+      publish: context.publishEnabled,
+      mcpServers: definition.mcpServers ?? [],
+    },
     ...(signingKeys.length ? {signingKeys} : {}),
     ...(definition.metadata ? {metadata: definition.metadata} : {}),
     triggers: triggerRows.map(triggerListingEntry),
@@ -9699,6 +10110,73 @@ function formatDurationForHumans(ms: number): string {
   return 'less than a second'
 }
 
+/**
+ * Runs a projected MCP tool: validates the input against the document's contract (a miss answers
+ * with the contract, exactly like a builtin), then proxies the call to the server that owns the
+ * tool over this run's lazily-opened connection. Server-reported errors and transport failures are
+ * thrown, so they land on the log as `tool_result.error` the model can react to. Image content
+ * rides to vision models as inline parts; the durable event keeps only the count.
+ */
+async function executeMcpTool(
+  context: AgentServicePiToolContext,
+  row: toolDocs.ToolDocumentRow,
+  rawInput: unknown,
+  toolCallId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const doc = row.doc
+  const toolInput = isRecord(rawInput) ? rawInput : {}
+  const validationErrors = validateJsonSchemaValue(doc.input, toolInput)
+  if (validationErrors.length > 0) {
+    return {
+      summary: `Input for ${doc.name} did not match its contract — here it is; call again with valid input.`,
+      contract: toolDocs.toolDocumentContractMarkdown(row),
+      validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
+    }
+  }
+  const server = doc.server ?? ''
+  const remoteName = doc.remoteName ?? doc.name
+  // The document is a projection of a grant; check the grant itself too, so a stale row can never
+  // reach a server the owner turned off for this agent.
+  if (!server || !context.definition.mcpServers?.includes(server)) {
+    throw new APIError(
+      403,
+      `Tool ${doc.name} belongs to the ${server || 'unknown'} MCP server, which is not enabled for this agent`,
+    )
+  }
+  if (!context.mcp) {
+    throw new APIError(
+      400,
+      `Tool ${doc.name} needs a connection to the ${server} MCP server, which this context cannot open`,
+    )
+  }
+  context.onToolProgress(seedVerbRegistry.call.name, {toolCallId, detail: `Calling ${remoteName} on ${server}…`})
+  const startedAt = Date.now()
+  let result: mcp.McpToolCallResult
+  try {
+    result = await context.mcp.callTool(server, remoteName, toolInput)
+  } catch (error) {
+    throw new APIError(502, `MCP server ${server} could not run ${remoteName}: ${errorMessage(error)}`)
+  }
+  if (result.isError) {
+    throw new APIError(400, `Tool ${doc.name} reported an error: ${result.text || 'no details were given'}`)
+  }
+  const durationMs = Date.now() - startedAt
+  const output: Record<string, unknown> = {
+    summary: `Ran ${remoteName} on the ${server} MCP server (${durationMs}ms).`,
+    ...(result.text ? {text: result.text} : {}),
+    ...(result.structured !== undefined ? {result: result.structured} : {}),
+    ...(result.images.length ? {images: result.images.length} : {}),
+    durationMs,
+  }
+  if (result.images.length && context.modelAcceptsImages) {
+    output.piContent = [
+      ...(result.text ? [{type: 'text' as const, text: result.text}] : []),
+      ...result.images.map((image) => ({type: 'image' as const, data: image.data, mimeType: image.mimeType})),
+    ]
+  }
+  return output
+}
+
 /** Executes the call verb: contract-on-miss dispatch into the callable tool set. */
 export async function executeCallVerb(
   context: AgentServicePiToolContext,
@@ -9713,11 +10191,14 @@ export async function executeCallVerb(
       ? executeToolForRuntimes(context.codeExec.runtimes)
       : registryTool
   if (!tool || !context.callableTools.includes(toolName)) {
-    const lambda = toolName
+    const document = toolName
       ? toolDocs.getToolDocument(context.db, context.accountId, context.agentId, toolName)
       : undefined
-    if (lambda && lambda.doc.kind === 'lambda' && lambda.enabled) {
-      return executeLambdaTool(context, lambda, input.input, toolCallId)
+    if (document?.enabled && document.doc.kind === 'lambda') {
+      return executeLambdaTool(context, document, input.input, toolCallId)
+    }
+    if (document?.enabled && document.doc.kind === 'mcp') {
+      return executeMcpTool(context, document, input.input, toolCallId)
     }
     return {
       ...toolsListing(context),
@@ -9776,20 +10257,24 @@ export async function executeCallVerb(
 }
 
 function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolDefinition[] {
-  const promoted = (context.expandedCallables ?? [])
-    .filter((name) => context.callableTools.includes(name))
-    .flatMap((name) => {
+  const promoted = (context.expandedCallables ?? []).flatMap((name) => {
+    const execute = (params: unknown, toolCallId: string) =>
+      executeCallVerb(context, {tool: name, input: params}, toolCallId)
+    if (context.callableTools.includes(name)) {
       const registryTool = getSeedTool(name)
       if (!registryTool) return []
       // The promoted schema must say what this server can run, exactly like the call verb's does.
       const tool =
         name === callableToolRegistry.execute.name ? executeToolForRuntimes(context.codeExec.runtimes) : registryTool
-      return [
-        defineSeedPiTool(tool, (params, toolCallId) =>
-          executeCallVerb(context, {tool: name, input: params}, toolCallId),
-        ),
-      ]
-    })
+      return [defineSeedPiTool(tool, execute)]
+    }
+    // Authored lambdas and projected MCP tools promote from their own documents: the contract the
+    // model read is the schema the provider now validates against. Builtins never take this path —
+    // an ungranted builtin's document is not a grant.
+    const document = toolDocs.getToolDocument(context.db, context.accountId, context.agentId, name)
+    if (!document?.enabled || document.doc.kind === 'builtin') return []
+    return [defineSeedPiTool(toolMetadataFromDocument(document), execute)]
+  })
   return [
     ...promoted,
     defineSeedPiTool(seedVerbRegistry.read, (params) => executeReadVerb(context, params)),

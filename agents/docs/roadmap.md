@@ -23,6 +23,9 @@ Complete enough to build on; treat as baseline functionality:
   search, navigate, and execute reached through `call`;
 - **tools as documents** — content-addressed (DAG-CBOR/CID) documents under `~/tools/`, a byte-budgeted Space index in
   every system prompt, contract-on-wrong-input, and touch-expand promotion derived from durable events;
+- **MCP servers** — remote Streamable HTTP / SSE servers connected per account and enabled per agent, projected into
+  `~/tools/` as `<server>__<tool>` documents, called over lazy per-run connections, managed from the Tools tab
+  (`mcp.md`); no OAuth flow yet, static headers only;
 - **delegation** — model children with verbatim briefings and typed `return_result`, script children on the QuickJS
   engine with content-keyed journal replay, detached children still in the run tree, plan-step attachment by stable step
   id;

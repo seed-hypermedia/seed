@@ -381,6 +381,50 @@ offered only when the server runs with `SEED_AGENTS_SUBSCRIPTION_AUTH` enabled (
 `RedactedModelProvider.authStatus` reports subscription health afterwards: `ok`, or `needs-login` when credentials are
 missing or a token refresh failed.
 
+### MCP server actions
+
+Account-scoped, like model providers. Full behavior in [`mcp.md`](./mcp.md).
+
+```ts
+{_: 'ListMcpServers'}                              → {_: 'ListMcpServersResponse'; servers: RedactedMcpServer[]}
+{_: 'SetMcpServer'; name: string; config: McpServerConfig} → {_: 'SetMcpServerResponse'; server: RedactedMcpServer}
+{_: 'RefreshMcpServer'; name: string}              → {_: 'SetMcpServerResponse'; server: RedactedMcpServer}
+{_: 'DeleteMcpServer'; name: string}               → {_: 'DeleteMcpServerResponse'; name: string}
+```
+
+```ts
+type McpServerConfig = {
+  url: string // http(s) only
+  transport?: 'http' | 'sse' // absent: Streamable HTTP, then SSE
+  headers?: Record<string, string> // non-secret headers
+  secretRefs?: Record<string, string> // header name → account secret name
+}
+
+type RedactedMcpServer = {
+  id: string
+  name: string // slug, ^[a-z0-9][a-z0-9_-]{0,31}$
+  url: string
+  transport: 'http' | 'sse'
+  headerNames: string[]
+  secretHeaderNames: string[]
+  hasSecrets: boolean
+  tools: {name: string; toolName: string; description?: string; inputSchema?: JsonSchema}[]
+  status: {state: 'ok' | 'error' | 'unknown'; error?: string; checkedAt?: number}
+  createdAt: number
+  updatedAt: number
+}
+```
+
+`SetMcpServer` validates the name (slug), URL (`http`/`https`), transport, and header maps (valid header names, at most
+16 each, values ≤ 4 KiB), saves, then connects to discover the server's tools; the response reports `status` and `tools`
+either way — a failed discovery still saves. `RefreshMcpServer` discovers again. `DeleteMcpServer` deletes the record,
+the `mcp-<name>-…` secrets it owns, removes the name from every agent's `definition.mcpServers`, and drops their
+projected `mcp` tool documents. Writes emit `account-change` with reason `mcp-servers-changed`, plus
+`agent-tools-changed` per re-projected agent.
+
+`AgentDefinition.mcpServers?: string[]` (≤ 16 names) is the per-agent grant, accepted by `CreateAgent` and
+`UpdateAgent`.
+
 ### `SetSecret`
 
 Request:
@@ -594,7 +638,9 @@ transparency view: the same documents the agent sees when it reads `~/tools/`.
 ```ts
 type AgentToolInfo = {
   name: string
-  kind: 'builtin' | 'lambda'
+  kind: 'builtin' | 'lambda' | 'mcp'
+  server?: string // mcp: the account MCP server it is projected from
+  remoteName?: string // mcp: the tool's name on that server
   summary: string // one line, for listings and the Space index
   description: string // full model-facing instructions
   input: Record<string, unknown> // JSON Schema

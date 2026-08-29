@@ -729,3 +729,155 @@ describe('publish grant', () => {
     ).rejects.toThrow('Publishing is not enabled')
   })
 })
+
+describe('mcp tools through the call verb', () => {
+  function seedMcp(
+    context: AgentServicePiToolContext,
+    server: string,
+    tools: Array<{name: string; description?: string; inputSchema?: unknown}>,
+  ) {
+    const now = Date.now()
+    context.db.run(
+      `INSERT INTO mcp_servers (id, account_id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+      [
+        `id-${server}`,
+        context.accountId,
+        server,
+        cborEncode({url: 'http://127.0.0.1:1/mcp'}),
+        cborEncode(tools.map((tool) => toolDocs.mcpToolInfoFromDescriptor(server, tool as never))),
+        now,
+        now,
+      ],
+    )
+    ;(context.definition as {mcpServers?: string[]}).mcpServers = [
+      ...((context.definition as {mcpServers?: string[]}).mcpServers ?? []),
+      server,
+    ]
+    toolDocs.syncMcpToolDocuments(
+      context.db,
+      context.accountId,
+      context.agentId,
+      (context.definition as never as {mcpServers: string[]}).mcpServers,
+    )
+  }
+
+  const forecastTool = {
+    name: 'forecast',
+    description: 'Forecast for a city.',
+    inputSchema: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+  }
+
+  test('call proxies to the server over the run pool and returns text, structured, and progress', async () => {
+    const calls: unknown[] = []
+    const context = makeContext({
+      mcp: {
+        callTool: mock(async (server: string, tool: string, args: unknown) => {
+          calls.push([server, tool, args])
+          return {text: 'Sunny, 24°C', structured: {tempC: 24}, images: [], isError: false}
+        }),
+      },
+    })
+    seedMcp(context, 'weather', [forecastTool])
+
+    const result = await executeCallVerb(context, {tool: 'weather__forecast', input: {city: 'Lisbon'}}, 'tc-mcp')
+    expect(calls).toEqual([['weather', 'forecast', {city: 'Lisbon'}]])
+    expect(result.text).toBe('Sunny, 24°C')
+    expect(result.result).toEqual({tempC: 24})
+    expect(String(result.summary)).toContain('Ran forecast on the weather MCP server')
+    expect(context.onToolProgress).toHaveBeenCalledWith('call', expect.objectContaining({toolCallId: 'tc-mcp'}))
+  })
+
+  test('a miss answers with the contract; server errors and transport failures are thrown', async () => {
+    const context = makeContext({
+      mcp: {
+        callTool: mock(async (_server: string, tool: string) => {
+          if (tool === 'broken') return {text: 'boom', images: [], isError: true}
+          throw new Error('connection refused')
+        }),
+      },
+    })
+    seedMcp(context, 'weather', [forecastTool, {name: 'broken'}, {name: 'down'}])
+
+    const miss = await executeCallVerb(context, {tool: 'weather__forecast', input: {}}, 'tc-miss')
+    expect(String(miss.summary)).toContain('did not match its contract')
+    expect(String(miss.contract)).toContain('# weather__forecast')
+    expect(miss.validationErrors).toBeArray()
+
+    await expect(executeCallVerb(context, {tool: 'weather__broken', input: {}}, 'tc-err')).rejects.toThrow(
+      /reported an error: boom/,
+    )
+    await expect(executeCallVerb(context, {tool: 'weather__down', input: {}}, 'tc-down')).rejects.toThrow(
+      /could not run down: connection refused/,
+    )
+  })
+
+  test('a server the agent no longer enables cannot be reached, and a context without a pool refuses', async () => {
+    const context = makeContext({mcp: {callTool: mock(async () => ({text: '', images: [], isError: false}))}})
+    seedMcp(context, 'weather', [forecastTool])
+    ;(context.definition as {mcpServers?: string[]}).mcpServers = []
+    // The stale document is still present here (sync has not run); the grant check is the guard.
+    await expect(executeCallVerb(context, {tool: 'weather__forecast', input: {city: 'x'}}, 'tc')).rejects.toThrow(
+      /not enabled for this agent/,
+    )
+    ;(context.definition as {mcpServers?: string[]}).mcpServers = ['weather']
+    delete context.mcp
+    await expect(executeCallVerb(context, {tool: 'weather__forecast', input: {city: 'x'}}, 'tc')).rejects.toThrow(
+      /cannot open/,
+    )
+  })
+
+  test('image results ride to vision models only', async () => {
+    const pool = {
+      callTool: mock(async () => ({
+        text: 'a chart',
+        structured: undefined,
+        images: [{data: 'AAAA', mimeType: 'image/png'}],
+        isError: false,
+      })),
+    }
+    const blind = makeContext({mcp: pool, modelAcceptsImages: false})
+    seedMcp(blind, 'charts', [{name: 'render'}])
+    const blindResult = await executeCallVerb(blind, {tool: 'charts__render', input: {}}, 'tc')
+    expect(blindResult.images).toBe(1)
+    expect(blindResult.piContent).toBeUndefined()
+
+    const seeing = makeContext({mcp: pool, modelAcceptsImages: true})
+    seedMcp(seeing, 'charts', [{name: 'render'}])
+    const seeingResult = await executeCallVerb(seeing, {tool: 'charts__render', input: {}}, 'tc')
+    expect(seeingResult.piContent).toEqual([
+      {type: 'text', text: 'a chart'},
+      {type: 'image', data: 'AAAA', mimeType: 'image/png'},
+    ])
+  })
+
+  test('remote tools appear in the index and listing with their server, and collapse past a handful', async () => {
+    const context = makeContext()
+    seedMcp(context, 'weather', [forecastTool])
+    seedMcp(
+      context,
+      'github',
+      Array.from({length: 9}, (_, index) => ({name: `tool_${index}`, description: `Tool ${index}.`})),
+    )
+    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+    const index = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(index).toContain('- weather__forecast — Forecast for a city. (weather MCP)')
+    expect(index).toContain('- github__* — 9 tools from the github MCP server')
+    expect(index).not.toContain('github__tool_3')
+
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(String(listing.markdown)).toContain('weather__forecast — Forecast for a city. (weather MCP)')
+    expect(String(listing.markdown)).toContain('github__tool_3 — Tool 3. (github MCP)')
+
+    const contract = await executeReadVerb(context, {address: '~/tools/weather__forecast'})
+    expect(contract.kind).toBe('mcp')
+    expect(String(contract.markdown)).toContain('`forecast` on the weather MCP server')
+    expect(String(contract.markdown)).toContain('"required"')
+  })
+})

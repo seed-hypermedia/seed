@@ -165,6 +165,40 @@ Two things are granted per agent, both stored in `definition.tools`; the verbs t
 A delegate child's `tools` narrowing intersects against the parent's full callable set, so delegation can only ever
 reduce authority (`api-service.ts:2623`).
 
+- **MCP servers** — `definition.mcpServers` names the account MCP servers an agent may call. Enabling a server is a
+  grant on par with `execute`: its tools run with whatever the remote server can do. The projected `mcp` tool documents
+  are a cache of this grant, never the grant itself — `executeMcpTool` re-checks `definition.mcpServers` before any
+  call, so a stale document cannot reach a server the owner turned off. See [`mcp.md`](./mcp.md).
+
+The promotion filter admits the enabled callable set **and** the agent's own enabled non-builtin documents (lambdas and
+MCP projections), re-derived from the definition at run start; a promoted document tool executes through the same `call`
+dispatch and the same checks as an explicit `call`.
+
+## MCP server safety
+
+A connected MCP server is reached with account-configured URLs and headers from the agents host (`agents/src/mcp.ts`).
+Only `http(s)` remote transports exist; the service never spawns stdio processes.
+
+Risks:
+
+- **SSRF / private-network access** — the same unmitigated posture as web reading: an owner can point a server record at
+  any reachable address. Loopback is deliberately allowed (local MCP proxies are common in development).
+- **Tool authority** — the remote server decides what its tools do. Model-driven calls carry model-authored arguments; a
+  server that acts on the world (files, issues, payments) should be enabled only for agents whose prompts warrant it.
+- **Prompt injection** — tool results are untrusted text, exactly like fetched web pages.
+
+Mitigations present:
+
+- header values are encrypted account secrets, redacted from every response; the desktop refuses to send one to a
+  non-HTTPS remote agent server;
+- server names are slugs and tool names are sanitized to `[A-Za-z0-9_-]` and capped at 64 characters, so a remote name
+  can never collide with a verb, shadow a builtin, or break a provider's tool-name rules; an authored lambda keeps its
+  name against a remote tool of the same name;
+- input is validated against the projected contract before a call leaves the host; a miss returns the contract;
+- results are bounded (256 KiB text, 4 MiB per inline image) and server errors become `tool_result.error`;
+- connections are per run and closed with it; a call has a 120s timeout and a connect 20s;
+- deleting a server scrubs it from every agent and deletes the header secrets it owns.
+
 ## Agent-managed triggers
 
 Agents manage their own triggers directly: `write ~/triggers/<name>` creates, edits, enables, disables, or deletes a

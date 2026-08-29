@@ -54,14 +54,17 @@
 ## Tools
 
 - **tool document** — every tool is a content-addressed document (DAG-CBOR, CID = version) in `~/tools/`: builtin
-  (runtime binding) or **lambda** (authored source, runs in the sandbox via `call`).
+  (runtime binding), **lambda** (authored source, runs in the sandbox via `call`), or **mcp** (a projection of one tool
+  on a remote MCP server, proxied to it via `call`).
+- **MCP server** — a remote Model Context Protocol server connected per account, like a model provider, and enabled per
+  agent (`definition.mcpServers`). Its tools appear as `<server>__<tool>` documents; connections open lazily per run.
 - **contract** — a tool's full model-facing spec: description + input/output schemas. `read ~/tools/<name>` returns it.
 - **Space index** — the compact `<space>` block in every system prompt: one line per tool, memory top level, active
   triggers. The agent always knows what it _could_ expand.
 - **promotion** — once a tool's contract enters the transcript (read or called), it becomes a first-class provider tool
   for the rest of the thread — derived purely from durable events, so it survives restarts.
-- **grants** — per-agent permissions: the callable set (search / web search / execute) and **publish** (signed public
-  writing). Verbs are never grants; they're always on.
+- **grants** — per-agent permissions: the callable set (search / web search / execute), **publish** (signed public
+  writing), and the enabled **MCP servers**. Verbs are never grants; they're always on.
 
 ## Symmetric log
 

@@ -48,8 +48,11 @@ Completed and usable locally:
   `~/tools/…`, `hm://…`, `ipfs://…`, `https://…`, `activity:`, `attachment:…`, `thread:…`, `run:…`), `call` for callable
   tools, `delegate` for children, `plan` for the visible checklist;
 - `read` using shared Seed Hypermedia URL resolution;
-- tools as content-addressed documents in `~/tools/`: builtin bindings and authored lambdas alike, each a DAG-CBOR
-  document whose CID is its version, listed for the owner through `ListAgentTools`;
+- tools as content-addressed documents in `~/tools/`: builtin bindings, authored lambdas, and MCP projections alike,
+  each a DAG-CBOR document whose CID is its version, listed for the owner through `ListAgentTools`;
+- remote **MCP servers**, connected per account like model providers and enabled per agent: every tool a server
+  advertises is an `mcp` tool document named `<server>__<tool>`, dispatched through `call` over a lazy per-run
+  connection, promoted like any other tool, and managed from the Tools tab (`mcp.md`);
 - touch-expand and promotion: a wrong or unexpanded `call` answers with the tool's contract instead of an error, and a
   contract that has entered the transcript promotes that callable to a first-class provider tool for the rest of the
   thread — derived purely from durable events, so it survives restarts;
@@ -124,6 +127,7 @@ Important incomplete work:
 9. [Persistence](./persistence.md) — SQLite schema and data lifecycle.
 10. [Model providers](./model-providers.md) — provider records, secrets, OpenAI execution, unsupported providers.
 11. [Tools](./tools.md) — tool-call lifecycle and `read` behavior.
+    - [MCP servers](./mcp.md) — remote MCP servers as tool documents: discovery, projection, runtime, actions, UI.
 12. [Prompt injection map](./prompt-injection-map.md) — where hosted-agent and desktop-assistant prompts are defined,
     assembled, and sent to providers.
 13. [Security](./security.md) — current security model and hardening gaps.
@@ -154,8 +158,10 @@ Agents service:
   implementations and Space index, subscription verification. The heart of the service.
 - `agents/protocol/src/tool-registry.ts` — the five verbs and the callable tools: model-facing descriptions, JSON
   schemas, and render metadata. Editing a description here changes what every agent reads.
-- `agents/src/tool-documents.ts` — tools as content-addressed documents: the lambda ABI, builtin materialization,
-  authoring validation, contract markdown.
+- `agents/src/tool-documents.ts` — tools as content-addressed documents: the lambda ABI, builtin materialization, the
+  MCP projection (`syncMcpToolDocuments`), authoring validation, contract markdown.
+- `agents/src/mcp.ts` — remote MCP servers: connect (Streamable HTTP / SSE), discover tools, proxy calls, and the lazy
+  per-run connection pool.
 - `agents/src/web-tools.ts` — self-hosted `web_search` (SearXNG) and the tiered web reader (MediaWiki/static/Crawl4AI)
   behind `read https://…`.
 - `agents/src/agent-memory.ts` — sandboxed per-agent memory filesystem behind the `read`/`write` verbs and the signed
@@ -282,6 +288,7 @@ Use this routing table:
 - database/migration changes → `persistence.md`
 - provider/runtime changes → `model-providers.md`, `pi-sdk-migration.md`, `roadmap.md`
 - verb/tool changes (`agents/protocol/src/tool-registry.ts`, `tool-documents.ts`) → `tools.md`, `security.md`
+- MCP server/projection changes (`agents/src/mcp.ts`, `syncMcpToolDocuments`) → `mcp.md`, `tools.md`, `security.md`
 - new vocabulary for a mechanism → `glossary.md`, then use its words here
 - architecture milestones → `harness/plan.md` (as-built notes) and its `harness/reviews/`
 - security/auth/logging changes → `security.md`, `operations.md`

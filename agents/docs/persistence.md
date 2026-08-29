@@ -273,10 +273,19 @@ running script and deleted the moment it is delivered, times out, or its run die
 filtering the marker out of every trigger listing and mutation forever, and a leaked row would read to its owner as a
 trigger they never made.
 
+### `mcp_servers`
+
+One row per remote MCP server an account has connected, unique on `(account_id, name)`: `id`, `config_cbor`
+(`{url, transport?, headers?, secretRefs?}` — secret header values live in `secrets` under the `mcp-<name>-<header>`
+convention and are referenced by name), `tools_cbor` (the `McpToolInfo[]` from the last **successful** discovery, kept
+across a later failed refresh), `status_cbor` (`{state, error?, checkedAt?}`), timestamps. Agents reference servers by
+name from `definition.mcpServers`; deleting a server scrubs those references, the projected documents, and its owned
+secrets. See [`mcp.md`](./mcp.md).
+
 ### `tool_documents`
 
-Every tool an agent holds is a content-addressed document, one row per `(account_id, agent_id, name)`: `kind` (`builtin`
-or `lambda`), `cid`, `doc_cbor`, `enabled`, timestamps.
+Every tool an agent holds is a content-addressed document, one row per `(account_id, agent_id, name)`: `kind`
+(`builtin`, `lambda`, or `mcp`), `cid`, `doc_cbor`, `enabled`, timestamps.
 
 `doc_cbor` is the canonical DAG-CBOR encoding of a `ToolDocument` (`agents/src/tool-documents.ts`) —
 `{name, kind, summary, description, input, output?, source?, runtime?, binding?}` — and `cid` is the CIDv1 over exactly
@@ -292,6 +301,11 @@ documents are validated before they are ever stored (name pattern `^[a-z][a-z0-9
 KiB source cap, input/output schemas run through `validateJsonSchemaShape`), because both the Space index and the `call`
 verb trust stored documents. A lambda may not take a builtin's or a verb's name, and builtins cannot be deleted — they
 are withheld through the agent's grants instead.
+
+`mcp` rows are projections of `mcp_servers.tools_cbor` filtered by the agent's `definition.mcpServers`, named
+`<server>__<tool>` and carrying `server` and `remoteName`. `syncMcpToolDocuments` reconciles them (rewrite on CID
+change, delete when the server is disabled or gone) eagerly on agent and server writes and opportunistically on every
+listing and run start. They cannot be deleted or replaced by a lambda; a lambda that already holds the name wins.
 
 ### `agent_drafts`
 

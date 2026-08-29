@@ -698,7 +698,7 @@ function ToolCallDebugDialog({
  * input-side paths rebased onto `call`'s nested `input`.
  */
 function getRowToolMetadata(item: ChatToolPart): SeedToolMetadata | undefined {
-  if (item.name !== 'call') return getSeedTool(item.name)
+  if (item.name !== 'call') return getSeedTool(item.name) ?? promotedDocumentToolMetadata(item.name)
   const called = getToolString(item.args, 'tool')
   const metadata = called ? getSeedTool(called) : undefined
   if (!metadata) return getSeedTool(item.name)
@@ -715,6 +715,24 @@ function getRowToolMetadata(item: ChatToolPart): SeedToolMetadata | undefined {
         detail.source === 'input' ? {...detail, path: nest(detail.path)} : detail,
       ),
     },
+  }
+}
+
+/**
+ * A promoted document tool — an authored lambda or an MCP projection the model called as a
+ * first-class provider tool — has no registry entry. It renders as a call of itself: the call
+ * verb's icon and color, labeled `server · tool` for an MCP name, and the executor's own summary.
+ */
+function promotedDocumentToolMetadata(name: string): SeedToolMetadata | undefined {
+  const call = getSeedTool('call')
+  if (!call || !name) return undefined
+  const separator = name.indexOf('__')
+  const label = separator > 0 ? `${name.slice(0, separator)} · ${name.slice(separator + 2)}` : name
+  return {
+    ...call,
+    name,
+    label,
+    render: {...call.render, label, primaryArg: undefined, summaryArg: undefined},
   }
 }
 

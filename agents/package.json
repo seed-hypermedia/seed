@@ -24,6 +24,7 @@
     "@jitl/quickjs-singlefile-cjs-release-sync": "0.32.0",
     "@mariozechner/pi-ai": "0.70.6",
     "@mariozechner/pi-coding-agent": "0.70.2",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@mozilla/readability": "0.6.0",
     "@seed-hypermedia/agents-protocol": "file:./protocol",
     "@seed-hypermedia/client": "file:../frontend/packages/client",

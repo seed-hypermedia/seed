@@ -11,6 +11,9 @@ import {serialize} from 'superjson'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import {z} from 'zod'
+import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
+import {startTestMcpServer} from '@/mcp-test-server'
 
 /**
  * An event payload with its provenance stamp dropped.
@@ -9630,5 +9633,271 @@ describe('model-facing tool result bound', () => {
     // A lone surrogate at the cut would serialize as invalid UTF-8 on the provider wire.
     expect(head).not.toMatch(/[\uD800-\uDBFF]$/)
     expect(JSON.parse(JSON.stringify(head))).toBe(head)
+  })
+})
+
+describe('mcp servers', () => {
+  const enc = (value: string) => new TextEncoder().encode(value)
+
+  test('set/list/refresh/delete with live discovery, projection onto agents, and secret cleanup', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    let seenAuth: string | undefined
+    const mcpServer = await startTestMcpServer({
+      tools: (server) => {
+        server.tool('forecast', 'Forecast for a city.', {city: z.string()}, async ({city}) => ({
+          content: [{type: 'text', text: `Sunny in ${city}`}],
+        }))
+      },
+      onRequest: (req) => {
+        seenAuth = req.headers['authorization'] as string | undefined
+      },
+    })
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const events: apisvc.ServiceEvent[] = []
+      const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+      const send = async (action: Parameters<typeof apisvc.createSignedEnvelope>[1]['action']) =>
+        svc.message(await apisvc.createSignedEnvelope(account, {action}))
+      await setDefaultProvider(svc, account)
+
+      await send({_: 'SetSecret', name: 'mcp-weather-authorization', value: enc('Bearer tok')})
+      const saved = await send({
+        _: 'SetMcpServer',
+        name: 'weather',
+        config: {url: mcpServer.url, secretRefs: {Authorization: 'mcp-weather-authorization'}},
+      })
+      expect(saved).toMatchObject({
+        _: 'SetMcpServerResponse',
+        server: {
+          name: 'weather',
+          transport: 'http',
+          hasSecrets: true,
+          secretHeaderNames: ['Authorization'],
+          status: {state: 'ok'},
+          tools: [{name: 'forecast', toolName: 'weather__forecast', description: 'Forecast for a city.'}],
+        },
+      })
+      expect(seenAuth).toBe('Bearer tok')
+      expect(JSON.stringify(saved)).not.toContain('Bearer tok')
+
+      await expect(send({_: 'SetMcpServer', name: 'Bad Name', config: {url: mcpServer.url}})).rejects.toThrow(
+        /lowercase/,
+      )
+      await expect(send({_: 'SetMcpServer', name: 'ftp', config: {url: 'ftp://x/'}})).rejects.toThrow(/http/)
+      await expect(
+        send({_: 'SetMcpServer', name: 'hdr', config: {url: mcpServer.url, headers: {'bad header': 'x'}}}),
+      ).rejects.toThrow(/header name/)
+
+      // An unreachable server still saves — with the failure on record, and no tools.
+      const down = await send({
+        _: 'SetMcpServer',
+        name: 'down',
+        config: {url: 'http://127.0.0.1:1/mcp', transport: 'http'},
+      })
+      expect(down).toMatchObject({server: {name: 'down', status: {state: 'error'}, tools: []}})
+      expect((down as {server: {status: {error?: string}}}).server.status.error).toBeTruthy()
+
+      // An agent enabling the server holds its tools as documents.
+      const created = await send({
+        _: 'CreateAgent',
+        definition: {
+          name: 'Agent',
+          systemPrompt: 'p',
+          modelProvider: 'openai',
+          model: 'gpt-test',
+          tools: [],
+          mcpServers: ['weather'],
+        },
+      })
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const agentId = created.agentId
+      const listTools = async () => {
+        const response = await send({_: 'ListAgentTools', agentId})
+        if (response._ !== 'ListAgentToolsResponse') throw new Error('unexpected response')
+        return response.tools
+      }
+      expect((await listTools()).find((tool) => tool.name === 'weather__forecast')).toMatchObject({
+        kind: 'mcp',
+        server: 'weather',
+        remoteName: 'forecast',
+        granted: true,
+        enabled: true,
+      })
+      await expect(
+        send({
+          _: 'UpdateAgent',
+          agentId,
+          definition: {
+            name: 'Agent',
+            systemPrompt: 'p',
+            modelProvider: 'openai',
+            model: 'gpt-test',
+            mcpServers: ['No'],
+          },
+        }),
+      ).rejects.toThrow(/lowercase/)
+
+      const listed = await send({_: 'ListMcpServers'})
+      if (listed._ !== 'ListMcpServersResponse') throw new Error('unexpected response')
+      expect(listed.servers.map((server) => server.name)).toEqual(['down', 'weather'])
+
+      const refreshed = await send({_: 'RefreshMcpServer', name: 'weather'})
+      expect(refreshed).toMatchObject({server: {status: {state: 'ok'}, tools: [{toolName: 'weather__forecast'}]}})
+
+      // Disabling the server on the agent drops its projection; re-enabling restores it.
+      const definition = {name: 'Agent', systemPrompt: 'p', modelProvider: 'openai', model: 'gpt-test', tools: []}
+      await send({_: 'UpdateAgent', agentId, definition: {...definition, mcpServers: []}})
+      expect((await listTools()).some((tool) => tool.kind === 'mcp')).toBe(false)
+      await send({_: 'UpdateAgent', agentId, definition: {...definition, mcpServers: ['weather', 'down']}})
+      expect((await listTools()).filter((tool) => tool.kind === 'mcp').map((tool) => tool.name)).toEqual([
+        'weather__forecast',
+      ])
+
+      // Deleting the server scrubs it from the agent, removes its documents, and drops its secret.
+      const deleted = await send({_: 'DeleteMcpServer', name: 'weather'})
+      expect(deleted).toMatchObject({_: 'DeleteMcpServerResponse', name: 'weather'})
+      const agent = await send({_: 'GetAgent', agentId})
+      if (agent._ !== 'GetAgentResponse') throw new Error('unexpected response')
+      expect(agent.agent.definition.mcpServers).toEqual(['down'])
+      expect((await listTools()).some((tool) => tool.kind === 'mcp')).toBe(false)
+      expect(
+        db
+          .query<{n: number}, [string]>(`SELECT COUNT(*) AS n FROM secrets WHERE name = ?`)
+          .get('mcp-weather-authorization')?.n,
+      ).toBe(0)
+      await expect(send({_: 'RefreshMcpServer', name: 'weather'})).rejects.toThrow(/not found/)
+      expect(events.some((event) => event.type === 'account-change' && event.reason === 'mcp-servers-changed')).toBe(
+        true,
+      )
+      expect(events.some((event) => event.type === 'account-change' && event.reason === 'agent-tools-changed')).toBe(
+        true,
+      )
+    } finally {
+      cleanup()
+      await mcpServer.close()
+    }
+  })
+
+  test('a user can call a remote tool from the palette, and the agent promotes it after calling it', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const mcpServer = await startTestMcpServer({
+      tools: (server) => {
+        server.tool('forecast', 'Forecast for a city.', {city: z.string()}, async ({city}) => ({
+          content: [{type: 'text', text: `Sunny in ${city}`}],
+          structuredContent: {city, tempC: 24},
+        }))
+      },
+    })
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {})
+      const send = async (action: Parameters<typeof apisvc.createSignedEnvelope>[1]['action']) =>
+        svc.message(await apisvc.createSignedEnvelope(account, {action}))
+      await send({_: 'SetSecret', name: 'openai-key', value: enc('sk-test')})
+      await send({
+        _: 'SetModelProvider',
+        name: 'openai',
+        provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+      })
+      await send({_: 'SetMcpServer', name: 'weather', config: {url: mcpServer.url, transport: 'http'}})
+      const created = await send({
+        _: 'CreateAgent',
+        definition: {
+          name: 'Agent',
+          systemPrompt: 'p',
+          modelProvider: 'openai',
+          model: 'gpt-test',
+          tools: [],
+          mcpServers: ['weather'],
+        },
+      })
+      if (created._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const session = await send({_: 'CreateSession', agentId: created.agentId})
+      if (session._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+      const sessionId = session.sessionId
+
+      const providerRequests: Array<{tools: string[]; toolSchemas: Record<string, unknown>; messages: string}> = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        // The MCP client rides the same global fetch; only the model provider is scripted here.
+        if (String(url instanceof Request ? url.url : url).startsWith(mcpServer.url)) return originalFetch(url, init)
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const tools = (body.tools ?? []) as Array<{function?: {name?: string; parameters?: unknown}}>
+        providerRequests.push({
+          tools: tools.map((tool) => tool.function?.name ?? ''),
+          toolSchemas: Object.fromEntries(tools.map((tool) => [tool.function?.name, tool.function?.parameters])),
+          messages: JSON.stringify(body.messages),
+        })
+        const turn = providerRequests.length
+        if (turn === 2) {
+          // The agent's own call: dispatched through the call verb, proxied over the run's pool.
+          return openAIStreamResponse([
+            {
+              id: 'chat-2',
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: 'call-mcp',
+                        type: 'function',
+                        function: {
+                          name: 'call',
+                          arguments: JSON.stringify({tool: 'weather__forecast', input: {city: 'Porto'}}),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            },
+            {id: 'chat-2', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {id: `chat-${turn}`, choices: [{delta: {content: 'Noted.'}}]},
+          {id: `chat-${turn}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      // Turn 1: the user runs the remote tool from the palette; it lands on the log as their action.
+      const invoked = await send({
+        _: 'InvokeSessionTool',
+        sessionId,
+        verb: 'call',
+        input: {tool: 'weather__forecast', input: {city: 'Lisbon'}},
+      })
+      if (invoked._ !== 'InvokeSessionToolResponse') throw new Error(`unexpected: ${invoked._}`)
+      expect(invoked.error).toBeUndefined()
+      expect(invoked.output).toMatchObject({text: 'Sunny in Lisbon', result: {city: 'Lisbon', tempC: 24}})
+      await svc.awaitQueueIdle()
+      expect(providerRequests[0]?.tools).not.toContain('weather__forecast')
+      expect(providerRequests[0]?.messages).toContain('Sunny in Lisbon')
+
+      // Turn 2+3: the agent calls it itself; the result reaches the model and the tool is promoted.
+      await send({_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Check Porto'}]})
+      await svc.awaitQueueIdle()
+      expect(providerRequests).toHaveLength(3)
+      expect(providerRequests[2]?.messages).toContain('Sunny in Porto')
+      // Promotion is derived from the durable log at run start, so the contract that entered the
+      // transcript in turn 2 becomes a first-class provider tool from the next turn on.
+      expect(providerRequests[2]?.tools).not.toContain('weather__forecast')
+      await send({_: 'MessageSession', sessionId, content: [{type: 'text', text: 'And Faro?'}]})
+      await svc.awaitQueueIdle()
+      expect(providerRequests).toHaveLength(4)
+      expect(providerRequests[3]?.tools).toContain('weather__forecast')
+      expect(JSON.stringify(providerRequests[3]?.toolSchemas['weather__forecast'])).toContain('city')
+
+      const events = await send({_: 'GetSession', sessionId})
+      if (events._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const results = events.events.filter((event) => event.event.type === 'tool_result')
+      // The user's palette result is stamped; the agent's own result derives its actor from shape.
+      expect(results.map((event) => sessionEventActor(event.event))).toEqual(['user', 'agent'])
+    } finally {
+      globalThis.fetch = originalFetch
+      cleanup()
+      await mcpServer.close()
+    }
   })
 })

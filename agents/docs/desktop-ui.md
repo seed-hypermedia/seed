@@ -201,6 +201,21 @@ optional output schema. Renames are atomic and refuse to overwrite another tool.
 permanently deletes a tool. Readers can inspect the same form and content address but do not see create, edit, or delete
 controls.
 
+**MCP servers** (`mcp-servers.tsx`) close the tab: one row per account server, in the same card style as the grant rows
+— a checkbox that enables the server for this agent (writes `definition.mcpServers`, autosaved), the name, a `N tools`
+chip (or a destructive **Unreachable** chip with the error on one line beneath), an **Auth** chip when a secret header
+is set, the host in mono, and hover-revealed refresh/remove buttons. A disabled server renders at 60% opacity like an
+ungranted tool. Clicking the row expands its tools inline (remote name + first sentence of the description); clicking a
+tool opens its contract — the `call <server>__<tool>` name the agent uses, the description, and the input schema. When
+there are none, a "No MCP servers connected" line sits next to **Add server**, matching the custom-tools row.
+
+**Add server** is one small form: the URL first (the name suggests itself from the host — `mcp.github.com` → `github` —
+until edited), the slug name, an optional Authorization value stored as an encrypted secret, and transport plus the auth
+header name under an **Advanced** toggle. **Connect** saves and discovers in one request; the toast reports "Connected
+to `<name>` · N tools" or the exact failure (the record is kept either way), and the server is enabled for the current
+agent. Remove is a destructive confirmation that names what goes with it (every agent's tools, the saved credentials).
+Readers see the list and tools but no checkbox, add, refresh, or remove.
+
 ## Session page
 
 The header carries back-navigation to the agent, the shared agent header with Sessions active, an inline editable title
@@ -291,8 +306,8 @@ drag a frozen card down the scroll for as long as its run lived.
 Both cards share one body, `RunWork` (`run-work.tsx`):
 
 - **Plan steps** with status icons (pending ○ / running ◐ / done ✓ / failed ✕ / skipped –). Steps the runtime settled
-  from completed sub-agents (`resolvedBy: 'runtime'`) render identically to steps the agent closed itself — the
-  attached sub-agent row is clickable, so provenance is one click away in the sub-session.
+  from completed sub-agents (`resolvedBy: 'runtime'`) render identically to steps the agent closed itself — the attached
+  sub-agent row is clickable, so provenance is one click away in the sub-session.
 - **Children, integrated with their step.** One child attached to a step means the step _is_ that child's row: clicking
   it opens the sub-session, its status dot and live activity ride along, and its cancel button sits at the row's edge
   (revealed on hover, on keyboard focus, and always on touch). A **batch** — two or more children on one step — makes
