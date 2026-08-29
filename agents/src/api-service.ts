@@ -6751,7 +6751,7 @@ export class Service {
           ) {
             return cbor.decode<T>(await decryptSecret(this.#db, stored.encryptedIdempotencyResponse))
           }
-          return stored
+          return stored as T
         }
       }
 
@@ -9296,7 +9296,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
       'write ~/triggers/<name> with JSON content {source, prompt, enabled?, continuation?}.',
       'source shapes: {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}} · {type: "document-comment", resource, author?} · {type: "user-mention", mentionedAccounts: [..], resourcePrefix?} · {type: "site-update", resourcePrefix, eventTypes?} · {type: "run-completed", agentId?, status?, titleMatch?} · {type: "webhook"}.',
       'prompt: customizable markdown that starts the session when the trigger fires; webhook JSON is appended separately as untrusted trigger context.',
-      'Creating a webhook through write returns its endpoint path and bearer secret exactly once. Save the secret immediately; later reads and edits never reveal it.',
+      'Creating a webhook through write returns its secret endpoint path exactly once (the secret is part of the URL; it may also be sent as a Bearer header instead). Save it immediately; later reads and edits never reveal it.',
       'continuation (optional): {kind: "newThread"} (default) or {kind: "wake", signal, runId?, payload?} to deliver into a parked run.',
       'enabled defaults to true; write with enabled false to turn a trigger off. {delete: true} removes one.',
     ].join('\n'),
@@ -9463,11 +9463,15 @@ function writeTriggerAddress(
     ...(webhookSecret
       ? {
           webhook: {
-            endpointPath: `/agents/api/webhooks/${id}`,
+            endpointPath: `/agents/api/webhooks/${id}/${webhookSecret}`,
             secret: webhookSecret,
-            authorization: `Bearer ${webhookSecret}`,
-            requiredHeaders: {'Content-Type': 'application/json', 'Idempotency-Key': '<unique delivery id>'},
-            warning: 'Save this secret now. It is stored only as a hash and cannot be read again.',
+            alternative: `Senders that cannot use the secret URL may POST to /agents/api/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
+            requiredHeaders: {'Content-Type': 'application/json'},
+            optionalHeaders: {
+              'Idempotency-Key':
+                '<unique delivery id; a retry with the same key and identical body is deduplicated, a different body is rejected>',
+            },
+            warning: 'Save this URL now. The secret is stored only as a hash and cannot be read again.',
           },
         }
       : {}),

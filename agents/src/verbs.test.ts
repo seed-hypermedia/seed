@@ -686,14 +686,16 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     const webhook = created.webhook as {
       endpointPath: string
       secret: string
-      authorization: string
+      alternative: string
       requiredHeaders: Record<string, string>
+      optionalHeaders: Record<string, string>
     }
     expect(created.prompt).toBe('Summarize the posted deployment event.')
-    expect(webhook.endpointPath).toBe(`/agents/api/webhooks/${created.id}`)
     expect(webhook.secret).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(webhook.authorization).toBe(`Bearer ${webhook.secret}`)
-    expect(webhook.requiredHeaders['Idempotency-Key']).toContain('unique')
+    expect(webhook.endpointPath).toBe(`/agents/api/webhooks/${created.id}/${webhook.secret}`)
+    expect(webhook.alternative).toContain(`Bearer ${webhook.secret}`)
+    expect(webhook.requiredHeaders).toEqual({'Content-Type': 'application/json'})
+    expect(webhook.optionalHeaders['Idempotency-Key']).toContain('unique')
 
     const stored = context.db
       .query<{secret_hash: Uint8Array}, [string]>(

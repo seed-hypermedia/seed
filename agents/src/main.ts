@@ -56,7 +56,10 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     }
   }
 
-  const webhook = async (req: BunRequest<'/agents/api/webhooks/:triggerId'>) => {
+  // The secret normally rides in the URL (`/webhooks/<triggerId>/<secret>`) because many senders
+  // can only POST to a URL they are given; senders that can set headers may instead POST to
+  // `/webhooks/<triggerId>` with `Authorization: Bearer <secret>`. Both carry the same credential.
+  const webhook = async (req: BunRequest) => {
     if (req.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
       return Response.json({error: 'Content-Type must be application/json'}, {status: 415})
     }
@@ -64,12 +67,20 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     if (contentEncoding !== null && contentEncoding.trim().toLowerCase() !== 'identity') {
       return Response.json({error: 'Content-Encoding must be identity'}, {status: 415})
     }
-    const deliveryKey = req.headers.get('idempotency-key') ?? ''
-    if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(deliveryKey)) {
+    // Idempotency-Key is optional: senders that provide one get exact-retry deduplication, while
+    // every delivery without one is treated as new.
+    const suppliedKey = req.headers.get('idempotency-key')
+    if (suppliedKey !== null && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(suppliedKey)) {
       return Response.json({error: 'Invalid Idempotency-Key'}, {status: 400})
     }
+    const deliveryKey = suppliedKey ?? crypto.randomUUID()
+    // Only the `/:triggerId/:secret` route sets this; the header-only route leaves it undefined.
+    const pathSecret: string | undefined = req.params.secret
     const authorization = req.headers.get('authorization') ?? ''
-    const secret = /^Bearer ([A-Za-z0-9_-]{43})$/u.exec(authorization)?.[1] ?? ''
+    const secret =
+      (pathSecret && /^[A-Za-z0-9_-]{43}$/u.test(pathSecret) ? pathSecret : undefined) ??
+      /^Bearer ([A-Za-z0-9_-]{43})$/u.exec(authorization)?.[1] ??
+      ''
 
     let body: Uint8Array
     try {
@@ -79,7 +90,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
       throw error
     }
     try {
-      const result = svc.fireWebhookTrigger(req.params.triggerId, secret, deliveryKey, body)
+      const result = svc.fireWebhookTrigger(req.params.triggerId ?? '', secret, deliveryKey, body)
       return Response.json({accepted: true, duplicate: result.duplicate}, {status: 202})
     } catch (error) {
       if (error instanceof apisvc.APIError) return Response.json({error: error.message}, {status: error.status})
@@ -115,6 +126,7 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
     '/agents/api/webhooks/:triggerId': {POST: webhook},
+    '/agents/api/webhooks/:triggerId/:secret': {POST: webhook},
     '/api/health': {GET: health},
     '/agents/api/health': {GET: health},
     '/api/version': {GET: version},

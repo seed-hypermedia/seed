@@ -221,7 +221,7 @@ describe('main routes', () => {
       const firing = db
         .query<{activity_cbor: Uint8Array}, [string]>(`SELECT activity_cbor FROM trigger_firings WHERE trigger_id = ?`)
         .get(created.trigger.id)
-      expect(firing && cbor.decode(firing.activity_cbor)).toEqual({
+      expect(cbor.decode<unknown>(firing!.activity_cbor)).toEqual({
         type: 'webhook',
         feedEventId: 'webhook:delivery-1',
         deliveryKey: 'delivery-1',
@@ -271,6 +271,45 @@ describe('main routes', () => {
           .query<{count: number}, [string]>(`SELECT count(*) AS count FROM trigger_firings WHERE trigger_id = ?`)
           .get(created.trigger.id)?.count,
       ).toBe(1)
+
+      // The secret URL form needs no headers beyond Content-Type: the secret is the last path
+      // segment and a missing Idempotency-Key means every delivery is a new one.
+      const pathHandler = getPostHandler(routes, '/agents/api/webhooks/:triggerId/:secret')
+      const deliverByPath = (body: string, secret = created.webhookSecret!, key?: string) => {
+        const req = new Request(`http://agents.test/agents/api/webhooks/${created.trigger.id}/${secret}`, {
+          method: 'POST',
+          headers: {'content-type': 'application/json', ...(key ? {'idempotency-key': key} : {})},
+          body,
+        })
+        Object.defineProperty(req, 'params', {value: {triggerId: created.trigger.id, secret}})
+        return pathHandler(req as never)
+      }
+      const firingCount = () =>
+        db
+          .query<{count: number}, [string]>(`SELECT count(*) AS count FROM trigger_firings WHERE trigger_id = ?`)
+          .get(created.trigger.id)?.count
+      const byPath = await deliverByPath('{"message":"via url"}')
+      expect(byPath.status).toBe(202)
+      expect(await byPath.json()).toEqual({accepted: true, duplicate: false})
+      expect(firingCount()).toBe(2)
+      const byPathAgain = await deliverByPath('{"message":"via url"}')
+      expect(await byPathAgain.json()).toEqual({accepted: true, duplicate: false})
+      expect(firingCount()).toBe(3)
+      const generatedKeys = db
+        .query<{activity_key: string}, [string]>(`SELECT activity_key FROM trigger_firings WHERE trigger_id = ?`)
+        .all(created.trigger.id)
+        .map((row) => row.activity_key)
+      expect(new Set(generatedKeys).size).toBe(3)
+      const byPathKeyed = await deliverByPath('{"message":"keyed"}', created.webhookSecret!, 'path-keyed')
+      expect(await byPathKeyed.json()).toEqual({accepted: true, duplicate: false})
+      const byPathKeyedRetry = await deliverByPath('{"message":"keyed"}', created.webhookSecret!, 'path-keyed')
+      expect(await byPathKeyedRetry.json()).toEqual({accepted: true, duplicate: true})
+      expect(firingCount()).toBe(4)
+      const wrongPathSecret = await deliverByPath('{}', 'x'.repeat(43))
+      expect(wrongPathSecret.status).toBe(401)
+      const malformedPathSecret = await deliverByPath('{}', 'short')
+      expect(malformedPathSecret.status).toBe(401)
+      expect(firingCount()).toBe(4)
 
       await svc.message(
         await apisvc.createSignedEnvelope(account, {

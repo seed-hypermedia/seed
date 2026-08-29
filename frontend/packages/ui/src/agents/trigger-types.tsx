@@ -188,7 +188,7 @@ export function TriggerSourceFields({
       {source.type === 'schedule' ? <ScheduleTriggerFields source={source} onChange={onChange} /> : null}
       {source.type === 'webhook' ? (
         <SizableText size="sm" color="muted">
-          Creates a private HTTP endpoint. The endpoint and bearer secret are shown once after creation.
+          Creates a private HTTP endpoint. The secret webhook URL is shown once after creation.
         </SizableText>
       ) : null}
     </div>

@@ -2380,16 +2380,14 @@ function CreateAgentTriggerDialog({
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
       if (source.type === 'webhook') {
         if (!result.webhookSecret) throw new Error('Webhook secret was not returned')
-        const endpoint = getAgentWebhookUrl(input.serverUrl, result.trigger.id)
         const secret = result.webhookSecret
+        const endpoint = getAgentWebhookUrl(input.serverUrl, result.trigger.id, secret)
         setCreatedWebhook({
           endpoint,
           secret,
           curl: [
             `curl -X POST "${endpoint}" \\`,
-            `  -H "Authorization: Bearer ${secret}" \\`,
             '  -H "Content-Type: application/json" \\',
-            `  -H "Idempotency-Key: test-${crypto.randomUUID()}" \\`,
             `  -d '{"message":"hello"}'`,
           ].join('\n'),
         })
@@ -2415,18 +2413,19 @@ function CreateAgentTriggerDialog({
         <div>
           <DialogTitle>Webhook trigger created</DialogTitle>
           <DialogDescription>
-            Save the bearer secret now. It is not stored in plaintext and cannot be shown again.
+            Save the webhook URL now. It contains the secret, which is not stored in plaintext and cannot be shown
+            again.
           </DialogDescription>
         </div>
         <WebhookCredential
-          label="Endpoint"
+          label="Webhook URL"
           value={createdWebhook.endpoint}
-          onCopy={() => copy(createdWebhook.endpoint, 'Endpoint')}
+          onCopy={() => copy(createdWebhook.endpoint, 'Webhook URL')}
         />
         <WebhookCredential
-          label="Bearer secret"
+          label="Secret"
           value={createdWebhook.secret}
-          onCopy={() => copy(createdWebhook.secret, 'Bearer secret')}
+          onCopy={() => copy(createdWebhook.secret, 'Secret')}
         />
         <div className="flex flex-col gap-1">
           <div className="flex items-center justify-between gap-2">
@@ -2443,8 +2442,9 @@ function CreateAgentTriggerDialog({
         </div>
         <div className="border-border bg-muted/40 rounded-lg border p-3">
           <SizableText size="xs" color="muted">
-            Send JSON with <code>Authorization: Bearer &lt;secret&gt;</code> and a unique <code>Idempotency-Key</code>
-            header. Reusing a key with a different body is rejected.
+            POST JSON to the webhook URL. Senders that cannot use a secret URL may instead post to the URL without the
+            last segment and send <code>Authorization: Bearer &lt;secret&gt;</code>. An optional{' '}
+            <code>Idempotency-Key</code> header deduplicates retries; reusing a key with a different body is rejected.
           </SizableText>
         </div>
         <div className="flex justify-end">

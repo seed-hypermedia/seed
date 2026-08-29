@@ -1708,7 +1708,10 @@ export type GetAgentTriggerResponse = {
 export type CreateAgentTriggerResponse = {
   _: 'CreateAgentTriggerResponse'
   trigger: AgentTriggerInfo
-  /** Plaintext bearer credential returned only when a webhook trigger is created. */
+  /**
+   * Plaintext webhook secret returned only when a webhook trigger is created. It is the last path
+   * segment of the delivery URL, or may be sent as `Authorization: Bearer <secret>` instead.
+   */
   webhookSecret?: string
 }
 

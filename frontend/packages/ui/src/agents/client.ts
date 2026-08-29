@@ -147,8 +147,9 @@ export function normalizeAgentServerUrl(input: string): string {
 }
 
 /** Returns the public delivery endpoint for an inbound webhook trigger. */
-export function getAgentWebhookUrl(serverUrl: string, triggerId: string): string {
-  return `${normalizeAgentServerUrl(serverUrl)}/agents/api/webhooks/${encodeURIComponent(triggerId)}`
+export function getAgentWebhookUrl(serverUrl: string, triggerId: string, secret?: string): string {
+  const base = `${normalizeAgentServerUrl(serverUrl)}/agents/api/webhooks/${encodeURIComponent(triggerId)}`
+  return secret ? `${base}/${encodeURIComponent(secret)}` : base
 }
 
 /** Returns true when a URL can safely receive secrets over the current transport. */
