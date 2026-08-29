@@ -340,14 +340,50 @@ describe('call verb', () => {
         execute: executeSpy,
       } as never,
     })
-    const result = await executeCallVerb(
+    // No description: the contract comes back and nothing runs — the row the user reads is the
+    // description, so a run without one is a run the user cannot follow.
+    const undescribed = await executeCallVerb(
       context,
       {tool: 'execute', input: {runtime: 'python', code: 'print(1)'}},
+      'tc0',
+    )
+    expect(String(undescribed.summary)).toContain('did not match its contract')
+    expect(undescribed.validationErrors).toEqual(['$.description: required property is missing'])
+    expect(executeSpy).not.toHaveBeenCalled()
+
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Count the words in notes', runtime: 'python', code: 'print(1)'}},
       'tc1',
     )
-    expect(String(result.summary)).toContain('Ran python code')
+    // The summary leads with the agent's own account of the run, then only what changed the picture.
+    expect(result.summary).toBe('Count the words in notes · 1 memory file changed')
     expect(executeSpy).toHaveBeenCalledTimes(1)
     expect(context.onMemoryChange).toHaveBeenCalled()
+  })
+
+  test('a failed execute keeps the description and adds the exit code', async () => {
+    const context = makeContext({
+      codeExec: {
+        runtimes: ['python', 'shell'],
+        availability: async () => ({available: true, runtimes: ['python', 'shell']}),
+        execute: async () => ({
+          exitCode: 2,
+          success: false,
+          stdout: '',
+          stderr: 'boom',
+          truncated: false,
+          durationMs: 5,
+          changedFiles: [],
+        }),
+      } as never,
+    })
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Validate the CSV', runtime: 'python', code: 'raise SystemExit(2)'}},
+      'tc2',
+    )
+    expect(result.summary).toBe('Validate the CSV · exit 2')
   })
 
   test('the execute contract offers only the runtimes this server can actually run', async () => {
@@ -362,7 +398,11 @@ describe('call verb', () => {
     })
     // A model asking for TypeScript on a server with no bun image gets the contract back — with ts
     // absent from the enum — instead of a sandbox failure it cannot diagnose.
-    const result = await executeCallVerb(context, {tool: 'execute', input: {runtime: 'ts', code: 'x'}}, undefined)
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Try TypeScript', runtime: 'ts', code: 'x'}},
+      undefined,
+    )
     expect(String(result.summary)).toContain('did not match its contract')
     expect(String(result.contract)).toContain('"python"')
     expect(String(result.contract)).not.toContain('"ts"')

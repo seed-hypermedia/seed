@@ -10224,6 +10224,9 @@ export async function executeCallVerb(
       return executeWebSearch(context.web, toolInput)
     case 'execute': {
       const runtime = typeof toolInput.runtime === 'string' ? toolInput.runtime : 'code'
+      // The agent's one-line account of the run is what the user reads in the row; the schema
+      // requires it, so a missing one has already answered with the contract above.
+      const description = typeof toolInput.description === 'string' ? toolInput.description.trim() : ''
       let result
       try {
         result = await context.codeExec.execute({
@@ -10234,7 +10237,7 @@ export async function executeCallVerb(
           onProgress: (progress) =>
             context.onToolProgress(seedVerbRegistry.call.name, {
               toolCallId,
-              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${runtime} code…`,
+              detail: progress.stage === 'starting' ? 'Starting sandbox…' : `Running ${runtime}…`,
               outputTail: progress.outputTail,
             }),
         })
@@ -10243,11 +10246,17 @@ export async function executeCallVerb(
         throw error
       }
       if (result.changedFiles.length) context.onMemoryChange()
-      const changeSummary = result.changedFiles.length
-        ? `, ${result.changedFiles.length} memory file${result.changedFiles.length === 1 ? '' : 's'} changed`
-        : ''
+      // The summary leads with what the run was FOR and appends only what changed the picture: a
+      // non-zero exit, and memory files touched. Mechanics (runtime, duration) stay in the details.
+      const notes = [
+        ...(result.exitCode === 0 ? [] : [`exit ${result.exitCode}`]),
+        ...(result.changedFiles.length
+          ? [`${result.changedFiles.length} memory file${result.changedFiles.length === 1 ? '' : 's'} changed`]
+          : []),
+      ]
+      const lead = description || `Ran ${runtime} code`
       return {
-        summary: `Ran ${runtime} code (exit ${result.exitCode}, ${result.durationMs}ms${changeSummary}).`,
+        summary: notes.length ? `${lead} · ${notes.join(' · ')}` : lead,
         ...result,
       }
     }

@@ -251,10 +251,11 @@ duration, and turn token breakdown — total, input, output, cache read, cache w
 event recorded before the runtime stamped provenance shows no Details section at all rather than labelled blanks.
 
 Tool rows dispatch a purpose-built detail view per tool (`assistant-message-rendering.tsx:2034`): `delegate` shows the
-brief and the child's own work, `execute` shows the code with a live output tail, an address-bearing `read` or `write`
-shows the resolved target, and a hypermedia write command gets its own phrasing. A `call` row borrows the **called**
-tool's icon, label, and links, with input paths rebased under `input.` (`getRowToolMetadata`,
-`assistant-message-rendering.tsx:687`) — so it never reads "Call · execute".
+brief and the child's own work, `execute` rows read the agent's required one-line `description` of the run (live, then
+as the summary) and show the code with a live output tail, an address-bearing `read` or `write` shows the resolved
+target, and a hypermedia write command gets its own phrasing. A `call` row borrows the **called** tool's icon, label,
+and links, with input paths rebased under `input.` (`getRowToolMetadata`, `assistant-message-rendering.tsx:687`) — so it
+never reads "Call · execute".
 
 Other session-page behavior: optimistic user messages stamped with the selected account immediately, concurrent sends
 while the agent is busy (the server persists them immediately and serializes their model turns), live assistant partials

@@ -337,11 +337,18 @@ Runs TypeScript, Python, or shell code in a hardware-isolated microVM with the a
 
 ```ts
 type ExecuteInput = {
+  description: string // required: one short line saying what the run is for, 3–120 chars
   runtime: 'ts' | 'python' | 'shell'
   code: string
   timeout_secs?: number // clamped to [1, 300]
 }
 ```
+
+- **`description` is required** and is what the user reads. Agents reach for `execute` constantly, and a row that says
+  "Ran python code (exit 0, 812ms)" tells the user nothing, so the contract demands the intent in one line ("Count words
+  across the notes folder") and a call without one answers with the contract like any other miss. The desktop row shows
+  the description live while the sandbox runs and afterwards as the summary, which leads with it and appends only what
+  changed the picture — a non-zero exit, memory files touched; runtime and duration stay in the expanded details.
 
 - `ts` runs `bun -e`, `python` runs `python -c`, `shell` runs `/bin/sh -c`. Nothing goes through a shell unless the
   runtime _is_ the shell: the sandbox takes an argv array, so code with quotes, newlines, or `$` needs no escaping
