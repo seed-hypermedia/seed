@@ -98,6 +98,12 @@ CREATE TABLE agent_triggers (
 
 CREATE INDEX agent_triggers_by_agent ON agent_triggers (agent_id, updated_at DESC);
 
+CREATE TABLE webhook_trigger_credentials (
+    trigger_id TEXT PRIMARY KEY REFERENCES agent_triggers (id),
+    secret_hash BLOB NOT NULL,
+    created_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
 CREATE TABLE sessions (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -126,6 +132,7 @@ CREATE TABLE trigger_firings (
     activity_key TEXT NOT NULL,
     session_id TEXT REFERENCES sessions (id),
     activity_cbor BLOB NOT NULL,
+    body_digest BLOB,
     status TEXT NOT NULL,
     error TEXT,
     created_at INTEGER NOT NULL,

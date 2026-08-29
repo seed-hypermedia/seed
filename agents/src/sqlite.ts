@@ -30,6 +30,15 @@ export const migrations: string[] = [
   ) WITHOUT ROWID;
 
   CREATE INDEX mcp_servers_by_account ON mcp_servers (account_id, name);`,
+  // Inbound webhooks keep bearer credentials separate from public trigger metadata. The raw-body
+  // digest makes retries exact: a reused delivery key is accepted only for byte-identical JSON.
+  `CREATE TABLE webhook_trigger_credentials (
+      trigger_id TEXT PRIMARY KEY REFERENCES agent_triggers (id),
+      secret_hash BLOB NOT NULL,
+      created_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+  ALTER TABLE trigger_firings ADD COLUMN body_digest BLOB;`,
   // Public chat: while an agent is publicly readable, this additionally lets every signed account
   // create sessions and message them (the `chatter` access role). Never set without public_read;
   // SetAgentPublicRead(false) clears it.

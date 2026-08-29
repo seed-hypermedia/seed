@@ -551,6 +551,7 @@ export type AgentTriggerPatch = {
 
 /** Activity source/filter that decides when an agent trigger fires. */
 export type AgentTriggerSource =
+  | {type: 'webhook'}
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
@@ -1707,6 +1708,8 @@ export type GetAgentTriggerResponse = {
 export type CreateAgentTriggerResponse = {
   _: 'CreateAgentTriggerResponse'
   trigger: AgentTriggerInfo
+  /** Plaintext bearer credential returned only when a webhook trigger is created. */
+  webhookSecret?: string
 }
 
 /** Successful response for `UpdateAgentTrigger`. */
