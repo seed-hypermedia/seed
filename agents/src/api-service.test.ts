@@ -7083,6 +7083,7 @@ describe('api service', () => {
       expect(contents).toEqual([
         'user:go research the thing',
         'tool_call',
+        'tool_spawn',
         'user:hey, are you still there',
         'assistant:Quick answer: yes, the r',
         'tool_result',
