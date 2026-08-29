@@ -306,8 +306,8 @@ drag a frozen card down the scroll for as long as its run lived.
 Both cards share one body, `RunWork` (`run-work.tsx`):
 
 - **Plan steps** with status icons (pending ○ / running ◐ / done ✓ / failed ✕ / skipped –). Steps the runtime settled
-  from completed sub-agents (`resolvedBy: 'runtime'`) render identically to steps the agent closed itself — the
-  attached sub-agent row is clickable, so provenance is one click away in the sub-session.
+  from completed sub-agents (`resolvedBy: 'runtime'`) render identically to steps the agent closed itself — the attached
+  sub-agent row is clickable, so provenance is one click away in the sub-session.
 - **Children, integrated with their step.** One child attached to a step means the step _is_ that child's row: clicking
   it opens the sub-session, its status dot and live activity ride along, and its cancel button sits at the row's edge
   (revealed on hover, on keyboard focus, and always on touch). A **batch** — two or more children on one step — makes

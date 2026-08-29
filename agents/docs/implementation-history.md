@@ -106,8 +106,8 @@ simply stopped existing, and stored transcripts keep their historical events wit
   `actor: 'system'`. Each turn's replay ends with an ephemeral `<plan_state>` block so a resumed model can see its own
   checklist, and a step whose attached children all succeeded is settled by the runtime
   (`RunPlanStep.resolvedBy: 'runtime'`; originally shown as a muted "auto" affix, later dropped since the clickable
-  sub-agent row already carries the provenance); `RunPlan.settledAt` freezes a finished checklist
-  into the log. Model- authored step ids and labels are escaped before being framed back to the model.
+  sub-agent row already carries the provenance); `RunPlan.settledAt` freezes a finished checklist into the log. Model-
+  authored step ids and labels are escaped before being framed back to the model.
 - **Verification.** `agents/e2e/live-gate.ts` runs scripted scenarios against a real server and model;
   `e2e/scripted-provider.ts` plus `e2e/obligations-live-check.ts` and `e2e/narration-check.ts` drive deterministic live
   checks without provider credits. `HARNESS-TESTING.html` at the repo root is the manual test guide. Suite at the end of
