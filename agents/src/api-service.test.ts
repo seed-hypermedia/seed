@@ -2123,6 +2123,74 @@ describe('api service', () => {
     }
   })
 
+  test('keeps async signing identity idempotency outside unrelated database writes', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      let fetchCalls = 0
+      let publishStarted!: () => void
+      const started = new Promise<void>((resolve) => (publishStarted = resolve))
+      let finishPublish!: (response: Response) => void
+      let failPublish!: (error: Error) => void
+      const publication = new Promise<Response>((resolve, reject) => {
+        finishPublish = resolve
+        failPublish = reject
+      })
+      globalThis.fetch = mock(() => {
+        fetchCalls += 1
+        publishStarted()
+        return publication
+      }) as never
+
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test'})
+      const action = {
+        _: 'CreateSigningIdentity' as const,
+        label: 'Concurrent publisher',
+        clientRequestId: 'concurrent-key',
+      }
+      const first = svc.message(await apisvc.createSignedEnvelope(account, {action}))
+      await started
+
+      const provider = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetModelProvider', name: 'OpenAI', provider: {type: 'openai'}},
+        }),
+      )
+      expect(provider._).toBe('SetModelProviderResponse')
+      failPublish(new Error('publication failed'))
+      await expect(first).rejects.toThrow('publication failed')
+      expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM model_providers`).get()?.count).toBe(1)
+
+      const retryStarted = new Promise<void>((resolve) => (publishStarted = resolve))
+      let finishRetry!: (response: Response) => void
+      const retryPublication = new Promise<Response>((resolve) => (finishRetry = resolve))
+      globalThis.fetch = mock(() => {
+        fetchCalls += 1
+        publishStarted()
+        return retryPublication
+      }) as never
+      const retry = svc.message(await apisvc.createSignedEnvelope(account, {action}))
+      await retryStarted
+      const duplicate = svc.message(await apisvc.createSignedEnvelope(account, {action}))
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {...action, label: 'Different publisher'},
+          }),
+        ),
+      ).rejects.toThrow('Client request ID payload mismatch')
+      finishRetry(Response.json(serialize({cids: ['profile-cid']})))
+      expect(await duplicate).toEqual(await retry)
+      expect(fetchCalls).toBe(2)
+      expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM secrets`).get()?.count).toBe(1)
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+
   test('imports an existing account key without publishing anything', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
