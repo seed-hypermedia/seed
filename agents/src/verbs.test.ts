@@ -875,6 +875,43 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     expect(String(self.guidance)).toContain('~/triggers/')
   })
 
+  test('read ~/agents lists the account directory with summaries only', async () => {
+    const context = makeContext()
+    context.db.run(
+      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        'researcher',
+        'test-account',
+        cborEncode({
+          name: 'Researcher',
+          systemPrompt: 'Top secret persona.',
+          modelProvider: 'openai',
+          model: 'gpt-test',
+          enabledModels: [{provider: 'openai', model: 'gpt-test-mini'}],
+          signingKeys: ['main-key'],
+        }),
+        'y',
+        'ready',
+        Date.now() + 1,
+        Date.now() + 1,
+      ],
+    )
+    const directory = await executeReadVerb(context, {address: '~/agents'})
+    const agents = directory.agents as Array<Record<string, unknown>>
+    expect(agents.map((agent) => agent.agentId)).toEqual(['test-agent', 'researcher'])
+    expect(agents[0]!.self).toBe(true)
+    const researcher = agents[1]!
+    expect(researcher.self).toBeUndefined()
+    expect(researcher.name).toBe('Researcher')
+    expect(researcher.model).toBe('openai/gpt-test')
+    expect(researcher.enabledModels).toEqual(['openai/gpt-test-mini'])
+    // Summaries only: a sibling's system prompt and signing keys must never leak through the directory.
+    expect(JSON.stringify(directory)).not.toContain('Top secret persona')
+    expect(JSON.stringify(directory)).not.toContain('main-key')
+    expect(String(directory.guidance)).toContain('delegate {agentId')
+  })
+
   test('space index advertises the triggers affordance and lists active triggers', async () => {
     const context = makeContext()
     await executeWriteVerb(context, {address: '~/triggers/nightly', content: scheduleTrigger})

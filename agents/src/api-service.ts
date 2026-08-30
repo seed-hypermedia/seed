@@ -9991,6 +9991,45 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
 }
 
 /**
+ * Lists the account's agents for `read ~/agents` — exactly the set this agent may delegate to
+ * with `delegate {agentId}` (delegation requires an agent the account owns, so shared agents are
+ * not listed). Definitions are summarized, not dumped: a sibling's system prompt, grants, and
+ * signing keys are its own business — the directory exists so an agent can route work, not
+ * inspect its peers.
+ */
+function readAgentsAddress(context: AgentServicePiToolContext): Record<string, unknown> {
+  const rows = context.db
+    .query<{id: string; definition_cbor: Uint8Array}, [string]>(
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ? ORDER BY created_at ASC`,
+    )
+    .all(context.accountId)
+  const agents = rows.map((row) => {
+    let definition: api.AgentDefinition | undefined
+    try {
+      definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+    } catch {}
+    return {
+      agentId: row.id,
+      ...(row.id === context.agentId ? {self: true} : {}),
+      name: typeof definition?.name === 'string' && definition.name ? definition.name : row.id,
+      ...(typeof definition?.modelProvider === 'string' && typeof definition?.model === 'string'
+        ? {model: `${definition.modelProvider}/${definition.model}`}
+        : {}),
+      ...(definition?.enabledModels?.length
+        ? {enabledModels: definition.enabledModels.map((ref) => `${ref.provider}/${ref.model}`)}
+        : {}),
+      ...(definition?.metadata ? {metadata: definition.metadata} : {}),
+    }
+  })
+  return {
+    summary: `${agents.length} agent${agents.length === 1 ? '' : 's'} on this account.`,
+    agents,
+    guidance:
+      "Delegate work to one of these with delegate {agentId, brief}: the child session runs under that agent's own system prompt, tools, model, and memory, and returns its result to you. Read ~/self for your own full configuration.",
+  }
+}
+
+/**
  * Lists (and searches) the account's conversations for `read thread:` with no id. Search covers
  * titles and, bounded, recent message text — enough to find "that thread where we discussed X"
  * without scanning the whole log history.
@@ -10162,6 +10201,7 @@ export async function executeReadVerb(
   if (memoryPath !== null) return readMemoryAddress(context, memoryPath)
 
   if (address === '~/self' || address === '~/self/') return readSelfAddress(context)
+  if (address === '~/agents' || address === '~/agents/') return readAgentsAddress(context)
 
   if (address === '~/triggers' || address === '~/triggers/') return triggersListing(context)
   if (address.startsWith('~/triggers/')) {
@@ -10285,7 +10325,7 @@ export async function executeReadVerb(
 
   throw new APIError(
     400,
-    `Unrecognized address: ${address}. Supported: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.`,
+    `Unrecognized address: ${address}. Supported: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, ~/agents, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.`,
   )
 }
 

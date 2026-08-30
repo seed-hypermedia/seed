@@ -98,6 +98,7 @@ const readVerb = {
     '- `~/tools/<name>` — a tool contract: full description plus input/output schemas. `~/tools/` lists every tool you can call.',
     '- `~/triggers/<name>` — one of your triggers (its source, prompt, status, and recent firings). `~/triggers/` lists them all.',
     '- `~/self` — everything about you: your definition (model, system prompt, grants, signing keys), your triggers, and a memory summary.',
+    "- `~/agents` — the account's other agents (name, id, model), the ones you may delegate to with `delegate {agentId}`.",
     '- `hm://…` (or a Seed gateway/site URL) — a hypermedia document or comment, as markdown by default. Append `/:directory` to list the child documents under an account or document; `/:attributes` for metadata only; `/:profile` on an account for its profile.',
     '- `ipfs://<cid>` — fetch content by CID into memory and return it (binary files return metadata only).',
     '- `https://…` — read a public web page as markdown.',
@@ -114,7 +115,7 @@ const readVerb = {
         type: 'string',
         minLength: 1,
         description:
-          'What to read: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.',
+          'What to read: ~/memory/…, ~/tools/…, ~/triggers/…, ~/self, ~/agents, hm://…, ipfs://…, https://…, activity:, attachment:<id>, thread: or thread:<id>, run:<id>.',
       },
       format: {
         type: 'string',
