@@ -122,7 +122,6 @@ import {
   summarizeTriggerContinuation,
   summarizeTriggerSource,
 } from './trigger-types'
-import {RunRecordCard} from './run-card'
 import {getAgentsPlatform} from './platform'
 import {routeToHref} from '@shm/shared/routing'
 import {
@@ -2348,7 +2347,6 @@ function AgentTriggersTab({
               <TriggerFiringsSection
                 firings={trigger.data?.firings ?? []}
                 serverUrl={serverUrl}
-                accountUid={selectedAccountId}
                 onOpenSession={(sessionId, sessionAgentId) =>
                   navigate({key: 'agent-session', agentId: sessionAgentId ?? agentId, sessionId, serverUrl})
                 }
@@ -2606,22 +2604,19 @@ const FIRING_STATUS_LABELS: Record<string, {label: string; className: string}> =
 function TriggerFiringsSection({
   firings,
   serverUrl,
-  accountUid,
   onOpenSession,
 }: {
   firings: TriggerFiringInfo[]
   serverUrl: string
-  accountUid: string | null | undefined
   onOpenSession: (sessionId: string, agentId?: string) => void
 }) {
-  const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
+  const navigate = useNavigate()
   return (
     <div className="border-border flex flex-col gap-2 border-t pt-5">
       <SizableText weight="bold">Recent firings</SizableText>
       {!firings.length ? <SizableText color="muted">This trigger has not fired yet.</SizableText> : null}
       {firings.map((firing) => {
         const status = FIRING_STATUS_LABELS[firing.status] ?? {label: firing.status, className: 'text-muted-foreground'}
-        const expanded = !!firing.runId && expandedRunId === firing.runId
         return (
           <div key={firing.id} className="border-border flex flex-col gap-2 rounded-lg border p-2.5">
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
@@ -2639,9 +2634,9 @@ function TriggerFiringsSection({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  onClick={() => setExpandedRunId(expanded ? null : firing.runId!)}
+                  onClick={() => navigate({key: 'agent-run', runId: firing.runId!, serverUrl})}
                 >
-                  {expanded ? 'Hide run' : 'Show run'}
+                  Open run <ArrowRight className="size-3.5" />
                 </Button>
               ) : null}
               {firing.sessionId ? (
@@ -2654,14 +2649,6 @@ function TriggerFiringsSection({
               <SizableText size="xs" className="text-destructive break-words">
                 {firing.error}
               </SizableText>
-            ) : null}
-            {expanded && firing.runId ? (
-              <RunRecordCard
-                serverUrl={serverUrl}
-                accountUid={accountUid}
-                runId={firing.runId}
-                onOpenSession={onOpenSession}
-              />
             ) : null}
           </div>
         )

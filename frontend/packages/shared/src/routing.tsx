@@ -241,6 +241,12 @@ export function routeToHref(
     if (route.agentId) query.push(`agent=${encodeURIComponent(route.agentId)}`)
     return `/hm/agents/session/${encodeURIComponent(route.sessionId)}${query.length ? `?${query.join('&')}` : ''}`
   }
+  if (typeof route !== 'string' && route.key === 'agent-run') {
+    const query: string[] = []
+    if (route.serverUrl) query.push(`server=${encodeURIComponent(route.serverUrl)}`)
+    if (route.agentId) query.push(`agent=${encodeURIComponent(route.agentId)}`)
+    return `/hm/agents/run/${encodeURIComponent(route.runId)}${query.length ? `?${query.join('&')}` : ''}`
+  }
   if (typeof route !== 'string' && route.key === 'site-settings-emails') {
     const siteBase =
       !route.accountUid || options?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`

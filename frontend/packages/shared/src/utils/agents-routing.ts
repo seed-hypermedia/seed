@@ -13,6 +13,7 @@ const AGENT_TABS = agentRouteSchema.shape.tab.unwrap().options
  * - `/hm/agents/server?url=…` → agent-server
  * - `/hm/agents/agent/:agentId?server=…&tab=…&trigger=…&file=…` → agent
  * - `/hm/agents/session/:sessionId?server=…&agent=…` → agent-session
+ * - `/hm/agents/run/:runId?server=…&agent=…` → agent-run
  */
 export function agentsRouteFromUrl(pathname: string, searchParams: URLSearchParams): NavRoute {
   const segments = pathname.split('/').filter(Boolean).map(decodeURIComponent)
@@ -37,6 +38,14 @@ export function agentsRouteFromUrl(pathname: string, searchParams: URLSearchPara
     return {
       key: 'agent-session',
       sessionId: rest[1],
+      serverUrl: searchParams.get('server') || undefined,
+      agentId: searchParams.get('agent') || undefined,
+    }
+  }
+  if (rest[0] === 'run' && rest[1]) {
+    return {
+      key: 'agent-run',
+      runId: rest[1],
       serverUrl: searchParams.get('server') || undefined,
       agentId: searchParams.get('agent') || undefined,
     }

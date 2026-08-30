@@ -116,6 +116,10 @@ export function agentSessionUrl(serverUrl: string, agentId: string, sessionId: s
   return `${agentUrl(serverUrl, agentId)}/sessions/${encodeURIComponent(sessionId)}`
 }
 
+export function agentRunUrl(serverUrl: string, agentId: string, runId: string): string {
+  return `${agentUrl(serverUrl, agentId)}/runs/${encodeURIComponent(runId)}`
+}
+
 export function agentTriggerUrl(serverUrl: string, agentId: string, triggerId: string): string {
   return `${agentUrl(serverUrl, agentId)}/:triggers/${encodeURIComponent(triggerId)}`
 }
@@ -170,6 +174,9 @@ export function agentUrlToRoute(input: string): NavRoute | null {
     if (segments.length === 2) return {key: 'agent', serverUrl, agentId}
     if (segments.length === 4 && segments[2] === 'sessions') {
       return {key: 'agent-session', serverUrl, agentId, sessionId: segments[3]}
+    }
+    if (segments.length === 4 && segments[2] === 'runs') {
+      return {key: 'agent-run', serverUrl, agentId, runId: segments[3]}
     }
     // Legacy trigger URL form, before triggers moved to the /:triggers tab suffix.
     if (segments.length === 4 && segments[2] === 'triggers') {

@@ -367,6 +367,16 @@ export const agentSessionRouteSchema = z.object({
 /** Navigation route for one server-hosted agent session. */
 export type AgentSessionRoute = z.infer<typeof agentSessionRouteSchema>
 
+/** Route schema for one durable agent run (a script or delegated model run). */
+export const agentRunRouteSchema = z.object({
+  key: z.literal('agent-run'),
+  runId: z.string(),
+  serverUrl: z.string().optional(),
+  agentId: z.string().optional(),
+})
+/** Navigation route for one durable agent run. */
+export type AgentRunRoute = z.infer<typeof agentRunRouteSchema>
+
 /** Route schema for the desktop API inspector. */
 export const apiInspectorRouteSchema = z.object({
   key: z.literal('api-inspector'),
@@ -431,6 +441,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentServerRouteSchema,
   agentRouteSchema,
   agentSessionRouteSchema,
+  agentRunRouteSchema,
   apiInspectorRouteSchema,
   queryDocumentsRouteSchema,
   exploreRouteSchema,

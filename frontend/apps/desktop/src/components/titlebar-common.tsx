@@ -14,6 +14,7 @@ import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
 import {
+  agentRunUrl,
   agentSessionUrl,
   agentTriggerUrl,
   agentUrl,
@@ -783,6 +784,12 @@ function useCurrentRouteUrl(): {
         return {displayUrl: url, copyableUrl: url}
       }
       return {displayUrl: null, copyableUrl: null}
+    }
+
+    if (route.key === 'agent-run') {
+      if (isLocalAgentsRoute || !route.agentId) return {displayUrl: null, copyableUrl: null}
+      const url = agentRunUrl(route.serverUrl || DEFAULT_AGENT_SERVER_URL, route.agentId, route.runId)
+      return {displayUrl: url, copyableUrl: url}
     }
 
     if (routeId) {

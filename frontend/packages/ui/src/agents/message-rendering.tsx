@@ -1788,8 +1788,27 @@ function DelegateWorkDetails({
         </ToolDetailSection>
       ) : null}
 
-      {sessionId && serverUrl ? <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} /> : null}
+      {(sessionId || runId) && serverUrl ? (
+        <div className="flex items-center gap-3">
+          {sessionId ? <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} /> : null}
+          {runId ? <OpenRunLink runId={runId} serverUrl={serverUrl} /> : null}
+        </div>
+      ) : null}
     </div>
+  )
+}
+
+/** The child run's own page: the durable record, reachable even when the child has no transcript. */
+function OpenRunLink({runId, serverUrl}: {runId: string; serverUrl: string}) {
+  const clickNavigate = useClickNavigate()
+  return (
+    <button
+      type="button"
+      className="text-primary self-start text-[11px] hover:underline"
+      onClick={(event) => clickNavigate({key: 'agent-run', runId, serverUrl}, event)}
+    >
+      Open run →
+    </button>
   )
 }
 

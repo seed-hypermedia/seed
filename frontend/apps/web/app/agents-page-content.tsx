@@ -4,6 +4,7 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import AgentDetailRoutePage from '@shm/ui/agents/detail'
 import AgentsListPage from '@shm/ui/agents/list'
 import AgentServerPage from '@shm/ui/agents/server'
+import AgentRunRoutePage from '@shm/ui/agents/run'
 import AgentSessionRoutePage from '@shm/ui/agents/session'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
@@ -39,6 +40,8 @@ function AgentsRouteSwitch() {
       return <AgentDetailRoutePage />
     case 'agent-session':
       return <AgentSessionRoutePage />
+    case 'agent-run':
+      return <AgentRunRoutePage />
     default:
       return <AgentsListPage />
   }

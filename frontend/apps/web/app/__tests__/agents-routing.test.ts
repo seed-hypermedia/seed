@@ -26,6 +26,22 @@ describe('web agents routing', () => {
     expect(roundTrip(route)).toEqual(route)
   })
 
+  it('round-trips a run with its server and agent', () => {
+    const route: NavRoute = {
+      key: 'agent-run',
+      runId: 'firing-123',
+      serverUrl: 'https://agents.example.com',
+      agentId: 'agent-1',
+    }
+    expect(roundTrip(route)).toEqual(route)
+    expect(roundTrip({key: 'agent-run', runId: 'r2'})).toEqual({
+      key: 'agent-run',
+      runId: 'r2',
+      serverUrl: undefined,
+      agentId: undefined,
+    })
+  })
+
   it('round-trips an agent with every optional field, including the memory file', () => {
     const route: NavRoute = {
       key: 'agent',

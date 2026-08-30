@@ -15,9 +15,10 @@ import {
 } from './run-work'
 import {formatElapsed, formatTokenCount} from './agent-run-status'
 import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from './models'
+import {useNavigate} from './navigation'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
-import {ChevronDown, ChevronRight, Info, Loader2} from 'lucide-react'
+import {ArrowUpRight, ChevronDown, ChevronRight, Info, Loader2} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 
 /**
@@ -69,7 +70,7 @@ function formatWakeTime(wakeAt: number): string {
 }
 
 /** How a run's status reads in the header pill. */
-const RUN_STATUS_LABELS: Record<RunStatus, string> = {
+export const RUN_STATUS_LABELS: Record<RunStatus, string> = {
   queued: 'Queued',
   claimed: 'Starting',
   running: 'Running',
@@ -79,7 +80,7 @@ const RUN_STATUS_LABELS: Record<RunStatus, string> = {
   canceled: 'Canceled',
 }
 
-function runStatusClass(status: RunStatus): string {
+export function runStatusClass(status: RunStatus): string {
   if (status === 'failed') return 'border-destructive/30 bg-destructive/10 text-destructive'
   if (status === 'succeeded') return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
   if (status === 'canceled') return 'border-border bg-muted text-muted-foreground'
@@ -301,6 +302,7 @@ function RunCardBody({
   }, [isTerminal])
 
   const headerTitle = (isParked ? parkedLabel(run) : undefined) ?? cardTitle(run, plan, childRuns)
+  const navigate = useNavigate()
 
   return (
     <>
@@ -325,6 +327,15 @@ function RunCardBody({
             className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/runhead:opacity-100 focus-visible:opacity-100"
           >
             <Info className="size-3" />
+          </button>
+          <button
+            type="button"
+            title="Open run page"
+            aria-label="Open run page"
+            onClick={() => navigate({key: 'agent-run', runId: run.id, serverUrl, agentId: run.agentId})}
+            className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/runhead:opacity-100 focus-visible:opacity-100"
+          >
+            <ArrowUpRight className="size-3" />
           </button>
         </span>
         {!showRunControls ? null : confirmingCancel ? (
@@ -520,7 +531,7 @@ function journalEntryLine(entry: RunJournalEntryInfo): ActivityLine | null {
  * above this is to stay glanceable. Entries span every run in the tree, oldest first, so the newest
  * line sits at the bottom where the drawer is already scrolled.
  */
-function RunActivityDrawer({journal}: {journal: RunJournalEntryInfo[]}) {
+export function RunActivityDrawer({journal}: {journal: RunJournalEntryInfo[]}) {
   const [open, setOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const lines = useMemo(() => {
@@ -600,7 +611,7 @@ function ActivityLineRow({line}: {line: ActivityLine}) {
  * Agents write these modules; reviewing the run means reading them. Collapsed by default beside the
  * Activity drawer; one section per workflow run in the tree (there is usually exactly one).
  */
-function RunSourceDrawer({runs}: {runs: RunInfo[]}) {
+export function RunSourceDrawer({runs}: {runs: RunInfo[]}) {
   const [open, setOpen] = useState(false)
   const sources = runs.filter((run) => run.kind === 'workflow' && run.sourceText)
   if (!sources.length) return null
