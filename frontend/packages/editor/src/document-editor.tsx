@@ -745,7 +745,9 @@ export function DocumentEditor({
               onStartComment={fragmentActionsValue?.onCommentOnBlock}
             />
           )}
-          {experiments?.developerTools && <PredictionConeDebugOverlay editor={editor} />}
+          {experiments?.developerTools && experiments?.predictionConeDebug && (
+            <PredictionConeDebugOverlay editor={editor} />
+          )}
           <RangeSelectionPositioner
             editor={editor}
             onCopyFragmentLink={

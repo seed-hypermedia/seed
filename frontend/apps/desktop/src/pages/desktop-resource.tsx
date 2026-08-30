@@ -387,8 +387,8 @@ export default function DesktopResourcePage() {
 
   // Developer tools: XState inspect callback + event store (when enabled)
   const experiments = useUniversalAppContext().experiments
-  const devTools = experiments?.developerTools
-  const {inspect, store: inspectStore} = useDocumentInspector(!!devTools)
+  const machineDebug = !!experiments?.developerTools && !!experiments?.documentMachineDebug
+  const {inspect, store: inspectStore} = useDocumentInspector(machineDebug)
 
   // Editor ref for draft saving — captured via onEditorReady callback
   const editorRef = useRef<any>(null)

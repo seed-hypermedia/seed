@@ -139,7 +139,9 @@ export function ReadOnlyViewer({
             {hasRangeSelection && (
               <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
             )}
-            {experiments?.developerTools && <PredictionConeDebugOverlay editor={editor} />}
+            {experiments?.developerTools && experiments?.predictionConeDebug && (
+              <PredictionConeDebugOverlay editor={editor} />
+            )}
           </>
         </ReadOnlyBlockNoteView>
       </div>
