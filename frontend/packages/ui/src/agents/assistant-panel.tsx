@@ -48,6 +48,7 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -77,6 +78,7 @@ import {
   type AssistantSessionRef,
 } from './assistant-session-ref'
 import {AgentServerError} from './client'
+import {describeAgentError, errorMessage} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {AgentRichMessageComposer, SUB_SESSION_DRIVEN_MESSAGE, TERMINAL_RUN_STATUSES} from './rich-message-composer'
 import type {AgentsRichEditorSubmitHandle} from './platform'
@@ -145,6 +147,22 @@ export function AssistantPanel({
     (serverUrls.data !== undefined &&
       !spaceAgents.isLoading &&
       agentQueries.every((query) => query.isSuccess || query.isError))
+
+  const serverProblems = (serverUrls.data || []).flatMap((serverUrl, index) => {
+    const query = agentQueries[index]
+    if (!query?.isError) return []
+    return [
+      {
+        serverUrl,
+        notice: describeAgentError(query.error, {
+          failed: 'Couldn’t load agents',
+          serverLabel: describeAgentServer(serverUrl, localServerUrl.data),
+        }),
+        refetch: () => void query.refetch(),
+        isFetching: query.isFetching,
+      },
+    ]
+  })
 
   const agents: AssistantAgentOption[] = useMemo(
     () =>
@@ -391,9 +409,30 @@ export function AssistantPanel({
           composerRef={composerRef}
           onSessionCreated={selectSession}
         />
+      ) : sessions.isLoading || !agentsSettled ? (
+        <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
+          Loading…
+        </div>
+      ) : serverProblems.length ? (
+        // With no agent to show, a failing server is the whole story: name it rather than claim
+        // there are no agents.
+        <div className="flex flex-1 flex-col gap-2 px-3 py-3">
+          {serverProblems.map((problem) => (
+            <Notice
+              key={problem.serverUrl}
+              size="sm"
+              tone={problem.notice.tone}
+              title={problem.notice.title}
+              onRetry={problem.refetch}
+              retryPending={problem.isFetching}
+            >
+              {problem.notice.detail}
+            </Notice>
+          ))}
+        </div>
       ) : (
         <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
-          {sessions.isLoading || !agentsSettled ? 'Loading…' : 'No agents yet. Create one from the Agents menu above.'}
+          No agents yet. Create one from the Agents menu above.
         </div>
       )}
     </div>
@@ -651,14 +690,12 @@ function AssistantDraftChat({
   const windowContextLinesRef = useRef(windowContextLines)
   windowContextLinesRef.current = windowContextLines
 
-  const [error, setError] = useState<string | null>(null)
   const isSendingRef = useRef(false)
 
   async function handleSend(message: AgentSessionDraftMessage) {
     // The composer already cleared itself; a second send racing the create must not open a second
     // session.
     if (!accountUid || isSendingRef.current) return
-    setError(null)
     isSendingRef.current = true
     try {
       // No title at creation: the agent names the session (status verb, with the server's fallback
@@ -684,7 +721,7 @@ function AssistantDraftChat({
       messageSession.mutate({sessionId: result.sessionId, message: messages})
       onSessionCreated({serverUrl, sessionId: result.sessionId})
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not start the chat')
+      toast.error(errorMessage(caught, 'Could not start the chat'))
     } finally {
       isSendingRef.current = false
     }
@@ -695,7 +732,6 @@ function AssistantDraftChat({
       <div className="text-muted-foreground flex flex-1 items-center justify-center px-4 text-center text-xs">
         {`Send a message to start chatting with ${agentName}`}
       </div>
-      {error ? <div className="text-destructive px-3 py-1 text-xs">{error}</div> : null}
       {/* No sessionId yet: attachments and the tool palette unlock once the first send creates
           the session. A draft is always user-initiated, so the composer takes focus on mount. */}
       <AgentRichMessageComposer

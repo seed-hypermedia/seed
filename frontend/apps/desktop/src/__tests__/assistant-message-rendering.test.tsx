@@ -208,11 +208,12 @@ describe('assistant message rendering', () => {
 
   it('renders provider errors with destructive styling in the transcript', () => {
     const {container, root} = renderErrorMessage('Quota exceeded for model gemini-3.1-pro.')
-    const errorBlock = Array.from(container.querySelectorAll('.text-destructive')).find(
+    const errorBlock = Array.from(container.querySelectorAll('[data-tone="error"]')).find(
       (element) => element.textContent?.includes('Quota exceeded for model gemini-3.1-pro.'),
     )
 
-    expect(errorBlock?.className).toContain('text-destructive')
+    expect(errorBlock).toBeDefined()
+    expect(errorBlock?.getAttribute('role')).toBe('alert')
 
     cleanupRendered(root, container)
   })

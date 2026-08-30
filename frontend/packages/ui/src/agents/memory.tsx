@@ -8,12 +8,14 @@ import {
   useUploadAgentMemoryFileToIpfs,
   useWriteAgentMemoryFile,
 } from './models'
+import {describeAgentError} from './errors'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Spinner} from '@shm/ui/spinner'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {
@@ -461,9 +463,13 @@ export function AgentMemoryTab({
               <Spinner />
             </div>
           ) : rootQuery.isError ? (
-            <SizableText size="sm" color="muted" className="p-2">
-              Could not load memory from the agent server.
-            </SizableText>
+            <MemoryLoadNotice
+              error={rootQuery.error}
+              failed="Couldn’t load memory"
+              onRetry={() => void rootQuery.refetch()}
+              retryPending={rootQuery.isFetching}
+              className="m-2"
+            />
           ) : entries.length === 0 ? (
             <SizableText size="sm" color="muted" className="p-2">
               No memory yet. The agent stores files here as it works, and you can add files for it to find — or drop
@@ -539,10 +545,14 @@ export function AgentMemoryTab({
               <Spinner />
             </div>
           ) : file.isError ? (
-            <div className="flex flex-1 items-center justify-center p-6">
-              <SizableText size="sm" color="muted">
-                {file.error instanceof Error ? file.error.message : 'Could not read this memory file.'}
-              </SizableText>
+            <div className="flex flex-1 items-start justify-center p-4">
+              <MemoryLoadNotice
+                error={file.error}
+                failed="Couldn’t read this file"
+                onRetry={() => void file.refetch()}
+                retryPending={file.isFetching}
+                className="w-full max-w-md"
+              />
             </div>
           ) : file.data ? (
             <>
@@ -887,4 +897,32 @@ function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function MemoryLoadNotice({
+  error,
+  failed,
+  onRetry,
+  retryPending,
+  className,
+}: {
+  error: unknown
+  failed: string
+  onRetry: () => void
+  retryPending: boolean
+  className?: string
+}) {
+  const notice = describeAgentError(error, {failed})
+  return (
+    <Notice
+      size="sm"
+      tone={notice.tone}
+      title={notice.title}
+      onRetry={onRetry}
+      retryPending={retryPending}
+      className={className}
+    >
+      {notice.detail}
+    </Notice>
+  )
 }

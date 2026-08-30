@@ -38,6 +38,7 @@ import {Label} from '@shm/ui/components/label'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Select, SelectContent, SelectDropdown, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -113,9 +114,9 @@ export function ModelProvidersDialog({
             </div>
             {provider.authMode === 'subscription' && provider.authStatus === 'needs-login' ? (
               <div className="flex flex-col gap-2">
-                <SizableText size="sm" className="text-destructive">
-                  Sign-in expired — sign in again to keep using this provider.
-                </SizableText>
+                <Notice size="sm" tone="warning" title="Sign-in expired">
+                  Sign in again to keep using this provider.
+                </Notice>
                 {isSubscriptionSignInAvailable(provider.type as ModelProviderType, health.data) ? (
                   <SubscriptionSignIn
                     serverUrl={input.serverUrl}

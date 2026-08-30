@@ -26,6 +26,7 @@ import {
   useAgentAccountsSync,
   useAgentServerHealth,
   useAgentServerUrl,
+  describeAgentServer,
   useLocalAgentServerUrl,
   useAgentTools,
   useAgentTrigger,
@@ -50,6 +51,7 @@ import {
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
 } from './models'
+import {describeAgentError} from './errors'
 import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
 import {useSelectedAccountId} from './account'
 import {useClickNavigate, useNavigate} from './navigation'
@@ -77,6 +79,7 @@ import {Textarea} from '@shm/ui/components/textarea'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -486,9 +489,13 @@ function AgentDetailPage({
             </div>
           ) : null}
           {agent.isError ? (
-            <SizableText className="text-destructive">
-              {agent.error instanceof Error ? agent.error.message : 'Could not load agent'}
-            </SizableText>
+            <AgentQueryNotice
+              error={agent.error}
+              failed="Couldn’t load this agent"
+              serverLabel={describeAgentServer(serverUrl, localServerUrl.data)}
+              onRetry={() => void agent.refetch()}
+              retryPending={agent.isFetching}
+            />
           ) : null}
           {agent.data ? (
             <>
@@ -2221,9 +2228,12 @@ function AgentTriggersTab({
         <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
           {trigger.isLoading ? <SizableText color="muted">Loading trigger…</SizableText> : null}
           {trigger.isError ? (
-            <SizableText className="text-destructive">
-              {trigger.error instanceof Error ? trigger.error.message : 'Could not load trigger'}
-            </SizableText>
+            <AgentQueryNotice
+              error={trigger.error}
+              failed="Couldn’t load this trigger"
+              onRetry={() => void trigger.refetch()}
+              retryPending={trigger.isFetching}
+            />
           ) : null}
           {selected ? (
             <>
@@ -2850,6 +2860,28 @@ function SessionListItem({
         </div>
       ) : null}
     </div>
+  )
+}
+
+/** A failed load of the page's subject, with the server named when it is not obvious from context. */
+function AgentQueryNotice({
+  error,
+  failed,
+  serverLabel,
+  onRetry,
+  retryPending,
+}: {
+  error: unknown
+  failed: string
+  serverLabel?: string
+  onRetry: () => void
+  retryPending: boolean
+}) {
+  const notice = describeAgentError(error, {failed, serverLabel})
+  return (
+    <Notice tone={notice.tone} title={notice.title} onRetry={onRetry} retryPending={retryPending}>
+      {notice.detail}
+    </Notice>
   )
 }
 

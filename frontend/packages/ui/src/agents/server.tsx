@@ -9,14 +9,36 @@ import {useSelectedAccountId} from './account'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {Bot, CircleUserRound, Settings} from 'lucide-react'
 import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
+import {describeAgentError} from './errors'
 import {AgentBreadcrumb} from './header'
 import {AgentsNoAccountPage} from './no-account'
+
+/** The page's one server is named in its header, so the notice does not repeat it. */
+function AgentQueryNotice({
+  error,
+  failed,
+  onRetry,
+  retryPending,
+}: {
+  error: unknown
+  failed: string
+  onRetry: () => void
+  retryPending: boolean
+}) {
+  const notice = describeAgentError(error, {failed})
+  return (
+    <Notice tone={notice.tone} title={notice.title} onRetry={onRetry} retryPending={retryPending}>
+      {notice.detail}
+    </Notice>
+  )
+}
 
 export default function AgentServerPage() {
   const route = useNavRoute()
@@ -99,11 +121,14 @@ function AgentServerContent({routeServerUrl, selectedAccountId}: {routeServerUrl
           <SizableText weight="bold">Agents</SizableText>
           {agents.isLoading ? <SizableText color="muted">Loading agents…</SizableText> : null}
           {agents.isError ? (
-            <SizableText className="text-destructive">
-              {agents.error instanceof Error ? agents.error.message : 'Could not load agents'}
-            </SizableText>
+            <AgentQueryNotice
+              error={agents.error}
+              failed="Couldn’t load agents"
+              onRetry={() => void agents.refetch()}
+              retryPending={agents.isFetching}
+            />
           ) : null}
-          {!agents.isLoading && !agents.data?.length ? (
+          {!agents.isLoading && !agents.isError && !agents.data?.length ? (
             <SizableText color="muted">No agents on this server yet.</SizableText>
           ) : null}
           <div className="flex flex-col gap-2">

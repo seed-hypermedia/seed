@@ -10,6 +10,7 @@ import {getAgentsPlatform} from './platform'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {Spinner} from '@shm/ui/spinner'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {invalidateQueries} from '@shm/shared/models/query-client'
@@ -210,9 +211,9 @@ export function SubscriptionSignIn({
         {subscription.description}
       </SizableText>
       {currentStatus === 'failed' ? (
-        <SizableText size="sm" className="text-destructive">
-          Sign-in failed: {status.data?.error ?? 'unknown error'}
-        </SizableText>
+        <Notice size="sm" title="Sign-in failed">
+          {status.data?.error ?? 'Unknown error'}
+        </Notice>
       ) : null}
       <div>
         <Button type="button" disabled={startOAuth.isLoading} onClick={() => void handleStart()}>

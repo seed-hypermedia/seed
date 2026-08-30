@@ -12,6 +12,7 @@ import {Button} from '@shm/ui/button'
 import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -144,9 +145,9 @@ export function MoveAgentDialog({
           disabled={moving}
         />
         {targetUnreachable ? (
-          <SizableText size="xs" className="text-destructive">
+          <Notice size="sm" tone="warning">
             Can’t reach this server right now.
-          </SizableText>
+          </Notice>
         ) : null}
       </label>
 

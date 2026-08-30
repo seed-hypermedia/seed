@@ -5,6 +5,7 @@ import {useNavigate} from './navigation'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Input} from '@shm/ui/components/input'
 import {SelectDropdown} from '@shm/ui/select-dropdown'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import type {LoadedEvent} from '@shm/shared/models/activity-service'
 import {useSearch} from '@shm/shared/models/search'
@@ -587,7 +588,11 @@ export function TriggerContextView({
         <span>Fired {formattedDateMedium(new Date(context.firedAt))}</span>
         {context.status && context.status !== 'fired' ? <span>Status: {context.status}</span> : null}
       </div>
-      {context.error ? <div className="text-destructive mt-1">{context.error}</div> : null}
+      {context.error ? (
+        <Notice size="sm" title="Trigger error" className="mt-2">
+          {context.error}
+        </Notice>
+      ) : null}
       <TriggerDisclosure label="Activity details">
         <pre className="bg-background/60 text-foreground max-h-72 overflow-auto rounded-md border p-2 text-[11px] whitespace-pre-wrap">
           {JSON.stringify(context.activity, null, 2)}

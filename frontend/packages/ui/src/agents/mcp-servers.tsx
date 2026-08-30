@@ -212,7 +212,7 @@ function McpServerRow({
             {server.name}
           </SizableText>
           {unreachable ? (
-            <span className={`${CHIP_CLASS} bg-destructive/10 text-destructive`}>Unreachable</span>
+            <span className={`${CHIP_CLASS} bg-amber-500/10 text-amber-600 dark:text-amber-400`}>Unreachable</span>
           ) : server.status.state === 'ok' ? (
             <span className={`${CHIP_CLASS} bg-muted text-muted-foreground`}>{pluralTools(tools.length)}</span>
           ) : null}

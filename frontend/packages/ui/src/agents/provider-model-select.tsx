@@ -1,7 +1,9 @@
 import type {AgentModelRef, ModelProviderInfo, ModelProviderType} from './client'
+import {describeAgentError} from './errors'
 import {useModelProviders, useProviderModels} from './models'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Input} from '@shm/ui/components/input'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {Check, ChevronsUpDown, Plus} from 'lucide-react'
@@ -190,9 +192,11 @@ function ProviderModelSection({
         <span className="truncate">{provider.name}</span>
       </div>
       {models.isError ? (
-        <SizableText size="xs" className="text-destructive block px-2 py-1">
-          {models.error instanceof Error ? models.error.message : 'Could not load models'}
-        </SizableText>
+        <ProviderModelsNotice
+          error={models.error}
+          onRetry={() => void models.refetch()}
+          retryPending={models.isFetching}
+        />
       ) : models.isLoading ? (
         <SizableText size="xs" color="muted" className="block px-2 py-1">
           Loading models…
@@ -257,5 +261,29 @@ function ProviderModelSection({
         </button>
       ) : null}
     </div>
+  )
+}
+
+function ProviderModelsNotice({
+  error,
+  onRetry,
+  retryPending,
+}: {
+  error: unknown
+  onRetry: () => void
+  retryPending: boolean
+}) {
+  const notice = describeAgentError(error, {failed: 'Couldn’t load models'})
+  return (
+    <Notice
+      size="sm"
+      tone={notice.tone}
+      title={notice.title}
+      onRetry={onRetry}
+      retryPending={retryPending}
+      className="mx-1 my-1"
+    >
+      {notice.detail}
+    </Notice>
   )
 }
