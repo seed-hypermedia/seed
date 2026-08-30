@@ -9963,4 +9963,22 @@ describe('narrowDefinitionTools', () => {
     expect(apisvc.narrowDefinitionTools(['search', 'execute'], ['read', 'write', 'publish'])).toEqual([])
     expect(apisvc.narrowDefinitionTools(['search', 'execute'], ['execute_code', 'write'])).toEqual(['execute'])
   })
+
+  test('a requested lambda rides on the parent\u2019s execute grant by its own name', () => {
+    // Regression: a spec naming an authored lambda narrowed 'execute' away, so the sandbox gate
+    // refused the very tool the spec asked for.
+    expect(
+      apisvc.narrowDefinitionTools(parentBase, ['read', 'write', 'check_broken_links'], ['check_broken_links']),
+    ).toEqual(['publish', 'check_broken_links'])
+    // The general execute callable stays absent unless the spec asked for it by name.
+    expect(apisvc.narrowDefinitionTools(parentBase, ['check_broken_links'], ['check_broken_links'])).toEqual([
+      'check_broken_links',
+    ])
+    // No execute grant on the parent: the lambda request is inert.
+    expect(
+      apisvc.narrowDefinitionTools(['search', 'publish'], ['write', 'check_broken_links'], ['check_broken_links']),
+    ).toEqual(['publish'])
+    // Names that are not lambdas of this agent never ride along.
+    expect(apisvc.narrowDefinitionTools(parentBase, ['made_up_tool'], ['check_broken_links'])).toEqual([])
+  })
 })

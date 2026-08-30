@@ -347,16 +347,29 @@ function publishGrantEnabled(definition: api.AgentDefinition): boolean {
 /**
  * Narrows a parent's tool grants to what a sub-session spec requested.
  *
- * The intersection runs over callable names, but the publish grant is a pseudo-tool that a spec
- * never spells 'publish' naturally — scripts ask for the `write` verb. A child that asked to
- * write (by either name) keeps the parent's publish grant; one that did not asks for a read-only
- * posture and loses it. The grant can only ever narrow: a parent without 'publish' in its base
- * has nothing for the filter to keep, however loudly the spec asks.
+ * The intersection runs over callable names, but two grants need translating:
+ *
+ * - The publish grant is a pseudo-tool a spec never spells 'publish' naturally — scripts ask for
+ *   the `write` verb. A child that asked to write (by either name) keeps the parent's publish
+ *   grant; one that did not asks for a read-only posture and loses it.
+ * - An authored lambda named in the spec is sandbox code, so the request is meaningful only while
+ *   the parent grants `execute`. The lambda's own name is kept in the narrowed tools (where the
+ *   sandbox gate honors it) rather than the general `execute` callable, so the child can run
+ *   exactly the lambdas it was handed without gaining arbitrary code execution.
+ *
+ * Every grant can only ever narrow: a parent whose base lacks 'publish' or 'execute' has nothing
+ * for the filter to keep, however loudly the spec asks.
  */
-export function narrowDefinitionTools(base: string[], specTools: string[]): string[] {
+export function narrowDefinitionTools(base: string[], specTools: string[], lambdaTools: string[] = []): string[] {
   const requested = specTools.map(normalizeSeedToolName)
   const requestsPublish = requested.some((tool) => tool === 'publish' || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
-  return base.filter((tool) => requested.includes(tool) || (tool === 'publish' && requestsPublish))
+  const grantedLambdas = base.includes(callableToolRegistry.execute.name)
+    ? requested.filter((tool) => lambdaTools.includes(tool))
+    : []
+  return [
+    ...base.filter((tool) => requested.includes(tool) || (tool === 'publish' && requestsPublish)),
+    ...grantedLambdas,
+  ]
 }
 
 function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
@@ -4029,7 +4042,11 @@ export class Service {
       // intersect against that full set, not a stale minimal default, or the child loses tools
       // the parent granted.
       const base = (definition.tools ?? [...serviceCallableNames(), 'publish']).map(normalizeSeedToolName)
-      definition.tools = narrowDefinitionTools(base, spec.tools)
+      const lambdaTools = toolDocs
+        .listToolDocuments(this.#db, run.accountId, run.agentId)
+        .filter((row) => row.enabled && row.doc.kind === 'lambda')
+        .map((row) => row.doc.name)
+      definition.tools = narrowDefinitionTools(base, spec.tools, lambdaTools)
     }
     this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, sessionId)
     const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
@@ -10693,7 +10710,13 @@ async function executeLambdaTool(
   }
   // An authored tool is code in the sandbox, so it rides on the SAME grant the execute tool needs.
   // Without this, writing a lambda would be a way around an owner who turned code execution off.
-  if (!context.callableTools.includes(callableToolRegistry.execute.name)) {
+  // A delegated child may carry the lambda's own name instead: its spec asked for this tool and
+  // the owner's execute grant backed it at narrowing time (see narrowDefinitionTools), without
+  // handing the child the general execute callable.
+  if (
+    !context.callableTools.includes(callableToolRegistry.execute.name) &&
+    !context.definition.tools?.includes(doc.name)
+  ) {
     throw new APIError(
       403,
       `Tool ${doc.name} runs code in the sandbox, which is not enabled for this agent. Its owner can grant code execution in the agent's tool settings.`,

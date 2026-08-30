@@ -471,6 +471,47 @@ describe('call verb', () => {
     expect(context.onMemoryChange).toHaveBeenCalled()
   })
 
+  test('a delegated child runs a lambda its spec carried without the general execute grant', async () => {
+    // Regression: the sandbox gate only honored 'execute' in callableTools, so a child narrowed to
+    // exactly the lambda it was handed could never run it.
+    const context = makeContext({
+      callableTools: ['search'],
+      definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm', tools: ['weather']} as never,
+    })
+    ;(context.codeExec as {execute: unknown}).execute = mock(async () => ({
+      exitCode: 0,
+      success: true,
+      stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":18}\n`,
+      stderr: '',
+      truncated: false,
+      durationMs: 2,
+      changedFiles: [],
+    }))
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 18})',
+    })
+
+    const result = await executeCallVerb(context, {tool: 'weather', input: {city: 'Porto'}}, 'tc-lambda-narrow')
+    expect(result.result).toEqual({tempC: 18})
+
+    // Without either the execute grant or the lambda's own name, the gate still refuses.
+    const ungranted = makeContext({callableTools: ['search']})
+    toolDocs.saveLambdaToolDocument(ungranted.db, ungranted.accountId, ungranted.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 18})',
+    })
+    await expect(executeCallVerb(ungranted, {tool: 'weather', input: {city: 'Porto'}}, undefined)).rejects.toThrow(
+      'runs code in the sandbox',
+    )
+  })
+
   test('a lambda call validates both edges and surfaces its failures', async () => {
     const context = makeContext()
     const behavior = {stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":"warm"}\n`, success: true, exitCode: 0}
