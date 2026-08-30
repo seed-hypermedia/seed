@@ -344,6 +344,21 @@ function publishGrantEnabled(definition: api.AgentDefinition): boolean {
   return definition.tools.some((tool) => tool === 'publish' || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
 }
 
+/**
+ * Narrows a parent's tool grants to what a sub-session spec requested.
+ *
+ * The intersection runs over callable names, but the publish grant is a pseudo-tool that a spec
+ * never spells 'publish' naturally — scripts ask for the `write` verb. A child that asked to
+ * write (by either name) keeps the parent's publish grant; one that did not asks for a read-only
+ * posture and loses it. The grant can only ever narrow: a parent without 'publish' in its base
+ * has nothing for the filter to keep, however loudly the spec asks.
+ */
+export function narrowDefinitionTools(base: string[], specTools: string[]): string[] {
+  const requested = specTools.map(normalizeSeedToolName)
+  const requestsPublish = requested.some((tool) => tool === 'publish' || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
+  return base.filter((tool) => requested.includes(tool) || (tool === 'publish' && requestsPublish))
+}
+
 function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
   const serviceCallables = serviceCallableNames()
   const requested = definition.tools?.map(normalizeSeedToolName)
@@ -4010,11 +4025,11 @@ export class Service {
     const spec = this.#spawnContextForRun(run).spec
     if (spec?.prompt) definition.systemPrompt = spec.prompt
     if (spec?.tools) {
-      // Undefined parent tools means "all callables" — narrowing must intersect against that
-      // full set, not a stale minimal default, or the child loses tools the parent granted.
-      const base = (definition.tools ?? serviceCallableNames()).map(normalizeSeedToolName)
-      const requested = spec.tools.map(normalizeSeedToolName)
-      definition.tools = base.filter((tool) => requested.includes(tool))
+      // Undefined parent tools means "all callables plus the publish grant" — narrowing must
+      // intersect against that full set, not a stale minimal default, or the child loses tools
+      // the parent granted.
+      const base = (definition.tools ?? [...serviceCallableNames(), 'publish']).map(normalizeSeedToolName)
+      definition.tools = narrowDefinitionTools(base, spec.tools)
     }
     this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, sessionId)
     const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
