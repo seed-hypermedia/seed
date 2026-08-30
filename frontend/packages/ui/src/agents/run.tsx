@@ -29,9 +29,13 @@ import {MessageSquare} from 'lucide-react'
 import {useMemo, useState} from 'react'
 import type {RunInfo} from './client'
 
-/** How a run's origin reads in the page's one meta line. */
+/**
+ * How a run's origin reads in the page's one meta line. Origin records the mechanism that started
+ * the run, never the person — a 'user' run is one a chat message kicked off, and on a shared agent
+ * that message could be any collaborator's, so the label must not say whose.
+ */
 const ORIGIN_LABELS: Record<RunInfo['origin'], string> = {
-  user: 'started by you',
+  user: 'started from chat',
   trigger: 'fired by a trigger',
   agent: 'started by an agent',
   workflow: 'started by a script',
