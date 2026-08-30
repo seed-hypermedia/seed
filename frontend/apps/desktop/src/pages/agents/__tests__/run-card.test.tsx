@@ -4,7 +4,7 @@ import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 // vi.mock calls below are hoisted above this import, so the cards get the mocked hooks.
-import {RunRecordCard, SessionRunCard} from '@shm/ui/agents/run-card'
+import {RunRecordCard, SessionRunCard, RunActivityDrawer} from '@shm/ui/agents/run-card'
 
 /**
  * Rendering coverage for the run cards.
@@ -606,13 +606,12 @@ describe('RunRecordCard (in the chat bubble)', () => {
     expect(container.textContent).not.toContain('Tool was unavailable')
     expect(container.textContent).not.toContain('First timer attempt')
 
-    // The details dialog renders in a portal, so its content shows up on the body, not the card.
-    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
-    expect(document.body.textContent).toContain('Tool was unavailable')
-    expect(document.body.textContent).toContain('First timer attempt')
+    // Technical detail lives on the run page now; the card carries only the way there.
+    expect(container.querySelector('button[aria-label="Run details"]')).toBeNull()
+    expect(container.querySelector('button[aria-label="Open run page"]')).not.toBeNull()
   })
 
-  it('shows the workflow module behind a Code drawer', () => {
+  it('keeps the workflow module off the card — the run page owns the code', () => {
     mockState.run = makeRun({
       id: 'root-1',
       status: 'succeeded',
@@ -623,12 +622,11 @@ describe('RunRecordCard (in the chat bubble)', () => {
     mockState.tree = [mockState.run]
     render(<RunRecordCard {...recordProps} />)
 
-    // Completed technical details live behind the info-bubble dialog; source is still one more
-    // disclosure deep inside it, so it cannot dominate the successful transcript.
+    // The successful transcript stays clean: no source, no details dialog — just the open-run
+    // bubble pointing at the page where the code drawer lives.
     expect(container.textContent).not.toContain('export default async function')
-    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
-    click(Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent === 'Code'))
-    expect(document.body.textContent).toContain('export default async function (input, ctx) { return 1 }')
+    expect(container.querySelector('button[aria-label="Run details"]')).toBeNull()
+    expect(container.querySelector('button[aria-label="Open run page"]')).not.toBeNull()
   })
 
   it('renders the finished run: status, steps, children and error', () => {
@@ -686,7 +684,8 @@ describe('RunRecordCard (in the chat bubble)', () => {
       id: 'branch-1',
       rootRunId: 'root-1',
       parentRunId: 'root-1',
-      status: 'succeeded',
+      status: 'running',
+      kind: 'workflow',
       title: 'My workflow',
     })
     mockState.run = branch
@@ -699,9 +698,8 @@ describe('RunRecordCard (in the chat bubble)', () => {
     render(<RunRecordCard {...recordProps} runId="branch-1" />)
 
     expect(container.textContent).toContain('My workflow')
-    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
-    expect(document.body.textContent).toContain('My child')
-    expect(document.body.textContent).not.toContain('Someone else')
+    expect(container.textContent).toContain('My child')
+    expect(container.textContent).not.toContain('Someone else')
   })
 
   it('keeps the activity journal collapsed until asked, then shows it oldest-first', () => {
@@ -716,17 +714,17 @@ describe('RunRecordCard (in the chat bubble)', () => {
       {runId: 'root-1', seq: 3, createdAt: 500, entry: {kind: 'now', value: 12345}},
     ]
     render(<RunRecordCard {...recordProps} />)
-    // The journal lives in the details dialog now, behind its own Activity disclosure.
+    // The journal lives on the run page now; the card shows none of it, only the way there.
     expect(container.textContent).not.toContain('Gather')
-    click(container.querySelector('button[aria-label="Run details"]') ?? undefined)
-    expect(document.body.textContent).toContain('Activity')
-    expect(document.body.textContent).not.toContain('Gather')
+    expect(container.querySelector('button[aria-label="Open run page"]')).not.toBeNull()
 
-    click(
-      Array.from(document.body.querySelectorAll('button')).find((button) => button.textContent?.startsWith('Activity')),
-    )
-
-    const drawer = document.body.querySelector('[aria-label="Run activity"]')
+    // The drawer itself (which the run page renders) stays collapsed until asked, then shows the
+    // activity oldest-first with replay bookkeeping filtered out.
+    render(<RunActivityDrawer journal={mockState.journal} />)
+    expect(container.textContent).toContain('Activity')
+    expect(container.textContent).not.toContain('Gather')
+    click(Array.from(container.querySelectorAll('button')).find((button) => button.textContent?.startsWith('Activity')))
+    const drawer = container.querySelector('[aria-label="Run activity"]')
     const lines = Array.from(drawer?.children ?? []).map((node) => node.textContent)
     expect(lines).toEqual(['step: Gather (start)', 'tool: search', 'warn · retrying', 'failed: nope'])
   })

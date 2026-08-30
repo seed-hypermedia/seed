@@ -17,8 +17,7 @@ import {formatElapsed, formatTokenCount} from './agent-run-status'
 import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from './models'
 import {useNavigate} from './navigation'
 import {Button} from '@shm/ui/button'
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
-import {ArrowUpRight, ChevronDown, ChevronRight, Info, Loader2} from 'lucide-react'
+import {ArrowUpRight, ChevronDown, ChevronRight, Loader2} from 'lucide-react'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 
 /**
@@ -274,7 +273,6 @@ function RunCardBody({
   transcript?: boolean
 }) {
   const [confirmingCancel, setConfirmingCancel] = useState(false)
-  const [detailsOpen, setDetailsOpen] = useState(false)
   const isTerminal = isTerminalRun(run.status)
   const isParked = run.status === 'waiting'
   const progress = liveState.progress[run.id]
@@ -311,23 +309,14 @@ function RunCardBody({
         <span className="min-w-0 flex-1 truncate text-xs font-medium" title={headerTitle}>
           {headerTitle}
         </span>
-        {/* Technical details live behind the same info bubble every tool row uses, live or done —
-            and like those, the bubble shows itself only while the row is hovered. */}
+        {/* Everything technical lives on the run's own page; the card offers only the way there,
+            in the same hover bubble every tool row uses for its quiet affordances. */}
         <span className="flex flex-none items-center gap-1.5">
           {isCompletedTranscript && issueCount ? (
             <span className="text-[10px] text-amber-700 dark:text-amber-300">
               {issueCount} recovered issue{issueCount === 1 ? '' : 's'}
             </span>
           ) : null}
-          <button
-            type="button"
-            title="Run details"
-            aria-label="Run details"
-            onClick={() => setDetailsOpen(true)}
-            className="hover:bg-background/70 text-muted-foreground hover:text-foreground bg-background/60 rounded-full border p-0.75 opacity-0 transition-opacity group-hover/runhead:opacity-100 focus-visible:opacity-100"
-          >
-            <Info className="size-3" />
-          </button>
           <button
             type="button"
             title="Open run page"
@@ -396,7 +385,7 @@ function RunCardBody({
 
       {/* Live: the work itself stays inline — that is the card's purpose. Finished record: the
           checklist alone tells the story. Everything technical (hierarchy, code, activity) lives
-          in the details dialog below in both states. */}
+          on the run page, behind the open-run bubble. */}
       {isCompletedTranscript ? (
         plan?.steps.length ? (
           <RunPlanSteps plan={plan} compact={compact} settle="run-finished" />
@@ -417,30 +406,6 @@ function RunCardBody({
           )}
         />
       )}
-
-      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <DialogContent className="max-h-[85vh] w-[min(44rem,calc(100vw-2rem))]">
-          <DialogHeader>
-            <DialogTitle>Run details</DialogTitle>
-            <DialogDescription>{headerTitle}</DialogDescription>
-          </DialogHeader>
-          <div className="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
-            <RunWorkHierarchy
-              run={run}
-              childRuns={childRuns}
-              journal={liveState.journal}
-              liveState={liveState}
-              compact={compact}
-              onOpenSession={onOpenSession}
-              renderToolPart={(part) => (
-                <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
-              )}
-            />
-            <RunSourceDrawer runs={[run, ...childRuns]} />
-            <RunActivityDrawer journal={liveState.journal} />
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Status and elapsed time anchor the card's bottom-left; cost keeps the opposite corner. */}
       <div className="border-border flex items-center gap-2 border-t pt-1">
