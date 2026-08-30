@@ -1031,6 +1031,25 @@ describe('api service', () => {
       )
       if (listed._ !== 'ListAgentMemoryResponse') throw new Error('unexpected response')
       expect(listed.entries.map((entry) => `${entry.type}:${entry.path}`)).toEqual(['dir:notes', 'file:notes/first.md'])
+      expect(listed.truncated).toBeUndefined()
+
+      // The per-directory listing never descends; the root level carries the whole-memory rollup.
+      const rootLevel = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentMemoryDir', agentId}}),
+      )
+      if (rootLevel._ !== 'ListAgentMemoryDirResponse') throw new Error('unexpected response')
+      expect(rootLevel.path).toBe('')
+      expect(rootLevel.entries.map((entry) => `${entry.type}:${entry.path}`)).toEqual(['dir:notes'])
+      expect(rootLevel.entries[0]?.entryCount).toBe(1)
+      expect(rootLevel.totals).toEqual({files: 1, bytes: 'remember me'.length, truncated: false})
+
+      const notesLevel = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentMemoryDir', agentId, path: 'notes'}}),
+      )
+      if (notesLevel._ !== 'ListAgentMemoryDirResponse') throw new Error('unexpected response')
+      expect(notesLevel.path).toBe('notes')
+      expect(notesLevel.entries.map((entry) => entry.path)).toEqual(['notes/first.md'])
+      expect(notesLevel.totals).toBeUndefined()
 
       await expect(
         svc.message(
@@ -1045,6 +1064,9 @@ describe('api service', () => {
       const stranger = blobs.generateNobleKeyPair()
       await expect(
         svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListAgentMemory', agentId}})),
+      ).rejects.toThrow('Agent not found')
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(stranger, {action: {_: 'ListAgentMemoryDir', agentId}})),
       ).rejects.toThrow('Agent not found')
 
       const remove = await svc.message(

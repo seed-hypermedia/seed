@@ -119,6 +119,35 @@ describe('sqlite', () => {
     }
   })
 
+  test('recreates baseline tables missing despite an up-to-date migration version', () => {
+    // The migration version is only a count, so a database migrated on a feature branch whose Nth
+    // migration differs from main's Nth carries the right number with the wrong schema. This is
+    // exactly the state that broke a dev database: version = desiredVersion, no mcp_servers table,
+    // plus a leftover table main never defined.
+    const db = createMemoryDatabase()
+    try {
+      db.run(sqlite.schema)
+      db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
+        sqlite.SCHEMA_MIGRATION_VERSION_KEY,
+        String(sqlite.desiredVersion),
+      ])
+      db.run(`DROP TABLE mcp_servers`)
+      db.run(`CREATE TABLE from_another_branch (id TEXT PRIMARY KEY) WITHOUT ROWID`)
+
+      const result = sqlite.openWithDatabase(db)
+      expect(result.ok).toBe(true)
+      expect(tableExists(db, 'mcp_servers')).toBe(true)
+      expect(columnExists(db, 'mcp_servers', 'tools_cbor')).toBe(true)
+      expect(
+        db.query(`SELECT 1 FROM sqlite_schema WHERE type = 'index' AND name = 'mcp_servers_by_account'`).get(),
+      ).not.toBeNull()
+      // Tables a divergent branch added are left alone.
+      expect(tableExists(db, 'from_another_branch')).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
   test('rejects databases with missing, legacy, invalid, or future migration versions', () => {
     const cases: Array<{name: string; setup: (db: Database) => void; current: number}> = [
       {

@@ -13,6 +13,7 @@ import {
   type AgentToolInput,
   type AgentRunActivity,
   type AgentRunUsage,
+  type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerPatch,
   type AgentWSEvent,
@@ -62,7 +63,148 @@ const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
 export function getDefaultAgentServerUrl(): string | null {
   return getAgentsPlatform().defaultServerUrl()
 }
+/**
+ * Poll-until-ready interval for the few queries with no event source: local-server startup and
+ * transient state machines (a pending OAuth login, an in-flight run's safety net). Everything else
+ * refreshes over the WebSocket — every server mutation emits a change event, so steady-state
+ * polling was pure load (measured at ~17 signed actions/second against prod from idle clients).
+ */
 const AGENT_BACKGROUND_REFETCH_INTERVAL_MS = 5_000
+/** Slow keep-alive for server health and HM-node peering, which have no change events. */
+const AGENT_HEALTH_REFETCH_INTERVAL_MS = 60_000
+/** Safety net for run state while a run is live, in case a WS event is dropped. Foreground only. */
+const ACTIVE_RUN_SAFETY_REFETCH_INTERVAL_MS = 30_000
+
+/**
+ * Cancels in-flight fetches for the given keys, applies optimistic updates, and returns a rollback
+ * for `onError`. The cancellation matters as much as the write: a refetch already in flight would
+ * otherwise land on top of the optimistic value with older data — that race is what made
+ * autosaving UIs flash back to stale state.
+ */
+async function applyOptimisticUpdates(
+  updates: Array<{queryKey: unknown[]; update: (old: any) => any}>,
+): Promise<() => void> {
+  const client = getQueryClient()
+  await Promise.all(updates.map(({queryKey}) => client.cancelQueries({queryKey})))
+  const snapshots = updates.map(({queryKey}) => client.getQueriesData({queryKey}))
+  for (const {queryKey, update} of updates) client.setQueriesData({queryKey}, update)
+  return () => {
+    for (const entries of snapshots) {
+      for (const [key, data] of entries) client.setQueryData(key, data)
+    }
+  }
+}
+
+/** Writes a fresh agent snapshot into every cache that renders it (detail and lists). */
+function applyAgentToCaches(serverUrl: string, accountUid: string, agent: AgentInfo): void {
+  const client = getQueryClient()
+  client.setQueriesData({queryKey: ['agents', 'detail', serverUrl, accountUid, agent.id]}, (old: any) => {
+    if (!old || old._ !== 'GetAgentResponse') return old
+    return {...old, agent}
+  })
+  client.setQueriesData({queryKey: ['agents', 'list', serverUrl, accountUid]}, (old: any) =>
+    Array.isArray(old) ? old.map((entry: AgentInfo) => (entry.id === agent.id ? agent : entry)) : old,
+  )
+}
+
+/**
+ * Writes a fresh session snapshot into every cache that renders it: the session page, the
+ * cross-server sidebar list (upserting a session the cache has not seen yet), and the owning
+ * agent's cached session list.
+ */
+function applySessionToCaches(serverUrl: string, accountUid: string, session: SessionInfo): void {
+  const client = getQueryClient()
+  client.setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, session.id]}, (old: any) => {
+    if (!old || old._ !== 'GetSessionResponse') return old
+    return {...old, session}
+  })
+  client.setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) => {
+    if (!Array.isArray(old)) return old
+    if (!old.some((entry: AgentSessionListEntry) => entry.session.id === session.id)) {
+      return [{serverUrl, session} satisfies AgentSessionListEntry, ...old]
+    }
+    return old.map((entry: AgentSessionListEntry) => (entry.session.id === session.id ? {...entry, session} : entry))
+  })
+  client.setQueriesData({queryKey: ['agents', 'detail', serverUrl, accountUid]}, (old: any) => {
+    if (!old || old._ !== 'GetAgentResponse' || !Array.isArray(old.sessions)) return old
+    if (!old.sessions.some((existing: SessionInfo) => existing.id === session.id)) return old
+    return {
+      ...old,
+      sessions: old.sessions.map((existing: SessionInfo) => (existing.id === session.id ? session : existing)),
+    }
+  })
+}
+
+/**
+ * Refreshes exactly the queries one account-change can affect. The server names a reason on every
+ * emit, so the client no longer refetches every agent query per event — that blanket invalidation
+ * was most of the idle request load, and its refetch races flashed editing UIs to stale values.
+ */
+function invalidateForAccountChange(
+  serverUrl: string,
+  accountUid: string,
+  value: {reason?: string; agentId?: string; sessionId?: string},
+): void {
+  const {reason, agentId, sessionId} = value
+  switch (reason) {
+    case 'agent-memory-changed':
+      invalidateQueries(agentId ? ['agents', 'memory', serverUrl, accountUid, agentId] : ['agents', 'memory'])
+      return
+    case 'agent-tools-changed':
+      invalidateQueries(agentId ? ['agents', 'tools', serverUrl, accountUid, agentId] : ['agents', 'tools'])
+      return
+    case 'trigger-created':
+    case 'trigger-updated':
+    case 'trigger-deleted':
+      invalidateQueries(agentId ? ['agents', 'triggers', serverUrl, accountUid, agentId] : ['agents', 'triggers'])
+      invalidateQueries(['agents', 'trigger', serverUrl, accountUid])
+      return
+    case 'agent-collaborators-changed':
+      invalidateQueries(['agents', 'collaborators', serverUrl, accountUid])
+      invalidateQueries(['agents', 'invites', serverUrl, accountUid])
+      invalidateQueries(['agents', 'list', serverUrl, accountUid])
+      return
+    case 'agent-invites-changed':
+      invalidateQueries(['agents', 'invites', serverUrl, accountUid])
+      return
+    case 'agent-created':
+    case 'agent-deleted':
+      invalidateQueries(['agents', 'list', serverUrl, accountUid])
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+      if (agentId) invalidateQueries(['agents', 'detail', serverUrl, accountUid, agentId])
+      return
+    case 'agent-updated':
+      invalidateQueries(['agents', 'list', serverUrl, accountUid])
+      if (agentId) invalidateQueries(['agents', 'detail', serverUrl, accountUid, agentId])
+      return
+    case 'mcp-servers-changed':
+      invalidateQueries(['agents', 'mcp-servers', serverUrl, accountUid])
+      invalidateQueries(['agents', 'tools', serverUrl, accountUid])
+      return
+    case 'model-provider-changed':
+      invalidateQueries(['agents', 'providers', serverUrl, accountUid])
+      invalidateQueries(['agents', 'provider-models', serverUrl, accountUid])
+      return
+    case 'session-created':
+    case 'session-deleted':
+    case 'session-updated':
+    case 'user-title-wins':
+    case 'session-event':
+    case 'children':
+    case 'budget-pause':
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+      if (sessionId) {
+        invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId])
+        invalidateQueries(['agents', 'child-sessions', serverUrl, accountUid])
+      }
+      if (agentId) invalidateQueries(['agents', 'detail', serverUrl, accountUid, agentId])
+      if (reason === 'children' || reason === 'budget-pause') invalidateQueries(['agents', 'runs'])
+      return
+    default:
+      // Unknown reason — likely a newer server. Refresh everything rather than miss it.
+      invalidateQueries(['agents'])
+  }
+}
 
 // When an open agent session references hm:// content, keep that resource subscribed through the desktop's
 // normal sync service. A one-shot discover is insufficient: it can race the peer connection or return a cached
@@ -367,8 +509,6 @@ export function useSpaceAgents(accountUid: string | null | undefined): {
         if (res._ !== 'GetAgentResponse') throw new Error('Unexpected GetAgent response')
         return res
       },
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -455,8 +595,9 @@ export function useAgentServerHealth(serverUrl: string | undefined) {
     queryKey: ['agents', 'health', serverUrl],
     queryFn: () => getAgentServerHealth(serverUrl || getDefaultAgentServerUrl() || ''),
     enabled: !!serverUrl,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+    // Health has no change events, so it keeps a slow foreground poll — it is both the
+    // connectivity indicator and how a server coming back from a restart is noticed.
+    refetchInterval: AGENT_HEALTH_REFETCH_INTERVAL_MS,
     retry: false,
     useErrorBoundary: false,
   })
@@ -479,8 +620,8 @@ export function useConnectLocalNodeToAgentHmServer(serverUrl: string | undefined
   return useQuery({
     queryKey: ['agents', 'hm-server-connect', hmServerUrl],
     enabled: !!hmServerUrl && canConnect,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+    // Peering is a keep-alive with no event source; a slow foreground poll re-pins it.
+    refetchInterval: AGENT_HEALTH_REFETCH_INTERVAL_MS,
     retry: false,
     useErrorBoundary: false,
     queryFn: async () => {
@@ -546,8 +687,8 @@ function useConnectLocalNodeToAgentHmServers(serverUrls: string[] | undefined) {
     queries: hmServerUrls.map((hmServerUrl) => ({
       queryKey: ['agents', 'hm-server-connect', hmServerUrl],
       enabled: canConnect,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
+      // Peering is a keep-alive with no event source; a slow foreground poll re-pins it.
+      refetchInterval: AGENT_HEALTH_REFETCH_INTERVAL_MS,
       retry: false,
       useErrorBoundary: false,
       queryFn: async () => connectLocalNodeToAgentHmServer(hmServerUrl),
@@ -570,8 +711,6 @@ function useSigningIdentityLists(serverUrls: string[] | undefined, accountUid: s
         return res.identities
       },
       enabled: !!accountUid,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -639,8 +778,6 @@ export function useAgentAccountsSync() {
         return res.identities
       },
       enabled: !!accountUid,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -724,8 +861,6 @@ export function useAgentList(serverUrl: string | undefined, accountUid: string |
       return res.agents
     },
     enabled: !!serverUrl && !!accountUid,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -742,8 +877,6 @@ export function useAgentInvites(serverUrl: string | undefined, accountUid: strin
       return res.invites
     },
     enabled: !!serverUrl && !!accountUid,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -761,8 +894,6 @@ export function useAgentInviteLists(serverUrls: string[] | undefined, accountUid
         return res.invites
       },
       enabled: !!accountUid,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -781,8 +912,6 @@ export function useAgentLists(serverUrls: string[] | undefined, accountUid: stri
         return res.agents
       },
       enabled: !!accountUid,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -796,8 +925,8 @@ export function useAgentServerHealths(serverUrls: string[] | undefined) {
       queryKey: ['agents', 'health', serverUrl],
       queryFn: () => getAgentServerHealth(serverUrl),
       enabled: !!serverUrl,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
+      // Health has no change events; see useAgentServerHealth.
+      refetchInterval: AGENT_HEALTH_REFETCH_INTERVAL_MS,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -847,8 +976,6 @@ export function useModelProviders(
       return res.providers
     },
     enabled: !!serverUrl && !!accountUid,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -942,8 +1069,6 @@ export function useSigningIdentities(
       return res.identities
     },
     enabled: !!serverUrl && !!accountUid,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -961,7 +1086,7 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
       })
     },
     onSuccess(result) {
-      invalidateQueries(['agents'])
+      invalidateQueries(['agents', 'signing-identities'])
       // The new agent account profile/home was just published to the server's HM node. Sync it onto the
       // local node so it can be searched and @mentioned right away (covers both the create-agent flow and
       // the Tools-tab "New account" workflow).
@@ -992,7 +1117,7 @@ export function useImportSigningIdentity(serverUrl: string | undefined, accountU
       return res.identity
     },
     onSuccess(identity) {
-      invalidateQueries(['agents'])
+      invalidateQueries(['agents', 'signing-identities'])
       // The imported account usually already exists on the network; make sure the local node can
       // resolve it (search, @mentions) the same way created agent accounts are synced.
       if (identity.accountId) void syncAgentAccountToLocalNode(serverUrl, identity.accountId)
@@ -1008,7 +1133,7 @@ export function useUpdateSigningIdentity(serverUrl: string | undefined, accountU
       return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateSigningIdentity', name, label, icon}})
     },
     onSuccess(result) {
-      invalidateQueries(['agents'])
+      invalidateQueries(['agents', 'signing-identities'])
       // The profile (name/avatar) was republished to the agent server's HM node. Re-sync it onto the local
       // node and refresh the account metadata so the new icon/name shows in the UI without a manual reload.
       if (result._ === 'UpdateSigningIdentityResponse' && result.identity.accountId) {
@@ -1027,8 +1152,21 @@ export function useDeleteSigningIdentity(serverUrl: string | undefined, accountU
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteSigningIdentity', name}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate(name) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'signing-identities', serverUrl, accountUid],
+          update: (old: any) =>
+            Array.isArray(old) ? old.filter((identity: SigningIdentity) => identity.name !== name) : old,
+        },
+      ])
+    },
+    onError(_error, _name, rollback) {
+      rollback?.()
+    },
+    onSettled() {
+      invalidateQueries(['agents', 'signing-identities'])
     },
   })
 }
@@ -1045,8 +1183,6 @@ export function useModelProviderLists(serverUrls: string[] | undefined, accountU
         return res.providers
       },
       enabled: !!accountUid,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -1060,8 +1196,22 @@ export function useDeleteModelProvider(serverUrl: string | undefined, accountUid
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteModelProvider', name}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate(name) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'providers', serverUrl, accountUid],
+          update: (old: any) =>
+            Array.isArray(old) ? old.filter((provider: ModelProviderInfo) => provider.name !== name) : old,
+        },
+      ])
+    },
+    onError(_error, _name, rollback) {
+      rollback?.()
+    },
+    onSettled() {
+      invalidateQueries(['agents', 'providers'])
+      invalidateQueries(['agents', 'provider-models'])
     },
   })
 }
@@ -1137,7 +1287,8 @@ export function useSaveModelProvider(serverUrl: string | undefined, accountUid: 
       })
     },
     onSuccess() {
-      invalidateQueries(['agents'])
+      invalidateQueries(['agents', 'providers'])
+      invalidateQueries(['agents', 'provider-models'])
     },
   })
 }
@@ -1238,7 +1389,8 @@ export function useSaveOpenAIProvider(serverUrl: string | undefined, accountUid:
       })
     },
     onSuccess() {
-      invalidateQueries(['agents'])
+      invalidateQueries(['agents', 'providers'])
+      invalidateQueries(['agents', 'provider-models'])
     },
   })
 }
@@ -1301,8 +1453,6 @@ export function useAgentCollaborators(
       }
     },
     enabled: !!serverUrl && !!accountUid && !!agentId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -1327,10 +1477,51 @@ export function useInviteAgentCollaborator(serverUrl: string | undefined, accoun
         action: {_: 'InviteAgentCollaborator', agentId, accountId: collaboratorAccountId, role},
       })
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(result, {agentId}) {
+      // The response carries the collaborator row — place it directly so the list shows the
+      // invite without waiting for a refetch.
+      if (result._ === 'InviteAgentCollaboratorResponse') {
+        getQueryClient().setQueriesData(
+          {queryKey: ['agents', 'collaborators', serverUrl, accountUid, agentId]},
+          (old: any) => {
+            if (!old || !Array.isArray(old.collaborators)) return old
+            const others = old.collaborators.filter(
+              (entry: AgentCollaboratorInfo) => entry.accountId !== result.collaborator.accountId,
+            )
+            return {...old, collaborators: [...others, result.collaborator]}
+          },
+        )
+      }
+      invalidateQueries(['agents', 'collaborators', serverUrl, accountUid, agentId])
+      invalidateQueries(['agents', 'invites'])
     },
   })
+}
+
+/**
+ * Optimistically flips one public-access flag everywhere it renders (the agent snapshot and the
+ * sharing panel), so the toggle switch settles instantly instead of bouncing while caches refetch.
+ */
+function optimisticPublicFlagUpdates(
+  serverUrl: string,
+  accountUid: string,
+  agentId: string,
+  flag: 'publicRead' | 'publicChat',
+  value: boolean,
+): Array<{queryKey: unknown[]; update: (old: any) => any}> {
+  return [
+    {
+      queryKey: ['agents', 'detail', serverUrl, accountUid, agentId],
+      update: (old: any) => {
+        if (!old || old._ !== 'GetAgentResponse') return old
+        return {...old, agent: {...old.agent, [flag]: value}}
+      },
+    },
+    {
+      queryKey: ['agents', 'collaborators', serverUrl, accountUid, agentId],
+      update: (old: any) => (old && typeof old === 'object' ? {...old, [flag]: value} : old),
+    },
+  ]
 }
 
 /** Owner-only: lets every signed account read the agent by id (or makes it private again). */
@@ -1340,8 +1531,19 @@ export function useSetAgentPublicRead(serverUrl: string | undefined, accountUid:
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'SetAgentPublicRead', agentId, publicRead}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate({agentId, publicRead}) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates(
+        optimisticPublicFlagUpdates(serverUrl, accountUid, agentId, 'publicRead', publicRead),
+      )
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSuccess(result) {
+      if (result._ === 'SetAgentPublicReadResponse' && serverUrl && accountUid) {
+        applyAgentToCaches(serverUrl, accountUid, result.agent)
+      }
     },
   })
 }
@@ -1353,8 +1555,19 @@ export function useSetAgentPublicChat(serverUrl: string | undefined, accountUid:
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'SetAgentPublicChat', agentId, publicChat}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate({agentId, publicChat}) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates(
+        optimisticPublicFlagUpdates(serverUrl, accountUid, agentId, 'publicChat', publicChat),
+      )
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSuccess(result) {
+      if (result._ === 'SetAgentPublicChatResponse' && serverUrl && accountUid) {
+        applyAgentToCaches(serverUrl, accountUid, result.agent)
+      }
     },
   })
 }
@@ -1370,10 +1583,41 @@ export function useRemoveAgentCollaborator(serverUrl: string | undefined, accoun
         action: {_: 'RemoveAgentCollaborator', agentId, accountId: collaboratorAccountId},
       })
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate({agentId, collaboratorAccountId}) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'collaborators', serverUrl, accountUid, agentId],
+          update: (old: any) => {
+            if (!old || !Array.isArray(old.collaborators)) return old
+            return {
+              ...old,
+              collaborators: old.collaborators.filter(
+                (entry: AgentCollaboratorInfo) => entry.accountId !== collaboratorAccountId,
+              ),
+            }
+          },
+        },
+      ])
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSettled(_result, _error, {agentId}) {
+      invalidateQueries(['agents', 'collaborators', serverUrl, accountUid, agentId])
+      invalidateQueries(['agents', 'invites'])
     },
   })
+}
+
+/** Optimistically drops one pending invite row, shared by the accept and decline flows. */
+function optimisticInviteRemoval(serverUrl: string, accountUid: string, agentId: string) {
+  return applyOptimisticUpdates([
+    {
+      queryKey: ['agents', 'invites', serverUrl, accountUid],
+      update: (old: any) => (Array.isArray(old) ? old.filter((invite: any) => invite.agentId !== agentId) : old),
+    },
+  ])
 }
 
 /** Accepts one pending agent invitation. */
@@ -1383,8 +1627,17 @@ export function useAcceptAgentInvite(serverUrl: string | undefined, accountUid: 
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'AcceptAgentInvite', agentId}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate(agentId) {
+      if (!serverUrl || !accountUid) return undefined
+      return optimisticInviteRemoval(serverUrl, accountUid, agentId)
+    },
+    onError(_error, _agentId, rollback) {
+      rollback?.()
+    },
+    onSettled() {
+      invalidateQueries(['agents', 'invites'])
+      invalidateQueries(['agents', 'list'])
+      invalidateQueries(['agents', 'sessions'])
     },
   })
 }
@@ -1396,21 +1649,49 @@ export function useDeclineAgentInvite(serverUrl: string | undefined, accountUid:
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeclineAgentInvite', agentId}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate(agentId) {
+      if (!serverUrl || !accountUid) return undefined
+      return optimisticInviteRemoval(serverUrl, accountUid, agentId)
+    },
+    onError(_error, _agentId, rollback) {
+      rollback?.()
+    },
+    onSettled() {
+      invalidateQueries(['agents', 'invites'])
     },
   })
 }
 
-/** Deletes an existing server-hosted agent. */
+/** Deletes an existing server-hosted agent, dropping it from the cached lists immediately. */
 export function useDeleteAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (agentId: string) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgent', agentId}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate(agentId) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'list', serverUrl, accountUid],
+          update: (old: any) => (Array.isArray(old) ? old.filter((agent: AgentInfo) => agent.id !== agentId) : old),
+        },
+        {
+          queryKey: ['agents', 'sessions', serverUrl, accountUid],
+          update: (old: any) =>
+            Array.isArray(old) ? old.filter((entry: AgentSessionListEntry) => entry.session.agentId !== agentId) : old,
+        },
+      ])
+    },
+    onError(_error, _agentId, rollback) {
+      rollback?.()
+    },
+    onSuccess(_result, agentId) {
+      getQueryClient().removeQueries(['agents', 'detail', serverUrl, accountUid, agentId])
+    },
+    onSettled() {
+      invalidateQueries(['agents', 'list'])
+      invalidateQueries(['agents', 'sessions'])
     },
   })
 }
@@ -1465,8 +1746,6 @@ export function useAgentDetail(
       return res
     },
     enabled: !!serverUrl && !!accountUid && !!agentId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -1487,8 +1766,6 @@ export function useAgentTriggers(
       return res.triggers
     },
     enabled: !!serverUrl && !!accountUid && !!agentId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -1509,32 +1786,44 @@ export function useAgentTrigger(
       return res
     },
     enabled: !!serverUrl && !!accountUid && !!triggerId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
 }
 
-/** Lists the files and directories in one agent's private memory. */
-export function useAgentMemory(
+/**
+ * Lists directory levels of one agent's private memory — one query per path, so the Memory tab
+ * loads the tree lazily as directories are expanded and a huge memory never forces a full
+ * recursive walk on the server (one agent's imported 192k-file tree used to freeze it).
+ *
+ * No polling: every memory mutation — user actions and agent `memory_*`/upload writes alike —
+ * emits an account-change over the WebSocket, and that already invalidates the `['agents']`
+ * queries (see {@link useAgentWebSocketSubscription}), so listings refresh the moment memory
+ * actually changes.
+ */
+export function useAgentMemoryDirs(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
   agentId: string | undefined,
+  paths: string[],
 ) {
-  return useQuery({
-    queryKey: ['agents', 'memory', serverUrl, accountUid, agentId],
-    queryFn: async () => {
-      if (!serverUrl || !accountUid || !agentId) return null
-      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListAgentMemory', agentId}})
-      if (res._ !== 'ListAgentMemoryResponse') throw new Error('Unexpected ListAgentMemory response')
-      return res
-    },
-    enabled: !!serverUrl && !!accountUid && !!agentId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
-    retry: false,
-    useErrorBoundary: false,
+  return useQueries({
+    queries: paths.map((path) => ({
+      queryKey: ['agents', 'memory', serverUrl, accountUid, agentId, path],
+      queryFn: async () => {
+        if (!serverUrl || !accountUid || !agentId) return null
+        const res = await sendAgentAction({
+          serverUrl,
+          accountUid,
+          action: {_: 'ListAgentMemoryDir', agentId, ...(path ? {path} : {})},
+        })
+        if (res._ !== 'ListAgentMemoryDirResponse') throw new Error('Unexpected ListAgentMemoryDir response')
+        return res
+      },
+      enabled: !!serverUrl && !!accountUid && !!agentId,
+      retry: false,
+      useErrorBoundary: false,
+    })),
   })
 }
 
@@ -1553,8 +1842,6 @@ export function useAgentTools(
       return res
     },
     enabled: !!serverUrl && !!accountUid && !!agentId,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -1596,7 +1883,22 @@ export function useDeleteAgentTool(serverUrl: string | undefined, accountUid: st
       if (res._ !== 'DeleteAgentToolResponse') throw new Error('Unexpected DeleteAgentTool response')
       return res
     },
-    onSuccess() {
+    async onMutate({agentId, name}) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'tools', serverUrl, accountUid, agentId],
+          update: (old: any) => {
+            if (!old || !Array.isArray(old.tools)) return old
+            return {...old, tools: old.tools.filter((tool: {name: string}) => tool.name !== name)}
+          },
+        },
+      ])
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSettled() {
       invalidateQueries(['agents', 'tools'])
     },
   })
@@ -1613,8 +1915,6 @@ export function useMcpServers(serverUrl: string | undefined, accountUid: string 
       return res.servers
     },
     enabled: !!serverUrl && !!accountUid,
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
     retry: false,
     useErrorBoundary: false,
   })
@@ -1668,9 +1968,24 @@ export function useSaveMcpServer(serverUrl: string | undefined, accountUid: stri
       if (res._ !== 'SetMcpServerResponse') throw new Error('Unexpected SetMcpServer response')
       return res.server
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(server) {
+      upsertMcpServerInCaches(serverUrl, accountUid, server)
+      invalidateQueries(['agents', 'tools'])
     },
+  })
+}
+
+/** Places a fresh MCP server row into the cached list (replacing its previous entry, if any). */
+function upsertMcpServerInCaches(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  server: McpServerInfo,
+): void {
+  if (!serverUrl || !accountUid) return
+  getQueryClient().setQueriesData({queryKey: ['agents', 'mcp-servers', serverUrl, accountUid]}, (old: any) => {
+    if (!Array.isArray(old)) return old
+    const others = old.filter((entry: McpServerInfo) => entry.name !== server.name)
+    return [...others, server]
   })
 }
 
@@ -1683,8 +1998,9 @@ export function useRefreshMcpServer(serverUrl: string | undefined, accountUid: s
       if (res._ !== 'SetMcpServerResponse') throw new Error('Unexpected RefreshMcpServer response')
       return res.server
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(server) {
+      upsertMcpServerInCaches(serverUrl, accountUid, server)
+      invalidateQueries(['agents', 'tools'])
     },
   })
 }
@@ -1698,8 +2014,21 @@ export function useDeleteMcpServer(serverUrl: string | undefined, accountUid: st
       if (res._ !== 'DeleteMcpServerResponse') throw new Error('Unexpected DeleteMcpServer response')
       return res
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate(name) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'mcp-servers', serverUrl, accountUid],
+          update: (old: any) => (Array.isArray(old) ? old.filter((entry: McpServerInfo) => entry.name !== name) : old),
+        },
+      ])
+    },
+    onError(_error, _name, rollback) {
+      rollback?.()
+    },
+    onSettled() {
+      invalidateQueries(['agents', 'mcp-servers'])
+      invalidateQueries(['agents', 'tools'])
     },
   })
 }
@@ -1736,8 +2065,30 @@ export function useWriteAgentMemoryFile(serverUrl: string | undefined, accountUi
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'WriteAgentMemoryFile', agentId, path, content}})
     },
-    onSuccess() {
-      invalidateQueries(['agents', 'memory'])
+    async onMutate({agentId, path, content}) {
+      if (!serverUrl || !accountUid || typeof content !== 'string') return undefined
+      // The saved text is the cache's new truth immediately, so the editor never renders the
+      // previous revision between clearing its draft and the listing refetch landing.
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'memory', serverUrl, accountUid, agentId, 'file', path],
+          update: (old: any) => {
+            if (!old || old.encoding !== 'utf8') return old
+            return {
+              ...old,
+              content,
+              size: new TextEncoder().encode(content).byteLength,
+              updatedAt: Date.now(),
+            }
+          },
+        },
+      ])
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSettled(_result, _error, {agentId}) {
+      invalidateQueries(['agents', 'memory', serverUrl, accountUid, agentId])
     },
   })
 }
@@ -1757,8 +2108,8 @@ export function useDownloadAgentMemoryFile(serverUrl: string | undefined, accoun
       if (res._ !== 'DownloadAgentMemoryFileResponse') throw new Error('Unexpected DownloadAgentMemoryFile response')
       return res
     },
-    onSuccess() {
-      invalidateQueries(['agents', 'memory'])
+    onSuccess(_result, {agentId}) {
+      invalidateQueries(['agents', 'memory', serverUrl, accountUid, agentId])
     },
   })
 }
@@ -1780,15 +2131,35 @@ export function useUploadAgentMemoryFileToIpfs(serverUrl: string | undefined, ac
   })
 }
 
-/** Deletes one file or directory from an agent's private memory. */
+/** Deletes one file or directory from an agent's private memory, dropping its rows immediately. */
 export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, path}: {agentId: string; path: string}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgentMemoryFile', agentId, path}})
     },
-    onSuccess() {
-      invalidateQueries(['agents', 'memory'])
+    async onMutate({agentId, path}) {
+      if (!serverUrl || !accountUid) return undefined
+      // Filter the deleted path (and anything under it, for directories) out of every cached
+      // directory level, so the tree row disappears on click instead of after the refetch.
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'memory', serverUrl, accountUid, agentId],
+          update: (old: any) => {
+            if (!old || !Array.isArray(old.entries)) return old
+            const entries = old.entries.filter(
+              (entry: {path: string}) => entry.path !== path && !entry.path.startsWith(`${path}/`),
+            )
+            return entries.length === old.entries.length ? old : {...old, entries}
+          },
+        },
+      ])
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSettled(_result, _error, {agentId}) {
+      invalidateQueries(['agents', 'memory', serverUrl, accountUid, agentId])
     },
   })
 }
@@ -1817,8 +2188,15 @@ export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid:
         action: {_: 'CreateAgentTrigger', agentId, trigger, clientRequestId: clientRequestId ?? crypto.randomUUID()},
       })
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(result, {agentId}) {
+      // The response carries the created trigger — place it so the list shows it immediately.
+      if (result._ === 'CreateAgentTriggerResponse') {
+        getQueryClient().setQueriesData(
+          {queryKey: ['agents', 'triggers', serverUrl, accountUid, agentId]},
+          (old: any) => (Array.isArray(old) ? [...old, result.trigger] : old),
+        )
+      }
+      invalidateQueries(['agents', 'triggers', serverUrl, accountUid, agentId])
     },
   })
 }
@@ -1841,35 +2219,86 @@ export function useInvokeSessionTool(serverUrl: string | undefined, accountUid: 
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'InvokeSessionTool', sessionId, verb, input}})
     },
-    onSuccess() {
+    onSuccess(_result, {sessionId}) {
       // The WS append is primary, but a stale socket must never hide a durable action.
-      invalidateQueries(['agents'])
+      invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId])
     },
   })
 }
 
-/** Updates an existing activity trigger. */
+/**
+ * Updates an existing activity trigger, optimistically: the patch merges into the cached rows
+ * before the round trip, so an enable/disable toggle settles instantly instead of bouncing.
+ */
 export function useUpdateAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({triggerId, patch}: {triggerId: string; patch: AgentTriggerPatch}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateAgentTrigger', triggerId, patch}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate({triggerId, patch}) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'triggers', serverUrl, accountUid],
+          update: (old: any) =>
+            Array.isArray(old)
+              ? old.map((trigger: AgentTriggerInfo) => (trigger.id === triggerId ? {...trigger, ...patch} : trigger))
+              : old,
+        },
+        {
+          queryKey: ['agents', 'trigger', serverUrl, accountUid, triggerId],
+          update: (old: any) => {
+            if (!old || old._ !== 'GetAgentTriggerResponse') return old
+            return {...old, trigger: {...old.trigger, ...patch}}
+          },
+        },
+      ])
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSuccess(result, {triggerId}) {
+      if (result._ !== 'UpdateAgentTriggerResponse') return
+      getQueryClient().setQueriesData({queryKey: ['agents', 'triggers', serverUrl, accountUid]}, (old: any) =>
+        Array.isArray(old)
+          ? old.map((trigger: AgentTriggerInfo) => (trigger.id === triggerId ? result.trigger : trigger))
+          : old,
+      )
+      getQueryClient().setQueriesData(
+        {queryKey: ['agents', 'trigger', serverUrl, accountUid, triggerId]},
+        (old: any) => {
+          if (!old || old._ !== 'GetAgentTriggerResponse') return old
+          return {...old, trigger: result.trigger}
+        },
+      )
     },
   })
 }
 
-/** Deletes an existing activity trigger. */
+/** Deletes an existing activity trigger, dropping its cached rows immediately. */
 export function useDeleteAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (triggerId: string) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'DeleteAgentTrigger', triggerId}})
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    async onMutate(triggerId) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'triggers', serverUrl, accountUid],
+          update: (old: any) =>
+            Array.isArray(old) ? old.filter((trigger: AgentTriggerInfo) => trigger.id !== triggerId) : old,
+        },
+      ])
+    },
+    onError(_error, _triggerId, rollback) {
+      rollback?.()
+    },
+    onSettled(_result, _error, triggerId) {
+      invalidateQueries(['agents', 'triggers'])
+      getQueryClient().removeQueries(['agents', 'trigger', serverUrl, accountUid, triggerId])
     },
   })
 }
@@ -1879,11 +2308,7 @@ export function useAgentSession(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
   sessionId: string | undefined,
-  /** `poll: false` for sessions shown only by reference (e.g. a child page naming its parent) — the
-   * response carries the whole transcript, which is not worth re-fetching every few seconds. */
-  options?: {poll?: boolean},
 ) {
-  const poll = options?.poll !== false
   return useQuery({
     queryKey: ['agents', 'session', serverUrl, accountUid, sessionId],
     queryFn: async () => {
@@ -1893,8 +2318,6 @@ export function useAgentSession(
       return res
     },
     enabled: !!serverUrl && !!accountUid && !!sessionId,
-    refetchInterval: poll ? AGENT_BACKGROUND_REFETCH_INTERVAL_MS : false,
-    refetchIntervalInBackground: poll,
     retry: false,
     useErrorBoundary: false,
   })
@@ -1941,8 +2364,6 @@ export function useAllAgentSessions(serverUrls: string[] | undefined, accountUid
         )
       },
       enabled: !!accountUid,
-      refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-      refetchIntervalInBackground: true,
       retry: false,
       useErrorBoundary: false,
     })),
@@ -1982,10 +2403,7 @@ export function useChildSessions(
       return res.sessions
     },
     enabled,
-    // Only while a disclosure is open, matching how the top-level session lists stay current.
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
-    retry: false,
+    // Only while a disclosure is open, matching how the top-level session lists stay current.    retry: false,
     useErrorBoundary: false,
   })
 }
@@ -2010,11 +2428,10 @@ export function useRun(
       return res.run
     },
     enabled: !!serverUrl && !!accountUid && !!runId,
-    // A finished run never changes again, and a long transcript can hold many of these — stop
-    // polling as soon as the run reaches a terminal status.
+    // Run changes stream over the WebSocket; this slow poll is only a safety net while the run is
+    // live, in case an event is dropped. A finished run never changes again, so it stops entirely.
     refetchInterval: (data) =>
-      data && TERMINAL_RUN_STATUSES.includes(data.status) ? false : AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+      data && TERMINAL_RUN_STATUSES.includes(data.status) ? false : ACTIVE_RUN_SAFETY_REFETCH_INTERVAL_MS,
     retry: false,
     useErrorBoundary: false,
   })
@@ -2038,10 +2455,12 @@ export function useSessionRuns(
       return res.runs
     },
     enabled: !!serverUrl && !!accountUid && !!sessionId,
-    // A run's own changes publish on `runs/<rootRunId>`, which a session page does not subscribe to,
-    // so poll: this is what tells a sub-session page its parent has let go of it.
-    refetchInterval: AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
+    // Run changes publish on `runs/<rootRunId>` and reach the session page through its
+    // account-wide subscription (which invalidates the runs queries). The slow poll is only a
+    // safety net while a run is live — this is what tells a sub-session page its parent has let
+    // go of it, so a dropped event must not strand that state.
+    refetchInterval: (data) =>
+      data?.some((run) => !TERMINAL_RUN_STATUSES.includes(run.status)) ? ACTIVE_RUN_SAFETY_REFETCH_INTERVAL_MS : false,
     retry: false,
     useErrorBoundary: false,
   })
@@ -2110,26 +2529,45 @@ export function useSignalRun(serverUrl: string | undefined, accountUid: string |
   })
 }
 
-/** Updates an existing server-hosted agent. */
+/**
+ * Updates an existing server-hosted agent, optimistically: the submitted definition lands in the
+ * caches before the round trip, so an autosaving editor never watches its own change flash back to
+ * the old value. No broad invalidation afterwards — the response (and the WS agent-change it
+ * triggers) carries the fresh snapshot, and refetching the just-written queries only reopens the
+ * stale-response race the optimistic write closed.
+ */
 export function useUpdateAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async ({agentId, definition}: {agentId: string; definition: AgentDefinition}) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({serverUrl, accountUid, action: {_: 'UpdateAgent', agentId, definition}})
     },
-    onSuccess(result, variables) {
-      if (result._ === 'GetAgentResponse') {
-        getQueryClient().setQueriesData(
-          {queryKey: ['agents', 'detail', serverUrl, accountUid, variables.agentId]},
-          result,
-        )
-        getQueryClient().setQueriesData(
-          {queryKey: ['agents', 'list', serverUrl, accountUid]},
-          (old: AgentInfo[] | undefined) =>
-            old?.map((agent) => (agent.id === result.agent.id ? result.agent : agent)) ?? old,
-        )
+    async onMutate({agentId, definition}) {
+      if (!serverUrl || !accountUid) return undefined
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'detail', serverUrl, accountUid, agentId],
+          update: (old: any) => {
+            if (!old || old._ !== 'GetAgentResponse') return old
+            return {...old, agent: {...old.agent, definition}}
+          },
+        },
+        {
+          queryKey: ['agents', 'list', serverUrl, accountUid],
+          update: (old: any) =>
+            Array.isArray(old)
+              ? old.map((agent: AgentInfo) => (agent.id === agentId ? {...agent, definition} : agent))
+              : old,
+        },
+      ])
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSuccess(result) {
+      if (result._ === 'GetAgentResponse' && serverUrl && accountUid) {
+        applyAgentToCaches(serverUrl, accountUid, result.agent)
       }
-      invalidateQueries(['agents'])
     },
   })
 }
@@ -2358,8 +2796,11 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
         },
       })
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(_result, {sessionId}) {
+      // The durable events stream over the session's WS subscription; refetch only this session
+      // (a safety net for a stale socket) and the list (ordering/title may have changed).
+      invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId])
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
     },
   })
 }
@@ -2373,8 +2814,10 @@ export function useStopAgentSession(serverUrl: string | undefined, accountUid: s
       if (res._ !== 'StopSessionResponse') throw new Error('Unexpected StopSession response')
       return res
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(_result, sessionId) {
+      invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId])
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+      invalidateQueries(['agents', 'runs'])
     },
   })
 }
@@ -2394,8 +2837,9 @@ export function useRetrySession(serverUrl: string | undefined, accountUid: strin
       if (res._ !== 'RetrySessionResponse') throw new Error('Unexpected RetrySession response')
       return res
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(_result, sessionId) {
+      invalidateQueries(['agents', 'session', serverUrl, accountUid, sessionId])
+      invalidateQueries(['agents', 'runs'])
     },
   })
 }
@@ -2463,6 +2907,10 @@ function useSignedAgentSocket(
       ws = new WebSocket(wsUrl)
       ws.binaryType = 'arraybuffer'
       ws.addEventListener('open', () => {
+        // Refreshing is event-driven, so a reconnect must assume events were missed while the
+        // socket was down and refetch once. (`afterSeq` replays session appends, but change
+        // events for lists, agents, and runs have no replay.)
+        if (retry > 0) invalidateQueries(['agents'])
         retry = 0
         const afterSeq = afterSeqRef.current
         const action =
@@ -2635,8 +3083,19 @@ export function useAgentWebSocketSubscription(
       log('change event', {changedKey: event.key})
       // Run rows tick often while a workflow executes; refreshing only the runs queries keeps
       // that from re-fetching every session and agent list on each step.
-      if (event.key.startsWith('runs/')) invalidateQueries(['agents', 'runs'])
-      else invalidateQueries(['agents'])
+      if (event.key.startsWith('runs/')) {
+        invalidateQueries(['agents', 'runs'])
+      } else if (event.key.startsWith('agents/') && serverUrl && accountUid) {
+        // The event carries the fresh agent snapshot — write it straight into the caches
+        // instead of refetching it back from the server.
+        applyAgentToCaches(serverUrl, accountUid, event.value as AgentInfo)
+      } else if (event.key.startsWith('sessions/') && serverUrl && accountUid) {
+        applySessionToCaches(serverUrl, accountUid, event.value as SessionInfo)
+      } else if (event.key.startsWith('account/') && serverUrl && accountUid) {
+        invalidateForAccountChange(serverUrl, accountUid, (event.value ?? {}) as {reason?: string; agentId?: string})
+      } else {
+        invalidateQueries(['agents'])
+      }
     }
   })
 
@@ -2829,7 +3288,8 @@ export function useCreateAgentSession(serverUrl: string | undefined, accountUid:
       })
     },
     onSuccess() {
-      invalidateQueries(['agents'])
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+      invalidateQueries(['agents', 'detail', serverUrl, accountUid])
     },
   })
 }
@@ -2845,8 +3305,9 @@ export function useCreateAgentSessionOnServer(accountUid: string | null | undefi
         action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
       })
     },
-    onSuccess() {
-      invalidateQueries(['agents'])
+    onSuccess(_result, {serverUrl}) {
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+      invalidateQueries(['agents', 'detail', serverUrl, accountUid])
     },
   })
 }
@@ -2878,15 +3339,52 @@ export function useUpdateAgentSession(serverUrl: string | undefined, accountUid:
       if (res._ !== 'UpdateSessionResponse') throw new Error('Unexpected UpdateSession response')
       return res.session
     },
-    onSuccess(updatedSession) {
-      getQueryClient().setQueriesData(
-        {queryKey: ['agents', 'session', serverUrl, accountUid, updatedSession.id]},
-        (old: any) => {
-          if (!old || old._ !== 'GetSessionResponse') return old
-          return {...old, session: updatedSession}
+    async onMutate({sessionId, title, modelOverride}) {
+      if (!serverUrl || !accountUid) return undefined
+      // Merge the edited fields into every cached copy immediately, so a rename never flashes
+      // back to the old title while the round trip is in flight.
+      const patchSession = (session: SessionInfo): SessionInfo => ({
+        ...session,
+        ...(title !== undefined ? {title} : {}),
+        ...(modelOverride !== undefined ? {modelOverride: modelOverride ?? undefined} : {}),
+      })
+      return applyOptimisticUpdates([
+        {
+          queryKey: ['agents', 'session', serverUrl, accountUid, sessionId],
+          update: (old: any) => {
+            if (!old || old._ !== 'GetSessionResponse') return old
+            return {...old, session: patchSession(old.session)}
+          },
         },
-      )
-      invalidateQueries(['agents'])
+        {
+          queryKey: ['agents', 'sessions', serverUrl, accountUid],
+          update: (old: any) =>
+            Array.isArray(old)
+              ? old.map((entry: AgentSessionListEntry) =>
+                  entry.session.id === sessionId ? {...entry, session: patchSession(entry.session)} : entry,
+                )
+              : old,
+        },
+        {
+          queryKey: ['agents', 'detail', serverUrl, accountUid],
+          update: (old: any) => {
+            if (!old || old._ !== 'GetAgentResponse' || !Array.isArray(old.sessions)) return old
+            if (!old.sessions.some((session: SessionInfo) => session.id === sessionId)) return old
+            return {
+              ...old,
+              sessions: old.sessions.map((session: SessionInfo) =>
+                session.id === sessionId ? patchSession(session) : session,
+              ),
+            }
+          },
+        },
+      ])
+    },
+    onError(_error, _variables, rollback) {
+      rollback?.()
+    },
+    onSuccess(updatedSession) {
+      if (serverUrl && accountUid) applySessionToCaches(serverUrl, accountUid, updatedSession)
     },
   })
 }
@@ -2900,9 +3398,17 @@ export function useDeleteAgentSession(serverUrl: string | undefined, accountUid:
       if (res._ !== 'DeleteSessionResponse') throw new Error('Unexpected DeleteSession response')
       return res
     },
+    onMutate(sessionId) {
+      // Drop the session from the cached lists right away, so selection resolvers cannot
+      // re-select the row that is being deleted (see removeOptimisticSessionFromLists).
+      if (serverUrl && accountUid) removeOptimisticSessionFromLists(serverUrl, accountUid, sessionId)
+    },
     onSuccess(deletedSession) {
       getQueryClient().removeQueries(['agents', 'session', serverUrl, accountUid, deletedSession.sessionId])
-      invalidateQueries(['agents'])
+    },
+    onSettled() {
+      invalidateQueries(['agents', 'sessions', serverUrl, accountUid])
+      invalidateQueries(['agents', 'detail', serverUrl, accountUid])
     },
   })
 }

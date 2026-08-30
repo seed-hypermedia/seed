@@ -168,12 +168,25 @@ function assertNoSymlinkComponents(stateDir: string, relPath: string): void {
   }
 }
 
-/** Lists every file and directory in the agent's memory, sorted by path. */
-export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; totalBytes: number} {
+/**
+ * Lists files and directories in the agent's memory, sorted by path.
+ *
+ * The walk is synchronous on the server's only thread, so it must stay bounded no matter what an
+ * agent has written: `maxEntries` stops the walk once that many entries have been collected and
+ * flags the result `truncated`. (An agent once imported a 192k-file source tree into memory; the
+ * unbounded walk froze the event loop for 6–8 seconds per call.) When truncated, `totalBytes`
+ * covers only the visited files.
+ */
+export function listMemory(
+  stateDir: string,
+  options: {maxEntries?: number} = {},
+): {entries: AgentMemoryEntry[]; totalBytes: number; truncated: boolean} {
+  const maxEntries = options.maxEntries ?? Number.MAX_SAFE_INTEGER
   const root = memoryRootPath(stateDir)
   assertNoSymlinkComponents(stateDir, '')
   const entries: AgentMemoryEntry[] = []
   let totalBytes = 0
+  let truncated = false
   const walk = (dirAbs: string, dirRel: string): void => {
     let names: fs.Dirent[]
     try {
@@ -182,6 +195,10 @@ export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; tota
       return
     }
     for (const dirent of names) {
+      if (entries.length >= maxEntries) {
+        truncated = true
+        return
+      }
       const rel = dirRel ? `${dirRel}/${dirent.name}` : dirent.name
       const abs = path.join(dirAbs, dirent.name)
       if (dirent.isSymbolicLink()) continue
@@ -189,6 +206,7 @@ export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; tota
         const stat = statOrNull(abs)
         entries.push({path: rel, type: 'dir', size: 0, updatedAt: stat?.mtimeMs ? Math.round(stat.mtimeMs) : 0})
         walk(abs, rel)
+        if (truncated) return
       } else if (dirent.isFile()) {
         const stat = statOrNull(abs)
         if (!stat) continue
@@ -199,7 +217,7 @@ export function listMemory(stateDir: string): {entries: AgentMemoryEntry[]; tota
   }
   walk(root, '')
   entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-  return {entries, totalBytes}
+  return {entries, totalBytes, truncated}
 }
 
 /**
@@ -406,31 +424,51 @@ export type AgentMemoryTopLevelEntry = {
 }
 
 /**
+ * Entry budget for the walks behind the prompt-injection memory summary and the Memory tab's
+ * whole-tree totals. Runs on every session start, so it must stay bounded against pathological
+ * memories (an imported 192k-file source tree once froze the server); counts and sizes read as
+ * minimums when `truncated` is set.
+ */
+export const MAX_MEMORY_SUMMARY_ENTRIES = 10_000
+
+/**
  * Summarizes the top level of the agent's memory for automatic system-prompt injection: root
- * files and directories (with contained file counts), without recursing into subfolder contents.
+ * files and directories (with contained file counts), without listing subfolder contents.
+ * Aggregated in one pass over a bounded walk; a truncated walk yields minimum counts/sizes.
  */
 export function summarizeMemoryTopLevel(stateDir: string): {
   entries: AgentMemoryTopLevelEntry[]
   totalFiles: number
   totalBytes: number
+  truncated: boolean
 } {
-  const {entries, totalBytes} = listMemory(stateDir)
+  const {entries, totalBytes, truncated} = listMemory(stateDir, {maxEntries: MAX_MEMORY_SUMMARY_ENTRIES})
   const top: AgentMemoryTopLevelEntry[] = []
+  const dirs = new Map<string, AgentMemoryTopLevelEntry>()
+  let totalFiles = 0
   for (const entry of entries) {
-    if (entry.path.includes('/')) continue
+    const rootSegment = entry.path.split('/', 1)[0]!
+    if (entry.path.includes('/')) {
+      // Nested entry: fold files into their root directory's rollup.
+      if (entry.type !== 'file') continue
+      totalFiles += 1
+      const dir = dirs.get(rootSegment)
+      if (dir) {
+        dir.size += entry.size
+        dir.fileCount = (dir.fileCount ?? 0) + 1
+      }
+      continue
+    }
     if (entry.type === 'file') {
+      totalFiles += 1
       top.push({name: entry.path, type: 'file', size: entry.size})
     } else {
-      const inside = entries.filter((child) => child.type === 'file' && child.path.startsWith(`${entry.path}/`))
-      top.push({
-        name: entry.path,
-        type: 'dir',
-        size: inside.reduce((sum, child) => sum + child.size, 0),
-        fileCount: inside.length,
-      })
+      const dir: AgentMemoryTopLevelEntry = {name: entry.path, type: 'dir', size: 0, fileCount: 0}
+      dirs.set(entry.path, dir)
+      top.push(dir)
     }
   }
-  return {entries: top, totalFiles: entries.filter((entry) => entry.type === 'file').length, totalBytes}
+  return {entries: top, totalFiles, totalBytes, truncated}
 }
 
 /** Deletes one memory file, or one directory recursively. Returns false when nothing existed. */

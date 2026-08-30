@@ -320,7 +320,53 @@ export function openWithDatabase(db: Database): OpenResult {
   }
 
   applyPendingMigrations(db, currentVersion)
+  ensureBaselineTables(db)
   return {ok: true, db}
+}
+
+/**
+ * Creates any baseline table (and its indexes) the database is missing, even when the stored
+ * migration version claims everything is applied.
+ *
+ * The migration version is just a count, so it is not a reliable coordinate across branches: a
+ * database migrated by a feature branch whose Nth migration differs from main's Nth stamps the
+ * same number while holding a different schema. Switching back to main then leaves the server
+ * trusting the number and failing every query against the table its own Nth migration would have
+ * created ("no such table"). Creating the missing tables from the baseline is additive and safe;
+ * tables a divergent branch added are left alone. Column-level divergence is not repaired here —
+ * dropping and recreating a table would destroy data, so that still surfaces as a query error.
+ */
+export function ensureBaselineTables(db: Database): string[] {
+  const existing = new Set(
+    db
+      .query<{name: string}, []>(`SELECT name FROM sqlite_schema WHERE type IN ('table', 'index')`)
+      .all()
+      .map((row) => row.name),
+  )
+  const created: string[] = []
+  for (const statement of schema.split(/;\s*\n/u)) {
+    const match = /^\s*CREATE (?:TABLE|INDEX)\s+(\w+)/iu.exec(statement)
+    if (!match || existing.has(match[1]!)) continue
+    // An index for a table that exists but diverges in columns would fail; a missing table for a
+    // later index in the same pass is created first because the baseline declares tables before
+    // their indexes. Either way one bad statement must not block the rest of the repair.
+    try {
+      db.run(`${statement.trim().replace(/;+$/u, '')};`)
+      created.push(match[1]!)
+      existing.add(match[1]!)
+    } catch (error) {
+      console.warn('[agents/sqlite] could not create missing baseline object', {
+        name: match[1],
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+  if (created.length > 0) {
+    console.warn('[agents/sqlite] created baseline tables missing despite an up-to-date migration version', {
+      created,
+    })
+  }
+  return created
 }
 
 /** Strips SQL comments while preserving string literals and statement spacing. */

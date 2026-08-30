@@ -3,7 +3,10 @@ import type * as api from '@/api'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@/cbor'
 
-const MAX_ACTION_CLOCK_SKEW_MS = 30_000
+// Bounds both clock skew and time spent queued behind a busy server: a request that waits out
+// the window fails auth even though the client signed it moments before sending. Five minutes
+// matches the usual convention for signed-request freshness (e.g. AWS SigV4).
+const MAX_ACTION_CLOCK_SKEW_MS = 5 * 60_000
 
 /** Capability blobs are a few hundred bytes; anything near this is not one. */
 const MAX_CAPABILITY_BYTES = 64 * 1024

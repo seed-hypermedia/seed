@@ -188,6 +188,14 @@ function AgentSessionPage({
   const systemPromptDialog = useAppDialog(SystemPromptDialog)
   const lastSeq = session.data?.events.filter((event) => event.seq !== Number.MAX_SAFE_INTEGER).at(-1)?.seq
   const liveState = useAgentWebSocketSubscription(serverUrl, selectedAccountId, `sessions/${sessionId}`, lastSeq)
+  // Account-wide events too: run changes publish on `runs/<rootRunId>` and agent/trigger changes on
+  // their own keys, none of which the session subscription receives — and with no polling, these
+  // events are what keep the run state and agent header fresh here.
+  useAgentWebSocketSubscription(
+    serverUrl,
+    selectedAccountId,
+    selectedAccountId ? `account/${selectedAccountId}` : undefined,
+  )
   const partialAssistantText = liveState.text
   const [titleDraft, setTitleDraft] = useState('')
   const [titleSaveState, setTitleSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -237,7 +245,7 @@ function AgentSessionPage({
   // to tell "still being driven by the parent" from "finished, yours to continue". That run is a
   // child in the parent's tree, so it is reachable by id (SessionInfo.runId), not by ListRuns.
   const parentSessionId = session.data?.session.parentSessionId
-  const parentSession = useAgentSession(serverUrl, selectedAccountId, parentSessionId, {poll: false})
+  const parentSession = useAgentSession(serverUrl, selectedAccountId, parentSessionId)
   const ownRun = useRun(serverUrl, selectedAccountId, parentSessionId ? session.data?.session.runId : undefined)
   const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
   const isDrivenByParent = !!parentSessionId && (isAgentStreaming || hasLiveRun)
