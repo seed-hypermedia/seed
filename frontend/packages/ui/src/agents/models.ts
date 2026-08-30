@@ -2167,12 +2167,25 @@ export function useDeleteAgentMemoryFile(serverUrl: string | undefined, accountU
 /** Creates an activity trigger for one agent. */
 export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async ({agentId, trigger}: {agentId: string; trigger: AgentTriggerInput}) => {
+    mutationFn: async ({
+      agentId,
+      trigger,
+      clientRequestId,
+    }: {
+      agentId: string
+      trigger: AgentTriggerInput
+      clientRequestId?: string
+    }) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      if (trigger.source.type === 'webhook' && !isSafeAgentServerSecretTarget(serverUrl)) {
+        throw new Error(
+          'Refusing to create a webhook over a non-local HTTP agent server. Use HTTPS for remote servers.',
+        )
+      }
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateAgentTrigger', agentId, trigger, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateAgentTrigger', agentId, trigger, clientRequestId: clientRequestId ?? crypto.randomUUID()},
       })
     },
     onSuccess(result, {agentId}) {

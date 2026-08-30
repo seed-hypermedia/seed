@@ -52,6 +52,54 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
       if (error instanceof apisvc.APIError) {
         return cbor.response({_: 'Error', message: error.message} satisfies api.ErrorResponse, {status: error.status})
       }
+      // A thrown non-API error must still come back as a CORS-bearing CBOR error: Bun's bare 500
+      // carries no Access-Control-Allow-Origin, which browsers report only as "Failed to fetch".
+      console.error('[Agents API] Unhandled error in', envelope.action?._, error)
+      const message = error instanceof Error ? error.message : String(error)
+      return cbor.response({_: 'Error', message: `Internal server error: ${message}`} satisfies api.ErrorResponse, {
+        status: 500,
+      })
+    }
+  }
+
+  // The secret normally rides in the URL (`/webhooks/<triggerId>/<secret>`) because many senders
+  // can only POST to a URL they are given; senders that can set headers may instead POST to
+  // `/webhooks/<triggerId>` with `Authorization: Bearer <secret>`. Both carry the same credential.
+  const webhook = async (req: BunRequest) => {
+    if (req.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase() !== 'application/json') {
+      return Response.json({error: 'Content-Type must be application/json'}, {status: 415})
+    }
+    const contentEncoding = req.headers.get('content-encoding')
+    if (contentEncoding !== null && contentEncoding.trim().toLowerCase() !== 'identity') {
+      return Response.json({error: 'Content-Encoding must be identity'}, {status: 415})
+    }
+    // Idempotency-Key is optional: senders that provide one get exact-retry deduplication, while
+    // every delivery without one is treated as new.
+    const suppliedKey = req.headers.get('idempotency-key')
+    if (suppliedKey !== null && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u.test(suppliedKey)) {
+      return Response.json({error: 'Invalid Idempotency-Key'}, {status: 400})
+    }
+    const deliveryKey = suppliedKey ?? crypto.randomUUID()
+    // Only the `/:triggerId/:secret` route sets this; the header-only route leaves it undefined.
+    const pathSecret: string | undefined = req.params.secret
+    const authorization = req.headers.get('authorization') ?? ''
+    const secret =
+      (pathSecret && /^[A-Za-z0-9_-]{43}$/u.test(pathSecret) ? pathSecret : undefined) ??
+      /^Bearer ([A-Za-z0-9_-]{43})$/u.exec(authorization)?.[1] ??
+      ''
+
+    let body: Uint8Array
+    try {
+      body = await readWebhookBody(req)
+    } catch (error) {
+      if (error instanceof apisvc.APIError) return Response.json({error: error.message}, {status: error.status})
+      throw error
+    }
+    try {
+      const result = svc.fireWebhookTrigger(req.params.triggerId ?? '', secret, deliveryKey, body)
+      return Response.json({accepted: true, duplicate: result.duplicate}, {status: 202})
+    } catch (error) {
+      if (error instanceof apisvc.APIError) return Response.json({error: error.message}, {status: error.status})
       throw error
     }
   }
@@ -83,11 +131,45 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
   return {
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
+    '/agents/api/webhooks/:triggerId': {POST: webhook},
+    '/agents/api/webhooks/:triggerId/:secret': {POST: webhook},
     '/api/health': {GET: health},
     '/agents/api/health': {GET: health},
     '/api/version': {GET: version},
     '/agents/api/version': {GET: version},
   }
+}
+
+async function readWebhookBody(req: Request): Promise<Uint8Array> {
+  const contentLength = req.headers.get('content-length')
+  if (contentLength && /^\d+$/u.test(contentLength) && Number(contentLength) > apisvc.WEBHOOK_MAX_BODY_BYTES) {
+    throw new apisvc.APIError(413, 'Webhook body is too large')
+  }
+  if (!req.body) return new Uint8Array()
+  const reader = req.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  try {
+    while (true) {
+      const {done, value} = await reader.read()
+      if (done) break
+      size += value.byteLength
+      if (size > apisvc.WEBHOOK_MAX_BODY_BYTES) {
+        await reader.cancel()
+        throw new apisvc.APIError(413, 'Webhook body is too large')
+      }
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+  const body = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return body
 }
 
 function sendWS(ws: ServerWebSocket<WSData>, event: api.AgentWSEvent): void {
@@ -405,7 +487,9 @@ async function main(): Promise<void> {
     scheduleMonitor.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
-    await server.stop()
+    // stop() waits for every open connection; clients whose sockets never finish closing would keep
+    // the process alive forever with its listener already gone, so force-close after a grace period.
+    await withTimeout(server.stop(), 3_000, 'stop http server').catch(() => server.stop(true))
     // Let in-flight background trigger runs finish their writes before closing the DB (bounded so a
     // stuck session can't block shutdown).
     await withTimeout(svc.drainTriggerSessions(), 5_000, 'drain trigger sessions').catch(() => {})

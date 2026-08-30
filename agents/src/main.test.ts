@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite'
 import {describe, expect, test} from 'bun:test'
 import * as apisvc from '@/api-service'
+import type * as api from '@/api'
 import * as cbor from '@/cbor'
 import {createAPIRoutes} from '@/main'
 import * as sqlite from '@/sqlite'
@@ -79,7 +80,10 @@ describe('main routes', () => {
       const account = blobs.generateNobleKeyPair()
       const routes = createAPIRoutes(new apisvc.Service(db, dataDir))
       const handler = getPostHandler(routes, '/api/message')
-      const envelope = await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}, ts: Date.now() - 5 * 60_000 - 1_000})
+      const envelope = await apisvc.createSignedEnvelope(account, {
+        action: {_: 'ListAgents'},
+        ts: Date.now() - 5 * 60_000 - 1_000,
+      })
 
       const res = await handler(
         new Request('http://agents.test/api/message', {
@@ -134,6 +138,294 @@ describe('main routes', () => {
     } finally {
       db.close()
       cleanup()
+    }
+  })
+
+  test('webhook endpoint authenticates, limits, deduplicates, and fires only its trigger', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const svc = new apisvc.Service(db, dataDir)
+    try {
+      const account = blobs.generateNobleKeyPair()
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetModelProvider', name: 'openai', provider: {type: 'openai'}},
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Webhook Agent', systemPrompt: 'Test.', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      // Keep the monitor assertion focused on the webhook source rather than the default mention trigger.
+      db.run(`UPDATE agent_triggers SET enabled = 0 WHERE agent_id = ?`, [createdAgent.agentId])
+
+      const createAction = {
+        _: 'CreateAgentTrigger' as const,
+        agentId: createdAgent.agentId,
+        clientRequestId: 'webhook-create-1',
+        trigger: {name: 'Inbound', prompt: 'Process payload.', source: {type: 'webhook' as const}},
+      }
+      const created = await svc.message(await apisvc.createSignedEnvelope(account, {action: createAction}))
+      if (created._ !== 'CreateAgentTriggerResponse' || !created.webhookSecret) throw new Error('unexpected response')
+      expect(created.webhookSecret).toMatch(/^[A-Za-z0-9_-]{43}$/)
+      const retried = await svc.message(await apisvc.createSignedEnvelope(account, {action: createAction}))
+      expect(retried).toEqual(created)
+      const idempotency = db
+        .query<{response_cbor: Uint8Array}, []>(`SELECT response_cbor FROM action_idempotency`)
+        .get()
+      expect(idempotency).toBeTruthy()
+      expect(new TextDecoder().decode(idempotency!.response_cbor)).not.toContain(created.webhookSecret)
+      expect(cbor.decode(idempotency!.response_cbor)).toHaveProperty('encryptedIdempotencyResponse')
+
+      const listed = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'ListAgentTriggers', agentId: createdAgent.agentId},
+        }),
+      )
+      expect(JSON.stringify(listed)).not.toContain(created.webhookSecret)
+      const fetched = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetAgentTrigger', triggerId: created.trigger.id},
+        }),
+      )
+      if (fetched._ !== 'GetAgentTriggerResponse') throw new Error('unexpected response')
+      expect(fetched.webhookSecret).toBe(created.webhookSecret)
+      const storedCiphertext = db
+        .query<{secret_ciphertext: Uint8Array | null}, [string]>(
+          `SELECT secret_ciphertext FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+        )
+        .get(created.trigger.id)
+      expect(storedCiphertext?.secret_ciphertext?.byteLength).toBeGreaterThan(0)
+      expect(new TextDecoder().decode(storedCiphertext!.secret_ciphertext!)).not.toContain(created.webhookSecret)
+      const credential = db
+        .query<{secret_hash: Uint8Array}, [string]>(
+          `SELECT secret_hash FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+        )
+        .get(created.trigger.id)
+      expect(credential?.secret_hash.byteLength).toBe(32)
+      expect(credential && new TextDecoder().decode(credential.secret_hash)).not.toContain(created.webhookSecret)
+
+      const routes = createAPIRoutes(svc)
+      const handler = getPostHandler(routes, '/agents/api/webhooks/:triggerId')
+      const deliver = (
+        body: string,
+        key = 'delivery-1',
+        secret = created.webhookSecret!,
+        triggerId = created.trigger.id,
+      ) => {
+        const req = new Request(`http://agents.test/agents/api/webhooks/${triggerId}`, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${secret}`,
+            'content-type': 'application/json; charset=utf-8',
+            'idempotency-key': key,
+          },
+          body,
+        })
+        Object.defineProperty(req, 'params', {value: {triggerId}})
+        return handler(req as never)
+      }
+
+      const accepted = await deliver('{"message":"hello"}')
+      expect(accepted.status).toBe(202)
+      const acceptedBody = await accepted.json()
+      expect(acceptedBody).toMatchObject({accepted: true, duplicate: false})
+      expect(acceptedBody).toEqual({accepted: true, duplicate: false})
+      expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM sessions`).get()?.count).toBe(1)
+      const firing = db
+        .query<{activity_cbor: Uint8Array}, [string]>(`SELECT activity_cbor FROM trigger_firings WHERE trigger_id = ?`)
+        .get(created.trigger.id)
+      expect(cbor.decode<unknown>(firing!.activity_cbor)).toEqual({
+        type: 'webhook',
+        feedEventId: 'webhook:delivery-1',
+        deliveryKey: 'delivery-1',
+        idempotencyKey: 'delivery-1',
+        payload: {message: 'hello'},
+      })
+
+      const duplicate = await deliver('{"message":"hello"}')
+      expect(duplicate.status).toBe(202)
+      expect(await duplicate.json()).toEqual({accepted: true, duplicate: true})
+      expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM sessions`).get()?.count).toBe(1)
+
+      const conflict = await deliver('{"message":"changed"}')
+      expect(conflict.status).toBe(409)
+      const malformed = await deliver('{', 'delivery-malformed')
+      expect(malformed.status).toBe(400)
+      const invalidKey = await deliver('{}', 'contains spaces')
+      expect(invalidKey.status).toBe(400)
+      const compressedReq = new Request(`http://agents.test/agents/api/webhooks/${created.trigger.id}`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${created.webhookSecret}`,
+          'content-encoding': 'gzip',
+          'content-type': 'application/json',
+          'idempotency-key': 'delivery-compressed',
+        },
+        body: '{}',
+      })
+      Object.defineProperty(compressedReq, 'params', {value: {triggerId: created.trigger.id}})
+      expect((await handler(compressedReq as never)).status).toBe(415)
+      const oversized = await deliver(JSON.stringify({data: 'x'.repeat(apisvc.WEBHOOK_MAX_BODY_BYTES)}), 'delivery-big')
+      expect(oversized.status).toBe(413)
+
+      const wrongAuth = await deliver('{}', 'delivery-auth', 'x'.repeat(43))
+      const unknown = await deliver('{}', 'delivery-auth', 'x'.repeat(43), crypto.randomUUID())
+      expect(wrongAuth.status).toBe(401)
+      expect(unknown.status).toBe(401)
+      expect(await wrongAuth.json()).toEqual(await unknown.json())
+
+      const monitorResult = await svc.processActivityEvent(created.trigger.account, {
+        type: 'comment',
+        id: 'activity-that-must-not-fire-webhook',
+      })
+      expect(monitorResult.checked).toBe(0)
+      expect(
+        db
+          .query<{count: number}, [string]>(`SELECT count(*) AS count FROM trigger_firings WHERE trigger_id = ?`)
+          .get(created.trigger.id)?.count,
+      ).toBe(1)
+
+      // The secret URL form needs no headers beyond Content-Type: the secret is the last path
+      // segment and a missing Idempotency-Key means every delivery is a new one.
+      const pathHandler = getPostHandler(routes, '/agents/api/webhooks/:triggerId/:secret')
+      const deliverByPath = (body: string, secret = created.webhookSecret!, key?: string) => {
+        const req = new Request(`http://agents.test/agents/api/webhooks/${created.trigger.id}/${secret}`, {
+          method: 'POST',
+          headers: {'content-type': 'application/json', ...(key ? {'idempotency-key': key} : {})},
+          body,
+        })
+        Object.defineProperty(req, 'params', {value: {triggerId: created.trigger.id, secret}})
+        return pathHandler(req as never)
+      }
+      const firingCount = () =>
+        db
+          .query<{count: number}, [string]>(`SELECT count(*) AS count FROM trigger_firings WHERE trigger_id = ?`)
+          .get(created.trigger.id)?.count
+      const byPath = await deliverByPath('{"message":"via url"}')
+      expect(byPath.status).toBe(202)
+      expect(await byPath.json()).toEqual({accepted: true, duplicate: false})
+      expect(firingCount()).toBe(2)
+      const byPathAgain = await deliverByPath('{"message":"via url"}')
+      expect(await byPathAgain.json()).toEqual({accepted: true, duplicate: false})
+      expect(firingCount()).toBe(3)
+      const generatedKeys = db
+        .query<{activity_key: string}, [string]>(`SELECT activity_key FROM trigger_firings WHERE trigger_id = ?`)
+        .all(created.trigger.id)
+        .map((row) => row.activity_key)
+      expect(new Set(generatedKeys).size).toBe(3)
+      const byPathKeyed = await deliverByPath('{"message":"keyed"}', created.webhookSecret!, 'path-keyed')
+      expect(await byPathKeyed.json()).toEqual({accepted: true, duplicate: false})
+      const byPathKeyedRetry = await deliverByPath('{"message":"keyed"}', created.webhookSecret!, 'path-keyed')
+      expect(await byPathKeyedRetry.json()).toEqual({accepted: true, duplicate: true})
+      expect(firingCount()).toBe(4)
+      const wrongPathSecret = await deliverByPath('{}', 'x'.repeat(43))
+      expect(wrongPathSecret.status).toBe(401)
+      const malformedPathSecret = await deliverByPath('{}', 'short')
+      expect(malformedPathSecret.status).toBe(401)
+      expect(firingCount()).toBe(4)
+
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'UpdateAgentTrigger', triggerId: created.trigger.id, patch: {enabled: false}},
+        }),
+      )
+      const disabled = await deliver('{}', 'delivery-disabled')
+      expect(disabled.status).toBe(401)
+      expect(await disabled.json()).toEqual({error: 'Invalid webhook credentials'})
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {
+              _: 'UpdateAgentTrigger',
+              triggerId: created.trigger.id,
+              patch: {source: {type: 'site-update', resourcePrefix: 'hm://example'}},
+            },
+          }),
+        ),
+      ).rejects.toMatchObject({status: 400})
+      await svc.drainTriggerSessions()
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'DeleteAgentTrigger', triggerId: created.trigger.id},
+        }),
+      )
+      expect(
+        db
+          .query<{count: number}, [string]>(
+            `SELECT count(*) AS count FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+          )
+          .get(created.trigger.id)?.count,
+      ).toBe(0)
+    } finally {
+      svc.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+})
+
+describe('trigger creation under concurrent requests', () => {
+  test('a transactional request arriving on the account-change event does not fail', async () => {
+    const db = new Database(':memory:', {create: true, strict: true})
+    if (!sqlite.openWithDatabase(db).ok) throw new Error('unexpected schema mismatch')
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-agents-concurrency-test-'))
+    const account = blobs.generateNobleKeyPair()
+    let agentId = ''
+    let burst: Promise<api.AgentResponse[]> | null = null
+    // The desktop refetches (and may create sessions) the instant it receives account-change, which
+    // the server emits from inside trigger creation.
+    const svc = new apisvc.Service(db, dataDir, {
+      onEvent: (event) => {
+        if (event.type !== 'account-change' || event.reason !== 'trigger-created') return
+        burst = Promise.all(
+          [
+            {_: 'GetAgent' as const, agentId},
+            {_: 'ListAgentTriggers' as const, agentId},
+            {_: 'CreateSession' as const, agentId, clientRequestId: 'burst-session'},
+          ].map(async (action) => svc.message(await apisvc.createSignedEnvelope(account, {action}))),
+        )
+      },
+    })
+    try {
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetModelProvider', name: 'openai', provider: {type: 'openai'}},
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateAgent', definition: {name: 'A', systemPrompt: 'x', modelProvider: 'openai', model: 'gpt'}},
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      agentId = createdAgent.agentId
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgentTrigger',
+            agentId,
+            clientRequestId: 'concurrent-create',
+            trigger: {name: 'Inbound', prompt: 'p', source: {type: 'webhook'}},
+          },
+        }),
+      )
+      expect(created._).toBe('CreateAgentTriggerResponse')
+      expect(burst).not.toBeNull()
+      const results = await burst!
+      expect(results.map((r) => r._)).toEqual([
+        'GetAgentResponse',
+        'ListAgentTriggersResponse',
+        'CreateSessionResponse',
+      ])
+    } finally {
+      svc.stopRunQueue()
+      db.close()
+      fs.rmSync(dataDir, {recursive: true, force: true})
     }
   })
 })

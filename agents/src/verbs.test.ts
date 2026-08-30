@@ -704,6 +704,58 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     expect(rows.length).toBe(1)
   })
 
+  test('agents create and edit webhook triggers with a customizable prompt and one-time credential', async () => {
+    const context = makeContext()
+    const created = await executeWriteVerb(context, {
+      address: '~/triggers/inbound',
+      content: JSON.stringify({
+        source: {type: 'webhook'},
+        prompt: 'Summarize the posted deployment event.',
+        enabled: true,
+      }),
+    })
+    const webhook = created.webhook as {
+      endpointPath: string
+      secret: string
+      alternative: string
+      requiredHeaders: Record<string, string>
+      optionalHeaders: Record<string, string>
+    }
+    expect(created.prompt).toBe('Summarize the posted deployment event.')
+    expect(webhook.secret).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(webhook.endpointPath).toBe(`/agents/api/webhooks/${created.id}/${webhook.secret}`)
+    expect(webhook.alternative).toContain(`Bearer ${webhook.secret}`)
+    expect(webhook.requiredHeaders).toEqual({'Content-Type': 'application/json'})
+    expect(webhook.optionalHeaders['Idempotency-Key']).toContain('unique')
+
+    const stored = context.db
+      .query<{secret_hash: Uint8Array}, [string]>(
+        `SELECT secret_hash FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+      )
+      .get(String(created.id))
+    expect(stored?.secret_hash.byteLength).toBe(32)
+    expect(new TextDecoder().decode(stored!.secret_hash)).not.toContain(webhook.secret)
+
+    const read = await executeReadVerb(context, {address: '~/triggers/inbound'})
+    expect(read.prompt).toBe('Summarize the posted deployment event.')
+    expect((read.webhook as {endpointPath: string}).endpointPath).toBe(webhook.endpointPath)
+    expect((read.webhook as {secret: string}).secret).toBe(webhook.secret)
+
+    const edited = await executeWriteVerb(context, {
+      address: '~/triggers/inbound',
+      content: JSON.stringify({
+        source: {type: 'webhook'},
+        prompt: 'Route the posted event by severity.',
+        enabled: true,
+      }),
+    })
+    expect(edited.prompt).toBe('Route the posted event by severity.')
+    expect(edited.webhook).toBeUndefined()
+    expect(
+      context.db.query<{count: number}, []>(`SELECT count(*) AS count FROM webhook_trigger_credentials`).get()?.count,
+    ).toBe(1)
+  })
+
   test('delete, unknown options, and bad JSON are handled loudly', async () => {
     const context = makeContext()
     await executeWriteVerb(context, {address: '~/triggers/x', content: scheduleTrigger})

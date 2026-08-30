@@ -10,6 +10,7 @@ import {
   type AgentTriggerSource,
   type SessionInfo,
   type SigningIdentity,
+  getAgentWebhookUrl,
 } from './client'
 import {
   addOptimisticSessionMessage,
@@ -81,6 +82,7 @@ import {useAppDialog} from '@shm/ui/universal-dialog'
 import {
   ArrowRight,
   ArrowRightLeft,
+  Copy,
   ExternalLink,
   Globe,
   Info,
@@ -2189,6 +2191,13 @@ function AgentTriggersTab({
                       {summarizeTriggerSource(source)}
                     </SizableText>
                   </div>
+                  {source.type === 'webhook' ? (
+                    <WebhookEndpointSection
+                      serverUrl={serverUrl}
+                      triggerId={selected.id}
+                      secret={trigger.data?.webhookSecret}
+                    />
+                  ) : null}
                   <div className="flex flex-col gap-1">
                     <SizableText size="sm" weight="bold">
                       Prompt
@@ -2202,6 +2211,8 @@ function AgentTriggersTab({
                 <div className="grid gap-4">
                   <TriggerSourceFields
                     source={source}
+                    lockSourceType={source.type === 'webhook'}
+                    allowWebhook={false}
                     onChange={(nextSource) => {
                       setSource(nextSource)
                       setDetailsDirty(true)
@@ -2218,6 +2229,13 @@ function AgentTriggersTab({
                       </label>
                     }
                   />
+                  {source.type === 'webhook' ? (
+                    <WebhookEndpointSection
+                      serverUrl={serverUrl}
+                      triggerId={selected.id}
+                      secret={trigger.data?.webhookSecret}
+                    />
+                  ) : null}
                   <div className="flex flex-col gap-1">
                     <SizableText size="sm" weight="bold">
                       Prompt
@@ -2338,12 +2356,16 @@ function CreateAgentTriggerDialog({
   input: {serverUrl: string; selectedAccountId: string | null | undefined; agentId: string}
   onClose: () => void
 }) {
+  const navigate = useNavigate()
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
-  const [name, setName] = useState('New activity trigger')
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
+  const [name, setName] = useState(() => defaultTriggerName(source.type))
+  const nameEdited = useRef(false)
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
-    agentPromptToBlocks('Respond to the mention, performing the action requested.'),
+    agentPromptToBlocks('Respond to the event, performing the action requested.'),
   )
+  const createRequestId = useRef(crypto.randomUUID())
+  const createRequestKey = useRef('')
 
   async function handleCreateTrigger() {
     try {
@@ -2353,10 +2375,29 @@ function CreateAgentTriggerDialog({
         source,
         prompt: promptBlocksForRequest(prompt),
       }
-      const result = await createTrigger.mutateAsync({agentId: input.agentId, trigger})
+      const requestKey = JSON.stringify(trigger)
+      if (createRequestKey.current && createRequestKey.current !== requestKey) {
+        createRequestId.current = crypto.randomUUID()
+      }
+      createRequestKey.current = requestKey
+      const result = await createTrigger.mutateAsync({
+        agentId: input.agentId,
+        trigger,
+        clientRequestId: createRequestId.current,
+      })
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
       toast.success('Trigger created')
       onClose()
+      // A webhook's page is where its delivery URL lives, so land there straight away.
+      if (source.type === 'webhook') {
+        navigate({
+          key: 'agent',
+          agentId: input.agentId,
+          serverUrl: input.serverUrl,
+          tab: 'triggers',
+          triggerId: result.trigger.id,
+        })
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not create trigger')
     }
@@ -2366,20 +2407,38 @@ function CreateAgentTriggerDialog({
     <div className="flex w-full max-w-full min-w-0 flex-col gap-5">
       <div>
         <DialogTitle>New trigger</DialogTitle>
-        <DialogDescription>Start a new agent session when matching Seed activity appears.</DialogDescription>
+        <DialogDescription>Start a new agent session when the selected event occurs.</DialogDescription>
       </div>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Name
         </SizableText>
-        <Input value={name} onChange={(event) => setName(event.target.value)} />
+        <Input
+          value={name}
+          onChange={(event) => {
+            nameEdited.current = true
+            setName(event.target.value)
+          }}
+        />
       </label>
-      <TriggerSourceFields source={source} onChange={setSource} />
+      <TriggerSourceFields
+        source={source}
+        onChange={(nextSource) => {
+          setSource(nextSource)
+          if (!nameEdited.current) setName(defaultTriggerName(nextSource.type))
+        }}
+      />
       <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Prompt
         </SizableText>
         <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
+        {source.type === 'webhook' ? (
+          <SizableText size="xs" color="muted">
+            This prompt tells the agent how to handle each delivery. The posted JSON is supplied separately as untrusted
+            trigger data.
+          </SizableText>
+        ) : null}
       </div>
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>
@@ -2390,6 +2449,75 @@ function CreateAgentTriggerDialog({
         </Button>
       </div>
     </div>
+  )
+}
+
+/** The name a new trigger starts with; the user replaces it, but it should already say what it is. */
+function defaultTriggerName(sourceType: AgentTriggerSource['type']): string {
+  if (sourceType === 'webhook') return 'New webhook trigger'
+  return 'New activity trigger'
+}
+
+function copyWithToast(value: string, label: string) {
+  toast.promise(copyTextToClipboard(value), {
+    loading: '',
+    success: `${label} copied`,
+    error: `Could not copy ${label.toLowerCase()}`,
+  })
+}
+
+/** The delivery URL of an existing webhook trigger, shown on its detail page. */
+function WebhookEndpointSection({
+  serverUrl,
+  triggerId,
+  secret,
+}: {
+  serverUrl: string
+  triggerId: string
+  secret: string | undefined
+}) {
+  if (!secret) {
+    return (
+      <div className="border-border bg-muted/40 flex flex-col gap-1 rounded-lg border p-3">
+        <SizableText size="sm" weight="bold">
+          Webhook URL
+        </SizableText>
+        <SizableText size="sm" className="font-mono break-all">
+          {getAgentWebhookUrl(serverUrl, triggerId)}/&lt;secret&gt;
+        </SizableText>
+        <SizableText size="xs" color="muted">
+          The secret is only shown to accounts that can edit this agent. If you are an editor and still see this, the
+          trigger predates secret storage; delete it and create a new webhook trigger.
+        </SizableText>
+      </div>
+    )
+  }
+  const url = getAgentWebhookUrl(serverUrl, triggerId, secret)
+  return (
+    <div className="flex flex-col gap-2">
+      <WebhookCredential label="Webhook URL" value={url} onCopy={() => copyWithToast(url, 'Webhook URL')} />
+      <SizableText size="xs" color="muted">
+        POST JSON to this URL. Senders that cannot use a secret URL may instead post to the URL without the last segment
+        and send <code>Authorization: Bearer &lt;secret&gt;</code>. An optional <code>Idempotency-Key</code> header
+        deduplicates retries.
+      </SizableText>
+    </div>
+  )
+}
+
+function WebhookCredential({label, value, onCopy}: {label: string; value: string; onCopy: () => void}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <SizableText size="sm" weight="bold">
+        {label}
+      </SizableText>
+      <div className="flex min-w-0 gap-2">
+        <Input className="min-w-0 flex-1 font-mono" value={value} readOnly />
+        <Button type="button" variant="outline" onClick={onCopy} aria-label={`Copy ${label.toLowerCase()}`}>
+          <Copy className="size-4" /> Copy
+        </Button>
+      </div>
+    </label>
   )
 }
 

@@ -146,6 +146,12 @@ export function normalizeAgentServerUrl(input: string): string {
   return url.toString().replace(/\/$/, '')
 }
 
+/** Returns the public delivery endpoint for an inbound webhook trigger. */
+export function getAgentWebhookUrl(serverUrl: string, triggerId: string, secret?: string): string {
+  const base = `${normalizeAgentServerUrl(serverUrl)}/agents/api/webhooks/${encodeURIComponent(triggerId)}`
+  return secret ? `${base}/${encodeURIComponent(secret)}` : base
+}
+
 /** Returns true when a URL can safely receive secrets over the current transport. */
 export function isSafeAgentServerSecretTarget(serverUrl: string): boolean {
   const url = new URL(normalizeAgentServerUrl(serverUrl))

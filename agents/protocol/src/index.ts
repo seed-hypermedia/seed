@@ -552,6 +552,7 @@ export type AgentTriggerPatch = {
 
 /** Activity source/filter that decides when an agent trigger fires. */
 export type AgentTriggerSource =
+  | {type: 'webhook'}
   | {type: 'document-comment'; resource: string; author?: string}
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
@@ -1714,12 +1715,24 @@ export type GetAgentTriggerResponse = {
   _: 'GetAgentTriggerResponse'
   trigger: AgentTriggerInfo
   sessions: SessionInfo[]
+  /**
+   * The webhook secret (last path segment of the delivery URL), present only for webhook triggers
+   * and only when the requesting account can edit the agent. Absent for read-only collaborators
+   * and for triggers created before the secret was kept.
+   */
+  webhookSecret?: string
 }
 
 /** Successful response for `CreateAgentTrigger`. */
 export type CreateAgentTriggerResponse = {
   _: 'CreateAgentTriggerResponse'
   trigger: AgentTriggerInfo
+  /**
+   * Plaintext webhook secret returned when a webhook trigger is created. It is the last path
+   * segment of the delivery URL, or may be sent as `Authorization: Bearer <secret>` instead.
+   * `GetAgentTrigger` returns it again to accounts that can edit the agent.
+   */
+  webhookSecret?: string
 }
 
 /** Successful response for `UpdateAgentTrigger`. */

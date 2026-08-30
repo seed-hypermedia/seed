@@ -13,6 +13,18 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Inbound webhooks keep their credentials separate from public trigger metadata. The hash is
+  // what deliveries are checked against; the encrypted copy lets editors see the delivery URL
+  // again. The raw-body digest makes retries exact: a reused delivery key is accepted only for
+  // byte-identical JSON.
+  `CREATE TABLE webhook_trigger_credentials (
+      trigger_id TEXT PRIMARY KEY REFERENCES agent_triggers (id),
+      secret_hash BLOB NOT NULL,
+      secret_ciphertext BLOB,
+      created_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+  ALTER TABLE trigger_firings ADD COLUMN body_digest BLOB;`,
   // Account-scoped remote MCP servers (like model providers). The tools a server advertises are
   // discovered on save/refresh and cached in tools_cbor; status_cbor records what the last
   // discovery found. Agents enable servers by name (definition.mcpServers) and their tools are
