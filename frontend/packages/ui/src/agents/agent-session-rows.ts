@@ -349,17 +349,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * A tool row's provenance, preferring what the runtime stamped and filling only the gap it left.
+ * The call event carries the issuing turn's model/provider/usage, the result event the execution
+ * span — one row needs both, with the result's word winning wherever they overlap.
  *
  * Returns nothing at all when nothing is known, so the info dialog can tell "no stats" from "stats
  * that are all blank" — a legacy row with no timings must render no section, not empty labels.
  */
 function resolveToolMeta(
-  stamped: SessionEventMeta | undefined,
+  callStamped: SessionEventMeta | undefined,
+  resultStamped: SessionEventMeta | undefined,
   derivedDurationMs: number | undefined,
 ): SessionEventMeta | undefined {
-  const durationMs = stamped?.durationMs ?? derivedDurationMs
-  if (!stamped && durationMs === undefined) return undefined
-  return {...stamped, ...(durationMs === undefined ? {} : {durationMs})}
+  const durationMs = resultStamped?.durationMs ?? callStamped?.durationMs ?? derivedDurationMs
+  if (!callStamped && !resultStamped && durationMs === undefined) return undefined
+  return {...callStamped, ...resultStamped, ...(durationMs === undefined ? {} : {durationMs})}
 }
 
 /** Converts durable session events into chat rows, pairing tool calls with their results. */
@@ -421,6 +424,7 @@ export function buildAgentSessionChatRows(
           // without the actor the transcript would show it as something the user typed.
           actor: sessionEventActor(event.event),
           meta: payload.meta,
+          createdAt: event.createdAt,
           content: displayContent,
           rawMarkdown: typeof payload.rawMarkdown === 'string' ? payload.rawMarkdown : payload.content,
           blocks: Array.isArray(payload.blocks) ? payload.blocks : undefined,
@@ -447,6 +451,8 @@ export function buildAgentSessionChatRows(
         name: payload.name,
         args: isRecord(payload.input) ? payload.input : {input: payload.input},
         actor: sessionEventActor(event.event),
+        calledAt: event.createdAt,
+        ...(payload.meta ? {meta: payload.meta} : {}),
       }
       const row: Extract<AgentSessionChatRow, {kind: 'message'}> = {
         key: event.id,
@@ -521,7 +527,8 @@ export function buildAgentSessionChatRows(
       // between the call and its result on the log — the same wall time, measured from outside.
       const derivedDurationMs =
         existingRow?.createdAt !== undefined ? Math.max(0, event.createdAt - existingRow.createdAt) : undefined
-      const meta = resolveToolMeta(payload.meta, derivedDurationMs)
+      const callStampedMeta = (existingRow?.message.parts?.[0] as ChatToolPart | undefined)?.meta
+      const meta = resolveToolMeta(callStampedMeta, payload.meta, derivedDurationMs)
       const resultPart: ChatToolPart = {
         type: 'tool',
         id: payload.toolCallId,

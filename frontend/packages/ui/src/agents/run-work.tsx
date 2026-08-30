@@ -152,7 +152,16 @@ export function descendantsOf(runsById: Record<string, RunInfo>, focusRunId: str
  * row the chat renders, saying what the work WAS, with the tool name as the secondary fact.
  */
 export function journalToolParts(journal: RunJournalEntryInfo[]): ChatToolPart[] {
-  const resultsBySeq = new Map<string, {status?: string; output?: unknown; error?: {code?: string; message?: string}}>()
+  const resultsBySeq = new Map<
+    string,
+    {
+      status?: string
+      output?: unknown
+      error?: {code?: string; message?: string}
+      /** When the result was journaled — with the call's own timestamp it bounds the execution. */
+      createdAt: number
+    }
+  >()
   for (const entry of journal) {
     const payload = entry.entry as {
       kind?: string
@@ -162,7 +171,7 @@ export function journalToolParts(journal: RunJournalEntryInfo[]): ChatToolPart[]
       error?: {code?: string; message?: string}
     }
     if (payload.kind === 'result' && payload.callSeq !== undefined) {
-      resultsBySeq.set(`${entry.runId}:${payload.callSeq}`, payload)
+      resultsBySeq.set(`${entry.runId}:${payload.callSeq}`, {...payload, createdAt: entry.createdAt})
     }
   }
   const parts: ChatToolPart[] = []
@@ -188,10 +197,15 @@ export function journalToolParts(journal: RunJournalEntryInfo[]): ChatToolPart[]
         unknown
       >,
       ...(payload.description ? {summaryOverride: payload.description} : {}),
+      calledAt: entry.createdAt,
       ...(result
-        ? failed
-          ? {isError: true, result: result.error?.message ?? 'failed'}
-          : {rawOutput: result.output, result: safeStringify(result.output)}
+        ? {
+            completedAt: result.createdAt,
+            meta: {durationMs: Math.max(0, result.createdAt - entry.createdAt)},
+            ...(failed
+              ? {isError: true, result: result.error?.message ?? 'failed'}
+              : {rawOutput: result.output, result: safeStringify(result.output)}),
+          }
         : {}),
     })
   }

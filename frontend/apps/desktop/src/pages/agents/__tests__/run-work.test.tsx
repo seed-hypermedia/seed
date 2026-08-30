@@ -164,8 +164,12 @@ describe('journalToolParts', () => {
       name: 'web_search',
       summaryOverride: 'Checking the latest Bun release',
       rawOutput: {ok: 1},
+      // The journal's own timestamps bound the call, so the info dialog can show when and how long.
+      calledAt: 1,
+      completedAt: 2,
+      meta: {durationMs: 1},
     })
-    expect(parts[1]).toMatchObject({name: 'write', isError: true, result: 'disk full'})
+    expect(parts[1]).toMatchObject({name: 'write', isError: true, result: 'disk full', calledAt: 3, completedAt: 4})
   })
 })
 

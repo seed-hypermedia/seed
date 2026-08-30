@@ -1,5 +1,5 @@
 import {type AgentRunActivity, type RunInfo, type SessionEventMeta} from './client'
-import {eventMetaRows} from './event-meta'
+import {eventMetaRows, type EventTimes} from './event-meta'
 import {
   buildLegacyChatMessageParts,
   type ChatBubbleMessage,
@@ -154,7 +154,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
                 <span className="bg-muted rounded px-2 py-1">Seq: {message.seq}</span>
               ) : null}
             </div>
-            <EventMetaSection meta={message.meta} />
+            <EventMetaSection meta={message.meta} times={message.createdAt ? {sentAt: message.createdAt} : undefined} />
             <pre className="bg-muted max-h-[50vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
               {rawMarkdown}
             </pre>
@@ -207,8 +207,8 @@ function SystemMessageRow({content, rawMarkdownButton}: {content: string; rawMar
  * Renders nothing when the event predates the stamp — an older transcript's dialog is smaller, not
  * broken, and a labelled row with nothing behind it would be worse than no row.
  */
-function EventMetaSection({meta}: {meta?: SessionEventMeta}) {
-  const rows = eventMetaRows(meta)
+function EventMetaSection({meta, times}: {meta?: SessionEventMeta; times?: EventTimes}) {
+  const rows = eventMetaRows(meta, times)
   if (!rows.length) return null
   return (
     <div className="flex flex-col gap-1.5">
@@ -644,7 +644,12 @@ function ToolCallDebugDialog({
           <DialogDescription>Raw tool call payload captured during the assistant response.</DialogDescription>
         </DialogHeader>
         <div className="grid min-h-0 gap-3">
-          <EventMetaSection meta={item.meta} />
+          <EventMetaSection
+            meta={item.meta}
+            times={
+              item.calledAt || item.completedAt ? {startedAt: item.calledAt, completedAt: item.completedAt} : undefined
+            }
+          />
           {typeof item.args?.script === 'string' && item.args.script ? (
             <div className="min-h-0 space-y-1">
               <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Script</div>

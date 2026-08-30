@@ -1343,7 +1343,18 @@ export type SessionEventPayload =
       /** Origin metadata for user messages, or model/provider/usage/timing for assistant messages. */
       meta?: SessionEventMeta
     }
-  | {type: 'tool_call'; id: string; name: string; input: unknown; actor?: SessionActor}
+  | {
+      type: 'tool_call'
+      id: string
+      name: string
+      input: unknown
+      actor?: SessionActor
+      /**
+       * Model/provider of the turn that issued this call, and that turn's token usage. Stamped at
+       * append time; absent on legacy events and on calls appended outside a model turn.
+       */
+      meta?: SessionEventMeta
+    }
   | {
       /**
        * A `delegate` call spawned its child. Appended the moment the child exists — before it has
@@ -1368,7 +1379,11 @@ export type SessionEventPayload =
       output?: unknown
       error?: string
       actor?: SessionActor
-      /** How long the tool took. Absent on legacy events and on results appended by a child's finalizer. */
+      /**
+       * How long the tool took, plus the issuing turn's model/provider/usage. On results appended
+       * by a child's finalizer (sub-sessions, workflows) the duration spans the whole delegation
+       * and the usage is the child run's own total. Absent on legacy events.
+       */
       meta?: SessionEventMeta
     }
   | {type: 'error'; message: string; actor?: SessionActor}
