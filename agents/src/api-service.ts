@@ -170,6 +170,7 @@ const WORKFLOW_JOURNAL_MAX_ENTRIES = 5_000
 const WORKFLOW_JOURNAL_MAX_BYTES = 8 * 1024 * 1024
 const SECRET_KEY_CONFIG_KEY = 'secret_encryption_key_v1'
 const SECRET_NONCE_BYTES = 12
+const SECRET_TAG_BYTES = 16
 const MAX_TOOL_RESULT_BYTES = 256 * 1024
 /**
  * Ceiling on the model-facing text of a single tool result (~2k tokens). Durable session events
@@ -1646,7 +1647,7 @@ export class Service {
           generatedBy: 'seed-agents-server',
         }
         const now = Date.now()
-        const ciphertext = await encryptSecret(this.#db, keyPair.seed)
+        const ciphertext = encryptSecret(this.#db, keyPair.seed)
         const id = crypto.randomUUID()
 
         return () => {
@@ -1717,7 +1718,7 @@ export class Service {
           importedBy: 'user',
         }
         const now = Date.now()
-        const ciphertext = await encryptSecret(this.#db, seed)
+        const ciphertext = encryptSecret(this.#db, seed)
         const id = crypto.randomUUID()
 
         return () => {
@@ -1767,7 +1768,7 @@ export class Service {
     if (!row?.metadata_cbor) throw new APIError(404, 'Signing identity not found')
     const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
     if (metadata.kind !== 'hm-account-key') throw new APIError(404, 'Signing identity not found')
-    const seed = await decryptSecret(this.#db, row.ciphertext)
+    const seed = decryptSecret(this.#db, row.ciphertext)
     const keyPair = blobs.nobleKeyPairFromSeed(seed)
     const accountIdFromKey = blobs.principalToString(keyPair.principal)
     // Upload a new avatar to our HM node when provided, otherwise keep the icon already on the profile.
@@ -2256,7 +2257,7 @@ export class Service {
         const stored = data[piProviderId]
         if (!stored) return
         const {type: _credType, ...rest} = stored
-        const ciphertext = await encryptSecret(this.#db, new TextEncoder().encode(JSON.stringify(rest)))
+        const ciphertext = encryptSecret(this.#db, new TextEncoder().encode(JSON.stringify(rest)))
         const row = this.#db
           .query<{metadata_cbor: Uint8Array | null}, [string, string]>(
             `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
@@ -2287,7 +2288,7 @@ export class Service {
     // A rewritten secret invalidates any cached OAuth credential backend built from it.
     this.#oauthBackends.delete(`${accountId} ${name}`)
     const metadata = normalizeOptionalMetadata(rawMetadata)
-    const ciphertext = await encryptSecret(this.#db, value)
+    const ciphertext = encryptSecret(this.#db, value)
     const now = Date.now()
     const existing = this.#db
       .query<{id: string; created_at: number}, [string, string]>(
@@ -2835,18 +2836,14 @@ export class Service {
     return {_: 'ListAgentTriggersResponse', triggers: rows.map(agentTriggerRowToInfo)}
   }
 
-  async #getAgentTrigger(
-    accountId: string,
-    actorAccountId: string,
-    triggerId: string,
-  ): Promise<api.GetAgentTriggerResponse> {
+  #getAgentTrigger(accountId: string, actorAccountId: string, triggerId: string): api.GetAgentTriggerResponse {
     const trigger = this.#getAgentTriggerInfo(accountId, triggerId)
     if (!trigger) throw new APIError(404, 'Agent trigger not found')
     // Anyone who can edit the agent can see the delivery URL again; readers only see that the
     // trigger is a webhook.
     let webhookSecret: string | undefined
     if (trigger.source.type === 'webhook' && this.#canEditAgent(actorAccountId, trigger.agentId)) {
-      webhookSecret = await this.#webhookTriggerSecret(triggerId)
+      webhookSecret = this.#webhookTriggerSecret(triggerId)
     }
     const sessions = this.#db
       .query<SessionRow, [string, string]>(
@@ -2877,7 +2874,7 @@ export class Service {
   }
 
   /** The stored webhook secret, or undefined when the trigger predates the encrypted copy. */
-  async #webhookTriggerSecret(triggerId: string): Promise<string | undefined> {
+  #webhookTriggerSecret(triggerId: string): string | undefined {
     return readWebhookTriggerSecret(this.#db, triggerId)
   }
 
@@ -2892,11 +2889,11 @@ export class Service {
     )
   }
 
-  async #createAgentTriggerOnce(
+  #createAgentTriggerOnce(
     accountId: string,
     agentId: string,
     rawTrigger: api.AgentTriggerInput,
-  ): Promise<api.CreateAgentTriggerResponse> {
+  ): api.CreateAgentTriggerResponse {
     this.#requireAgent(accountId, agentId)
     const trigger = normalizeAgentTriggerInput(rawTrigger)
     const now = Date.now()
@@ -2904,7 +2901,7 @@ export class Service {
     const webhookSecret =
       trigger.source.type === 'webhook' ? nodeCrypto.randomBytes(32).toString('base64url') : undefined
     const webhookCiphertext = webhookSecret
-      ? await encryptSecret(this.#db, new TextEncoder().encode(webhookSecret))
+      ? encryptSecret(this.#db, new TextEncoder().encode(webhookSecret))
       : undefined
     this.#db.run(
       `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt,
@@ -6763,6 +6760,10 @@ export class Service {
         : normalizeBoundedString(clientRequestId, 'Client request ID', MAX_NAME_BYTES)
     const requestCBOR = normalizedId === undefined ? undefined : cbor.encode(request)
 
+    // Everything below runs inside one transaction on the shared connection, so `create` must not
+    // await real work: an await that reaches the event loop lets other requests run inside this
+    // open transaction, and any of them that begins its own fails with "cannot start a transaction
+    // within a transaction".
     this.#db.run('BEGIN IMMEDIATE')
     try {
       if (normalizedId !== undefined && requestCBOR !== undefined) {
@@ -6782,7 +6783,7 @@ export class Service {
             'encryptedIdempotencyResponse' in stored &&
             stored.encryptedIdempotencyResponse instanceof Uint8Array
           ) {
-            return cbor.decode<T>(await decryptSecret(this.#db, stored.encryptedIdempotencyResponse))
+            return cbor.decode<T>(decryptSecret(this.#db, stored.encryptedIdempotencyResponse))
           }
           return stored as T
         }
@@ -6800,7 +6801,7 @@ export class Service {
             requestCBOR,
             cbor.encode(
               response._ === 'CreateAgentTriggerResponse' && response.webhookSecret
-                ? {encryptedIdempotencyResponse: await encryptSecret(this.#db, cbor.encode(response))}
+                ? {encryptedIdempotencyResponse: encryptSecret(this.#db, cbor.encode(response))}
                 : response,
             ),
             Date.now(),
@@ -9350,7 +9351,7 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
   }
   const row = rows[0]!
   const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
-  const webhookSecret = source.type === 'webhook' ? await readWebhookTriggerSecret(context.db, row.id) : undefined
+  const webhookSecret = source.type === 'webhook' ? readWebhookTriggerSecret(context.db, row.id) : undefined
   const firings = context.db
     .query<
       {id: string; session_id: string | null; status: string; error: string | null; created_at: number},
@@ -9502,7 +9503,7 @@ async function writeTriggerAddress(
         [
           id,
           nodeCrypto.createHash('sha256').update(webhookSecret).digest(),
-          await encryptSecret(context.db, new TextEncoder().encode(webhookSecret)),
+          encryptSecret(context.db, new TextEncoder().encode(webhookSecret)),
           now,
         ],
       )
@@ -10783,7 +10784,7 @@ async function resolveWriteSigner(
     )
     .get(context.accountId, selected.secretName)
   if (!row) throw new APIError(400, 'Signing identity secret not found')
-  const keyPair = blobs.nobleKeyPairFromSeed(await decryptSecret(context.db, row.ciphertext))
+  const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(context.db, row.ciphertext))
   return {
     ...selected,
     keyPair,
@@ -12630,43 +12631,44 @@ function normalizeMessageContent(content: api.MessageSession['content']): Array<
   return messages
 }
 
-async function encryptSecret(db: Database, plaintext: Uint8Array): Promise<Uint8Array> {
+/**
+ * AES-256-GCM, laid out as nonce || ciphertext || tag — the same bytes WebCrypto produced before, so
+ * everything already stored stays readable. Deliberately synchronous: callers run inside SQLite
+ * transactions on the one shared connection, and an await there would let other requests
+ * interleave inside the open transaction.
+ */
+function encryptSecret(db: Database, plaintext: Uint8Array): Uint8Array {
   const keyBytes = getOrCreateSecretEncryptionKey(db)
-  const nonce = crypto.getRandomValues(new Uint8Array(SECRET_NONCE_BYTES))
-  const key = await crypto.subtle.importKey('raw', toArrayBuffer(keyBytes), 'AES-GCM', false, ['encrypt'])
-  const encrypted = new Uint8Array(
-    await crypto.subtle.encrypt({name: 'AES-GCM', iv: toArrayBuffer(nonce)}, key, toArrayBuffer(plaintext)),
-  )
-  const out = new Uint8Array(nonce.byteLength + encrypted.byteLength)
-  out.set(nonce)
-  out.set(encrypted, nonce.byteLength)
-  return out
+  const nonce = nodeCrypto.randomBytes(SECRET_NONCE_BYTES)
+  const cipher = nodeCrypto.createCipheriv('aes-256-gcm', keyBytes, nonce)
+  return new Uint8Array(Buffer.concat([nonce, cipher.update(plaintext), cipher.final(), cipher.getAuthTag()]))
 }
 
 /** The plaintext webhook secret for a trigger, or undefined when none was kept. */
-async function readWebhookTriggerSecret(db: Database, triggerId: string): Promise<string | undefined> {
+function readWebhookTriggerSecret(db: Database, triggerId: string): string | undefined {
   const row = db
     .query<{secret_ciphertext: Uint8Array | null}, [string]>(
       `SELECT secret_ciphertext FROM webhook_trigger_credentials WHERE trigger_id = ?`,
     )
     .get(triggerId)
   if (!row?.secret_ciphertext) return undefined
-  return new TextDecoder().decode(await decryptSecret(db, row.secret_ciphertext))
+  return new TextDecoder().decode(decryptSecret(db, row.secret_ciphertext))
 }
 
-async function decryptSecret(db: Database, ciphertext: Uint8Array): Promise<Uint8Array> {
-  if (ciphertext.byteLength <= SECRET_NONCE_BYTES) throw new APIError(500, 'Stored secret is invalid')
+function decryptSecret(db: Database, ciphertext: Uint8Array): Uint8Array {
+  if (ciphertext.byteLength <= SECRET_NONCE_BYTES + SECRET_TAG_BYTES)
+    throw new APIError(500, 'Stored secret is invalid')
   const keyBytes = getOrCreateSecretEncryptionKey(db)
-  const nonce = ciphertext.slice(0, SECRET_NONCE_BYTES)
-  const encrypted = ciphertext.slice(SECRET_NONCE_BYTES)
-  const key = await crypto.subtle.importKey('raw', toArrayBuffer(keyBytes), 'AES-GCM', false, ['decrypt'])
-  return new Uint8Array(
-    await crypto.subtle.decrypt({name: 'AES-GCM', iv: toArrayBuffer(nonce)}, key, toArrayBuffer(encrypted)),
-  )
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  const nonce = ciphertext.subarray(0, SECRET_NONCE_BYTES)
+  const tag = ciphertext.subarray(ciphertext.byteLength - SECRET_TAG_BYTES)
+  const encrypted = ciphertext.subarray(SECRET_NONCE_BYTES, ciphertext.byteLength - SECRET_TAG_BYTES)
+  const decipher = nodeCrypto.createDecipheriv('aes-256-gcm', keyBytes, nonce)
+  decipher.setAuthTag(tag)
+  try {
+    return new Uint8Array(Buffer.concat([decipher.update(encrypted), decipher.final()]))
+  } catch {
+    throw new APIError(500, 'Stored secret is invalid')
+  }
 }
 
 function getOrCreateSecretEncryptionKey(db: Database): Uint8Array {

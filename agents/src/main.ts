@@ -52,7 +52,13 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
       if (error instanceof apisvc.APIError) {
         return cbor.response({_: 'Error', message: error.message} satisfies api.ErrorResponse, {status: error.status})
       }
-      throw error
+      // A thrown non-API error must still come back as a CORS-bearing CBOR error: Bun's bare 500
+      // carries no Access-Control-Allow-Origin, which browsers report only as "Failed to fetch".
+      console.error('[Agents API] Unhandled error in', envelope.action?._, error)
+      const message = error instanceof Error ? error.message : String(error)
+      return cbor.response({_: 'Error', message: `Internal server error: ${message}`} satisfies api.ErrorResponse, {
+        status: 500,
+      })
     }
   }
 
@@ -481,7 +487,9 @@ async function main(): Promise<void> {
     scheduleMonitor.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
-    await server.stop()
+    // stop() waits for every open connection; clients whose sockets never finish closing would keep
+    // the process alive forever with its listener already gone, so force-close after a grace period.
+    await withTimeout(server.stop(), 3_000, 'stop http server').catch(() => server.stop(true))
     // Let in-flight background trigger runs finish their writes before closing the DB (bounded so a
     // stuck session can't block shutdown).
     await withTimeout(svc.drainTriggerSessions(), 5_000, 'drain trigger sessions').catch(() => {})

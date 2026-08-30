@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite'
 import {describe, expect, test} from 'bun:test'
 import * as apisvc from '@/api-service'
+import type * as api from '@/api'
 import * as cbor from '@/cbor'
 import {createAPIRoutes} from '@/main'
 import * as sqlite from '@/sqlite'
@@ -361,6 +362,67 @@ describe('main routes', () => {
       svc.stopRunQueue()
       db.close()
       cleanup()
+    }
+  })
+})
+
+describe('trigger creation under concurrent requests', () => {
+  test('a transactional request arriving on the account-change event does not fail', async () => {
+    const db = new Database(':memory:', {create: true, strict: true})
+    if (!sqlite.openWithDatabase(db).ok) throw new Error('unexpected schema mismatch')
+    const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-agents-concurrency-test-'))
+    const account = blobs.generateNobleKeyPair()
+    let agentId = ''
+    let burst: Promise<api.AgentResponse[]> | null = null
+    // The desktop refetches (and may create sessions) the instant it receives account-change, which
+    // the server emits from inside trigger creation.
+    const svc = new apisvc.Service(db, dataDir, {
+      onEvent: (event) => {
+        if (event.type !== 'account-change' || event.reason !== 'trigger-created') return
+        burst = Promise.all(
+          [
+            {_: 'GetAgent' as const, agentId},
+            {_: 'ListAgentTriggers' as const, agentId},
+            {_: 'CreateSession' as const, agentId, clientRequestId: 'burst-session'},
+          ].map(async (action) => svc.message(await apisvc.createSignedEnvelope(account, {action}))),
+        )
+      },
+    })
+    try {
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetModelProvider', name: 'openai', provider: {type: 'openai'}},
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateAgent', definition: {name: 'A', systemPrompt: 'x', modelProvider: 'openai', model: 'gpt'}},
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      agentId = createdAgent.agentId
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgentTrigger',
+            agentId,
+            clientRequestId: 'concurrent-create',
+            trigger: {name: 'Inbound', prompt: 'p', source: {type: 'webhook'}},
+          },
+        }),
+      )
+      expect(created._).toBe('CreateAgentTriggerResponse')
+      expect(burst).not.toBeNull()
+      const results = await burst!
+      expect(results.map((r) => r._)).toEqual([
+        'GetAgentResponse',
+        'ListAgentTriggersResponse',
+        'CreateSessionResponse',
+      ])
+    } finally {
+      svc.stopRunQueue()
+      db.close()
+      fs.rmSync(dataDir, {recursive: true, force: true})
     }
   })
 })
