@@ -28,6 +28,12 @@ export const appExperimentsSchema = z
     webImporting: z.boolean().optional(),
     nostr: z.boolean().optional(),
     developerTools: z.boolean().optional(),
+    /** Dev tools sub-toggle: the block-hover prediction cone overlay in editors. */
+    predictionConeDebug: z.boolean().optional(),
+    /** Dev tools sub-toggle: floating document state-machine status pill + debug drawer. */
+    documentMachineDebug: z.boolean().optional(),
+    /** Dev tools sub-toggle: floating editable/readOnly toggle pill in the editor. */
+    editorEditableDebug: z.boolean().optional(),
     pubContentDevMenu: z.boolean().optional(),
     newLibrary: z.boolean().optional(),
     embeddingEnabled: z.boolean().optional(),

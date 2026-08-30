@@ -10,6 +10,7 @@ import {
 } from '@shm/ui/agents/models'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
+import {useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
@@ -25,6 +26,7 @@ import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
+import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -33,7 +35,7 @@ import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.gener
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
+import {createInspectNavRouteFromRoute, DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
@@ -42,6 +44,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
@@ -53,6 +56,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
+import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
 import {useQuery} from '@tanstack/react-query'
 import {
@@ -61,12 +65,14 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  Database,
   Lock,
   LogIn,
   LogOut,
   PanelLeftClose,
   PanelRightClose,
   Plus,
+  Route,
   Search,
   Settings,
   User,
@@ -193,6 +199,14 @@ export function AccountProfileButton() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [switcherOpen, setSwitcherOpen] = useState(false)
   const requestedSyncForMenuOpen = useRef(false)
+  const route = useNavRoute()
+  const {data: experiments} = useExperiments()
+  const queryDevtoolsIsOpen = useStream(queryDevtoolsOpen)
+  const routeDialog = useAppDialog(RouteDialog)
+  const inspectRoute = useMemo(
+    () => (route.key === 'inspect' || route.key === 'inspect-ipfs' ? null : createInspectNavRouteFromRoute(route)),
+    [route],
+  )
   const createAccountDialog = useCreateAccountDialog()
   const authDialog = useDesktopAuthDialog()
   const [logoutOpen, setLogoutOpen] = useState(false)
@@ -420,6 +434,28 @@ export function AccountProfileButton() {
             <Settings className="size-4" />
             App settings
           </DropdownMenuItem>
+          {experiments?.developerTools ? (
+            <>
+              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              <DropdownMenuLabel className="text-muted-foreground text-xs font-bold tracking-wider">
+                DEVELOPERS
+              </DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setQueryDevtoolsOpen(!queryDevtoolsIsOpen)}>
+                <Database className="size-4" />
+                {queryDevtoolsIsOpen ? 'Hide React Query Devtools' : 'Show React Query Devtools'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => routeDialog.open(route)}>
+                <Route className="size-4" />
+                View Route
+              </DropdownMenuItem>
+              {inspectRoute ? (
+                <DropdownMenuItem onClick={() => navigate(inspectRoute)}>
+                  <Search className="size-4" />
+                  Inspect
+                </DropdownMenuItem>
+              ) : null}
+            </>
+          ) : null}
           {canLogOut ? (
             <>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
@@ -445,6 +481,7 @@ export function AccountProfileButton() {
       />
       {authDialog.content}
       {createAccountDialog.content}
+      {routeDialog.content}
     </>
   )
 }

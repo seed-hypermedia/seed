@@ -15,16 +15,18 @@ import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
-import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {dialogBoxShadow, useAppDialog} from '@shm/ui/universal-dialog'
-import {ReactQueryDevtools} from '@tanstack/react-query-devtools'
+import {useStream} from '@shm/shared/use-stream'
+import {ReactQueryDevtoolsPanel} from '@tanstack/react-query-devtools'
 import {ReactNode, useRef} from 'react'
 import {useAppContext} from '../app-context'
 import {encodeRouteToPath} from './route-encoding'
 import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
+
+// Developer-only React Query devtools panel. Toggled from the DEVELOPERS section of the account dropdown.
+export const [setQueryDevtoolsOpen, queryDevtoolsOpen] = writeableStateStream<boolean>(false)
 
 const navigation = {
   dispatch(action: NavAction) {
@@ -176,28 +178,21 @@ function PushAfterActionSetter({
 
 function DevTools() {
   const {data: experiments} = useExperiments()
-  const route = useNavRoute()
-  const routeDialog = useAppDialog(RouteDialog)
-  return experiments?.developerTools ? (
-    <>
-      <div className="select-none">
-        <ReactQueryDevtools />
-      </div>
-      <div
-        className="absolute bottom-5 left-15 z-40 bg-white dark:bg-black"
-        style={{
-          boxShadow: dialogBoxShadow,
-        }}
-      >
-        <Button variant="outline" onClick={() => routeDialog.open(route)}>
-          View Route
-        </Button>
-      </div>
-      {routeDialog.content}
-    </>
-  ) : null
+  const isOpen = useStream(queryDevtoolsOpen)
+  if (!experiments?.developerTools || !isOpen) return null
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 select-none" style={{height: 400}}>
+      <ReactQueryDevtoolsPanel
+        isOpen
+        setIsOpen={setQueryDevtoolsOpen}
+        onDragStart={() => {}}
+        showCloseButton
+        style={{height: '100%'}}
+      />
+    </div>
+  )
 }
 
-function RouteDialog({input}: {input: NavRoute}) {
+export function RouteDialog({input}: {input: NavRoute}) {
   return <code style={{whiteSpace: 'pre-wrap'}}>{JSON.stringify(input, null, 2)}</code>
 }

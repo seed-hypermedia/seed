@@ -41,6 +41,7 @@ import {
 import {Checkbox} from '@shm/ui/components/checkbox'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {Switch} from '@shm/ui/components/switch'
 import {Label} from '@shm/ui/components/label'
 import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -594,9 +595,6 @@ export function DeveloperSettings() {
       })
     },
   })
-  const openDraftLogs = useMutation({
-    mutationFn: () => client.diagnosis.openDraftLogFolder.mutate(),
-  })
 
   function handleEmbeddingToggle() {
     const newState = !embeddingEnabled
@@ -612,7 +610,7 @@ export function DeveloperSettings() {
 
   return (
     <>
-      <SettingsCard label="DEVELOPERS">
+      <SettingsCard label="ADVANCED SEARCH">
         <SettingsRow
           label="Embedding / AI Features"
           description="Enable AI-powered document embeddings for semantic search and related content features. This will restart the background service."
@@ -622,7 +620,8 @@ export function DeveloperSettings() {
             </Button>
           }
         />
-        <Separator />
+      </SettingsCard>
+      <SettingsCard label="DEVELOPERS">
         <SettingsRow
           label="Developer Tools"
           description="Adds features across the app for helping diagnose issues. Mostly useful for Seed Developers."
@@ -636,7 +635,56 @@ export function DeveloperSettings() {
             </Button>
           }
         />
-        <Separator />
+        {enabledDevTools ? (
+          <>
+            <Separator />
+            <SettingsRow
+              label="Publication Content Dev Tools"
+              description="Debug options for the formatting of all publication content"
+              right={
+                <Switch
+                  checked={!!enabledPubContentDevMenu}
+                  onCheckedChange={(checked) => writeExperiments.mutate({pubContentDevMenu: checked})}
+                />
+              }
+            />
+            <Separator />
+            <SettingsRow
+              label="Block Prediction Cone"
+              description="Overlay the pointer prediction cone used to keep block hover actions stable."
+              right={
+                <Switch
+                  checked={!!experiments?.predictionConeDebug}
+                  onCheckedChange={(checked) => writeExperiments.mutate({predictionConeDebug: checked})}
+                />
+              }
+            />
+            <Separator />
+            <SettingsRow
+              label="Document State Machine"
+              description="Floating status pill and debug drawer (Cmd+Shift+D) for the document state machine."
+              right={
+                <Switch
+                  checked={!!experiments?.documentMachineDebug}
+                  onCheckedChange={(checked) => writeExperiments.mutate({documentMachineDebug: checked})}
+                />
+              }
+            />
+            <Separator />
+            <SettingsRow
+              label="Editor Editable Toggle"
+              description="Floating pill to flip the editor between editable and read-only."
+              right={
+                <Switch
+                  checked={!!experiments?.editorEditableDebug}
+                  onCheckedChange={(checked) => writeExperiments.mutate({editorEditableDebug: checked})}
+                />
+              }
+            />
+          </>
+        ) : null}
+      </SettingsCard>
+      <SettingsCard label="GENERAL">
         <SettingsRow
           label="Advanced Copy Link Options"
           description="Shows separate Canonical, Gateway, and Hypermedia URL choices in document menus."
@@ -651,21 +699,7 @@ export function DeveloperSettings() {
           }
         />
         <Separator />
-        <SettingsRow
-          label="Publication Content Dev Tools"
-          description="Debug options for the formatting of all publication content"
-          right={
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => writeExperiments.mutate({pubContentDevMenu: !enabledPubContentDevMenu})}
-            >
-              {enabledPubContentDevMenu ? 'Disable Publication Panel' : 'Enable Publication Panel'}
-            </Button>
-          }
-        />
-        <Separator />
-        <SettingsRow label="Draft Logs" description="Open draft Log Folder" right={<DeleteDraftLogs />} />
+        <SettingsRow label="Draft Logs" description="Delete the draft log folder" right={<DeleteDraftLogs />} />
       </SettingsCard>
       <AlertDialog open={showEmbeddingConfirm} onOpenChange={setShowEmbeddingConfirm}>
         <AlertDialogPortal>

@@ -98,7 +98,9 @@ export function HyperMediaEditorView({
           </>
         )}
         <FullBlockSelectionObserver editor={editor} onBlocksFullSelected={onBlocksFullSelected} />
-        {experiments?.developerTools && <PredictionConeDebugOverlay editor={editor} />}
+        {experiments?.developerTools && experiments?.predictionConeDebug && (
+          <PredictionConeDebugOverlay editor={editor} />
+        )}
       </BlockNoteView>
       <ImageGalleryOverlay editor={editor} resolveImageUrl={resolveImageUrl} />
       {hasPublishedVersion && (
@@ -118,11 +120,11 @@ export function HyperMediaEditorView({
 
 /**
  * Debug toggle for editor editable state.
- * Only renders when the developerTools experiment flag is enabled.
+ * Only renders when developerTools + editorEditableDebug experiment flags are enabled.
  */
 function EditorEditableToggle({editor, onToggle}: {editor: HyperMediaEditor; onToggle: (editable: boolean) => void}) {
   const experiments = useUniversalAppContext().experiments
-  if (!experiments?.developerTools) return null
+  if (!experiments?.developerTools || !experiments?.editorEditableDebug) return null
 
   const editable = editor.isEditable
   return (

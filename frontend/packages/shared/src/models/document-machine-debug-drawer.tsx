@@ -52,12 +52,12 @@ export interface DocumentMachineDebugDrawerProps {
  * Debug drawer for the document state machine.
  * Shows current state, key context fields, event log, and quick event sender.
  *
- * Gated by the `developerTools` experiment flag — renders null when off.
+ * Gated by the `developerTools` + `documentMachineDebug` experiment flags — renders null when off.
  * Must be rendered inside a `DocumentMachineProvider` tree.
  */
 export function DocumentMachineDebugDrawer({store}: DocumentMachineDebugDrawerProps) {
   const experiments = useUniversalAppContext().experiments
-  const enabled = !!experiments?.developerTools
+  const enabled = !!experiments?.developerTools && !!experiments?.documentMachineDebug
   const [isOpen, setIsOpen] = useState(false)
 
   // Keyboard shortcut: Cmd/Ctrl + Shift + D

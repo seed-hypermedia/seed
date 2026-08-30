@@ -6,7 +6,13 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
 import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
-import {activityFilterToSlug, activitySlugToFilter, isSiteProfileTab, SITE_PROFILE_TABS} from './utils/entity-id-url'
+import {
+  activityFilterToSlug,
+  activitySlugToFilter,
+  hmId,
+  isSiteProfileTab,
+  SITE_PROFILE_TABS,
+} from './utils/entity-id-url'
 
 export const PROFILE_TABS = [
   'profile', //default tab
@@ -833,6 +839,12 @@ export function createInspectNavRouteFromRoute(route: NavRoute): InspectRoute | 
     }
     case 'site-profile':
       return createInspectNavRoute(route.id, route.tab, null, null, route.accountUid)
+    case 'profile':
+    case 'contact':
+      return createInspectNavRoute(route.id)
+    case 'draft':
+      // A draft editing an existing document inspects that document; brand-new drafts have nothing published to inspect.
+      return route.editUid ? createInspectNavRoute(hmId(route.editUid, {path: route.editPath ?? null})) : null
     default:
       return null
   }
