@@ -118,6 +118,7 @@ import {
   TriggerContinuationFields,
   TriggerSourceFields,
   isHeadlessContinuation,
+  triggerUsesPrompt,
   summarizeTriggerContinuation,
   summarizeTriggerSource,
 } from './trigger-types'
@@ -2262,14 +2263,16 @@ function AgentTriggersTab({
                       secret={trigger.data?.webhookSecret}
                     />
                   ) : null}
-                  <div className="flex flex-col gap-1">
-                    <SizableText size="sm" weight="bold">
-                      {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
-                    </SizableText>
-                    <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
-                      {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
-                    </pre>
-                  </div>
+                  {triggerUsesPrompt(continuation) ? (
+                    <div className="flex flex-col gap-1">
+                      <SizableText size="sm" weight="bold">
+                        {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
+                      </SizableText>
+                      <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
+                        {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
+                      </pre>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="grid gap-4">
@@ -2308,25 +2311,28 @@ function AgentTriggersTab({
                       setDetailsDirty(true)
                     }}
                   />
-                  <div className="flex flex-col gap-1">
-                    <SizableText size="sm" weight="bold">
-                      {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
-                    </SizableText>
-                    {isHeadlessContinuation(continuation) ? (
-                      <SizableText size="xs" color="muted">
-                        {continuation.onFailure === 'thread'
-                          ? 'Starts the thread a model gets when the tool or script fails; the failure and the run are attached as context.'
-                          : 'Only used if you turn on starting a thread on failure.'}
+                  {triggerUsesPrompt(continuation) ? (
+                    <div className="flex flex-col gap-1">
+                      <SizableText size="sm" weight="bold">
+                        {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
                       </SizableText>
-                    ) : null}
-                    <AgentPromptEditor
-                      key={selected.id}
-                      initialBlocks={prompt}
-                      onChange={(blocks) => {
-                        setPrompt(blocks)
-                        setDetailsDirty(true)
-                      }}
-                    />
+                      {isHeadlessContinuation(continuation) ? (
+                        <SizableText size="xs" color="muted">
+                          Starts the thread a model gets when the tool or script fails; the failure and the run are
+                          attached as context.
+                        </SizableText>
+                      ) : null}
+                      <AgentPromptEditor
+                        key={selected.id}
+                        initialBlocks={prompt}
+                        onChange={(blocks) => {
+                          setPrompt(blocks)
+                          setDetailsDirty(true)
+                        }}
+                      />
+                    </div>
+                  ) : null}
+                  <div className="flex flex-col gap-1">
                     <SizableText size="xs" color={detailsSaveState === 'error' ? undefined : 'muted'}>
                       {detailsSaveState === 'saving'
                         ? 'Saving…'
@@ -2462,7 +2468,9 @@ function CreateAgentTriggerDialog({
         name,
         enabled: true,
         source,
-        prompt: promptBlocksForRequest(prompt),
+        // A headless trigger that does not escalate has no use for a prompt, and the field is not
+        // shown for it; leaving it out lets the server store its default recovery prompt.
+        ...(triggerUsesPrompt(continuation) ? {prompt: promptBlocksForRequest(prompt)} : {}),
         ...(continuation.kind === 'newThread' ? {} : {continuation}),
       }
       const requestKey = JSON.stringify(trigger)
@@ -2526,25 +2534,26 @@ function CreateAgentTriggerDialog({
         tools={agentTools.data?.tools}
         onChange={setContinuation}
       />
-      <div className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
-        </SizableText>
-        <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
-        {isHeadlessContinuation(continuation) ? (
-          <SizableText size="xs" color="muted">
-            {continuation.onFailure === 'thread'
-              ? 'Starts the thread a model gets when the tool or script fails; the failure and the run are attached as context.'
-              : 'Only used if you turn on starting a thread on failure.'}
+      {triggerUsesPrompt(continuation) ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
           </SizableText>
-        ) : null}
-        {source.type === 'webhook' && !isHeadlessContinuation(continuation) ? (
-          <SizableText size="xs" color="muted">
-            This prompt tells the agent how to handle each delivery. The posted JSON is supplied separately as untrusted
-            trigger data.
-          </SizableText>
-        ) : null}
-      </div>
+          <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
+          {isHeadlessContinuation(continuation) ? (
+            <SizableText size="xs" color="muted">
+              Starts the thread a model gets when the tool or script fails; the failure and the run are attached as
+              context.
+            </SizableText>
+          ) : null}
+          {source.type === 'webhook' && !isHeadlessContinuation(continuation) ? (
+            <SizableText size="xs" color="muted">
+              This prompt tells the agent how to handle each delivery. The posted JSON is supplied separately as
+              untrusted trigger data.
+            </SizableText>
+          ) : null}
+        </div>
+      ) : null}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>
           Cancel

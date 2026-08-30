@@ -719,6 +719,15 @@ export function summarizeTriggerContinuation(continuation: TriggerContinuation |
   return `Runs a script with no model${escalates}`
 }
 
+/**
+ * Whether a trigger's prompt has any role: it starts every thread of a `newThread` trigger, and is
+ * the recovery thread's opener for a headless one that escalates on failure. A headless trigger
+ * that does not escalate never uses it, so nothing about it is shown.
+ */
+export function triggerUsesPrompt(continuation: TriggerContinuation | undefined): boolean {
+  return !isHeadlessContinuation(continuation) || continuation.onFailure === 'thread'
+}
+
 /** True when the continuation runs without a model unless something fails. */
 export function isHeadlessContinuation(
   continuation: TriggerContinuation | undefined,
