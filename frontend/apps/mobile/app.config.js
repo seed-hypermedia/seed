@@ -26,6 +26,10 @@ module.exports = ({ config }) => {
         ...config.ios.infoPlist,
         CFBundleDisplayName: 'Seed Dev',
         CFBundleName: 'Seed Dev',
+        // ATS blocks cleartext HTTP to the tailscale CGNAT range (100.64/10 is
+        // not "local networking" to iOS), which would silently kill every
+        // request to the remote Metro server. Dev build only, so allow it.
+        NSAppTransportSecurity: { NSAllowsArbitraryLoads: true },
       },
     },
     android: {
