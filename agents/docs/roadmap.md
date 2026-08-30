@@ -56,7 +56,9 @@ Remaining work:
 
 - the content-addressed document form (CID per trigger, like `~/tools/`), and the migration off `agent_triggers` that
   carries firing keys forward so nothing re-fires;
-- the `document-change` source and the `appendTo` continuation (`runPlan` waits for `~/plans/` to exist);
+- the `document-change` source and the `appendTo` continuation (`runPlan` waits for `~/plans/` to exist); the `tool` and
+  `script` continuations shipped 2026-08-30 (`trigger-continuations.md`) — a firing can now run code with no model and
+  escalate to a thread only on failure;
 - deletion of the trigger CRUD actions, and the desktop editor that replaces them — including a form for `run-completed`
   triggers, which today can only be created through the API or an agent's `write ~/triggers/<name>`.
 

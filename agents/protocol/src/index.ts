@@ -536,7 +536,12 @@ export type AgentTriggerInput = {
   name: string
   enabled?: boolean
   source: AgentTriggerSource
-  prompt: string | AgentPromptBlock[]
+  /**
+   * The first message of the thread a firing starts. Required for `newThread` (the default);
+   * optional for `tool`/`script` continuations, where it is only used when `onFailure: 'thread'`
+   * escalates a failed run (a default recovery prompt is stored when omitted).
+   */
+  prompt?: string | AgentPromptBlock[]
   /** Defaults to starting a new thread. */
   continuation?: TriggerContinuation
 }
@@ -581,6 +586,30 @@ export type TriggerContinuation =
    * account's parked runs are searched for one this signal satisfies.
    */
   | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
+  /**
+   * Call one tool headlessly — no model is involved. `tool` is any of the agent's callable tools
+   * (a builtin like `search` or `execute`, an authored `~/tools/<name>` lambda, an MCP tool) or the
+   * `read`/`write` verb. `input` defaults to the trigger event itself; when given it is a JSON
+   * template whose string values `"$event"` and `"$event.<path>"` are replaced from the event
+   * (for a webhook, `"$event.payload"` is the posted JSON). The call runs as a `workflow` run
+   * linked from the firing (`TriggerFiringInfo.runId`), so it is journaled, cancelable, and
+   * readable with `read run:<id>`.
+   */
+  | {kind: 'tool'; tool: string; input?: unknown; onFailure?: TriggerFailurePolicy}
+  /**
+   * Run a workflow script headlessly: the same `export default async function (input, ctx)`
+   * module a script child takes, with `ctx.input = {event, input, trigger: {id, name, firingId}}`.
+   * The script calls tools with `ctx.call` and involves a model only when it chooses to, with
+   * `ctx.delegate`. Linted when the trigger is written.
+   */
+  | {kind: 'script'; script: string; input?: unknown; onFailure?: TriggerFailurePolicy}
+
+/**
+ * What a headless (`tool` / `script`) continuation does when its run fails: `none` (default)
+ * records the error on the firing and the trigger; `thread` additionally starts a normal thread
+ * from the trigger's prompt with the failure attached, so a model can investigate and recover.
+ */
+export type TriggerFailurePolicy = 'none' | 'thread'
 
 /** Schedule configuration that decides when an agent trigger fires. */
 export type AgentScheduleTrigger =
@@ -1710,11 +1739,31 @@ export type ListAgentTriggersResponse = {
   triggers: AgentTriggerInfo[]
 }
 
+/** One time a trigger fired, as shown on its page. */
+export type TriggerFiringInfo = {
+  id: string
+  /**
+   * `created` (thread started), `running`/`succeeded` (headless run), `delivered`/`no-listener`
+   * (wake), `error`, or `escalated` (headless run failed and a recovery thread was started).
+   */
+  status: string
+  error?: string
+  createdAt: number
+  activityKey: string
+  activitySummary: string
+  /** The thread this firing started, when it started one. */
+  sessionId?: string
+  /** The headless run this firing started, for tool/script continuations. */
+  runId?: string
+}
+
 /** Successful response for `GetAgentTrigger`. */
 export type GetAgentTriggerResponse = {
   _: 'GetAgentTriggerResponse'
   trigger: AgentTriggerInfo
   sessions: SessionInfo[]
+  /** Most recent firings first (at most 25), whatever their continuation. */
+  firings: TriggerFiringInfo[]
   /**
    * The webhook secret (last path segment of the delivery URL), present only for webhook triggers
    * and only when the requesting account can edit the agent. Absent for read-only collaborators

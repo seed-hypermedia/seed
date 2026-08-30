@@ -3,6 +3,7 @@ import {type AgentRunActivity, type AgentSessionTriggerContext} from './client'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {SessionSummaryBanner} from './session-children'
 import {useChatAutoScroll} from './chat-autoscroll'
+import {describeAgentError} from './errors'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
 import {
   addOptimisticSessionMessage,
@@ -48,6 +49,7 @@ import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -478,9 +480,11 @@ function AgentSessionPage({
       <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col pr-1 pl-4">
         {session.isLoading ? <SizableText color="muted">Loading session…</SizableText> : null}
         {session.isError ? (
-          <SizableText className="text-destructive">
-            {session.error instanceof Error ? session.error.message : 'Could not load session'}
-          </SizableText>
+          <SessionLoadNotice
+            error={session.error}
+            onRetry={() => void session.refetch()}
+            retryPending={session.isFetching}
+          />
         ) : null}
         {session.data ? (
           <div className="flex min-h-0 flex-1 flex-col">
@@ -739,6 +743,23 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
     </pre>
   )
 })
+
+function SessionLoadNotice({
+  error,
+  onRetry,
+  retryPending,
+}: {
+  error: unknown
+  onRetry: () => void
+  retryPending: boolean
+}) {
+  const notice = describeAgentError(error, {failed: 'Couldn’t load this session'})
+  return (
+    <Notice tone={notice.tone} title={notice.title} onRetry={onRetry} retryPending={retryPending} className="my-4">
+      {notice.detail}
+    </Notice>
+  )
+}
 
 export default function AgentSessionRoutePage() {
   const route = useNavRoute()

@@ -328,7 +328,7 @@ describe('SpaceAgentsSettings', () => {
     mockState.localServerUrl = 'http://localhost:3050'
     mockState.metadata = {agentServerUrl: 'http://localhost:3050'}
     render()
-    expect(container.textContent).toContain('Local Agents runs only on this computer')
+    expect(container.textContent).toContain('Visitors can’t reach Local Agents')
   })
 
   it('hides the published list until a server is chosen', () => {

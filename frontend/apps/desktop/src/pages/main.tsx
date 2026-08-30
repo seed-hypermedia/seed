@@ -59,6 +59,7 @@ var Agents = lazy(() => import('./agents'))
 var AgentServer = lazy(() => import('@shm/ui/agents/server'))
 var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
 var AgentSession = lazy(() => import('@shm/ui/agents/session'))
+var AgentRun = lazy(() => import('@shm/ui/agents/run'))
 var Profile = lazy(() => import('./profile'))
 var Notifications = lazy(() => import('./notifications'))
 var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
@@ -471,6 +472,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'agent-session':
       return {
         PageComponent: AgentSession,
+        Fallback: BaseLoading,
+      }
+    case 'agent-run':
+      return {
+        PageComponent: AgentRun,
         Fallback: BaseLoading,
       }
     case 'feed':

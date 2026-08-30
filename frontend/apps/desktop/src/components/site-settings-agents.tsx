@@ -4,6 +4,7 @@ import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
 import {useSelectedAccountId} from '@shm/ui/agents/account'
+import {describeAgentError} from '@shm/ui/agents/errors'
 import {normalizeAgentServerUrl, type AgentInfo} from '@shm/ui/agents/client'
 import {
   describeAgentServer,
@@ -24,6 +25,7 @@ import {
 import {Button} from '@shm/ui/button'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
+import {Notice, NOTICE_TONE_TEXT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -203,10 +205,9 @@ export function SpaceAgentsSettings({siteId}: {siteId: UnpackedHypermediaId}) {
         {isLocal ? (
           // Not offered by the dropdown, but a space that already advertises it needs to be told why
           // that is broken rather than left to wonder where its readers' agents went.
-          <SizableText size="xs" className="text-destructive">
-            Local Agents runs only on this computer, so visitors to your space cannot reach it. Choose a server they
-            can.
-          </SizableText>
+          <Notice size="sm" tone="warning" title="Visitors can’t reach Local Agents">
+            It runs only on this computer. Choose a server your readers can connect to.
+          </Notice>
         ) : null}
       </div>
 
@@ -322,7 +323,7 @@ function PublishedAgentRow({
             Not on this server, or not visible to you
           </SizableText>
         ) : !agent.publicRead ? (
-          <SizableText size="xs" className="text-destructive block">
+          <SizableText size="xs" className={`${NOTICE_TONE_TEXT_CLASS.warning} block`}>
             Private — readers of this space cannot see it
           </SizableText>
         ) : null}
@@ -361,10 +362,11 @@ function AddAgentControl({
 }) {
   if (agentList.isInitialLoading) return <Spinner />
   if (agentList.isError) {
+    const notice = describeAgentError(agentList.error, {failed: 'Couldn’t load the server’s agents'})
     return (
-      <SizableText size="xs" className="text-destructive">
-        {agentList.error instanceof Error ? agentList.error.message : 'Could not reach the agents server'}
-      </SizableText>
+      <Notice size="sm" tone={notice.tone} title={notice.title}>
+        {notice.detail}
+      </Notice>
     )
   }
   return (

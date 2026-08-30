@@ -195,7 +195,8 @@ describe('agents list — local server presentation', () => {
 
     const dots = statusDots(container)
     expect(dots).toHaveLength(2)
-    expect(dots.some((dot) => dot.className.includes('bg-destructive'))).toBe(true)
+    // Unreachable is a warning, not an error: the server may simply be starting up.
+    expect(dots.some((dot) => dot.className.includes('bg-amber-500'))).toBe(true)
 
     cleanupRendered(root, container)
   })

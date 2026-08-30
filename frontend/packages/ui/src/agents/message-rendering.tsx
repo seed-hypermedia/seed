@@ -26,6 +26,7 @@ import {
 } from './tool-summary'
 import {useOpenUrl} from './navigation'
 import {useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from './models'
+import {Notice} from '@shm/ui/notice'
 import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from './run-work'
 import {useAccount} from '@shm/shared/models/entity'
 import {useRouteLink} from '@shm/shared/routing'
@@ -47,7 +48,6 @@ import {
   Info,
   Loader2,
   PenLine,
-  RotateCcw,
   Search,
   UserRound,
   Wrench,
@@ -118,12 +118,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
           rawMarkdownButton={rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
         />
       )}
-      {message.errorMessage ? (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive mt-1 mr-6 rounded-lg border px-3 py-2 text-xs">
-          <div className="mb-1 font-medium">Error</div>
-          <p className="whitespace-pre-wrap">{message.errorMessage}</p>
-        </div>
-      ) : null}
+      {message.errorMessage ? <AgentErrorRow message={message.errorMessage} className="mt-1" /> : null}
       {rawMarkdown ? (
         <Dialog open={showRawMarkdown} onOpenChange={setShowRawMarkdown}>
           {/* `w-full` is restated because passing a max-w overrides DialogContent's own; without a
@@ -328,41 +323,27 @@ export function AgentErrorRow({
   compact,
   onRetry,
   retryPending,
+  className,
 }: {
   message: string
-  /** Sidebar sizing: no frame, tighter type. */
+  /** Sidebar sizing: tighter type, no headline. */
   compact?: boolean
   /** Omitted when this error is not retryable, which is what hides the button. */
   onRetry?: () => void
   retryPending?: boolean
+  className?: string
 }) {
   return (
-    <div
-      className={
-        compact
-          ? 'text-destructive my-1 rounded-lg px-3 py-2 text-xs'
-          : 'border-destructive/30 bg-destructive/10 text-destructive mr-6 rounded-lg border px-3 py-2 text-xs'
-      }
+    <Notice
+      size="sm"
+      title={compact ? undefined : 'The agent hit an error'}
+      onRetry={onRetry}
+      retryPending={retryPending}
+      retryLabel={retryPending ? 'Retrying…' : 'Retry'}
+      className={compact ? `my-1 ${className ?? ''}` : `mr-6 ${className ?? ''}`}
     >
-      {compact ? null : <div className="mb-1 font-medium">Error</div>}
-      <p className="whitespace-pre-wrap">{message}</p>
-      {onRetry ? (
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={retryPending}
-          // Neutral inside the red frame: the error is the alarming part, retrying is not.
-          className="bg-background/75 hover:bg-background text-foreground mt-1.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.75 text-[10px] font-medium transition-colors disabled:opacity-60"
-        >
-          {retryPending ? (
-            <Loader2 className="size-2.5 shrink-0 animate-spin" />
-          ) : (
-            <RotateCcw className="size-2.5 shrink-0" />
-          )}
-          {retryPending ? 'Retrying…' : 'Retry'}
-        </button>
-      ) : null}
-    </div>
+      <span className="whitespace-pre-wrap">{message}</span>
+    </Notice>
   )
 }
 
@@ -1807,8 +1788,27 @@ function DelegateWorkDetails({
         </ToolDetailSection>
       ) : null}
 
-      {sessionId && serverUrl ? <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} /> : null}
+      {(sessionId || runId) && serverUrl ? (
+        <div className="flex items-center gap-3">
+          {sessionId ? <OpenTranscriptLink sessionId={sessionId} serverUrl={serverUrl} /> : null}
+          {runId ? <OpenRunLink runId={runId} serverUrl={serverUrl} /> : null}
+        </div>
+      ) : null}
     </div>
+  )
+}
+
+/** The child run's own page: the durable record, reachable even when the child has no transcript. */
+function OpenRunLink({runId, serverUrl}: {runId: string; serverUrl: string}) {
+  const clickNavigate = useClickNavigate()
+  return (
+    <button
+      type="button"
+      className="text-primary self-start text-[11px] hover:underline"
+      onClick={(event) => clickNavigate({key: 'agent-run', runId, serverUrl}, event)}
+    >
+      Open run →
+    </button>
   )
 }
 

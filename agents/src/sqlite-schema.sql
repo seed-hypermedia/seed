@@ -134,6 +134,7 @@ CREATE TABLE trigger_firings (
     session_id TEXT REFERENCES sessions (id),
     activity_cbor BLOB NOT NULL,
     body_digest BLOB,
+    run_id TEXT,
     status TEXT NOT NULL,
     error TEXT,
     created_at INTEGER NOT NULL,

@@ -1,4 +1,5 @@
 import {
+  describeAgentServer,
   isLocalAgentServer,
   LOCAL_AGENT_SERVER_LABEL,
   useAcceptAgentInvite,
@@ -18,6 +19,7 @@ import {hostnameStripProtocol} from '@shm/shared'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {Button} from '@shm/ui/button'
 import {Container, PanelContainer} from '@shm/ui/container'
+import {Notice, NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -25,6 +27,7 @@ import {Bot, Check, CircleUserRound, Mail, Settings, X} from 'lucide-react'
 import React, {useMemo} from 'react'
 import {AgentListRow} from './agent-row'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
+import {describeAgentError} from './errors'
 import {AgentsNoAccountPage} from './no-account'
 import {getAgentsPlatform} from './platform'
 import {AgentServersDialog} from './server-settings'
@@ -81,7 +84,23 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
     [agents, spaceAgents.agents],
   )
   const isLoadingAgents = agentQueries.some((query) => query.isFetching && !query.data)
-  const agentError = agentQueries.find((query) => query.isError)?.error
+  // One notice per failing server, named, so a single unreachable server reads as exactly that
+  // and never as "agents are broken": the other servers' agents are still listed below.
+  const serverProblems = serverUrls.flatMap((serverUrl, index) => {
+    const query = agentQueries[index]
+    if (!query?.isError) return []
+    return [
+      {
+        serverUrl,
+        notice: describeAgentError(query.error, {
+          failed: 'Couldn’t load agents',
+          serverLabel: describeAgentServer(serverUrl, localServerUrl.data),
+        }),
+        refetch: () => void query.refetch(),
+        isFetching: query.isFetching,
+      },
+    ]
+  })
   const createAgentDisabledReason = !serverUrls.length ? 'Configure an agent server before creating an agent.' : null
 
   return (
@@ -109,7 +128,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
           </div>
           {serverUrls.map((serverUrl, index) => {
             const health = healthQueries[index]
-            const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Offline' : 'Online'
+            const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Unreachable' : 'Online'
             const isLocal = isLocalAgentServer(serverUrl, localServerUrl.data)
             // The local server is part of the app, so an "online" indicator on it is noise. A
             // failure still shows, because that is a real problem the user needs to see.
@@ -131,7 +150,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                             health?.isLoading
                               ? 'bg-muted-foreground/40'
                               : health?.isError
-                                ? 'bg-destructive'
+                                ? NOTICE_TONE_DOT_CLASS.warning
                                 : 'bg-green-500'
                           } `}
                         />
@@ -232,12 +251,20 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
             </Tooltip>
           </div>
           {isLoadingAgents ? <SizableText color="muted">Loading agents…</SizableText> : null}
-          {agentError ? (
-            <SizableText className="text-destructive">
-              {agentError instanceof Error ? agentError.message : 'Could not load agents'}
-            </SizableText>
+          {serverProblems.map((problem) => (
+            <Notice
+              key={problem.serverUrl}
+              tone={problem.notice.tone}
+              title={problem.notice.title}
+              onRetry={problem.refetch}
+              retryPending={problem.isFetching}
+            >
+              {problem.notice.detail}
+            </Notice>
+          ))}
+          {!isLoadingAgents && !agents.length && !serverProblems.length ? (
+            <SizableText color="muted">No agents yet.</SizableText>
           ) : null}
-          {!isLoadingAgents && !agents.length ? <SizableText color="muted">No agents yet.</SizableText> : null}
           <div className="flex flex-col gap-2">
             {agents.map((agent) => (
               <AgentListRow

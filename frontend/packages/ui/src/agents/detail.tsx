@@ -8,6 +8,8 @@ import {
   type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerSource,
+  type TriggerContinuation,
+  type TriggerFiringInfo,
   type SessionInfo,
   type SigningIdentity,
   getAgentWebhookUrl,
@@ -24,6 +26,7 @@ import {
   useAgentAccountsSync,
   useAgentServerHealth,
   useAgentServerUrl,
+  describeAgentServer,
   useLocalAgentServerUrl,
   useAgentTools,
   useAgentTrigger,
@@ -48,6 +51,7 @@ import {
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
 } from './models'
+import {describeAgentError} from './errors'
 import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
 import {useSelectedAccountId} from './account'
 import {useClickNavigate, useNavigate} from './navigation'
@@ -56,6 +60,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {useAccount} from '@shm/shared/models/entity'
+import {type NavRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useRouteLink} from '@shm/shared/routing'
@@ -75,6 +80,7 @@ import {Textarea} from '@shm/ui/components/textarea'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
+import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -87,6 +93,7 @@ import {
   Globe,
   Info,
   KeyRound,
+  Link2,
   MessageSquare,
   Pencil,
   Plus,
@@ -108,7 +115,16 @@ import {
 } from './agent-tools'
 import {AgentMemoryTab} from './memory'
 import {AgentMcpServersSection} from './mcp-servers'
-import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
+import {
+  TriggerContinuationFields,
+  TriggerSourceFields,
+  isHeadlessContinuation,
+  triggerUsesPrompt,
+  summarizeTriggerContinuation,
+  summarizeTriggerSource,
+} from './trigger-types'
+import {getAgentsPlatform} from './platform'
+import {routeToHref} from '@shm/shared/routing'
 import {
   AddModelProviderDialog,
   EditAgentAccountDialog,
@@ -474,9 +490,13 @@ function AgentDetailPage({
             </div>
           ) : null}
           {agent.isError ? (
-            <SizableText className="text-destructive">
-              {agent.error instanceof Error ? agent.error.message : 'Could not load agent'}
-            </SizableText>
+            <AgentQueryNotice
+              error={agent.error}
+              failed="Couldn’t load this agent"
+              serverLabel={describeAgentServer(serverUrl, localServerUrl.data)}
+              onRetry={() => void agent.refetch()}
+              retryPending={agent.isFetching}
+            />
           ) : null}
           {agent.data ? (
             <>
@@ -1994,6 +2014,7 @@ function AgentTriggersTab({
 }) {
   const navigate = useNavigate()
   const trigger = useAgentTrigger(serverUrl, selectedAccountId, selectedTriggerId)
+  const gatewayUrl = useAgentsGatewayUrl()
   const updateTrigger = useUpdateAgentTrigger(serverUrl, selectedAccountId)
   const deleteTrigger = useDeleteAgentTrigger(serverUrl, selectedAccountId)
   const selected = trigger.data?.trigger
@@ -2004,14 +2025,16 @@ function AgentTriggersTab({
   const [enabled, setEnabled] = useState(true)
   const [prompt, setPrompt] = useState<HMBlockNode[]>([])
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
+  const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
+  const agentTools = useAgentTools(serverUrl, selectedAccountId, agentId)
   const [detailsDirty, setDetailsDirty] = useState(false)
   const [detailsSaveState, setDetailsSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const detailsSaveIdRef = useRef(0)
   const selectedTriggerRef = useRef<string | null>(null)
   const lastSavedDetailsKeyRef = useRef('')
   const currentDetailsKey = useMemo(() => {
-    return JSON.stringify({prompt, source})
-  }, [prompt, source])
+    return JSON.stringify({prompt, source, continuation})
+  }, [prompt, source, continuation])
   const currentDetailsKeyRef = useRef(currentDetailsKey)
   currentDetailsKeyRef.current = currentDetailsKey
   const nextScheduledFire = useMemo(
@@ -2030,12 +2053,15 @@ function AgentTriggersTab({
     if (!triggerChanged) return
     const nextPrompt = agentPromptToBlocks(selected.prompt)
     const nextSource = selected.source
+    const nextContinuation: TriggerContinuation = selected.continuation ?? {kind: 'newThread'}
     setEnabled(selected.enabled)
     setPrompt(nextPrompt)
     setSource(nextSource)
+    setContinuation(nextContinuation)
     lastSavedDetailsKeyRef.current = JSON.stringify({
       prompt: nextPrompt,
       source: nextSource,
+      continuation: nextContinuation,
     })
     setDetailsDirty(false)
     setDetailsSaveState('idle')
@@ -2103,7 +2129,7 @@ function AgentTriggersTab({
       void updateTrigger
         .mutateAsync({
           triggerId: selectedTriggerId,
-          patch: {prompt: promptBlocksForRequest(prompt), source},
+          patch: {prompt: promptBlocksForRequest(prompt), source, continuation},
         })
         .then((result) => {
           if (detailsSaveIdRef.current !== saveId) return
@@ -2127,7 +2153,17 @@ function AgentTriggersTab({
         })
     }, 800)
     return () => clearTimeout(timer)
-  }, [currentDetailsKey, detailsDirty, detailsSaveState, prompt, readOnly, selected, selectedTriggerId, source])
+  }, [
+    continuation,
+    currentDetailsKey,
+    detailsDirty,
+    detailsSaveState,
+    prompt,
+    readOnly,
+    selected,
+    selectedTriggerId,
+    source,
+  ])
 
   async function handleDeleteTrigger() {
     if (!selectedTriggerId) return
@@ -2156,28 +2192,49 @@ function AgentTriggersTab({
           backLabel="Back to agent triggers"
           onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'triggers'})}
           actions={
-            !readOnly ? (
-              <OptionsDropdown
-                align="end"
-                menuItems={[
-                  {
-                    key: 'delete-trigger',
-                    icon: <Trash2 className="size-4" />,
-                    label: 'Delete trigger',
-                    variant: 'destructive',
-                    onClick: () => void handleDeleteTrigger(),
-                  },
-                ]}
-              />
-            ) : null
+            <OptionsDropdown
+              align="end"
+              menuItems={[
+                {
+                  key: 'copy-trigger-link',
+                  icon: <Link2 className="size-4" />,
+                  label: 'Copy trigger link',
+                  onClick: () =>
+                    copyWithToast(
+                      agentsPageUrl(gatewayUrl, {
+                        key: 'agent',
+                        agentId,
+                        serverUrl,
+                        tab: 'triggers',
+                        triggerId: selectedTriggerId,
+                      }),
+                      'Trigger link',
+                    ),
+                },
+                ...(!readOnly
+                  ? [
+                      {
+                        key: 'delete-trigger',
+                        icon: <Trash2 className="size-4" />,
+                        label: 'Delete trigger',
+                        variant: 'destructive' as const,
+                        onClick: () => void handleDeleteTrigger(),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           }
         />
         <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
           {trigger.isLoading ? <SizableText color="muted">Loading trigger…</SizableText> : null}
           {trigger.isError ? (
-            <SizableText className="text-destructive">
-              {trigger.error instanceof Error ? trigger.error.message : 'Could not load trigger'}
-            </SizableText>
+            <AgentQueryNotice
+              error={trigger.error}
+              failed="Couldn’t load this trigger"
+              onRetry={() => void trigger.refetch()}
+              retryPending={trigger.isFetching}
+            />
           ) : null}
           {selected ? (
             <>
@@ -2191,6 +2248,14 @@ function AgentTriggersTab({
                       {summarizeTriggerSource(source)}
                     </SizableText>
                   </div>
+                  <div className="border-border bg-muted/40 rounded-lg border p-3">
+                    <SizableText size="sm" weight="bold" className="block">
+                      When it fires
+                    </SizableText>
+                    <SizableText size="sm" color="muted">
+                      {summarizeTriggerContinuation(continuation)}
+                    </SizableText>
+                  </div>
                   {source.type === 'webhook' ? (
                     <WebhookEndpointSection
                       serverUrl={serverUrl}
@@ -2198,14 +2263,16 @@ function AgentTriggersTab({
                       secret={trigger.data?.webhookSecret}
                     />
                   ) : null}
-                  <div className="flex flex-col gap-1">
-                    <SizableText size="sm" weight="bold">
-                      Prompt
-                    </SizableText>
-                    <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
-                      {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
-                    </pre>
-                  </div>
+                  {triggerUsesPrompt(continuation) ? (
+                    <div className="flex flex-col gap-1">
+                      <SizableText size="sm" weight="bold">
+                        {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
+                      </SizableText>
+                      <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
+                        {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
+                      </pre>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div className="grid gap-4">
@@ -2236,18 +2303,36 @@ function AgentTriggersTab({
                       secret={trigger.data?.webhookSecret}
                     />
                   ) : null}
+                  <TriggerContinuationFields
+                    continuation={continuation}
+                    tools={agentTools.data?.tools}
+                    onChange={(next) => {
+                      setContinuation(next)
+                      setDetailsDirty(true)
+                    }}
+                  />
+                  {triggerUsesPrompt(continuation) ? (
+                    <div className="flex flex-col gap-1">
+                      <SizableText size="sm" weight="bold">
+                        {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
+                      </SizableText>
+                      {isHeadlessContinuation(continuation) ? (
+                        <SizableText size="xs" color="muted">
+                          Starts the session a model gets when the tool or script fails; the failure and the run are
+                          attached as context.
+                        </SizableText>
+                      ) : null}
+                      <AgentPromptEditor
+                        key={selected.id}
+                        initialBlocks={prompt}
+                        onChange={(blocks) => {
+                          setPrompt(blocks)
+                          setDetailsDirty(true)
+                        }}
+                      />
+                    </div>
+                  ) : null}
                   <div className="flex flex-col gap-1">
-                    <SizableText size="sm" weight="bold">
-                      Prompt
-                    </SizableText>
-                    <AgentPromptEditor
-                      key={selected.id}
-                      initialBlocks={prompt}
-                      onChange={(blocks) => {
-                        setPrompt(blocks)
-                        setDetailsDirty(true)
-                      }}
-                    />
                     <SizableText size="xs" color={detailsSaveState === 'error' ? undefined : 'muted'}>
                       {detailsSaveState === 'saving'
                         ? 'Saving…'
@@ -2260,27 +2345,12 @@ function AgentTriggersTab({
                   </div>
                 </div>
               )}
-              <div className="border-border flex flex-col gap-2 border-t pt-5">
-                <SizableText weight="bold">Sessions created by this trigger</SizableText>
-                {!trigger.data?.sessions.length ? (
-                  <SizableText color="muted">No sessions created yet.</SizableText>
-                ) : null}
-                {trigger.data?.sessions.map((session) => (
-                  <SessionListItem
-                    key={session.id}
-                    session={session}
-                    serverUrl={serverUrl}
-                    accountUid={selectedAccountId}
-                    onOpen={() => navigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl})}
-                    onOpenSession={(child) =>
-                      navigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl})
-                    }
-                    onOpenTrigger={() =>
-                      navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.id})
-                    }
-                  />
-                ))}
-              </div>
+              <TriggerFiringsSection
+                firings={trigger.data?.firings ?? []}
+                sessions={trigger.data?.sessions ?? []}
+                agentId={agentId}
+                serverUrl={serverUrl}
+              />
               <div className="border-border grid gap-3 border-t pt-5 text-sm md:grid-cols-3">
                 <TriggerMeta label="Last checked" value={selected.lastCheckedAt} />
                 <TriggerMeta label="Last fired" value={selected.lastFiredAt} />
@@ -2364,6 +2434,8 @@ function CreateAgentTriggerDialog({
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
     agentPromptToBlocks('Respond to the event, performing the action requested.'),
   )
+  const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
+  const agentTools = useAgentTools(input.serverUrl, input.selectedAccountId, input.agentId)
   const createRequestId = useRef(crypto.randomUUID())
   const createRequestKey = useRef('')
 
@@ -2373,7 +2445,10 @@ function CreateAgentTriggerDialog({
         name,
         enabled: true,
         source,
-        prompt: promptBlocksForRequest(prompt),
+        // A headless trigger that does not escalate has no use for a prompt, and the field is not
+        // shown for it; leaving it out lets the server store its default recovery prompt.
+        ...(triggerUsesPrompt(continuation) ? {prompt: promptBlocksForRequest(prompt)} : {}),
+        ...(continuation.kind === 'newThread' ? {} : {continuation}),
       }
       const requestKey = JSON.stringify(trigger)
       if (createRequestKey.current && createRequestKey.current !== requestKey) {
@@ -2388,8 +2463,9 @@ function CreateAgentTriggerDialog({
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
       toast.success('Trigger created')
       onClose()
-      // A webhook's page is where its delivery URL lives, so land there straight away.
-      if (source.type === 'webhook') {
+      // A webhook's page is where its delivery URL lives, and a headless trigger's page is where its
+      // runs show up, so land there straight away.
+      if (source.type === 'webhook' || isHeadlessContinuation(continuation)) {
         navigate({
           key: 'agent',
           agentId: input.agentId,
@@ -2407,7 +2483,10 @@ function CreateAgentTriggerDialog({
     <div className="flex w-full max-w-full min-w-0 flex-col gap-5">
       <div>
         <DialogTitle>New trigger</DialogTitle>
-        <DialogDescription>Start a new agent session when the selected event occurs.</DialogDescription>
+        <DialogDescription>
+          When the selected event occurs, start a session for the agent — or run a tool or script with no model
+          involved.
+        </DialogDescription>
       </div>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
@@ -2428,18 +2507,31 @@ function CreateAgentTriggerDialog({
           if (!nameEdited.current) setName(defaultTriggerName(nextSource.type))
         }}
       />
-      <div className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Prompt
-        </SizableText>
-        <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
-        {source.type === 'webhook' ? (
-          <SizableText size="xs" color="muted">
-            This prompt tells the agent how to handle each delivery. The posted JSON is supplied separately as untrusted
-            trigger data.
+      <TriggerContinuationFields
+        continuation={continuation}
+        tools={agentTools.data?.tools}
+        onChange={setContinuation}
+      />
+      {triggerUsesPrompt(continuation) ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
           </SizableText>
-        ) : null}
-      </div>
+          <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
+          {isHeadlessContinuation(continuation) ? (
+            <SizableText size="xs" color="muted">
+              Starts the session a model gets when the tool or script fails; the failure and the run are attached as
+              context.
+            </SizableText>
+          ) : null}
+          {source.type === 'webhook' && !isHeadlessContinuation(continuation) ? (
+            <SizableText size="xs" color="muted">
+              This prompt tells the agent how to handle each delivery. The posted JSON is supplied separately as
+              untrusted trigger data.
+            </SizableText>
+          ) : null}
+        </div>
+      ) : null}
       <div className="flex justify-end gap-2">
         <Button variant="ghost" onClick={onClose}>
           Cancel
@@ -2458,12 +2550,110 @@ function defaultTriggerName(sourceType: AgentTriggerSource['type']): string {
   return 'New activity trigger'
 }
 
+/** The gateway the platform shares links through; the web UI's own origin when it has none. */
+function useAgentsGatewayUrl(): string | undefined {
+  const useGatewayUrl = getAgentsPlatform().useGatewayUrl ?? (() => undefined)
+  return useGatewayUrl()
+}
+
+/** An absolute link to a page of the web agents UI, which the desktop also opens in-app. */
+function agentsPageUrl(gatewayUrl: string | undefined, route: Parameters<typeof routeToHref>[0]): string {
+  const base = (gatewayUrl || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '')
+  return `${base}${routeToHref(route)}`
+}
+
 function copyWithToast(value: string, label: string) {
   toast.promise(copyTextToClipboard(value), {
     loading: '',
     success: `${label} copied`,
     error: `Could not copy ${label.toLowerCase()}`,
   })
+}
+
+const FIRING_STATUS_LABELS: Record<string, {label: string; className: string}> = {
+  created: {label: 'Session started', className: 'text-muted-foreground'},
+  running: {label: 'Running', className: 'text-blue-600 dark:text-blue-400'},
+  succeeded: {label: 'Succeeded', className: 'text-green-700 dark:text-green-400'},
+  delivered: {label: 'Delivered', className: 'text-green-700 dark:text-green-400'},
+  'no-listener': {label: 'Nobody listening', className: 'text-muted-foreground'},
+  error: {label: 'Failed', className: 'text-destructive'},
+  escalated: {label: 'Failed → session', className: 'text-amber-700 dark:text-amber-400'},
+}
+
+/**
+ * Every time the trigger fired, newest first — one list, whatever each firing produced. A firing
+ * that started (or escalated into) a session opens that session; a headless one opens its run
+ * page. The row itself is the link: what a firing produced is a property of the trigger's type,
+ * not a choice the reader should have to make per row.
+ */
+function TriggerFiringsSection({
+  firings,
+  sessions,
+  agentId,
+  serverUrl,
+}: {
+  firings: TriggerFiringInfo[]
+  /** The sessions those firings created, for naming rows by what came of them. */
+  sessions: SessionInfo[]
+  agentId: string
+  serverUrl: string
+}) {
+  const clickNavigate = useClickNavigate()
+  const sessionsById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
+  return (
+    <div className="border-border flex flex-col gap-2 border-t pt-5">
+      <SizableText weight="bold">Firings</SizableText>
+      {!firings.length ? <SizableText color="muted">This trigger has not fired yet.</SizableText> : null}
+      {firings.map((firing) => {
+        const status = FIRING_STATUS_LABELS[firing.status] ?? {label: firing.status, className: 'text-muted-foreground'}
+        const session = firing.sessionId ? sessionsById.get(firing.sessionId) : undefined
+        // The session is the richer destination when both exist: an escalated firing's session is
+        // where the failure got handled, and its run is one click away inside it.
+        const route: NavRoute | null = firing.sessionId
+          ? {key: 'agent-session', agentId, sessionId: firing.sessionId, serverUrl}
+          : firing.runId
+            ? {key: 'agent-run', runId: firing.runId, agentId, serverUrl}
+            : null
+        const body = (
+          <>
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <SizableText size="xs" weight="bold" className={`flex-none ${status.className}`}>
+                {status.label}
+              </SizableText>
+              <SizableText size="sm" className="min-w-0 flex-1 truncate">
+                {session?.title || firing.activitySummary}
+              </SizableText>
+              <SizableText size="xs" color="muted" className="flex-none">
+                {formattedDateMedium(new Date(firing.createdAt))}
+              </SizableText>
+            </div>
+            {firing.error ? (
+              <SizableText size="xs" className="text-destructive break-words">
+                {firing.error}
+              </SizableText>
+            ) : null}
+          </>
+        )
+        if (!route) {
+          return (
+            <div key={firing.id} className="border-border flex flex-col gap-1 rounded-lg border p-2.5">
+              {body}
+            </div>
+          )
+        }
+        return (
+          <button
+            key={firing.id}
+            type="button"
+            className="border-border hover:bg-muted/50 flex cursor-pointer flex-col gap-1 rounded-lg border p-2.5 text-left transition-colors"
+            onClick={(event) => clickNavigate(route, event)}
+          >
+            {body}
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 /** The delivery URL of an existing webhook trigger, shown on its detail page. */
@@ -2665,6 +2855,28 @@ function SessionListItem({
         </div>
       ) : null}
     </div>
+  )
+}
+
+/** A failed load of the page's subject, with the server named when it is not obvious from context. */
+function AgentQueryNotice({
+  error,
+  failed,
+  serverLabel,
+  onRetry,
+  retryPending,
+}: {
+  error: unknown
+  failed: string
+  serverLabel?: string
+  onRetry: () => void
+  retryPending: boolean
+}) {
+  const notice = describeAgentError(error, {failed, serverLabel})
+  return (
+    <Notice tone={notice.tone} title={notice.title} onRetry={onRetry} retryPending={retryPending}>
+      {notice.detail}
+    </Notice>
   )
 }
 

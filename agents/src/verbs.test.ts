@@ -471,6 +471,47 @@ describe('call verb', () => {
     expect(context.onMemoryChange).toHaveBeenCalled()
   })
 
+  test('a delegated child runs a lambda its spec carried without the general execute grant', async () => {
+    // Regression: the sandbox gate only honored 'execute' in callableTools, so a child narrowed to
+    // exactly the lambda it was handed could never run it.
+    const context = makeContext({
+      callableTools: ['search'],
+      definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm', tools: ['weather']} as never,
+    })
+    ;(context.codeExec as {execute: unknown}).execute = mock(async () => ({
+      exitCode: 0,
+      success: true,
+      stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":18}\n`,
+      stderr: '',
+      truncated: false,
+      durationMs: 2,
+      changedFiles: [],
+    }))
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 18})',
+    })
+
+    const result = await executeCallVerb(context, {tool: 'weather', input: {city: 'Porto'}}, 'tc-lambda-narrow')
+    expect(result.result).toEqual({tempC: 18})
+
+    // Without either the execute grant or the lambda's own name, the gate still refuses.
+    const ungranted = makeContext({callableTools: ['search']})
+    toolDocs.saveLambdaToolDocument(ungranted.db, ungranted.accountId, ungranted.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 18})',
+    })
+    await expect(executeCallVerb(ungranted, {tool: 'weather', input: {city: 'Porto'}}, undefined)).rejects.toThrow(
+      'runs code in the sandbox',
+    )
+  })
+
   test('a lambda call validates both edges and surfaces its failures', async () => {
     const context = makeContext()
     const behavior = {stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":"warm"}\n`, success: true, exitCode: 0}
@@ -702,6 +743,55 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     expect(reenabled.enabled).toBe(true)
     const rows = context.db.query<{id: string}, []>(`SELECT id FROM agent_triggers`).all()
     expect(rows.length).toBe(1)
+  })
+
+  test('headless continuations are validated when written and explained when read', async () => {
+    const context = makeContext()
+    const schedule = {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}}
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({source: schedule, continuation: {kind: 'tool', tool: 'no-such-tool'}}),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining("not one of this agent's tools")})
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({
+          source: schedule,
+          continuation: {kind: 'script', script: 'export default async function () { return fetch("x") }'},
+        }),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('Trigger script rejected')})
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({source: schedule, continuation: {kind: 'tool', tool: 'read', onFailure: 'shout'}}),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('onFailure')})
+    // A thread trigger still needs its prompt.
+    await expect(
+      executeWriteVerb(context, {address: '~/triggers/nope', content: JSON.stringify({source: schedule})}),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('prompt')})
+
+    const created = await executeWriteVerb(context, {
+      address: '~/triggers/hourly-read',
+      content: JSON.stringify({
+        source: schedule,
+        continuation: {kind: 'tool', tool: 'read', input: {address: '~/tools/'}, onFailure: 'thread'},
+      }),
+    })
+    expect(created.summary).toContain('calls tool "read" headlessly')
+    const read = await executeReadVerb(context, {address: '~/triggers/hourly-read'})
+    expect(read.continuation).toEqual({kind: 'tool', tool: 'read', input: {address: '~/tools/'}, onFailure: 'thread'})
+    expect(read.summary).toContain('starts a thread from the prompt if that fails')
+    // The stored recovery prompt is the default one, since none was written.
+    expect(String(read.prompt)).toContain('automation on this trigger failed')
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    const entry = (listing.triggers as Array<Record<string, unknown>>).find((row) => row.name === 'hourly-read')
+    expect(entry?.does).toContain('calls tool "read" headlessly')
+    expect(String(listing.contract)).toContain('{kind: "tool", tool, input?, onFailure?}')
+    expect(String(listing.contract)).toContain('{kind: "script", script, input?, onFailure?}')
   })
 
   test('agents create and edit webhook triggers with a customizable prompt and one-time credential', async () => {

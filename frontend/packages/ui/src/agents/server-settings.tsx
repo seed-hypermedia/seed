@@ -20,6 +20,7 @@ import {
   DialogTrigger,
 } from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {NOTICE_TONE_TEXT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -168,11 +169,11 @@ function AgentServerSettingsRow({
           </SizableText>
           {isDefault ? <Badge variant="secondary">Default</Badge> : null}
         </div>
-        <SizableText size="xs" className={health.isError ? 'text-destructive' : 'text-muted-foreground'}>
+        <SizableText size="xs" className={health.isError ? NOTICE_TONE_TEXT_CLASS.warning : 'text-muted-foreground'}>
           {health.isLoading
             ? 'Checking…'
             : health.isError
-              ? 'Offline or unreachable'
+              ? 'Unreachable'
               : `Online · uptime ${Math.floor((health.data?.uptime || 0) / 60)}m`}
         </SizableText>
       </div>

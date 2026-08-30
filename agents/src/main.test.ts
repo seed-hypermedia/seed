@@ -369,6 +369,88 @@ describe('main routes', () => {
   })
 })
 
+describe('webhook tool continuation', () => {
+  test('a delivery runs the tool headlessly with the body substituted into its input', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const svc = new apisvc.Service(db, dataDir)
+    try {
+      const account = blobs.generateNobleKeyPair()
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'SetModelProvider', name: 'openai', provider: {type: 'openai'}},
+        }),
+      )
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Hook', systemPrompt: 'x', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      db.run(`UPDATE agent_triggers SET enabled = 0 WHERE agent_id = ?`, [createdAgent.agentId])
+      const created = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgentTrigger',
+            agentId: createdAgent.agentId,
+            trigger: {
+              name: 'Read what they say',
+              source: {type: 'webhook'},
+              // No prompt: a headless trigger does not need one.
+              continuation: {kind: 'tool', tool: 'read', input: {address: '$event.payload.address'}},
+            },
+          },
+        }),
+      )
+      if (created._ !== 'CreateAgentTriggerResponse' || !created.webhookSecret) throw new Error('unexpected response')
+      const handler = getPostHandler(createAPIRoutes(svc), '/agents/api/webhooks/:triggerId/:secret')
+      const req = new Request(`http://agents.test/agents/api/webhooks/${created.trigger.id}/${created.webhookSecret}`, {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({address: '~/triggers/'}),
+      })
+      Object.defineProperty(req, 'params', {value: {triggerId: created.trigger.id, secret: created.webhookSecret}})
+      const res = await handler(req as never)
+      expect(res.status).toBe(202)
+      expect(db.query<{count: number}, []>(`SELECT count(*) AS count FROM sessions`).get()?.count).toBe(0)
+      const firing = db
+        .query<{id: string; run_id: string | null; status: string}, [string]>(
+          `SELECT id, run_id, status FROM trigger_firings WHERE trigger_id = ?`,
+        )
+        .get(created.trigger.id)
+      expect(firing?.run_id).toBe(`firing-${firing?.id}`)
+      await svc.drainTriggerSessions()
+      const run = db
+        .query<{status: string; output_cbor: Uint8Array | null; input_cbor: Uint8Array}, [string]>(
+          `SELECT status, output_cbor, input_cbor FROM runs WHERE id = ?`,
+        )
+        .get(firing!.run_id!)
+      expect(run?.status).toBe('succeeded')
+      // The template put the posted address into the tool input…
+      expect(JSON.stringify(cbor.decode(run!.input_cbor))).toContain('"address":"~/triggers/"')
+      // …and the read verb actually ran: the listing names the trigger itself.
+      expect(JSON.stringify(cbor.decode(run!.output_cbor!))).toContain('Read what they say')
+      const fetched = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgentTrigger', triggerId: created.trigger.id}}),
+      )
+      if (fetched._ !== 'GetAgentTriggerResponse') throw new Error('unexpected response')
+      expect(fetched.firings).toHaveLength(1)
+      expect(fetched.firings[0]).toMatchObject({
+        status: 'succeeded',
+        runId: firing!.run_id,
+        activityKey: expect.stringContaining('webhook:'),
+      })
+      expect(fetched.firings[0]!.sessionId).toBeUndefined()
+    } finally {
+      svc.stopRunQueue()
+      db.close()
+      cleanup()
+    }
+  })
+})
+
 describe('trigger creation under concurrent requests', () => {
   test('a transactional request arriving on the account-change event does not fail', async () => {
     const db = new Database(':memory:', {create: true, strict: true})

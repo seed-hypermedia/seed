@@ -9942,3 +9942,43 @@ describe('mcp servers', () => {
     }
   })
 })
+
+describe('narrowDefinitionTools', () => {
+  const parentBase = ['search', 'web_search', 'execute', 'publish']
+
+  test('a child that asks for the write verb keeps the parent\u2019s publish grant', () => {
+    // Regression: ctx.delegate({tools: ['read', 'write', \u2026]}) intersected verbs against
+    // callables, came up empty, and silently revoked publishing the parent had granted.
+    expect(apisvc.narrowDefinitionTools(parentBase, ['read', 'write', 'check_broken_links'])).toEqual(['publish'])
+    expect(apisvc.narrowDefinitionTools(parentBase, ['publish'])).toEqual(['publish'])
+    expect(apisvc.narrowDefinitionTools(parentBase, ['search', 'ipfs_write'])).toEqual(['search', 'publish'])
+  })
+
+  test('a child that does not ask to write loses the grant, and callables still intersect', () => {
+    expect(apisvc.narrowDefinitionTools(parentBase, ['read', 'search'])).toEqual(['search'])
+    expect(apisvc.narrowDefinitionTools(parentBase, ['read'])).toEqual([])
+  })
+
+  test('the grant only narrows: an ungranted parent yields nothing however the spec asks', () => {
+    expect(apisvc.narrowDefinitionTools(['search', 'execute'], ['read', 'write', 'publish'])).toEqual([])
+    expect(apisvc.narrowDefinitionTools(['search', 'execute'], ['execute_code', 'write'])).toEqual(['execute'])
+  })
+
+  test('a requested lambda rides on the parent\u2019s execute grant by its own name', () => {
+    // Regression: a spec naming an authored lambda narrowed 'execute' away, so the sandbox gate
+    // refused the very tool the spec asked for.
+    expect(
+      apisvc.narrowDefinitionTools(parentBase, ['read', 'write', 'check_broken_links'], ['check_broken_links']),
+    ).toEqual(['publish', 'check_broken_links'])
+    // The general execute callable stays absent unless the spec asked for it by name.
+    expect(apisvc.narrowDefinitionTools(parentBase, ['check_broken_links'], ['check_broken_links'])).toEqual([
+      'check_broken_links',
+    ])
+    // No execute grant on the parent: the lambda request is inert.
+    expect(
+      apisvc.narrowDefinitionTools(['search', 'publish'], ['write', 'check_broken_links'], ['check_broken_links']),
+    ).toEqual(['publish'])
+    // Names that are not lambdas of this agent never ride along.
+    expect(apisvc.narrowDefinitionTools(parentBase, ['made_up_tool'], ['check_broken_links'])).toEqual([])
+  })
+})

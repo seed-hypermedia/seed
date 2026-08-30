@@ -1,5 +1,7 @@
 import {type SessionInfo} from './client'
+import {describeAgentError} from './errors'
 import {useChildSessions} from './models'
+import {Notice} from '@shm/ui/notice'
 import {ChevronDown, ChevronRight} from 'lucide-react'
 import React, {useState} from 'react'
 
@@ -116,7 +118,15 @@ export function SubSessionsDisclosure({
             <span className={`text-muted-foreground px-2 py-1 ${textClass}`}>Loading sub-sessions…</span>
           ) : null}
           {children.isError ? (
-            <span className={`text-destructive px-2 py-1 ${textClass}`}>Could not load sub-sessions</span>
+            <Notice
+              size="sm"
+              tone={describeAgentError(children.error, {failed: 'Couldn’t load sub-sessions'}).tone}
+              onRetry={() => void children.refetch()}
+              retryPending={children.isFetching}
+              className="my-1"
+            >
+              Couldn’t load sub-sessions
+            </Notice>
           ) : null}
           {children.data?.length === 0 ? (
             <span className={`text-muted-foreground px-2 py-1 ${textClass}`}>No sub-sessions</span>

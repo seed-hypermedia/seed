@@ -13,6 +13,9 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // A firing whose continuation is a headless tool call or script starts a run instead of a
+  // thread; this is where that run is linked from (session_id stays for thread firings).
+  `ALTER TABLE trigger_firings ADD COLUMN run_id TEXT;`,
   // Inbound webhooks keep their credentials separate from public trigger metadata. The hash is
   // what deliveries are checked against; the encrypted copy lets editors see the delivery URL
   // again. The raw-body digest makes retries exact: a reused delivery key is accepted only for
