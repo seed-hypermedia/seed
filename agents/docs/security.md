@@ -54,6 +54,11 @@ Seed account, first as a pending invitation and then as an accepted `reader` or 
   `chatter` — they may create, message, attach to, and stop sessions, but every writer-level action (agent, memory,
   tool, and trigger edits; session rename/delete; `InvokeSessionTool`; run cancel/signal) is still refused. Public chat
   is the intended way to expose an agent to the world; `writer` is for people trusted to reshape it;
+- a public agent is fenced off from the account's private agents at the model-facing layer too: `read ~/agents` lists
+  only public siblings (the listing lands in a world-readable transcript), and `delegate {agentId}` from a public agent
+  to a private sibling is refused (`requireDelegationVisibility`) — a public transcript would otherwise carry the
+  private child's brief, title, and result, and an injected chat message could steer a more-privileged private agent.
+  Private agents may delegate anywhere in the account, public siblings included;
 - provider, secret, OAuth, and signing-identity mutations remain scoped to the collaborator's own account. Optional
   `agentId` on provider/identity list actions exposes only the owner's redacted records needed to render/edit that
   shared agent.

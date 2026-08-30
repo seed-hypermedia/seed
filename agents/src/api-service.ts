@@ -4942,7 +4942,10 @@ export class Service {
       )
     }
     const childAgentId = spec.agentId ?? parentAgentId
-    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
+    if (spec.agentId) {
+      this.#requireAgent(accountId, spec.agentId)
+      requireDelegationVisibility(this.#db, accountId, parentAgentId, spec.agentId)
+    }
     const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
     const childRunId = crypto.randomUUID()
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
@@ -5257,7 +5260,12 @@ export class Service {
     const accountId = workflowRun.accountId
     const childAgentId = spec.agentId ?? workflowRun.agentId
     if (!childAgentId) throw new APIError(400, 'Workflow run has no agent to run sub-sessions as')
-    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
+    if (spec.agentId) {
+      this.#requireAgent(accountId, spec.agentId)
+      if (workflowRun.agentId) {
+        requireDelegationVisibility(this.#db, accountId, workflowRun.agentId, spec.agentId)
+      }
+    }
     // Nest the child session under the chat session that (transitively) launched the workflow.
     let ancestorSessionId: string | undefined
     for (let cursor: runs.RunRecord | null = workflowRun; cursor; ) {
@@ -9990,17 +9998,52 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
   }
 }
 
+/** Whether an agent is exposed beyond the account's membership (`public_read`; `public_chat` requires it). */
+export function agentIsPublic(db: Database, accountId: string, agentId: string): boolean {
+  const row = db
+    .query<{public_read: number}, [string, string]>(`SELECT public_read FROM agents WHERE account_id = ? AND id = ?`)
+    .get(accountId, agentId)
+  return Boolean(row?.public_read)
+}
+
+/**
+ * The public/private delegation boundary. A public agent's transcripts are readable by every
+ * signed account, and public chat lets outside accounts drive its sessions — so a public parent
+ * must not reach a private sibling: the brief, child title, and result would all land in a public
+ * transcript, and an injected message could steer a more-privileged private agent. Private agents
+ * may delegate anywhere in the account, public siblings included.
+ */
+export function requireDelegationVisibility(
+  db: Database,
+  accountId: string,
+  parentAgentId: string,
+  childAgentId: string,
+): void {
+  if (parentAgentId === childAgentId) return
+  if (!agentIsPublic(db, accountId, parentAgentId)) return
+  if (agentIsPublic(db, accountId, childAgentId)) return
+  throw new APIError(
+    400,
+    'This agent is public, so it may only delegate to other public agents; private agents of the account are out of reach.',
+  )
+}
+
 /**
  * Lists the account's agents for `read ~/agents` — exactly the set this agent may delegate to
  * with `delegate {agentId}` (delegation requires an agent the account owns, so shared agents are
  * not listed). Definitions are summarized, not dumped: a sibling's system prompt, grants, and
  * signing keys are its own business — the directory exists so an agent can route work, not
- * inspect its peers.
+ * inspect its peers. A public agent sees only public siblings, for the same reason the delegation
+ * boundary exists: this listing lands in the transcript, and a public transcript must never name
+ * the account's private agents.
  */
 function readAgentsAddress(context: AgentServicePiToolContext): Record<string, unknown> {
+  const selfPublic = agentIsPublic(context.db, context.accountId, context.agentId)
   const rows = context.db
     .query<{id: string; definition_cbor: Uint8Array}, [string]>(
-      `SELECT id, definition_cbor FROM agents WHERE account_id = ? ORDER BY created_at ASC`,
+      `SELECT id, definition_cbor FROM agents WHERE account_id = ?${
+        selfPublic ? ' AND public_read = 1' : ''
+      } ORDER BY created_at ASC`,
     )
     .all(context.accountId)
   const agents = rows.map((row) => {
@@ -10022,7 +10065,11 @@ function readAgentsAddress(context: AgentServicePiToolContext): Record<string, u
     }
   })
   return {
-    summary: `${agents.length} agent${agents.length === 1 ? '' : 's'} on this account.`,
+    summary: selfPublic
+      ? `${agents.length} public agent${
+          agents.length === 1 ? '' : 's'
+        } on this account (you are public, so only public agents are visible to you).`
+      : `${agents.length} agent${agents.length === 1 ? '' : 's'} on this account.`,
     agents,
     guidance:
       "Delegate work to one of these with delegate {agentId, brief}: the child session runs under that agent's own system prompt, tools, model, and memory, and returns its result to you. Read ~/self for your own full configuration.",

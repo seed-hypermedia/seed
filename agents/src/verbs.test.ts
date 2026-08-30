@@ -912,6 +912,50 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     expect(String(directory.guidance)).toContain('delegate {agentId')
   })
 
+  test('a public agent sees only public siblings in ~/agents and cannot delegate to private ones', async () => {
+    const context = makeContext()
+    const insertAgent = (id: string, name: string, publicRead: 0 | 1, at: number) =>
+      context.db.run(
+        `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, public_read, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          'test-account',
+          cborEncode({name, systemPrompt: '', modelProvider: 'p', model: 'm'}),
+          id,
+          'ready',
+          publicRead,
+          at,
+          at,
+        ],
+      )
+    const now = Date.now()
+    insertAgent('private-analyst', 'Analyst', 0, now + 1)
+    insertAgent('public-greeter', 'Greeter', 1, now + 2)
+    // The reading agent itself is public: its transcript is world-readable, so the listing that
+    // lands in it must never name the account's private agents.
+    context.db.run(`UPDATE agents SET public_read = 1 WHERE id = 'test-agent'`)
+
+    const directory = await executeReadVerb(context, {address: '~/agents'})
+    const listed = (directory.agents as Array<{agentId: string}>).map((agent) => agent.agentId)
+    expect(listed).toEqual(['test-agent', 'public-greeter'])
+    expect(JSON.stringify(directory)).not.toContain('private-analyst')
+
+    // The delegation boundary matches the listing: public → private is refused, everything else passes.
+    expect(() =>
+      apisvc.requireDelegationVisibility(context.db, 'test-account', 'test-agent', 'private-analyst'),
+    ).toThrow(/public/)
+    apisvc.requireDelegationVisibility(context.db, 'test-account', 'test-agent', 'public-greeter')
+    apisvc.requireDelegationVisibility(context.db, 'test-account', 'test-agent', 'test-agent')
+    apisvc.requireDelegationVisibility(context.db, 'test-account', 'private-analyst', 'test-agent')
+    apisvc.requireDelegationVisibility(context.db, 'test-account', 'private-analyst', 'private-analyst')
+
+    // A private agent still sees the whole account.
+    context.db.run(`UPDATE agents SET public_read = 0 WHERE id = 'test-agent'`)
+    const fullDirectory = await executeReadVerb(context, {address: '~/agents'})
+    expect((fullDirectory.agents as unknown[]).length).toBe(3)
+  })
+
   test('space index advertises the triggers affordance and lists active triggers', async () => {
     const context = makeContext()
     await executeWriteVerb(context, {address: '~/triggers/nightly', content: scheduleTrigger})
