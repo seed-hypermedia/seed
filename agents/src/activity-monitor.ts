@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import type * as apisvc from '@/api-service'
 import * as activityTriggers from '@/activity-triggers'
 import * as cbor from '@/cbor'
+import {log} from '@/log'
 import {PollLoop} from '@/poll-loop'
 import {createSeedClient, type SeedClient} from '@seed-hypermedia/client'
 import type {Database} from 'bun:sqlite'
@@ -92,7 +93,7 @@ export class ActivityMonitor {
     const fetched: activityTriggers.ActivityFeedEvent[] = []
     let pageToken: string | undefined
     try {
-      console.log('[Agents Activity] Polling feed', {
+      log.debug('[Agents Activity] Polling feed', {
         accountId,
         serverUrl: this.#options.hmServerUrl,
         pageSize: this.#options.pageSize,
@@ -117,7 +118,7 @@ export class ActivityMonitor {
         )
         const events = Array.isArray(response.events) ? (response.events as activityTriggers.ActivityFeedEvent[]) : []
         fetched.push(...events)
-        console.log('[Agents Activity] Feed page received', {
+        log.debug('[Agents Activity] Feed page received', {
           accountId,
           page: page + 1,
           events: events.length,
@@ -163,7 +164,8 @@ export class ActivityMonitor {
         const key = activityTriggers.activityEventKey(event)
         return !!key && !previous.seenKeys.includes(key)
       })
-      console.log('[Agents Activity] Processing feed events', {
+      // A poll that found nothing is the overwhelmingly common case; it logs only at debug.
+      ;(newEvents.length > 0 ? log.info : log.debug)('[Agents Activity] Processing feed events', {
         accountId,
         fetched: fetched.length,
         newEvents: newEvents.length,

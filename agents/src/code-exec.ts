@@ -25,6 +25,18 @@ export const MAX_EXEC_TIMEOUT_SECS = 300
 export const EXEC_OUTPUT_TAIL_CHARS = 2000
 /** Minimum interval between output-driven progress callbacks. */
 export const EXEC_PROGRESS_INTERVAL_MS = 250
+/**
+ * Extra wall-clock past the requested timeout before the host kills the execution itself.
+ *
+ * The sandbox SDK gets `.timeout()` and `.maxDuration()` and normally enforces them, but a guest
+ * that wedges the VM can outlive both (observed in production: a 60s-timeout compile running 150s+
+ * while pinning its vCPU). The host-side deadline is the backstop that cannot be ignored: it fires
+ * this grace period after the SDK's own timeout should have, kills the execution, and returns
+ * whatever output was collected.
+ */
+export const EXEC_TIMEOUT_GRACE_MS = 5_000
+/** How long sandbox teardown may take before escalating from a graceful stop to a hard kill. */
+export const EXEC_TEARDOWN_TIMEOUT_MS = 5_000
 
 /** Code-execution backend configuration. */
 export type CodeExecConfig = {
@@ -51,6 +63,10 @@ export type CodeExecConfig = {
   allowNetwork: boolean
   /** Upstream DNS nameservers for sandbox name resolution when networking is enabled. */
   dnsServers: string[]
+  /** Override for EXEC_TIMEOUT_GRACE_MS, so tests can exercise the watchdog without real waits. */
+  timeoutGraceMs?: number
+  /** Override for EXEC_TEARDOWN_TIMEOUT_MS, so tests can exercise stop→kill escalation quickly. */
+  teardownTimeoutMs?: number
 }
 
 /** Runtimes the execute tool can run code in. */
@@ -425,11 +441,14 @@ export function createCodeExecutor(
       try {
         const command = runtimeCommand(request.runtime, code)
         request.onProgress?.({stage: 'running'})
+        // The SDK gets the timeout too, but a wedged guest can outlive it; this deadline is the
+        // host-side backstop that always fires.
+        const deadlineMs = timeoutSecs * 1000 + (config.timeoutGraceMs ?? EXEC_TIMEOUT_GRACE_MS)
         let output: RawExecResult
         try {
           output = sandbox.execStreamWith
-            ? await runStreamingExec(sandbox, command, timeoutSecs, request.onProgress)
-            : await runBufferedExec(sandbox, command, timeoutSecs)
+            ? await runStreamingExec(sandbox, command, timeoutSecs, deadlineMs, request.onProgress)
+            : await runBufferedExec(sandbox, command, timeoutSecs, deadlineMs)
         } catch (error) {
           throw new CodeExecError(
             502,
@@ -449,11 +468,7 @@ export function createCodeExecutor(
           changedFiles: diffMemory(before.files, after.files),
         }
       } finally {
-        try {
-          await sandbox.stop()
-        } catch {
-          await sandbox.kill().catch(() => {})
-        }
+        await teardownSandbox(sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
       }
     },
   }
@@ -558,56 +573,139 @@ export function parseLambdaResult(stdout: string): {result?: unknown; hasResult:
   return {hasResult: false, logs: stdout.trim()}
 }
 
+/**
+ * A deadline the exec runners race against. `promise` resolves to the sentinel when the timer
+ * fires; `clear` stops the timer so a finished exec does not hold the process open.
+ */
+const EXEC_DEADLINE = Symbol('exec-deadline')
+
+function createDeadline(ms: number): {promise: Promise<typeof EXEC_DEADLINE>; clear: () => void} {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const promise = new Promise<typeof EXEC_DEADLINE>((resolve) => {
+    timer = setTimeout(() => resolve(EXEC_DEADLINE), ms)
+  })
+  return {promise, clear: () => clearTimeout(timer)}
+}
+
+/**
+ * Races a pending SDK call against the deadline. The loser is left to settle on its own; its
+ * rejection (if any) is marked handled so an already-abandoned exec cannot crash the process.
+ */
+function raceDeadline<T>(
+  pending: Promise<T>,
+  deadline: Promise<typeof EXEC_DEADLINE>,
+): Promise<T | typeof EXEC_DEADLINE> {
+  pending.catch(() => {})
+  return Promise.race([pending, deadline])
+}
+
+/** The result handed back when the host watchdog had to kill an execution. */
+function timedOutResult(timeoutSecs: number, stdout: string, stderr: string): RawExecResult {
+  const note = `[execution killed by the server: it exceeded its ${timeoutSecs}s timeout and the sandbox did not stop it]`
+  return {code: -1, success: false, stdout, stderr: stderr ? `${stderr}\n${note}` : note}
+}
+
 async function runBufferedExec(
   sandbox: SandboxLike,
   command: ExecCommand,
   timeoutSecs: number,
+  deadlineMs: number,
 ): Promise<RawExecResult> {
-  const output = await sandbox.execWith(command.cmd, (builder) =>
-    builder.args(command.args).timeout(timeoutSecs * 1000),
-  )
-  return {code: output.code, success: output.success, stdout: output.stdout(), stderr: output.stderr()}
+  const deadline = createDeadline(deadlineMs)
+  try {
+    const output = await raceDeadline(
+      sandbox.execWith(command.cmd, (builder) => builder.args(command.args).timeout(timeoutSecs * 1000)),
+      deadline.promise,
+    )
+    if (output === EXEC_DEADLINE) return timedOutResult(timeoutSecs, '', '')
+    return {code: output.code, success: output.success, stdout: output.stdout(), stderr: output.stderr()}
+  } finally {
+    deadline.clear()
+  }
 }
 
 /**
  * Runs the command through the streaming exec API, reporting a throttled tail of combined output
- * through `onProgress` as chunks arrive.
+ * through `onProgress` as chunks arrive. The whole exchange — handle creation included — races the
+ * host-side deadline; when it fires the execution is killed and the collected output returned.
  */
 async function runStreamingExec(
   sandbox: SandboxLike,
   command: ExecCommand,
   timeoutSecs: number,
+  deadlineMs: number,
   onProgress?: (progress: CodeExecProgress) => void,
 ): Promise<RawExecResult> {
-  const handle = await sandbox.execStreamWith!(command.cmd, (builder) =>
-    builder.args(command.args).timeout(timeoutSecs * 1000),
-  )
-  const stdout = createOutputCollector()
-  const stderr = createOutputCollector()
-  const tailDecoders = {stdout: new TextDecoder(), stderr: new TextDecoder()}
-  let tail = ''
-  let exitCode: number | null = null
-  let lastProgressAt = 0
-  for (let event = await handle.recv(); event !== null; event = await handle.recv()) {
-    if (event.kind === 'stdout' || event.kind === 'stderr') {
-      ;(event.kind === 'stdout' ? stdout : stderr).push(event.data)
-      tail = (tail + tailDecoders[event.kind].decode(event.data, {stream: true})).slice(-EXEC_OUTPUT_TAIL_CHARS)
-      const now = Date.now()
-      if (onProgress && now - lastProgressAt >= EXEC_PROGRESS_INTERVAL_MS) {
-        lastProgressAt = now
-        onProgress({stage: 'running', outputTail: tail})
+  const deadline = createDeadline(deadlineMs)
+  try {
+    const handle = await raceDeadline(
+      sandbox.execStreamWith!(command.cmd, (builder) => builder.args(command.args).timeout(timeoutSecs * 1000)),
+      deadline.promise,
+    )
+    if (handle === EXEC_DEADLINE) return timedOutResult(timeoutSecs, '', '')
+    const stdout = createOutputCollector()
+    const stderr = createOutputCollector()
+    const tailDecoders = {stdout: new TextDecoder(), stderr: new TextDecoder()}
+    let tail = ''
+    let exitCode: number | null = null
+    let lastProgressAt = 0
+    for (;;) {
+      const event = await raceDeadline(handle.recv(), deadline.promise)
+      if (event === EXEC_DEADLINE) {
+        // The kill is bounded too: it talks to the same wedged SDK the deadline just caught.
+        await settlesWithin(handle.kill(), EXEC_TEARDOWN_TIMEOUT_MS)
+        return timedOutResult(timeoutSecs, stdout.text(), stderr.text())
       }
-    } else if (event.kind === 'exited') {
-      exitCode = event.code
+      if (event === null) break
+      if (event.kind === 'stdout' || event.kind === 'stderr') {
+        ;(event.kind === 'stdout' ? stdout : stderr).push(event.data)
+        tail = (tail + tailDecoders[event.kind].decode(event.data, {stream: true})).slice(-EXEC_OUTPUT_TAIL_CHARS)
+        const now = Date.now()
+        if (onProgress && now - lastProgressAt >= EXEC_PROGRESS_INTERVAL_MS) {
+          lastProgressAt = now
+          onProgress({stage: 'running', outputTail: tail})
+        }
+      } else if (event.kind === 'exited') {
+        exitCode = event.code
+      }
     }
+    if (exitCode === null) {
+      // The stream ended without an exit status, e.g. the exec timeout killed the process.
+      const note = '[execution ended without an exit status — likely timed out]'
+      const stderrText = stderr.text()
+      return {code: -1, success: false, stdout: stdout.text(), stderr: stderrText ? `${stderrText}\n${note}` : note}
+    }
+    return {code: exitCode, success: exitCode === 0, stdout: stdout.text(), stderr: stderr.text()}
+  } finally {
+    deadline.clear()
   }
-  if (exitCode === null) {
-    // The stream ended without an exit status, e.g. the exec timeout killed the process.
-    const note = '[execution ended without an exit status — likely timed out]'
-    const stderrText = stderr.text()
-    return {code: -1, success: false, stdout: stdout.text(), stderr: stderrText ? `${stderrText}\n${note}` : note}
+}
+
+/**
+ * Stops the sandbox without letting teardown block the tool call: a graceful stop gets
+ * EXEC_TEARDOWN_TIMEOUT_MS, then the VM is killed outright. A kill that itself hangs is abandoned
+ * — the result must reach the model even if the SDK has wedged.
+ */
+async function teardownSandbox(sandbox: SandboxLike, timeoutMs: number): Promise<void> {
+  if (await settlesWithin(sandbox.stop(), timeoutMs)) return
+  await settlesWithin(sandbox.kill(), timeoutMs)
+}
+
+/** True when the promise fulfills within the window; false on rejection or timeout. Never throws. */
+async function settlesWithin(pending: Promise<unknown>, ms: number): Promise<boolean> {
+  const deadline = createDeadline(ms)
+  try {
+    const outcome = await raceDeadline(
+      pending.then(
+        () => true,
+        () => false,
+      ),
+      deadline.promise,
+    )
+    return outcome === true
+  } finally {
+    deadline.clear()
   }
-  return {code: exitCode, success: exitCode === 0, stdout: stdout.text(), stderr: stderr.text()}
 }
 
 type OutputCollector = {push(data: Uint8Array): void; text(): string}

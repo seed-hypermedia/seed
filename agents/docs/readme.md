@@ -145,6 +145,10 @@ Important incomplete work:
     that is only partly built.
 20. [Future projects](./future-projects.md) — larger future work packages.
 21. [Roadmap](./roadmap.md) — prioritized next steps and code-improvement opportunities.
+22. [Performance squeeze plan](./perf-squeeze-plan.md) — the measured 2026-08 production bottlenecks (sandbox CPU,
+    provider egress, log volume) and the workstreams removing them, including session-scoped long-lived sandboxes.
+23. [Multi-server architecture](./multi-server-architecture.md) — the three-phase path off a single host, with the
+    scaling and cost model.
 
 ## Canonical code entry points
 
