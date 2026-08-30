@@ -34,7 +34,7 @@ import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.gener
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
+import {createInspectNavRouteFromRoute, DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
@@ -202,6 +202,10 @@ export function AccountProfileButton() {
   const {data: experiments} = useExperiments()
   const queryDevtoolsIsOpen = useStream(queryDevtoolsOpen)
   const routeDialog = useAppDialog(RouteDialog)
+  const inspectRoute = useMemo(
+    () => (route.key === 'inspect' || route.key === 'inspect-ipfs' ? null : createInspectNavRouteFromRoute(route)),
+    [route],
+  )
   const createAccountDialog = useCreateAccountDialog()
   const authDialog = useDesktopAuthDialog()
   const [logoutOpen, setLogoutOpen] = useState(false)
@@ -443,6 +447,12 @@ export function AccountProfileButton() {
                 <Route className="size-4" />
                 View Route
               </DropdownMenuItem>
+              {inspectRoute ? (
+                <DropdownMenuItem onClick={() => navigate(inspectRoute)}>
+                  <Search className="size-4" />
+                  Inspect
+                </DropdownMenuItem>
+              ) : null}
             </>
           ) : null}
           {canLogOut ? (
