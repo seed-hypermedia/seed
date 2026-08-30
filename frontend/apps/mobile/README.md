@@ -86,6 +86,44 @@ Related: `tests/key-derivation.test.ts` (JS/Go key-derivation parity) and `tests
 - Metro validation warnings about `watcher.unstable_*` options can be ignored
 - expo-secure-store only works on native (the e2e tests do not press "Save")
 
+## On-the-go dev via a remote Metro server
+
+The "Seed Dev" build variant is a development client that installs **alongside** the store app (blue icon, bundle id
+`media.hyper.seed.mobile.dev`, scheme `seeddev`) and loads its JS from a Metro server running on a remote machine over
+Tailscale. Once it has connected to a server, `launchMode: "most-recent"` makes it reconnect there automatically on
+every launch — edit code on the server (e.g. through a phone-controlled agent), Metro hot-reloads the app, and no
+laptop is involved.
+
+Everything variant-specific lives in `app.config.js` (a no-op unless `APP_VARIANT=dev`) and the `assets/*-dev.png`
+icons, which are the production icons hue-rotated from green to blue (`magick assets/icon.png -modulate 100,100,133`).
+
+**On the server** (set up on `enuc` at `~/seed-mobile`, tailscale `100.106.112.69`): clone the repo on `feat/mobile`,
+`mise install node pnpm bun`, `pnpm install` at the root, `npm install` here, then run Metro bound to the tailscale
+address:
+
+```bash
+REACT_NATIVE_PACKAGER_HOSTNAME=100.106.112.69 npx expo start --dev-client --port 8081
+```
+
+On enuc this runs as a systemd user service (`systemctl --user status seed-metro`, unit in
+`~/.config/systemd/user/seed-metro.service`, lingering enabled so it survives logout and reboots).
+
+**Building onto a phone** (one-time per native change, needs a Mac with the phone plugged in):
+
+```bash
+rm -rf ios && APP_VARIANT=dev npx expo prebuild -p ios
+APP_VARIANT=dev npx expo run:ios --device --no-bundler
+```
+
+`--no-bundler` matters: it keeps `expo run:ios` from starting a local Metro and pointing the fresh install at the
+laptop, which `launchMode: "most-recent"` would then keep reopening.
+
+**Pointing the phone at the server** (once per install): with the phone on the tailnet, scan a QR of
+`seeddev://expo-development-client/?url=http%3A%2F%2F100.106.112.69%3A8081` with the Camera app, or open the app and
+enter `http://100.106.112.69:8081` under "Enter URL manually". After that it reconnects on its own.
+
+Native changes (new native module, app.config.js edits) still need a rebuild on a Mac; pure JS/TS changes never do.
+
 ## Agents
 
 The agents screens (`src/agents/`) are the mobile port of the Seed Agents runtime — see `agents/docs/` for the system
