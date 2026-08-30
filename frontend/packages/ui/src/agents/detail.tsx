@@ -60,6 +60,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {formattedDateMedium} from '@shm/shared/utils/date'
 import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {useAccount} from '@shm/shared/models/entity'
+import {type NavRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useRouteLink} from '@shm/shared/routing'
@@ -2317,7 +2318,7 @@ function AgentTriggersTab({
                       </SizableText>
                       {isHeadlessContinuation(continuation) ? (
                         <SizableText size="xs" color="muted">
-                          Starts the thread a model gets when the tool or script fails; the failure and the run are
+                          Starts the session a model gets when the tool or script fails; the failure and the run are
                           attached as context.
                         </SizableText>
                       ) : null}
@@ -2346,32 +2347,10 @@ function AgentTriggersTab({
               )}
               <TriggerFiringsSection
                 firings={trigger.data?.firings ?? []}
+                sessions={trigger.data?.sessions ?? []}
+                agentId={agentId}
                 serverUrl={serverUrl}
-                onOpenSession={(sessionId, sessionAgentId) =>
-                  navigate({key: 'agent-session', agentId: sessionAgentId ?? agentId, sessionId, serverUrl})
-                }
               />
-              <div className="border-border flex flex-col gap-2 border-t pt-5">
-                <SizableText weight="bold">Sessions created by this trigger</SizableText>
-                {!trigger.data?.sessions.length ? (
-                  <SizableText color="muted">No sessions created yet.</SizableText>
-                ) : null}
-                {trigger.data?.sessions.map((session) => (
-                  <SessionListItem
-                    key={session.id}
-                    session={session}
-                    serverUrl={serverUrl}
-                    accountUid={selectedAccountId}
-                    onOpen={() => navigate({key: 'agent-session', agentId, sessionId: session.id, serverUrl})}
-                    onOpenSession={(child) =>
-                      navigate({key: 'agent-session', agentId: child.agentId, sessionId: child.id, serverUrl})
-                    }
-                    onOpenTrigger={() =>
-                      navigate({key: 'agent', agentId, serverUrl, tab: 'triggers', triggerId: selected.id})
-                    }
-                  />
-                ))}
-              </div>
               <div className="border-border grid gap-3 border-t pt-5 text-sm md:grid-cols-3">
                 <TriggerMeta label="Last checked" value={selected.lastCheckedAt} />
                 <TriggerMeta label="Last fired" value={selected.lastFiredAt} />
@@ -2505,7 +2484,8 @@ function CreateAgentTriggerDialog({
       <div>
         <DialogTitle>New trigger</DialogTitle>
         <DialogDescription>
-          When the selected event occurs, start a thread for the agent — or run a tool or script with no model involved.
+          When the selected event occurs, start a session for the agent — or run a tool or script with no model
+          involved.
         </DialogDescription>
       </div>
       <label className="flex flex-col gap-1">
@@ -2540,7 +2520,7 @@ function CreateAgentTriggerDialog({
           <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
           {isHeadlessContinuation(continuation) ? (
             <SizableText size="xs" color="muted">
-              Starts the thread a model gets when the tool or script fails; the failure and the run are attached as
+              Starts the session a model gets when the tool or script fails; the failure and the run are attached as
               context.
             </SizableText>
           ) : null}
@@ -2591,66 +2571,85 @@ function copyWithToast(value: string, label: string) {
 }
 
 const FIRING_STATUS_LABELS: Record<string, {label: string; className: string}> = {
-  created: {label: 'Thread started', className: 'text-muted-foreground'},
+  created: {label: 'Session started', className: 'text-muted-foreground'},
   running: {label: 'Running', className: 'text-blue-600 dark:text-blue-400'},
   succeeded: {label: 'Succeeded', className: 'text-green-700 dark:text-green-400'},
   delivered: {label: 'Delivered', className: 'text-green-700 dark:text-green-400'},
   'no-listener': {label: 'Nobody listening', className: 'text-muted-foreground'},
   error: {label: 'Failed', className: 'text-destructive'},
-  escalated: {label: 'Failed → thread', className: 'text-amber-700 dark:text-amber-400'},
+  escalated: {label: 'Failed → session', className: 'text-amber-700 dark:text-amber-400'},
 }
 
-/** Every time the trigger fired, newest first, with the run or thread each one produced. */
+/**
+ * Every time the trigger fired, newest first — one list, whatever each firing produced. A firing
+ * that started (or escalated into) a session opens that session; a headless one opens its run
+ * page. The row itself is the link: what a firing produced is a property of the trigger's type,
+ * not a choice the reader should have to make per row.
+ */
 function TriggerFiringsSection({
   firings,
+  sessions,
+  agentId,
   serverUrl,
-  onOpenSession,
 }: {
   firings: TriggerFiringInfo[]
+  /** The sessions those firings created, for naming rows by what came of them. */
+  sessions: SessionInfo[]
+  agentId: string
   serverUrl: string
-  onOpenSession: (sessionId: string, agentId?: string) => void
 }) {
-  const navigate = useNavigate()
+  const clickNavigate = useClickNavigate()
+  const sessionsById = useMemo(() => new Map(sessions.map((session) => [session.id, session])), [sessions])
   return (
     <div className="border-border flex flex-col gap-2 border-t pt-5">
-      <SizableText weight="bold">Recent firings</SizableText>
+      <SizableText weight="bold">Firings</SizableText>
       {!firings.length ? <SizableText color="muted">This trigger has not fired yet.</SizableText> : null}
       {firings.map((firing) => {
         const status = FIRING_STATUS_LABELS[firing.status] ?? {label: firing.status, className: 'text-muted-foreground'}
-        return (
-          <div key={firing.id} className="border-border flex flex-col gap-2 rounded-lg border p-2.5">
+        const session = firing.sessionId ? sessionsById.get(firing.sessionId) : undefined
+        // The session is the richer destination when both exist: an escalated firing's session is
+        // where the failure got handled, and its run is one click away inside it.
+        const route: NavRoute | null = firing.sessionId
+          ? {key: 'agent-session', agentId, sessionId: firing.sessionId, serverUrl}
+          : firing.runId
+            ? {key: 'agent-run', runId: firing.runId, agentId, serverUrl}
+            : null
+        const body = (
+          <>
             <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-              <SizableText size="xs" weight="bold" className={status.className}>
+              <SizableText size="xs" weight="bold" className={`flex-none ${status.className}`}>
                 {status.label}
               </SizableText>
               <SizableText size="sm" className="min-w-0 flex-1 truncate">
-                {firing.activitySummary}
+                {session?.title || firing.activitySummary}
               </SizableText>
-              <SizableText size="xs" color="muted">
+              <SizableText size="xs" color="muted" className="flex-none">
                 {formattedDateMedium(new Date(firing.createdAt))}
               </SizableText>
-              {firing.runId ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => navigate({key: 'agent-run', runId: firing.runId!, serverUrl})}
-                >
-                  Open run <ArrowRight className="size-3.5" />
-                </Button>
-              ) : null}
-              {firing.sessionId ? (
-                <Button type="button" size="sm" variant="ghost" onClick={() => onOpenSession(firing.sessionId!)}>
-                  Open thread <ArrowRight className="size-3.5" />
-                </Button>
-              ) : null}
             </div>
             {firing.error ? (
               <SizableText size="xs" className="text-destructive break-words">
                 {firing.error}
               </SizableText>
             ) : null}
-          </div>
+          </>
+        )
+        if (!route) {
+          return (
+            <div key={firing.id} className="border-border flex flex-col gap-1 rounded-lg border p-2.5">
+              {body}
+            </div>
+          )
+        }
+        return (
+          <button
+            key={firing.id}
+            type="button"
+            className="border-border hover:bg-muted/50 flex cursor-pointer flex-col gap-1 rounded-lg border p-2.5 text-left transition-colors"
+            onClick={(event) => clickNavigate(route, event)}
+          >
+            {body}
+          </button>
         )
       })}
     </div>

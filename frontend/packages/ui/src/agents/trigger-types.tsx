@@ -668,7 +668,7 @@ function stringField(value: Record<string, unknown>, key: string): string | unde
 
 // ---------------------------------------------------------------------------------------------
 // Continuations: what a firing does. `newThread` (the default) hands every firing to a model;
-// `tool` and `script` run code with no model involved, optionally escalating to a thread on failure.
+// `tool` and `script` run code with no model involved, optionally escalating to a session on failure.
 // ---------------------------------------------------------------------------------------------
 
 type ContinuationKind = TriggerContinuation['kind']
@@ -712,16 +712,16 @@ export function defaultContinuationForKind(
 
 /** One line for a trigger's page and list: what happens when it fires. */
 export function summarizeTriggerContinuation(continuation: TriggerContinuation | undefined): string {
-  if (!continuation || continuation.kind === 'newThread') return 'Starts a thread from the prompt'
+  if (!continuation || continuation.kind === 'newThread') return 'Starts a session from the prompt'
   if (continuation.kind === 'wake') return `Wakes a parked run with signal "${continuation.signal}"`
-  const escalates = continuation.onFailure === 'thread' ? '; starts a thread from the prompt if it fails' : ''
+  const escalates = continuation.onFailure === 'thread' ? '; starts a session from the prompt if it fails' : ''
   if (continuation.kind === 'tool') return `Calls tool "${continuation.tool || '…'}" with no model${escalates}`
   return `Runs a script with no model${escalates}`
 }
 
 /**
  * Whether a trigger's prompt has any role: it starts every thread of a `newThread` trigger, and is
- * the recovery thread's opener for a headless one that escalates on failure. A headless trigger
+ * the recovery session's opener for a headless one that escalates on failure. A headless trigger
  * that does not escalate never uses it, so nothing about it is shown.
  */
 export function triggerUsesPrompt(continuation: TriggerContinuation | undefined): boolean {
@@ -865,7 +865,7 @@ export function TriggerContinuationFields({
               )
             }
           />
-          If it fails, start a thread from the prompt so a model can recover
+          If it fails, start a session from the prompt so a model can recover
         </label>
       ) : null}
     </div>
