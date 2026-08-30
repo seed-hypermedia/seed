@@ -2352,12 +2352,11 @@ function TriggerMeta({label, value}: {label: string; value?: number | string | n
 function CreateAgentTriggerDialog({
   input,
   onClose,
-  setDialogCloseProtection,
 }: {
   input: {serverUrl: string; selectedAccountId: string | null | undefined; agentId: string}
   onClose: () => void
-  setDialogCloseProtection?: (state: {preventClose: boolean; showCloseButton: boolean}) => void
 }) {
+  const navigate = useNavigate()
   const createTrigger = useCreateAgentTrigger(input.serverUrl, input.selectedAccountId)
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
   const [name, setName] = useState(() => defaultTriggerName(source.type))
@@ -2365,14 +2364,8 @@ function CreateAgentTriggerDialog({
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
     agentPromptToBlocks('Respond to the event, performing the action requested.'),
   )
-  const [createdWebhook, setCreatedWebhook] = useState<{endpoint: string; secret: string; curl: string} | null>(null)
   const createRequestId = useRef(crypto.randomUUID())
   const createRequestKey = useRef('')
-
-  useEffect(() => {
-    setDialogCloseProtection?.({preventClose: !!createdWebhook, showCloseButton: !createdWebhook})
-    return () => setDialogCloseProtection?.({preventClose: false, showCloseButton: true})
-  }, [createdWebhook, setDialogCloseProtection])
 
   async function handleCreateTrigger() {
     try {
@@ -2393,73 +2386,21 @@ function CreateAgentTriggerDialog({
         clientRequestId: createRequestId.current,
       })
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
-      if (source.type === 'webhook') {
-        if (!result.webhookSecret) throw new Error('Webhook secret was not returned')
-        const secret = result.webhookSecret
-        const endpoint = getAgentWebhookUrl(input.serverUrl, result.trigger.id, secret)
-        setCreatedWebhook({
-          endpoint,
-          secret,
-          curl: [
-            `curl -X POST "${endpoint}" \\`,
-            '  -H "Content-Type: application/json" \\',
-            `  -d '{"message":"hello"}'`,
-          ].join('\n'),
-        })
-        return
-      }
       toast.success('Trigger created')
       onClose()
+      // A webhook's page is where its delivery URL lives, so land there straight away.
+      if (source.type === 'webhook') {
+        navigate({
+          key: 'agent',
+          agentId: input.agentId,
+          serverUrl: input.serverUrl,
+          tab: 'triggers',
+          triggerId: result.trigger.id,
+        })
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not create trigger')
     }
-  }
-
-  if (createdWebhook) {
-    const copy = copyWithToast
-    return (
-      <div className="flex w-full max-w-full min-w-0 flex-col gap-5">
-        <div>
-          <DialogTitle>Webhook trigger created</DialogTitle>
-          <DialogDescription>
-            Point your sender at this URL. It contains the secret; agent editors can see it again on the trigger's page.
-          </DialogDescription>
-        </div>
-        <WebhookCredential
-          label="Webhook URL"
-          value={createdWebhook.endpoint}
-          onCopy={() => copy(createdWebhook.endpoint, 'Webhook URL')}
-        />
-        <WebhookCredential
-          label="Secret"
-          value={createdWebhook.secret}
-          onCopy={() => copy(createdWebhook.secret, 'Secret')}
-        />
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between gap-2">
-            <SizableText size="sm" weight="bold">
-              Test request
-            </SizableText>
-            <Button type="button" size="sm" variant="ghost" onClick={() => copy(createdWebhook.curl, 'cURL command')}>
-              <Copy className="size-4" /> Copy cURL
-            </Button>
-          </div>
-          <pre className="border-border bg-muted/40 overflow-x-auto rounded-lg border p-3 font-mono text-xs whitespace-pre-wrap">
-            {createdWebhook.curl}
-          </pre>
-        </div>
-        <div className="border-border bg-muted/40 rounded-lg border p-3">
-          <SizableText size="xs" color="muted">
-            POST JSON to the webhook URL. Senders that cannot use a secret URL may instead post to the URL without the
-            last segment and send <code>Authorization: Bearer &lt;secret&gt;</code>. An optional{' '}
-            <code>Idempotency-Key</code> header deduplicates retries; reusing a key with a different body is rejected.
-          </SizableText>
-        </div>
-        <div className="flex justify-end">
-          <Button onClick={onClose}>Done</Button>
-        </div>
-      </div>
-    )
   }
 
   return (
