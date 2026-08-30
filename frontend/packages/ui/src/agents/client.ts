@@ -29,6 +29,9 @@ export type AgentSessionTriggerSummary = AgentsProtocol.AgentSessionTriggerSumma
 export type AgentSessionTriggerContext = AgentsProtocol.AgentSessionTriggerContext
 /** Public metadata returned for an agent trigger. */
 export type AgentTriggerInfo = AgentsProtocol.AgentTriggerInfo
+export type TriggerContinuation = AgentsProtocol.TriggerContinuation
+export type TriggerFailurePolicy = AgentsProtocol.TriggerFailurePolicy
+export type TriggerFiringInfo = AgentsProtocol.TriggerFiringInfo
 /** Input used to create an agent trigger. */
 export type AgentTriggerInput = AgentsProtocol.AgentTriggerInput
 /** Patch used to edit an agent trigger. */

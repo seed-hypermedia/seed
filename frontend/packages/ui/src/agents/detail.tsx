@@ -8,6 +8,8 @@ import {
   type AgentTriggerInfo,
   type AgentTriggerInput,
   type AgentTriggerSource,
+  type TriggerContinuation,
+  type TriggerFiringInfo,
   type SessionInfo,
   type SigningIdentity,
   getAgentWebhookUrl,
@@ -108,7 +110,14 @@ import {
 } from './agent-tools'
 import {AgentMemoryTab} from './memory'
 import {AgentMcpServersSection} from './mcp-servers'
-import {TriggerSourceFields, summarizeTriggerSource} from './trigger-types'
+import {
+  TriggerContinuationFields,
+  TriggerSourceFields,
+  isHeadlessContinuation,
+  summarizeTriggerContinuation,
+  summarizeTriggerSource,
+} from './trigger-types'
+import {RunRecordCard} from './run-card'
 import {
   AddModelProviderDialog,
   EditAgentAccountDialog,
@@ -2004,14 +2013,16 @@ function AgentTriggersTab({
   const [enabled, setEnabled] = useState(true)
   const [prompt, setPrompt] = useState<HMBlockNode[]>([])
   const [source, setSource] = useState<AgentTriggerSource>({type: 'document-comment', resource: ''})
+  const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
+  const agentTools = useAgentTools(serverUrl, selectedAccountId, agentId)
   const [detailsDirty, setDetailsDirty] = useState(false)
   const [detailsSaveState, setDetailsSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const detailsSaveIdRef = useRef(0)
   const selectedTriggerRef = useRef<string | null>(null)
   const lastSavedDetailsKeyRef = useRef('')
   const currentDetailsKey = useMemo(() => {
-    return JSON.stringify({prompt, source})
-  }, [prompt, source])
+    return JSON.stringify({prompt, source, continuation})
+  }, [prompt, source, continuation])
   const currentDetailsKeyRef = useRef(currentDetailsKey)
   currentDetailsKeyRef.current = currentDetailsKey
   const nextScheduledFire = useMemo(
@@ -2030,12 +2041,15 @@ function AgentTriggersTab({
     if (!triggerChanged) return
     const nextPrompt = agentPromptToBlocks(selected.prompt)
     const nextSource = selected.source
+    const nextContinuation: TriggerContinuation = selected.continuation ?? {kind: 'newThread'}
     setEnabled(selected.enabled)
     setPrompt(nextPrompt)
     setSource(nextSource)
+    setContinuation(nextContinuation)
     lastSavedDetailsKeyRef.current = JSON.stringify({
       prompt: nextPrompt,
       source: nextSource,
+      continuation: nextContinuation,
     })
     setDetailsDirty(false)
     setDetailsSaveState('idle')
@@ -2103,7 +2117,7 @@ function AgentTriggersTab({
       void updateTrigger
         .mutateAsync({
           triggerId: selectedTriggerId,
-          patch: {prompt: promptBlocksForRequest(prompt), source},
+          patch: {prompt: promptBlocksForRequest(prompt), source, continuation},
         })
         .then((result) => {
           if (detailsSaveIdRef.current !== saveId) return
@@ -2127,7 +2141,17 @@ function AgentTriggersTab({
         })
     }, 800)
     return () => clearTimeout(timer)
-  }, [currentDetailsKey, detailsDirty, detailsSaveState, prompt, readOnly, selected, selectedTriggerId, source])
+  }, [
+    continuation,
+    currentDetailsKey,
+    detailsDirty,
+    detailsSaveState,
+    prompt,
+    readOnly,
+    selected,
+    selectedTriggerId,
+    source,
+  ])
 
   async function handleDeleteTrigger() {
     if (!selectedTriggerId) return
@@ -2191,6 +2215,14 @@ function AgentTriggersTab({
                       {summarizeTriggerSource(source)}
                     </SizableText>
                   </div>
+                  <div className="border-border bg-muted/40 rounded-lg border p-3">
+                    <SizableText size="sm" weight="bold" className="block">
+                      When it fires
+                    </SizableText>
+                    <SizableText size="sm" color="muted">
+                      {summarizeTriggerContinuation(continuation)}
+                    </SizableText>
+                  </div>
                   {source.type === 'webhook' ? (
                     <WebhookEndpointSection
                       serverUrl={serverUrl}
@@ -2200,7 +2232,7 @@ function AgentTriggersTab({
                   ) : null}
                   <div className="flex flex-col gap-1">
                     <SizableText size="sm" weight="bold">
-                      Prompt
+                      {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
                     </SizableText>
                     <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
                       {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
@@ -2236,10 +2268,25 @@ function AgentTriggersTab({
                       secret={trigger.data?.webhookSecret}
                     />
                   ) : null}
+                  <TriggerContinuationFields
+                    continuation={continuation}
+                    tools={agentTools.data?.tools}
+                    onChange={(next) => {
+                      setContinuation(next)
+                      setDetailsDirty(true)
+                    }}
+                  />
                   <div className="flex flex-col gap-1">
                     <SizableText size="sm" weight="bold">
-                      Prompt
+                      {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
                     </SizableText>
+                    {isHeadlessContinuation(continuation) ? (
+                      <SizableText size="xs" color="muted">
+                        {continuation.onFailure === 'thread'
+                          ? 'Starts the thread a model gets when the tool or script fails; the failure and the run are attached as context.'
+                          : 'Only used if you turn on starting a thread on failure.'}
+                      </SizableText>
+                    ) : null}
                     <AgentPromptEditor
                       key={selected.id}
                       initialBlocks={prompt}
@@ -2260,6 +2307,14 @@ function AgentTriggersTab({
                   </div>
                 </div>
               )}
+              <TriggerFiringsSection
+                firings={trigger.data?.firings ?? []}
+                serverUrl={serverUrl}
+                accountUid={selectedAccountId}
+                onOpenSession={(sessionId, sessionAgentId) =>
+                  navigate({key: 'agent-session', agentId: sessionAgentId ?? agentId, sessionId, serverUrl})
+                }
+              />
               <div className="border-border flex flex-col gap-2 border-t pt-5">
                 <SizableText weight="bold">Sessions created by this trigger</SizableText>
                 {!trigger.data?.sessions.length ? (
@@ -2364,6 +2419,8 @@ function CreateAgentTriggerDialog({
   const [prompt, setPrompt] = useState<HMBlockNode[]>(() =>
     agentPromptToBlocks('Respond to the event, performing the action requested.'),
   )
+  const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
+  const agentTools = useAgentTools(input.serverUrl, input.selectedAccountId, input.agentId)
   const createRequestId = useRef(crypto.randomUUID())
   const createRequestKey = useRef('')
 
@@ -2374,6 +2431,7 @@ function CreateAgentTriggerDialog({
         enabled: true,
         source,
         prompt: promptBlocksForRequest(prompt),
+        ...(continuation.kind === 'newThread' ? {} : {continuation}),
       }
       const requestKey = JSON.stringify(trigger)
       if (createRequestKey.current && createRequestKey.current !== requestKey) {
@@ -2388,8 +2446,9 @@ function CreateAgentTriggerDialog({
       if (result._ !== 'CreateAgentTriggerResponse') throw new Error('Unexpected trigger create response')
       toast.success('Trigger created')
       onClose()
-      // A webhook's page is where its delivery URL lives, so land there straight away.
-      if (source.type === 'webhook') {
+      // A webhook's page is where its delivery URL lives, and a headless trigger's page is where its
+      // runs show up, so land there straight away.
+      if (source.type === 'webhook' || isHeadlessContinuation(continuation)) {
         navigate({
           key: 'agent',
           agentId: input.agentId,
@@ -2407,7 +2466,9 @@ function CreateAgentTriggerDialog({
     <div className="flex w-full max-w-full min-w-0 flex-col gap-5">
       <div>
         <DialogTitle>New trigger</DialogTitle>
-        <DialogDescription>Start a new agent session when the selected event occurs.</DialogDescription>
+        <DialogDescription>
+          When the selected event occurs, start a thread for the agent — or run a tool or script with no model involved.
+        </DialogDescription>
       </div>
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
@@ -2428,12 +2489,24 @@ function CreateAgentTriggerDialog({
           if (!nameEdited.current) setName(defaultTriggerName(nextSource.type))
         }}
       />
+      <TriggerContinuationFields
+        continuation={continuation}
+        tools={agentTools.data?.tools}
+        onChange={setContinuation}
+      />
       <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
-          Prompt
+          {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
         </SizableText>
         <AgentPromptEditor initialBlocks={prompt} onChange={setPrompt} />
-        {source.type === 'webhook' ? (
+        {isHeadlessContinuation(continuation) ? (
+          <SizableText size="xs" color="muted">
+            {continuation.onFailure === 'thread'
+              ? 'Starts the thread a model gets when the tool or script fails; the failure and the run are attached as context.'
+              : 'Only used if you turn on starting a thread on failure.'}
+          </SizableText>
+        ) : null}
+        {source.type === 'webhook' && !isHeadlessContinuation(continuation) ? (
           <SizableText size="xs" color="muted">
             This prompt tells the agent how to handle each delivery. The posted JSON is supplied separately as untrusted
             trigger data.
@@ -2464,6 +2537,84 @@ function copyWithToast(value: string, label: string) {
     success: `${label} copied`,
     error: `Could not copy ${label.toLowerCase()}`,
   })
+}
+
+const FIRING_STATUS_LABELS: Record<string, {label: string; className: string}> = {
+  created: {label: 'Thread started', className: 'text-muted-foreground'},
+  running: {label: 'Running', className: 'text-blue-600 dark:text-blue-400'},
+  succeeded: {label: 'Succeeded', className: 'text-green-700 dark:text-green-400'},
+  delivered: {label: 'Delivered', className: 'text-green-700 dark:text-green-400'},
+  'no-listener': {label: 'Nobody listening', className: 'text-muted-foreground'},
+  error: {label: 'Failed', className: 'text-destructive'},
+  escalated: {label: 'Failed → thread', className: 'text-amber-700 dark:text-amber-400'},
+}
+
+/** Every time the trigger fired, newest first, with the run or thread each one produced. */
+function TriggerFiringsSection({
+  firings,
+  serverUrl,
+  accountUid,
+  onOpenSession,
+}: {
+  firings: TriggerFiringInfo[]
+  serverUrl: string
+  accountUid: string | null | undefined
+  onOpenSession: (sessionId: string, agentId?: string) => void
+}) {
+  const [expandedRunId, setExpandedRunId] = useState<string | null>(null)
+  return (
+    <div className="border-border flex flex-col gap-2 border-t pt-5">
+      <SizableText weight="bold">Recent firings</SizableText>
+      {!firings.length ? <SizableText color="muted">This trigger has not fired yet.</SizableText> : null}
+      {firings.map((firing) => {
+        const status = FIRING_STATUS_LABELS[firing.status] ?? {label: firing.status, className: 'text-muted-foreground'}
+        const expanded = !!firing.runId && expandedRunId === firing.runId
+        return (
+          <div key={firing.id} className="border-border flex flex-col gap-2 rounded-lg border p-2.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+              <SizableText size="xs" weight="bold" className={status.className}>
+                {status.label}
+              </SizableText>
+              <SizableText size="sm" className="min-w-0 flex-1 truncate">
+                {firing.activitySummary}
+              </SizableText>
+              <SizableText size="xs" color="muted">
+                {formattedDateMedium(new Date(firing.createdAt))}
+              </SizableText>
+              {firing.runId ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setExpandedRunId(expanded ? null : firing.runId!)}
+                >
+                  {expanded ? 'Hide run' : 'Show run'}
+                </Button>
+              ) : null}
+              {firing.sessionId ? (
+                <Button type="button" size="sm" variant="ghost" onClick={() => onOpenSession(firing.sessionId!)}>
+                  Open thread <ArrowRight className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
+            {firing.error ? (
+              <SizableText size="xs" className="text-destructive break-words">
+                {firing.error}
+              </SizableText>
+            ) : null}
+            {expanded && firing.runId ? (
+              <RunRecordCard
+                serverUrl={serverUrl}
+                accountUid={accountUid}
+                runId={firing.runId}
+                onOpenSession={onOpenSession}
+              />
+            ) : null}
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 /** The delivery URL of an existing webhook trigger, shown on its detail page. */

@@ -1,4 +1,6 @@
-import {type AgentSessionTriggerContext, type AgentTriggerSource} from './client'
+import {type AgentSessionTriggerContext, type AgentTriggerSource, type TriggerContinuation} from './client'
+import type {AgentToolInfo} from '@seed-hypermedia/agents-protocol'
+import {Textarea} from '@shm/ui/components/textarea'
 import {useNavigate} from './navigation'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
 import {Input} from '@shm/ui/components/input'
@@ -21,7 +23,7 @@ import {
   Webhook,
   Workflow,
 } from 'lucide-react'
-import React, {useMemo, useState} from 'react'
+import React, {useEffect, useMemo, useState} from 'react'
 
 /**
  * Canonical per-trigger-type frontend definitions.
@@ -657,4 +659,264 @@ function recordField(value: unknown, key: string): Record<string, unknown> | nul
 function stringField(value: Record<string, unknown>, key: string): string | undefined {
   const field = value[key]
   return typeof field === 'string' && field ? field : undefined
+}
+
+// ---------------------------------------------------------------------------------------------
+// Continuations: what a firing does. `newThread` (the default) hands every firing to a model;
+// `tool` and `script` run code with no model involved, optionally escalating to a thread on failure.
+// ---------------------------------------------------------------------------------------------
+
+type ContinuationKind = TriggerContinuation['kind']
+
+const CONTINUATION_KIND_OPTIONS: Array<{value: ContinuationKind; label: string}> = [
+  {value: 'newThread', label: 'Start a thread (model handles it)'},
+  {value: 'tool', label: 'Call a tool (no model)'},
+  {value: 'script', label: 'Run a script (no model)'},
+  {value: 'wake', label: 'Wake a parked run'},
+]
+
+const DEFAULT_TRIGGER_SCRIPT = `export default async function (input, ctx) {
+  // input = {event, input, trigger}. A webhook's JSON body is input.event.payload.
+  const result = await ctx.call('read', {address: '~/triggers/'}, {description: 'Example: read the trigger list'})
+  // Bring a model in only when something needs judgment:
+  // if (result.problem) return ctx.delegate({title: 'Look into this', brief: JSON.stringify(result)})
+  return result
+}
+`
+
+export function defaultContinuationForKind(
+  kind: ContinuationKind,
+  previous?: TriggerContinuation,
+): TriggerContinuation {
+  const onFailure = previous && 'onFailure' in previous && previous.onFailure ? {onFailure: previous.onFailure} : {}
+  switch (kind) {
+    case 'newThread':
+      return {kind: 'newThread'}
+    case 'wake':
+      return {kind: 'wake', signal: previous?.kind === 'wake' ? previous.signal : 'answer'}
+    case 'tool':
+      return {kind: 'tool', tool: previous?.kind === 'tool' ? previous.tool : '', ...onFailure}
+    case 'script':
+      return {
+        kind: 'script',
+        script: previous?.kind === 'script' ? previous.script : DEFAULT_TRIGGER_SCRIPT,
+        ...onFailure,
+      }
+  }
+}
+
+/** One line for a trigger's page and list: what happens when it fires. */
+export function summarizeTriggerContinuation(continuation: TriggerContinuation | undefined): string {
+  if (!continuation || continuation.kind === 'newThread') return 'Starts a thread from the prompt'
+  if (continuation.kind === 'wake') return `Wakes a parked run with signal "${continuation.signal}"`
+  const escalates = continuation.onFailure === 'thread' ? '; starts a thread from the prompt if it fails' : ''
+  if (continuation.kind === 'tool') return `Calls tool "${continuation.tool || '…'}" with no model${escalates}`
+  return `Runs a script with no model${escalates}`
+}
+
+/** True when the continuation runs without a model unless something fails. */
+export function isHeadlessContinuation(
+  continuation: TriggerContinuation | undefined,
+): continuation is Extract<TriggerContinuation, {kind: 'tool' | 'script'}> {
+  return continuation?.kind === 'tool' || continuation?.kind === 'script'
+}
+
+/**
+ * Edits a trigger's continuation. JSON fields keep their own draft text so a half-typed value never
+ * clobbers the saved one: only parseable JSON propagates.
+ */
+export function TriggerContinuationFields({
+  continuation,
+  onChange,
+  tools,
+  disabled = false,
+}: {
+  continuation: TriggerContinuation | undefined
+  onChange: (continuation: TriggerContinuation) => void
+  /** The agent's tools, for the tool picker; undefined while loading. */
+  tools: AgentToolInfo[] | undefined
+  disabled?: boolean
+}) {
+  const current: TriggerContinuation = continuation ?? {kind: 'newThread'}
+  const toolOptions = useMemo(() => {
+    const names = new Set<string>(['read', 'write'])
+    for (const tool of tools ?? []) names.add(tool.name)
+    if (current.kind === 'tool' && current.tool) names.add(current.tool)
+    return Array.from(names)
+      .sort()
+      .map((name) => {
+        const info = tools?.find((tool) => tool.name === name)
+        const kind = name === 'read' || name === 'write' ? 'verb' : info?.kind ?? 'tool'
+        return {value: name, label: `${name} · ${kind}`}
+      })
+  }, [tools, current])
+  return (
+    <div className="grid gap-3">
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          When it fires:
+        </SizableText>
+        <SelectDropdown
+          options={CONTINUATION_KIND_OPTIONS}
+          value={current.kind}
+          onValue={(value) => onChange(defaultContinuationForKind(value as ContinuationKind, current))}
+          disabled={disabled}
+        />
+      </label>
+      {current.kind === 'tool' ? (
+        <>
+          <label className="flex flex-col gap-1">
+            <SizableText size="sm" weight="bold">
+              Tool
+            </SizableText>
+            <SelectDropdown
+              options={toolOptions}
+              value={current.tool}
+              placeholder="Choose a tool"
+              onValue={(value) => onChange({...current, tool: value})}
+              disabled={disabled}
+            />
+            <SizableText size="xs" color="muted">
+              Any of the agent&apos;s tools, including ones it authored under ~/tools. The call runs with no model.
+            </SizableText>
+          </label>
+          <JsonTemplateField
+            label="Tool input"
+            value={current.input}
+            placeholder={'{"payload": "$event.payload"}'}
+            hint={
+              'JSON handed to the tool. Leave empty to pass the whole trigger event. Strings "$event" and "$event.<path>" are replaced from the event; a webhook body is "$event.payload".'
+            }
+            onChange={(input) => onChange(input === undefined ? {...current, input: undefined} : {...current, input})}
+            disabled={disabled}
+          />
+        </>
+      ) : null}
+      {current.kind === 'script' ? (
+        <>
+          <label className="flex flex-col gap-1">
+            <SizableText size="sm" weight="bold">
+              Script
+            </SizableText>
+            <Textarea
+              className="min-h-56 font-mono text-xs"
+              value={current.script}
+              onChange={(event) => onChange({...current, script: event.target.value})}
+              disabled={disabled}
+              spellCheck={false}
+            />
+            <SizableText size="xs" color="muted">
+              A workflow module: <code>export default async function (input, ctx)</code> with{' '}
+              <code>input = {'{event, input, trigger}'}</code>. Use <code>ctx.call</code> for tools,{' '}
+              <code>ctx.delegate</code> to bring in a model only when needed, <code>ctx.waitForEvent</code> to pause for
+              a person. No imports, Date, Math.random, or fetch.
+            </SizableText>
+          </label>
+          <JsonTemplateField
+            label="Script input"
+            value={current.input}
+            placeholder={'{"threshold": 3}'}
+            hint="Optional JSON the script receives as input.input, alongside the event."
+            onChange={(input) => onChange(input === undefined ? {...current, input: undefined} : {...current, input})}
+            disabled={disabled}
+          />
+        </>
+      ) : null}
+      {current.kind === 'wake' ? (
+        <label className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Signal
+          </SizableText>
+          <Input
+            value={current.signal}
+            onChange={(event) => onChange({...current, signal: event.target.value})}
+            disabled={disabled}
+          />
+          <SizableText size="xs" color="muted">
+            Delivered to a run parked on <code>ctx.waitForEvent({'{signal}'})</code>; the event is its payload.
+          </SizableText>
+        </label>
+      ) : null}
+      {current.kind === 'tool' || current.kind === 'script' ? (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={current.onFailure === 'thread'}
+            disabled={disabled}
+            onChange={(event) =>
+              onChange(
+                event.target.checked
+                  ? {...current, onFailure: 'thread'}
+                  : (({onFailure: _omit, ...rest}) => rest)(current),
+              )
+            }
+          />
+          If it fails, start a thread from the prompt so a model can recover
+        </label>
+      ) : null}
+    </div>
+  )
+}
+
+function JsonTemplateField({
+  label,
+  value,
+  placeholder,
+  hint,
+  onChange,
+  disabled,
+}: {
+  label: string
+  value: unknown
+  placeholder: string
+  hint: string
+  onChange: (value: unknown | undefined) => void
+  disabled: boolean
+}) {
+  const [text, setText] = useState(() => (value === undefined ? '' : JSON.stringify(value, null, 2)))
+  const [error, setError] = useState<string | null>(null)
+  // Adopt an outside change (a different trigger loaded) unless the draft is what produced it.
+  useEffect(() => {
+    const serialized = value === undefined ? '' : JSON.stringify(value, null, 2)
+    let draftValue: unknown = undefined
+    try {
+      draftValue = text.trim() ? JSON.parse(text) : undefined
+    } catch {
+      return
+    }
+    if (JSON.stringify(draftValue) !== JSON.stringify(value)) setText(serialized)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  return (
+    <label className="flex flex-col gap-1">
+      <SizableText size="sm" weight="bold">
+        {label}
+      </SizableText>
+      <Textarea
+        className="min-h-20 font-mono text-xs"
+        value={text}
+        placeholder={placeholder}
+        disabled={disabled}
+        spellCheck={false}
+        onChange={(event) => {
+          const next = event.target.value
+          setText(next)
+          if (!next.trim()) {
+            setError(null)
+            onChange(undefined)
+            return
+          }
+          try {
+            onChange(JSON.parse(next))
+            setError(null)
+          } catch {
+            setError('Not valid JSON yet — the last valid value is kept.')
+          }
+        }}
+      />
+      <SizableText size="xs" color={error ? undefined : 'muted'} className={error ? 'text-destructive' : undefined}>
+        {error ?? hint}
+      </SizableText>
+    </label>
+  )
 }

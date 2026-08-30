@@ -62,6 +62,12 @@ Write JSON to \`~/triggers/<name>\` with \`source\`, \`prompt\`, and optional \`
 {"address":"~/triggers/hourly-review","content":"{\"source\":{\"type\":\"schedule\",\"schedule\":{\"kind\":\"interval\",\"every\":1,\"unit\":\"hours\"}},\"prompt\":\"Review current project state.\",\"enabled\":true}"}
 \`\`\`
 
+A trigger's \`continuation\` decides what a firing does. The default starts a thread from \`prompt\`. To run code with no model involved, use \`{"kind":"tool","tool":"<name>","input":{...},"onFailure":"thread"}\` (one tool call; \`"$event"\` / \`"$event.<path>"\` strings in \`input\` are filled from the event) or \`{"kind":"script","script":"export default async function (input, ctx) {…}","onFailure":"thread"}\` (a workflow script with \`input = {event, input, trigger}\`; \`ctx.call\` tools, \`ctx.delegate\` a model only when needed). With \`onFailure: "thread"\`, a failed run starts a thread from \`prompt\` carrying the failure, so you are only involved when something goes wrong; \`prompt\` may then be omitted.
+
+\`\`\`json
+{"address":"~/triggers/deploy-hook","content":"{\"source\":{\"type\":\"webhook\"},\"continuation\":{\"kind\":\"tool\",\"tool\":\"record-deploy\",\"input\":{\"payload\":\"$event.payload\"},\"onFailure\":\"thread\"},\"prompt\":\"The deploy recorder failed; investigate and fix the record.\"}"}
+\`\`\`
+
 Replace the trigger document to edit it, write with \`enabled: false\` to disable it, or use \`options: {delete: true}\` to remove it. Trigger writes do not use \`dryRun\` or a signer.`,
   },
   ipfs: {

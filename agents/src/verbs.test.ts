@@ -704,6 +704,55 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     expect(rows.length).toBe(1)
   })
 
+  test('headless continuations are validated when written and explained when read', async () => {
+    const context = makeContext()
+    const schedule = {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}}
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({source: schedule, continuation: {kind: 'tool', tool: 'no-such-tool'}}),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining("not one of this agent's tools")})
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({
+          source: schedule,
+          continuation: {kind: 'script', script: 'export default async function () { return fetch("x") }'},
+        }),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('Trigger script rejected')})
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({source: schedule, continuation: {kind: 'tool', tool: 'read', onFailure: 'shout'}}),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('onFailure')})
+    // A thread trigger still needs its prompt.
+    await expect(
+      executeWriteVerb(context, {address: '~/triggers/nope', content: JSON.stringify({source: schedule})}),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('prompt')})
+
+    const created = await executeWriteVerb(context, {
+      address: '~/triggers/hourly-read',
+      content: JSON.stringify({
+        source: schedule,
+        continuation: {kind: 'tool', tool: 'read', input: {address: '~/tools/'}, onFailure: 'thread'},
+      }),
+    })
+    expect(created.summary).toContain('calls tool "read" headlessly')
+    const read = await executeReadVerb(context, {address: '~/triggers/hourly-read'})
+    expect(read.continuation).toEqual({kind: 'tool', tool: 'read', input: {address: '~/tools/'}, onFailure: 'thread'})
+    expect(read.summary).toContain('starts a thread from the prompt if that fails')
+    // The stored recovery prompt is the default one, since none was written.
+    expect(String(read.prompt)).toContain('automation on this trigger failed')
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    const entry = (listing.triggers as Array<Record<string, unknown>>).find((row) => row.name === 'hourly-read')
+    expect(entry?.does).toContain('calls tool "read" headlessly')
+    expect(String(listing.contract)).toContain('{kind: "tool", tool, input?, onFailure?}')
+    expect(String(listing.contract)).toContain('{kind: "script", script, input?, onFailure?}')
+  })
+
   test('agents create and edit webhook triggers with a customizable prompt and one-time credential', async () => {
     const context = makeContext()
     const created = await executeWriteVerb(context, {

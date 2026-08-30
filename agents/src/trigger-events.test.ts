@@ -1,5 +1,5 @@
 import {Database} from 'bun:sqlite'
-import {afterEach, describe, expect, test} from 'bun:test'
+import {afterEach, describe, expect, mock, test} from 'bun:test'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -256,5 +256,167 @@ describe('run-completed triggers', () => {
     expect(firingsOf(harness, wrongAgent)).toHaveLength(0)
     expect(firingsOf(harness, wrongTitle)).toHaveLength(0)
     expect(firingsOf(harness, matching)).toHaveLength(1)
+  })
+})
+
+describe('headless trigger continuations', () => {
+  const RUN_FOR = (id: string) => `firing-${id}`
+  const firingRow = (harness: Harness, triggerId: string) =>
+    harness.db
+      .query<
+        {id: string; status: string; error: string | null; run_id: string | null; session_id: string | null},
+        [string]
+      >(
+        `SELECT id, status, error, run_id, session_id FROM trigger_firings WHERE trigger_id = ? ORDER BY created_at DESC`,
+      )
+      .get(triggerId)
+
+  test('a tool continuation calls the tool with the event and records the run on the firing', async () => {
+    const harness = await createHarness()
+    const triggerId = await createTrigger(harness, {
+      name: 'Note the finish',
+      source: {type: 'run-completed', status: 'succeeded'},
+      continuation: {kind: 'tool', tool: 'read', input: {address: '~/triggers/'}},
+    })
+    enqueueWorkflow(harness, {id: 'crawler', source: RETURNS_IMMEDIATELY})
+    await untilRun(harness, 'crawler', (run) => run.status === 'succeeded')
+
+    const firing = await (async () => {
+      for (let i = 0; i < 200; i += 1) {
+        const row = firingRow(harness, triggerId)
+        if (row?.run_id) return row
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      throw new Error('firing never linked a run')
+    })()
+    expect(firing.run_id).toBe(RUN_FOR(firing.id))
+    expect(firing.session_id).toBeNull()
+    const run = await untilRun(harness, firing.run_id!, (r) => runs.TERMINAL_RUN_STATUSES.includes(r.status))
+    expect(run).toMatchObject({status: 'succeeded', kind: 'workflow', origin: 'trigger', triggerFiringId: firing.id})
+    expect(run.sessionId).toBeUndefined()
+    // The tool ran for real: `read ~/triggers/` lists the trigger that fired it.
+    expect(JSON.stringify(run.output)).toContain('Note the finish')
+    expect(firingRow(harness, triggerId)).toMatchObject({status: 'succeeded', error: null})
+    // The trigger reads back its own firing with the run address an agent can follow.
+    const trigger = harness.db
+      .query<{last_fired_at: number | null; last_error: string | null}, [string]>(
+        `SELECT last_fired_at, last_error FROM agent_triggers WHERE id = ?`,
+      )
+      .get(triggerId)
+    expect(trigger?.last_fired_at).not.toBeNull()
+    expect(trigger?.last_error).toBeNull()
+  })
+
+  test('a script continuation gets the event, its input, and the trigger as ctx.input', async () => {
+    const harness = await createHarness()
+    const triggerId = await createTrigger(harness, {
+      name: 'Describe the finish',
+      source: {type: 'run-completed'},
+      continuation: {
+        kind: 'script',
+        input: {tag: 'v1'},
+        script: `export default async function (input, ctx) {
+          await ctx.log('info', 'headless')
+          return [input.event.type, input.event.runStatus, input.input.tag, input.trigger.name].join('|')
+        }`,
+      },
+    })
+    enqueueWorkflow(harness, {id: 'crawler', source: RETURNS_IMMEDIATELY})
+    await untilRun(harness, 'crawler', (run) => run.status === 'succeeded')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const firing = firingRow(harness, triggerId)
+    expect(firing?.run_id).toBeTruthy()
+    const run = await untilRun(harness, firing!.run_id!, (r) => runs.TERMINAL_RUN_STATUSES.includes(r.status))
+    expect(run.status).toBe('succeeded')
+    expect(run.output).toBe('run-completed|succeeded|v1|Describe the finish')
+  })
+
+  test('a failed headless run marks the firing and, when asked, starts a recovery thread', async () => {
+    const harness = await createHarness()
+    // The recovery thread runs a real agent turn; answer it with a canned stream so the test never
+    // reaches a provider (and nothing is left retrying after the database closes).
+    const modelRequests: string[] = []
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      modelRequests.push(String(init?.body ?? ''))
+      const chunks = [
+        {id: 'chat-recovery', choices: [{delta: {content: 'Recovered.'}}]},
+        {
+          id: 'chat-recovery',
+          choices: [{delta: {}, finish_reason: 'stop'}],
+          usage: {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2},
+        },
+      ]
+      return new Response(chunks.map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n', {
+        headers: {'content-type': 'text/event-stream'},
+      })
+    }) as unknown as typeof fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    const quiet = await createTrigger(harness, {
+      name: 'Quiet failure',
+      source: {type: 'run-completed'},
+      continuation: {kind: 'script', script: `export default async function () { throw new Error('boom') }`},
+    })
+    const loud = await createTrigger(harness, {
+      name: 'Loud failure',
+      source: {type: 'run-completed'},
+      prompt: 'Sort out the deploy recorder.',
+      continuation: {
+        kind: 'script',
+        onFailure: 'thread',
+        script: `export default async function () { throw new Error('kaboom') }`,
+      },
+    })
+    enqueueWorkflow(harness, {id: 'crawler', source: RETURNS_IMMEDIATELY})
+    await untilRun(harness, 'crawler', (run) => run.status === 'succeeded')
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    const quietFiring = firingRow(harness, quiet)!
+    const loudFiring = firingRow(harness, loud)!
+    await untilRun(harness, quietFiring.run_id!, (r) => r.status === 'failed')
+    await untilRun(harness, loudFiring.run_id!, (r) => r.status === 'failed')
+
+    expect(firingRow(harness, quiet)).toMatchObject({
+      status: 'error',
+      error: expect.stringContaining('boom'),
+      session_id: null,
+    })
+    const escalated = firingRow(harness, loud)!
+    expect(escalated.status).toBe('escalated')
+    expect(escalated.session_id).toBeTruthy()
+    const session = harness.db
+      .query<{title: string}, [string]>(`SELECT title FROM sessions WHERE id = ?`)
+      .get(escalated.session_id!)
+    expect(session?.title).toContain('automation failed')
+    // The recovery thread's first message carries the failure and points at the run's journal. It
+    // is appended before the model runs, so there is no need to wait for that (fake-keyed) run.
+    const firstMessage = await (async () => {
+      for (let i = 0; i < 300; i += 1) {
+        const row = harness.db
+          .query<{event_cbor: Uint8Array}, [string]>(
+            `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq ASC LIMIT 1`,
+          )
+          .get(escalated.session_id!)
+        if (row) return row
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      return null
+    })()
+    const text = firstMessage ? JSON.stringify(cborDecode(firstMessage.event_cbor)) : ''
+    expect(text).toContain('Sort out the deploy recorder.')
+    expect(text).toContain('automationFailure')
+    expect(text).toContain(`run:${loudFiring.run_id}`)
+    expect(text).toContain('kaboom')
+    const agentRow = harness.db
+      .query<{last_error: string | null}, [string]>(`SELECT last_error FROM agent_triggers WHERE id = ?`)
+      .get(loud)
+    expect(agentRow?.last_error).toContain('kaboom')
+    // The recovery thread reached the model with the failure in its context.
+    await harness.service.drainTriggerSessions()
+    // (More than one request is fine: the runtime may also ask for a title.)
+    expect(modelRequests.some((body) => body.includes('automationFailure') && body.includes('kaboom'))).toBe(true)
+    const escalationRun = runs.getRun(harness.db, harness.accountId, `firing-${loudFiring.id}-escalation`)
+    expect(escalationRun?.status).toBe('succeeded')
   })
 })

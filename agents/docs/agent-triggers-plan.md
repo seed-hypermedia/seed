@@ -21,6 +21,10 @@
 > their own triggers directly, so "do this every morning" works in one turn (see `security.md` for the threat-model
 > note).
 >
+> **Added 2026-08-30 (headless continuations):** two more continuation kinds, `tool` and `script`, run a firing with no
+> model involved — one tool call, or a workflow script — as a `workflow` run linked from `trigger_firings.run_id`, with
+> optional `onFailure: 'thread'` escalation into the ordinary trigger thread. See `trigger-continuations.md`.
+>
 > **Superseded but not yet built:** trigger **documents** (content-addressed, CID-versioned like `~/tools/`), replacing
 > the `CreateAgentTrigger`/`UpdateAgentTrigger`/`DeleteAgentTrigger` actions. That, the `document-change` source, the
 > `appendTo`/`runPlan` continuations, the data-preserving migration off `agent_triggers`, and the desktop editor
