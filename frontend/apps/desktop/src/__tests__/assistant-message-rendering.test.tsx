@@ -81,6 +81,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   useAgentRunTreeSubscription: () => ({runs: {}, progress: {}, activity: {}, journal: []}),
   useCancelRun: () => ({mutate: () => {}, isPending: false}),
   useSignalRun: () => ({mutate: () => {}, isPending: false}),
+  useFullAgentSessionEvent: () => ({data: undefined, isLoading: false, error: null}),
 }))
 
 import {AgentErrorRow, ChatMessageBubble} from '@shm/ui/agents/message-rendering'

@@ -49,6 +49,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
       truncated: false,
       durationMs: 1,
       changedFiles: [],
+      changedFilesTotal: 0,
     }),
   } as unknown as CodeExecutor
   return {
@@ -362,6 +363,7 @@ describe('call verb', () => {
       truncated: false,
       durationMs: 3,
       changedFiles: [{path: 'x', change: 'added'}],
+      changedFilesTotal: 1,
     }))
     const context = makeContext({
       codeExec: {
@@ -405,6 +407,7 @@ describe('call verb', () => {
           truncated: false,
           durationMs: 5,
           changedFiles: [],
+          changedFilesTotal: 0,
         }),
       } as never,
     })
@@ -451,6 +454,7 @@ describe('call verb', () => {
         truncated: false,
         durationMs: 7,
         changedFiles: [{path: 'weather.json', change: 'added'}],
+        changedFilesTotal: 1,
       }
     })
     toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
@@ -486,6 +490,7 @@ describe('call verb', () => {
       truncated: false,
       durationMs: 2,
       changedFiles: [],
+      changedFilesTotal: 0,
     }))
     toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
       name: 'weather',
@@ -523,6 +528,7 @@ describe('call verb', () => {
       truncated: false,
       durationMs: 3,
       changedFiles: [],
+      changedFilesTotal: 0,
     }))
     toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
       name: 'weather',

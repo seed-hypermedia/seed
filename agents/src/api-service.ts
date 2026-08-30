@@ -111,6 +111,8 @@ import * as path from 'node:path'
 import * as nodeCrypto from 'node:crypto'
 
 const MAX_NAME_BYTES = 256
+/** How long a resolved system prompt (which may embed fetched remote docs) is served from cache. */
+const RESOLVED_PROMPT_CACHE_TTL_MS = 5 * 60 * 1000
 /**
  * Entry cap for the full recursive `ListAgentMemory` walk. The walk is synchronous on the
  * server's only thread, so it must stay bounded against pathological memories (an imported
@@ -671,6 +673,12 @@ export class Service {
   readonly #namingSessions = new Set<string>()
   /** Title generation attempts per session this process, so a failing provider is not re-asked forever. */
   readonly #titleAttempts = new Map<string, number>()
+  /**
+   * Resolved system-prompt markdown per agent. Resolution can FETCH remote hm:// documents the
+   * prompt embeds, and it runs on every GetSession (each session open, each WS resubscribe) — so
+   * it is cached against the prompt blocks' JSON with a short TTL to pick up remote doc edits.
+   */
+  readonly #resolvedSystemPromptCache = new Map<string, {source: string; value: string; expiresAt: number}>()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
@@ -979,7 +987,15 @@ export class Service {
       case 'DeleteSession':
         return this.#deleteSession(accountId, envelope.action.sessionId)
       case 'GetSession':
-        return await this.#getSession(accountId, envelope.action.sessionId, envelope.action.afterSeq)
+        return await this.#getSession(
+          accountId,
+          envelope.action.sessionId,
+          envelope.action.afterSeq,
+          envelope.action.beforeSeq,
+          envelope.action.limit,
+        )
+      case 'GetSessionEvent':
+        return this.#getSessionEvent(accountId, envelope.action.sessionId, envelope.action.seq)
       case 'InvokeSessionTool':
         return this.#invokeSessionTool(
           accountId,
@@ -1128,6 +1144,7 @@ export class Service {
         if (action.parentSessionId) return fromSession(action.parentSessionId)
         return actorAccountId
       case 'GetSession':
+      case 'GetSessionEvent':
       case 'ReadSessionAttachment':
         return fromSession(action.sessionId)
       case 'UpdateSession':
@@ -5782,10 +5799,20 @@ export class Service {
     stateDir?: string,
   ): Promise<string> {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-    const systemPrompt = await promptBlocksToResolvedMarkdown(
-      normalizeSystemPromptBlocks(definition.systemPrompt),
-      createSeedClient(this.#hmServerUrl),
-    )
+    const promptBlocks = normalizeSystemPromptBlocks(definition.systemPrompt)
+    const promptSource = safeJSONStringify(promptBlocks)
+    const cachedPrompt = this.#resolvedSystemPromptCache.get(agentId)
+    let systemPrompt: string
+    if (cachedPrompt && cachedPrompt.source === promptSource && cachedPrompt.expiresAt > Date.now()) {
+      systemPrompt = cachedPrompt.value
+    } else {
+      systemPrompt = await promptBlocksToResolvedMarkdown(promptBlocks, createSeedClient(this.#hmServerUrl))
+      this.#resolvedSystemPromptCache.set(agentId, {
+        source: promptSource,
+        value: systemPrompt,
+        expiresAt: Date.now() + RESOLVED_PROMPT_CACHE_TTL_MS,
+      })
+    }
     const sharedPrompt = seedAssistantSystemPrompt({
       currentTime: new Date().toISOString(),
     })
@@ -6778,9 +6805,21 @@ export class Service {
     }
   }
 
-  async #getSession(accountId: string, sessionId: string, afterSeq?: number): Promise<api.GetSessionResponse> {
+  async #getSession(
+    accountId: string,
+    sessionId: string,
+    afterSeq?: number,
+    beforeSeq?: number,
+    limit?: number,
+  ): Promise<api.GetSessionResponse> {
     if (afterSeq !== undefined && (!Number.isInteger(afterSeq) || afterSeq < 0)) {
       throw new APIError(400, 'afterSeq must be a non-negative integer')
+    }
+    if (beforeSeq !== undefined && (!Number.isInteger(beforeSeq) || beforeSeq < 1)) {
+      throw new APIError(400, 'beforeSeq must be a positive integer')
+    }
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1)) {
+      throw new APIError(400, 'limit must be a positive integer')
     }
     const session = this.#db
       .query<SessionRow, [string, string]>(
@@ -6792,12 +6831,25 @@ export class Service {
       .get(accountId, sessionId)
     if (!session) throw new APIError(404, 'Session not found')
 
-    const events = this.#db
-      .query<SessionEventRow, [string, number]>(
-        `SELECT id, session_id, seq, event_cbor, created_at
-         FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
+    // Selected newest-first when a limit applies so the response is the transcript TAIL (the part
+    // a session view renders first); re-sorted ascending below either way.
+    type WireEventRow = SessionEventRow & {byte_length: number}
+    const eventRows = this.#db
+      .query<WireEventRow, (string | number)[]>(
+        `SELECT id, session_id, seq, event_cbor, created_at, LENGTH(event_cbor) AS byte_length
+         FROM session_events WHERE session_id = ? AND seq > ?${beforeSeq !== undefined ? ' AND seq < ?' : ''}
+         ORDER BY seq ${limit !== undefined ? 'DESC LIMIT ?' : 'ASC'}`,
       )
-      .all(sessionId, afterSeq ?? 0)
+      .all(
+        sessionId,
+        afterSeq ?? 0,
+        ...(beforeSeq !== undefined ? [beforeSeq] : []),
+        ...(limit !== undefined ? [limit] : []),
+      )
+    if (limit !== undefined) eventRows.reverse()
+    const hasMoreBefore =
+      limit !== undefined && eventRows.length === limit && (eventRows[0]?.seq ?? 0) > (afterSeq ?? 0) + 1
+    const events = eventRows.map((row) => truncateSessionEventForWire(sessionEventRowToInfo(row), row.byte_length))
 
     const agent = this.#db
       .query<AgentRow, [string, string]>(
@@ -6811,10 +6863,26 @@ export class Service {
     return {
       _: 'GetSessionResponse',
       session: sessionRowToInfo(session, triggerContext ?? undefined),
-      events: events.map(sessionEventRowToInfo),
+      events,
       systemPromptMarkdown: await this.#agentSystemPrompt(accountId, agent.id, definition, agent.state_dir),
       ...(triggerContext ? {triggerContext} : {}),
+      ...(hasMoreBefore ? {hasMoreBefore} : {}),
     }
+  }
+
+  #getSessionEvent(accountId: string, sessionId: string, seq: number): api.GetSessionEventResponse {
+    if (!Number.isInteger(seq) || seq < 1) throw new APIError(400, 'seq must be a positive integer')
+    const session = this.#db
+      .query<{id: string}, [string, string]>(`SELECT id FROM sessions WHERE account_id = ? AND id = ?`)
+      .get(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    const row = this.#db
+      .query<SessionEventRow, [string, number]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq = ?`,
+      )
+      .get(sessionId, seq)
+    if (!row) throw new APIError(404, 'Session event not found')
+    return {_: 'GetSessionEventResponse', event: sessionEventRowToInfo(row)}
   }
 
   async #withAsyncIdempotency<T extends api.AgentResponse>(
@@ -8234,6 +8302,65 @@ function sessionEventRowToInfo(row: SessionEventRow): api.SessionEvent {
     event: cbor.decode(row.event_cbor),
     createdAt: row.created_at,
   }
+}
+
+/**
+ * A single durable event may carry a multi-megabyte tool output (a code exec that touched tens of
+ * thousands of files, a huge web fetch). Any string kept on the wire must stay well under this, so
+ * a transcript of hundreds of events costs kilobytes to load, not tens of megabytes.
+ */
+const WIRE_STRING_LIMIT = 16 * 1024
+/** Arrays inside an event payload are elided past this many entries on the wire. */
+const WIRE_ARRAY_LIMIT = 200
+/** Payloads encoded smaller than this skip the truncation walk entirely. */
+export const WIRE_EVENT_BYTE_BUDGET = 64 * 1024
+
+/** Truncates one value for transport, returning the input object unchanged when nothing was cut. */
+function truncateValueForWire(value: unknown, changed: {did: boolean}): unknown {
+  if (typeof value === 'string') {
+    if (value.length <= WIRE_STRING_LIMIT) return value
+    changed.did = true
+    return `${value.slice(0, WIRE_STRING_LIMIT)}… [truncated: ${value.length} chars]`
+  }
+  if (value instanceof Uint8Array) {
+    if (value.length <= WIRE_STRING_LIMIT) return value
+    changed.did = true
+    return value.slice(0, WIRE_STRING_LIMIT)
+  }
+  if (Array.isArray(value)) {
+    const bounded = value.length > WIRE_ARRAY_LIMIT ? value.slice(0, WIRE_ARRAY_LIMIT) : value
+    if (bounded.length < value.length) changed.did = true
+    let out: unknown[] | undefined
+    for (let i = 0; i < bounded.length; i++) {
+      const next = truncateValueForWire(bounded[i], changed)
+      if (next !== bounded[i] && !out) out = bounded.slice(0, i)
+      if (out) out.push(next)
+    }
+    return out ?? bounded
+  }
+  if (value && typeof value === 'object') {
+    let out: Record<string, unknown> | undefined
+    for (const [key, entry] of Object.entries(value)) {
+      const next = truncateValueForWire(entry, changed)
+      if (next !== entry && !out) out = {...(value as Record<string, unknown>)}
+      if (out) out[key] = next
+    }
+    return out ?? value
+  }
+  return value
+}
+
+/**
+ * Caps an event's payload for transport. The durable event is untouched; clients that need the
+ * whole thing fetch it with `GetSessionEvent`. `encodedBytes` (the stored blob's length, when the
+ * caller has it) lets small events skip the walk — live appends pass undefined and always walk,
+ * which is cheap because a just-appended event is almost always small.
+ */
+export function truncateSessionEventForWire(info: api.SessionEvent, encodedBytes?: number): api.SessionEvent {
+  if (encodedBytes !== undefined && encodedBytes <= WIRE_EVENT_BYTE_BUDGET) return info
+  const changed = {did: false}
+  const event = truncateValueForWire(info.event, changed) as api.SessionEventPayload
+  return changed.did ? {...info, event, truncated: true} : info
 }
 
 /** Collapses any value into a short single-line string for verbose server logs. */
@@ -10802,14 +10929,17 @@ async function executeLambdaTool(
       )
     }
   }
-  const changeSummary = execution.changedFiles.length
-    ? `, ${execution.changedFiles.length} memory file${execution.changedFiles.length === 1 ? '' : 's'} changed`
+  const changeSummary = execution.changedFilesTotal
+    ? `, ${execution.changedFilesTotal} memory file${execution.changedFilesTotal === 1 ? '' : 's'} changed`
     : ''
   return {
     summary: `Ran ${doc.name} (${execution.durationMs}ms${changeSummary}).`,
     result,
     ...(logs ? {logs} : {}),
     ...(execution.changedFiles.length ? {changedFiles: execution.changedFiles} : {}),
+    ...(execution.changedFilesTotal > execution.changedFiles.length
+      ? {changedFilesTotal: execution.changedFilesTotal}
+      : {}),
     durationMs: execution.durationMs,
   }
 }
@@ -11014,8 +11144,8 @@ export async function executeCallVerb(
       // non-zero exit, and memory files touched. Mechanics (runtime, duration) stay in the details.
       const notes = [
         ...(result.exitCode === 0 ? [] : [`exit ${result.exitCode}`]),
-        ...(result.changedFiles.length
-          ? [`${result.changedFiles.length} memory file${result.changedFiles.length === 1 ? '' : 's'} changed`]
+        ...(result.changedFilesTotal
+          ? [`${result.changedFilesTotal} memory file${result.changedFilesTotal === 1 ? '' : 's'} changed`]
           : []),
       ]
       const lead = description || `Ran ${runtime} code`

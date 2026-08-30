@@ -289,6 +289,24 @@ describe('code exec', () => {
         {path: 'gone.md', change: 'removed'},
         {path: 'new.md', change: 'added'},
       ])
+      expect(result.changedFilesTotal).toBe(3)
+    })
+  })
+
+  test('caps the reported change list while keeping the true total', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+        fakeSdk(call, {
+          onExec: () => {
+            for (let i = 0; i < 250; i++) writeMemoryFile(stateDir, `bulk-${String(i).padStart(3, '0')}.md`, 'x')
+          },
+        }),
+      )
+      const result = await executor.execute({stateDir, runtime: 'python', code: 'x'})
+      expect(result.changedFiles).toHaveLength(200)
+      expect(result.changedFilesTotal).toBe(250)
+      expect(result.changedFiles[0]).toEqual({path: 'bulk-000.md', change: 'added'})
     })
   })
 

@@ -48,6 +48,14 @@ export type ChatToolPart = {
   child?: ChatToolChild
   /** Durable timestamp of the call event — when the tool was invoked. */
   calledAt?: number
+  /** Sequence of the call event, so a truncated input can be fetched whole with GetSessionEvent. */
+  callSeq?: number
+  /** The call event's payload was wire-truncated; `args` is a preview of the durable input. */
+  callTruncated?: boolean
+  /** Sequence of the result event, so a truncated output can be fetched whole with GetSessionEvent. */
+  resultSeq?: number
+  /** The result event's payload was wire-truncated; `rawOutput` is a preview of the durable output. */
+  resultTruncated?: boolean
   /** Durable timestamp of the result event; the row itself stays positioned at the call event. */
   completedAt?: number
   /** The result was an error (validation failure, tool crash) — `result` holds the message. */

@@ -452,6 +452,8 @@ export function buildAgentSessionChatRows(
         args: isRecord(payload.input) ? payload.input : {input: payload.input},
         actor: sessionEventActor(event.event),
         calledAt: event.createdAt,
+        callSeq: event.seq,
+        ...(event.truncated ? {callTruncated: true} : {}),
         ...(payload.meta ? {meta: payload.meta} : {}),
       }
       const row: Extract<AgentSessionChatRow, {kind: 'message'}> = {
@@ -537,6 +539,8 @@ export function buildAgentSessionChatRows(
         rawOutput: payload.output,
         ...(explicitResultActor ? {actor: explicitResultActor} : {}),
         completedAt: event.createdAt,
+        resultSeq: event.seq,
+        ...(event.truncated ? {resultTruncated: true} : {}),
         ...(meta ? {meta} : {}),
         ...(payload.error ? {isError: true} : {}),
       }

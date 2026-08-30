@@ -763,7 +763,16 @@ function AssistantSessionChat({
   const {serverUrl, sessionId} = sessionRef
   const navigate = useNavigate()
   const session = useAgentSession(serverUrl, accountUid, sessionId)
-  const live = useAgentWebSocketSubscription(serverUrl, accountUid, `sessions/${sessionId}`)
+  // Resume the socket after the last loaded event: without afterSeq the server replays the whole
+  // transcript over the socket on top of the GetSession fetch — the session loads twice. The
+  // subscription waits for the fetch so the race cannot resurrect the full replay.
+  const lastSeq = session.data?.events.filter((event) => event.seq !== Number.MAX_SAFE_INTEGER).at(-1)?.seq
+  const live = useAgentWebSocketSubscription(
+    serverUrl,
+    accountUid,
+    session.data ? `sessions/${sessionId}` : undefined,
+    lastSeq ?? 0,
+  )
   const messageSession = useMessageAgentSession(serverUrl, accountUid)
   const stopSession = useStopAgentSession(serverUrl, accountUid)
   const retrySession = useRetrySession(serverUrl, accountUid)
