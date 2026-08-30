@@ -63,3 +63,25 @@ version:
 ```sh
 gh workflow run "Generate latest.json (prod)"
 ```
+
+## 6. Homebrew (automatic — verify only)
+
+The [seed-hypermedia/homebrew-tap](https://github.com/seed-hypermedia/homebrew-tap) tap serves
+`brew install --cask seed-hypermedia/tap/seed` (desktop app) and
+`brew install seed-hypermedia/tap/seed-cli` (the npm CLI). It updates itself; no release step is
+required here:
+
+- Promoting the release (step 4's `--prerelease=false`) fires the `Homebrew Tap Update` workflow
+  in this repo, which dispatches to the tap. The tap then downloads the DMGs, recomputes
+  checksums, verifies with a real `brew install`, and pushes the bump. The same happens for the
+  CLI at the end of `Publish npm packages`.
+- The dispatch needs the `HOMEBREW_TAP_TOKEN` secret (a token with permission to send
+  `repository_dispatch` to the tap repo). Without it — or if a dispatch fails — the tap's
+  scheduled poll picks the release up within 6 hours anyway.
+
+To verify or force a bump:
+
+```sh
+gh workflow run update.yml -R seed-hypermedia/homebrew-tap
+gh run list -R seed-hypermedia/homebrew-tap --limit 3
+```

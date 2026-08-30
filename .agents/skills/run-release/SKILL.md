@@ -49,4 +49,9 @@ and push the release tag, but confirm the version number with the user before pu
    (the workflow creates the release as a prerelease; this promotes it).
 9. **Publish latest.json** so desktop auto-update sees the release:
    `gh workflow run "Generate latest.json (prod)"` and confirm the run succeeds.
-10. **Report**: version, release URL, and the state of each step.
+10. **Homebrew bumps itself** — promoting the release (step 8) triggers the `Homebrew Tap Update`
+    workflow, which dispatches to `seed-hypermedia/homebrew-tap` (see `docs/releasing.md` §6).
+    No action needed; optionally confirm with
+    `gh run list -R seed-hypermedia/homebrew-tap --limit 3`. If the dispatch was skipped
+    (`HOMEBREW_TAP_TOKEN` unset), the tap's 6-hourly poll covers it.
+11. **Report**: version, release URL, and the state of each step.
