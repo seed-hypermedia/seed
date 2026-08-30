@@ -8357,6 +8357,10 @@ describe('normalizeSubSessionSpec', () => {
     expect(spec.input).toEqual({topic: 'B'})
   })
 
+  test('agentId is refused loudly: children always run as this agent', () => {
+    expect(() => apisvc.normalizeSubSessionSpec({brief: 'Do it.', agentId: 'other-agent'})).toThrow(/agentId/)
+  })
+
   test('carries a trimmed model request and drops an empty one', () => {
     const spec = apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: '  openai/gpt-5-mini '})
     expect(spec.model).toBe('openai/gpt-5-mini')

@@ -302,11 +302,10 @@ type RunningSession = {
 type SubSessionSpec = {
   title?: string
   prompt?: string
-  agentId?: string
   input: unknown
   tools?: string[]
   output?: JsonSchema
-  /** Requested child model: "provider/model" or a bare model id, resolved against the child agent's enabled models at spawn. */
+  /** Requested child model: "provider/model" or a bare model id, resolved against the agent's enabled models at spawn. */
   model?: string
 }
 
@@ -371,13 +370,18 @@ export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
   if (input.input === undefined) {
     throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
   }
-  if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
-    throw new APIError(400, 'Provide either prompt or agentId, not both')
+  // Direct agent-to-agent delegation was removed deliberately: agents collaborate through Seed
+  // content (documents and comments) instead, so a stray agentId is refused loudly rather than
+  // silently running the child as the wrong agent.
+  if (input.agentId !== undefined) {
+    throw new APIError(
+      400,
+      'delegate does not support agentId: a child always runs as this agent. Use prompt for a different persona; collaborate with other agents through Seed documents and comments.',
+    )
   }
   const spec: SubSessionSpec = {
     ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
     ...(typeof input.prompt === 'string' && input.prompt ? {prompt: input.prompt} : {}),
-    ...(typeof input.agentId === 'string' && input.agentId ? {agentId: input.agentId} : {}),
     input: input.input,
     ...(Array.isArray(input.tools)
       ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
@@ -4914,9 +4918,11 @@ export class Service {
         `This run already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions; finish the remaining work here.`,
       )
     }
-    const childAgentId = spec.agentId ?? parentAgentId
-    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
-    // A requested model is resolved (and rejected) at spawn time, against the child agent's own
+    // Children always run as the delegating agent — direct agent-to-agent delegation is
+    // deliberately unsupported (agents collaborate through Seed content instead), and
+    // normalizeSubSessionSpec refuses any agentId before a spec reaches here.
+    const childAgentId = parentAgentId
+    // A requested model is resolved (and rejected) at spawn time, against this agent's own
     // enabled set, then stored as the child session's model override — the same mechanism a user's
     // quick-switch uses, so the run resolution and every client surface agree on what ran.
     const modelOverride = spec.model ? this.#delegateModelOverride(accountId, childAgentId, spec.model) : undefined
@@ -5233,9 +5239,8 @@ export class Service {
       throw new APIError(400, `This workflow already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions`)
     }
     const accountId = workflowRun.accountId
-    const childAgentId = spec.agentId ?? workflowRun.agentId
+    const childAgentId = workflowRun.agentId
     if (!childAgentId) throw new APIError(400, 'Workflow run has no agent to run sub-sessions as')
-    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
     // Nest the child session under the chat session that (transitively) launched the workflow.
     let ancestorSessionId: string | undefined
     for (let cursor: runs.RunRecord | null = workflowRun; cursor; ) {
@@ -10768,11 +10773,19 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
           input: input.input,
         })
       }
+      if (typeof input.agentId === 'string') {
+        // Match normalizeSubSessionSpec for provider-path calls that skip it (the detached branch):
+        // cross-agent delegation is deliberately unsupported.
+        throw new APIError(
+          400,
+          'delegate does not support agentId: a child always runs as this agent. Use prompt for a different persona; collaborate with other agents through Seed documents and comments.',
+        )
+      }
       if (input.await === false) {
         // Detached children run as this agent with the brief as their first message; the other
         // model-child fields have no meaning without an awaited result, so reject them loudly
         // instead of silently discarding what the model asked for.
-        for (const field of ['agentId', 'output', 'tools'] as const) {
+        for (const field of ['output', 'tools'] as const) {
           if (input[field] !== undefined) {
             throw new APIError(
               400,
