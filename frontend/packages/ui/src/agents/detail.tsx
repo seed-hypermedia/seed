@@ -89,6 +89,7 @@ import {
   Globe,
   Info,
   KeyRound,
+  Link2,
   MessageSquare,
   Pencil,
   Plus,
@@ -118,6 +119,8 @@ import {
   summarizeTriggerSource,
 } from './trigger-types'
 import {RunRecordCard} from './run-card'
+import {getAgentsPlatform} from './platform'
+import {routeToHref} from '@shm/shared/routing'
 import {
   AddModelProviderDialog,
   EditAgentAccountDialog,
@@ -2003,6 +2006,7 @@ function AgentTriggersTab({
 }) {
   const navigate = useNavigate()
   const trigger = useAgentTrigger(serverUrl, selectedAccountId, selectedTriggerId)
+  const gatewayUrl = useAgentsGatewayUrl()
   const updateTrigger = useUpdateAgentTrigger(serverUrl, selectedAccountId)
   const deleteTrigger = useDeleteAgentTrigger(serverUrl, selectedAccountId)
   const selected = trigger.data?.trigger
@@ -2180,20 +2184,38 @@ function AgentTriggersTab({
           backLabel="Back to agent triggers"
           onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'triggers'})}
           actions={
-            !readOnly ? (
-              <OptionsDropdown
-                align="end"
-                menuItems={[
-                  {
-                    key: 'delete-trigger',
-                    icon: <Trash2 className="size-4" />,
-                    label: 'Delete trigger',
-                    variant: 'destructive',
-                    onClick: () => void handleDeleteTrigger(),
-                  },
-                ]}
-              />
-            ) : null
+            <OptionsDropdown
+              align="end"
+              menuItems={[
+                {
+                  key: 'copy-trigger-link',
+                  icon: <Link2 className="size-4" />,
+                  label: 'Copy trigger link',
+                  onClick: () =>
+                    copyWithToast(
+                      agentsPageUrl(gatewayUrl, {
+                        key: 'agent',
+                        agentId,
+                        serverUrl,
+                        tab: 'triggers',
+                        triggerId: selectedTriggerId,
+                      }),
+                      'Trigger link',
+                    ),
+                },
+                ...(!readOnly
+                  ? [
+                      {
+                        key: 'delete-trigger',
+                        icon: <Trash2 className="size-4" />,
+                        label: 'Delete trigger',
+                        variant: 'destructive' as const,
+                        onClick: () => void handleDeleteTrigger(),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           }
         />
         <div className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-5 overflow-y-auto px-4 py-4">
@@ -2529,6 +2551,18 @@ function CreateAgentTriggerDialog({
 function defaultTriggerName(sourceType: AgentTriggerSource['type']): string {
   if (sourceType === 'webhook') return 'New webhook trigger'
   return 'New activity trigger'
+}
+
+/** The gateway the platform shares links through; the web UI's own origin when it has none. */
+function useAgentsGatewayUrl(): string | undefined {
+  const useGatewayUrl = getAgentsPlatform().useGatewayUrl ?? (() => undefined)
+  return useGatewayUrl()
+}
+
+/** An absolute link to a page of the web agents UI, which the desktop also opens in-app. */
+function agentsPageUrl(gatewayUrl: string | undefined, route: Parameters<typeof routeToHref>[0]): string {
+  const base = (gatewayUrl || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/+$/, '')
+  return `${base}${routeToHref(route)}`
 }
 
 function copyWithToast(value: string, label: string) {

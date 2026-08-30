@@ -16,6 +16,7 @@ import {
   viewTermToRouteKey,
 } from './entity-id-url'
 import {appRouteOfId} from './navigation'
+import {agentsRouteFromAbsoluteUrl} from './agents-routing'
 import {unpackHmId} from './entity-id-url'
 
 const EXPLORE_SORTS = ['relevance', 'recently_updated', 'newest', 'oldest', 'title'] as const
@@ -25,6 +26,9 @@ type ExploreSort = (typeof EXPLORE_SORTS)[number]
  * Converts a directly parseable Hypermedia app URL into an application route.
  */
 export function hypermediaUrlToRoute(url: string): NavRoute | null {
+  // A link to the web agents UI (what "Copy trigger link" and friends produce) is an app route.
+  const agentsRoute = agentsRouteFromAbsoluteUrl(url)
+  if (agentsRoute) return agentsRoute
   const inspectIpfsMatch =
     url.match(/^hm:\/\/inspect\/ipfs\/([^?#]+)(?:[?#].*)?$/) ||
     url.match(/^((?:https?:\/\/[^/]+)?\/hm)\/inspect\/ipfs\/([^?#]+)(?:[?#].*)?$/) ||
