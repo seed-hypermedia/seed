@@ -40,6 +40,21 @@ See `hypermedia/*` for the available docs, which you are responsible for helping
   tag, branch deletion, or push, unless explicitly asked.
 - If you need to write a commit message, explain why the change was made, not what the commit is doing mechanically.
 
+## Fork-only custom-images rebase rules
+
+These rules apply while query-block author and publish-date filters remain fork-only.
+
+- `custom-images` contains query-block filters that are not yet upstream.
+- Treat conflicts between the fork's query-filter changes and upstream query/table changes as additive. Preserve both
+  features instead of choosing one conflict side wholesale.
+- In particular, preserve separate test cases from both sides in:
+  - `frontend/packages/shared/src/client/__tests__/editorblock-to-hmblock.test.ts`
+  - `frontend/packages/shared/src/client/__tests__/hmblock-to-editorblock.test.ts`
+- After resolving conflicts, format the affected files and run `pnpm --filter @shm/shared test` before continuing or
+  pushing the rebase.
+- Never force-push a rebased `custom-images` branch unless those checks pass.
+- Remove this section after the query-filter feature is upstreamed.
+
 ## Security audit
 
 - The vulnerability-hunting protocol is `docs/security/auditor.md`. It is plain markdown and self-contained: point any
