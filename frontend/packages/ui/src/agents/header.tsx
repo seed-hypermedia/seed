@@ -24,16 +24,24 @@ import {
   ArrowLeft,
   Brain,
   Check,
+  ChevronDown,
   ChevronsUpDown,
   GitBranch,
+  Globe,
+  Loader2,
   MessageSquarePlus,
   MessagesSquare,
   Pencil,
   ScrollText,
   Settings,
+  UserRound,
   Users,
   Wrench,
 } from 'lucide-react'
+import {useSigningIdentities} from './models'
+import {HMIcon} from '@shm/ui/hm-icon'
+import {useRouteLink} from '@shm/shared/routing'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Fragment, type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 
 export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
@@ -120,12 +128,28 @@ export function AgentBreadcrumb({
   )
 }
 
+/**
+ * A very small spinner that appears only after `delayMs` of waiting, so quick loads never flash
+ * anything at all.
+ */
+export function DelayedSpinner({delayMs = 500}: {delayMs?: number}) {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setShow(true), delayMs)
+    return () => clearTimeout(timer)
+  }, [delayMs])
+  return show ? (
+    <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" aria-label="Loading" />
+  ) : null
+}
+
 export function AgentSubpageHeader({
   title,
   placeholder,
   onTitleChange,
   saveState = 'idle',
   disabled,
+  loading,
   backLabel,
   onBack,
   actions,
@@ -139,6 +163,11 @@ export function AgentSubpageHeader({
   subtitle?: string
   saveState?: AgentTitleSaveState
   disabled?: boolean
+  /**
+   * The page's record has not arrived yet: the title slot shows nothing rather than a placeholder
+   * pretending to be a name, and a tiny spinner only once the wait is long enough to notice.
+   */
+  loading?: boolean
   backLabel: string
   onBack: () => void
   actions?: ReactNode
@@ -151,14 +180,20 @@ export function AgentSubpageHeader({
           <ArrowLeft className="size-4" />
         </Button>
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <input
-            aria-label={placeholder}
-            value={title}
-            placeholder={placeholder}
-            onChange={(event) => onTitleChange(event.currentTarget.value)}
-            className="focus:ring-primary/25 min-w-0 flex-1 rounded-md bg-transparent px-1 py-0.5 text-lg font-bold outline-none focus:ring-2"
-            disabled={disabled}
-          />
+          {loading ? (
+            <div className="flex min-w-0 flex-1 items-center px-1">
+              <DelayedSpinner />
+            </div>
+          ) : (
+            <input
+              aria-label={placeholder}
+              value={title}
+              placeholder={placeholder}
+              onChange={(event) => onTitleChange(event.currentTarget.value)}
+              className="focus:ring-primary/25 min-w-0 flex-1 rounded-md bg-transparent px-1 py-0.5 text-lg font-bold outline-none focus:ring-2"
+              disabled={disabled}
+            />
+          )}
           {saveState !== 'idle' ? (
             <span
               aria-label={
@@ -185,6 +220,65 @@ export function AgentSubpageHeader({
         </div>
       ) : null}
     </header>
+  )
+}
+
+/**
+ * The one account this agent signs as, worn beside its name: an avatar-and-name pill opening
+ * "Open Space" / "Open Profile". Rendered only when the identity picture is unambiguous — exactly
+ * one granted signing key, resolved to an account. Zero or several keys is a story the Tools tab
+ * tells; a chip picking one of several would misattribute the agent.
+ */
+function AgentIdentityChip({
+  serverUrl,
+  agentId,
+  definition,
+}: {
+  serverUrl: string
+  agentId: string
+  definition: AgentDefinition
+}) {
+  const accountUid = useSelectedAccountId()
+  const identities = useSigningIdentities(serverUrl, accountUid, agentId)
+  const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
+  const granted = (identities.data || []).filter((identity) => signingKeys.includes(identity.name))
+  const identity = signingKeys.length === 1 && granted.length === 1 ? granted[0] : undefined
+  const accountId = identity?.accountId
+  const spaceLink = useRouteLink(accountId ? {key: 'document', id: hmId(accountId)} : null)
+  const profileLink = useRouteLink(accountId ? {key: 'site-profile', id: hmId(accountId), tab: 'profile'} : null)
+  if (!identity || !accountId) return null
+
+  const displayName = identity.label || identity.name
+  return (
+    <OptionsDropdown
+      ariaLabel={`Signing identity: ${displayName}`}
+      align="start"
+      button={
+        <button
+          type="button"
+          title={`Signs as ${displayName}`}
+          className="border-border hover:bg-muted/60 flex max-w-56 min-w-0 flex-none items-center gap-1.5 rounded-full border py-0.5 pr-2 pl-0.5"
+        >
+          <HMIcon id={hmId(accountId)} name={displayName} icon={identity.icon} size={20} />
+          <span className="text-muted-foreground min-w-0 truncate text-xs font-medium">{displayName}</span>
+          <ChevronDown className="text-muted-foreground size-3 flex-none" />
+        </button>
+      }
+      menuItems={[
+        {
+          key: 'space',
+          label: 'Open Space',
+          icon: <Globe className="size-4" />,
+          onClick: (event) => spaceLink.onClick?.(event),
+        },
+        {
+          key: 'profile',
+          label: 'Open Profile',
+          icon: <UserRound className="size-4" />,
+          onClick: (event) => profileLink.onClick?.(event),
+        },
+      ]}
+    />
   )
 }
 
@@ -282,31 +376,36 @@ export function AgentHeader({
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 sm:flex-nowrap">
           <div className="flex min-w-0 flex-col gap-1">
-            {onEditName ? (
-              <button
-                type="button"
-                aria-label="Rename agent"
-                onClick={onEditName}
-                className="hover:bg-muted/60 group -mx-1 flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left"
-              >
-                <SizableText size="2xl" weight="bold" className="min-w-0 truncate">
-                  {currentAgentName}
+            <div className="flex min-w-0 items-center gap-2.5">
+              {onEditName ? (
+                <button
+                  type="button"
+                  aria-label="Rename agent"
+                  onClick={onEditName}
+                  className="hover:bg-muted/60 group -mx-1 flex min-w-0 items-center gap-2 rounded-md px-1 py-0.5 text-left"
+                >
+                  <SizableText size="2xl" weight="bold" className="min-w-0 truncate">
+                    {currentAgentName}
+                  </SizableText>
+                  <Pencil className="text-muted-foreground size-4 flex-none opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
+              ) : onAgentNameChange ? (
+                <input
+                  aria-label="Agent name"
+                  className="focus:ring-primary/25 -mx-1 min-w-0 truncate rounded-md bg-transparent px-1 py-0.5 text-2xl font-bold outline-none focus:ring-2"
+                  value={agentName ?? agent?.definition.name ?? ''}
+                  placeholder="Agent"
+                  onChange={(event) => onAgentNameChange(event.currentTarget.value)}
+                />
+              ) : (
+                <SizableText size="2xl" weight="bold" className="block truncate">
+                  {agent?.definition.name || 'Agent'}
                 </SizableText>
-                <Pencil className="text-muted-foreground size-4 flex-none opacity-0 transition-opacity group-hover:opacity-100" />
-              </button>
-            ) : onAgentNameChange ? (
-              <input
-                aria-label="Agent name"
-                className="focus:ring-primary/25 -mx-1 min-w-0 truncate rounded-md bg-transparent px-1 py-0.5 text-2xl font-bold outline-none focus:ring-2"
-                value={agentName ?? agent?.definition.name ?? ''}
-                placeholder="Agent"
-                onChange={(event) => onAgentNameChange(event.currentTarget.value)}
-              />
-            ) : (
-              <SizableText size="2xl" weight="bold" className="block truncate">
-                {agent?.definition.name || 'Agent'}
-              </SizableText>
-            )}
+              )}
+              {agent && agentId ? (
+                <AgentIdentityChip serverUrl={serverUrl} agentId={agentId} definition={agent.definition} />
+              ) : null}
+            </div>
             {!agent ? (
               <SizableText color="muted" className="block">
                 Loading agent…

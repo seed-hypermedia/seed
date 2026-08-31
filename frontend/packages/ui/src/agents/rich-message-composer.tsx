@@ -1,6 +1,6 @@
 import {trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
 import {Button} from '@shm/ui/button'
-import {Send, Square} from 'lucide-react'
+import {CornerLeftUp, Send, Square} from 'lucide-react'
 import React, {useRef, useState} from 'react'
 import type {RunStatus, SessionAttachmentInfo} from './client'
 import {type AgentSessionDraftMessage, uploadFileToAgentServer} from './models'
@@ -20,8 +20,26 @@ import {UserToolPalette} from './user-tool-palette'
 /** Run states a sub-session's parent can no longer be driving it from. */
 export const TERMINAL_RUN_STATUSES = new Set<RunStatus>(['succeeded', 'failed', 'canceled'])
 
-export const SUB_SESSION_DRIVEN_MESSAGE =
-  'This sub-session is being driven by its parent — watch, or open the parent to intervene'
+/**
+ * Why a driven sub-session's composer is gone: the parent owns this conversation right now. The
+ * parent's name is the pill, and the pill is the way there — the one action a watcher has.
+ */
+export function SubSessionDrivenNotice({parentTitle, onOpenParent}: {parentTitle?: string; onOpenParent: () => void}) {
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      This session is controlled by
+      <button
+        type="button"
+        onClick={onOpenParent}
+        title="Open the parent session"
+        className="bg-muted hover:bg-muted/70 text-foreground inline-flex max-w-60 min-w-0 items-center gap-1 rounded-full px-2 py-0.5"
+      >
+        <CornerLeftUp className="size-3 flex-none" />
+        <span className="min-w-0 truncate">{parentTitle || 'its parent session'}</span>
+      </button>
+    </span>
+  )
+}
 
 type CommentEditorGetContent = AgentsRichEditorGetContent
 
@@ -46,7 +64,7 @@ export function AgentRichMessageComposer({
   isBusy: boolean
   isStreaming: boolean
   /** When set, the composer is replaced by this explanation — the session is not the user's to drive. */
-  disabledMessage?: string
+  disabledMessage?: React.ReactNode
   stopPending: boolean
   serverUrl: string
   accountId: string | null

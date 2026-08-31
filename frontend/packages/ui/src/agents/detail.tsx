@@ -703,7 +703,7 @@ function AgentDetailPage({
                     </SizableText>
                   </div>
                   {promptEditorDisabled ? (
-                    <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm whitespace-pre-wrap">
+                    <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm break-words whitespace-pre-wrap">
                       {!canWrite
                         ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
                         : 'Connect to the agent server to edit this prompt.'}
@@ -2268,7 +2268,7 @@ function AgentTriggersTab({
                       <SizableText size="sm" weight="bold">
                         {isHeadlessContinuation(continuation) ? 'Recovery prompt' : 'Prompt'}
                       </SizableText>
-                      <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm whitespace-pre-wrap">
+                      <pre className="border-border bg-muted/40 min-h-40 rounded-lg border p-3 text-sm break-words whitespace-pre-wrap">
                         {promptBlocksToMarkdown(prompt) || 'No prompt configured.'}
                       </pre>
                     </div>

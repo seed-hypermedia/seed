@@ -40,7 +40,7 @@ vi.mock('@shm/ui/agents/dialogs', () => ({CreateAgentDialog: () => null}))
 // Same for the shared rich composer (ProseMirror editor stack); never rendered by these dialogs.
 vi.mock('@shm/ui/agents/rich-message-composer', () => ({
   AgentRichMessageComposer: () => null,
-  SUB_SESSION_DRIVEN_MESSAGE: '',
+  SubSessionDrivenNotice: () => null,
   TERMINAL_RUN_STATUSES: new Set(),
 }))
 

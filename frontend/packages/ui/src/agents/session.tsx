@@ -26,6 +26,7 @@ import {
 import {
   buildAgentSessionChatRows,
   interleaveRunRecords,
+  mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
   frozenRunIds,
@@ -45,7 +46,7 @@ import {
   AlertDialogFooter,
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
-import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
+import {DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Container, PanelContainer} from '@shm/ui/container'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
@@ -57,23 +58,15 @@ import {ArrowDown, CornerLeftUp, ExternalLink, Info, Link2, ScrollText, Trash2} 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {AgentHeader, AgentSubpageHeader, SessionModelBadge} from './header'
 import {RunRecordCard, SessionRunCard} from './run-card'
-import {AgentRichMessageComposer, SUB_SESSION_DRIVEN_MESSAGE, TERMINAL_RUN_STATUSES} from './rich-message-composer'
+import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
 import {getTriggerActivityRoute, summarizeTriggerSource, TriggerContextView} from './trigger-types'
 
 /**
- * Header affordances for a sub-session: where it came from, and whether it is still someone else's
- * to drive. A parked parent leaves this page silent for minutes, so the banner is what makes that
- * legible rather than looking like a stalled chat.
+ * Header affordance for a sub-session: where it came from. Whether the parent is still driving is
+ * told at the composer, where the answer to "why can't I type?" belongs (see
+ * {@link SubSessionDrivenNotice}).
  */
-function SubSessionHeader({
-  parentTitle,
-  isDriven,
-  onOpenParent,
-}: {
-  parentTitle?: string
-  isDriven: boolean
-  onOpenParent: () => void
-}) {
+function SubSessionHeader({parentTitle, onOpenParent}: {parentTitle?: string; onOpenParent: () => void}) {
   return (
     <div className="flex flex-none flex-col gap-2 pt-3">
       <button
@@ -85,11 +78,6 @@ function SubSessionHeader({
         <CornerLeftUp className="size-3 flex-none" />
         <span className="min-w-0 truncate">{parentTitle || 'Parent session'}</span>
       </button>
-      {isDriven ? (
-        <div className="border-border bg-muted/40 text-muted-foreground rounded-md border px-3 py-1.5 text-xs">
-          {SUB_SESSION_DRIVEN_MESSAGE}
-        </div>
-      ) : null}
     </div>
   )
 }
@@ -187,7 +175,9 @@ function AgentSessionPage({
   const stopSession = useStopAgentSession(serverUrl, selectedAccountId)
   const updateSession = useUpdateAgentSession(serverUrl, selectedAccountId)
   const deleteSessionDialog = useAppDialog(DeleteAgentSessionDialog, {isAlert: true})
-  const systemPromptDialog = useAppDialog(SystemPromptDialog)
+  const systemPromptDialog = useAppDialog(SystemPromptDialog, {
+    className: 'w-[min(44rem,calc(100vw-2rem))] max-h-[85vh]',
+  })
   const lastSeq = session.data?.events.filter((event) => event.seq !== Number.MAX_SAFE_INTEGER).at(-1)?.seq
   // The subscription waits for the initial GetSession: subscribing with no afterSeq makes the
   // server replay the whole transcript over the socket on top of the fetch.
@@ -211,21 +201,25 @@ function AgentSessionPage({
   const autoScroll = useChatAutoScroll()
   const titleSaveIdRef = useRef(0)
   const loadedSessionId = session.data?.session.id
-  const persistedTitle = session.data?.session.title || 'Untitled session'
+  // No name at all until the record arrives — "Untitled session" while loading would present a
+  // placeholder as if it were the session's actual name.
+  const persistedTitle = session.data ? session.data.session.title || 'Untitled session' : ''
   const sessionRuns = useSessionRuns(serverUrl, selectedAccountId, sessionId)
   const chatRows = useMemo(
     () =>
-      interleaveRunRecords(
-        buildAgentSessionChatRows(session.data?.events || [], {
-          serverUrl,
-          agentId,
-          sessionId,
-          triggerContext: session.data?.triggerContext ?? null,
-        }),
-        sessionRuns.data || [],
-        // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
-        // decision needs it here for the same reason the pinned card does.
-        session.data?.session.plan,
+      mergeConsecutiveToolMessageRows(
+        interleaveRunRecords(
+          buildAgentSessionChatRows(session.data?.events || [], {
+            serverUrl,
+            agentId,
+            sessionId,
+            triggerContext: session.data?.triggerContext ?? null,
+          }),
+          sessionRuns.data || [],
+          // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
+          // decision needs it here for the same reason the pinned card does.
+          session.data?.session.plan,
+        ),
       ),
     [
       agentId,
@@ -383,7 +377,7 @@ function AgentSessionPage({
               ...(agentId
                 ? [{label: 'Sessions', route: {key: 'agent' as const, agentId, serverUrl}}]
                 : [{label: 'Sessions'}]),
-              {label: titleDraft || persistedTitle},
+              {label: titleDraft || persistedTitle || '…'},
             ]}
           />
         </Container>
@@ -394,6 +388,7 @@ function AgentSessionPage({
         onTitleChange={setTitleDraft}
         saveState={titleSaveState}
         disabled={!session.data || !canWrite}
+        loading={session.isLoading}
         backLabel="Back to agent sessions"
         onBack={() => {
           const agentId = session.data?.session.agentId
@@ -498,7 +493,6 @@ function AgentSessionPage({
             {parentSessionId ? (
               <SubSessionHeader
                 parentTitle={parentSession.data?.session.title}
-                isDriven={isDrivenByParent}
                 onOpenParent={() =>
                   navigate({
                     key: 'agent-session',
@@ -513,7 +507,7 @@ function AgentSessionPage({
             <div
               ref={autoScroll.containerRef}
               onScroll={autoScroll.handleScroll}
-              className="min-h-0 flex-1 overflow-y-auto pr-1"
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1"
             >
               <div ref={autoScroll.contentRef} className="flex min-h-full flex-col gap-3 pt-4">
                 {!chatRows.length ? <SizableText color="muted">No messages yet.</SizableText> : null}
@@ -570,11 +564,21 @@ function AgentSessionPage({
               isBusy={isAgentBusy}
               isStreaming={isAgentStreaming}
               disabledMessage={
-                !canChat
-                  ? 'You have read-only access to this agent.'
-                  : isDrivenByParent
-                    ? SUB_SESSION_DRIVEN_MESSAGE
-                    : undefined
+                !canChat ? (
+                  'You have read-only access to this agent.'
+                ) : isDrivenByParent ? (
+                  <SubSessionDrivenNotice
+                    parentTitle={parentSession.data?.session.title}
+                    onOpenParent={() =>
+                      navigate({
+                        key: 'agent-session',
+                        agentId: parentSession.data?.session.agentId,
+                        sessionId: parentSessionId!,
+                        serverUrl,
+                      })
+                    }
+                  />
+                ) : undefined
               }
               stopPending={stopSession.isPending}
               serverUrl={serverUrl}
@@ -595,15 +599,15 @@ function AgentSessionPage({
 
 function SystemPromptDialog({input}: {input: {prompt: string; updatedAt?: number}; onClose: () => void}) {
   return (
-    <div className="flex max-w-[min(92vw,42rem)] min-w-[min(92vw,42rem)] flex-col gap-4">
+    // The dialog frame (useAppDialog's className) owns the width; forcing one here can only
+    // disagree with the frame, and any disagreement renders as a horizontal scrollbar.
+    <div className="flex min-w-0 flex-col gap-4">
       <div>
-        <DialogTitle>Current system prompt</DialogTitle>
-        <DialogDescription>
-          This is the markdown prompt that will be sent if this session continues now
-          {input.updatedAt ? ` (session updated ${new Date(input.updatedAt).toLocaleString()})` : ''}.
-        </DialogDescription>
+        <DialogTitle>Current System Prompt</DialogTitle>
       </div>
-      <pre className="bg-muted/60 max-h-[70vh] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
+      {/* overflow-y only: long unbroken tokens (URLs, addresses) break instead of dragging the
+          whole dialog into a horizontal scroll. */}
+      <pre className="bg-muted/60 max-h-[70vh] min-w-0 overflow-y-auto rounded-md p-3 text-xs break-words whitespace-pre-wrap">
         {input.prompt || 'No system prompt configured.'}
       </pre>
     </div>

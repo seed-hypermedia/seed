@@ -5,6 +5,7 @@ import {
   frozenRunIds,
   interleaveRunRecords,
   isOptimisticUserEcho,
+  mergeConsecutiveToolMessageRows,
   retryableErrorRowKey,
 } from '@shm/ui/agents/agent-session-rows'
 import {decodeAssistantSessionRef, encodeAssistantSessionRef} from '@shm/ui/agents/assistant-session-ref'
@@ -527,6 +528,45 @@ describe('interleaveRunRecords', () => {
     const frozen = frozenRunIds(rows)
     expect(frozen.size).toBe(1)
     expect(frozen.has('live')).toBe(true)
+  })
+})
+
+describe('mergeConsecutiveToolMessageRows', () => {
+  it('fuses a burst of tool rows into one message, keeping the first event identity', () => {
+    const rows = mergeConsecutiveToolMessageRows(
+      buildAgentSessionChatRows(
+        [
+          event(1, {type: 'message', role: 'user', content: 'Go.'}),
+          event(2, {type: 'tool_call', id: 'c1', name: 'read', input: {address: '~/a'}}),
+          event(3, {type: 'tool_result', toolCallId: 'c1', name: 'read', output: {summary: 'Read.'}}),
+          event(4, {type: 'tool_call', id: 'c2', name: 'search', input: {query: 'x'}}),
+          event(5, {type: 'tool_result', toolCallId: 'c2', name: 'search', output: {summary: 'Found.'}}),
+          event(6, {type: 'message', role: 'assistant', content: 'Done.'}),
+        ],
+        CONTEXT,
+      ),
+    )
+
+    expect(rows).toHaveLength(3)
+    const burst = rows[1]!
+    if (burst.kind !== 'message') throw new Error('expected a message row')
+    expect(burst.key).toBe('event-2')
+    expect(burst.message.parts?.map((part) => (part.type === 'tool' ? part.id : part.type))).toEqual(['c1', 'c2'])
+  })
+
+  it('leaves rows apart when anything else sits between two tool calls', () => {
+    const rows = mergeConsecutiveToolMessageRows(
+      buildAgentSessionChatRows(
+        [
+          event(1, {type: 'tool_call', id: 'c1', name: 'read', input: {}}),
+          event(2, {type: 'message', role: 'assistant', content: 'Thinking…'}),
+          event(3, {type: 'tool_call', id: 'c2', name: 'search', input: {}}),
+        ],
+        CONTEXT,
+      ),
+    )
+
+    expect(rows).toHaveLength(3)
   })
 })
 

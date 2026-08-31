@@ -41,15 +41,21 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {cn} from '@shm/ui/utils'
 import {
   BookOpenText,
+  Bot,
   ChevronDown,
   ChevronRight,
   Clock3,
   Compass,
   Info,
+  ListChecks,
   Loader2,
+  PackageCheck,
   PenLine,
+  Route,
   Search,
+  SquareTerminal,
   UserRound,
+  Workflow,
   Wrench,
 } from 'lucide-react'
 import React, {Fragment, Suspense, useMemo, useState} from 'react'
@@ -92,7 +98,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
         />
       ) : isUser ? (
         <div className="flex items-start gap-1">
-          <div className="ml-6 min-w-0 flex-1 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-[13px] text-slate-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-50 [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
+          <div className="ml-6 min-w-0 flex-1 rounded-lg border border-sky-200 bg-sky-100 px-3 py-2 text-[13px] break-words text-slate-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-50 [&_.ProseMirror]:!text-[13px] [&_.hm-prose]:!text-[13px]">
             {resolvedBlocks?.length ? (
               <div className="text-foreground rounded-md bg-transparent px-1 py-0.5 [&_.ProseMirror]:!bg-transparent [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent [&_.hm-prose]:!font-sans [&_.hm-prose]:!text-base">
                 <Suspense fallback={<Markdown>{message.content || ''}</Markdown>}>
@@ -301,7 +307,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
     const showCursor = isStreaming && index === parts.length - 1
     return (
       <div key={`text:${index}`} className="flex items-start gap-1">
-        <div className="bg-muted my-1 mr-6 min-w-0 flex-1 rounded-lg px-3 py-2 text-sm">
+        <div className="bg-muted my-1 mr-6 min-w-0 flex-1 rounded-lg px-3 py-2 text-sm break-words">
           <Markdown enableGfm={!isStreaming}>{part.text}</Markdown>
           {showCursor && <span className="bg-foreground inline-block h-3 w-1 animate-pulse" />}
         </div>
@@ -1045,10 +1051,24 @@ function ToolRenderedContent({content}: {content: {markdown?: string; blocks?: H
  * `override` is a workflow's own narration of the call ("Checking the pricing page"); it replaces
  * the derived verb and label but keeps the address's link and chip, so the row still goes somewhere.
  */
-function AddressToolSummary({summary, override}: {summary: ToolRowSummary; override?: string}) {
+function AddressToolSummary({
+  summary,
+  override,
+  quietVerb,
+}: {
+  summary: ToolRowSummary
+  override?: string
+  /**
+   * Drops the verb when the label is a link — a linked name already says what was touched, and
+   * "Read" in front of it is noise. Rows with nowhere to go keep their verb ("Listed 8 sessions",
+   * "Read activity feed"): without it they would say nothing at all.
+   */
+  quietVerb?: boolean
+}) {
+  const hideVerb = !!override || (quietVerb && !!summary.target)
   return (
     <span className="text-foreground/80 flex min-w-0 flex-1 items-baseline gap-1 overflow-hidden">
-      {override ? null : <span className="shrink-0 font-medium">{summary.verb}</span>}
+      {hideVerb ? null : <span className="shrink-0 font-medium">{summary.verb}</span>}
       <ToolLinkText target={summary.target} label={override ?? summary.label} title={summary.title} />
       {summary.detail ? <span className="text-foreground/55 shrink truncate">{summary.detail}</span> : null}
     </span>
@@ -1670,14 +1690,33 @@ const toolColorClasses = {
   hidden: 'border-border bg-muted/60 text-muted-foreground',
 }
 
+/** Kind-keyed fallback icons. Every icon is distinct — a shared wrench says nothing about a row. */
 const toolIcons = {
   search: Search,
   read: BookOpenText,
-  resolve: Wrench,
+  resolve: Route,
   navigate: Compass,
   write: PenLine,
   generic: Wrench,
-  hidden: Wrench,
+  // Hidden-kind rows are the session's own bookkeeping (status, plan) — notes about the work,
+  // not work.
+  hidden: Info,
+}
+
+/**
+ * Name-keyed icons for calls whose kind icon would say the wrong thing: delegation and code
+ * execution are registered as "write" tools, but a pen tells the reader nothing about spawning a
+ * child or running a script.
+ */
+const toolIconsByName: Record<string, typeof Wrench> = {
+  delegate: Bot,
+  sub_session: Bot,
+  run_workflow: Workflow,
+  execute: SquareTerminal,
+  execute_code: SquareTerminal,
+  return_result: PackageCheck,
+  status: Info,
+  plan: ListChecks,
 }
 
 /** Last few non-empty lines of a live output tail. */
@@ -2042,8 +2081,16 @@ export function ToolCallLine({
   const render = metadata?.render
   const script = isDelegateToolName(item.name) ? getToolString(item.args, 'script') : undefined
   const isScriptWorkflow = !!script
+  const isExecuteRow =
+    item.name === 'execute_code' || (item.name === 'call' && getToolString(item.args, 'tool') === 'execute')
   const isTimerWorkflow = !!script && /\bctx\.(?:sleep|minutes|hours)\s*\(/.test(script)
-  const Icon = isTimerWorkflow ? Clock3 : toolIcons[render?.kind || 'generic']
+  const Icon = isTimerWorkflow
+    ? Clock3
+    : isScriptWorkflow
+      ? Workflow
+      : isExecuteRow
+        ? SquareTerminal
+        : toolIconsByName[item.name] ?? toolIcons[render?.kind || 'generic']
   const isPending = item.result === undefined && item.rawOutput === undefined
   const rowLabel = isTimerWorkflow
     ? isPending
@@ -2128,10 +2175,22 @@ export function ToolCallLine({
           {customView?.kind === 'write-command' && !item.summaryOverride ? (
             <WriteCommandSummary item={item} />
           ) : addressSummary ? (
-            <AddressToolSummary summary={addressSummary} override={item.summaryOverride} />
+            <AddressToolSummary
+              summary={addressSummary}
+              override={item.summaryOverride}
+              quietVerb={item.name === 'read'}
+            />
           ) : (
             <>
-              <span className="shrink-0 font-medium">{rowLabel}</span>
+              {/* A delegate's child title, an execute's own description, or a status update's new
+                  title already says what the row did; the registry label just repeats the
+                  mechanism. Timer waits keep theirs — "Waited" IS the description — and so does
+                  any row with no summary to speak for it. */}
+              {!!summary &&
+              !isTimerWorkflow &&
+              (isDelegateToolName(item.name) || isExecuteRow || item.name === 'status') ? null : (
+                <span className="shrink-0 font-medium">{rowLabel}</span>
+              )}
               {summary ? (
                 childSessionId && serverUrl ? (
                   <ToolRouteLink
@@ -2195,8 +2254,7 @@ export function ToolCallLine({
             ) : null}
             {isDelegateToolName(item.name) ? (
               <DelegateWorkDetails item={item} serverUrl={serverUrl} accountUid={accountUid} />
-            ) : item.name === 'execute_code' ||
-              (item.name === 'call' && getToolString(item.args, 'tool') === 'execute') ? (
+            ) : isExecuteRow ? (
               <ExecuteCodeDetails item={item} liveTail={liveTool?.outputTail} />
             ) : item.name === 'read' && addressSummary ? (
               <ReadToolDetails item={item} />

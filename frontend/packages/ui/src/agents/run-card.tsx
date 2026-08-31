@@ -14,6 +14,7 @@ import {
   type PlanSettle,
 } from './run-work'
 import {formatElapsed, formatTokenCount} from './agent-run-status'
+import {DelayedSpinner} from './header'
 import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from './models'
 import {useNavigate} from './navigation'
 import {Button} from '@shm/ui/button'
@@ -218,7 +219,13 @@ export function RunRecordCard({
   const children = useMemo(() => (focus ? descendantsOf(runsById, focus.id) : []), [runsById, focus?.id])
 
   if (!focus) {
-    return run.isLoading ? <div className="text-muted-foreground py-1 text-[11px]">Loading run…</div> : null
+    // Quiet while the record loads — usually this is just the transcript arriving, and a card
+    // announcing "Loading run…" reads like something separate is happening.
+    return run.isLoading ? (
+      <div className="flex py-1">
+        <DelayedSpinner />
+      </div>
+    ) : null
   }
 
   return (
@@ -647,18 +654,22 @@ function CardScrollArea({children, compact}: {children: React.ReactNode; compact
     return () => observer.disconnect()
   }, [update])
 
-  const mask =
-    fade.top || fade.bottom
-      ? `linear-gradient(to bottom, ${fade.top ? 'transparent, black 24px' : 'black'}, ${
-          fade.bottom ? 'black calc(100% - 24px), transparent' : 'black'
-        })`
-      : undefined
+  const scrollable = fade.top || fade.bottom
+  const mask = scrollable
+    ? `linear-gradient(to bottom, ${fade.top ? 'transparent, black 24px' : 'black'}, ${
+        fade.bottom ? 'black calc(100% - 24px), transparent' : 'black'
+      })`
+    : undefined
 
   return (
     <div
       ref={scrollRef}
       onScroll={update}
-      className={`min-w-0 flex-1 overflow-y-auto ${compact ? 'max-h-48' : 'max-h-[min(40vh,20rem)]'}`}
+      // While scrolling, content pulls in from the right edge: macOS overlay scrollbars draw ON
+      // TOP of content, and a row's cancel ✕ at that edge would sit under the bar, unclickable.
+      className={`min-w-0 flex-1 overflow-y-auto ${scrollable ? 'pr-2.5' : ''} ${
+        compact ? 'max-h-48' : 'max-h-[min(40vh,20rem)]'
+      }`}
       style={{maskImage: mask, WebkitMaskImage: mask}}
     >
       <div ref={innerRef}>{children}</div>

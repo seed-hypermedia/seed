@@ -206,6 +206,40 @@ export function interleaveRunRecords(
   return result
 }
 
+/** A message row that is nothing but tool parts, and so can fuse with a neighboring one. */
+function isToolOnlyMessageRow(row: AgentSessionChatRow): row is Extract<AgentSessionChatRow, {kind: 'message'}> {
+  if (row.kind !== 'message' || row.triggerContext) return false
+  const parts = row.message.parts
+  return !!parts?.length && parts.every((part) => part.type === 'tool')
+}
+
+/**
+ * Fuses runs of consecutive tool-call rows into one message row, so a burst of tool calls renders
+ * as a single block instead of a stack of separated bubbles.
+ *
+ * Every tool call is its own durable event, and `buildAgentSessionChatRows` keeps that one-row-per-
+ * event shape because everything downstream anchors to it — deep links, run-record interleaving,
+ * the mobile app's own renderer. The fusing is therefore a separate pass the desktop and web
+ * transcripts apply last, after run records have been slotted in: a record landing mid-burst splits
+ * the burst around itself, which is exactly where its story belongs. The merged row keeps the first
+ * event's identity (key, timestamp, share link) and simply carries the whole burst's parts.
+ */
+export function mergeConsecutiveToolMessageRows(rows: AgentSessionChatRow[]): AgentSessionChatRow[] {
+  const result: AgentSessionChatRow[] = []
+  for (const row of rows) {
+    const previous = result[result.length - 1]
+    if (previous && isToolOnlyMessageRow(previous) && isToolOnlyMessageRow(row)) {
+      result[result.length - 1] = {
+        ...previous,
+        message: {...previous.message, parts: [...(previous.message.parts ?? []), ...(row.message.parts ?? [])]},
+      }
+      continue
+    }
+    result.push(row)
+  }
+  return result
+}
+
 /**
  * The runs whose card already lives in the transcript, so no surface repeats them.
  *

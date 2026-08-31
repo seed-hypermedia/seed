@@ -79,7 +79,7 @@ vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefine
 vi.mock('@shm/ui/agents/rich-message-composer', () => {
   const React = require('react')
   return {
-    SUB_SESSION_DRIVEN_MESSAGE: 'This sub-session is being driven by its parent',
+    SubSessionDrivenNotice: () => React.createElement('div', null, 'This session is controlled by its parent'),
     TERMINAL_RUN_STATUSES: new Set(['succeeded', 'failed', 'canceled']),
     AgentRichMessageComposer: ({
       focusOnMount = true,

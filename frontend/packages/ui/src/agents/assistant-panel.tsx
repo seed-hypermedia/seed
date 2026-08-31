@@ -24,6 +24,7 @@ import {
 import {
   buildAgentSessionChatRows,
   interleaveRunRecords,
+  mergeConsecutiveToolMessageRows,
   buildAgentSessionUrl,
   chatRowHasPendingToolCall,
   frozenRunIds,
@@ -80,10 +81,10 @@ import {
 import {AgentServerError} from './client'
 import {describeAgentError, errorMessage} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
-import {AgentRichMessageComposer, SUB_SESSION_DRIVEN_MESSAGE, TERMINAL_RUN_STATUSES} from './rich-message-composer'
+import {AgentRichMessageComposer, SubSessionDrivenNotice, TERMINAL_RUN_STATUSES} from './rich-message-composer'
 import type {AgentsRichEditorSubmitHandle} from './platform'
 import {RunRecordCard, SessionRunCard} from './run-card'
-import {SessionModelBadge} from './header'
+import {DelayedSpinner, SessionModelBadge} from './header'
 import {SessionStatusDot, SessionSummaryBanner, SubSessionsDisclosure} from './session-children'
 
 /**
@@ -302,6 +303,11 @@ export function AssistantPanel({
             })
           }
           onOpenAgentsPage={() => navigate({key: 'agents'})}
+          onOpenAgentPage={
+            activeAgent
+              ? () => navigate({key: 'agent', agentId: activeAgent.agent.id, serverUrl: activeAgent.serverUrl})
+              : undefined
+          }
         />
         <div className="no-window-drag flex shrink-0 items-center">
           <button onClick={startDraft} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
@@ -466,6 +472,7 @@ function AssistantAgentPicker({
   onSelect,
   onCreateAgent,
   onOpenAgentsPage,
+  onOpenAgentPage,
 }: {
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
@@ -475,6 +482,8 @@ function AssistantAgentPicker({
   onSelect: (key: AssistantAgentKey) => void
   onCreateAgent: () => void
   onOpenAgentsPage: () => void
+  /** Opens the active agent's full page; the expand affordance shows only while hovering the picker. */
+  onOpenAgentPage?: () => void
 }) {
   const [open, setOpen] = useState(false)
 
@@ -489,85 +498,101 @@ function AssistantAgentPicker({
   }, [agents])
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    // The expand affordance lives outside the trigger (a button cannot nest a button) but inside
+    // the shared hover group, so it appears whenever the pointer is anywhere over the picker area.
+    <div className="group/agentpicker flex max-w-full min-w-0 items-center">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="no-window-drag hover:bg-muted flex max-w-full min-w-0 items-center gap-2 rounded px-1.5 py-1"
+          >
+            <Bot className="text-muted-foreground size-4 shrink-0" />
+            <SizableText size="sm" className="min-w-0 truncate font-medium">
+              {activeAgent?.agent.definition.name || 'Agents'}
+            </SizableText>
+            <ChevronDown className="text-muted-foreground size-3 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-1">
+          {groups.length === 0 ? (
+            <div className="text-muted-foreground px-2 py-3 text-center text-xs">No agents yet.</div>
+          ) : (
+            groups.map((group) => (
+              <div key={group.serverUrl} className="flex flex-col">
+                <div className="flex items-center gap-2 px-2 pt-2 pb-1">
+                  <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+                    {describeAgentServer(group.serverUrl, localServerUrl)}
+                  </span>
+                  {advertisedServerUrl && group.serverUrl === advertisedServerUrl ? (
+                    <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px] font-medium">
+                      This space
+                    </span>
+                  ) : null}
+                </div>
+                {group.options.map((option) => {
+                  const isActive =
+                    option.serverUrl === activeAgent?.serverUrl && option.agent.id === activeAgent.agent.id
+                  return (
+                    <button
+                      key={`${option.serverUrl}${option.agent.id}`}
+                      type="button"
+                      className={`hover:bg-muted flex w-full flex-col items-start rounded px-2 py-1.5 text-left ${
+                        isActive ? 'bg-muted' : ''
+                      }`}
+                      onClick={() => {
+                        onSelect({serverUrl: option.serverUrl, agentId: option.agent.id})
+                        setOpen(false)
+                      }}
+                    >
+                      <span className="w-full truncate text-xs font-medium">{option.agent.definition.name}</span>
+                      <span className="text-muted-foreground w-full truncate text-[10px]">
+                        {option.agent.definition.model}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ))
+          )}
+          <div className="border-border mt-1 flex flex-col border-t pt-1">
+            <button
+              type="button"
+              className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+              onClick={() => {
+                setOpen(false)
+                onCreateAgent()
+              }}
+            >
+              <Plus className="text-muted-foreground size-3.5 shrink-0" />
+              New agent
+            </button>
+            <button
+              type="button"
+              className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
+              onClick={() => {
+                setOpen(false)
+                onOpenAgentsPage()
+              }}
+            >
+              <LayoutGrid className="text-muted-foreground size-3.5 shrink-0" />
+              Agents page
+            </button>
+          </div>
+        </PopoverContent>
+      </Popover>
+      {activeAgent && onOpenAgentPage ? (
         <button
           type="button"
-          className="no-window-drag hover:bg-muted flex max-w-full min-w-0 items-center gap-2 rounded px-1.5 py-1"
+          title={`Open ${activeAgent.agent.definition.name}`}
+          aria-label={`Open the ${activeAgent.agent.definition.name} agent page`}
+          onClick={onOpenAgentPage}
+          className="no-window-drag text-muted-foreground hover:text-foreground p-1 opacity-0 transition-opacity group-hover/agentpicker:opacity-100 focus-visible:opacity-100"
         >
-          <Bot className="text-muted-foreground size-4 shrink-0" />
-          <SizableText size="sm" className="min-w-0 truncate font-medium">
-            {activeAgent?.agent.definition.name || 'Agents'}
-          </SizableText>
-          <ChevronDown className="text-muted-foreground size-3 shrink-0" />
+          <Maximize2 className="size-3.5" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-1">
-        {groups.length === 0 ? (
-          <div className="text-muted-foreground px-2 py-3 text-center text-xs">No agents yet.</div>
-        ) : (
-          groups.map((group) => (
-            <div key={group.serverUrl} className="flex flex-col">
-              <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
-                  {describeAgentServer(group.serverUrl, localServerUrl)}
-                </span>
-                {advertisedServerUrl && group.serverUrl === advertisedServerUrl ? (
-                  <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px] font-medium">
-                    This space
-                  </span>
-                ) : null}
-              </div>
-              {group.options.map((option) => {
-                const isActive = option.serverUrl === activeAgent?.serverUrl && option.agent.id === activeAgent.agent.id
-                return (
-                  <button
-                    key={`${option.serverUrl}${option.agent.id}`}
-                    type="button"
-                    className={`hover:bg-muted flex w-full flex-col items-start rounded px-2 py-1.5 text-left ${
-                      isActive ? 'bg-muted' : ''
-                    }`}
-                    onClick={() => {
-                      onSelect({serverUrl: option.serverUrl, agentId: option.agent.id})
-                      setOpen(false)
-                    }}
-                  >
-                    <span className="w-full truncate text-xs font-medium">{option.agent.definition.name}</span>
-                    <span className="text-muted-foreground w-full truncate text-[10px]">
-                      {option.agent.definition.model}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          ))
-        )}
-        <div className="border-border mt-1 flex flex-col border-t pt-1">
-          <button
-            type="button"
-            className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-            onClick={() => {
-              setOpen(false)
-              onCreateAgent()
-            }}
-          >
-            <Plus className="text-muted-foreground size-3.5 shrink-0" />
-            New agent
-          </button>
-          <button
-            type="button"
-            className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-            onClick={() => {
-              setOpen(false)
-              onOpenAgentsPage()
-            }}
-          >
-            <LayoutGrid className="text-muted-foreground size-3.5 shrink-0" />
-            Agents page
-          </button>
-        </div>
-      </PopoverContent>
-    </Popover>
+      ) : null}
+    </div>
   )
 }
 
@@ -795,6 +820,7 @@ function AssistantSessionChat({
   // A sub-session still being driven by its parent is not the user's to message — same rule and
   // wording as the full session page.
   const parentSessionId = session.data?.session.parentSessionId
+  const parentSession = useAgentSession(serverUrl, accountUid, parentSessionId)
   const ownRun = useRun(serverUrl, accountUid, parentSessionId ? session.data?.session.runId : undefined)
   const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
   const isDrivenByParent = !!parentSessionId && (isStreaming || hasLiveRun)
@@ -802,17 +828,19 @@ function AssistantSessionChat({
   const sessionRuns = useSessionRuns(serverUrl, accountUid, sessionId)
   const rows = useMemo(
     () =>
-      interleaveRunRecords(
-        buildAgentSessionChatRows(events || [], {
-          serverUrl,
-          agentId: session.data?.session.agentId,
-          sessionId,
-          triggerContext: session.data?.triggerContext,
-        }),
-        sessionRuns.data || [],
-        // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
-        // decision needs it here for the same reason the pinned card does.
-        session.data?.session.plan,
+      mergeConsecutiveToolMessageRows(
+        interleaveRunRecords(
+          buildAgentSessionChatRows(events || [], {
+            serverUrl,
+            agentId: session.data?.session.agentId,
+            sessionId,
+            triggerContext: session.data?.triggerContext,
+          }),
+          sessionRuns.data || [],
+          // A model-driven agent keeps its checklist on the session, not on the run, so the freeze
+          // decision needs it here for the same reason the pinned card does.
+          session.data?.session.plan,
+        ),
       ),
     [
       events,
@@ -873,12 +901,14 @@ function AssistantSessionChat({
       <div
         ref={autoScroll.containerRef}
         onScroll={autoScroll.handleScroll}
-        className="relative flex-1 overflow-y-auto px-3 py-2"
+        className="relative flex-1 overflow-x-hidden overflow-y-auto px-3 py-2"
       >
         <div ref={autoScroll.contentRef} className="flex min-h-full flex-col">
           {rows.length === 0 && !isStreaming ? (
             <div className="text-muted-foreground flex flex-1 items-center justify-center text-xs">
-              Send a message to start chatting
+              {/* While the transcript is on its way, the empty-state prompt would be a lie about a
+                  session that may be full of messages — hold quiet, then a tiny spinner. */}
+              {session.isLoading ? <DelayedSpinner /> : 'Send a message to start chatting'}
             </div>
           ) : null}
           {rows.map((row) => {
@@ -961,11 +991,21 @@ function AssistantSessionChat({
         isBusy={isBusy}
         isStreaming={isStreaming}
         disabledMessage={
-          readOnly
-            ? 'You have read-only access to this agent.'
-            : isDrivenByParent
-              ? SUB_SESSION_DRIVEN_MESSAGE
-              : undefined
+          readOnly ? (
+            'You have read-only access to this agent.'
+          ) : isDrivenByParent ? (
+            <SubSessionDrivenNotice
+              parentTitle={parentSession.data?.session.title}
+              onOpenParent={() =>
+                navigate({
+                  key: 'agent-session',
+                  agentId: parentSession.data?.session.agentId,
+                  sessionId: parentSessionId!,
+                  serverUrl,
+                })
+              }
+            />
+          ) : undefined
         }
         stopPending={stopSession.isPending}
         serverUrl={serverUrl}

@@ -196,8 +196,9 @@ export function parseToolAddress(rawAddress: string): ParsedToolAddress {
     return of('attachment', id, {id})
   }
   if (address.startsWith('thread:')) {
+    // A bare `thread:` lists the account's sessions; with an id it reads one transcript.
     const id = address.slice('thread:'.length)
-    return of('thread', id, {id})
+    return of('thread', id || 'sessions', {id: id || undefined})
   }
   if (address.startsWith('run:')) {
     const id = address.slice('run:'.length)
@@ -302,6 +303,11 @@ function readSummary(item: ChatToolPart, parsed: ParsedToolAddress): ToolRowSumm
       return {...base, verb: getToolString(output, 'shownAsImage') ? 'Viewed' : 'Read', label: name || parsed.display}
     }
     case 'thread': {
+      // The listing form: "Listed 8 sessions", or just "Listed sessions" until the count lands.
+      if (!parsed.id) {
+        const count = countAt(output, 'threads')
+        return {...base, verb: 'Listed', label: count === undefined ? 'sessions' : pluralize(count, 'session')}
+      }
       const title = getToolString(output, 'title')
       return {...base, label: title || parsed.display}
     }

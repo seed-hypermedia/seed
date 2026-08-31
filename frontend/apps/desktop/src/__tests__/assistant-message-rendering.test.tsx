@@ -273,8 +273,9 @@ describe('assistant message rendering', () => {
       },
     })
 
-    // The document's own name, plus which world it came from — never "Read document: document".
-    expect(container.textContent).toContain('Read')
+    // The document's own name, plus which world it came from — the linked title speaks for
+    // itself, so no "Read" verb in front of it.
+    expect(container.textContent).not.toContain('Read')
     expect(container.textContent).toContain('Seed Notes')
     expect(container.textContent).toContain('hm doc')
     expect(container.textContent).not.toContain('Project status and notes.')
@@ -309,7 +310,8 @@ describe('assistant message rendering', () => {
       'agent-1',
     )
 
-    expect(container.textContent).toContain('Read')
+    // The linked path says what was read; no verb in front of it.
+    expect(container.textContent).not.toContain('Read')
     expect(container.textContent).toContain('notes/competitors.md')
     expect(container.textContent).toContain('memory')
     expect(container.textContent).not.toContain('Acme ships weekly.')
@@ -352,7 +354,8 @@ describe('assistant message rendering', () => {
       'agent-1',
     )
 
-    expect(container.textContent).toContain('Listed')
+    // The linked directory plus its entry count tell the story without a "Listed" verb.
+    expect(container.textContent).not.toContain('Listed')
     expect(container.textContent).toContain('2 entries')
 
     click(findButton(container, (element) => element.getAttribute('title') === 'Show tool details'))
@@ -651,7 +654,7 @@ it('marks user-run tool rows with a You chip', () => {
     rawOutput: {summary: 'Read notes.md (120 bytes).'},
   })
   expect(container.textContent).toContain('You')
-  expect(container.textContent).toContain('Read')
+  expect(container.textContent).toContain('notes.md')
   cleanupRendered(root, container)
 })
 
