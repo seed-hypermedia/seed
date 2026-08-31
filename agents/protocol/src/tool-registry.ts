@@ -331,7 +331,7 @@ const delegateVerb = {
       model: {
         type: 'string',
         description:
-          'Model child: run the child on one of your enabled models, as "provider/model" (a bare model id also works when it names exactly one enabled entry). Pick a cheaper/faster model for simple mechanical work and a stronger one for hard reasoning; omit to inherit your configured model.',
+          'Model child: run the child on one of your enabled models, as "provider/model" (a bare model id also works when it names exactly one enabled entry). Pick a cheaper/faster model for simple mechanical work and a stronger one for hard reasoning; omit to inherit your configured model. Script children: pass model inside each nested ctx.delegate call instead.',
       },
       tools: {
         type: 'array',

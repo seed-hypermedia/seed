@@ -5370,12 +5370,17 @@ export class Service {
       }
       cursor = cursor.parentRunId ? runs.getRun(this.#db, accountId, cursor.parentRunId) : null
     }
+    // Same contract as #spawnSubSession: a requested model resolves against this agent's enabled
+    // set and becomes the child session's override. Scripts share normalizeSubSessionSpec, so
+    // skipping this here silently ran ctx.delegate({model}) children on the agent's default model.
+    const modelOverride = spec.model ? this.#delegateModelOverride(accountId, childAgentId, spec.model) : undefined
     const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
     const childRunId = crypto.randomUUID()
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
       ...(ancestorSessionId ? {parentSessionId: ancestorSessionId} : {}),
       runId: childRunId,
       titleSource: spec.title ? 'agent' : 'system',
+      ...(modelOverride ? {modelOverride} : {}),
     })
     const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
@@ -11309,6 +11314,14 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
           throw new APIError(
             400,
             'Detached script children are not supported: scripts are awaited. Drop `await: false`, or delegate a model child instead.',
+          )
+        }
+        // A script runs no model itself, so `model` here would be silently meaningless — and the
+        // author almost certainly wanted their nested children on that model.
+        if (typeof input.model === 'string' && input.model) {
+          throw new APIError(
+            400,
+            'delegate {script} does not support `model` — a script runs no model itself. Pass model on each ctx.delegate({...}) child inside the script instead.',
           )
         }
         if (!context.spawnWorkflow) throw new APIError(400, 'Script delegation is not available in this run context')

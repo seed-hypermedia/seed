@@ -8626,6 +8626,98 @@ describe('resolveDelegateModelRef', () => {
   })
 })
 
+describe('delegate model inside script children', () => {
+  test('ctx.delegate({model}) runs the nested child on that model and stores the override', async () => {
+    // Regression: the workflow spawn site normalized the spec (so `model` validated fine) but
+    // never resolved it into the child session's override — Luna-briefed children silently ran on
+    // the agent's default model.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const providerCalls: Array<{model: string; messagesJSON: string}> = []
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const workflowSource = [
+        'export default async function (input, ctx) {',
+        "  const worker = await ctx.delegate({title: 'Mini worker', prompt: 'You are worker Mini.', input: 'Say hi', model: 'gpt-test-mini'})",
+        '  return {worker: worker.text}',
+        '}',
+      ].join('\n')
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        providerCalls.push({model: body.model, messagesJSON})
+        // Order matters: the parent's later calls carry the script source (and its 'worker Mini'
+        // text) in their transcript, but only the parent ever holds a tool-role message.
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'Done.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (messagesJSON.includes('worker Mini')) {
+          return openAIStreamResponse([
+            {id: 'mini', choices: [{delta: {content: 'Mini says hi.'}}]},
+            {id: 'mini', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-script',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({title: 'Mini workflow', script: workflowSource, input: {}}),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const sessionId = await seedAgentSession(svc, account, 'You are the orchestrator.', {
+        enabledModels: [{provider: 'openai', model: 'gpt-test-mini'}],
+      })
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Run the mini workflow'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const workerCalls = providerCalls.filter((call) => !call.messagesJSON.includes('Run the mini workflow'))
+      expect(workerCalls.length).toBeGreaterThan(0)
+      for (const call of workerCalls) expect(call.model).toBe('gpt-test-mini')
+
+      const overrideRow = db
+        .query<{model_override_cbor: Uint8Array | null}, []>(
+          `SELECT model_override_cbor FROM sessions WHERE title = 'Mini worker'`,
+        )
+        .get()
+      expect(overrideRow?.model_override_cbor).toBeTruthy()
+      expect(cbor.decode<{provider: string; model: string}>(overrideRow!.model_override_cbor!)).toEqual({
+        provider: 'openai',
+        model: 'gpt-test-mini',
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+})
+
 describe('applySessionModelOverride', () => {
   const definition = {
     name: 'Coder',
