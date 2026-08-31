@@ -5,6 +5,9 @@ packages:
   - '!frontend/apps/mobile'
   - 'frontend/packages/*'
   - 'frontend/scripts'
+  # Seed extensions: the SDK lives in frontend/packages, examples live here.
+  - 'extensions/*'
+  - 'extensions/examples/*'
   - 'docs'
   - 'tests'
 

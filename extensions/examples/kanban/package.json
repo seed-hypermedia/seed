@@ -1,0 +1,28 @@
+{
+  "name": "@seed-extensions/kanban",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kanban board whose state lives in the metadata of the hypermedia document it is mounted at.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write ."
+  },
+  "dependencies": {
+    "@seed-hypermedia/extension-sdk": "workspace:*",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.64",
+    "@types/react-dom": "18.2.21",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "5.8.3",
+    "vite": "6.4.2",
+    "vite-plugin-singlefile": "2.3.3"
+  }
+}

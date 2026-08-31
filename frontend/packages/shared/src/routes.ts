@@ -304,6 +304,7 @@ export const siteSettingsTabSchema = z.enum([
   'writers',
   'email-subscribers',
   'agents',
+  'extensions',
 ])
 export type SiteSettingsTab = z.infer<typeof siteSettingsTabSchema>
 

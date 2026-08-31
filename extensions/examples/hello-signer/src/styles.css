@@ -1,0 +1,135 @@
+/* Uses the --seed-* variables injected by injectBaseStyles() from the SDK. */
+
+body {
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--seed-border);
+  background: var(--seed-surface);
+  position: sticky;
+  top: 0;
+}
+.header h1 {
+  font-size: 15px;
+  margin: 0;
+}
+.header .user {
+  color: var(--seed-muted);
+  font-size: 13px;
+}
+
+main {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  max-width: 900px;
+}
+
+section {
+  border: 1px solid var(--seed-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+section h2 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--seed-muted);
+  margin: 0 0 10px;
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.row:last-child {
+  margin-bottom: 0;
+}
+
+input,
+textarea {
+  font: inherit;
+  color: var(--seed-fg);
+  background: var(--seed-bg);
+  border: 1px solid var(--seed-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 220px;
+}
+textarea {
+  width: 100%;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+button {
+  font: inherit;
+  color: var(--seed-fg);
+  background: var(--seed-surface);
+  border: 1px solid var(--seed-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover {
+  border-color: var(--seed-accent);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+pre,
+code {
+  font-family: var(--seed-mono);
+  font-size: 12px;
+}
+pre {
+  margin: 0;
+  padding: 10px;
+  background: var(--seed-surface);
+  border-radius: 6px;
+  overflow: auto;
+  max-height: 320px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.result {
+  color: var(--seed-muted);
+  font-family: var(--seed-mono);
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--seed-mono);
+  font-size: 12px;
+}
+.log li {
+  padding: 4px 0;
+  border-top: 1px solid var(--seed-border);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.log .request {
+  color: var(--seed-muted);
+}
+.log .response {
+  color: var(--seed-fg);
+}
+.log .error {
+  color: var(--seed-danger);
+}

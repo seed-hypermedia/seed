@@ -19,6 +19,7 @@ import {registerSearchCommand} from './commands/search'
 import {registerQueryCommands} from './commands/query'
 import {registerKeyCommands} from './commands/key'
 import {registerDraftCommands} from './commands/draft'
+import {registerExtensionCommands} from './commands/extension'
 import {getCliVersion} from './version'
 
 const program = new Command()
@@ -105,6 +106,7 @@ registerContactCommands(program)
 registerAccountCommands(program)
 registerKeyCommands(program)
 registerDraftCommands(program)
+registerExtensionCommands(program)
 
 // Register top-level commands
 registerSearchCommand(program)

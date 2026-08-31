@@ -1,0 +1,9 @@
+{
+  "manifestVersion": 1,
+  "kind": "page",
+  "version": "0.1.0",
+  "description": "A kanban board stored in the metadata of the document it is mounted at. Cards can link to site documents.",
+  "permissions": ["sign", "navigate", "storage"],
+  "defaultMountPath": "board",
+  "homepage": "https://github.com/seed-hypermedia/seed/tree/main/extensions/examples/kanban"
+}

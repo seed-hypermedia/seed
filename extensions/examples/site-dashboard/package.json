@@ -1,0 +1,23 @@
+{
+  "name": "@seed-extensions/site-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only dashboard of the documents and activity on the site the extension is installed on.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write ."
+  },
+  "dependencies": {
+    "@seed-hypermedia/extension-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "vite": "6.4.2",
+    "vite-plugin-singlefile": "2.3.3"
+  }
+}

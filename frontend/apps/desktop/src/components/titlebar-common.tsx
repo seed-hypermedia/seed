@@ -72,6 +72,7 @@ import {
   PanelLeftClose,
   PanelRightClose,
   Plus,
+  Puzzle,
   Route,
   Search,
   Settings,
@@ -454,6 +455,10 @@ export function AccountProfileButton() {
                   Inspect
                 </DropdownMenuItem>
               ) : null}
+              <DropdownMenuItem onClick={() => navigate({key: 'settings', tab: 'advanced'})}>
+                <Puzzle className="size-4" />
+                Extension dev overrides…
+              </DropdownMenuItem>
             </>
           ) : null}
           {canLogOut ? (

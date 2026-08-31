@@ -5,15 +5,12 @@
 import type {Command} from 'commander'
 import {existsSync, readFileSync, writeFileSync} from 'fs'
 import {extname} from 'path'
-import {CID} from 'multiformats/cid'
 import {
   createVersionRef,
   createTombstoneRef,
   createRedirectRef,
   createGenesisChange,
   autoLinkChildToParent,
-  createChangeOps,
-  createChange,
   pdfToBlocks,
   fileToIpfsBlobs,
   slugify,
@@ -37,13 +34,8 @@ import {createSignerFromKey} from '../utils/signer'
 import {resolveDocumentState} from '../utils/depth'
 import {parseMarkdown, flattenToOperations, type BlockNode} from '../utils/markdown'
 import {parseBlocksJson, hmBlockNodesToOperations} from '../utils/blocks-json'
-import {
-  createBlocksMap,
-  computeReplaceOps,
-  hmBlockNodeToBlockNode,
-  rebindTableIdentities,
-  type APIBlockNode,
-} from '../utils/block-diff'
+import {hmBlockNodeToBlockNode} from '../utils/block-diff'
+import {computeBodyReplaceOps, metadataToSetAttributes, signAndPublishChange} from '../utils/publish'
 import {resolveFileLinks} from '../utils/file-links'
 import {markdownBlockNodesToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMBlockNode, HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -197,7 +189,15 @@ export async function readInput(options: {file?: string; grobidUrl?: string; qui
   }
 
   // ── Markdown path ──
-  const {tree, metadata} = parseMarkdown(content!)
+  return markdownToInput(content!)
+}
+
+/**
+ * Parse markdown (with optional frontmatter) into document operations,
+ * resolving file:// image links into IPFS blobs.
+ */
+export async function markdownToInput(content: string): Promise<ParsedInput> {
+  const {tree, metadata} = parseMarkdown(content)
 
   // Resolve file:// links on image blocks: read the local file, chunk it
   // with UnixFS, and rewrite link to ipfs://CID. The roundtrip through
@@ -488,25 +488,14 @@ export function registerDocumentCommands(program: Command) {
         ops.push(...input.ops)
 
         const signer = createSignerFromKey(key)
-        const {unsignedBytes, ts} = createChangeOps({ops})
-        const changeBlock = await createChange(unsignedBytes, signer)
-        const generation = Number(ts)
-        const refInput = await createVersionRef(
-          {
-            space: account,
-            path,
-            genesis: changeBlock.cid.toString(),
-            version: changeBlock.cid.toString(),
-            generation,
-            capability,
-          },
+        await signAndPublishChange({
+          client,
           signer,
-        )
-
-        await client.publish({
+          space: account,
+          path,
+          ops,
+          capability,
           blobs: [
-            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-            ...refInput.blobs,
             ...input.fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
             ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
           ],
@@ -610,14 +599,7 @@ export function registerDocumentCommands(program: Command) {
             // old document, only content changes are emitted. If the ID
             // doesn't exist, the block is treated as new. Old blocks
             // whose IDs are absent from the new tree are deleted.
-            const oldNodes = (existingDoc.content || []).map(toAPIBlockNode)
-            const oldMap = createBlocksMap(oldNodes)
-            // Tables: markdown only carries table/column/row ids, so cell
-            // block ids and unexpressible attributes (column width, header
-            // column) are rebound from the old document before diffing.
-            const rebound = rebindTableIdentities(oldNodes, input.tree)
-            const diffOps = computeReplaceOps(oldMap, rebound)
-            ops.push(...diffOps)
+            ops.push(...computeBodyReplaceOps(existingDoc, input.tree))
           } else {
             // No tree available (e.g. PDF input) — use flat ops as-is
             ops.push(...input.ops)
@@ -654,32 +636,17 @@ export function registerDocumentCommands(program: Command) {
         const docAccount = resourceId.uid
         const docPath = resourceId.path?.length ? `/${resourceId.path.join('/')}` : existingDoc.path || ''
 
-        const state = base.state
-        const genesisCid = CID.parse(state.genesis)
-        const depCids = state.heads.map((h) => CID.parse(h))
-        const newDepth = state.headDepth + 1
-
         const signer = createSignerFromKey(key)
         const capability = await resolveCapability(client, docAccount, key.accountId, docPath)
-        const {unsignedBytes, ts} = createChangeOps({ops, genesisCid, deps: depCids, depth: newDepth})
-        const changeBlock = await createChange(unsignedBytes, signer)
-        const generation = Number(ts)
-        const refInput = await createVersionRef(
-          {
-            space: docAccount,
-            path: docPath,
-            genesis: state.genesis,
-            version: changeBlock.cid.toString(),
-            generation,
-            capability,
-          },
+        await signAndPublishChange({
+          client,
           signer,
-        )
-
-        await client.publish({
+          space: docAccount,
+          path: docPath,
+          ops,
+          base: base.state,
+          capability,
           blobs: [
-            {data: new Uint8Array(changeBlock.bytes), cid: changeBlock.cid.toString()},
-            ...refInput.blobs,
             ...fileBlobs.map((b) => ({data: b.data, cid: b.cid})),
             ...metaBlobs.map((b) => ({data: b.data, cid: b.cid})),
           ],
@@ -1097,40 +1064,13 @@ export function mergeMetadata(
 }
 
 /**
- * Convert an HMMetadata object to a SetAttributes operation.
- * Only includes fields with defined values, flattening nested objects into key paths.
- */
-function metadataToSetAttributes(metadata: HMMetadata): DocumentOperation | null {
-  const attrs: Array<{key: string[]; value: string | number | boolean | null}> = []
-
-  const flatten = (value: unknown, key: string[]) => {
-    if (value === undefined) return
-
-    if (value !== null && typeof value === 'object') {
-      for (const [nestedKey, nestedValue] of Object.entries(value)) {
-        flatten(nestedValue, [...key, nestedKey])
-      }
-      return
-    }
-
-    if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      attrs.push({key, value})
-    }
-  }
-
-  for (const [key, value] of Object.entries(metadata)) {
-    flatten(value, [key])
-  }
-  if (attrs.length === 0) return null
-  return {type: 'SetAttributes', attrs}
-}
-
-/**
  * Resolve file:// links in metadata fields (cover, icon, seedExperimentalLogo).
  * Reads the local file, chunks it into UnixFS IPFS blocks, and replaces
  * the file:// URL with ipfs://CID.
  */
-async function resolveMetadataFileLinks(metadata: HMMetadata): Promise<{metadata: HMMetadata; blobs: CollectedBlob[]}> {
+export async function resolveMetadataFileLinks(
+  metadata: HMMetadata,
+): Promise<{metadata: HMMetadata; blobs: CollectedBlob[]}> {
   const allBlobs: CollectedBlob[] = []
   const resolved = {...metadata}
 
@@ -1153,29 +1093,3 @@ async function resolveMetadataFileLinks(metadata: HMMetadata): Promise<{metadata
 
 // Re-export slugify from SDK client for backwards compatibility
 export {slugify} from '@seed-hypermedia/client'
-
-/**
- * Convert API BlockNode (with optional children) to the APIBlockNode shape
- * expected by block-diff utilities (with required children array).
- */
-function toAPIBlockNode(node: HMBlockNode): APIBlockNode {
-  const block = node.block as {
-    id: string
-    type: string
-    text?: string
-    link?: string
-    annotations?: unknown[]
-    attributes?: Record<string, unknown>
-  }
-  return {
-    block: {
-      id: block.id,
-      type: block.type,
-      text: block.text || '',
-      link: block.link || '',
-      annotations: block.annotations || [],
-      attributes: block.attributes || {},
-    },
-    children: (node.children || []).map(toAPIBlockNode),
-  }
-}

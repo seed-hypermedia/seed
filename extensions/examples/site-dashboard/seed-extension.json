@@ -1,0 +1,9 @@
+{
+  "manifestVersion": 1,
+  "kind": "page",
+  "version": "0.1.0",
+  "description": "Overview of the site: documents, authors, comment counts, recent activity and search.",
+  "permissions": ["navigate"],
+  "defaultMountPath": "dashboard",
+  "homepage": "https://github.com/seed-hypermedia/seed/tree/main/extensions/examples/site-dashboard"
+}

@@ -1,6 +1,7 @@
 import {LoaderFunction} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
+import {withCors} from '@/utils/cors'
 
 /**
  * Simple proxy for IPFS file content (videos, documents, etc.)
@@ -8,10 +9,24 @@ import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
  * Streams the response to avoid loading large files into memory.
  * This avoids the need for clients to construct localhost daemon URLs,
  * which break on hosted sites.
+ *
+ * Responses carry CORS headers: sandboxed extension iframes run at an opaque
+ * origin and load files (entry HTML, images, data) through this route.
  */
 export const loader: LoaderFunction = async ({params, request}) => {
+  if (request.method === 'OPTIONS') {
+    return withFileCors(new Response(null, {status: 204}))
+  }
   const authToken = await getDaemonAuthToken(request)
-  return withDaemonAuthToken(authToken, () => loadFile(params, request, authToken))
+  return withFileCors(await withDaemonAuthToken(authToken, () => loadFile(params, request, authToken)))
+}
+
+function withFileCors(response: Response) {
+  const res = withCors(response)
+  // Range requests (video seeking) are not CORS-safelisted; allow them on preflight.
+  res.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, Range')
+  res.headers.set('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Content-Range, Accept-Ranges')
+  return res
 }
 
 async function loadFile(params: Record<string, string | undefined>, request: Request, authToken: string | null) {

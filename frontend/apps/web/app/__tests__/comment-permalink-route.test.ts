@@ -23,6 +23,7 @@ vi.mock('@/hypermedia-metadata', () => ({
 
 vi.mock('@/loaders', () => ({
   GRPCError: class GRPCError extends Error {},
+  getMetadata: async (id: unknown) => ({id, metadata: {}}),
   loadSiteHeaderData: vi.fn(),
   loadSiteResource: mocks.loadSiteResource,
   loadWebDraftPlaceholderResource: vi.fn(),
@@ -65,6 +66,10 @@ vi.mock('@/web-feed-page', () => ({
 vi.mock('@/web-resource-page', () => ({
   WebInspectorPage: () => null,
   WebResourcePage: () => null,
+}))
+
+vi.mock('@/web-extension-page', () => ({
+  WebExtensionPage: () => null,
 }))
 
 vi.mock('@/wrapping.server', () => ({

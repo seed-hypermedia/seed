@@ -1,3 +1,5 @@
+import {isExtensionInternalNavigation} from '../extension-route'
+
 /** Decides whether the document route loader should re-run for a URL transition. */
 export function shouldRevalidateDocumentRoute({
   currentUrl,
@@ -8,6 +10,13 @@ export function shouldRevalidateDocumentRoute({
   nextUrl: URL
   defaultShouldRevalidate: boolean
 }) {
+  // An extension page routes beneath its mount on its own (route.set); the
+  // loader result is identical anywhere inside the mount and re-running it
+  // would remount the extension iframe.
+  if (isExtensionInternalNavigation(currentUrl.pathname, nextUrl.pathname)) {
+    return false
+  }
+
   if (currentUrl.pathname !== nextUrl.pathname) {
     return true
   }

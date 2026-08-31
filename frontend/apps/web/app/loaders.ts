@@ -737,10 +737,13 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     accountUid?: string | null
     openComment?: string | null
     commentVersion?: string | null
+    /** Home document metadata the caller already fetched (e.g. to resolve extension mounts), so it is not loaded twice. */
+    homeMetadataPayload?: HMMetadataPayload
   },
-): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
+): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx' | 'homeMetadataPayload'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
+  const {homeMetadataPayload, ...forwardedExtraData} = (extraData || {}) as NonNullable<typeof extraData>
   // Profile pages render/load the account root document, but the public
   // metadata identifies the profile view term addressed by the URL.
   const metadataId =
@@ -764,7 +767,10 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
   }
   let homeMetadata = null
   let originHomeId: undefined | UnpackedHypermediaId = undefined
-  if (config.registeredAccountUid) {
+  if (homeMetadataPayload) {
+    homeMetadata = homeMetadataPayload.metadata
+    originHomeId = homeMetadataPayload.id
+  } else if (config.registeredAccountUid) {
     const homeId = hmId(config.registeredAccountUid)
     try {
       const result = await instrument(ctx || noopCtx, `getHomeMetadata(${packHmId(homeId)})`, () => getMetadata(homeId))
@@ -838,7 +844,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     }
 
     const loadedSiteDocument = {
-      ...(extraData || {}),
+      ...forwardedExtraData,
       ...resourceContent,
       ...(comment ? {comment} : {}),
       dehydratedState: mergedDehydratedState,
@@ -863,7 +869,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       throw e
     }
     if (e instanceof HMDiscoveryPendingError) {
-      const {instrumentationCtx: _, ...cleanExtraData} = (extraData || {}) as any
+      const {instrumentationCtx: _, ...cleanExtraData} = forwardedExtraData as any
       return wrapJSON(
         {
           id,
@@ -917,7 +923,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         originHomeId,
         daemonError,
         metadataId,
-        ...(extraData || {}),
+        ...forwardedExtraData,
       },
       {status: id ? 200 : 404},
     )
@@ -941,7 +947,16 @@ export type SiteHeaderPayload = {
  * Load site header data for utility pages.
  * Prefetches home document and directory for navigation rendering via React Query hydration.
  */
-export async function loadSiteHeaderData(parsedRequest: ParsedRequest): Promise<SiteHeaderPayload> {
+export async function loadSiteHeaderData(
+  parsedRequest: ParsedRequest,
+  options?: {
+    /**
+     * Also prefetch this account's home document and directory (gateway pages
+     * `/hm/<uid>/...` render that account's site header, not the registered site's).
+     */
+    siteUid?: string
+  },
+): Promise<SiteHeaderPayload> {
   const {hostname, origin} = parsedRequest
   const config = await getConfig(hostname)
 
@@ -960,9 +975,17 @@ export async function loadSiteHeaderData(parsedRequest: ParsedRequest): Promise<
 
   try {
     // Prefetch home document and directory for navigation
+    const extraSiteId =
+      options?.siteUid && options.siteUid !== config.registeredAccountUid ? hmId(options.siteUid, {latest: true}) : null
     await Promise.allSettled([
       prefetchCtx.queryClient.prefetchQuery(queryResource(client, homeId)),
       prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, homeId, 'Children')),
+      ...(extraSiteId
+        ? [
+            prefetchCtx.queryClient.prefetchQuery(queryResource(client, extraSiteId)),
+            prefetchCtx.queryClient.prefetchQuery(queryDirectory(client, extraSiteId, 'Children')),
+          ]
+        : []),
     ])
 
     // Read from cache

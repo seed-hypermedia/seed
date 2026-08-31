@@ -1,0 +1,62 @@
+{
+  "name": "@seed-hypermedia/extension-sdk",
+  "version": "0.0.1",
+  "description": "Iframe-side SDK for Seed Hypermedia extensions: talks to the host app over postMessage.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seed-hypermedia/seed",
+    "directory": "frontend/packages/extension-sdk"
+  },
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.mjs",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.mjs"
+      },
+      "./*": {
+        "types": "./dist/*.d.ts",
+        "import": "./dist/*.mjs"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "build": "tsup && tsc --project tsconfig.build.json",
+    "format:check": "prettier --check .",
+    "format:write": "prettier --write .",
+    "prepublishOnly": "pnpm build",
+    "test": "vitest --run",
+    "typecheck": "tsc --noEmit --project tsconfig.app.json"
+  },
+  "dependencies": {
+    "@seed-hypermedia/client": "workspace:*"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "5.8.3",
+    "vitest": "4.1.8",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "zod": "^3.20.0"
+  }
+}

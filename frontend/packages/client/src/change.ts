@@ -17,8 +17,15 @@ import {createVersionRef} from './ref'
 import {cborCodec, normalizeBytes, signerPublicKey} from './signing'
 import type {AnySigner} from './signer'
 
+/**
+ * Value stored by a SetAttributes op. The daemon persists any CBOR value; nested
+ * objects are conventionally written as one op per leaf path, while arrays are
+ * written whole (they have no leaf paths). `null` deletes the attribute.
+ */
+export type AttributeValue = string | number | boolean | null | AttributeValue[] | {[key: string]: AttributeValue}
+
 export type DocumentOperation =
-  | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: string | number | boolean | null}>}
+  | {type: 'SetAttributes'; attrs: Array<{key: string[]; value: AttributeValue}>}
   | {type: 'MoveBlocks'; blocks: string[]; parent: string}
   | {type: 'ReplaceBlock'; block: unknown}
   | {type: 'DeleteBlocks'; blocks: string[]}
@@ -26,14 +33,18 @@ export type DocumentOperation =
 export type CreateChangeOpsInput = {
   /** Native CBOR ops */
   ops: DocumentOperation[]
-  /** CID of the genesis change blob. Omit when creating the first content change for a document. */
-  genesisCid?: CID
-  /** CIDs of dependency changes. Omit when creating the first content change for a document. */
-  deps?: CID[]
+  /** CID of the genesis change blob (a CID or its string form). Omit when creating the first content change for a document. */
+  genesisCid?: CID | string
+  /** CIDs of dependency changes (CIDs or their string forms). Omit when creating the first content change for a document. */
+  deps?: Array<CID | string>
   /** Depth of the change (max depth of deps + 1). Omit when creating the first content change for a document. */
   depth?: number
   /** Timestamp (defaults to Date.now()) */
   ts?: bigint
+}
+
+function toCID(value: CID | string): CID {
+  return typeof value === 'string' ? CID.parse(value) : value
 }
 
 /**
@@ -53,8 +64,8 @@ export function createChangeOps(input: CreateChangeOpsInput): {unsignedBytes: Ui
     sig: null,
   }
   if (input.genesisCid) {
-    unsigned.genesis = input.genesisCid
-    unsigned.deps = input.deps ?? []
+    unsigned.genesis = toCID(input.genesisCid)
+    unsigned.deps = (input.deps ?? []).map(toCID)
     unsigned.depth = input.depth ?? 1
   }
   return {unsignedBytes: cborEncode(unsigned), ts}

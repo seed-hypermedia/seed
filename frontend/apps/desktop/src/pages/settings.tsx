@@ -2,6 +2,7 @@ import {useAppContext, useIPC} from '@/app-context'
 import {AccountWallet, WalletPage} from '@/components/payment-settings'
 import {reportError} from '@/errors'
 import {AgentServersSettings} from '@shm/ui/agents/server-settings'
+import {ExtensionDevOverridesEditor} from '@/components/extension-dev-overrides'
 import {useAutoUpdatePreference} from '@/models/app-settings'
 import {useDaemonInfo, useDeleteKey, useExportKey, useListKeys, useSavedMnemonics} from '@/models/daemon'
 import {useWriteExperiments} from '@/models/experiments'
@@ -579,6 +580,7 @@ export function DeveloperSettings() {
   const embeddingEnabled = experiments?.embeddingEnabled
   const [showEmbeddingConfirm, setShowEmbeddingConfirm] = useState(false)
   const [pendingEmbeddingState, setPendingEmbeddingState] = useState(false)
+  const [showExtensionOverrides, setShowExtensionOverrides] = useState(false)
   const restartDaemon = useMutation({
     mutationFn: (enabled: boolean) => client.restartDaemonWithEmbedding.mutate({embeddingEnabled: enabled}),
     onSuccess: () => {
@@ -683,6 +685,17 @@ export function DeveloperSettings() {
             />
           </>
         ) : null}
+        <Separator />
+        <SettingsRow
+          label="Extension dev overrides"
+          description="Load an installed extension from a local dev server (e.g. vite) instead of its published code."
+          right={
+            <Button size="sm" variant="outline" onClick={() => setShowExtensionOverrides((v) => !v)}>
+              {showExtensionOverrides ? 'Hide' : 'Edit overrides'}
+            </Button>
+          }
+        />
+        {showExtensionOverrides ? <ExtensionDevOverridesEditor /> : null}
       </SettingsCard>
       <SettingsCard label="GENERAL">
         <SettingsRow

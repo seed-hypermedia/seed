@@ -1,0 +1,246 @@
+/* Uses the --seed-* variables injected by injectBaseStyles() from the SDK. */
+
+body {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.padded {
+  padding: 16px;
+}
+.muted {
+  color: var(--seed-muted);
+}
+.error {
+  color: var(--seed-danger);
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--seed-border);
+  background: var(--seed-surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header h1 {
+  font-size: 15px;
+  margin: 0;
+}
+.header .user {
+  color: var(--seed-muted);
+  font-size: 13px;
+}
+.unsaved {
+  color: var(--seed-accent);
+  font-size: 13px;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--seed-muted);
+}
+
+.banner {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--seed-border);
+}
+.banner.error {
+  color: var(--seed-danger);
+}
+.banner.info {
+  color: var(--seed-muted);
+}
+
+/* Controls */
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: var(--seed-fg);
+}
+button {
+  background: var(--seed-surface);
+  border: 1px solid var(--seed-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+button:hover {
+  border-color: var(--seed-accent);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--seed-accent);
+  border-color: var(--seed-accent);
+  color: #fff;
+}
+button.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--seed-accent);
+  font-size: 12px;
+}
+button.link.danger {
+  color: var(--seed-danger);
+}
+button.icon {
+  background: none;
+  border: none;
+  padding: 0 4px;
+  color: var(--seed-muted);
+  font-size: 16px;
+  line-height: 1;
+}
+input,
+textarea,
+select {
+  background: var(--seed-bg);
+  border: 1px solid var(--seed-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Board */
+.board {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  overflow-x: auto;
+  align-items: flex-start;
+  flex: 1;
+}
+.column {
+  flex: 0 0 260px;
+  background: var(--seed-surface);
+  border: 1px solid var(--seed-border);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.1s;
+}
+.column.over {
+  border-color: var(--seed-accent);
+}
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.column-title {
+  font-weight: 600;
+  background: transparent;
+  border-color: transparent;
+  padding: 4px 6px;
+}
+.column-title:hover,
+.column-title:focus {
+  border-color: var(--seed-border);
+  background: var(--seed-bg);
+}
+.count {
+  color: var(--seed-muted);
+  font-size: 12px;
+}
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 24px;
+}
+.card {
+  background: var(--seed-bg);
+  border: 1px solid var(--seed-border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: grab;
+}
+.card:active {
+  cursor: grabbing;
+}
+.card-title {
+  font-weight: 500;
+}
+.card-note {
+  color: var(--seed-muted);
+  font-size: 12px;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+.card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.add-card {
+  text-align: left;
+  color: var(--seed-muted);
+  background: none;
+  border: 1px dashed var(--seed-border);
+}
+
+/* Card editor */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.modal {
+  background: var(--seed-bg);
+  border: 1px solid var(--seed-border);
+  border-radius: 10px;
+  padding: 16px;
+  width: min(420px, 90vw);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.modal h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--seed-muted);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -1,0 +1,9 @@
+{
+  "manifestVersion": 1,
+  "kind": "page",
+  "version": "0.1.0",
+  "description": "Smallest possible extension: shows the bridge context and exercises signing, storage, navigation and UI calls.",
+  "permissions": ["sign", "navigate", "storage"],
+  "defaultMountPath": "hello",
+  "homepage": "https://github.com/seed-hypermedia/seed/tree/main/extensions/examples/hello-signer"
+}

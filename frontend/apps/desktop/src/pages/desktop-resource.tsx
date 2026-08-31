@@ -12,6 +12,7 @@ import {useEditProfileDialog} from '@/components/edit-profile-dialog'
 import {EditingDocToolsRight, useDesktopToolbarCallbacks} from '@/components/editing-toolbar'
 // import {InlineNewDocumentCard} from '@/components/inline-new-document-card'
 import {useFollowProfileIntent} from '@/components/desktop-intents'
+import {DesktopExtensionPage} from '@/components/desktop-extension-page'
 import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {JoinButton} from '@/components/join-button'
 import {ParentUpdateToast} from '@/components/parent-update-toast'
@@ -41,6 +42,7 @@ import {getPublishedResourceIdForDraftRoute} from '@/utils/draft-route'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
 import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
+import {resolveExtensionMount} from '@seed-hypermedia/client/extensions'
 import {
   DOCUMENT_ATTRIBUTE_DESCRIPTIONS,
   HMBlockNode,
@@ -715,8 +717,15 @@ export default function DesktopResourcePage() {
 
   // Get site URL for publication actions
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
-  const siteUrl =
-    siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document?.metadata?.siteUrl : undefined
+  const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : undefined
+  const siteUrl = siteHomeDocument?.metadata?.siteUrl
+  // An extension mounted at (or above) this path shadows the document page.
+  // Resolved on every route change; the extension page itself is keyed by the
+  // mount path so sub-path navigation updates props without remounting the iframe.
+  const extensionMount = useMemo(
+    () => (route.key === 'document' ? resolveExtensionMount(siteHomeDocument?.metadata, docId.path) : null),
+    [route.key, siteHomeDocument?.metadata, docId.path],
+  )
 
   // Publishing / unpublishing
   const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
@@ -1087,6 +1096,19 @@ export default function DesktopResourcePage() {
     onAfterReply,
   })
   const followIntent = useFollowProfileIntent(route.key === 'site-profile' ? route.accountUid || docId.uid : docId.uid)
+
+  if (extensionMount) {
+    return (
+      <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">
+        <DesktopExtensionPage
+          key={extensionMount.mountPath}
+          docId={docId}
+          siteHomeDocument={siteHomeDocument}
+          mount={extensionMount}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="relative h-full max-h-full overflow-hidden rounded-lg border bg-white">

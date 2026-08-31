@@ -12,6 +12,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import {parseExtensionInstalls} from '@seed-hypermedia/client/extensions'
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
@@ -1404,13 +1405,30 @@ export function computeHeaderData(siteHomeDocument: HMDocument | null): HeaderDa
         .filter((item): item is DocNavigationItem => item !== null && isValidSiteHeaderItem(item)) ?? []
     : []
 
+  // Installed extensions with `nav !== false` appear after the manual items
+  // (deduped by id so an explicit nav link to a mount wins).
+  const siteUid = siteHomeDocument?.account
+  const extensionItems: DocNavigationItem[] =
+    siteUid && siteHomeDocument?.metadata
+      ? parseExtensionInstalls(siteHomeDocument.metadata)
+          .filter((mount) => mount.record.nav !== false)
+          .map((mount) => ({
+            key: `ext:${mount.mountPath}`,
+            id: hmId(siteUid, {path: mount.mountSegments}),
+            metadata: {name: mount.record.title || mount.mountPath},
+            isPublished: true,
+          }))
+          .filter((item) => !homeNavigationItems.some((existing) => existing.id?.id === item.id?.id))
+      : []
+  const items = [...homeNavigationItems, ...extensionItems]
+
   const isCenterLayout =
     siteHomeDocument?.metadata?.theme?.headerLayout === 'Center' ||
     siteHomeDocument?.metadata?.layout === 'Seed/Experimental/Newspaper'
 
   return {
-    items: homeNavigationItems,
-    homeNavigationItems,
+    items,
+    homeNavigationItems: items,
     directoryItems: [],
     isCenterLayout,
     siteHomeDocument,

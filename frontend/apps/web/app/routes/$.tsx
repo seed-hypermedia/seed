@@ -7,17 +7,20 @@ import {
 } from '@/instrumentation.server'
 import {createResourceMetadata, metadataToPageMeta} from '@/hypermedia-metadata'
 import {
+  getMetadata,
   GRPCError,
   loadSiteHeaderData,
   loadSiteResource,
   loadWebDraftPlaceholderResource,
   SiteDocumentPayload,
 } from '@/loaders'
+import {resolveExtensionRequest} from '@/extension-route'
+import {WebExtensionPage, type ExtensionPagePayload} from '@/web-extension-page'
 import {SiteSettingsEmailsScreen, type SiteSettingsEmailsPayload} from '@/site-settings-emails-content'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
-import {defaultPageMeta} from '@/meta'
+import {defaultPageMeta, defaultSiteIcon} from '@/meta'
 import {NoSitePage, NotRegisteredPage} from '@/not-registered'
-import {WebSiteProvider} from '@/providers'
+import {getOptimizedImageUrl, WebSiteProvider} from '@/providers'
 import {parseRequest} from '@/request'
 import {getConfig} from '@/site-config.server'
 import {unwrap, type Wrapped} from '@/wrapping'
@@ -29,7 +32,7 @@ import {wrapJSON} from '@/wrapping.server'
 import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
-import {HMDiscoveryStatusOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMDiscoveryStatusOutput, HMMetadataPayload, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {Spinner} from '@shm/ui/spinner'
 import {
@@ -43,15 +46,15 @@ import {
   hmId,
   InspectTab,
   isSiteProfileTab,
-  VIEW_TERMS,
-  viewTermToRouteKey,
   ViewRouteKey,
 } from '@shm/shared'
 import {useNavigationState} from '@shm/shared/utils/navigation'
+import {extractIpfsUrlCid} from '@shm/ui/get-file-url'
 import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import {shouldRevalidateDocumentRoute} from './revalidation'
+import {extractViewTermFromPath} from './view-terms'
 
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
@@ -73,7 +76,13 @@ type InspectIpfsPayload = {
   siteHost: string
 }
 
-type DocumentPayload = ExtendedSitePayload | InspectIpfsPayload | SiteSettingsEmailsPayload | 'unregistered' | 'no-site'
+type DocumentPayload =
+  | ExtendedSitePayload
+  | InspectIpfsPayload
+  | SiteSettingsEmailsPayload
+  | ExtensionPagePayload
+  | 'unregistered'
+  | 'no-site'
 
 function isInspectIpfsPayload(data: DocumentPayload): data is InspectIpfsPayload {
   return typeof data === 'object' && 'kind' in data && data.kind === 'inspect-ipfs'
@@ -94,86 +103,6 @@ function getInspectTab(value: string | null): InspectTab | null {
     default:
       return null
   }
-}
-
-/**
- * Extract view term from path parts and return cleaned path + view term
- * e.g., ['docs', ':activity'] -> {path: ['docs'], viewTerm: 'activity'}
- */
-function extractViewTermFromPath(pathParts: string[]): {
-  path: string[]
-  viewTerm: ViewRouteKey | null
-  activityFilter?: string
-  commentId?: string
-  accountUid?: string
-} {
-  if (pathParts.length === 0) return {path: [], viewTerm: null}
-
-  // Check for :comments/UID/TSID pattern (3 segments from end)
-  if (pathParts.length >= 3) {
-    const thirdToLast = pathParts[pathParts.length - 3]
-    if (thirdToLast === ':comments' || thirdToLast === ':comment' || thirdToLast === ':discussions') {
-      return {
-        path: pathParts.slice(0, -3),
-        viewTerm: 'comments',
-        commentId: `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`,
-      }
-    }
-  }
-
-  // Check for :comments/COMMENT_ID pattern (2 segments from end)
-  if (pathParts.length >= 2) {
-    const secondToLast = pathParts[pathParts.length - 2]
-    if (secondToLast === ':comments' || secondToLast === ':comment' || secondToLast === ':discussions') {
-      return {
-        path: pathParts.slice(0, -2),
-        viewTerm: 'comments',
-        commentId: pathParts[pathParts.length - 1],
-      }
-    }
-  }
-
-  // Check for :activity/<slug> pattern (second-to-last + last)
-  if (pathParts.length >= 2) {
-    const secondToLast = pathParts[pathParts.length - 2]
-    if (secondToLast === ':activity') {
-      return {
-        path: pathParts.slice(0, -2),
-        viewTerm: 'activity',
-        activityFilter: pathParts[pathParts.length - 1],
-      }
-    }
-  }
-
-  if (pathParts.length >= 2) {
-    const secondToLast = pathParts[pathParts.length - 2]
-    const lastPart = pathParts[pathParts.length - 1]
-    if (secondToLast && lastPart) {
-      const tab = secondToLast.startsWith(':') ? secondToLast.slice(1) : null
-      if (isSiteProfileTab(tab)) {
-        return {
-          path: pathParts.slice(0, -2),
-          viewTerm: tab,
-          accountUid: lastPart,
-        }
-      }
-    }
-  }
-
-  const lastPart = pathParts[pathParts.length - 1]
-  const viewTermMatch = VIEW_TERMS.find((term) => lastPart === term)
-
-  if (viewTermMatch) {
-    const viewTerm = viewTermToRouteKey(viewTermMatch)
-    if (viewTerm) {
-      return {
-        path: pathParts.slice(0, -1),
-        viewTerm,
-      }
-    }
-  }
-
-  return {path: pathParts, viewTerm: null}
 }
 
 function extractInspectPrefixFromPath(
@@ -237,6 +166,15 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   }
   if ('kind' in payload && payload.kind === 'site-settings-emails') {
     return [{title: 'Email Subscribers'}]
+  }
+  if ('kind' in payload && payload.kind === 'extension') {
+    const {siteHomeMetadata, mount} = payload
+    const pageTitle = mount.record.title || mount.mountPath
+    const homeIcon = siteHomeMetadata?.icon ? getOptimizedImageUrl(extractIpfsUrlCid(siteHomeMetadata.icon), 'S') : null
+    return [
+      {title: siteHomeMetadata?.name ? `${pageTitle} · ${siteHomeMetadata.name}` : pageTitle},
+      {tagName: 'link', rel: 'icon', href: homeIcon || defaultSiteIcon, type: 'image/png'},
+    ]
   }
   return documentPageMeta({
     // @ts-ignore
@@ -420,6 +358,34 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     })
   }
 
+  // Extension pages (docs/extensions/design.md §4.2): a site's home document
+  // may mount extensions at paths under the site — the registered site on
+  // its own origin (`/board`) or any account in gateway form
+  // (`/hm/<uid>/board`). When the registered site's home metadata is fetched
+  // here it is handed to loadSiteResource below so it is not loaded twice.
+  let homeMetadataPayload: HMMetadataPayload | undefined
+  let extensionSiteHomeMetadata: HMMetadataPayload | undefined
+  const extensionMount = await resolveExtensionRequest(rawSitePath, registeredAccountUid, async (siteUid) => {
+    const payload = await instrument(ctx, `getHomeMetadata(${siteUid})`, () => getMetadata(hmId(siteUid)))
+    extensionSiteHomeMetadata = payload
+    if (siteUid === registeredAccountUid) homeMetadataPayload = payload
+    return payload.metadata
+  })
+  if (extensionMount && extensionSiteHomeMetadata) {
+    const {siteUid, ...mount} = extensionMount
+    const headerData = await instrument(ctx, 'loadSiteHeaderData', () => loadSiteHeaderData(parsedRequest, {siteUid}))
+    if (isDataRequest && ctx.enabled) {
+      printInstrumentationSummary(ctx)
+    }
+    return wrapJSON({
+      kind: 'extension',
+      ...headerData,
+      id: hmId(siteUid, {path: [...mount.mountSegments, ...mount.subPath], latest: true}),
+      siteHomeMetadata: extensionSiteHomeMetadata.metadata,
+      mount,
+    } satisfies ExtensionPagePayload)
+  }
+
   const siteResourceData = {
     prefersLanguages: parsedRequest.prefersLanguages,
     viewTerm,
@@ -446,7 +412,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     () =>
       shouldLoadLocalDraftShell
         ? loadWebDraftPlaceholderResource(parsedRequest, documentId, siteResourceData)
-        : loadSiteResource(parsedRequest, documentId, siteResourceData),
+        : loadSiteResource(parsedRequest, documentId, {...siteResourceData, homeMetadataPayload}),
   )
 
   // For data requests (client-side nav), print summary here since there's no SSR phase
@@ -468,6 +434,9 @@ export default function UnifiedDocumentPage() {
   }
   if ('kind' in data && data.kind === 'site-settings-emails') {
     return <SiteSettingsEmailsScreen payload={data} />
+  }
+  if ('kind' in data && data.kind === 'extension') {
+    return <WebExtensionPage payload={data} />
   }
   if (isInspectIpfsPayload(data)) {
     return (
