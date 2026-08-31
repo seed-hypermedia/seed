@@ -8498,24 +8498,36 @@ const WIRE_ARRAY_LIMIT = 200
 /** Payloads encoded smaller than this skip the truncation walk entirely. */
 export const WIRE_EVENT_BYTE_BUDGET = 64 * 1024
 
+/**
+ * Tool call/result payloads get a far tighter wire budget than prose: a transcript renders them
+ * as collapsed rows (name, status, one-line summary), so shipping tool IO up front pays megabytes
+ * for data nobody has asked to see. The preview keeps every short field intact; the client
+ * fetches the whole event with `GetSessionEvent` when a row is expanded or its dialog opened.
+ */
+export const WIRE_TOOL_IO_BYTE_BUDGET = 2 * 1024
+const WIRE_TOOL_IO_STRING_LIMIT = 1024
+const WIRE_TOOL_IO_ARRAY_LIMIT = 20
+
+type WireLimits = {maxString: number; maxArray: number}
+
 /** Truncates one value for transport, returning the input object unchanged when nothing was cut. */
-function truncateValueForWire(value: unknown, changed: {did: boolean}): unknown {
+function truncateValueForWire(value: unknown, changed: {did: boolean}, limits: WireLimits): unknown {
   if (typeof value === 'string') {
-    if (value.length <= WIRE_STRING_LIMIT) return value
+    if (value.length <= limits.maxString) return value
     changed.did = true
-    return `${value.slice(0, WIRE_STRING_LIMIT)}… [truncated: ${value.length} chars]`
+    return `${value.slice(0, limits.maxString)}… [truncated: ${value.length} chars]`
   }
   if (value instanceof Uint8Array) {
-    if (value.length <= WIRE_STRING_LIMIT) return value
+    if (value.length <= limits.maxString) return value
     changed.did = true
-    return value.slice(0, WIRE_STRING_LIMIT)
+    return value.slice(0, limits.maxString)
   }
   if (Array.isArray(value)) {
-    const bounded = value.length > WIRE_ARRAY_LIMIT ? value.slice(0, WIRE_ARRAY_LIMIT) : value
+    const bounded = value.length > limits.maxArray ? value.slice(0, limits.maxArray) : value
     if (bounded.length < value.length) changed.did = true
     let out: unknown[] | undefined
     for (let i = 0; i < bounded.length; i++) {
-      const next = truncateValueForWire(bounded[i], changed)
+      const next = truncateValueForWire(bounded[i], changed, limits)
       if (next !== bounded[i] && !out) out = bounded.slice(0, i)
       if (out) out.push(next)
     }
@@ -8524,7 +8536,7 @@ function truncateValueForWire(value: unknown, changed: {did: boolean}): unknown 
   if (value && typeof value === 'object') {
     let out: Record<string, unknown> | undefined
     for (const [key, entry] of Object.entries(value)) {
-      const next = truncateValueForWire(entry, changed)
+      const next = truncateValueForWire(entry, changed, limits)
       if (next !== entry && !out) out = {...(value as Record<string, unknown>)}
       if (out) out[key] = next
     }
@@ -8540,9 +8552,15 @@ function truncateValueForWire(value: unknown, changed: {did: boolean}): unknown 
  * which is cheap because a just-appended event is almost always small.
  */
 export function truncateSessionEventForWire(info: api.SessionEvent, encodedBytes?: number): api.SessionEvent {
-  if (encodedBytes !== undefined && encodedBytes <= WIRE_EVENT_BYTE_BUDGET) return info
+  const type = (info.event as {type?: string} | null)?.type
+  const toolIO = type === 'tool_call' || type === 'tool_result'
+  const byteBudget = toolIO ? WIRE_TOOL_IO_BYTE_BUDGET : WIRE_EVENT_BYTE_BUDGET
+  if (encodedBytes !== undefined && encodedBytes <= byteBudget) return info
+  const limits: WireLimits = toolIO
+    ? {maxString: WIRE_TOOL_IO_STRING_LIMIT, maxArray: WIRE_TOOL_IO_ARRAY_LIMIT}
+    : {maxString: WIRE_STRING_LIMIT, maxArray: WIRE_ARRAY_LIMIT}
   const changed = {did: false}
-  const event = truncateValueForWire(info.event, changed) as api.SessionEventPayload
+  const event = truncateValueForWire(info.event, changed, limits) as api.SessionEventPayload
   return changed.did ? {...info, event, truncated: true} : info
 }
 

@@ -2016,7 +2016,7 @@ function ToolRouteLink({
 }
 
 export function ToolCallLine({
-  item,
+  item: wireItem,
   liveActivity,
   serverUrl,
   accountUid,
@@ -2036,6 +2036,38 @@ export function ToolCallLine({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  // Tool IO ships wire-truncated to a collapsed-row preview; the full payloads load on demand the
+  // moment the user shows interest — expanding the chevron or opening the info dialog — and the
+  // hydrated part flows into every detail view below.
+  const wantsFullPayloads = expanded || detailsOpen
+  const fullCall = useFullAgentSessionEvent(
+    serverUrl,
+    accountUid,
+    sessionId,
+    wireItem.callSeq,
+    wantsFullPayloads && !!wireItem.callTruncated,
+  )
+  const fullResult = useFullAgentSessionEvent(
+    serverUrl,
+    accountUid,
+    sessionId,
+    wireItem.resultSeq,
+    wantsFullPayloads && !!wireItem.resultTruncated,
+  )
+  const item = useMemo<ChatToolPart>(() => {
+    const callPayload = fullCall.data?.event as {input?: unknown} | undefined
+    const resultPayload = fullResult.data?.event as {output?: unknown} | undefined
+    if (!callPayload && !resultPayload) return wireItem
+    return {
+      ...wireItem,
+      // Mirror the wire mapping in agent-session-rows: args from the call's input, raw output
+      // from the result's output. The short summary/status fields survive the preview untouched.
+      ...(callPayload
+        ? {args: isRecord(callPayload.input) ? callPayload.input : {input: callPayload.input}, callTruncated: false}
+        : {}),
+      ...(resultPayload ? {rawOutput: resultPayload.output, resultTruncated: false} : {}),
+    }
+  }, [wireItem, fullCall.data, fullResult.data])
   const clickNavigate = useClickNavigate()
   const reportedSessionId = getToolSessionId(item)
   const metadata = getRowToolMetadata(item)

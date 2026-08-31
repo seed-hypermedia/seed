@@ -1,6 +1,7 @@
 import {Database} from 'bun:sqlite'
 import {describe, expect, mock, test} from 'bun:test'
 import * as apisvc from '@/api-service'
+import type * as api from '@/api'
 import * as auth from '@/auth'
 import * as cbor from '@/cbor'
 import * as sqlite from '@/sqlite'
@@ -2882,9 +2883,10 @@ describe('api service', () => {
       expect(wireEvent.truncated).toBe(true)
       const wireOutput = (wireEvent.event as {output: typeof giantOutput}).output
       expect(wireOutput.summary).toBe('ok')
-      expect(wireOutput.stdout.length).toBeLessThan(20_000)
+      // Tool IO ships as a collapsed-row preview: the tighter tool budget applies, not the prose one.
+      expect(wireOutput.stdout.length).toBeLessThan(1_200)
       expect(wireOutput.stdout).toContain('[truncated: 200000 chars]')
-      expect(wireOutput.changedFiles).toHaveLength(200)
+      expect(wireOutput.changedFiles).toHaveLength(20)
       expect(cbor.encode(wireEvent).length).toBeLessThan(apisvc.WIRE_EVENT_BYTE_BUDGET)
 
       // limit returns the transcript TAIL and flags older history.
@@ -10385,5 +10387,37 @@ describe('narrowDefinitionTools', () => {
     ).toEqual(['publish'])
     // Names that are not lambdas of this agent never ride along.
     expect(apisvc.narrowDefinitionTools(parentBase, ['made_up_tool'], ['check_broken_links'])).toEqual([])
+  })
+})
+
+describe('wire truncation budgets', () => {
+  const info = (event: unknown) =>
+    ({id: 'e', sessionId: 's', seq: 1, createdAt: 1, event}) as unknown as api.SessionEvent
+
+  test('tool IO gets the collapsed-row budget; prose keeps the generous one', () => {
+    // A 4KB stdout used to ride the 64KB skip untouched; as tool IO it is preview-only now.
+    const result = apisvc.truncateSessionEventForWire(
+      info({type: 'tool_result', toolCallId: 'c', name: 'call', output: {summary: 'ok', stdout: 'x'.repeat(4_000)}}),
+      5_000,
+    )
+    expect(result.truncated).toBe(true)
+    const output = (result.event as {output: {summary: string; stdout: string}}).output
+    expect(output.summary).toBe('ok')
+    expect(output.stdout.length).toBeLessThan(1_200)
+
+    // The same size as an assistant message ships whole.
+    const message = apisvc.truncateSessionEventForWire(
+      info({type: 'message', role: 'assistant', content: 'y'.repeat(4_000)}),
+      5_000,
+    )
+    expect(message.truncated).toBeUndefined()
+    expect((message.event as {content: string}).content).toHaveLength(4_000)
+
+    // Small tool IO still skips the walk entirely.
+    const small = apisvc.truncateSessionEventForWire(
+      info({type: 'tool_call', id: 'c', name: 'read', input: {address: '~/memory/notes.md'}}),
+      200,
+    )
+    expect(small.truncated).toBeUndefined()
   })
 })
