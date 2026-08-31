@@ -12,7 +12,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import {z} from 'zod'
-import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
+import {sessionEventActor, type AgentDefinition} from '@seed-hypermedia/agents-protocol'
 import {startTestMcpServer} from '@/mcp-test-server'
 
 /**
@@ -8328,7 +8328,12 @@ async function setDefaultProvider(svc: apisvc.Service, account: blobs.Signer): P
 }
 
 /** Provider + agent + session in one step, for tests whose subject is what happens after that. */
-async function seedAgentSession(svc: apisvc.Service, account: blobs.Signer, systemPrompt: string): Promise<string> {
+async function seedAgentSession(
+  svc: apisvc.Service,
+  account: blobs.Signer,
+  systemPrompt: string,
+  definitionExtras: Record<string, unknown> = {},
+): Promise<string> {
   await svc.message(
     await apisvc.createSignedEnvelope(account, {
       action: {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')},
@@ -8347,7 +8352,14 @@ async function seedAgentSession(svc: apisvc.Service, account: blobs.Signer, syst
     await apisvc.createSignedEnvelope(account, {
       action: {
         _: 'CreateAgent',
-        definition: {name: 'Agent', systemPrompt, modelProvider: 'openai', model: 'gpt-test', tools: []},
+        definition: {
+          name: 'Agent',
+          systemPrompt,
+          modelProvider: 'openai',
+          model: 'gpt-test',
+          tools: [],
+          ...definitionExtras,
+        },
       },
     }),
   )
@@ -8451,6 +8463,291 @@ describe('normalizeSubSessionSpec', () => {
   test('brief accepts non-string payloads like input did', () => {
     const spec = apisvc.normalizeSubSessionSpec({brief: {topic: 'B'}})
     expect(spec.input).toEqual({topic: 'B'})
+  })
+
+  test('agentId is refused loudly: children always run as this agent', () => {
+    expect(() => apisvc.normalizeSubSessionSpec({brief: 'Do it.', agentId: 'other-agent'})).toThrow(/agentId/)
+  })
+
+  test('carries a trimmed model request and drops an empty one', () => {
+    const spec = apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: '  openai/gpt-5-mini '})
+    expect(spec.model).toBe('openai/gpt-5-mini')
+    expect(apisvc.normalizeSubSessionSpec({brief: 'Summarize.', model: '   '}).model).toBeUndefined()
+    expect(apisvc.normalizeSubSessionSpec({brief: 'Summarize.'}).model).toBeUndefined()
+  })
+})
+
+describe('resolveDelegateModelRef', () => {
+  const definition = {
+    name: 'Helper',
+    systemPrompt: 'You help.',
+    modelProvider: 'anthropic',
+    model: 'claude-opus-5',
+    enabledModels: [
+      {provider: 'anthropic', model: 'claude-haiku-4-5'},
+      {provider: 'openai', model: 'gpt-5-mini'},
+      {provider: 'openrouter', model: 'gpt-5-mini'},
+    ],
+  } as AgentDefinition
+
+  test('a bare model id resolves when exactly one enabled entry has it', () => {
+    expect(apisvc.resolveDelegateModelRef(definition, 'claude-haiku-4-5')).toEqual({
+      provider: 'anthropic',
+      model: 'claude-haiku-4-5',
+    })
+  })
+
+  test('the active pair is selectable even though it is not listed in enabledModels', () => {
+    expect(apisvc.resolveDelegateModelRef(definition, 'claude-opus-5')).toEqual({
+      provider: 'anthropic',
+      model: 'claude-opus-5',
+    })
+  })
+
+  test('an id enabled under two providers must be provider-qualified', () => {
+    expect(() => apisvc.resolveDelegateModelRef(definition, 'gpt-5-mini')).toThrow(/more than one provider/)
+    expect(apisvc.resolveDelegateModelRef(definition, 'openrouter/gpt-5-mini')).toEqual({
+      provider: 'openrouter',
+      model: 'gpt-5-mini',
+    })
+  })
+
+  test('a model outside the enabled set is rejected with the menu', () => {
+    expect(() => apisvc.resolveDelegateModelRef(definition, 'gpt-5')).toThrow(/not enabled.*claude-opus-5/s)
+  })
+
+  test('a delegate with `model` runs the child on that model and stores it as the child session override', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    // Every provider request the run makes, in order: which model it asked for and with what messages.
+    const providerCalls: Array<{model: string; messagesJSON: string}> = []
+    try {
+      const account = blobs.generateNobleKeyPair()
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        providerCalls.push({model: body.model, messagesJSON})
+        // Order matters: the parent's second call ALSO contains the brief text (inside its
+        // delegate tool_call arguments), but only the parent ever carries a tool-role message.
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'All done.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (messagesJSON.includes('Summarize the report.')) {
+          return openAIStreamResponse([
+            {id: 'child', choices: [{delta: {content: 'Summary done.'}}]},
+            {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-cheap',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({
+                          title: 'Cheap summarizer',
+                          brief: 'Summarize the report.',
+                          model: 'gpt-test-mini',
+                        }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const sessionId = await seedAgentSession(svc, account, 'You are the router.', {
+        enabledModels: [{provider: 'openai', model: 'gpt-test-mini'}],
+      })
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Delegate the summary cheaply'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      const result = session.events
+        .map((event) => event.event as {type?: string; name?: string; output?: {status?: string}})
+        .find((event) => event.type === 'tool_result' && event.name === 'delegate')
+      expect(result?.output?.status).toBe('succeeded')
+
+      // The child's provider request asked for the cheaper model; the parent kept its own. The
+      // brief text appears in BOTH transcripts (the parent carries it inside its delegate
+      // tool_call arguments), so the parent's own user message is the discriminator.
+      const childCalls = providerCalls.filter((call) => !call.messagesJSON.includes('Delegate the summary cheaply'))
+      expect(childCalls.length).toBeGreaterThan(0)
+      for (const call of childCalls) expect(call.model).toBe('gpt-test-mini')
+      const parentCalls = providerCalls.filter((call) => call.messagesJSON.includes('Delegate the summary cheaply'))
+      expect(parentCalls.length).toBeGreaterThan(0)
+      for (const call of parentCalls) expect(call.model).toBe('gpt-test')
+
+      // The parent's system prompt advertised the enabled-model menu and routing guidance.
+      expect(parentCalls[0]!.messagesJSON).toContain('also enabled these models for you: openai/gpt-test-mini')
+
+      // The choice is durable: the child session carries it as its model override, exactly as a
+      // user quick-switch would, so every client surface reports what actually ran.
+      const spawn = session.events
+        .map((event) => event.event as {type?: string; sessionId?: string})
+        .find((event) => event.type === 'tool_spawn')
+      const overrideRow = db
+        .query<{model_override_cbor: Uint8Array | null}, [string]>(
+          `SELECT model_override_cbor FROM sessions WHERE id = ?`,
+        )
+        .get(spawn!.sessionId!)
+      expect(overrideRow?.model_override_cbor).toBeTruthy()
+      expect(cbor.decode<{provider: string; model: string}>(overrideRow!.model_override_cbor!)).toEqual({
+        provider: 'openai',
+        model: 'gpt-test-mini',
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+})
+
+describe('delegate model inside script children', () => {
+  test('ctx.delegate({model}) runs the nested child on that model and stores the override', async () => {
+    // Regression: the workflow spawn site normalized the spec (so `model` validated fine) but
+    // never resolved it into the child session's override — Luna-briefed children silently ran on
+    // the agent's default model.
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const providerCalls: Array<{model: string; messagesJSON: string}> = []
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const workflowSource = [
+        'export default async function (input, ctx) {',
+        "  const worker = await ctx.delegate({title: 'Mini worker', prompt: 'You are worker Mini.', input: 'Say hi', model: 'gpt-test-mini'})",
+        '  return {worker: worker.text}',
+        '}',
+      ].join('\n')
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const body = JSON.parse(await fetchBodyText(url, init))
+        const messagesJSON = JSON.stringify(body.messages)
+        providerCalls.push({model: body.model, messagesJSON})
+        // Order matters: the parent's later calls carry the script source (and its 'worker Mini'
+        // text) in their transcript, but only the parent ever holds a tool-role message.
+        if (body.messages.some((message: {role?: string}) => message.role === 'tool')) {
+          return openAIStreamResponse([
+            {id: 'parent-2', choices: [{delta: {content: 'Done.'}}]},
+            {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        if (messagesJSON.includes('worker Mini')) {
+          return openAIStreamResponse([
+            {id: 'mini', choices: [{delta: {content: 'Mini says hi.'}}]},
+            {id: 'mini', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+          ])
+        }
+        return openAIStreamResponse([
+          {
+            id: 'parent-1',
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'spawn-script',
+                      type: 'function',
+                      function: {
+                        name: 'delegate',
+                        arguments: JSON.stringify({title: 'Mini workflow', script: workflowSource, input: {}}),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {id: 'parent-1', choices: [{delta: {}, finish_reason: 'tool_calls'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+
+      const svc = new apisvc.Service(db, dataDir)
+      const sessionId = await seedAgentSession(svc, account, 'You are the orchestrator.', {
+        enabledModels: [{provider: 'openai', model: 'gpt-test-mini'}],
+      })
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'MessageSession', sessionId, content: [{type: 'text', text: 'Run the mini workflow'}]},
+        }),
+      )
+      await svc.awaitQueueIdle()
+
+      const workerCalls = providerCalls.filter((call) => !call.messagesJSON.includes('Run the mini workflow'))
+      expect(workerCalls.length).toBeGreaterThan(0)
+      for (const call of workerCalls) expect(call.model).toBe('gpt-test-mini')
+
+      const overrideRow = db
+        .query<{model_override_cbor: Uint8Array | null}, []>(
+          `SELECT model_override_cbor FROM sessions WHERE title = 'Mini worker'`,
+        )
+        .get()
+      expect(overrideRow?.model_override_cbor).toBeTruthy()
+      expect(cbor.decode<{provider: string; model: string}>(overrideRow!.model_override_cbor!)).toEqual({
+        provider: 'openai',
+        model: 'gpt-test-mini',
+      })
+    } finally {
+      globalThis.fetch = originalFetch
+      db.close()
+      cleanup()
+    }
+  })
+})
+
+describe('applySessionModelOverride', () => {
+  const definition = {
+    name: 'Coder',
+    systemPrompt: '',
+    modelProvider: 'OpenAI',
+    model: 'gpt-5.6-terra',
+    enabledModels: [
+      {provider: 'OpenAI', model: 'gpt-5.6-sol'},
+      {provider: 'OpenAI', model: 'gpt-5.6-luna'},
+    ],
+  } as AgentDefinition
+
+  test('quick-switching a session keeps the definition default in the enabled menu', () => {
+    // The live bug: a session quick-switched to sol lost terra from the prompt's delegation menu
+    // (built from enabledModels, which need not list the default pair) — the agent reported
+    // "Terra is not exposed" despite terra being the agent's own configured model.
+    const merged = apisvc.applySessionModelOverride(definition, {provider: 'OpenAI', model: 'gpt-5.6-sol'})
+    expect(merged.model).toBe('gpt-5.6-sol')
+    expect(merged.modelProvider).toBe('OpenAI')
+    expect(merged.enabledModels).toEqual([
+      {provider: 'OpenAI', model: 'gpt-5.6-sol'},
+      {provider: 'OpenAI', model: 'gpt-5.6-luna'},
+      {provider: 'OpenAI', model: 'gpt-5.6-terra'},
+    ])
+  })
+
+  test('a default already in the enabled list is not duplicated', () => {
+    const listed = {...definition, model: 'gpt-5.6-sol'} as AgentDefinition
+    const merged = apisvc.applySessionModelOverride(listed, {provider: 'OpenAI', model: 'gpt-5.6-luna'})
+    expect(merged.enabledModels).toHaveLength(2)
   })
 })
 

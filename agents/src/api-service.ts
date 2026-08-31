@@ -305,10 +305,11 @@ type RunningSession = {
 type SubSessionSpec = {
   title?: string
   prompt?: string
-  agentId?: string
   input: unknown
   tools?: string[]
   output?: JsonSchema
+  /** Requested child model: "provider/model" or a bare model id, resolved against the agent's enabled models at spawn. */
+  model?: string
 }
 
 /**
@@ -400,17 +401,23 @@ export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
   if (input.input === undefined) {
     throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
   }
-  if (typeof input.prompt === 'string' && typeof input.agentId === 'string') {
-    throw new APIError(400, 'Provide either prompt or agentId, not both')
+  // Direct agent-to-agent delegation was removed deliberately: agents collaborate through Seed
+  // content (documents and comments) instead, so a stray agentId is refused loudly rather than
+  // silently running the child as the wrong agent.
+  if (input.agentId !== undefined) {
+    throw new APIError(
+      400,
+      'delegate does not support agentId: a child always runs as this agent. Use prompt for a different persona; collaborate with other agents through Seed documents and comments.',
+    )
   }
   const spec: SubSessionSpec = {
     ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
     ...(typeof input.prompt === 'string' && input.prompt ? {prompt: input.prompt} : {}),
-    ...(typeof input.agentId === 'string' && input.agentId ? {agentId: input.agentId} : {}),
     input: input.input,
     ...(Array.isArray(input.tools)
       ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
       : {}),
+    ...(typeof input.model === 'string' && input.model.trim() ? {model: input.model.trim()} : {}),
   }
   if (input.output !== undefined) {
     const shapeErrors = validateJsonSchemaShape(input.output)
@@ -423,6 +430,61 @@ export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
     spec.output = input.output as JsonSchema
   }
   return spec
+}
+
+/**
+ * Resolves a delegate `model` request against the models the child's agent may run: its active
+ * provider/model pair plus every `enabledModels` entry. Accepts "provider/model" or a bare model
+ * id; bare ids are matched first because model ids may themselves contain slashes, and an id
+ * enabled under more than one provider must be qualified.
+ */
+export function resolveDelegateModelRef(definition: api.AgentDefinition, requested: string): api.AgentModelRef {
+  const options: api.AgentModelRef[] = []
+  const seen = new Set<string>()
+  for (const ref of [
+    {provider: definition.modelProvider, model: definition.model},
+    ...(definition.enabledModels ?? []),
+  ]) {
+    if (!ref?.provider || !ref?.model) continue
+    const key = `${ref.provider}/${ref.model}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    options.push({provider: ref.provider, model: ref.model})
+  }
+  const wanted = requested.trim()
+  const byModel = options.filter((ref) => ref.model === wanted)
+  if (byModel.length === 1) return byModel[0]!
+  const qualified = options.find((ref) => `${ref.provider}/${ref.model}` === wanted)
+  if (qualified) return qualified
+  const listing = options.map((ref) => `${ref.provider}/${ref.model}`).join(', ')
+  if (byModel.length > 1) {
+    throw new APIError(
+      400,
+      `Model "${wanted}" is enabled under more than one provider; qualify it as one of: ${listing}`,
+    )
+  }
+  throw new APIError(400, `Model "${wanted}" is not enabled for this agent. Enabled models: ${listing}`)
+}
+
+/**
+ * Merges a session's model override into the definition for a run. The definition's own pair
+ * stays selectable under an override (enabledModels need not list it), so it is folded into the
+ * merged enabled set — otherwise the system prompt's delegation menu silently loses the agent's
+ * default model whenever a session is quick-switched away from it.
+ */
+export function applySessionModelOverride(
+  definition: api.AgentDefinition,
+  override: api.SessionModelOverride,
+): api.AgentDefinition {
+  const merged: api.AgentDefinition = {...definition, modelProvider: override.provider, model: override.model}
+  if (override.reasoningLevel) merged.reasoningLevel = override.reasoningLevel
+  else delete merged.reasoningLevel
+  const defaultPair = {provider: definition.modelProvider, model: definition.model}
+  const enabled = merged.enabledModels ?? []
+  if (!enabled.some((ref) => ref.provider === defaultPair.provider && ref.model === defaultPair.model)) {
+    merged.enabledModels = [...enabled, defaultPair]
+  }
+  return merged
 }
 
 /**
@@ -3114,7 +3176,12 @@ export class Service {
     accountId: string,
     agentId: string,
     rawTitle?: string,
-    opts: {parentSessionId?: string; runId?: string; titleSource?: 'system' | 'agent'} = {},
+    opts: {
+      parentSessionId?: string
+      runId?: string
+      titleSource?: 'system' | 'agent'
+      modelOverride?: api.SessionModelOverride
+    } = {},
   ): api.CreateSessionResponse {
     const agent = this.#db
       .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
@@ -3132,8 +3199,8 @@ export class Service {
       rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
     const title = normalizedTitle && isPlaceholderSessionTitle(normalizedTitle) ? null : normalizedTitle
     this.#db.run(
-      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sessionId,
         accountId,
@@ -3143,6 +3210,7 @@ export class Service {
         'idle',
         opts.parentSessionId ?? null,
         opts.runId ?? null,
+        opts.modelOverride ? cbor.encode(opts.modelOverride) : null,
         now,
         now,
       ],
@@ -3237,10 +3305,7 @@ export class Service {
       .query<{name: string}, [string, string]>(`SELECT name FROM model_providers WHERE account_id = ? AND name = ?`)
       .get(accountId, override.provider)
     if (!providerRow) return definition
-    const merged: api.AgentDefinition = {...definition, modelProvider: override.provider, model: override.model}
-    if (override.reasoningLevel) merged.reasoningLevel = override.reasoningLevel
-    else delete merged.reasoningLevel
-    return merged
+    return applySessionModelOverride(definition, override)
   }
 
   #deleteSession(accountId: string, sessionId: string): api.DeleteSessionResponse {
@@ -3651,7 +3716,15 @@ export class Service {
     // A title the parent chose is the agent naming the session; a truncated prompt is provisional
     // and the child names itself (status verb or the fallback namer) once it is running.
     const titleSource = input.title ? ('agent' as const) : ('system' as const)
-    const session = this.#createSessionOnce(accountId, agentId, title, {parentSessionId, titleSource})
+    const modelOverride =
+      typeof input.model === 'string' && input.model.trim()
+        ? this.#delegateModelOverride(accountId, agentId, input.model)
+        : undefined
+    const session = this.#createSessionOnce(accountId, agentId, title, {
+      parentSessionId,
+      titleSource,
+      ...(modelOverride ? {modelOverride} : {}),
+    })
     console.info('[agents/runtime] agent started session', {
       accountId,
       parentSessionId,
@@ -4958,14 +5031,21 @@ export class Service {
         `This run already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions; finish the remaining work here.`,
       )
     }
-    const childAgentId = spec.agentId ?? parentAgentId
-    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
+    // Children always run as the delegating agent — direct agent-to-agent delegation is
+    // deliberately unsupported (agents collaborate through Seed content instead), and
+    // normalizeSubSessionSpec refuses any agentId before a spec reaches here.
+    const childAgentId = parentAgentId
+    // A requested model is resolved (and rejected) at spawn time, against this agent's own
+    // enabled set, then stored as the child session's model override — the same mechanism a user's
+    // quick-switch uses, so the run resolution and every client surface agree on what ran.
+    const modelOverride = spec.model ? this.#delegateModelOverride(accountId, childAgentId, spec.model) : undefined
     const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
     const childRunId = crypto.randomUUID()
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
       parentSessionId,
       runId: childRunId,
       titleSource: spec.title ? 'agent' : 'system',
+      ...(modelOverride ? {modelOverride} : {}),
     })
     const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
@@ -5279,9 +5359,8 @@ export class Service {
       throw new APIError(400, `This workflow already spawned ${MAX_SESSION_SPAWNS_PER_SESSION} sub-sessions`)
     }
     const accountId = workflowRun.accountId
-    const childAgentId = spec.agentId ?? workflowRun.agentId
+    const childAgentId = workflowRun.agentId
     if (!childAgentId) throw new APIError(400, 'Workflow run has no agent to run sub-sessions as')
-    if (spec.agentId) this.#requireAgent(accountId, spec.agentId)
     // Nest the child session under the chat session that (transitively) launched the workflow.
     let ancestorSessionId: string | undefined
     for (let cursor: runs.RunRecord | null = workflowRun; cursor; ) {
@@ -5291,12 +5370,17 @@ export class Service {
       }
       cursor = cursor.parentRunId ? runs.getRun(this.#db, accountId, cursor.parentRunId) : null
     }
+    // Same contract as #spawnSubSession: a requested model resolves against this agent's enabled
+    // set and becomes the child session's override. Scripts share normalizeSubSessionSpec, so
+    // skipping this here silently ran ctx.delegate({model}) children on the agent's default model.
+    const modelOverride = spec.model ? this.#delegateModelOverride(accountId, childAgentId, spec.model) : undefined
     const title = spec.title ?? (typeof spec.input === 'string' ? sessionTitleFromPrompt(spec.input) : 'Sub-session')
     const childRunId = crypto.randomUUID()
     const session = this.#createSessionOnce(accountId, childAgentId, title, {
       ...(ancestorSessionId ? {parentSessionId: ancestorSessionId} : {}),
       runId: childRunId,
       titleSource: spec.title ? 'agent' : 'system',
+      ...(modelOverride ? {modelOverride} : {}),
     })
     const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
@@ -5825,8 +5909,20 @@ export class Service {
       : ''
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
+    // Advertise delegation model choice only when there is actually a choice: the active pair plus
+    // at least one other enabled model. `definition` may already carry a session override; the
+    // enabled list is untouched by overrides, so the full menu is always shown.
+    const activeModel = `${definition.modelProvider}/${definition.model}`
+    const otherModels = (definition.enabledModels ?? [])
+      .map((ref) => `${ref.provider}/${ref.model}`)
+      .filter((name, index, all) => name !== activeModel && all.indexOf(name) === index)
+    const modelChoicePrompt = otherModels.length
+      ? `\n\nYou are running on ${activeModel}. Your user has also enabled these models for you: ${otherModels.join(
+          ', ',
+        )}. When you delegate, pass \`model\` so each child runs on the model its task deserves: route simple, mechanical, or high-volume subtasks (extraction, reformatting, short summaries, routine lookups) to a cheaper/faster model, and route work that needs deep reasoning, difficult code, or careful judgment to the strongest enabled model — even when that is not the model you are running on. Judge tiers by model family and name. Omit \`model\` when the child should simply inherit its agent's configured model.`
+      : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${userActionsPrompt}${conversationMembersPrompt}${spaceIndex}`
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${userActionsPrompt}${conversationMembersPrompt}${spaceIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -7164,6 +7260,28 @@ export class Service {
       .query<{id: string}, [string, string]>(`SELECT id FROM agents WHERE account_id = ? AND id = ?`)
       .get(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
+  }
+
+  #agentDefinition(accountId: string, agentId: string): api.AgentDefinition {
+    const row = this.#db
+      .query<{definition_cbor: Uint8Array}, [string, string]>(
+        `SELECT definition_cbor FROM agents WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, agentId)
+    if (!row) throw new APIError(404, 'Agent not found')
+    return cbor.decode<api.AgentDefinition>(row.definition_cbor)
+  }
+
+  /**
+   * Resolves a delegate `model` request into a validated session override for the agent that will
+   * run the child: the name must resolve against that agent's enabled models, and the provider must
+   * still exist for the account.
+   */
+  #delegateModelOverride(accountId: string, agentId: string, requested: string): api.SessionModelOverride {
+    const ref = resolveDelegateModelRef(this.#agentDefinition(accountId, agentId), requested)
+    const override = this.#normalizeSessionModelOverride(accountId, ref)
+    if (!override) throw new APIError(400, `Model "${requested}" could not be resolved`)
+    return override
   }
 
   /** Authenticates and durably delivers one inbound webhook to its enabled trigger. */
@@ -10131,6 +10249,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
     model: definition.model,
     modelProvider: provider ? {id: provider.id, name: provider.name, type: provider.type} : definition.modelProvider,
     ...(definition.reasoningLevel ? {reasoningLevel: definition.reasoningLevel} : {}),
+    ...(definition.enabledModels?.length ? {enabledModels: definition.enabledModels} : {}),
     systemPrompt,
     grants: {
       callableTools: context.callableTools,
@@ -10144,6 +10263,11 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
     sessionCount,
     guidance: [
       'Your memory lives in ~/memory/ and your tools in ~/tools/ — read and write them freely.',
+      ...(definition.enabledModels?.length
+        ? [
+            'Delegate children can run on any enabled model: pass `model` ("provider/model") to delegate — cheaper models for simple subtasks, stronger ones for hard reasoning.',
+          ]
+        : []),
       'Create, edit, enable, or disable automations with write ~/triggers/<name>; they take effect immediately. A trigger can start a thread for you, or — with continuation {kind: "tool"} or {kind: "script"} — run one of your ~/tools/ or a workflow script with no model at all, waking you only if it fails (onFailure: "thread").',
       'Browse your other conversations with read thread: (options {query, agentId, limit}) and read one with thread:<id>.',
       'Your definition (name, model, system prompt, grants, signing keys) is edited by the user in the desktop; you cannot change it yourself.',
@@ -11192,6 +11316,14 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
             'Detached script children are not supported: scripts are awaited. Drop `await: false`, or delegate a model child instead.',
           )
         }
+        // A script runs no model itself, so `model` here would be silently meaningless — and the
+        // author almost certainly wanted their nested children on that model.
+        if (typeof input.model === 'string' && input.model) {
+          throw new APIError(
+            400,
+            'delegate {script} does not support `model` — a script runs no model itself. Pass model on each ctx.delegate({...}) child inside the script instead.',
+          )
+        }
         if (!context.spawnWorkflow) throw new APIError(400, 'Script delegation is not available in this run context')
         return context.spawnWorkflow(toolCallId, {
           ...(typeof input.title === 'string' ? {title: input.title} : {title: 'Script'}),
@@ -11199,11 +11331,19 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
           input: input.input,
         })
       }
+      if (typeof input.agentId === 'string') {
+        // Match normalizeSubSessionSpec for provider-path calls that skip it (the detached branch):
+        // cross-agent delegation is deliberately unsupported.
+        throw new APIError(
+          400,
+          'delegate does not support agentId: a child always runs as this agent. Use prompt for a different persona; collaborate with other agents through Seed documents and comments.',
+        )
+      }
       if (input.await === false) {
         // Detached children run as this agent with the brief as their first message; the other
         // model-child fields have no meaning without an awaited result, so reject them loudly
         // instead of silently discarding what the model asked for.
-        for (const field of ['agentId', 'output', 'tools'] as const) {
+        for (const field of ['output', 'tools'] as const) {
           if (input[field] !== undefined) {
             throw new APIError(
               400,
@@ -11217,6 +11357,7 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         const started = context.startSession({
           prompt: renderSubSessionInput(brief),
           ...(typeof input.title === 'string' ? {title: input.title} : {}),
+          ...(typeof input.model === 'string' ? {model: input.model} : {}),
         })
         return {
           summary: `Started detached child "${started.title}"; it is now running in the background.`,
