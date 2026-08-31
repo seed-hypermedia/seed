@@ -2,7 +2,7 @@ import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {PENDING_SPACE_UID_PREFIX} from '@shm/shared/utils/pending-space'
 import {nanoid} from 'nanoid'
-import {getWebDocDraft, putWebDocDraft} from './web-draft-db'
+import {deleteWebDocDraft, getWebDocDraft, putWebDocDraft} from './web-draft-db'
 
 export {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 
@@ -31,9 +31,24 @@ function markSpaceHomeDraftId(draftId: string): void {
   }
 }
 
+function unmarkSpaceHomeDraftId(draftId: string): void {
+  if (typeof localStorage === 'undefined') return
+  const ids = readSpaceHomeDraftIds()
+  if (!ids.delete(draftId)) return
+  try {
+    localStorage.setItem(SPACE_HOME_DRAFT_IDS_KEY, JSON.stringify([...ids]))
+  } catch {}
+}
+
 // True when a local draft id is a "create a space" home draft.
 export function isSpaceHomeDraftId(draftId: string | null | undefined): boolean {
   return !!draftId && readSpaceHomeDraftIds().has(draftId)
+}
+
+// Discard an abandoned pending space home draft.
+export async function discardSpaceHomeDraft(draftId: string): Promise<void> {
+  await deleteWebDocDraft(draftId)
+  unmarkSpaceHomeDraftId(draftId)
 }
 
 export type PendingSpaceHomeDraft = {

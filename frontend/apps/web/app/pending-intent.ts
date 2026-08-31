@@ -3,7 +3,7 @@ import type {HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-ty
 import {queryKeys} from '@shm/shared'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
-import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {toast} from '@shm/ui/toast'
 import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
 import {clearPendingIntent, getPendingIntent, getStoredLocalKeys} from './local-db'
@@ -18,6 +18,7 @@ export type PendingIntentResult =
   | {type: 'comment'; commentUrl: string}
   | {type: 'publish-draft'; spaceUrl: string}
   | {type: 'publish-draft-failed'; retryUrl: string}
+  | {type: 'publish-draft-existing-space'; spaceUrl: string; draftId: string}
 
 let pendingIntentProcessingPromise: Promise<PendingIntentResult> | null = null
 
@@ -175,7 +176,24 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       await clearPendingIntent()
       return {type: 'none'}
     }
-    const {adoptPendingSpaceDraft, repointSpaceHomeDraftToAccount} = await import(
+    try {
+      const existingHome = (await webUniversalClient.request('Resource', hmId(accountUid, {path: []}))) as {
+        type?: string
+        document?: {metadata?: {siteUrl?: string | null}}
+      }
+      if (existingHome?.type === 'document') {
+        await clearPendingIntent()
+        const siteUrl = existingHome.document?.metadata?.siteUrl ?? null
+        return {
+          type: 'publish-draft-existing-space',
+          spaceUrl: siteUrl || `/hm/${accountUid}`,
+          draftId: intent.draftId,
+        }
+      }
+    } catch (e) {
+      console.warn('[processPendingIntent] existing-home check failed, proceeding to publish', e)
+    }
+    const {adoptPendingSpaceDraft, discardSpaceHomeDraft, repointSpaceHomeDraftToAccount} = await import(
       './document-edit/web-create-space-draft'
     )
     try {
@@ -208,6 +226,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
           onPublishSuccess: () => {},
         },
       )
+      await discardSpaceHomeDraft(intent.draftId)
       await clearPendingIntent()
       return {type: 'publish-draft', spaceUrl: `/hm/${accountUid}`}
     } catch (e) {

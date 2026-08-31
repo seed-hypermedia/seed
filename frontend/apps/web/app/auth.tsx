@@ -134,10 +134,10 @@ function updateKeyPair() {
     })
 }
 
-export function logout() {
+export function logout(): Promise<void> {
   const vaultUrl = keyPairStore.get()?.vaultUrl
   keyPairStore.set(null)
-  Promise.all([
+  return Promise.all([
     deleteLocalKeys(),
     setHasPromptedEmailNotifications(false),
     vaultUrl ? authSession.clearSession(vaultUrl) : Promise.resolve(),
@@ -154,6 +154,26 @@ export function logout() {
       console.error('Failed to log out', e)
       reportError(e, {feature: 'auth', operation: 'logout'})
     })
+}
+
+// Store the return URL, then redirect the browser to the vault to sign in.
+export async function redirectToVaultSignIn(opts: {
+  origin: string
+  siteName?: string
+  vaultUrl: string
+}): Promise<void> {
+  await setAuthState(
+    AUTH_STATE_DELEGATION_RETURN_URL,
+    `${window.location.pathname}${window.location.search}${window.location.hash}`,
+  )
+  await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, opts.vaultUrl)
+  const authUrl = await authSession.startAuth({
+    vaultUrl: opts.vaultUrl,
+    clientId: opts.origin || window.location.origin,
+    redirectUri: `${opts.origin || window.location.origin}/hm/auth/callback`,
+    siteName: opts.siteName || hostnameStripProtocol(opts.origin) || 'this space',
+  })
+  window.location.href = authUrl
 }
 
 export function useLocalKeyPair() {
@@ -421,7 +441,23 @@ function CreateAccountDialog({input}: {input: CreateAccountDialogInput; onClose:
     </>
   )
 }
-function VaultSuccessDialog({onClose}: {input: {variant: 'comment'}; onClose: () => void}) {
+
+export const SPACE_EXISTS_TITLE = 'You already have a space'
+export const SPACE_EXISTS_BODY =
+  'Each account can only have one space. You can go to your existing space, or sign in with a different account to create a new one.'
+
+type VaultSuccessInput =
+  | {variant: 'comment'}
+  | {variant: 'space-exists'; spaceUrl: string | null; draftId: string | null}
+
+function VaultSuccessDialog({input, onClose}: {input: VaultSuccessInput; onClose: () => void}) {
+  if (input.variant === 'space-exists') {
+    return <SpaceExistsDialogContent spaceUrl={input.spaceUrl} draftId={input.draftId} onClose={onClose} />
+  }
+  return <CommentSuccessDialogContent onClose={onClose} />
+}
+
+function CommentSuccessDialogContent({onClose}: {onClose: () => void}) {
   useEffect(() => {
     const timer = setTimeout(onClose, 4000)
     return () => clearTimeout(timer)
@@ -444,6 +480,58 @@ function VaultSuccessDialog({onClose}: {input: {variant: 'comment'}; onClose: ()
   )
 }
 
+// Shown after sign-in when the chosen account already has a published home doc.
+function SpaceExistsDialogContent({
+  spaceUrl,
+  draftId,
+  onClose,
+}: {
+  spaceUrl: string | null
+  draftId: string | null
+  onClose: () => void
+}) {
+  const {origin} = useUniversalAppContext()
+  const siteName = useSiteName()
+
+  async function useDifferentAccount() {
+    // Log out first (clears keys, vault session, and auth state), then re-arm
+    // the publish intent for the kept draft and reopen the vault so the user can
+    // sign in with a different account and publish there.
+    await logout()
+    if (draftId) await setPendingIntent({type: 'publish-draft', draftId})
+    const resolvedOrigin = origin || window.location.origin
+    const vaultUrl = `${WEB_IDENTITY_ORIGIN || resolvedOrigin}/vault/delegate`
+    await redirectToVaultSignIn({origin: resolvedOrigin, siteName, vaultUrl})
+  }
+
+  return (
+    <>
+      <DialogTitle>{SPACE_EXISTS_TITLE}</DialogTitle>
+      <DialogDescription>{SPACE_EXISTS_BODY}</DialogDescription>
+      <div className="flex justify-end gap-2 pt-4">
+        <Button variant="outline" onClick={() => void useDifferentAccount()}>
+          Use a different account
+        </Button>
+        {spaceUrl ? (
+          <Button
+            variant="default"
+            onClick={async () => {
+              // Discard the pending draft, then go to the existing space.
+              if (draftId) {
+                const {discardSpaceHomeDraft} = await import('./document-edit/web-create-space-draft')
+                await discardSpaceHomeDraft(draftId)
+              }
+              window.location.href = spaceUrl
+            }}
+          >
+            Go to your space
+          </Button>
+        ) : null}
+      </div>
+    </>
+  )
+}
+
 /** Detects `?vault_success=...` in the URL and shows the matching dialog or toast. */
 export function useVaultSuccessDialog() {
   const dialog = useAppDialog(VaultSuccessDialog)
@@ -460,6 +548,15 @@ export function useVaultSuccessDialog() {
 
     if (variant === 'comment') {
       dialog.open({variant})
+      return
+    }
+    if (variant === 'space-exists') {
+      const spaceUrl = url.searchParams.get('vault_space_url')
+      const draftId = url.searchParams.get('vault_draft_id')
+      url.searchParams.delete('vault_space_url')
+      url.searchParams.delete('vault_draft_id')
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash)
+      dialog.open({variant, spaceUrl, draftId})
       return
     }
     if (variant === 'publish-draft') {

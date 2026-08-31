@@ -140,7 +140,10 @@ export default function AuthCallbackRoute() {
         const intentResult = await processPendingIntent(originHomeId)
 
         let targetUrl = returnUrl
-        let successVariant: 'comment' | 'join' | 'login' | 'welcome-back' | 'publish-draft' | null = 'login'
+        let successVariant: 'comment' | 'join' | 'login' | 'welcome-back' | 'publish-draft' | 'space-exists' | null =
+          'login'
+        let existingSpaceUrl: string | null = null
+        let existingSpaceDraftId: string | null = null
 
         if (intentResult.type === 'comment') {
           targetUrl = intentResult.commentUrl
@@ -151,6 +154,10 @@ export default function AuthCallbackRoute() {
         } else if (intentResult.type === 'publish-draft-failed') {
           targetUrl = intentResult.retryUrl
           successVariant = null
+        } else if (intentResult.type === 'publish-draft-existing-space') {
+          successVariant = 'space-exists'
+          existingSpaceUrl = intentResult.spaceUrl
+          existingSpaceDraftId = intentResult.draftId
         } else if (intentResult.type === 'join') {
           successVariant = intentResult.joinStatus === 'joined' ? 'join' : 'welcome-back'
         } else if (originHomeId?.uid) {
@@ -162,6 +169,8 @@ export default function AuthCallbackRoute() {
 
         const nextUrl = new URL(targetUrl, window.location.origin)
         if (successVariant) nextUrl.searchParams.set('vault_success', successVariant)
+        if (existingSpaceUrl) nextUrl.searchParams.set('vault_space_url', existingSpaceUrl)
+        if (existingSpaceDraftId) nextUrl.searchParams.set('vault_draft_id', existingSpaceDraftId)
         navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
