@@ -212,6 +212,7 @@ export type UnsignedAgentAction =
   | UpdateSession
   | DeleteSession
   | GetSession
+  | GetSessionEvent
   | MessageSession
   | InvokeSessionTool
   | UploadSessionAttachment
@@ -870,11 +871,29 @@ export type DeleteSession = {
   sessionId: string
 }
 
-/** Loads one session plus durable events, optionally after a sequence. */
+/**
+ * Loads one session plus durable events, optionally after a sequence.
+ *
+ * Oversized event payloads are truncated on the wire (marked `truncated` on the event); fetch a
+ * single full event with `GetSessionEvent`. `limit` returns only the LAST `limit` events of the
+ * selected range (the transcript tail) and sets `hasMoreBefore` when older events were cut;
+ * page older history with `beforeSeq`.
+ */
 export type GetSession = {
   _: 'GetSession'
   sessionId: string
   afterSeq?: number
+  /** Only events with seq strictly below this are returned. */
+  beforeSeq?: number
+  /** Maximum events returned, counted from the end of the selected range. */
+  limit?: number
+}
+
+/** Loads one durable session event in full, bypassing the wire-size truncation of `GetSession`. */
+export type GetSessionEvent = {
+  _: 'GetSessionEvent'
+  sessionId: string
+  seq: number
 }
 
 /** Appends a user message and asks the agent to respond. */
@@ -1276,6 +1295,12 @@ export type SessionEvent = {
   seq: number
   event: SessionEventPayload
   createdAt: number
+  /**
+   * The payload was cut down for transport (giant strings/arrays elided) — the durable event is
+   * intact on the server; fetch it whole with `GetSessionEvent`. Multi-megabyte tool outputs
+   * otherwise make every session load, replay, and live append pay for bytes nobody is reading.
+   */
+  truncated?: boolean
 }
 
 /**
@@ -1984,6 +2009,14 @@ export type GetSessionResponse = {
   events: SessionEvent[]
   systemPromptMarkdown: string
   triggerContext?: AgentSessionTriggerContext
+  /** Set when `limit` cut older events out of the response; page them with `beforeSeq`. */
+  hasMoreBefore?: boolean
+}
+
+/** Successful response for `GetSessionEvent`: one event, never truncated. */
+export type GetSessionEventResponse = {
+  _: 'GetSessionEventResponse'
+  event: SessionEvent
 }
 
 /** Successful response for `MessageSession`. */
@@ -2156,6 +2189,7 @@ export type AgentResponse =
   | UpdateSessionResponse
   | DeleteSessionResponse
   | GetSessionResponse
+  | GetSessionEventResponse
   | MessageSessionResponse
   | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse

@@ -108,6 +108,8 @@ export type CodeExecResult = {
   durationMs: number
   /** Memory files added/modified/removed by the execution, from a before/after listing diff. */
   changedFiles: CodeExecFileChange[]
+  /** Real change count; exceeds `changedFiles.length` when the reported list was capped. */
+  changedFilesTotal: number
 }
 
 /** Structural slice of the microsandbox SDK used here, so tests can inject a fake. */
@@ -465,7 +467,7 @@ export function createCodeExecutor(
           stderr: stderr.text,
           truncated: stdout.truncated || stderr.truncated,
           durationMs: Date.now() - startedAt,
-          changedFiles: diffMemory(before.files, after.files),
+          ...diffMemory(before.files, after.files),
         }
       } finally {
         await teardownSandbox(sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
@@ -753,7 +755,17 @@ function snapshotMemory(stateDir: string): MemorySnapshot {
   return {files, totalBytes}
 }
 
-function diffMemory(before: Map<string, string>, after: Map<string, string>): CodeExecFileChange[] {
+/**
+ * Entry cap on the reported change list. An execution that rewrites a huge tree (a package
+ * install, a build) once produced a 64k-entry list that became a 10MB durable session event; past
+ * the cap the count in `changedFilesTotal` tells the whole story and the list is a sample.
+ */
+const MAX_REPORTED_CHANGED_FILES = 200
+
+function diffMemory(
+  before: Map<string, string>,
+  after: Map<string, string>,
+): {changedFiles: CodeExecFileChange[]; changedFilesTotal: number} {
   const changes: CodeExecFileChange[] = []
   for (const [path, stamp] of after) {
     const previous = before.get(path)
@@ -764,7 +776,7 @@ function diffMemory(before: Map<string, string>, after: Map<string, string>): Co
     if (!after.has(path)) changes.push({path, change: 'removed'})
   }
   changes.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
-  return changes
+  return {changedFiles: changes.slice(0, MAX_REPORTED_CHANGED_FILES), changedFilesTotal: changes.length}
 }
 
 function boundOutput(text: string): {text: string; truncated: boolean} {

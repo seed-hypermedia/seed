@@ -309,12 +309,17 @@ async function main(): Promise<void> {
         clients: clients.size,
       })
     }
+    // Truncated once per publish, not per client: a giant tool result would otherwise be encoded
+    // whole into a multi-megabyte frame for every subscriber.
+    const wireSessionEvent =
+      event.type === 'session-event' ? apisvc.truncateSessionEventForWire(event.event) : undefined
     for (const ws of clients) {
       if (event.type === 'session-event') {
-        sendIfSubscribed(ws, event.accountId, `sessions/${event.event.sessionId}`, {
+        const wireEvent = wireSessionEvent ?? event.event
+        sendIfSubscribed(ws, event.accountId, `sessions/${wireEvent.sessionId}`, {
           _: 'append',
-          key: `sessions/${event.event.sessionId}`,
-          event: event.event,
+          key: `sessions/${wireEvent.sessionId}`,
+          event: wireEvent,
         })
       } else if (event.type === 'session-partial') {
         sendIfSubscribed(ws, event.accountId, `sessions/${event.sessionId}`, {

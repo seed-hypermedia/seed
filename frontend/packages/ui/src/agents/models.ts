@@ -2329,6 +2329,36 @@ export function useAgentSession(
   })
 }
 
+/**
+ * Fetches one durable session event in full. Session loads wire-truncate giant payloads (a
+ * multi-megabyte tool output would make every open slow); this is the on-demand path for the
+ * rare click that actually wants all of it.
+ */
+export function useFullAgentSessionEvent(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  sessionId: string | undefined,
+  seq: number | undefined,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['agents', 'session-event', serverUrl, accountUid, sessionId, seq],
+    queryFn: async () => {
+      const res = await sendAgentAction({
+        serverUrl: serverUrl!,
+        accountUid: accountUid!,
+        action: {_: 'GetSessionEvent', sessionId: sessionId!, seq: seq!},
+      })
+      if (res._ !== 'GetSessionEventResponse') throw new Error('Unexpected GetSessionEvent response')
+      return res.event
+    },
+    enabled: enabled && !!serverUrl && !!accountUid && !!sessionId && seq !== undefined,
+    staleTime: Infinity,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
 /** One session row in the merged, cross-server sidebar list. */
 export type AgentSessionListEntry = {
   /** Server the session lives on. Part of its identity — session ids are only unique per server. */

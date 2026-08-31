@@ -189,7 +189,14 @@ function AgentSessionPage({
   const deleteSessionDialog = useAppDialog(DeleteAgentSessionDialog, {isAlert: true})
   const systemPromptDialog = useAppDialog(SystemPromptDialog)
   const lastSeq = session.data?.events.filter((event) => event.seq !== Number.MAX_SAFE_INTEGER).at(-1)?.seq
-  const liveState = useAgentWebSocketSubscription(serverUrl, selectedAccountId, `sessions/${sessionId}`, lastSeq)
+  // The subscription waits for the initial GetSession: subscribing with no afterSeq makes the
+  // server replay the whole transcript over the socket on top of the fetch.
+  const liveState = useAgentWebSocketSubscription(
+    serverUrl,
+    selectedAccountId,
+    session.data ? `sessions/${sessionId}` : undefined,
+    lastSeq ?? 0,
+  )
   // Account-wide events too: run changes publish on `runs/<rootRunId>` and agent/trigger changes on
   // their own keys, none of which the session subscription receives — and with no polling, these
   // events are what keep the run state and agent header fresh here.

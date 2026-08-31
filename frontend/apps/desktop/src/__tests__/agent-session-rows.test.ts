@@ -739,6 +739,28 @@ describe('symmetric log actors', () => {
     expect(part.completedAt).toBe(part.calledAt! + 2)
   })
 
+  it('carries wire-truncation markers and event seqs so the dialog can fetch full payloads', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'tool_call', id: 'c1', name: 'call', input: {tool: 'execute'}}),
+        {...event(2, {type: 'tool_result', toolCallId: 'c1', name: 'call', output: {summary: 'ok'}}), truncated: true},
+      ],
+      CONTEXT,
+    )
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    const part = row.message.parts?.[0] as {
+      callSeq?: number
+      callTruncated?: boolean
+      resultSeq?: number
+      resultTruncated?: boolean
+    }
+    expect(part.callSeq).toBe(1)
+    expect(part.callTruncated).toBeUndefined()
+    expect(part.resultSeq).toBe(2)
+    expect(part.resultTruncated).toBe(true)
+  })
+
   it('leaves a tool row with nothing to say carrying no stat block at all', () => {
     const rows = buildAgentSessionChatRows(
       [event(1, {type: 'tool_result', toolCallId: 'orphan', name: 'read', output: {summary: 'Read.'}})],

@@ -2815,6 +2815,113 @@ describe('api service', () => {
     }
   })
 
+  test('GetSession truncates oversized events on the wire, pages with limit, and GetSessionEvent returns the whole thing', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await setDefaultProvider(svc, account)
+      const createdAgent = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgent',
+            definition: {name: 'Agent', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+          },
+        }),
+      )
+      if (createdAgent._ !== 'CreateAgentResponse') throw new Error('unexpected response')
+      const createdSession = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'CreateSession', agentId: createdAgent.agentId},
+        }),
+      )
+      if (createdSession._ !== 'CreateSessionResponse') throw new Error('unexpected response')
+
+      const giantOutput = {
+        summary: 'ok',
+        stdout: 'x'.repeat(200_000),
+        changedFiles: Array.from({length: 5_000}, (_, i) => ({path: `file-${i}`, change: 'added'})),
+      }
+      const insert = db.prepare(
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+      )
+      insert.run(
+        'event-1',
+        createdSession.sessionId,
+        1,
+        cbor.encode({type: 'message', role: 'user', content: 'hi'}),
+        100,
+      )
+      insert.run(
+        'event-2',
+        createdSession.sessionId,
+        2,
+        cbor.encode({type: 'tool_result', toolCallId: 'c1', name: 'call', output: giantOutput}),
+        101,
+      )
+      insert.run(
+        'event-3',
+        createdSession.sessionId,
+        3,
+        cbor.encode({type: 'message', role: 'assistant', content: 'done'}),
+        102,
+      )
+
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId: createdSession.sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.events).toHaveLength(3)
+      expect(session.hasMoreBefore).toBeUndefined()
+      // Small events pass through untouched, without a truncation marker.
+      expect(session.events[0]).toMatchObject({seq: 1, event: {content: 'hi'}})
+      expect(session.events[0]?.truncated).toBeUndefined()
+      // The giant one is cut: strings capped, arrays elided, marker set — and it is SMALL now.
+      const wireEvent = session.events[1]
+      if (!wireEvent) throw new Error('missing event')
+      expect(wireEvent.truncated).toBe(true)
+      const wireOutput = (wireEvent.event as {output: typeof giantOutput}).output
+      expect(wireOutput.summary).toBe('ok')
+      expect(wireOutput.stdout.length).toBeLessThan(20_000)
+      expect(wireOutput.stdout).toContain('[truncated: 200000 chars]')
+      expect(wireOutput.changedFiles).toHaveLength(200)
+      expect(cbor.encode(wireEvent).length).toBeLessThan(apisvc.WIRE_EVENT_BYTE_BUDGET)
+
+      // limit returns the transcript TAIL and flags older history.
+      const tail = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetSession', sessionId: createdSession.sessionId, limit: 2},
+        }),
+      )
+      if (tail._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(tail.events.map((event) => event.seq)).toEqual([2, 3])
+      expect(tail.hasMoreBefore).toBe(true)
+      const older = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetSession', sessionId: createdSession.sessionId, beforeSeq: 2, limit: 10},
+        }),
+      )
+      if (older._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(older.events.map((event) => event.seq)).toEqual([1])
+      expect(older.hasMoreBefore).toBeUndefined()
+
+      // The durable event is intact and reachable in full.
+      const full = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'GetSessionEvent', sessionId: createdSession.sessionId, seq: 2},
+        }),
+      )
+      if (full._ !== 'GetSessionEventResponse') throw new Error('unexpected response')
+      expect(full.event.truncated).toBeUndefined()
+      const fullOutput = (full.event.event as {output: typeof giantOutput}).output
+      expect(fullOutput.stdout.length).toBe(200_000)
+      expect(fullOutput.changedFiles).toHaveLength(5_000)
+    } finally {
+      db.close()
+      cleanup()
+    }
+  })
+
   test('resolves system prompt embeds in session prompt markdown', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
@@ -7460,6 +7567,7 @@ describe('api service', () => {
               durationMs: 1,
               truncated: false,
               changedFiles: [],
+              changedFilesTotal: 0,
             }
           },
         },

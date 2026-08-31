@@ -86,6 +86,37 @@ provider latency per turn. That is why compaction matters even if bytes were fre
 - A modest host upgrade (4 → 8 vCPU) roughly doubles the safe live-VM cap in workstream 3; worth taking, but the
   cold-compile fix dwarfs it.
 
+### 6. Session load wire size — DONE
+
+Opening a session was transferring the whole transcript with **full tool payloads** — measured in production: one
+116-event session weighed 22.5 MB because three `call` results carried multi-megabyte outputs (the largest: 9.5 MB, a
+code exec reporting 64,617 `changedFiles` entries). The bytes were paid four times per open: pure-JS CBOR decode on the
+server, re-encode into WS/HTTP frames, transfer through Caddy/TLS, and pure-JS decode again in the renderer — and the
+assistant panel subscribed without `afterSeq`, so the socket replayed the whole transcript a second time on top of the
+`GetSession` fetch. Indexing was never the problem (`UNIQUE(session_id, seq)` covers every transcript query); event
+counts are modest (≤ ~500/session) — the payload bytes were.
+
+The fix, at every layer:
+
+- **Source cap**: code-exec reports at most 200 `changedFiles` plus a true `changedFilesTotal`.
+- **Wire truncation**: `GetSession`, subscription replay, and live append fan-out cap giant strings (16 KB) and arrays
+  (200 entries) per event, marking the event `truncated`. Events under 64 KB encoded skip the walk. Durable storage is
+  untouched.
+- **On-demand full fetch**: new `GetSessionEvent` action returns one event whole; the tool info dialog shows a "Load
+  full data" affordance on truncated payloads.
+- **No double replay**: both session views now subscribe only after the initial `GetSession` lands and resume with
+  `afterSeq`.
+- **Tail pagination (server support)**: `GetSession` accepts `limit`/`beforeSeq` and reports `hasMoreBefore`, so clients
+  can load the tail first when transcripts grow; the UI still loads whole transcripts for now, which is fine once events
+  are size-bounded.
+- **System prompt cache**: `GetSession` was re-resolving the agent's prompt blocks on every call — including fetching
+  remote hm:// documents the prompt embeds. Resolved markdown is now cached per agent (5 min TTL, keyed by the blocks).
+
+**Follow-up (planned): spill oversized outputs at append time.** A multi-megabyte durable event still costs every
+`#piMessages` decode (every model turn) even though the provider payload is capped. Store outputs above a threshold as
+files under the agent's state dir with a preview + pointer in the event. This also makes the 22 MB legacy sessions cheap
+to re-open server-side.
+
 ## Sequencing
 
 1. ~~Watchdog~~, ~~log levels~~ (this branch) → deploy, confirm poll-cycle overruns stop.

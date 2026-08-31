@@ -25,7 +25,7 @@ import {
   type ToolRowSummary,
 } from './tool-summary'
 import {useOpenUrl} from './navigation'
-import {useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from './models'
+import {useFullAgentSessionEvent, useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from './models'
 import {Notice} from '@shm/ui/notice'
 import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from './run-work'
 import {useAccount} from '@shm/shared/models/entity'
@@ -627,6 +627,43 @@ function ToolDetailText({value}: {value: string}) {
   )
 }
 
+/**
+ * A "this is a preview" note with the fetch trigger, shown under a wire-truncated payload. Owns
+ * the on-demand fetch so the query machinery mounts ONLY for truncated rows — the overwhelmingly
+ * common untruncated dialog stays a pure render with no data dependencies.
+ */
+function TruncatedPayloadNotice({
+  label,
+  seq,
+  onLoaded,
+}: {
+  label: string
+  seq: number | undefined
+  onLoaded: (payload: Record<string, unknown>) => void
+}) {
+  const {serverUrl, accountUid, sessionId} = React.useContext(ToolRowContext)
+  const [requested, setRequested] = useState(false)
+  const query = useFullAgentSessionEvent(serverUrl, accountUid, sessionId, seq, requested)
+  const payload = query.data?.event as Record<string, unknown> | undefined
+  React.useEffect(() => {
+    if (payload) onLoaded(payload)
+  }, [payload, onLoaded])
+  const loading = requested && query.isLoading
+  return (
+    <div className="text-muted-foreground flex items-center gap-2 text-[11px]">
+      <span>{query.error ? 'Could not load the full payload.' : `${label} is truncated for display.`}</span>
+      <button
+        type="button"
+        onClick={() => setRequested(true)}
+        disabled={loading}
+        className="text-foreground hover:bg-muted rounded border px-1.5 py-0.5 disabled:opacity-50"
+      >
+        {loading ? 'Loading…' : 'Load full data'}
+      </button>
+    </div>
+  )
+}
+
 function ToolCallDebugDialog({
   item,
   open,
@@ -636,6 +673,10 @@ function ToolCallDebugDialog({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const [fullCallPayload, setFullCallPayload] = useState<Record<string, unknown> | undefined>()
+  const [fullResultPayload, setFullResultPayload] = useState<Record<string, unknown> | undefined>()
+  const args = (fullCallPayload?.input as ChatToolPart['args'] | undefined) ?? item.args
+  const output = fullResultPayload?.output ?? item.rawOutput ?? item.result
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[85vh] w-[min(44rem,calc(100vw-2rem))]">
@@ -650,25 +691,31 @@ function ToolCallDebugDialog({
               item.calledAt || item.completedAt ? {startedAt: item.calledAt, completedAt: item.completedAt} : undefined
             }
           />
-          {typeof item.args?.script === 'string' && item.args.script ? (
+          {typeof args?.script === 'string' && args.script ? (
             <div className="min-h-0 space-y-1">
               <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Script</div>
               <pre className="bg-muted max-h-64 overflow-auto rounded-xl p-3 font-mono text-[11px] whitespace-pre">
-                {item.args.script}
+                {args.script}
               </pre>
             </div>
           ) : null}
           <div className="min-h-0 space-y-1">
             <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Input</div>
             <pre className="bg-muted max-h-48 overflow-auto rounded-xl p-3 text-[11px] whitespace-pre-wrap">
-              {formatToolDebugValue(item.args)}
+              {formatToolDebugValue(args)}
             </pre>
+            {item.callTruncated && !fullCallPayload ? (
+              <TruncatedPayloadNotice label="Input" seq={item.callSeq} onLoaded={setFullCallPayload} />
+            ) : null}
           </div>
           <div className="min-h-0 space-y-1">
             <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Output</div>
             <pre className="bg-muted max-h-72 overflow-auto rounded-xl p-3 text-[11px] whitespace-pre-wrap">
-              {formatToolDebugValue(item.rawOutput ?? item.result)}
+              {formatToolDebugValue(output)}
             </pre>
+            {item.resultTruncated && !fullResultPayload ? (
+              <TruncatedPayloadNotice label="Output" seq={item.resultSeq} onLoaded={setFullResultPayload} />
+            ) : null}
           </div>
         </div>
       </DialogContent>
