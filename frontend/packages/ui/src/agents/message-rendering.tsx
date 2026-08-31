@@ -2090,7 +2090,16 @@ export function ToolCallLine({
 
   return (
     <ToolRowContext.Provider value={rowContext}>
-      <div className={cn('group/toolrow my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs', colorClass)}>
+      <div
+        className={cn(
+          'group/toolrow toolrow my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs',
+          // Consecutive tool rows batch into one block: zero gap at the seam, corners squared,
+          // and the upper row's bottom border is the single thin divider between them.
+          '[.toolrow+&]:mt-0 [.toolrow+&]:rounded-t-none [.toolrow+&]:border-t-0',
+          '[&:has(+.toolrow)]:mb-0 [&:has(+.toolrow)]:rounded-b-none',
+          colorClass,
+        )}
+      >
         {/* The whole header row toggles expansion; inner links/buttons stop propagation. */}
         <div
           className="flex min-w-0 cursor-pointer items-center gap-1.5 select-none"
