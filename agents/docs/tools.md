@@ -419,8 +419,8 @@ Spawns a child run. Two kinds of child, one verb (`api-service.ts:7889`).
 narrows the child's set — intersected against the parent's full callable set, not a stale minimal default
 (`api-service.ts:2623`). `model` runs the child on one of the agent's enabled models ("provider/model", or a bare model
 id when unambiguous): the request is resolved by `resolveDelegateModelRef()` at spawn time against `enabledModels` plus
-the active pair, then stored as the child session's model override — the same mechanism the user's quick-switch uses,
-so run resolution and every client surface agree on what ran. Agents with more than one enabled model get system-prompt
+the active pair, then stored as the child session's model override — the same mechanism the user's quick-switch uses, so
+run resolution and every client surface agree on what ran. Agents with more than one enabled model get system-prompt
 guidance to route cheap mechanical subtasks to cheaper models and hard reasoning to the strongest.
 
 A child always runs as the delegating agent. Direct agent-to-agent delegation (`agentId`) was removed deliberately: a
@@ -429,9 +429,9 @@ briefs and results, so cross-agent collaboration happens through Seed content (d
 capability system governs access. A stray `agentId` is refused loudly at both the spec and dispatch layers.
 
 `output` declares a JSON schema for a validated structured result, delivered through `return_result`; without it the
-result is `{text}`. `normalizeSubSessionSpec()` (`api-service.ts:313`) accepts `input` as an alias for `brief` and
-reads a bare `prompt` as the brief rather than bouncing the call, because models write the task into `prompt` often
-enough that a retry is worse than a rescue.
+result is `{text}`. `normalizeSubSessionSpec()` (`api-service.ts:313`) accepts `input` as an alias for `brief` and reads
+a bare `prompt` as the brief rather than bouncing the call, because models write the task into `prompt` often enough
+that a retry is worse than a rescue.
 
 **Script child** — pass `script`, a self-contained module `export default async function (input, ctx) {…}` run in an
 in-process QuickJS-WASM realm (`agents/src/workflow-host.ts`). Everything external crosses through `ctx`:
@@ -444,9 +444,9 @@ are awaited.
 
 **Parallelism.** Independent children must be spawned together: every `delegate` call in one reply runs at the same
 time, and the turn then parks (cheaply, restart-proof) until all of them resolve, with each call receiving its own
-result. `await: false` detaches — the child runs with the brief as its first message and returns nothing,
-so `output` and `tools` are rejected loudly rather than silently discarded (`api-service.ts:7909`);
-`model` is still honored, resolved against the agent's enabled models.
+result. `await: false` detaches — the child runs with the brief as its first message and returns nothing, so `output`
+and `tools` are rejected loudly rather than silently discarded (`api-service.ts:7909`); `model` is still honored,
+resolved against the agent's enabled models.
 
 Durable limits come from the run tree, so they survive restarts: spawn-chain depth 3 (`MAX_SESSION_SPAWN_DEPTH`, checked
 at `api-service.ts:3438`), 10 awaited children per run and 10 detached starts per session
