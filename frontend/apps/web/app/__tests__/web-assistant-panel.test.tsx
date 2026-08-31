@@ -12,12 +12,15 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const mockState = vi.hoisted(() => ({
   pathname: '/',
   isMobile: false,
+  keyPair: {id: 'reader'} as {id: string} | null,
 }))
 
 vi.mock('@remix-run/react', () => ({
   useLocation: () => ({pathname: mockState.pathname, search: '', hash: '', state: null, key: 'k'}),
 }))
 vi.mock('@shm/ui/use-media', () => ({useMedia: () => ({xs: mockState.isMobile})}))
+// The panel only exists for a signed-in reader; tests default to signed in.
+vi.mock('@/auth', () => ({useLocalKeyPair: () => mockState.keyPair}))
 // The panel body is the lazy agents chunk; the host's job is where and whether it renders.
 vi.mock('@/client-lazy', () => ({
   clientLazy: () => () => <div data-testid="panel-content">PANEL</div>,
@@ -78,6 +81,7 @@ beforeEach(() => {
   window.localStorage.clear()
   mockState.pathname = '/'
   mockState.isMobile = false
+  mockState.keyPair = {id: 'reader'}
   mountCount = 0
   controls = null
   autoOpenAvailable = false
@@ -217,6 +221,26 @@ describe('web assistant panel', () => {
     })
     expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBe(aside)
     expect(container.querySelector('[data-testid="panel-content"]')).not.toBeNull()
+  })
+
+  it('never shows the panel to a signed-out visitor, even with a stored open preference', () => {
+    // A previous signed-in visit left the panel open; a signed-out visitor must not see it.
+    window.localStorage.setItem('seed.assistant.open', '1')
+    mockState.keyPair = null
+    act(() => root.render(<App />))
+    expect(controls!.isOpen).toBe(true) // The preference survives for the next sign-in…
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull() // …but nothing renders.
+
+    // Narrow viewports get no full-screen panel either.
+    mockState.isMobile = true
+    act(() => root.render(<App />))
+    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull()
+    mockState.isMobile = false
+
+    // Signing in surfaces the panel exactly as the preference left it.
+    mockState.keyPair = {id: 'reader'}
+    act(() => root.render(<App />))
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
   })
 
   it('takes the whole screen on narrow viewports, with a way back to the page', () => {

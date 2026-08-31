@@ -1,4 +1,5 @@
 import {useAssistantPanel} from '@/assistant-panel-state'
+import {useLocalKeyPair} from '@/auth'
 import {clientLazy} from '@/client-lazy'
 import {useSiteContextSnapshot} from '@/site-context-bridge'
 import {UniversalAppContext} from '@shm/shared'
@@ -69,6 +70,10 @@ function usePanelWidth(): [number, (width: number) => void] {
  */
 export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const panel = useAssistantPanel()
+  // Agents are only usable signed in, so the panel only exists for a signed-in reader — a stored
+  // "open" preference from a previous signed-in visit must not surface the panel to a signed-out
+  // visitor. The preference itself is kept, so signing back in restores the panel as it was.
+  const keyPair = useLocalKeyPair()
   const media = useMedia()
   const isMobile = media.xs
   const [width, setWidth] = usePanelWidth()
@@ -98,8 +103,8 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
     setDragging(false)
   }, [])
 
-  const showSidePanel = panel.isOpen && !isMobile
-  const showFullScreen = panel.isOpen && isMobile
+  const showSidePanel = !!keyPair && panel.isOpen && !isMobile
+  const showFullScreen = !!keyPair && panel.isOpen && isMobile
 
   return (
     <div className={cn('flex w-full flex-row items-stretch', dragging && 'cursor-col-resize select-none')}>
