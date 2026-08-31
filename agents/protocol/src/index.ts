@@ -579,8 +579,12 @@ export type AgentTriggerSource =
  * before continuations existed.
  */
 export type TriggerContinuation =
-  /** Start a fresh thread from the trigger's prompt. */
-  | {kind: 'newThread'}
+  /**
+   * Start a fresh thread from the trigger's prompt. `systemPrompt` adds specialized instructions;
+   * `includeAgentSystemPrompt` defaults true and can omit the agent-authored prompt; `tools` narrows
+   * (never expands) the agent's grants.
+   */
+  | {kind: 'newThread'; systemPrompt?: string; includeAgentSystemPrompt?: boolean; tools?: string[]}
   /**
    * Deliver a signal to a run parked on `ctx.waitForEvent` — the same delivery a SignalRun makes,
    * so a trigger can answer a waiting run instead of starting a new one. Without `runId`, the
