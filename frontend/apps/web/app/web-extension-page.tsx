@@ -9,10 +9,11 @@
  */
 import {
   buildExtensionRouteHref,
+  extensionChildMountPrefixes,
   extensionMountPathPrefix,
   extensionQueryFromSearch,
   extensionSubPathFromPathname,
-  setActiveExtensionMountPrefix,
+  setActiveExtensionMount,
   type ExtensionRouteMatch,
 } from '@/extension-route'
 import type {SiteHeaderPayload} from '@/loaders'
@@ -57,7 +58,12 @@ export function WebExtensionPage({payload}: {payload: ExtensionPagePayload}) {
       initialRoute={createDocumentNavRoute(id)}
     >
       <WebSitePageShell siteUid={id.uid}>
-        <WebExtensionPageInner siteUid={id.uid} mount={mount} origin={origin} />
+        <WebExtensionPageInner
+          siteUid={id.uid}
+          siteHomeMetadata={payload.siteHomeMetadata}
+          mount={mount}
+          origin={origin}
+        />
       </WebSitePageShell>
     </WebSiteProvider>
   )
@@ -69,10 +75,12 @@ function isHttpUrl(url: string) {
 
 function WebExtensionPageInner({
   siteUid,
+  siteHomeMetadata,
   mount,
   origin,
 }: {
   siteUid: string
+  siteHomeMetadata: HMMetadata | null
   mount: ExtensionRouteMatch
   origin: string
 }) {
@@ -108,10 +116,19 @@ function WebExtensionPageInner({
     [siteUid, mountSegmentsKey, subPathKey],
   )
 
+  // Installs nested beneath this mount (`tools` vs `tools/stats`) belong to a
+  // different extension: navigating into one must run the loader, so their
+  // prefixes are registered alongside the active mount (see revalidation.ts).
+  const childPrefixes = useMemo(
+    () => extensionChildMountPrefixes(siteHomeMetadata, location.pathname, siteUid, mount.mountSegments),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [siteHomeMetadata, location.pathname, siteUid, mountSegmentsKey],
+  )
+
   useEffect(() => {
-    setActiveExtensionMountPrefix(mountPrefix)
-    return () => setActiveExtensionMountPrefix(null)
-  }, [mountPrefix])
+    setActiveExtensionMount({prefix: mountPrefix, childPrefixes})
+    return () => setActiveExtensionMount(null)
+  }, [mountPrefix, childPrefixes])
 
   // Home document of the visited site for the header (the registered site on
   // its own origin, the addressed account on gateway paths) — mirrors

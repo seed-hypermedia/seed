@@ -94,9 +94,10 @@ describe('extension pages in the document route loader', () => {
   it('serves a foreign account mount in gateway form from THAT account home document', async () => {
     const {data} = await run(`/hm/${FOREIGN}/board/card/7`)
 
-    // Install records were read from the visited account, not the registered site.
-    expect(mocks.getMetadata).toHaveBeenCalledTimes(1)
-    expect(mocks.getMetadata.mock.calls[0]![0]).toMatchObject({uid: FOREIGN, path: []})
+    // Install records were read from the visited account, not the registered
+    // site (whose home is fetched concurrently for the ordinary-document path).
+    expect(mocks.getMetadata).toHaveBeenCalledTimes(2)
+    expect(mocks.getMetadata.mock.calls.map((call) => call[0].uid).sort()).toEqual([FOREIGN, REGISTERED].sort())
     // The header payload prefetches the visited account's home; originHomeId stays the deployment's site.
     expect(mocks.loadSiteHeaderData).toHaveBeenCalledWith(expect.anything(), {siteUid: FOREIGN})
     expect(mocks.loadSiteResource).not.toHaveBeenCalled()
@@ -128,8 +129,47 @@ describe('extension pages in the document route loader', () => {
     expect(mocks.loadSiteResource).toHaveBeenCalledTimes(1)
     const [, documentId, extraData] = mocks.loadSiteResource.mock.calls[0]!
     expect(documentId).toMatchObject({uid: FOREIGN, path: ['docs']})
-    // The foreign home metadata must not be passed off as the registered site's header data.
-    expect(extraData.homeMetadataPayload).toBeUndefined()
+    // The foreign home metadata must not be passed off as the registered site's
+    // header data: the registered home (fetched concurrently) is what is reused.
+    expect(extraData.homeMetadataPayload).toMatchObject({id: {uid: REGISTERED}, metadata: {name: 'Registered Site'}})
+  })
+
+  it('fetches the registered home concurrently with the foreign extension lookup, not after it', async () => {
+    const started: string[] = []
+    const resolvers: Array<() => void> = []
+    mocks.getMetadata.mockImplementation(
+      (id: {uid: string}) =>
+        new Promise((resolve) => {
+          started.push(id.uid)
+          resolvers.push(() => resolve({id, metadata: homes[id.uid] ?? {}}))
+        }),
+    )
+
+    const pending = run(`/hm/${FOREIGN}/docs`)
+    // Both home lookups must be in flight before either has resolved (nothing
+    // resolves them until we do below, so a serial implementation never
+    // reaches two started calls).
+    for (let i = 0; i < 20 && started.length < 2; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
+    expect(started.sort()).toEqual([FOREIGN, REGISTERED].sort())
+    resolvers.forEach((resolve) => resolve())
+    await pending
+
+    expect(mocks.getMetadata).toHaveBeenCalledTimes(2)
+    expect(mocks.loadSiteResource).toHaveBeenCalledTimes(1)
+    expect(mocks.loadSiteResource.mock.calls[0]![2].homeMetadataPayload).toMatchObject({id: {uid: REGISTERED}})
+  })
+
+  it('does not prefetch the registered home for foreign paths that are extension pages or need no lookup', async () => {
+    await run(`/hm/${FOREIGN}/board`)
+    // Extension page: the registered home is still fetched (concurrently) but only two lookups happen in total.
+    expect(mocks.getMetadata).toHaveBeenCalledTimes(2)
+    expect(mocks.loadSiteResource).not.toHaveBeenCalled()
+
+    mocks.getMetadata.mockClear()
+    await run(`/hm/${FOREIGN}`)
+    expect(mocks.getMetadata).not.toHaveBeenCalled()
   })
 
   it('serves a registered site mount on the site origin and in gateway form', async () => {

@@ -48,10 +48,7 @@ export function getConfigValue<K extends keyof Config>(key: K): Config[K] {
   return config[key]
 }
 
-export function setConfigValue<K extends keyof Config>(
-  key: K,
-  value: Config[K],
-) {
+export function setConfigValue<K extends keyof Config>(key: K, value: Config[K]) {
   const config = loadConfig()
   config[key] = value
   saveConfig(config)

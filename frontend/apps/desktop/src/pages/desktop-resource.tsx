@@ -39,10 +39,10 @@ import {client} from '@/trpc'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {convertBlocksToMarkdown} from '@/utils/blocks-to-markdown'
 import {getPublishedResourceIdForDraftRoute} from '@/utils/draft-route'
+import {resolveDesktopExtensionMount} from '@/utils/extension-mount-route'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
 import {useBroadcastWindowEvent, useListenAppEvent} from '@/utils/window-events'
-import {resolveExtensionMount} from '@seed-hypermedia/client/extensions'
 import {
   DOCUMENT_ATTRIBUTE_DESCRIPTIONS,
   HMBlockNode,
@@ -719,12 +719,21 @@ export default function DesktopResourcePage() {
   const siteHomeResource = useResource(hmId(docId.uid), {subscribed: true})
   const siteHomeDocument = siteHomeResource.data?.type === 'document' ? siteHomeResource.data.document : undefined
   const siteUrl = siteHomeDocument?.metadata?.siteUrl
-  // An extension mounted at (or above) this path shadows the document page.
+  // An extension mounted at (or above) this path shadows every view of the
+  // document (design.md §3.3), but never a draft route (placeholder segment or
+  // an existing draft editing this path): those must still reach the editor.
   // Resolved on every route change; the extension page itself is keyed by the
   // mount path so sub-path navigation updates props without remounting the iframe.
+  const isDraftRoute = !!placeholderDraftId || !!existingDraftRecord
   const extensionMount = useMemo(
-    () => (route.key === 'document' ? resolveExtensionMount(siteHomeDocument?.metadata, docId.path) : null),
-    [route.key, siteHomeDocument?.metadata, docId.path],
+    () =>
+      resolveDesktopExtensionMount({
+        routeKey: route.key,
+        isDraftRoute,
+        homeMetadata: siteHomeDocument?.metadata,
+        path: docId.path,
+      }),
+    [route.key, isDraftRoute, siteHomeDocument?.metadata, docId.path],
   )
 
   // Publishing / unpublishing

@@ -8,7 +8,7 @@
  */
 
 import {ExtensionError} from '@seed-hypermedia/client/extensions'
-import {useCallback, useId, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode} from 'react'
 import {Button} from '../button'
 import {Checkbox} from '../components/checkbox'
 import {Label} from '../components/label'
@@ -52,17 +52,29 @@ export type SignConfirmDetail =
     }
 
 export type SignConfirmRequest = {
-  extension: {id: string; name: string; version: string | null}
+  extension: {
+    id: string
+    name: string
+    version: string | null
+    /** Active developer override URL: the code asking is NOT the published entry. */
+    devUrl?: string | null
+  }
   site: {uid: string; name?: string}
   account: {accountId: string; name?: string}
   detail: SignConfirmDetail
+  /**
+   * True when a session grant exists for this extension but the request is
+   * confirmed anyway (changes to extension install records / manifests are
+   * always confirmed). The dialog explains why it appeared despite the grant.
+   */
+  sessionAllowBypassed?: boolean
 }
 
 export type SignConfirmResult = {allowSession: boolean}
 
 export type ConfirmSignFn = (request: SignConfirmRequest) => Promise<SignConfirmResult>
 
-type DialogInput = {
+export type SignConfirmDialogInput = {
   request: SignConfirmRequest
   approve: (result: SignConfirmResult) => void
 }
@@ -81,7 +93,7 @@ export function useSignConfirmDialog(): {confirmSign: ConfirmSignFn; content: Re
     pending?.reject(new ExtensionError('user_rejected', 'The user rejected the signature request'))
   }, [])
 
-  const dialog = useAppDialog<DialogInput>(SignConfirmDialogContent, {
+  const dialog = useAppDialog<SignConfirmDialogInput>(SignConfirmDialogContent, {
     onClose,
     className: 'max-w-lg',
   })
@@ -111,11 +123,25 @@ export function useSignConfirmDialog(): {confirmSign: ConfirmSignFn; content: Re
   return useMemo(() => ({confirmSign, content: dialog.content}), [confirmSign, dialog.content])
 }
 
-function SignConfirmDialogContent({input, onClose}: {input: DialogInput; onClose: () => void}) {
+/**
+ * Approve is inert for a short period after the dialog appears so a click
+ * already in flight (e.g. the second half of a double-click on a decoy the
+ * extension drew where this button lands) cannot approve a signature the
+ * viewer never read. Same hardening browsers apply to permission prompts.
+ */
+export const APPROVE_ARM_DELAY_MS = 500
+
+/** Exported for tests; render through `useSignConfirmDialog` in the app. */
+export function SignConfirmDialogContent({input, onClose}: {input: SignConfirmDialogInput; onClose: () => void}) {
   const {request} = input
   const [allowSession, setAllowSession] = useState(false)
   const allowSessionId = useId()
   const title = titleFor(request.detail)
+  const [armed, setArmed] = useState(false)
+  useEffect(() => {
+    const t = setTimeout(() => setArmed(true), APPROVE_ARM_DELAY_MS)
+    return () => clearTimeout(t)
+  }, [])
 
   return (
     <div className="flex flex-col gap-5" data-testid="extension-sign-confirm">
@@ -131,6 +157,17 @@ function SignConfirmDialogContent({input, onClose}: {input: DialogInput; onClose
           <span className="font-medium">{request.extension.name}</span>{' '}
           <span className="text-muted-foreground break-all">({request.extension.id})</span>
         </Row>
+        {request.extension.devUrl ? (
+          <Row label="Warning">
+            <span
+              className="font-medium break-all text-amber-700 dark:text-amber-300"
+              data-testid="extension-sign-dev-warning"
+            >
+              Running developer override code from <span className="font-mono">{request.extension.devUrl}</span>, not
+              the published extension.
+            </span>
+          </Row>
+        ) : null}
         <Row label="Site">
           <span className="font-medium">{request.site.name || 'Untitled site'}</span>{' '}
           <span className="text-muted-foreground">({shortId(request.site.uid)})</span>
@@ -143,6 +180,13 @@ function SignConfirmDialogContent({input, onClose}: {input: DialogInput; onClose
 
       <DetailBody detail={request.detail} />
 
+      {request.sessionAllowBypassed ? (
+        <Text className="text-muted-foreground text-xs" data-testid="extension-sign-bypass-note">
+          You allowed this extension to sign for this session, but changes that install or update extensions are always
+          confirmed.
+        </Text>
+      ) : null}
+
       <div className="flex items-center gap-3">
         <Checkbox
           id={allowSessionId}
@@ -150,14 +194,25 @@ function SignConfirmDialogContent({input, onClose}: {input: DialogInput; onClose
           onCheckedChange={(v) => setAllowSession(v === true)}
           data-testid="extension-sign-allow-session"
         />
-        <Label htmlFor={allowSessionId}>Allow this extension to sign for the rest of this session</Label>
+        <Label htmlFor={allowSessionId}>
+          Allow this extension to sign for the rest of this session (installing or updating extensions still asks)
+        </Label>
       </div>
 
       <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={onClose} data-testid="extension-sign-deny">
+        <Button variant="outline" autoFocus onClick={onClose} data-testid="extension-sign-deny">
           Deny
         </Button>
-        <Button variant="brand" onClick={() => input.approve({allowSession})} data-testid="extension-sign-approve">
+        <Button
+          variant="brand"
+          disabled={!armed}
+          aria-disabled={!armed}
+          onClick={() => {
+            if (!armed) return
+            input.approve({allowSession})
+          }}
+          data-testid="extension-sign-approve"
+        >
           Approve
         </Button>
       </div>

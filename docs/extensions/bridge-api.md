@@ -98,7 +98,9 @@ const text = new TextDecoder().decode(bytes)
 
 Publishes a comment on `targetId` as the viewer after a confirmation dialog showing the target, a text preview and
 whether it is a reply. `targetVersion` defaults to the version in the `targetId` URL, then to the latest known version.
-`markdown` is parsed by the host; `rootReplyCommentVersion` defaults to `replyCommentVersion`.
+`markdown` is parsed by the host. When `replyCommentVersion` is given without `rootReplyCommentVersion`, the host
+fetches the parent comment and uses its thread root (the parent itself when the parent is a root), so replies to replies
+join the existing discussion.
 
 ```ts
 const {commentId} = await seed.sign.comment({targetId: `hm://${siteUid}/notes`, markdown: 'Looks good.'})
@@ -106,17 +108,22 @@ const {commentId} = await seed.sign.comment({targetId: `hm://${siteUid}/notes`, 
 
 ### `sign.document`
 
-| Permission | `sign`                                                                                                                                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Params     | `{id: string, metadata?: Record<string, unknown>, blocks?: HMBlockNode[], summary?: string}` — `metadata` or `blocks` required                                                                         |
-| Result     | `{id: string, version: string}` — the new document version (may be `''` if the daemon had not indexed it yet)                                                                                          |
-| Errors     | `not_signed_in`, `user_rejected`, `permission_denied` (no write capability on the space), `invalid_params` (id is a comment, nothing to change), `not_supported` (id redirects; `data.redirectTarget`) |
-| SDK        | `seed.sign.document(params)`                                                                                                                                                                           |
+| Permission | `sign`                                                                                                                                                                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Params     | `{id: string, metadata?: Record<string, unknown>, blocks?: HMBlockNode[], summary?: string}` — `metadata` or `blocks` required                                                                                                         |
+| Result     | `{id: string, version: string}` — `version` is the CID of the signed Change (the new document version), or the current version when nothing changed                                                                                    |
+| Errors     | `not_signed_in`, `user_rejected`, `permission_denied` (no write capability on the space), `invalid_params` (id is a comment; the document does not exist and nothing was given), `not_supported` (id redirects; `data.redirectTarget`) |
+| SDK        | `seed.sign.document(params)`                                                                                                                                                                                                           |
 
-Creates `id` if it does not exist, otherwise publishes a change on the latest version. `metadata` is merged key by key
-(`null` deletes; unmentioned keys untouched); `blocks` replaces the whole body (block ids are kept when supplied,
-generated otherwise). The dialog shows the document, whether it exists, `summary`, each metadata key's before/after and
-the block count of a body replace. When the viewer is not the space owner the host resolves a write capability first.
+Creates `id` if it does not exist, otherwise publishes a change on the latest version. The host builds the Change
+client-side, signs a Version Ref and publishes the blobs. `metadata` is merged key by key (`null` deletes; unmentioned
+keys untouched; values may be strings, numbers, booleans, arrays stored whole, or nested objects — an empty object
+writes nothing); `blocks` replaces the whole body (block ids are kept when supplied, generated otherwise). The dialog
+shows the document, whether it exists, `summary`, each metadata key's before/after and the block count of a body
+replace. When the viewer is not the space owner the host resolves a write capability first. When the requested metadata
+and blocks equal the published document, the call resolves with `{id, version: <current version>}` without a dialog and
+without publishing; `invalid_params` "nothing to change" is raised only when the document does not exist. A change that
+touches the `extensions` or `seedExtension` metadata keys is always confirmed, even with a session grant.
 
 ```ts
 await seed.sign.document({
@@ -143,6 +150,14 @@ the [developer guide](./developer-guide.md#arbitrary-data).
 ```ts
 const {signature, signer} = await seed.sign.data('hello', 'Prove you are the viewer')
 ```
+
+#### Confirmation dialog (all `sign.*` methods)
+
+The host opens one dialog at a time, naming the extension, the site, the account and the effect. When a dev override is
+active the dialog shows a warning with the override URL. **Approve** is inert for ~500 ms after the dialog opens. "Allow
+this extension to sign for the rest of this session" skips the dialog for later calls; the grant is in-memory, keyed on
+`(extension, site, account, code source)`, and never covers a `sign.document` that writes `extensions` or
+`seedExtension`.
 
 ### `navigate`
 

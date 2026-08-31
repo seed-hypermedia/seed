@@ -163,7 +163,9 @@ export function App({seed}: {seed: SeedExtension}) {
 
   const submitCard = (draft: CardDraft) => {
     if (!editing) return
-    if (editing.card) setBoard((b) => updateCard(b, {...editing.card!, ...draft}))
+    // Build the card from the draft alone so a cleared note/link is removed
+    // rather than kept from the previous version of the card.
+    if (editing.card) setBoard((b) => updateCard(b, {id: editing.card!.id, ...draft}))
     else setBoard((b) => addCard(b, editing.columnId, draft))
     setEditing(null)
   }

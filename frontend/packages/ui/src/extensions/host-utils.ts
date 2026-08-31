@@ -215,7 +215,17 @@ export function validateNavigateUrl(url: string): string {
     if (!unpackHmId(url)) throw new ExtensionError('invalid_params', `navigate: invalid hm:// URL: ${url}`)
     return url
   }
-  if (url.startsWith('/') && !url.startsWith('//')) return url
+  if (url.startsWith('/') && !url.startsWith('//') && !url.includes('\\')) {
+    // WHATWG URL parsing treats `\` like `/` for http(s), so `/\evil.com`
+    // resolves to another origin. Parse against a placeholder origin and
+    // require that the origin is unchanged.
+    const base = 'https://placeholder.invalid'
+    let parsed: URL | null = null
+    try {
+      parsed = new URL(url, base)
+    } catch {}
+    if (parsed && parsed.origin === base) return url
+  }
   throw new ExtensionError(
     'invalid_params',
     'navigate: url must be an hm:// URL or a site-relative path starting with /',
@@ -233,6 +243,29 @@ export function validateExternalUrl(url: string): string {
     throw new ExtensionError('invalid_params', 'openExternal: only http(s) URLs may be opened')
   }
   return parsed.toString()
+}
+
+/**
+ * A dev-override URL taken from the page URL (`?extdev=`) is only honoured
+ * when it points at a loopback host. Anyone can craft a link with the param,
+ * and the override persists in localStorage for the whole origin, so a remote
+ * URL here would let a link silently replace an installed extension's code.
+ * Overrides typed into the desktop settings editor are not subject to this
+ * (that path is explicit) and may be any http(s) URL.
+ *
+ * Returns the URL unchanged when it is an http(s) loopback URL, else null.
+ */
+export function loopbackDevUrl(raw: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return null
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+  const host = parsed.hostname
+  const loopback = host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]'
+  return loopback ? raw : null
 }
 
 /** Short principal for display: `z6MkabcD…wxyz`. */

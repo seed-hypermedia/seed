@@ -2,6 +2,7 @@ import {parseExtensionInstalls} from '@seed-hypermedia/client/extensions'
 import {getDocAttributeChanges} from '@shm/shared/utils/document-changes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {describe, expect, it} from 'vitest'
+import {EXTENSION_SHADOWED_ROUTE_KEYS, resolveDesktopExtensionMount} from '../utils/extension-mount-route'
 import {
   buildInstallRecord,
   getRawExtensionInstalls,
@@ -107,5 +108,38 @@ describe('extension install helpers', () => {
   it('shortVersion abbreviates CIDs', () => {
     expect(shortVersion(undefined)).toBe('latest')
     expect(shortVersion('bafyreiabcdefghijklmnopqrstuvwxyz')).toBe('bafyre…uvwxyz')
+  })
+})
+
+describe('resolveDesktopExtensionMount', () => {
+  const homeMetadata = {
+    extensions: {board: {ext: `hm://${AUTHOR}/kanban`}, 'tools/stats': {ext: `hm://${AUTHOR}/stats`}},
+  }
+  const resolve = (routeKey: string, path: string[], isDraftRoute = false) =>
+    resolveDesktopExtensionMount({routeKey, isDraftRoute, homeMetadata, path})
+
+  it('shadows every document view of a mounted path, matching the web loader', () => {
+    const shadowed = Array.from(EXTENSION_SHADOWED_ROUTE_KEYS)
+    expect(shadowed.sort()).toEqual(
+      ['activity', 'collaborators', 'comments', 'directory', 'document', 'metadata'].sort(),
+    )
+    shadowed.forEach((key) => {
+      expect(resolve(key, ['board', 'card', '1'])).toMatchObject({mountPath: 'board', subPath: ['card', '1']})
+    })
+    expect(resolve('document', ['tools', 'stats', 'x'])).toMatchObject({mountPath: 'tools/stats'})
+  })
+
+  it('never shadows site-level routes or unmounted paths', () => {
+    expect(resolve('site-profile', ['board'])).toBeNull()
+    expect(resolve('all-documents', ['board'])).toBeNull()
+    expect(resolve('document', ['docs'])).toBeNull()
+    expect(resolve('document', [])).toBeNull()
+  })
+
+  it('never shadows draft routes so the editor stays reachable at or beneath a mount', () => {
+    // New draft under the mount (placeholder segment) and an existing draft of the mount document itself.
+    expect(resolve('document', ['board', '-abc'], true)).toBeNull()
+    expect(resolve('document', ['board'], true)).toBeNull()
+    expect(resolve('document', ['board'], false)).toMatchObject({mountPath: 'board'})
   })
 })

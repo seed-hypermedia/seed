@@ -27,8 +27,16 @@ below.
    `SignData`). The bridge returns signatures, never key material, and there is no method that exports, derives or
    delegates keys.
 2. **Every signature is confirmed by the viewer** in a native dialog that names the extension, the site, the account,
-   and the effect (comment text, document + metadata changes, or the purpose string and byte length for raw data).
-   "Allow for this session" is in-memory only and scoped to `(extension, site, account)`.
+   and the effect (comment text, document + metadata changes, or the purpose string and byte length for raw data). When
+   a developer override is active the dialog also shows a warning with the override URL, so the viewer can tell the
+   request is not coming from the published entry. The **Approve** button is inert for about 500 ms after the dialog
+   opens (the same hardening browsers apply to permission prompts), so a click already in flight — the second half of a
+   double-click on a decoy the extension drew where the button lands — cannot approve a signature the viewer never read.
+   "Allow for this session" is in-memory only and scoped to `(extension, site, account, code source)`: a grant given
+   while the published entry was running does not carry over to a dev override, or vice versa. Even with a session
+   grant, a `sign.document` that touches the metadata keys `extensions` (install records) or `seedExtension` (an
+   extension manifest) is always confirmed, so a session grant can never turn into persistent control over which code a
+   site runs.
 3. **Raw signatures are domain-separated.** `sign.data` signs
    `"seed-extension-signature:v1\n" + extensionId + "\n" + bytes`. A signature obtained this way can never be presented
    as a Seed protocol blob (comments, changes, refs, capabilities all sign CBOR structures with different leading
@@ -44,7 +52,11 @@ below.
    Reading public hypermedia data needs no permission — it is public.
 7. **What runs is pinned.** An install record stores the extension document version; hosts load that version's manifest
    and entry CID. Content addressing makes "the same code as when I installed it" a property, not a promise. Updates are
-   an explicit site-owner action.
+   an explicit site-owner action. The only way to run different code is a per-browser developer override, and `?extdev=`
+   in a page URL only accepts loopback URLs (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`); any other value is
+   ignored, so a link cannot make a viewer's browser run remote code under an installed extension's name. Overrides
+   pointing at other hosts can only be entered by hand in the desktop Settings editor, and an active override is
+   announced by the dev banner and in every sign dialog.
 8. **Installing is signed data.** Only holders of write capability on the site home document can add, change or remove
    an install record.
 9. **Reads are read-only.** `api.query` is restricted to `EXTENSION_READ_QUERY_KEYS`; `PublishBlobs` and
@@ -59,8 +71,11 @@ below.
 - **Resource limits.** No CPU/memory caps beyond the browser's per-frame ones.
 - **Phishing inside the frame.** The frame can draw anything, including fake "sign in" UI. Mitigation: the host's real
   dialogs are outside the frame; the frame cannot draw over host chrome. Sign-in never happens inside the frame.
-- **Supply chain of the entry.** The host verifies the entry's CID matches the manifest (content addressing) but does
-  not audit the code.
+- **Supply chain of the entry.** The entry is addressed by the CID in the manifest and fetched from the host's own
+  daemon (desktop: `<daemon>/ipfs/<cid>`; web: the site's `/hm/api/file/<cid>` proxy, which validates the CID before
+  forwarding). The host does not re-hash the bytes it receives, so "the same code as when I installed it" is only as
+  strong as the trust in that fetch path — the pin protects against the author republishing, not against a tampered
+  daemon or proxy. The host does not audit the code either.
 
 ## Reviewer checklist for new bridge methods
 

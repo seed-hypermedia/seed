@@ -48,11 +48,11 @@ The extension asks for permissions in its manifest; the host only lets it call m
 extension can read public hypermedia data without asking. Reading is done through the viewer's own client, so an
 extension can also see private documents the viewer can see.
 
-| Permission | Lets the extension…                                                                                   | What your readers experience                                                                                                                                 |
-| ---------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sign`     | ask the viewer to publish comments, create or change documents, or sign arbitrary bytes as themselves | A native confirmation dialog for **every** request, naming the extension, your site, the account and exactly what is signed; nothing happens without Approve |
-| `navigate` | move the viewer to another page on your site or an `hm://` URL, or open an external `http(s)` link    | Page changes and new tabs triggered by the extension's UI                                                                                                    |
-| `storage`  | keep small key/value settings in the viewer's own browser, private to this extension on this site     | Preferences that persist between visits; no data leaves the browser through this                                                                             |
+| Permission | Lets the extension…                                                                                   | What your readers experience                                                                                                                                                                                                                                                                                            |
+| ---------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sign`     | ask the viewer to publish comments, create or change documents, or sign arbitrary bytes as themselves | A native confirmation dialog for **every** request, naming the extension, your site, the account and exactly what is signed; nothing happens without Approve. The viewer can allow the extension for the rest of the session, but a change to your `extensions` install records or to an extension manifest always asks |
+| `navigate` | move the viewer to another page on your site or an `hm://` URL, or open an external `http(s)` link    | Page changes and new tabs triggered by the extension's UI                                                                                                                                                                                                                                                               |
+| `storage`  | keep small key/value settings in the viewer's own browser, private to this extension on this site     | Preferences that persist between visits; no data leaves the browser through this                                                                                                                                                                                                                                        |
 
 An extension with none of these can only read and display. Read [security.md](./security.md) for what the sandbox
 guarantees regardless of permissions: the extension never sees a key, cannot touch the app's cookies or storage, and
@@ -84,10 +84,14 @@ mount path) stays where it is and becomes visible as an ordinary document again.
 - **URL:** `https://<your site>/<mount path>` on the web, and the same path inside the desktop app. Sub-paths beneath
   the mount (`/board/card/abc`) belong to the extension for its own routing.
 - **Shadowing:** the mount takes over that path and everything under it in the page UI. If a document already exists
-  there, readers see the extension instead until you remove it; the document itself is untouched and some extensions
-  deliberately use it to store their state.
-- **Navigation:** installs with **Show in site navigation** on are listed with their `title` (or the extension's name).
-  <!-- TODO(verify): the site header / desktop sidebar integration (`navExtensionMounts`) is in progress on this branch; confirm where mounts render on web and desktop. -->
+  there, readers see the extension instead until you remove it (on the web in every view of that document; in the
+  desktop app in every document view, but never when you open a draft there, so you can still edit drafts at or beneath
+  a mount and create child documents); the document itself is untouched and some extensions deliberately use it to store
+  their state.
+- **Navigation:** installs with **Show in site navigation** on are listed in the site header — on the web and in the
+  desktop app — after your own navigation items, labelled with their `title`, or with the mount path when no title is
+  set (an existing navigation link to the same path wins, so the mount is not listed twice). Mounts do not appear in the
+  desktop sidebar.
 
 ## CLI equivalent
 
@@ -108,16 +112,16 @@ to print the record it would publish. See [cli.md](./cli.md) for `--settings`, `
 
 ## Troubleshooting
 
-| What you see                                                 | Why                                                                                                             | What to do                                                                                                        |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| **Extension unavailable** — "not available on this node yet" | Your node has not synced the extension document, or the pinned version, from the author's peer                  | Wait for sync, open the extension's own `hm://` URL to trigger discovery, or ask the author to keep a peer online |
-| **Extension unavailable** — "was deleted" / "was moved"      | The author tombstoned or redirected the extension document                                                      | Remove the install, or re-install from the new location                                                           |
-| **Not an extension**                                         | The document at `ext` has no valid `seedExtension` manifest (wrong URL, or the author's publish was incomplete) | Check the URL with `seed-cli extension inspect`; re-install with the right one                                    |
-| **Unsupported extension kind**                               | The manifest's `kind` is not `page`                                                                             | Only page extensions can be mounted today                                                                         |
-| **Extension needs a newer app**                              | The manifest's `minProtocol` is higher than this app's bridge protocol                                          | Update the desktop app / wait for the web app deploy, or pin an older version                                     |
-| **Could not load the extension**                             | The entry file could not be fetched (not synced, or a network error)                                            | Retry; check the node can reach the author's peer                                                                 |
-| Blank frame, no error                                        | The extension's code failed on its own (open the browser console) or its `connect()` timed out                  | Report to the author; try a different version                                                                     |
-| Dev override banner on your site                             | Someone used `?extdev=` in this browser; it is per browser, not part of your site                               | Click the banner, or open the page with `?extdev=off`                                                             |
+| What you see                                                 | Why                                                                                                                                   | What to do                                                                                                        |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Extension unavailable** — "not available on this node yet" | Your node has not synced the extension document, or the pinned version, from the author's peer                                        | Wait for sync, open the extension's own `hm://` URL to trigger discovery, or ask the author to keep a peer online |
+| **Extension unavailable** — "was deleted" / "was moved"      | The author tombstoned or redirected the extension document                                                                            | Remove the install, or re-install from the new location                                                           |
+| **Not an extension**                                         | The document at `ext` has no valid `seedExtension` manifest (wrong URL, or the author's publish was incomplete)                       | Check the URL with `seed-cli extension inspect`; re-install with the right one                                    |
+| **Unsupported extension kind**                               | The manifest's `kind` is not `page`                                                                                                   | Only page extensions can be mounted today                                                                         |
+| **Extension needs a newer app**                              | The manifest's `minProtocol` is higher than this app's bridge protocol                                                                | Update the desktop app / wait for the web app deploy, or pin an older version                                     |
+| **Could not load the extension**                             | The entry file could not be fetched (not synced, or a network error)                                                                  | Retry; check the node can reach the author's peer                                                                 |
+| Blank frame, no error                                        | The extension's code failed on its own (open the browser console) or its `connect()` timed out                                        | Report to the author; try a different version                                                                     |
+| Dev override banner on your site                             | Someone used `?extdev=` (loopback URLs only) or the desktop override editor in this browser; it is per browser, not part of your site | Click the banner, or open the page with `?extdev=off`                                                             |
 
 ## Trust
 

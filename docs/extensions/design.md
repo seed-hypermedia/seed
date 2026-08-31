@@ -108,12 +108,17 @@ Both hosts already render "site header + custom body" through `PageWrapper` in
     override the iframe uses `src=<devUrl>` instead (still sandboxed).
   - Only accepts messages where `event.source === iframe.contentWindow`.
   - Fills the available height; `ui.resize` is honoured only in embedded contexts (future block use).
-- `bridge-server.ts` — framework-free `createExtensionBridgeServer({target, adapter, getContext})` that decodes
-  requests, enforces `EXTENSION_METHOD_PERMISSIONS`, dispatches to the adapter, and serialises results/errors.
-  Unit-testable with fake windows.
+- `bridge-server.ts` — framework-free
+  `createExtensionBridgeServer({post, isTrustedSource, getContext, handlers, onError?})` that decodes requests, enforces
+  `EXTENSION_METHOD_PERMISSIONS`, dispatches to the typed `handlers` map (built by `createExtensionHandlers` in
+  `host-handlers.ts` from the adapter + universal client), and serialises results/errors. Unit-testable with fake
+  windows.
 - `sign-confirm-dialog.tsx` — the native confirmation shown for every `sign.*` call: what will be signed (comment
   preview / document + metadata diff summary / purpose string for raw data), as whom, by which extension, with **Approve
-  / Deny** and an "Allow this extension to sign for the rest of this session" checkbox.
+  / Deny** and an "Allow this extension to sign for the rest of this session" checkbox. When a dev override is active
+  the dialog shows a warning with the override URL. **Approve** is inert for ~500 ms after the dialog opens so a click
+  already in flight cannot approve. The session grant is keyed on `(extension, site, account, code source)` and never
+  covers a `sign.document` that touches the `extensions` or `seedExtension` metadata keys — those are always confirmed.
 - `extension-host-context.tsx` — `ExtensionHostProvider` / `useExtensionHost()`. The host adapter is the _only_
   platform-specific piece:
 
@@ -143,7 +148,7 @@ export type ExtensionHostAdapter = {
 ```
 
 Reads and writes are **not** in the adapter — they go through the existing `useUniversalClient()` (`request(key, input)`
-for reads, `getSigner()` + `publish()` / `publishDocument()` for writes), which both apps already provide.
+for reads, `getSigner()` + `publish()` for writes), which both apps already provide.
 
 ### 4.2 Web (`frontend/apps/web`)
 
@@ -151,25 +156,34 @@ for reads, `getSigner()` + `publish()` / `publishDocument()` for writes), which 
   for the request path, return a payload `{kind: 'extension', mount, siteHeader...}`; `UnifiedDocumentPage` renders
   `<WebExtensionPage>` which wraps `ExtensionPage` in `ExtensionHostProvider` with the web adapter (user from
   `useLocalKeyPair()` / `useWebAccountUid()`, theme from `ThemeContext`, `fetchEntryHtml` via `/hm/api/file/<cid>`,
-  `navigate` via `useNavigate`/`openUrl`).
+  `navigate` via `useNavigate`/`openUrl`). The mount shadows every view of the document at that path.
 - The iframe is client-only: SSR renders the header and a placeholder; the frame mounts after hydration.
-- `hm.api.file.$` must send CORS headers (extensions live at an opaque origin).
+- Navigating within a mount (`route.set`, sub-path links) keeps the same frame alive; navigating from a parent mount
+  into a nested mount (`board` → `board/tools`, a longer install) reloads the page as the nested extension.
+- `hm.api.file.$` must send CORS headers (extensions live at an opaque origin). It validates the CID before building the
+  daemon URL.
 - Dev override: `?extdev=http://localhost:5181` on an extension page writes
   `localStorage['seed.extensions.devOverrides'][extensionId]`; `?extdev=off` clears it. A small dev banner over the
-  frame shows when an override is active.
+  frame shows when an override is active. Only loopback URLs are accepted from the page URL (`localhost`, `*.localhost`,
+  `127.0.0.1`, `[::1]`); any other value is ignored and the parameter is still stripped from the address bar. Overrides
+  for other hosts can only be entered in the desktop Settings editor.
 
 ### 4.3 Desktop (`frontend/apps/desktop`)
 
-- `pages/desktop-resource.tsx`: before rendering `ResourcePage` for a `document` route, resolve the mount from the
-  space's home document; if found render `<DesktopExtensionPage>` (same `ExtensionPage` inside an
-  `ExtensionHostProvider` with the desktop adapter: user from `useSelectedAccount()`, `fetchEntryHtml` via the daemon
-  HTTP file URL, `navigate` via `useNavigate`, `openExternal` via the existing shell-open IPC).
+- `pages/desktop-resource.tsx`: before rendering `ResourcePage` for a document route, resolve the mount from the space's
+  home document; if found render `<DesktopExtensionPage>` (same `ExtensionPage` inside an `ExtensionHostProvider` with
+  the desktop adapter: user from `useSelectedAccount()`, `fetchEntryHtml` via the daemon HTTP file URL, `navigate` via
+  `useNavigate`, `openExternal` via the existing shell-open IPC). The mount shadows every document _view_ route at or
+  beneath its path (the plain document view and its activity / discussion / other views), but never a _draft_ route, so
+  drafts at or beneath a mount stay editable and child-document creation keeps working.
 - Site settings gets an **Extensions** tab (`pages/site-settings.tsx`): list installs from the home document metadata,
   add by `hm://` URL (fetch → show manifest + permissions → choose mount path, pinned by default), remove, update to
   latest. Writes via `useUpdateHomeDocument`.
 - Settings → Advanced → DEVELOPERS gets an **Extension dev overrides** editor (extension id → dev URL) backed by the
   same localStorage key.
-- Site navigation lists installs with `nav !== false`.
+- Site navigation: `computeHeaderData` in `resource-page-common.tsx` appends installs with `nav !== false` to the site
+  header items on both web and desktop, labelled `title || mountPath`, after the manual navigation items (deduplicated
+  by id). Mounts are not listed in the desktop sidebar.
 
 ## 5. Bridge protocol
 
@@ -182,11 +196,19 @@ Normative types: `ExtensionMethods`, `ExtensionEvents`, message shapes in `exten
 - Handshake: SDK sends `hello` (retrying until answered); host replies with the `ExtensionContext`. Host pushes
   `context` events on any change (user, theme, route).
 - Reads: `api.query {key, input}` restricted to `EXTENSION_READ_QUERY_KEYS`. The host accepts `hm://` **strings** for
-  `id` fields in `Resource`, `ResourceMetadata` and `Query` inputs and unpacks them (the SDK stays dependency-free).
+  `id` fields in `Resource` and `ResourceMetadata` inputs (and the nested id fields listed in `ID_FIELDS`) and unpacks
+  them (the SDK stays dependency-free); `Query`, `Search` and `ListEvents` take no ids and are validated whole with
+  their zod schemas.
 - Writes: `sign.comment`, `sign.document`, `sign.data` — each requires the `sign` permission, a signed-in user, and user
   confirmation.
-  - `sign.document` builds a change with `metadata` set-attribute ops (null → delete) and optional full body replace via
-    `blocks`; host publishes with `universalClient.publishDocument`.
+  - `sign.comment` derives the thread root from the parent comment: when `replyCommentVersion` is given without
+    `rootReplyCommentVersion`, the host fetches the parent and uses its `threadRoot`, falling back to the parent itself
+    when the parent is a root — the same rule as the daemon's `CreateComment` and the other clients.
+  - `sign.document` builds the Change client-side with `metadata` set-attribute ops (null → delete) and optional full
+    body replace via `blocks` (`createChangeOps`, `createChange`), signs a Version Ref (`createVersionRef`) and
+    publishes the blobs with `universalClient.publish`. The result `version` is the CID of the signed Change. When
+    nothing differs from the published document the call resolves with the current version without a dialog. Metadata
+    changes to `extensions` or `seedExtension` are always confirmed, even with a session grant.
   - `sign.data` signs `buildSignDataPayload(extensionId, bytes)` — a domain separated prefix so an extension signature
     can never be replayed as a protocol blob. Returns signature, signer principal and account id.
 - Errors: `{code, message}` with codes
@@ -198,10 +220,14 @@ Normative types: `ExtensionMethods`, `ExtensionEvents`, message shapes in `exten
   inert bytes until loaded into the sandbox; the host never `eval`s it.
 - **Keys never cross the bridge.** Signing goes through `HMSigner` on the host (web: non-extractable WebCrypto device
   key holding a vault delegation; desktop: daemon `SignData`). The iframe gets bytes back, never key material.
-- **Every signature is confirmed** by a native dialog naming the extension, the account and the effect. A session-scoped
-  "always allow" exists for convenience; it is never persisted.
+- **Every signature is confirmed** by a native dialog naming the extension, the account and the effect. The dialog warns
+  when a dev override is active, and its **Approve** button is inert for ~500 ms after opening so an in-flight click
+  cannot approve. A session-scoped "always allow" exists for convenience; it is never persisted, it is keyed on
+  `(extension, site, account, code source)`, and it never covers changes to the `extensions` install records or a
+  `seedExtension` manifest — those are always confirmed.
 - **Domain separation** for raw signatures (`sign.data`).
-- **Version pinning** by document version CID: the site owner chooses when the code they run changes.
+- **Version pinning** by document version CID: the site owner chooses when the code they run changes. Dev overrides are
+  the only exception and are per browser: `?extdev=` accepts loopback URLs only, everything else is ignored.
 - **Permissions** are declared in the manifest and enforced per method; the install UI shows them.
 - **Install is signed data** — only holders of write capability on the site's home document can install.
 - Non-goals for v1: network egress control (the iframe can `fetch` any CORS endpoint), resource limits, cross-extension

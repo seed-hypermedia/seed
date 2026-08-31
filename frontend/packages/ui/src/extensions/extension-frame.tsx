@@ -145,7 +145,7 @@ export function ExtensionFrame({
       createExtensionHandlers({
         client,
         adapter,
-        extension: {id: extensionId, name: extensionName, version: extensionVersion},
+        extension: {id: extensionId, name: extensionName, version: extensionVersion, devUrl: devUrl ?? null},
         site: {uid: siteUid, name: siteName},
         getUser: () => contextRef.current.user,
         confirmSign,
@@ -153,7 +153,18 @@ export function ExtensionFrame({
         // ui.resize is only honoured in embedded contexts (future block use); pages fill the body.
         onResize: undefined,
       }),
-    [client, adapter, extensionId, extensionName, extensionVersion, siteUid, siteName, confirmSign, onPushPublished],
+    [
+      client,
+      adapter,
+      extensionId,
+      extensionName,
+      extensionVersion,
+      siteUid,
+      siteName,
+      confirmSign,
+      onPushPublished,
+      devUrl,
+    ],
   )
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
@@ -172,9 +183,12 @@ export function ExtensionFrame({
       has: (_target, method: string) => method in handlersRef.current,
     })
     const server = createExtensionBridgeServer({
-      post: (msg) => {
+      post: (msg, target) => {
         const win = iframeRef.current?.contentWindow
-        if (win) win.postMessage(msg, '*')
+        if (!win) return
+        // A response for a request from a torn-down frame must not reach the new one.
+        if (target && target !== win) return
+        win.postMessage(msg, '*')
       },
       isTrustedSource: (source) => !!source && source === iframeRef.current?.contentWindow,
       getContext: () => contextRef.current,
@@ -202,7 +216,12 @@ export function ExtensionFrame({
 
   // ── Load entry ──
   const entryCid = extensionEntryCid(manifest)
-  const fetchEntryHtml = adapter.fetchEntryHtml
+  // Hosts rebuild the adapter when user/theme/route change; the entry loader
+  // must not re-run for that (the extension gets a `context` event instead),
+  // so `fetchEntryHtml` is read through a ref — like the handlers — and the
+  // effect keys only on the code source.
+  const fetchEntryHtmlRef = useRef(adapter.fetchEntryHtml)
+  fetchEntryHtmlRef.current = adapter.fetchEntryHtml
   useEffect(() => {
     let cancelled = false
     setFrameLoaded(false)
@@ -211,7 +230,7 @@ export function ExtensionFrame({
       return
     }
     setLoad({status: 'loading'})
-    fetchEntryHtml(entryCid).then(
+    fetchEntryHtmlRef.current(entryCid).then(
       (html) => {
         if (cancelled) return
         setLoad({status: 'ready', srcdoc: html})
@@ -224,7 +243,7 @@ export function ExtensionFrame({
     return () => {
       cancelled = true
     }
-  }, [devUrl, entryCid, fetchEntryHtml, reloadToken])
+  }, [devUrl, entryCid, reloadToken])
 
   const retry = useCallback(() => setReloadToken((t) => t + 1), [])
 

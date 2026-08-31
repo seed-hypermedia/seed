@@ -1,7 +1,7 @@
 import {LoaderFunction} from '@remix-run/node'
 import {OptimizedImageSize} from '@shm/shared'
-import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
+import {daemonIpfsUrl, parseCidParam} from '@/utils/cid-param'
 import fs from 'fs/promises'
 import path from 'path'
 import sharp from 'sharp'
@@ -27,12 +27,13 @@ export const loader: LoaderFunction = async ({params, request}) => {
 }
 
 async function loadImage(params: Record<string, string | undefined>, request: Request, authToken: string | null) {
-  const entityPath = params['*']?.split('/')
-  const CID = entityPath?.[0]
+  // Validated + re-serialized: the CID is used both in the daemon URL and as a
+  // cache file name, so it must be a plain multibase string.
+  const CID = parseCidParam(params['*'])
   const url = new URL(request.url)
   const size = (url.searchParams.get('size') || 'M') as OptimizedImageSize
 
-  if (!CID) return new Response('No CID provided', {status: 400})
+  if (!CID) return new Response('Invalid CID', {status: 400})
   const width = IMG_SIZE_WIDTHS[size]
   if (!width) {
     return new Response(`Invalid size, must be ${Object.keys(IMG_SIZE_WIDTHS).join(', ')}`, {status: 400})
@@ -158,7 +159,7 @@ async function loadImage(params: Record<string, string | undefined>, request: Re
 }
 
 async function fetchSourceImage(CID: string, authToken: string | null): Promise<SourceImage> {
-  const imageUrl = `${DAEMON_HTTP_URL}/ipfs/${CID}`
+  const imageUrl = daemonIpfsUrl(CID)
   const response = await fetch(imageUrl, {headers: authToken ? {Authorization: `Bearer ${authToken}`} : undefined})
   if (!response.ok) throw new Error(`Failed to fetch image from ${imageUrl}`)
 

@@ -14,7 +14,7 @@ import {
   loadWebDraftPlaceholderResource,
   SiteDocumentPayload,
 } from '@/loaders'
-import {resolveExtensionRequest} from '@/extension-route'
+import {extensionRequestTarget, resolveExtensionRequest} from '@/extension-route'
 import {WebExtensionPage, type ExtensionPagePayload} from '@/web-extension-page'
 import {SiteSettingsEmailsScreen, type SiteSettingsEmailsPayload} from '@/site-settings-emails-content'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
@@ -365,12 +365,24 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   // here it is handed to loadSiteResource below so it is not loaded twice.
   let homeMetadataPayload: HMMetadataPayload | undefined
   let extensionSiteHomeMetadata: HMMetadataPayload | undefined
+  const loadHomeMetadata = (siteUid: string) =>
+    instrument(ctx, `getHomeMetadata(${siteUid})`, () => getMetadata(hmId(siteUid)))
+  // Gateway pages for another account resolve mounts against THAT account's
+  // home. loadSiteResource needs the registered site's home either way, so
+  // fetch it concurrently rather than serially afterwards (getMetadata never
+  // rejects, so an unused result when the extension branch returns is harmless).
+  const extensionTarget = extensionRequestTarget(rawSitePath, registeredAccountUid)
+  const registeredHomePromise =
+    extensionTarget && extensionTarget.pathParts.length > 0 && extensionTarget.siteUid !== registeredAccountUid
+      ? loadHomeMetadata(registeredAccountUid)
+      : null
   const extensionMount = await resolveExtensionRequest(rawSitePath, registeredAccountUid, async (siteUid) => {
-    const payload = await instrument(ctx, `getHomeMetadata(${siteUid})`, () => getMetadata(hmId(siteUid)))
+    const payload = await loadHomeMetadata(siteUid)
     extensionSiteHomeMetadata = payload
     if (siteUid === registeredAccountUid) homeMetadataPayload = payload
     return payload.metadata
   })
+  if (registeredHomePromise) homeMetadataPayload = await registeredHomePromise
   if (extensionMount && extensionSiteHomeMetadata) {
     const {siteUid, ...mount} = extensionMount
     const headerData = await instrument(ctx, 'loadSiteHeaderData', () => loadSiteHeaderData(parsedRequest, {siteUid}))

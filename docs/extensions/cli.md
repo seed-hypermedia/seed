@@ -136,7 +136,7 @@ seed-cli extension install hm://z6MkstarLight.../kanban --latest --force -k mysi
 | `--path <mount>`    | mount path; default manifest `defaultMountPath` (required when the manifest has none) |
 | `-k, --key <name>`  | the site's key — the site is this key's own account                                   |
 | `--latest`          | follow the latest extension version instead of pinning                                |
-| `--title <title>`   | navigation title (defaults to the extension name at render time)                      |
+| `--title <title>`   | navigation title (the mount path is shown when no title is set)                       |
 | `--no-nav`          | hide the mount from site navigation                                                   |
 | `--settings <json>` | JSON object passed to the extension as `context.settings`                             |
 | `--force`           | replace an existing record at that mount (fields the new record lacks are removed)    |
@@ -151,7 +151,8 @@ Behaviour:
 - Warns when a document (or redirect) already exists at `hm://<site>/<mount>`: the extension page shadows it in the site
   UI, the document stays readable through the API (extensions often use that document as their data store).
 - Warns when the mount overlaps another install (`board` vs `board/x`); the longest match wins per request path.
-- Refuses to overwrite an existing record without `--force`. Installing the identical record again is a no-op.
+- Refuses to overwrite an existing record without `--force` (even an identical one); with `--force`, re-installing an
+  identical record publishes nothing (no-op).
 
 ```
 ✓ Installed "Kanban" at hm://z6MkmySite.../board (pinned bafy2bzacecwx..., settings {"columns":4})

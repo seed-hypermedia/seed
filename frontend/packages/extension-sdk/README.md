@@ -112,8 +112,8 @@ and `Query` takes `{includes: [{space, path?, mode}], sort?, limit?}` with no id
 
 ## Sandbox limitations
 
-The iframe runs with `sandbox="allow-scripts allow-forms allow-popups allow-modals"` and **no** `allow-same-origin`, so
-it has an opaque origin:
+The iframe runs with `sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"`
+(`EXTENSION_IFRAME_SANDBOX` in `@shm/ui`) and **no** `allow-same-origin`, so it has an opaque origin:
 
 - **No `localStorage`, `sessionStorage`, `indexedDB` or cookies** — reading them throws. Use `seed.storage`, which the
   host keeps per extension in the viewer's browser.

@@ -36,7 +36,7 @@ the others are increments, not rewrites.
 
 ## Things pages will want soon
 
-- Extension mounts in site navigation (web header) and desktop sidebar.
+- Extension mounts in the desktop sidebar (they already appear in the site header on web and desktop).
 - `nav: false` mounts as "hidden tools".
 - Per-viewer `settings` in addition to site `settings`.
 - A `document.subscribe` bridge event so extensions re-render on new versions.

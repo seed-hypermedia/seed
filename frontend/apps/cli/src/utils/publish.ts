@@ -86,11 +86,17 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * one per leaf — the same op shape the desktop emits when it removes an
  * object from metadata (see `expandObjectRemovals` in @shm/shared). Leaves
  * whose value is unchanged are skipped, so an empty result means no-op.
+ * When the shape changes (an object becomes a scalar/array or vice versa)
+ * the new value is written at `key` itself.
  */
 export function diffAttributes(key: string[], next: unknown, previous: unknown, attrs: Attribute[] = []): Attribute[] {
-  if (isPlainObject(next) || isPlainObject(previous)) {
-    const nextObj = isPlainObject(next) ? next : undefined
-    const prevObj = isPlainObject(previous) ? previous : undefined
+  const nextObj = isPlainObject(next) ? next : undefined
+  const prevObj = isPlainObject(previous) ? previous : undefined
+  // Recurse only when both sides are objects (or an object is being removed).
+  // A shape change (object <-> scalar/array) is written at `key` itself: the
+  // daemon drops descendant registers when an ancestor is set and vice versa,
+  // so writing the new value at `key` is enough to replace the old object.
+  if ((nextObj && prevObj) || (next === undefined && prevObj)) {
     const keys = new Set([...Object.keys(prevObj ?? {}), ...Object.keys(nextObj ?? {})])
     for (const child of keys) {
       diffAttributes([...key, child], nextObj?.[child], prevObj?.[child], attrs)

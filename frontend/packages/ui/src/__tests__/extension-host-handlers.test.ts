@@ -8,8 +8,11 @@ import {
   buildReplaceBodyOps,
   createExtensionHandlers,
   createSessionAllowStore,
+  diffAttributes,
   ensureBlockIds,
   markdownToBlockNodes,
+  MAX_FILE_READ_MAX_BYTES,
+  sessionAllowKey,
   type ExtensionHandlerDeps,
 } from '../extensions/host-handlers'
 import {decode as cborDecode} from '@ipld/dag-cbor'
@@ -181,6 +184,18 @@ describe('file + navigation + storage + ui', () => {
     expect(await handlers['file.read']({cid: 'bafk'})).toEqual({base64: 'AQID', contentType: 'text/bafk'})
   })
 
+  it('file.read clamps maxBytes to the hard ceiling', async () => {
+    const {deps, d} = makeDeps()
+    const readFile = vi.fn(async () => ({bytes: new Uint8Array(), contentType: 'x'}))
+    const handlers = createExtensionHandlers({...deps, adapter: {...d.adapter, readFile}})
+    await handlers['file.read']({cid: 'bafk'})
+    expect(readFile).toHaveBeenLastCalledWith('bafk', 10 * 1024 * 1024)
+    await handlers['file.read']({cid: 'bafk', maxBytes: 1000})
+    expect(readFile).toHaveBeenLastCalledWith('bafk', 1000)
+    await handlers['file.read']({cid: 'bafk', maxBytes: Number.MAX_SAFE_INTEGER})
+    expect(readFile).toHaveBeenLastCalledWith('bafk', MAX_FILE_READ_MAX_BYTES)
+  })
+
   it('validates navigate / openExternal urls', async () => {
     const {deps, d} = makeDeps()
     const handlers = createExtensionHandlers(deps)
@@ -255,6 +270,26 @@ describe('sign.data', () => {
     await handlers['sign.data']({base64: 'AA==', purpose: 'p'})
     await handlers['sign.data']({base64: 'AA==', purpose: 'p'})
     expect(d.confirmSign).toHaveBeenCalledTimes(2)
+    expect(d.confirmSign.mock.calls[1]?.[0]).toMatchObject({sessionAllowBypassed: false})
+  })
+
+  it('a session grant does not carry over to a different code source (dev override)', async () => {
+    const {deps, d} = makeDeps()
+    const published = createExtensionHandlers(deps)
+    d.confirmSign.mockResolvedValueOnce({allowSession: true})
+    await published['sign.data']({base64: 'AA==', purpose: 'p'})
+    await published['sign.data']({base64: 'AA==', purpose: 'p'})
+    expect(d.confirmSign).toHaveBeenCalledTimes(1)
+
+    // Same extension, site, account and allow store — but override code is asking.
+    const overridden = createExtensionHandlers({
+      ...deps,
+      extension: {...deps.extension, devUrl: 'http://localhost:5181'},
+    })
+    await overridden['sign.data']({base64: 'AA==', purpose: 'p'})
+    expect(d.confirmSign).toHaveBeenCalledTimes(2)
+    expect(d.confirmSign.mock.calls[1]?.[0]).toMatchObject({extension: {devUrl: 'http://localhost:5181'}})
+    expect(sessionAllowKey('e', 's', 'a')).not.toBe(sessionAllowKey('e', 's', 'a', 'http://localhost:5181'))
   })
 })
 
@@ -299,6 +334,59 @@ describe('sign.comment', () => {
       blocks: [{block: {id: 'b1', type: 'Paragraph', text: 'hi', annotations: [], attributes: {}}}],
     })
     expect(ok.commentId).toBeTruthy()
+  })
+
+  it('derives the thread root from the parent comment when only replyCommentVersion is given', async () => {
+    const ROOT = GENESIS
+    const PARENT = HEAD
+    const {deps, d} = makeDeps()
+    const baseRequest = d.client.request as ReturnType<typeof vi.fn>
+    const original = baseRequest.getMockImplementation() as (key: string, input: unknown) => Promise<unknown>
+    baseRequest.mockImplementation(async (key: string, input: unknown) => {
+      if (key === 'Comment') {
+        d.requests.push({key, input})
+        if (input === PARENT) {
+          return {id: `${USER_UID}/p1`, version: PARENT, threadRoot: `${USER_UID}/r1`, threadRootVersion: ROOT}
+        }
+        if (input === ROOT) return {id: `${USER_UID}/r1`, version: ROOT}
+        throw new Error('not found')
+      }
+      return original(key, input)
+    })
+    const handlers = createExtensionHandlers(deps)
+
+    // Reply to a reply: threadRoot must be the root, not the parent.
+    await handlers['sign.comment']({targetId: `hm://${SITE_UID}/board`, markdown: 'x', replyCommentVersion: PARENT})
+    expect(d.requests.find((r) => r.key === 'Comment')?.input).toBe(PARENT)
+    expect(d.confirmSign.mock.calls[0]?.[0]).toMatchObject({detail: {kind: 'comment', isReply: true}})
+    let blob = cborDecode((d.published[0] as {blobs: Array<{data: Uint8Array}>}).blobs[0]!.data) as {
+      replyParent?: unknown
+      threadRoot?: unknown
+    }
+    expect(String(blob.replyParent)).toBe(PARENT)
+    expect(String(blob.threadRoot)).toBe(ROOT)
+
+    // Reply to a root comment: the root is its own thread root.
+    await handlers['sign.comment']({targetId: `hm://${SITE_UID}/board`, markdown: 'y', replyCommentVersion: ROOT})
+    blob = cborDecode((d.published[1] as {blobs: Array<{data: Uint8Array}>}).blobs[0]!.data) as typeof blob
+    expect(String(blob.replyParent)).toBe(ROOT)
+    expect(String(blob.threadRoot)).toBe(ROOT)
+
+    // Explicit rootReplyCommentVersion is used as-is, without a lookup.
+    const before = d.requests.filter((r) => r.key === 'Comment').length
+    await handlers['sign.comment']({
+      targetId: `hm://${SITE_UID}/board`,
+      markdown: 'z',
+      replyCommentVersion: PARENT,
+      rootReplyCommentVersion: ROOT,
+    })
+    expect(d.requests.filter((r) => r.key === 'Comment').length).toBe(before)
+
+    // Unknown parent → invalid_params, nothing published.
+    await expect(
+      handlers['sign.comment']({targetId: `hm://${SITE_UID}/board`, markdown: 'w', replyCommentVersion: 'bafynope'}),
+    ).rejects.toMatchObject({code: 'invalid_params'})
+    expect(d.published).toHaveLength(3)
   })
 })
 
@@ -447,6 +535,47 @@ describe('sign.document', () => {
   })
 })
 
+describe('sign.document + session grant', () => {
+  it('always confirms writes to extension install records / manifests, even with a session grant', async () => {
+    const {deps, d} = makeDeps()
+    d.adapter.user = {accountId: SITE_UID}
+    const handlers = createExtensionHandlers(deps)
+    d.confirmSign.mockResolvedValueOnce({allowSession: true})
+    await handlers['sign.data']({base64: 'AA==', purpose: 'p'})
+    expect(d.confirmSign).toHaveBeenCalledTimes(1)
+
+    // Ordinary metadata: covered by the grant, no dialog.
+    await handlers['sign.document']({id: `hm://${SITE_UID}/board`, metadata: {name: 'Renamed'}})
+    expect(d.confirmSign).toHaveBeenCalledTimes(1)
+
+    // Install record on the home document: confirmed despite the grant.
+    await handlers['sign.document']({
+      id: `hm://${SITE_UID}`,
+      metadata: {extensions: {board: {ext: 'hm://z6MkAttacker/ext'}}},
+    })
+    expect(d.confirmSign).toHaveBeenCalledTimes(2)
+    expect(d.confirmSign.mock.calls[1]?.[0]).toMatchObject({
+      sessionAllowBypassed: true,
+      detail: {kind: 'document', metadataChanges: [{key: 'extensions'}]},
+    })
+
+    // Manifest on an extension document: also confirmed.
+    await handlers['sign.document']({
+      id: `hm://${SITE_UID}/ext`,
+      metadata: {seedExtension: {manifestVersion: 1, kind: 'page', version: '2', entry: 'ipfs://bafk'}},
+    })
+    expect(d.confirmSign).toHaveBeenCalledTimes(3)
+
+    // Denying the forced confirmation blocks the publish.
+    const publishedBefore = d.published.length
+    d.confirmSign.mockRejectedValueOnce(new ExtensionError('user_rejected', 'no'))
+    await expect(
+      handlers['sign.document']({id: `hm://${SITE_UID}`, metadata: {extensions: {x: {ext: 'hm://z6MkA/e'}}}}),
+    ).rejects.toMatchObject({code: 'user_rejected'})
+    expect(d.published).toHaveLength(publishedBefore)
+  })
+})
+
 describe('helpers', () => {
   it('markdownToBlockNodes splits paragraphs and headings', () => {
     const nodes = markdownToBlockNodes('# Title\n\nOne\n\nTwo')
@@ -481,6 +610,34 @@ describe('helpers', () => {
     ])
     expect(summary.map((c) => c.key)).toEqual(['name', 'tags', 'score', 'gone', 'obj'])
     expect(buildMetadataOps({same: 'x'}, {same: 'x'}).op).toBeNull()
+  })
+
+  it('diffAttributes writes shape changes at the key itself', () => {
+    // object → string: the requested value is written (not just the old leaves nulled)
+    expect(diffAttributes(['layout'], 'grid', {cols: 3})).toEqual([{key: ['layout'], value: 'grid'}])
+    // object → array
+    expect(diffAttributes(['tags'], ['a', 'b'], {a: 1})).toEqual([{key: ['tags'], value: ['a', 'b']}])
+    // string → object: nested leaves written; the daemon drops the old ancestor register
+    expect(diffAttributes(['layout'], {cols: 3}, 'grid')).toEqual([{key: ['layout', 'cols'], value: 3}])
+    // array → object
+    expect(diffAttributes(['tags'], {a: 1}, ['a'])).toEqual([{key: ['tags', 'a'], value: 1}])
+    // object → object still diffs leaf-wise
+    expect(diffAttributes(['o'], {a: 1, b: 2}, {a: 1, c: 3})).toEqual([
+      {key: ['o', 'c'], value: null},
+      {key: ['o', 'b'], value: 2},
+    ])
+    // object removal still nulls every leaf
+    expect(diffAttributes(['obj'], undefined, {a: 1, b: {c: 2}})).toEqual([
+      {key: ['obj', 'a'], value: null},
+      {key: ['obj', 'b', 'c'], value: null},
+    ])
+    // scalar → scalar, unchanged → nothing
+    expect(diffAttributes(['n'], 'x', 'x')).toEqual([])
+    expect(diffAttributes(['n'], 2, 1)).toEqual([{key: ['n'], value: 2}])
+    // via buildMetadataOps: the op carries the new value and the summary matches it
+    const {op, summary} = buildMetadataOps({layout: 'grid'}, {layout: {cols: 3}})
+    expect((op as unknown as {attrs: unknown[]}).attrs).toEqual([{key: ['layout'], value: 'grid'}])
+    expect(summary).toEqual([{key: 'layout', before: {cols: 3}, after: 'grid'}])
   })
 
   it('buildReplaceBodyOps deletes descendants of removed blocks', () => {

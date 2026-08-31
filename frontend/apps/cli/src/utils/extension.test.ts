@@ -261,4 +261,24 @@ describe('publish attribute helpers', () => {
     expect(diffAttributes(['x'], 'a', null)).toEqual([{key: ['x'], value: 'a'}])
     expect(diffAttributes(['x'], undefined, null)).toEqual([])
   })
+
+  test('diffAttributes writes the new value at the key when the shape changes', () => {
+    // object -> string: the string is written at the key; the daemon drops
+    // the descendant registers when an ancestor register is set.
+    expect(diffAttributes(['layout'], 'grid', {cols: 3})).toEqual([{key: ['layout'], value: 'grid'}])
+    // object -> array
+    expect(diffAttributes(['tags'], ['a', 'b'], {a: 1})).toEqual([{key: ['tags'], value: ['a', 'b']}])
+    // string -> object: the nested leaves are written; the daemon drops the
+    // old ancestor register when a descendant is set.
+    expect(diffAttributes(['layout'], {cols: 3}, 'grid')).toEqual([{key: ['layout', 'cols'], value: 3}])
+    // array -> object
+    expect(diffAttributes(['tags'], {a: 1}, ['a', 'b'])).toEqual([{key: ['tags', 'a'], value: 1}])
+    // object removed: one null per leaf, as before
+    expect(diffAttributes(['obj'], undefined, {a: 1, b: {c: 2}})).toEqual([
+      {key: ['obj', 'a'], value: null},
+      {key: ['obj', 'b', 'c'], value: null},
+    ])
+    // object -> object still diffs leaf-wise
+    expect(diffAttributes(['obj'], {a: 1, b: 3}, {a: 1, b: 2})).toEqual([{key: ['obj', 'b'], value: 3}])
+  })
 })

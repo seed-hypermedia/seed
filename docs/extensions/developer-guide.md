@@ -213,7 +213,11 @@ The inputs for every key are listed in [bridge-api.md](./bridge-api.md#read-quer
 All three `sign.*` methods need the `sign` permission and a signed-in viewer, and every call opens a native confirmation
 dialog in the host naming your extension, the site, the account and the effect. The promise settles when the viewer
 approves (result) or denies (`user_rejected`). The viewer can tick "Allow this extension to sign for the rest of this
-session"; that is in memory only.
+session"; that is in memory only, scoped to your extension on this site for this account and this code source (a grant
+given to the published entry does not apply to a dev override, or vice versa), and it never covers a `sign.document`
+that writes the `extensions` or `seedExtension` metadata keys — those always ask. Do not build UI that expects an
+instant Approve: the button is inert for about half a second after the dialog opens, and the dialog shows a warning
+while a dev override is active.
 
 ### Comments
 
@@ -223,7 +227,9 @@ const {commentId} = await seed.sign.comment({targetId, markdown: 'Hello from the
 ```
 
 `markdown` is converted to blocks by the host; pass `blocks` (`HMBlockNode[]`) instead for full control. `targetVersion`
-defaults to the latest known version of the target; `replyCommentVersion` / `rootReplyCommentVersion` make it a reply.
+defaults to the latest known version of the target; `replyCommentVersion` makes it a reply. You can omit
+`rootReplyCommentVersion`: the host fetches the parent comment and uses its thread root (or the parent itself when it is
+a root), so a reply to a reply lands in the right discussion.
 
 ### Documents
 
@@ -231,9 +237,12 @@ defaults to the latest known version of the target; `replyCommentVersion` / `roo
 It is a **merge**, not a replace:
 
 - `metadata` — only the keys you pass are touched. Existing keys you do not mention are left alone. A value of `null`
-  deletes the key (object-valued keys are deleted leaf by leaf). Values must be strings, booleans, integers or nested
-  objects of those; the host publishes them as document attributes.
-  <!-- TODO(verify): non-integer numbers are silently dropped and arrays are flattened into numeric-keyed objects by the attribute encoder (shared/utils/document-changes.ts); confirm how arrays read back before recommending them. -->
+  deletes the key (object-valued keys are deleted leaf by leaf). Values may be strings, numbers, booleans, arrays
+  (stored whole, read back as arrays) or nested objects of those; the host publishes them as document attributes with
+  its own encoder (`flattenAttributes` in `ui/src/extensions/host-handlers.ts`: objects become nested key paths, arrays
+  a single value). One consequence: an **empty object** produces no attribute at all, so `{cards: {}}` does not exist in
+  the document when read back — treat a missing map as empty (kanban does). Replacing an object-valued key with a scalar
+  or array (or the reverse) writes the new value at that key.
 - `blocks` — replaces the whole body with the given `HMBlockNode[]`. Omit it to leave the content untouched. Blocks keep
   their ids when you supply them, so an extension that round-trips the existing content edits in place; missing or
   duplicate ids are regenerated.
@@ -314,7 +323,9 @@ await seed.setRoute(['card', card.id], {tab: 'notes'})
 ```
 
 The mount **shadows** the document at that path and everything beneath it: readers get your extension, not the document
-page. The document still exists and is reachable through the API, which is why kanban stores its state there.
+page (on the web every view of the document; on desktop every document view route, but never a draft route, so the owner
+can still edit drafts there). The document still exists and is reachable through the API, which is why kanban stores its
+state there.
 
 ## Storage
 
@@ -377,11 +388,15 @@ export function describeError(error: unknown): string {
 3. Point the host at your dev server:
    - **Web:** open the extension's page and append `?extdev=http://localhost:5181`. The host writes the override into
      `localStorage['seed.extensions.devOverrides'][extensionId]`, strips the parameter from the URL and reloads the
-     frame from your dev server. `?extdev=off` clears it.
+     frame from your dev server. `?extdev=off` clears it. Only loopback URLs are accepted here — `localhost`,
+     `*.localhost`, `127.0.0.1` or `[::1]` — anything else is ignored (and still stripped), so a link cannot point
+     someone's browser at remote code.
    - **Desktop:** Settings → Advanced → DEVELOPERS → **Extension dev overrides** → Edit overrides. Add a row with the
-     extension id (`hm://<author>/<path>`, no version) and the dev URL.
+     extension id (`hm://<author>/<path>`, no version) and the dev URL. This editor is the only place a non-loopback
+     override can be entered.
 4. A yellow **Dev override: http://localhost:5181** banner sits above the frame while an override is active; click it to
-   clear the override. `context.dev` is `true` in the extension.
+   clear the override. `context.dev` is `true` in the extension, and every sign confirmation dialog shows a warning with
+   the override URL. A session grant given to the published entry does not apply to the override.
 
 The override still runs inside the same sandbox and speaks the same protocol, so what you see is what ships — except
 that relative URLs resolve under `src=` and not under `srcdoc` (see the constraints table). Build before publishing.

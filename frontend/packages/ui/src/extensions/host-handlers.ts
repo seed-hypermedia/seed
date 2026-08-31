@@ -19,7 +19,12 @@ import {createChange, createChangeOps, type DocumentOperation} from '@seed-hyper
 import type {SeedClient} from '@seed-hypermedia/client/client'
 import {commentRecordIdFromBlob, createComment, trimTrailingEmptyBlocks} from '@seed-hypermedia/client/comment'
 import {resolveDocumentState, type DocumentState} from '@seed-hypermedia/client/document-state'
-import {buildSignDataPayload, ExtensionError} from '@seed-hypermedia/client/extensions'
+import {
+  buildSignDataPayload,
+  EXTENSION_INSTALLS_KEY,
+  EXTENSION_MANIFEST_KEY,
+  ExtensionError,
+} from '@seed-hypermedia/client/extensions'
 import {
   HMBlockNodeSchema,
   hmIdPathToEntityQueryPath,
@@ -48,6 +53,8 @@ import {
 import type {ConfirmSignFn, SignConfirmMetadataChange, SignConfirmRequest} from './sign-confirm-dialog'
 
 const DEFAULT_FILE_READ_MAX_BYTES = 10 * 1024 * 1024
+/** Hard ceiling for `file.read`: a caller-supplied `maxBytes` can never exceed it. */
+export const MAX_FILE_READ_MAX_BYTES = 32 * 1024 * 1024
 
 // ── Session allow list ───────────────────────────────────────────────────────
 
@@ -69,16 +76,43 @@ export function createSessionAllowStore(): SessionAllowStore {
 
 export const defaultSessionAllowStore = createSessionAllowStore()
 
-export function sessionAllowKey(extensionId: string, siteUid: string, accountId: string): string {
-  return `${extensionId}|${siteUid}|${accountId}`
+/**
+ * `codeSource` is the dev override URL when one is active (null/undefined for
+ * the published entry): a grant given to the published code must not carry
+ * over to override code, and vice versa.
+ */
+export function sessionAllowKey(
+  extensionId: string,
+  siteUid: string,
+  accountId: string,
+  codeSource?: string | null,
+): string {
+  return `${extensionId}|${siteUid}|${accountId}|${codeSource ?? ''}`
 }
+
+/**
+ * Metadata keys that change which code a site runs (install records on the
+ * home document, the manifest on an extension document). Writes touching them
+ * are always confirmed, even when a session grant exists — otherwise a
+ * time-bounded grant could be turned into persistent control (security.md §7).
+ */
+export const ALWAYS_CONFIRM_METADATA_KEYS: ReadonlySet<string> = new Set<string>([
+  EXTENSION_INSTALLS_KEY,
+  EXTENSION_MANIFEST_KEY,
+])
 
 // ── Factory ──────────────────────────────────────────────────────────────────
 
 export type ExtensionHandlerDeps = {
   client: UniversalClient
   adapter: ExtensionHostAdapter
-  extension: {id: string; name: string; version: string | null}
+  extension: {
+    id: string
+    name: string
+    version: string | null
+    /** Active developer override URL (code source), if any. */
+    devUrl?: string | null
+  }
   site: {uid: string; name?: string}
   /** Read on every call so sign-in changes are seen without recreating the handlers. */
   getUser: () => ExtensionHostUser | null
@@ -110,14 +144,20 @@ export function createExtensionHandlers(deps: ExtensionHandlerDeps): ExtensionHa
     return deps.client.getSigner(accountId)
   }
 
-  async function confirm(user: ExtensionHostUser, detail: SignConfirmRequest['detail']) {
-    const key = sessionAllowKey(deps.extension.id, deps.site.uid, user.accountId)
-    if (sessionAllow.has(key)) return
+  async function confirm(
+    user: ExtensionHostUser,
+    detail: SignConfirmRequest['detail'],
+    opts?: {ignoreSessionAllow?: boolean},
+  ) {
+    const key = sessionAllowKey(deps.extension.id, deps.site.uid, user.accountId, deps.extension.devUrl)
+    const granted = sessionAllow.has(key)
+    if (granted && !opts?.ignoreSessionAllow) return
     const result = await deps.confirmSign({
       extension: deps.extension,
       site: deps.site,
       account: user,
       detail,
+      sessionAllowBypassed: granted,
     })
     if (result.allowSession) sessionAllow.add(key)
   }
@@ -163,7 +203,8 @@ export function createExtensionHandlers(deps: ExtensionHandlerDeps): ExtensionHa
     },
 
     async 'file.read'({cid, maxBytes}) {
-      const {bytes, contentType} = await deps.adapter.readFile(cid, maxBytes ?? DEFAULT_FILE_READ_MAX_BYTES)
+      const limit = Math.min(maxBytes ?? DEFAULT_FILE_READ_MAX_BYTES, MAX_FILE_READ_MAX_BYTES)
+      const {bytes, contentType} = await deps.adapter.readFile(cid, limit)
       return {base64: bytesToBase64(bytes), contentType}
     },
 
@@ -191,6 +232,25 @@ export function createExtensionHandlers(deps: ExtensionHandlerDeps): ExtensionHa
       )
       if (content.length === 0) throw new ExtensionError('invalid_params', 'Comment body is empty')
 
+      // threadRoot must be the root of the thread, not the immediate parent
+      // (same derivation as the daemon's CreateComment and the CLI).
+      let rootReplyCommentVersion = params.rootReplyCommentVersion
+      if (params.replyCommentVersion && !rootReplyCommentVersion) {
+        let parent: {version?: string; threadRootVersion?: string}
+        try {
+          parent = await deps.client.request('Comment', params.replyCommentVersion)
+        } catch (error) {
+          throw new ExtensionError(
+            'invalid_params',
+            `replyCommentVersion does not resolve to a comment: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          )
+        }
+        if (!parent) throw new ExtensionError('invalid_params', 'replyCommentVersion does not resolve to a comment')
+        rootReplyCommentVersion = parent.threadRootVersion || parent.version || params.replyCommentVersion
+      }
+
       const docId: UnpackedHypermediaId = {...targetId, version: null, latest: null, blockRef: null, blockRange: null}
       await confirm(user, {
         kind: 'comment',
@@ -208,7 +268,7 @@ export function createExtensionHandlers(deps: ExtensionHandlerDeps): ExtensionHa
           docId,
           docVersion,
           replyCommentVersion: params.replyCommentVersion,
-          rootReplyCommentVersion: params.rootReplyCommentVersion ?? params.replyCommentVersion,
+          rootReplyCommentVersion,
         },
         signer,
       )
@@ -246,17 +306,22 @@ export function createExtensionHandlers(deps: ExtensionHandlerDeps): ExtensionHa
         throw new ExtensionError('invalid_params', 'Nothing to change: no metadata and no blocks given')
       }
 
-      await confirm(user, {
-        kind: 'document',
-        id: packHmId(docId),
-        name: existing?.metadata?.name ?? stringOrUndefined(params.metadata?.name),
-        exists: !!existing,
-        summary: params.summary,
-        metadataRequested: params.metadata !== undefined,
-        metadataChanges,
-        replaceBody: params.blocks !== undefined,
-        blockCount,
-      })
+      const touchesExtensionConfig = metadataChanges.some((c) => ALWAYS_CONFIRM_METADATA_KEYS.has(c.key))
+      await confirm(
+        user,
+        {
+          kind: 'document',
+          id: packHmId(docId),
+          name: existing?.metadata?.name ?? stringOrUndefined(params.metadata?.name),
+          exists: !!existing,
+          summary: params.summary,
+          metadataRequested: params.metadata !== undefined,
+          metadataChanges,
+          replaceBody: params.blocks !== undefined,
+          blockCount,
+        },
+        {ignoreSessionAllow: touchesExtensionConfig},
+      )
 
       const path = hmIdPathToEntityQueryPath(docId.path)
       let capability: string | undefined
@@ -492,11 +557,16 @@ export function flattenAttributes(value: unknown, key: string[], attrs: Attribut
  * Attributes that turn the published value at `key` into `next` (mirrors the
  * CLI's `diffAttributes`): leaves present in `previous` but absent from `next`
  * are nulled, unchanged leaves are skipped.
+ *
+ * Recurses only when both sides are plain objects (or an object is being
+ * removed). A shape change (object ↔ scalar/array) is written at `key`
+ * itself: the daemon drops descendant registers when an ancestor is set and
+ * vice versa, so the previous leaves need no explicit nulling.
  */
 export function diffAttributes(key: string[], next: unknown, previous: unknown, attrs: Attribute[] = []): Attribute[] {
-  if (isPlainObject(next) || isPlainObject(previous)) {
-    const nextObj = isPlainObject(next) ? next : undefined
-    const prevObj = isPlainObject(previous) ? previous : undefined
+  const nextObj = isPlainObject(next) ? next : undefined
+  const prevObj = isPlainObject(previous) ? previous : undefined
+  if ((nextObj && prevObj) || (next === undefined && prevObj)) {
     const keys = new Set([...Object.keys(prevObj ?? {}), ...Object.keys(nextObj ?? {})])
     for (const child of Array.from(keys)) {
       diffAttributes([...key, child], nextObj?.[child], prevObj?.[child], attrs)

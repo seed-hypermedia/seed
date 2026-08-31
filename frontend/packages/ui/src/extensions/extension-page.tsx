@@ -7,6 +7,7 @@
  */
 
 import {
+  EXTENSION_DEV_OVERRIDES_STORAGE_KEY,
   EXTENSION_DEV_QUERY_PARAM,
   EXTENSION_PROTOCOL_VERSION,
   parseExtensionManifest,
@@ -25,7 +26,7 @@ import {Spinner} from '../spinner'
 import {Text} from '../text'
 import {ExtensionFrame} from './extension-frame'
 import {useExtensionHost} from './extension-host-context'
-import {extensionIdString} from './host-utils'
+import {extensionIdString, loopbackDevUrl} from './host-utils'
 
 export type ExtensionPageProps = {
   /** The id being viewed (site uid + full path, including the mount and any sub path). */
@@ -193,6 +194,11 @@ function useMounted(): boolean {
 /**
  * Developer override for this extension. Also consumes `?extdev=<url|off>`
  * from the current URL (web): writes the override and strips the param.
+ *
+ * Only loopback URLs are accepted from the URL param (see `loopbackDevUrl`):
+ * anything else is ignored — nothing is written — but the param is still
+ * stripped. Overrides written by the desktop settings editor may be any
+ * http(s) URL; they are read back as-is and applied live via `storage` events.
  */
 function useDevOverride(
   extensionId: string | null,
@@ -208,8 +214,13 @@ function useDevOverride(
       const url = new URL(window.location.href)
       const param = url.searchParams.get(EXTENSION_DEV_QUERY_PARAM)
       if (param !== null) {
-        const value = param === 'off' || param === '' ? null : /^https?:\/\//.test(param) ? param : null
-        writeExtensionDevOverride(store as Storage | null, extensionId, value)
+        if (param === 'off' || param === '') {
+          writeExtensionDevOverride(store as Storage | null, extensionId, null)
+        } else {
+          const value = loopbackDevUrl(param)
+          // Non-loopback values are dropped without touching the stored override.
+          if (value) writeExtensionDevOverride(store as Storage | null, extensionId, value)
+        }
         url.searchParams.delete(EXTENSION_DEV_QUERY_PARAM)
         window.history.replaceState(window.history.state, '', url.toString())
       }
@@ -217,6 +228,19 @@ function useDevOverride(
       // URL parsing / history unavailable — ignore
     }
     setDevUrl(readExtensionDevOverrides(store)[extensionId] ?? null)
+  }, [mounted, extensionId, storage])
+
+  // Overrides edited elsewhere (desktop Settings window, another tab) arrive
+  // as `storage` events; re-read so the open page switches without a remount.
+  useEffect(() => {
+    if (!mounted || !extensionId || typeof window === 'undefined') return
+    const store = storage ?? safeLocalStorage()
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== null && e.key !== EXTENSION_DEV_OVERRIDES_STORAGE_KEY) return
+      setDevUrl(readExtensionDevOverrides(store)[extensionId] ?? null)
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [mounted, extensionId, storage])
 
   const clearDevUrl = useCallback(() => {

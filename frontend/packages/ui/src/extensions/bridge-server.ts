@@ -41,8 +41,12 @@ export type ExtensionHandler<M extends ExtensionHandledMethodName> = (
 export type ExtensionHandlers = {[M in ExtensionHandledMethodName]: ExtensionHandler<M>}
 
 export type ExtensionBridgeServerOptions = {
-  /** Deliver a message to the extension (host → iframe). */
-  post: (msg: ExtensionMessage) => void
+  /**
+   * Deliver a message to the extension (host → iframe). `target` is the window
+   * that sent the request being answered (absent for events); hosts should
+   * drop a response whose target is no longer the live iframe window.
+   */
+  post: (msg: ExtensionMessage, target?: Window) => void
   /** Whether a `MessageEvent.source` is the extension's window. */
   isTrustedSource: (source: unknown) => boolean
   /** Current context; read on every request so permission checks see live state. */
@@ -90,9 +94,9 @@ function isExtensionErrorCode(code: string): code is ExtensionErrorPayload['code
 export function createExtensionBridgeServer(options: ExtensionBridgeServerOptions): ExtensionBridgeServer {
   let disposed = false
 
-  function respond(id: number, body: {result: unknown} | {error: ExtensionErrorPayload}) {
+  function respond(id: number, body: {result: unknown} | {error: ExtensionErrorPayload}, target?: Window) {
     if (disposed) return
-    options.post({[EXTENSION_MESSAGE_TAG]: EXTENSION_PROTOCOL_VERSION, type: 'response', id, ...body})
+    options.post({[EXTENSION_MESSAGE_TAG]: EXTENSION_PROTOCOL_VERSION, type: 'response', id, ...body}, target)
   }
 
   async function dispatch(msg: ExtensionRequestMessage): Promise<unknown> {
@@ -136,11 +140,15 @@ export function createExtensionBridgeServer(options: ExtensionBridgeServerOption
     if (data.type !== 'request') return
     if (typeof data.id !== 'number') return
     const id = data.id
+    // Answer the window that asked: if the iframe is torn down and re-created
+    // while a handler is in flight, the response must not reach the new page
+    // (whose request ids restart from 1).
+    const target = typeof Window !== 'undefined' && event.source instanceof Window ? event.source : undefined
     let answered = false
     const once = (body: {result: unknown} | {error: ExtensionErrorPayload}) => {
       if (answered) return
       answered = true
-      respond(id, body)
+      respond(id, body, target)
     }
     dispatch(data).then(
       (result) => once({result: result === undefined ? null : result}),

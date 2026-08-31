@@ -170,15 +170,17 @@ function useExtensionDocuments(mount: ExtensionMount) {
     ? hmId(extId.uid, {path: extId.path, version: mount.record.version || null, latest: !mount.record.version})
     : null
   const latestId = extId ? hmId(extId.uid, {path: extId.path}) : null
-  const pinned = useResource(pinnedId)
-  const latest = useResource(mount.record.version ? latestId : null)
+  // `subscribed` so the daemon discovers the (third-party) extension document
+  // and its versions; an unsubscribed lookup only sees already-synced blobs.
+  const pinned = useResource(pinnedId, {subscribed: true})
+  const latest = useResource(mount.record.version ? latestId : null, {subscribed: true})
   const pinnedDoc = pinned.data?.type === 'document' ? pinned.data.document : undefined
   const latestDoc = latest.data?.type === 'document' ? latest.data.document : undefined
   return {
     extId,
     pinnedDoc,
     latestDoc,
-    isLoading: pinned.isInitialLoading,
+    isLoading: pinned.isInitialLoading || !!pinned.isDiscovering,
     manifest: pinnedDoc ? parseExtensionManifest(pinnedDoc.metadata) : null,
   }
 }
@@ -300,9 +302,13 @@ function InstallExtensionForm({
   const [pin, setPin] = useState(true)
   const [title, setTitle] = useState('')
 
-  const resource = useResource(extId ? hmId(extId.uid, {path: extId.path}) : null)
+  // `subscribed` so the daemon discovers the pasted document from the network;
+  // the first query resolves to not-found before discovery completes, so the
+  // form stays in its loading state while `isDiscovering`.
+  const resource = useResource(extId ? hmId(extId.uid, {path: extId.path}) : null, {subscribed: true})
   const doc = resource.data?.type === 'document' ? resource.data.document : undefined
-  const notFound = !!extId && !resource.isInitialLoading && !doc
+  const loading = !!extId && (resource.isInitialLoading || !!resource.isDiscovering)
+  const notFound = !!extId && !loading && !doc
   const manifest = doc ? parseExtensionManifest(doc.metadata) : null
 
   const proposedMountPath = manifest?.defaultMountPath || extId?.path?.at(-1) || ''
@@ -350,7 +356,7 @@ function InstallExtensionForm({
         </Button>
       </div>
 
-      {extId && resource.isInitialLoading ? (
+      {loading ? (
         <div className="flex items-center gap-2">
           <Spinner />
           <SizableText size="sm" color="muted">

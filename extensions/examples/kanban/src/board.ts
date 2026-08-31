@@ -40,9 +40,16 @@ export function defaultBoard(): KanbanBoard {
 export function parseBoard(value: unknown): KanbanBoard | null {
   if (!value || typeof value !== 'object') return null
   const raw = value as {columns?: unknown; cards?: unknown}
-  if (!Array.isArray(raw.columns) || !raw.cards || typeof raw.cards !== 'object') return null
+  // `columns` is an array and is stored whole, so it survives even when empty.
+  if (!Array.isArray(raw.columns)) return null
+  // An empty `cards` map is flattened away by the host's attribute encoder, so
+  // `kanban.cards` legitimately does not exist for a board with no cards.
+  const rawCards =
+    raw.cards && typeof raw.cards === 'object' && !Array.isArray(raw.cards)
+      ? (raw.cards as Record<string, unknown>)
+      : {}
   const cards: Record<string, KanbanCard> = {}
-  for (const [id, card] of Object.entries(raw.cards as Record<string, unknown>)) {
+  for (const [id, card] of Object.entries(rawCards)) {
     if (!card || typeof card !== 'object') continue
     const c = card as Partial<KanbanCard>
     if (typeof c.title !== 'string') continue

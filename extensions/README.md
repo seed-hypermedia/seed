@@ -6,8 +6,8 @@ install record to its home document metadata (`extensions`), keyed by the path t
 is signed and content-addressed, so extensions travel over the network like any other document.
 
 At runtime the host app (web or desktop) loads the HTML into a sandboxed iframe
-(`sandbox="allow-scripts allow-forms allow-popups allow-modals"`, no `allow-same-origin`, via `srcdoc`) and the two
-sides talk over `postMessage`. The wire protocol, manifest and install-record schemas are defined once in
+(`sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"`, no `allow-same-origin`, via `srcdoc`)
+and the two sides talk over `postMessage`. The wire protocol, manifest and install-record schemas are defined once in
 [`frontend/packages/client/src/extensions.ts`](../frontend/packages/client/src/extensions.ts); the iframe side is
 wrapped by [`@seed-hypermedia/extension-sdk`](../frontend/packages/extension-sdk/README.md).
 
@@ -58,7 +58,9 @@ Then open a site that has the extension installed (or where you have installed a
 `?extdev=http://localhost:5183` to the page URL at the extension's mount path. The host stores the override in
 `localStorage` and points the iframe at the dev server instead of the published entry — still sandboxed, still speaking
 the same protocol — so Vite hot reload works end to end. Use `?extdev=off` to go back to the published code. The context
-the extension receives has `dev: true` while an override is active.
+the extension receives has `dev: true` while an override is active, and every sign confirmation dialog warns that an
+override is running. `?extdev=` only accepts loopback URLs (`localhost`, `*.localhost`, `127.0.0.1`, `[::1]`); other
+values are ignored. On desktop, set the override in Settings → Advanced → DEVELOPERS instead.
 
 The dev server must allow cross-origin module loads (`server.cors: true`) because the sandboxed iframe has an opaque
 origin. Keep `strictPort: true` so the override URL stays valid across restarts.

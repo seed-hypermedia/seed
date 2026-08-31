@@ -11,7 +11,12 @@
  * stay inside the active mount (`isWithinExtensionMount`) and the current
  * `subPath` is derived from the location instead of the loader payload.
  */
-import {EXTENSION_DEV_QUERY_PARAM, resolveExtensionMount, type ExtensionMount} from '@seed-hypermedia/client/extensions'
+import {
+  EXTENSION_DEV_QUERY_PARAM,
+  parseExtensionInstalls,
+  resolveExtensionMount,
+  type ExtensionMount,
+} from '@seed-hypermedia/client/extensions'
 import {isSiteProfileTab} from '@shm/shared'
 import {extractViewTermFromPath} from './routes/view-terms'
 
@@ -147,22 +152,57 @@ export function buildExtensionRouteHref(
 // ── Active mount registry (client only) ──────────────────────────────────────
 //
 // Remix's `shouldRevalidate` has no access to loader data, so the mounted
-// extension page registers its mount prefix here and `revalidation.ts` consults
-// it to skip loader re-runs for navigations that stay inside the mount.
+// extension page registers its mount here and `revalidation.ts` consults it to
+// skip loader re-runs for navigations that stay inside the mount.
 
-let activeExtensionMountPrefix: string | null = null
+export type ActiveExtensionMount = {
+  /** URL prefix of the displayed mount (see `extensionMountPathPrefix`). */
+  prefix: string
+  /**
+   * URL prefixes of installs mounted strictly beneath `prefix`. Longest mount
+   * wins (`resolveExtensionMount`), so a path under one of these belongs to a
+   * different extension and must go through the loader.
+   */
+  childPrefixes: string[]
+}
 
-export function setActiveExtensionMountPrefix(prefix: string | null) {
-  activeExtensionMountPrefix = prefix
+let activeExtensionMount: ActiveExtensionMount | null = null
+
+export function setActiveExtensionMount(mount: ActiveExtensionMount | null) {
+  activeExtensionMount = mount
 }
 
 export function getActiveExtensionMountPrefix(): string | null {
-  return activeExtensionMountPrefix
+  return activeExtensionMount?.prefix ?? null
 }
 
-/** True when both URLs are within the currently displayed extension mount. */
+/**
+ * URL prefixes of the installs nested beneath `mountSegments` in `homeMetadata`,
+ * as displayed at `pathname` (site origin or gateway form).
+ */
+export function extensionChildMountPrefixes(
+  homeMetadata: unknown,
+  pathname: string,
+  siteUid: string,
+  mountSegments: string[],
+): string[] {
+  return parseExtensionInstalls(homeMetadata)
+    .filter(
+      (m) =>
+        m.mountSegments.length > mountSegments.length && mountSegments.every((seg, i) => seg === m.mountSegments[i]),
+    )
+    .map((m) => extensionMountPathPrefix(pathname, siteUid, m.mountSegments))
+}
+
+/**
+ * True when both URLs are within the currently displayed extension mount and
+ * the next URL is not claimed by a longer nested mount.
+ */
 export function isExtensionInternalNavigation(currentPathname: string, nextPathname: string): boolean {
-  const prefix = activeExtensionMountPrefix
-  if (!prefix) return false
-  return isWithinExtensionMount(currentPathname, prefix) && isWithinExtensionMount(nextPathname, prefix)
+  const active = activeExtensionMount
+  if (!active) return false
+  if (!isWithinExtensionMount(currentPathname, active.prefix) || !isWithinExtensionMount(nextPathname, active.prefix)) {
+    return false
+  }
+  return !active.childPrefixes.some((child) => isWithinExtensionMount(nextPathname, child))
 }

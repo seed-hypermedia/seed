@@ -4,6 +4,7 @@ import {
   bytesToBase64,
   extensionIdString,
   extensionStorageKey,
+  loopbackDevUrl,
   normalizeHmIdInput,
   normalizeQueryInput,
   toCloneable,
@@ -110,8 +111,29 @@ describe('url validation', () => {
     expect(validateNavigateUrl('hm://z6MkA/x')).toBe('hm://z6MkA/x')
     expect(validateNavigateUrl('/docs?x=1')).toBe('/docs?x=1')
     expect(() => validateNavigateUrl('//evil.com')).toThrow()
+    expect(() => validateNavigateUrl('/\\evil.com')).toThrow()
+    expect(() => validateNavigateUrl('/\\evil.example/login')).toThrow()
+    expect(() => validateNavigateUrl('/docs\\x')).toThrow()
     expect(() => validateNavigateUrl('https://example.com')).toThrow()
     expect(() => validateNavigateUrl('hm://')).toThrow()
+  })
+
+  it('loopbackDevUrl only accepts http(s) loopback hosts', () => {
+    expect(loopbackDevUrl('http://localhost:5181')).toBe('http://localhost:5181')
+    expect(loopbackDevUrl('http://localhost:5181/x.html?y=1')).toBe('http://localhost:5181/x.html?y=1')
+    expect(loopbackDevUrl('http://app.localhost:3000/')).toBe('http://app.localhost:3000/')
+    expect(loopbackDevUrl('http://127.0.0.1:1/')).toBe('http://127.0.0.1:1/')
+    expect(loopbackDevUrl('http://[::1]:5181/')).toBe('http://[::1]:5181/')
+    expect(loopbackDevUrl('https://localhost/')).toBe('https://localhost/')
+    expect(loopbackDevUrl('https://attacker.example/e.html')).toBeNull()
+    expect(loopbackDevUrl('https://localhost.attacker.example/')).toBeNull()
+    expect(loopbackDevUrl('http://127.0.0.1.attacker.example/')).toBeNull()
+    expect(loopbackDevUrl('http://localhost@attacker.example/')).toBeNull()
+    expect(loopbackDevUrl('http://10.0.0.1/')).toBeNull()
+    expect(loopbackDevUrl('file:///tmp/x.html')).toBeNull()
+    expect(loopbackDevUrl('javascript:alert(1)')).toBeNull()
+    expect(loopbackDevUrl('localhost:5181')).toBeNull()
+    expect(loopbackDevUrl('not a url')).toBeNull()
   })
 
   it('openExternal accepts http(s) only', () => {

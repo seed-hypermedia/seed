@@ -18,8 +18,7 @@ import {sha512} from '@noble/hashes/sha512'
 
 // Configure ed25519 to use sha512
 ed25519.etc.sha512Sync = (...m) => sha512(ed25519.etc.concatBytes(...m))
-ed25519.etc.sha512Async = async (...m) =>
-  sha512(ed25519.etc.concatBytes(...m))
+ed25519.etc.sha512Async = async (...m) => sha512(ed25519.etc.concatBytes(...m))
 
 // Derivation path from backend/core/mnemonic.go
 // 104109 = 'h' (104) + 'm' (109) - stands for Hypermedia
@@ -38,10 +37,7 @@ export type KeyPair = {
 /**
  * Derives account ID from BIP39 mnemonic
  */
-export function deriveAccountIdFromMnemonic(
-  mnemonic: string | string[],
-  passphrase = ''
-): string {
+export function deriveAccountIdFromMnemonic(mnemonic: string | string[], passphrase = ''): string {
   const keyPair = deriveKeyPairFromMnemonic(mnemonic, passphrase)
   return keyPair.accountId
 }
@@ -49,14 +45,9 @@ export function deriveAccountIdFromMnemonic(
 /**
  * Derives full keypair from BIP39 mnemonic
  */
-export function deriveKeyPairFromMnemonic(
-  mnemonic: string | string[],
-  passphrase = ''
-): KeyPair {
+export function deriveKeyPairFromMnemonic(mnemonic: string | string[], passphrase = ''): KeyPair {
   // Normalize mnemonic to string
-  const mnemonicString = Array.isArray(mnemonic)
-    ? mnemonic.join(' ')
-    : mnemonic
+  const mnemonicString = Array.isArray(mnemonic) ? mnemonic.join(' ') : mnemonic
 
   // 1. Convert mnemonic to BIP39 seed
   const seed = bip39.mnemonicToSeedSync(mnemonicString, passphrase)
@@ -70,10 +61,7 @@ export function deriveKeyPairFromMnemonic(
   const publicKey = ed25519.getPublicKey(privateKey)
 
   // 4. Encode public key with multicodec prefix
-  const publicKeyWithPrefix = new Uint8Array([
-    ...ED25519_MULTICODEC_PREFIX,
-    ...publicKey,
-  ])
+  const publicKeyWithPrefix = new Uint8Array([...ED25519_MULTICODEC_PREFIX, ...publicKey])
 
   // 5. Encode as multibase base58btc (starts with 'z')
   const accountId = base58btc.encode(publicKeyWithPrefix)

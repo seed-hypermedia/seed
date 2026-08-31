@@ -1,6 +1,6 @@
 import {LoaderFunction} from '@remix-run/node'
-import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
+import {daemonIpfsUrl, parseCidParam} from '@/utils/cid-param'
 import {withCors} from '@/utils/cors'
 
 /**
@@ -30,12 +30,14 @@ function withFileCors(response: Response) {
 }
 
 async function loadFile(params: Record<string, string | undefined>, request: Request, authToken: string | null) {
-  const CID = params['*']?.split('/')[0]
+  // The CID is validated and re-serialized before it reaches the daemon URL so
+  // the splat can only ever address `/ipfs/<cid>` (never another daemon route).
+  const CID = parseCidParam(params['*'])
 
-  if (!CID) return new Response('No CID provided', {status: 400})
+  if (!CID) return new Response('Invalid CID', {status: 400})
 
   try {
-    const fileUrl = `${DAEMON_HTTP_URL}/ipfs/${CID}`
+    const fileUrl = daemonIpfsUrl(CID)
 
     // Forward range headers for video seeking support
     const headers: Record<string, string> = {}

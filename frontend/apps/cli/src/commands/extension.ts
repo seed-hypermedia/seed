@@ -408,7 +408,7 @@ export function registerExtensionCommands(program: Command) {
     .option('--path <mount>', 'Mount path under the site (default: manifest defaultMountPath)')
     .option('-k, --key <name>', "Site signing key name or account ID (the site is this key's own account)")
     .option('--latest', 'Follow the latest extension version instead of pinning the current one')
-    .option('--title <title>', 'Navigation title (default: the extension name)')
+    .option('--title <title>', 'Navigation title (default: the mount path is shown)')
     .option('--no-nav', 'Hide the mount from site navigation')
     .option('--settings <json>', 'JSON object passed to the extension as settings')
     .option('--force', 'Replace an existing install record at the mount path')
