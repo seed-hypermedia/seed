@@ -934,6 +934,8 @@ describe('HMBlock to EditorBlock', () => {
         style: 'Table',
         tableConfig: '{"columns":[{"id":"title","visible":true,"width":280},{"id":"metadata:status","visible":false}]}',
       })
+    })
+
     test('query block drops unsupported filter attributes while preserving supported filters', () => {
       const hmBlock = {
         id: 'foo',

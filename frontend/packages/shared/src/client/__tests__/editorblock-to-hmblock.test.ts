@@ -909,6 +909,8 @@ describe('EditorBlock to HMBlock', () => {
         undefined,
       )
       warn.mockRestore()
+    })
+
     test('query block ignores unsupported or malformed filters', () => {
       const editorBlock: EditorQueryBlock = {
         id: 'foo',
