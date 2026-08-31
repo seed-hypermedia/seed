@@ -1,0 +1,18 @@
+{
+  "name": "Agent document",
+  "description": "An agent as a Hypermedia resource: a typed document that IS the agent on the network. Its metadata binds the agent's configuration via agentDefinition (an ipfs reference to an agent-definition blob, the same pattern schemaDefinition uses for schemas), and its content is the agent's public description. Permissions (owner, collaborators, public read/chat) are NOT modeled here: an agent document is an ordinary resource in the resource tree and inherits the hierarchical permission rules of the Resource system.",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document",
+  "properties": {
+    "metadata": {
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-metadata",
+      "required": ["agentDefinition"],
+      "properties": {
+        "agentDefinition": {
+          "description": "This document defines an agent: the ipfs cid of the agent-definition blob holding its configuration.",
+          "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-ipfs",
+          "target": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-definition"
+        }
+      }
+    }
+  }
+}

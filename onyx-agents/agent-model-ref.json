@@ -1,0 +1,10 @@
+{
+  "name": "Agent model ref",
+  "description": "One saved quick-switch choice: a model on a specific configured provider. Selecting one switches provider and model together.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": ["provider", "model"],
+  "properties": {
+    "provider": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "model": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+  }
+}

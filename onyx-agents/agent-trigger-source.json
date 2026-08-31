@@ -1,0 +1,67 @@
+{
+  "name": "Agent trigger source",
+  "description": "The activity source or filter that decides when an agent trigger fires: an incoming webhook, a comment on a watched resource, a mention of watched accounts, a site update under a path prefix, a schedule, or the completion of a run (the source that lets automations chain).",
+  "anyOf": [
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["type"],
+      "properties": {
+        "type": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["webhook"]}
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["type", "resource"],
+      "properties": {
+        "type": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["document-comment"]},
+        "resource": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "format": "hm-url"},
+        "author": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "format": "hm-profile"}
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["type", "mentionedAccounts"],
+      "properties": {
+        "type": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["user-mention"]},
+        "mentionedAccounts": {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+          "items": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "format": "hm-profile"}
+        },
+        "resourcePrefix": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["type", "resourcePrefix"],
+      "properties": {
+        "type": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["site-update"]},
+        "resourcePrefix": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+        "eventTypes": {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+          "items": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+        }
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["type", "schedule"],
+      "properties": {
+        "type": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["schedule"]},
+        "schedule": {"ref": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-schedule"}
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["type"],
+      "properties": {
+        "type": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["run-completed"]},
+        "agentId": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+        "status": {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+          "enum": ["succeeded", "failed", "canceled"]
+        },
+        "titleMatch": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+      }
+    }
+  ]
+}

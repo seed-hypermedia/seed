@@ -1,0 +1,33 @@
+{
+  "name": "Agent run",
+  "description": "The durable record of one unit of agent work: a model turn, a headless tool call, or a workflow script. Conceptually distinct from the conversation (agent-message) and from tool activity records: a run is the execution, with its status, lineage (parent run, owning session), pinned source, input and output, plan, and cumulative usage. sourceCid pins the exact script a workflow replays against.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": ["id", "status"],
+  "properties": {
+    "id": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "title": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "status": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": ["queued", "running", "waiting", "succeeded", "failed", "canceled"]
+    },
+    "kind": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "parentRunId": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "session": {
+      "description": "The session document this run belongs to, when a model is involved; a script run may have none.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "format": "hm-url",
+      "target": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-session-document"
+    },
+    "sourceCid": {
+      "description": "Content address of the exact script source this run executes, so a resume replays the code it started with.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "input": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"},
+    "output": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"},
+    "error": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "plan": {"ref": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-run-plan"},
+    "usage": {"ref": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-run-usage"},
+    "createdAt": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp"},
+    "finishedAt": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp"}
+  }
+}

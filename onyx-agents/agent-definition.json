@@ -1,0 +1,56 @@
+{
+  "name": "Agent definition",
+  "description": "The content-addressed configuration blob an agent-document points at via its agentDefinition metadata field. Unsigned; authority comes from the signed document that references it. Signing identities are referenced by principal, never by server-local key name. Server-private material (API keys, OAuth sessions, raw signing keys) is deliberately absent: it stays on the agent server.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": ["name", "modelProvider", "model"],
+  "properties": {
+    "name": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "minLength": 1
+    },
+    "systemPrompt": {
+      "description": "The agent's system prompt: plain text, or a rich Seed block tree.",
+      "anyOf": [
+        {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+        {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+          "items": {"ref": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-prompt-block"}
+        }
+      ]
+    },
+    "modelProvider": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "model": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "reasoningLevel": {
+      "description": "Reasoning level for reasoning-capable models; absent means off or the provider default.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "enabledModels": {
+      "description": "Quick-switch model choices, possibly spanning providers.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+      "items": {"ref": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-model-ref"}
+    },
+    "tools": {
+      "description": "Names of enabled tools in the agent's tool space.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+      "items": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+    },
+    "mcpServers": {
+      "description": "Names of the account's MCP servers this agent may call.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+      "items": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+    },
+    "signingIdentities": {
+      "description": "Principals of the Hypermedia accounts this agent may sign as. The agent signs its own published content (messages, comments, documents) with one of these; the server signs infrastructure records with server identities. Which of the two signs a given record is a deliberate, per-record-type choice.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+      "items": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal"}
+    },
+    "metadata": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "values": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"}
+    }
+  }
+}

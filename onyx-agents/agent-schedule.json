@@ -1,0 +1,37 @@
+{
+  "name": "Agent schedule",
+  "description": "When a schedule trigger fires: a fixed interval, a weekly timetable in a timezone, or a single future instant.",
+  "anyOf": [
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["kind", "every", "unit"],
+      "properties": {
+        "kind": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["interval"]},
+        "every": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer", "minimum": 1},
+        "unit": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["minutes", "hours"]}
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["kind", "daysOfWeek", "timeOfDay", "timezone"],
+      "properties": {
+        "kind": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["weekly"]},
+        "daysOfWeek": {
+          "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/list",
+          "items": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer", "minimum": 0, "maximum": 6}
+        },
+        "timeOfDay": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+        "timezone": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+      }
+    },
+    {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["kind", "runAt"],
+      "properties": {
+        "kind": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["once"]},
+        "runAt": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer"},
+        "timezone": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+      }
+    }
+  ]
+}

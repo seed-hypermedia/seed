@@ -1,0 +1,29 @@
+{
+  "name": "Agent action",
+  "description": "The signed control-plane envelope: every configuration action a client sends to an agent server (create or update an agent, set a trigger, write memory, invoke a tool), normalized to be a literal Hypermedia signed blob so the received bytes are archivable and independently verifiable forever. Extends the signed blob envelope, so ts sits at the root (the one breaking change from the current wire shape, adopted as part of the swift cohesive data-model change). With sessions-as-comments, chat itself no longer flows through this envelope; what remains is configuration and tool invocation.",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob",
+  "required": ["account", "action"],
+  "properties": {
+    "type": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": ["AgentsAction"]
+    },
+    "account": {
+      "description": "The account the action is for. When it differs from signer, capability names the delegation.",
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-principal"
+    },
+    "capability": {
+      "description": "CID of the Capability blob delegating account to signer.",
+      "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-cid"
+    },
+    "action": {
+      "description": "The action payload; its underscore field is the action name discriminator.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "required": ["_"],
+      "properties": {
+        "_": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"}
+      },
+      "values": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"}
+    }
+  }
+}

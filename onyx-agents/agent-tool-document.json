@@ -1,0 +1,48 @@
+{
+  "name": "Agent tool document",
+  "description": "A tool as a content-addressed document in the agent's space: builtins are runtime bindings, lambdas carry TypeScript or Python source run in the execute sandbox, and mcp documents are projections of a remote MCP server's tools. The CID is computed over canonical DAG-CBOR exactly as the network encodes blobs, so publishing a tool is publishing bytes that already exist, and what exactly can this agent run is always answerable.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": ["name", "kind", "summary", "description", "input"],
+  "properties": {
+    "name": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "pattern": "^[a-z][a-z0-9_-]{1,63}$"
+    },
+    "kind": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": ["builtin", "lambda", "mcp"]
+    },
+    "summary": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "description": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "input": {
+      "description": "JSON Schema for the call input.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "values": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"}
+    },
+    "output": {
+      "description": "JSON Schema for the result, when declared.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+      "values": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"}
+    },
+    "source": {
+      "description": "Lambda source, shaped per the lambda ABI and run in the execute sandbox.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "runtime": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": ["typescript", "python"]
+    },
+    "binding": {
+      "description": "Builtin executor id bound at boot; survives a fork of the document.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "server": {
+      "description": "MCP tools: the account MCP server the call is proxied to.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "remoteName": {
+      "description": "MCP tools: the tool's name on that server.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    }
+  }
+}

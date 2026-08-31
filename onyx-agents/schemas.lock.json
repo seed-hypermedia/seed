@@ -1,0 +1,28 @@
+{
+  "//": "Agents schema manifest — hm:// URL -> DAG-CBOR CID (CIDv1, sha2-256). Deterministic; regenerate with `node publish.mjs`.",
+  "codec": "dag-cbor",
+  "hash": "sha2-256",
+  "count": 20,
+  "schemas": {
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-action": "bafyreich3bfpyfd55dewfafwg263sfdub73gha5rxx4uugkofpurkdpvam",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-definition": "bafyreic4ohqpxeit2r5z5b4uzvvdwovcsmwz4ughz7q2wken2vztpnp6ou",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-document": "bafyreiehmskd3wu2qhx6gn3rso2t6lv7nlc7lucmaiksnj63lut6yrvelu",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-message": "bafyreihq4eiidftb7ipkucqm5qujbi3e36taycwliqwbkwxcdbluz4hli4",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-model-ref": "bafyreihgqrrejqbs5zelwu2q5mzdlh4nik6nteghtyl4jg3yfvslk3lmu4",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-prompt-block": "bafyreigsm2r5mzxvlken2ortiq2sv2bb25dol7ncbvd3pubje6uqvbjusm",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-run": "bafyreicalaa5pduf75zgjhknpzme2ihlotrl547ky75khsr34iiejw4du4",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-run-plan": "bafyreigcxzjdtrrkovdixf6ibkzuj3id3gylwouywqwszkxltq2z6hsev4",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-run-plan-step": "bafyreibtpytuaxil62zj3jw3dxu75tr5hvet7e3cnc5hyv7f5wau6mdhry",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-run-usage": "bafyreied5le5kne3magn7ohjlsuvcqfcdqha2ztff5mk56kwdhwzhkgxxu",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-schedule": "bafyreifkfeuroxq6sv4fnia7mn2nlicu2aqozscq6h5aswxviwgaj53j3u",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-session-document": "bafyreidmchwrzso57gbkbu6zbwpuc2lcotszbtmqg6rqfokg5wadcpp3wq",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-tool-call": "bafyreics4qhoegkveodbvtzer2aga5bdoerkvgojkomunmi7qndejj37ka",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-tool-call-block": "bafyreiddck4m5oeflypv3xemr6d4uzbgjfl5woxdoyivgte7tw3lk4jop4",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-tool-document": "bafyreicjrf6skm5ms4l4xsrgs7mdu3qo6sipp65i3u3hsmdyak4v3k63ze",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-tool-result": "bafyreieknz5cuhzltk5okcx454r2lb5zo3cbe6wyw5nxffoon5e4rwlooy",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-tool-result-block": "bafyreievw422ek5se3xqsjqxj5tmknazvzlf7m5wsuuuljzq5eptxr3zyi",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-trigger": "bafyreicogulz5vchtcrsepj3gvupztb2hl7y6ypsrejukoott4hk7fig7i",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-trigger-continuation": "bafyreigk5nw2cqyz6ecrjelelcrp4ze7w54sqpnjwvcmwxo6dighrcu43a",
+    "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-trigger-source": "bafyreievdmdr6wbi5tup5v6kxbu7foy6qpuvm3t6yprazcssq7p5ed3xje"
+  }
+}

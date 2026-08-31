@@ -1,0 +1,15 @@
+{
+  "name": "Agent run plan step",
+  "description": "One step of a run plan. resolvedBy marks a step the runtime closed as a matter of record (every attached sub-agent succeeded) rather than the model or the user.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": ["id", "label", "status"],
+  "properties": {
+    "id": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "label": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "status": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": ["pending", "running", "done", "failed", "skipped"]
+    },
+    "resolvedBy": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string", "enum": ["runtime"]}
+  }
+}

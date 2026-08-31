@@ -1,0 +1,26 @@
+{
+  "name": "Agent message",
+  "description": "One session message as a full, normal Hypermedia Comment, augmented with agent metadata. A user message is signed by the user's account (or a delegated device key carrying a capability); an agent message is signed by one of the agent's signing identities. It targets the session document (space and path), threads via threadRoot and replyParent, and its body may contain agent-tool-call-block and agent-tool-result-block nodes linking content-addressed tool records. This replaces the server-private MessageSession log entry as the canonical record of what was said.",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-comment",
+  "properties": {
+    "actor": {
+      "description": "Who authored this message in the session's shared workspace log.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": ["user", "agent", "trigger", "system"]
+    },
+    "agent": {
+      "description": "The agent document this message belongs to, for indexing messages across sessions.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "format": "hm-url",
+      "target": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-document"
+    },
+    "runId": {
+      "description": "The run that produced an agent-authored message.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    },
+    "clientMessageId": {
+      "description": "Client-chosen id echoed back so a sender can replace its optimistic pending row by identity.",
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"
+    }
+  }
+}

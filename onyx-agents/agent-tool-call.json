@@ -1,0 +1,12 @@
+{
+  "name": "Agent tool call",
+  "description": "A content-addressed record of one tool invocation: which tool, with what input. Referenced by cid from an agent-tool-call-block inside an agent-signed message, so the transcript block stays small and the full payload is real permanent data with no hidden block attributes. Runs and plans are related but conceptually distinct records (see agent-run).",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": ["callId", "tool"],
+  "properties": {
+    "callId": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "tool": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string"},
+    "input": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/any"},
+    "ts": {"ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-timestamp"}
+  }
+}

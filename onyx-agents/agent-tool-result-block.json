@@ -1,0 +1,17 @@
+{
+  "name": "Agent tool result block",
+  "description": "A custom message block marking a tool call's outcome in the conversation: a Block whose link references the content-addressed agent-tool-result record.",
+  "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
+  "required": ["link"],
+  "properties": {
+    "type": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "enum": ["AgentToolResult"]
+    },
+    "link": {
+      "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/string",
+      "format": "ipfs",
+      "target": "hm://z6Mkqi6bocisxxWzmXSXErC9WpcoonHnpkcogWoSTgoSQTtJ/agent-tool-result"
+    }
+  }
+}

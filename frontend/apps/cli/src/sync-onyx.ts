@@ -77,7 +77,16 @@ import {createSignerFromKey} from './utils/signer'
 
 const DIR = dirname(fileURLToPath(import.meta.url)) // frontend/apps/cli/src
 const REPO_ROOT = resolve(DIR, '../../../..') // /Users/ericvicenti/Code/Seed
-const SCHEMAS_DIR = resolve(REPO_ROOT, 'onyx')
+// Which library to sync: --dir <repo-relative dir> (default onyx) and
+// --key <signing key name> (default main, the onyx account). The published
+// account is always the key's own account.
+const argvAll = process.argv.slice(2)
+const argValue = (flag: string, fallback: string) => {
+  const i = argvAll.indexOf(flag)
+  return i >= 0 && argvAll[i + 1] ? argvAll[i + 1] : fallback
+}
+const SCHEMAS_DIR = resolve(REPO_ROOT, argValue('--dir', 'onyx'))
+const KEY_NAME = argValue('--key', 'main')
 const SITE_DIR = resolve(SCHEMAS_DIR, 'site')
 const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
@@ -86,6 +95,9 @@ const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 // hypermedia-/example- prefix (matches schemas/publish.mjs + the engine).
 const ONYX = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
 
+// Set from the resolved signing key in main(); ONYX is only the default.
+let lockAccount = ONYX
+
 /** The published public name of a schema basename (also its document path). */
 function publicName(basename: string): string {
   return basename.startsWith('onyx-') ? basename.slice(5) : basename
@@ -93,7 +105,7 @@ function publicName(basename: string): string {
 
 /** Map a schema basename to its lockfile hm:// URL (the onyx-account doc URL). */
 function basenameToLockUrl(basename: string): string {
-  return `hm://${ONYX}/${publicName(basename)}`
+  return `hm://${lockAccount}/${publicName(basename)}`
 }
 
 // ── Markdown pre-processor (port of scratchpad/prep.py) ────────────────────────
@@ -270,8 +282,9 @@ async function main() {
   const serverUrl = serverIdx >= 0 ? args[serverIdx + 1] : 'https://hyper.media'
 
   // Resolve signing key / account (vault first, then OS keyring)
-  const key = await resolveSigningKey('main', {dev: false})
+  const key = await resolveSigningKey(KEY_NAME, {dev: false})
   const account = key.accountId
+  lockAccount = account
   const signer = createSignerFromKey(key)
   console.log(`Account: ${account}`)
   console.log(`Server:  ${serverUrl}`)

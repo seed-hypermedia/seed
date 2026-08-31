@@ -1,0 +1,13 @@
+{
+  "name": "Agent run usage",
+  "description": "Cumulative token usage for a run, updated as turns complete: input, output, cache traffic, and their sum.",
+  "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
+  "required": ["input", "output", "cacheRead", "cacheWrite", "total"],
+  "properties": {
+    "input": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer", "minimum": 0},
+    "output": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer", "minimum": 0},
+    "cacheRead": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer", "minimum": 0},
+    "cacheWrite": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer", "minimum": 0},
+    "total": {"type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/integer", "minimum": 0}
+  }
+}
