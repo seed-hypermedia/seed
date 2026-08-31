@@ -4,8 +4,11 @@ Extensions ("plugins") let anyone build a full-page app that runs inside a Seed 
 — reads hypermedia data, and signs as the viewer, without ever holding a key. Extensions are themselves hypermedia
 documents, so they are signed, versioned and distributed peer-to-peer like everything else on the network.
 
+![Site Dashboard extension running inside the Starlight site on the web](./images/web-dashboard.png)
+
 | Document                                     | Audience          | What it covers                                                                                        |
 | -------------------------------------------- | ----------------- | ----------------------------------------------------------------------------------------------------- |
+| [what-and-why.md](./what-and-why.md)         | everyone          | Which extensibility type this is, what an extension can and cannot do, and concrete use cases         |
 | [project-report.md](./project-report.md)     | everyone          | Where things stand: scope delivered, how to try it, verification, environment notes, what is not done |
 | [design.md](./design.md)                     | implementers      | The normative design: data model, rendering, bridge, security, workflow                               |
 | [developer-guide.md](./developer-guide.md)   | extension authors | From `pnpm create` to a published, installed extension, with hot reload                               |
@@ -16,6 +19,10 @@ documents, so they are signed, versioned and distributed peer-to-peer like every
 | [testing.md](./testing.md)                   | implementers      | How the system is tested and the verification log for this branch                                     |
 | [roadmap.md](./roadmap.md)                   | team              | Other extension kinds and what carries over                                                           |
 | [decisions.md](./decisions.md)               | team              | Decision log with rationale                                                                           |
+
+This work implements the **Custom Page** type from the team's
+[Types of Extensibility](https://seedteamtalks.hyper.media/tech/types-of-extensibility) roadmap; see
+[what-and-why.md](./what-and-why.md) for how it maps to the other types.
 
 The example extensions live in [`/extensions/examples`](../../extensions/examples): `hello-signer` (bridge smoke test),
 `site-dashboard` (read-only site overview), `kanban` (board state stored in a document, saved by signing).

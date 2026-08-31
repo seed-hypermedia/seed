@@ -25,6 +25,8 @@ kind is kind-agnostic so blocks / attribute editors / themes can reuse it ([road
 
 ## Where to try it
 
+![Hello Signer extension signed in on the web](./images/web-hello.png)
+
 The three examples are published under the **Starlight** account (`z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj`) at
 `extensions/examples/*` and installed on that site, pinned:
 
@@ -43,6 +45,8 @@ The three examples are published under the **Starlight** account (`z6MkiAKDcRSzQ
   add the override in desktop Settings → Advanced → Extension dev overrides.
 - Space settings → **Extensions** on desktop: paste an `hm://` extension URL, Fetch, review the manifest, pick the
   mount, Install (pinned by default).
+
+![Kanban on the desktop app](./images/desktop-board.png)
 
 ## How it was verified
 
