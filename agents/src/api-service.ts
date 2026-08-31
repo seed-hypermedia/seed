@@ -8177,19 +8177,56 @@ type SpaceIndexInput = {
 const spaceIndexCache = new Map<string, string>()
 
 /**
- * The memory-summary walk runs on the server's only thread, and the space index is invalidated on
- * every memory write — with concurrent runs writing memory each turn, an eager re-walk melted
- * production (9 runs kept a 200k-file memory in a constant 10k-entry synchronous walk cycle). So
- * each walk earns a hold proportional to what it cost ({@link MEMORY_SUMMARY_HOLD_FACTOR}× its
- * duration, capped at a minute): a walk cheaper than {@link MEMORY_SUMMARY_FREE_WALK_MS} earns no
- * hold at all — a small memory stays exactly fresh — while a pathological one re-walks at most
- * once per cap. Within the hold a rebuild reuses the last line; the counts read as minimums
- * anyway (see {@link agentMemory.summarizeMemoryTopLevel}).
+ * The memory-summary walk used to run on the server's only thread on every prompt build, and the
+ * space index is invalidated on every memory write — with concurrent runs writing memory each
+ * turn, that melted production (9 runs kept a 200k-file memory in a constant 10k-entry
+ * synchronous walk cycle). The rollup is now adaptive: each walk earns a hold proportional to
+ * what it cost ({@link MEMORY_SUMMARY_HOLD_FACTOR}× its duration, capped at a minute). A walk
+ * cheaper than {@link MEMORY_SUMMARY_FREE_WALK_MS} earns no hold — a small memory stays exactly
+ * fresh, synchronously. A memory whose last walk was expensive never walks on the prompt path
+ * again: the stale line is served and a background refresh (the async walk, which yields to the
+ * loop) updates it. The counts read as minimums anyway (see
+ * {@link agentMemory.summarizeMemoryTopLevel}).
  */
 const MEMORY_SUMMARY_HOLD_FACTOR = 100
 const MEMORY_SUMMARY_FREE_WALK_MS = 5
 const MEMORY_SUMMARY_MAX_HOLD_MS = 60_000
-const memorySummaryCache = new Map<string, {line: string; walkedAt: number; holdMs: number}>()
+const memorySummaryCache = new Map<string, {line: string; walkedAt: number; holdMs: number; refreshing?: boolean}>()
+
+function formatMemoryLine(summary: agentMemory.AgentMemorySummary): string {
+  if (!summary.entries.length) return 'memory/ — empty'
+  const top = summary.entries
+    .slice(0, 12)
+    .map((entry) => (entry.type === 'dir' ? `${entry.name}/(${entry.fileCount ?? 0})` : entry.name))
+    .join(' · ')
+  return `memory/ — ${summary.totalFiles} file${summary.totalFiles === 1 ? '' : 's'}: ${top}${
+    summary.entries.length > 12 ? ' · …' : ''
+  }`
+}
+
+/** Refreshes one memory line off the prompt path; at most one refresh per state dir in flight. */
+function scheduleMemorySummaryRefresh(stateDir: string): void {
+  const cached = memorySummaryCache.get(stateDir)
+  if (cached?.refreshing) return
+  if (cached) cached.refreshing = true
+  void (async () => {
+    const walkStart = performance.now()
+    let line = 'memory/ — empty'
+    try {
+      line = formatMemoryLine(await agentMemory.summarizeMemoryTopLevelAsync(stateDir))
+    } catch {}
+    const walkMs = performance.now() - walkStart
+    const holdMs =
+      walkMs < MEMORY_SUMMARY_FREE_WALK_MS
+        ? 0
+        : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
+    const changed = memorySummaryCache.get(stateDir)?.line !== line
+    memorySummaryCache.set(stateDir, {line, walkedAt: Date.now(), holdMs})
+    // The line is baked into cached space indexes; drop them so the next prompt picks it up. The
+    // rest of an index rebuild is a few small SQL reads.
+    if (changed) spaceIndexCache.clear()
+  })()
+}
 
 export function invalidateSpaceIndex(accountId: string, agentId?: string): void {
   for (const key of spaceIndexCache.keys()) {
@@ -8229,23 +8266,20 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
     }
   }
 
-  let memoryLine = 'memory/ — empty'
+  let memoryLine: string
   const cachedSummary = memorySummaryCache.get(input.stateDir)
   if (cachedSummary && Date.now() - cachedSummary.walkedAt < cachedSummary.holdMs) {
     memoryLine = cachedSummary.line
+  } else if (cachedSummary && cachedSummary.holdMs > 0) {
+    // The last walk was expensive: serve the stale line and refresh off the prompt path.
+    memoryLine = cachedSummary.line
+    scheduleMemorySummaryRefresh(input.stateDir)
   } else {
+    // Unknown or known-cheap memory: walk now so the line is exactly fresh.
     const walkStart = performance.now()
+    memoryLine = 'memory/ — empty'
     try {
-      const summary = agentMemory.summarizeMemoryTopLevel(input.stateDir)
-      if (summary.entries.length) {
-        const top = summary.entries
-          .slice(0, 12)
-          .map((entry) => (entry.type === 'dir' ? `${entry.name}/(${entry.fileCount ?? 0})` : entry.name))
-          .join(' · ')
-        memoryLine = `memory/ — ${summary.totalFiles} file${summary.totalFiles === 1 ? '' : 's'}: ${top}${
-          summary.entries.length > 12 ? ' · …' : ''
-        }`
-      }
+      memoryLine = formatMemoryLine(agentMemory.summarizeMemoryTopLevel(input.stateDir))
     } catch {}
     const walkMs = performance.now() - walkStart
     const holdMs =
