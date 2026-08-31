@@ -70,7 +70,13 @@ export function SiteFileBrowser({
     )
     const published = (directory ?? []).map((document) => {
       const draft = draftEdits.get(document.id.id)
-      return draft ? {...document, metadata: draft.metadata, isFolder: draft.isFolder ?? document.isFolder} : document
+      return draft
+        ? {
+            ...document,
+            metadata: {...document.metadata, ...draft.metadata},
+            isFolder: draft.isFolder ?? document.isFolder,
+          }
+        : document
     })
     const unpublished = drafts.flatMap((draft) => {
       const {editId, locationId} = draft as HMListedDraftWithLocation

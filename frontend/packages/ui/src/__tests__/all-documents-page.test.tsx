@@ -64,6 +64,33 @@ function makeDoc(path: string[], name: string): HMDocumentInfo {
 }
 
 describe('AllDocumentsPage', () => {
+  it('sorts documents when a sortable column heading is clicked', () => {
+    useDirectoryMock.mockReturnValue({
+      data: [makeDoc(['zulu'], 'Zulu'), makeDoc(['alpha'], 'Alpha')],
+      isLoading: false,
+    })
+
+    act(() => {
+      root.render(<AllDocumentsPage siteId={hmId('site')} onNavigateToDocument={vi.fn()} />)
+    })
+
+    const documentTitles = () =>
+      Array.from(container.querySelectorAll('tbody button')).map((button) => button.textContent)
+
+    expect(documentTitles()).toEqual(['Alpha', 'Zulu'])
+
+    const titleHeading = Array.from(container.querySelectorAll('thead button')).find(
+      (button) => button.textContent?.includes('Title'),
+    )
+    expect(titleHeading).toBeTruthy()
+
+    act(() => {
+      titleHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+
+    expect(documentTitles()).toEqual(['Zulu', 'Alpha'])
+  })
+
   it('renders the document path in muted text below the title and keeps title navigation', () => {
     const document = makeDoc(['folder', 'doc'], 'Doc Title')
     const onNavigateToDocument = vi.fn()

@@ -36,6 +36,28 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
+  it('keeps published metadata when an editing draft has no title override', () => {
+    const published = makeDoc(['guides'], 'Published guide')
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [published],
+      drafts: [
+        {
+          id: 'draft-1',
+          metadata: {},
+          editId: published.id,
+        } as unknown as HMListedDraft,
+      ],
+      isLoading: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+
+    expect(container.textContent).toContain('Published guide')
+    expect(container.textContent).not.toContain('Untitled Document')
+  })
+
   it('renders unpublished drafts in their parent directory', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [makeDoc(['guides'], 'Guides')],

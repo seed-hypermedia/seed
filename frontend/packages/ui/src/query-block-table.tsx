@@ -5,7 +5,7 @@ import type {
   HMQueryTableConfig,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
-import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
+import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
 import {
   type ColumnDef,
   type ColumnOrderState,
@@ -49,11 +49,6 @@ export interface QueryBlockTableProps {
   onSortingChange?: (sorting: SortingState) => void
 }
 
-function CitationCell({item}: {item: HMDocumentInfo}) {
-  const summary = useInteractionSummary(item.id)
-  return <span className="text-muted-foreground">{summary.isLoading ? '…' : summary.data?.citations ?? 0}</span>
-}
-
 function TitleCell({item}: {item: HMDocumentInfo}) {
   const linkProps = useRouteLink({key: 'document', id: item.id})
   return (
@@ -85,9 +80,14 @@ export function QueryBlockTable({
   const descriptors = useMemo(() => buildQueryTableColumns(items), [items])
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState<QueryTableFilter[]>([])
-  const [sorting, setSorting] = useState<SortingState>([])
+  const [sorting, setSorting] = useState<SortingState>(controlledSorting ?? [])
   const [visibleCount, setVisibleCount] = useState(() => Math.min(items.length, INITIAL_ROWS))
   const sentinelRef = useRef<HTMLDivElement>(null)
+  const citationSummaries = useInteractionSummaries(items.map((item) => item.id))
+  const citationCounts = useMemo(
+    () => Object.fromEntries(items.map((item, index) => [item.id.id, citationSummaries[index]?.data?.citations ?? 0])),
+    [citationSummaries, items],
+  )
 
   const configuredColumns = tableConfig?.columns ?? []
   const initialOrder = [
@@ -117,6 +117,10 @@ export function QueryBlockTable({
       ...current,
     }))
   }, [descriptors])
+
+  useEffect(() => {
+    if (controlledSorting) setSorting(controlledSorting)
+  }, [controlledSorting])
 
   const filteredItems = useMemo(
     () =>
@@ -151,10 +155,16 @@ export function QueryBlockTable({
             return interactionSummaries[item.id.id]?.comments ?? item.activitySummary?.commentCount ?? 0
           }
           if (descriptor.id === 'children') return interactionSummaries[item.id.id]?.children ?? 0
+          if (descriptor.id === 'authors') {
+            return item.authors
+              .map((author) => accountsMetadata[author]?.metadata?.name || author)
+              .join(', ')
+              .toLocaleLowerCase()
+          }
+          if (descriptor.id === 'citations') return citationCounts[item.id.id] ?? 0
           return getQueryTableValue(item, descriptor.id)
         },
         header: descriptor.label,
-        enableSorting: !['authors', 'citations'].includes(descriptor.id),
         minSize: descriptor.id === 'title' ? 180 : 100,
         size: descriptor.id === 'title' ? 240 : 140,
         cell: ({row}) => {
@@ -162,7 +172,8 @@ export function QueryBlockTable({
           if (descriptor.id === 'title') return <TitleCell item={item} />
           if (descriptor.id === 'authors')
             return <FacePile accounts={item.authors} accountsMetadata={accountsMetadata} />
-          if (descriptor.id === 'citations') return <CitationCell item={item} />
+          if (descriptor.id === 'citations')
+            return <span className="text-muted-foreground">{citationCounts[item.id.id] ?? 0}</span>
           if (descriptor.id === 'comments') {
             return <span>{interactionSummaries[item.id.id]?.comments ?? item.activitySummary?.commentCount ?? 0}</span>
           }
@@ -174,10 +185,10 @@ export function QueryBlockTable({
           return <span className="block truncate">{displayValue(getQueryTableValue(item, descriptor.id))}</span>
         },
       })),
-    [accountsMetadata, descriptors, interactionSummaries],
+    [accountsMetadata, citationCounts, descriptors, interactionSummaries],
   )
 
-  const activeSorting = controlledSorting ?? sorting
+  const activeSorting = sorting
   const table = useReactTable({
     data: filteredItems,
     columns,
@@ -198,6 +209,7 @@ export function QueryBlockTable({
   function persistColumns(nextVisibility = columnVisibility) {
     onTableConfigChange?.({
       columns: columnOrder.map((id) => ({id, visible: nextVisibility[id] !== false, width: columnSizing[id]})),
+      sorting: activeSorting,
     })
   }
 
@@ -327,6 +339,7 @@ export function QueryBlockTable({
                         visible: columnVisibility[id] !== false,
                         width: columnSizing[id],
                       })),
+                      sorting: activeSorting,
                     })
                   }}
                 >
@@ -345,6 +358,7 @@ export function QueryBlockTable({
                         visible: columnVisibility[id] !== false,
                         width: columnSizing[id],
                       })),
+                      sorting: activeSorting,
                     })
                   }}
                 >
@@ -371,15 +385,28 @@ export function QueryBlockTable({
                       key={header.id}
                       className={cn('relative', header.column.id === 'title' && 'bg-background sticky left-0 z-20')}
                       style={{width: header.getSize()}}
+                      aria-sort={
+                        header.column.getIsSorted() === 'asc'
+                          ? 'ascending'
+                          : header.column.getIsSorted() === 'desc'
+                            ? 'descending'
+                            : 'none'
+                      }
                     >
                       {header.column.getCanSort() ? (
                         <button
                           type="button"
-                          className="flex items-center gap-1"
+                          className="absolute inset-0 flex w-full items-center justify-start gap-1 px-2"
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(header.column.columnDef.header, header.getContext())}
-                          <ChevronsUpDown className="size-3" />
+                          {header.column.getIsSorted() === 'asc' ? (
+                            <ChevronUp className="size-3" />
+                          ) : header.column.getIsSorted() === 'desc' ? (
+                            <ChevronDown className="size-3" />
+                          ) : (
+                            <ChevronsUpDown className="size-3" />
+                          )}
                         </button>
                       ) : (
                         flexRender(header.column.columnDef.header, header.getContext())
@@ -387,7 +414,7 @@ export function QueryBlockTable({
                       <button
                         type="button"
                         aria-label={`Resize ${header.column.id} column`}
-                        className="absolute top-0 right-0 h-full w-2 cursor-col-resize touch-none"
+                        className="absolute top-0 right-0 z-10 h-full w-2 cursor-col-resize touch-none"
                         onMouseDown={header.getResizeHandler()}
                         onTouchStart={header.getResizeHandler()}
                         onDoubleClick={() => header.column.resetSize()}

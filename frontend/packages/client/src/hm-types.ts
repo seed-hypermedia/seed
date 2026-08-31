@@ -57,6 +57,7 @@ const HMQueryTableColumnSchema = z.object({
 
 const HMQueryTableConfigSchema = z.object({
   columns: z.array(HMQueryTableColumnSchema),
+  sorting: z.array(z.object({id: z.string(), desc: z.boolean()})).optional(),
 })
 
 /** Persisted presentation settings for a Query block's Table view. */

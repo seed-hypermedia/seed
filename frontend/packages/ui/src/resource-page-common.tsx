@@ -1798,7 +1798,7 @@ function DocumentBody({
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
   const isFolder = useDocumentSelector(selectIsFolder)
-  const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'folder' | 'document' | null>(null)
+  const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'document' | null>(null)
   const folderQueryBlock = useDocumentSelector(selectFolderQueryBlock)
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
@@ -2502,9 +2502,9 @@ function DocumentBody({
       key: 'convert-to-folder',
       label: 'Convert to Folder',
       icon: <Grid3X3 className="size-4" />,
-      onClick: () => setPendingDocumentConversion('folder'),
+      onClick: () => send({type: 'folder.convertToFolder'}),
     }
-  }, [canEditCurrentRoute, isFolder])
+  }, [canEditCurrentRoute, isFolder, send])
 
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
@@ -2596,22 +2596,16 @@ function DocumentBody({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Convert to {pendingDocumentConversion === 'folder' ? 'Folder' : 'Document'}?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Convert to Document?</AlertDialogTitle>
             <AlertDialogDescription>
-              {pendingDocumentConversion === 'folder'
-                ? 'This will remove all document content and replace it with a query block.'
-                : 'This will remove the folder query block and leave an empty document.'}
+              This will remove the folder query block and leave an empty document.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                send({
-                  type: pendingDocumentConversion === 'folder' ? 'folder.convertToFolder' : 'folder.convertToDocument',
-                })
+                send({type: 'folder.convertToDocument'})
                 setPendingDocumentConversion(null)
               }}
             >

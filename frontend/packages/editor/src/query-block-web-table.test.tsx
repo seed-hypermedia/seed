@@ -4,6 +4,8 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
+const updateBlockMock = vi.hoisted(() => vi.fn())
+
 vi.mock('./blocknote/react', () => ({
   createReactBlockSpec: (spec: any) => spec,
 }))
@@ -14,7 +16,7 @@ vi.mock('@shm/shared/routing', () => ({
   useUniversalClient: () => ({request: vi.fn()}),
 }))
 vi.mock('@shm/shared/models/use-editor-gate', () => ({
-  useEditorGate: () => false,
+  useEditorGate: () => ({canEdit: false, beginEditIfNeeded: vi.fn()}),
 }))
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>()
@@ -51,8 +53,11 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
   }
 })
 vi.mock('@shm/ui/query-block-content', () => ({
-  QueryBlockContent: ({style, items}: {style: string; items: Array<{metadata: {name: string}}>}) => (
-    <div data-style={style}>{items.map((item) => item.metadata.name).join(', ')}</div>
+  QueryBlockContent: ({style, items, onTableSortingChange}: any) => (
+    <div data-style={style}>
+      {items.map((item: any) => item.metadata.name).join(', ')}
+      <button onClick={() => onTableSortingChange([{id: 'authors', desc: false}])}>Sort authors</button>
+    </div>
   ),
 }))
 
@@ -71,7 +76,11 @@ function RenderQueryBlock() {
         tableConfig: '',
       },
     } as any,
-    editor: {renderType: 'document', _tiptapEditor: {isEditable: false}} as any,
+    editor: {
+      renderType: 'document',
+      _tiptapEditor: {isEditable: false},
+      updateBlock: updateBlockMock,
+    } as any,
   })
 }
 
@@ -90,6 +99,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  updateBlockMock.mockClear()
 })
 
 describe('QueryBlock web table rendering', () => {
@@ -99,5 +109,22 @@ describe('QueryBlock web table rendering', () => {
     })
 
     expect(container.textContent).toContain('Visible Table Note')
+  })
+
+  it('persists table sorting as publishable block configuration', () => {
+    act(() => {
+      root.render(<RenderQueryBlock />)
+    })
+
+    const sortButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Sort authors',
+    )
+    act(() => sortButton?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    expect(updateBlockMock).toHaveBeenCalledWith('q-table', {
+      props: {
+        tableConfig: JSON.stringify({columns: [], sorting: [{id: 'authors', desc: false}]}),
+      },
+    })
   })
 })

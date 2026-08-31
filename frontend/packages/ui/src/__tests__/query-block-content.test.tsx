@@ -9,6 +9,7 @@ vi.mock('../document-list-item', () => ({
 }))
 vi.mock('@shm/shared/models/interaction-summary', () => ({
   useInteractionSummary: () => ({isLoading: false, data: {citations: 0}}),
+  useInteractionSummaries: () => [{data: {citations: 2}}, {data: {citations: 8}}],
 }))
 
 import {QueryBlockContent} from '../query-block-content'
@@ -90,6 +91,68 @@ describe('QueryBlockContent loading state', () => {
 })
 
 describe('QueryBlockContent table view', () => {
+  it('sorts authors alphabetically by their displayed names', () => {
+    const items = makeItems(2)
+    items[0].metadata.name = 'Zed document'
+    items[0].authors = ['z-author']
+    items[1].metadata.name = 'Alpha document'
+    items[1].authors = ['a-author']
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          tableSorting={[]}
+          accountsMetadata={
+            {
+              'z-author': {id: {uid: 'z-author'}, metadata: {name: 'Zelda'}},
+              'a-author': {id: {uid: 'a-author'}, metadata: {name: 'Alice'}},
+            } as any
+          }
+        />,
+      )
+    })
+
+    const authorsHeading = Array.from(container.querySelectorAll('thead button')).find(
+      (button) => button.textContent?.includes('Authors'),
+    )
+    expect(authorsHeading?.className).toContain('inset-0')
+    act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    expect(Array.from(container.querySelectorAll('tbody tr a')).map((link) => link.textContent)).toEqual([
+      'Alpha document',
+      'Zed document',
+    ])
+
+    act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    expect(Array.from(container.querySelectorAll('tbody tr a')).map((link) => link.textContent)).toEqual([
+      'Zed document',
+      'Alpha document',
+    ])
+  })
+
+  it('sorts citations numerically', () => {
+    const items = makeItems(2)
+    items[0].metadata.name = 'Least cited'
+    items[1].metadata.name = 'Most cited'
+
+    act(() => {
+      root.render(<QueryBlockContent items={items} style="Table" accountsMetadata={{}} />)
+    })
+
+    const citationsHeading = Array.from(container.querySelectorAll('thead button')).find(
+      (button) => button.textContent?.includes('Citations'),
+    )
+    act(() => citationsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    expect(Array.from(container.querySelectorAll('tbody tr a')).map((link) => link.textContent)).toEqual([
+      'Most cited',
+      'Least cited',
+    ])
+  })
+
   it('stretches columns across the available table width while preserving horizontal overflow', () => {
     act(() => {
       root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)

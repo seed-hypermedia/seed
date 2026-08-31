@@ -165,16 +165,14 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         navigateCards
         tableConfig={tableConfig}
         onTableConfigChange={(config) => assign({tableConfig: JSON.stringify(config)})}
+        tableSorting={tableConfig?.sorting}
         onTableSortingChange={(sorting) => {
-          const first = sorting[0]
-          const terms: Record<string, HMQueryBlockSort[number]['term']> = {
-            title: 'Title',
-            path: 'Path',
-            created: 'CreateTime',
-            updated: 'UpdateTime',
-          }
-          const term = first ? terms[first.id] : undefined
-          if (term) assign({querySort: JSON.stringify([{term, reverse: first?.desc ?? false}])})
+          assign({
+            tableConfig: JSON.stringify({
+              columns: tableConfig?.columns ?? [],
+              sorting,
+            }),
+          })
         }}
       />
     )

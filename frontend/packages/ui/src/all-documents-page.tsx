@@ -90,7 +90,7 @@ export function AllDocumentsPage({siteId, scopeId, onNavigateToDocument}: AllDoc
   const directory = useDirectory(queryScopeId, {mode: 'AllDescendants'})
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
   const [filter, setFilter] = useState('')
-  const [sorting, setSorting] = useState<SortingState>([])
+  const [sorting, setSorting] = useState<SortingState>([{id: 'title', desc: false}])
   // Bulk selection is hidden until bulk actions exist. Keep this state with the commented selection code below.
   // const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set())
 
