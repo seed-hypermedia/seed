@@ -304,6 +304,8 @@ type RunningSession = {
 /** Validated delegate tool input for a model child, embedded in the child run's `input` so the run is self-describing. */
 type SubSessionSpec = {
   title?: string
+  systemPrompt?: string
+  /** Legacy persisted child-run field; new specs use systemPrompt. */
   prompt?: string
   input: unknown
   tools?: string[]
@@ -392,12 +394,23 @@ export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
     input.input = input.brief
     delete input.brief
   }
-  // Models often write the task brief into `prompt`. A prompt with no brief is meaningless as a
-  // bare system prompt, so read it as the brief instead of bouncing the call for a retry.
-  if (input.input === undefined && typeof input.prompt === 'string' && input.prompt) {
-    input.input = input.prompt
-    delete input.prompt
+  // `prompt` was the original system-prompt field. Keep it as a compatibility alias, while the
+  // explicit name prevents new callers from confusing the child's task brief with its persona.
+  if (input.systemPrompt === undefined && typeof input.prompt === 'string' && input.prompt) {
+    input.systemPrompt = input.prompt
   }
+  // Older models sometimes wrote the task brief into `prompt` alone. Preserve that forgiving
+  // behavior only when neither a brief nor the explicit systemPrompt field was supplied.
+  if (
+    input.input === undefined &&
+    typeof input.prompt === 'string' &&
+    input.prompt &&
+    input.systemPrompt === input.prompt
+  ) {
+    input.input = input.prompt
+    delete input.systemPrompt
+  }
+  delete input.prompt
   if (input.input === undefined) {
     throw new APIError(400, 'delegate requires a `brief` — the task briefing as human-readable markdown')
   }
@@ -412,7 +425,7 @@ export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
   }
   const spec: SubSessionSpec = {
     ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
-    ...(typeof input.prompt === 'string' && input.prompt ? {prompt: input.prompt} : {}),
+    ...(typeof input.systemPrompt === 'string' && input.systemPrompt ? {systemPrompt: input.systemPrompt} : {}),
     input: input.input,
     ...(Array.isArray(input.tools)
       ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
@@ -3971,6 +3984,8 @@ export class Service {
       title?: string
       /** Signed Seed account and exact signer behind an interactive user message. */
       userOrigin?: {accountId: string; signerId: string}
+      /** System/tool overrides for an autonomous thread (child delegation or trigger firing). */
+      runConfig?: Pick<SubSessionSpec, 'systemPrompt' | 'tools'>
     } = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
@@ -4073,6 +4088,7 @@ export class Service {
         kind: 'session-message',
         userEventIds: userEvents.map((event) => event.id),
         queuedBehindAnotherTurn,
+        ...(opts.runConfig ? {spec: {input: 'trigger-firing', ...opts.runConfig}} : {}),
       },
       queue: opts.background ? 'background' : 'interactive',
       // Background turns ride out a flaky provider; a turn the user is watching fails fast instead,
@@ -4130,7 +4146,8 @@ export class Service {
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
     const spec = this.#spawnContextForRun(run).spec
-    if (spec?.prompt) definition.systemPrompt = spec.prompt
+    const runSystemPrompt = spec?.systemPrompt ?? spec?.prompt
+    if (runSystemPrompt) definition.systemPrompt = runSystemPrompt
     if (spec?.tools) {
       // Undefined parent tools means "all callables plus the publish grant" — narrowing must
       // intersect against that full set, not a stale minimal default, or the child loses tools
@@ -7949,6 +7966,14 @@ export class Service {
           background: true,
           runId: failure ? `firing-${firingId}-escalation` : `firing-${firingId}`,
           triggerFiringId: firingId,
+          ...(trigger.continuation?.kind === 'newThread'
+            ? {
+                runConfig: {
+                  ...(trigger.continuation.systemPrompt ? {systemPrompt: trigger.continuation.systemPrompt} : {}),
+                  ...(trigger.continuation.tools ? {tools: trigger.continuation.tools} : {}),
+                },
+              }
+            : {}),
         })
         console.log('[Agents Trigger] Trigger session run enqueued', {
           accountId,
@@ -8946,7 +8971,24 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
 
 function normalizeTriggerContinuation(raw: api.TriggerContinuation): api.TriggerContinuation {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new APIError(400, 'Trigger continuation is required')
-  if (raw.kind === 'newThread') return {kind: 'newThread'}
+  if (raw.kind === 'newThread') {
+    const systemPrompt =
+      raw.systemPrompt === undefined
+        ? undefined
+        : normalizeBoundedString(raw.systemPrompt, 'Trigger system prompt', MAX_PROMPT_BYTES)
+    if (raw.tools !== undefined && !Array.isArray(raw.tools)) {
+      throw new APIError(400, 'Trigger tools must be an array')
+    }
+    if ((raw.tools?.length ?? 0) > MAX_TOOL_COUNT) throw new APIError(400, 'Too many trigger tools')
+    const tools = raw.tools?.map((tool) =>
+      normalizeSeedToolName(normalizeBoundedString(tool, 'Trigger tool', MAX_NAME_BYTES)),
+    )
+    return {
+      kind: 'newThread',
+      ...(systemPrompt ? {systemPrompt} : {}),
+      ...(tools ? {tools: [...new Set(tools)]} : {}),
+    }
+  }
   if (raw.kind === 'wake') {
     return {
       kind: 'wake',

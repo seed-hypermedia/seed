@@ -3190,17 +3190,29 @@ describe('api service', () => {
               name: 'Every hour',
               prompt: 'Run the scheduled task.',
               source: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}},
+              continuation: {
+                kind: 'newThread',
+                systemPrompt: 'You are the isolated scheduler worker.',
+                tools: ['search'],
+              },
             },
           },
         }),
       )
       if (createdTrigger._ !== 'CreateAgentTriggerResponse') throw new Error('unexpected response')
+      expect(createdTrigger.trigger.continuation).toEqual({
+        kind: 'newThread',
+        systemPrompt: 'You are the isolated scheduler worker.',
+        tools: ['search'],
+      })
 
       globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
         openAICallCount += 1
         const body = JSON.parse(String(init?.body))
         expect(JSON.stringify(body.messages)).toContain('Run the scheduled task.')
         expect(JSON.stringify(body.messages)).toContain('schedule')
+        const systemMessage = body.messages.find((message: {role?: string}) => message.role === 'system')
+        expect(systemMessage?.content).toStartWith('You are the isolated scheduler worker.')
         return openAIStreamResponse([
           {id: 'chat-schedule', choices: [{delta: {content: 'Scheduled task handled.'}}]},
           {id: 'chat-schedule', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
@@ -3215,6 +3227,14 @@ describe('api service', () => {
       expect(repeated).toMatchObject({matched: 0, fired: 0, skipped: 0, errors: 0})
       await svc.drainTriggerSessions() // the agent run is dispatched in the background; await it before asserting
       expect(openAICallCount).toBe(1)
+      const triggerRun = db
+        .query<{input_cbor: Uint8Array}, [string]>(
+          `SELECT r.input_cbor FROM runs r
+           JOIN trigger_firings f ON f.id = r.trigger_firing_id
+           WHERE f.trigger_id = ?`,
+        )
+        .get(createdTrigger.trigger.id)
+      expect(cbor.decode<{spec?: {tools?: string[]}}>(triggerRun!.input_cbor).spec?.tools).toEqual(['search'])
 
       const loaded = await svc.message(
         await apisvc.createSignedEnvelope(account, {
@@ -8441,13 +8461,26 @@ describe('normalizeSubSessionSpec', () => {
     // with no input is meaningless, so the natural reading is the right one.
     const spec = apisvc.normalizeSubSessionSpec({title: 'Research', prompt: 'Go research supplements.'})
     expect(spec.input).toBe('Go research supplements.')
-    expect(spec.prompt).toBeUndefined()
+    expect(spec.systemPrompt).toBeUndefined()
   })
 
   test('keeps prompt as a system prompt when input is present', () => {
     const spec = apisvc.normalizeSubSessionSpec({prompt: 'You are a researcher.', input: 'Find sources.'})
-    expect(spec.prompt).toBe('You are a researcher.')
+    expect(spec.systemPrompt).toBe('You are a researcher.')
     expect(spec.input).toBe('Find sources.')
+  })
+
+  test('accepts the explicit systemPrompt field without overloading the brief', () => {
+    const spec = apisvc.normalizeSubSessionSpec({
+      systemPrompt: 'You are a researcher.',
+      brief: 'Find sources.',
+      tools: ['search'],
+    })
+    expect(spec).toMatchObject({
+      systemPrompt: 'You are a researcher.',
+      input: 'Find sources.',
+      tools: ['search'],
+    })
   })
 
   test('still requires some form of brief', () => {
@@ -8456,7 +8489,7 @@ describe('normalizeSubSessionSpec', () => {
 
   test('brief is the canonical field and wins alongside a system prompt', () => {
     const spec = apisvc.normalizeSubSessionSpec({prompt: 'You are a researcher.', brief: 'Find sources.'})
-    expect(spec.prompt).toBe('You are a researcher.')
+    expect(spec.systemPrompt).toBe('You are a researcher.')
     expect(spec.input).toBe('Find sources.')
   })
 
