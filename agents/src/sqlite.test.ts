@@ -150,6 +150,33 @@ describe('sqlite', () => {
     }
   })
 
+  test('self-heals a stale migration version whose objects already exist, still applying what is missing', () => {
+    // The inverse of the missing-table repair: a database migrated under a divergent branch
+    // ordering already holds most pending migrations' objects while the count claims they are all
+    // pending. This is exactly the state that crash-looped a dev database on boot ("table
+    // webhook_trigger_credentials already exists") — and that database also genuinely lacked
+    // trigger_firings.run_id, so skipping whole migrations would trade the crash for "no such
+    // column". Statement-wise replay must skip only what exists and apply the rest.
+    const db = createMemoryDatabase()
+    try {
+      db.run(sqlite.schema.replace(/    body_digest BLOB,\n    run_id TEXT,\n/u, '    body_digest BLOB,\n'))
+      db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
+        sqlite.SCHEMA_MIGRATION_VERSION_KEY,
+        String(sqlite.BASELINE_SCHEMA_MIGRATION_VERSION),
+      ])
+      expect(columnExists(db, 'trigger_firings', 'run_id')).toBe(false)
+
+      const result = sqlite.openWithDatabase(db)
+      expect(result.ok).toBe(true)
+      expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
+      // The genuinely missing piece of a partially-present migration was still applied.
+      expect(columnExists(db, 'trigger_firings', 'run_id')).toBe(true)
+      expect(tableExists(db, 'webhook_trigger_credentials')).toBe(true)
+    } finally {
+      db.close()
+    }
+  })
+
   test('rejects databases with missing, legacy, invalid, or future migration versions', () => {
     const cases: Array<{name: string; setup: (db: Database) => void; current: number}> = [
       {

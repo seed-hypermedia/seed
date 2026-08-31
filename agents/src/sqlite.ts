@@ -498,6 +498,12 @@ function parseSchemaMigrationVersion(value: string): number | null {
   return parsed
 }
 
+/** Whether an error proves a migration's schema object is already present (table, index, or column). */
+function isSchemaExistsError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /already exists|duplicate column name/iu.test(message)
+}
+
 function applyPendingMigrations(db: Database, currentVersion: number): void {
   const pendingMigrations = migrations.slice(currentVersion)
   if (pendingMigrations.length === 0) return
@@ -514,6 +520,20 @@ function applyPendingMigrations(db: Database, currentVersion: number): void {
         db.run(`RELEASE ${savepoint}`)
       } catch (error) {
         db.run(`ROLLBACK TO ${savepoint}`)
+        // The version is only a count, so it is not a reliable coordinate across branches: a
+        // database migrated under a branch whose Nth migration differs from main's Nth can already
+        // hold this migration's objects while the count claims the migration is pending — the
+        // mirror of the missing-table state ensureBaselineTables repairs. The schema objects are
+        // the truth: replay the migration one statement at a time, skipping exactly the statements
+        // whose object already exists (a divergent database can hold PART of a migration, so
+        // skipping the whole migration would silently drop the rest). Any other failure still
+        // aborts the boot.
+        if (isSchemaExistsError(error)) {
+          applyMigrationTolerantly(db, migration, nextVersion)
+          setServerConfigValue(db, SCHEMA_MIGRATION_VERSION_KEY, String(nextVersion))
+          db.run(`RELEASE ${savepoint}`)
+          continue
+        }
         db.run(`RELEASE ${savepoint}`)
         throw error
       }
@@ -522,6 +542,23 @@ function applyPendingMigrations(db: Database, currentVersion: number): void {
   } catch (error) {
     db.run('ROLLBACK')
     throw error
+  }
+}
+
+/** Replays one migration statement-wise, skipping only statements whose schema object already exists. */
+function applyMigrationTolerantly(db: Database, migration: string, version: number): void {
+  for (const statement of dedent(migration).split(/;\s*\n/u)) {
+    const sql = statement.trim().replace(/;+$/u, '')
+    if (!sql) continue
+    try {
+      db.run(`${sql};`)
+    } catch (error) {
+      if (!isSchemaExistsError(error)) throw error
+      console.warn('[agents/sqlite] migration statement skipped: its schema object already exists', {
+        version,
+        statement: sql.split('\n')[0],
+      })
+    }
   }
 }
 
