@@ -162,6 +162,8 @@ CREATE TABLE session_events (
     UNIQUE (session_id, seq)
 ) WITHOUT ROWID;
 
+CREATE INDEX session_events_by_created ON session_events (created_at DESC);
+
 CREATE TABLE runs (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),

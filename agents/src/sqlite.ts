@@ -13,6 +13,10 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Newest-first cross-session event reads (thread content search) used to sort the whole table
+  // with a temp b-tree, reading every event blob on the server's only thread. This index lets
+  // those reads walk recency order directly and stop at their limit.
+  `CREATE INDEX session_events_by_created ON session_events (created_at DESC);`,
   // A firing whose continuation is a headless tool call or script starts a run instead of a
   // thread; this is where that run is linked from (session_id stays for thread firings).
   `ALTER TABLE trigger_firings ADD COLUMN run_id TEXT;`,
@@ -293,6 +297,14 @@ export function open(dbPath: string): OpenResult {
 export function openWithDatabase(db: Database): OpenResult {
   db.run('PRAGMA journal_mode = WAL')
   db.run('PRAGMA foreign_keys = ON')
+  // bun:sqlite is synchronous on the server's only thread, so every page-cache miss is a pread64
+  // on the event loop. The default 2MB page cache thrashes once session_events outgrows it (a
+  // 288MB production database sustained ~17k preads/sec rebuilding the same hot pages); a larger
+  // cache plus mmap keeps hot reads in memory, and in-memory temp stores keep ORDER BY spills off
+  // the loop too.
+  db.run('PRAGMA cache_size = -65536') // 64MB
+  db.run('PRAGMA mmap_size = 536870912') // 512MB
+  db.run('PRAGMA temp_store = MEMORY')
 
   if (isEmptyDatabase(db)) {
     initializeEmptyDatabase(db)

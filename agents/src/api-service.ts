@@ -771,6 +771,8 @@ export class Service {
       subscriptionAuth?: boolean
       /** Generate titles for untitled sessions with a dedicated model call (default off: tests mock providers). */
       titleGeneration?: boolean
+      /** Run-queue concurrency caps; see {@link runs.RunQueue} for the defaults. */
+      runQueue?: {maxConcurrentModelRuns?: number; maxConcurrentWorkflows?: number}
     } = {},
   ) {
     this.#db = db
@@ -785,6 +787,8 @@ export class Service {
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
     this.#titleGenerationEnabled = options.titleGeneration ?? false
     this.#runQueue = new runs.RunQueue(db, {
+      maxConcurrentModelRuns: options.runQueue?.maxConcurrentModelRuns,
+      maxConcurrentWorkflows: options.runQueue?.maxConcurrentWorkflows,
       executors: {
         agent: (run) => this.#executeAgentRun(run),
         workflow: (run) => this.#executeWorkflowRun(run),
@@ -8172,6 +8176,21 @@ type SpaceIndexInput = {
 
 const spaceIndexCache = new Map<string, string>()
 
+/**
+ * The memory-summary walk runs on the server's only thread, and the space index is invalidated on
+ * every memory write — with concurrent runs writing memory each turn, an eager re-walk melted
+ * production (9 runs kept a 200k-file memory in a constant 10k-entry synchronous walk cycle). So
+ * each walk earns a hold proportional to what it cost ({@link MEMORY_SUMMARY_HOLD_FACTOR}× its
+ * duration, capped at a minute): a walk cheaper than {@link MEMORY_SUMMARY_FREE_WALK_MS} earns no
+ * hold at all — a small memory stays exactly fresh — while a pathological one re-walks at most
+ * once per cap. Within the hold a rebuild reuses the last line; the counts read as minimums
+ * anyway (see {@link agentMemory.summarizeMemoryTopLevel}).
+ */
+const MEMORY_SUMMARY_HOLD_FACTOR = 100
+const MEMORY_SUMMARY_FREE_WALK_MS = 5
+const MEMORY_SUMMARY_MAX_HOLD_MS = 60_000
+const memorySummaryCache = new Map<string, {line: string; walkedAt: number; holdMs: number}>()
+
 export function invalidateSpaceIndex(accountId: string, agentId?: string): void {
   for (const key of spaceIndexCache.keys()) {
     if (key.startsWith(agentId ? `${accountId}/${agentId}#` : `${accountId}/`)) {
@@ -8211,18 +8230,30 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
   }
 
   let memoryLine = 'memory/ — empty'
-  try {
-    const summary = agentMemory.summarizeMemoryTopLevel(input.stateDir)
-    if (summary.entries.length) {
-      const top = summary.entries
-        .slice(0, 12)
-        .map((entry) => (entry.type === 'dir' ? `${entry.name}/(${entry.fileCount ?? 0})` : entry.name))
-        .join(' · ')
-      memoryLine = `memory/ — ${summary.totalFiles} file${summary.totalFiles === 1 ? '' : 's'}: ${top}${
-        summary.entries.length > 12 ? ' · …' : ''
-      }`
-    }
-  } catch {}
+  const cachedSummary = memorySummaryCache.get(input.stateDir)
+  if (cachedSummary && Date.now() - cachedSummary.walkedAt < cachedSummary.holdMs) {
+    memoryLine = cachedSummary.line
+  } else {
+    const walkStart = performance.now()
+    try {
+      const summary = agentMemory.summarizeMemoryTopLevel(input.stateDir)
+      if (summary.entries.length) {
+        const top = summary.entries
+          .slice(0, 12)
+          .map((entry) => (entry.type === 'dir' ? `${entry.name}/(${entry.fileCount ?? 0})` : entry.name))
+          .join(' · ')
+        memoryLine = `memory/ — ${summary.totalFiles} file${summary.totalFiles === 1 ? '' : 's'}: ${top}${
+          summary.entries.length > 12 ? ' · …' : ''
+        }`
+      }
+    } catch {}
+    const walkMs = performance.now() - walkStart
+    const holdMs =
+      walkMs < MEMORY_SUMMARY_FREE_WALK_MS
+        ? 0
+        : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
+    memorySummaryCache.set(input.stateDir, {line: memoryLine, walkedAt: Date.now(), holdMs})
+  }
 
   const triggers = input.db
     .query<{name: string; enabled: number}, [string, string]>(

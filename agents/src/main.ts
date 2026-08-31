@@ -395,6 +395,7 @@ async function main(): Promise<void> {
     exec: cfg.exec,
     subscriptionAuth: cfg.subscriptionAuth,
     titleGeneration: cfg.titleGeneration,
+    runQueue: cfg.runQueue,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
