@@ -305,6 +305,8 @@ type RunningSession = {
 type SubSessionSpec = {
   title?: string
   systemPrompt?: string
+  /** Defaults true. False omits the agent-authored prompt while retaining shared runtime instructions. */
+  includeAgentSystemPrompt?: boolean
   /** Legacy persisted child-run field; new specs use systemPrompt. */
   prompt?: string
   input: unknown
@@ -426,6 +428,9 @@ export function normalizeSubSessionSpec(raw: unknown): SubSessionSpec {
   const spec: SubSessionSpec = {
     ...(typeof input.title === 'string' && input.title ? {title: input.title} : {}),
     ...(typeof input.systemPrompt === 'string' && input.systemPrompt ? {systemPrompt: input.systemPrompt} : {}),
+    ...(typeof input.includeAgentSystemPrompt === 'boolean'
+      ? {includeAgentSystemPrompt: input.includeAgentSystemPrompt}
+      : {}),
     input: input.input,
     ...(Array.isArray(input.tools)
       ? {tools: input.tools.filter((tool): tool is string => typeof tool === 'string')}
@@ -3984,8 +3989,8 @@ export class Service {
       title?: string
       /** Signed Seed account and exact signer behind an interactive user message. */
       userOrigin?: {accountId: string; signerId: string}
-      /** System/tool overrides for an autonomous thread (child delegation or trigger firing). */
-      runConfig?: Pick<SubSessionSpec, 'systemPrompt' | 'tools'>
+      /** Prompt/tool profile for an autonomous thread (child delegation or trigger firing). */
+      runConfig?: Pick<SubSessionSpec, 'systemPrompt' | 'includeAgentSystemPrompt' | 'tools'>
     } = {},
   ): Promise<api.MessageSessionResponse> {
     const messages = normalizeMessageContent(rawContent)
@@ -4146,8 +4151,6 @@ export class Service {
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     definition.systemPrompt = normalizeSystemPromptBlocks(definition.systemPrompt)
     const spec = this.#spawnContextForRun(run).spec
-    const runSystemPrompt = spec?.systemPrompt ?? spec?.prompt
-    if (runSystemPrompt) definition.systemPrompt = runSystemPrompt
     if (spec?.tools) {
       // Undefined parent tools means "all callables plus the publish grant" — narrowing must
       // intersect against that full set, not a stale minimal default, or the child loses tools
@@ -5902,9 +5905,15 @@ export class Service {
     agentId: string,
     definition: api.AgentDefinition,
     stateDir?: string,
+    runPromptProfile?: Pick<SubSessionSpec, 'systemPrompt' | 'includeAgentSystemPrompt' | 'prompt'>,
   ): Promise<string> {
     const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-    const promptBlocks = normalizeSystemPromptBlocks(definition.systemPrompt)
+    const agentPromptBlocks =
+      runPromptProfile?.includeAgentSystemPrompt === false ? [] : normalizeSystemPromptBlocks(definition.systemPrompt)
+    const additionalPrompt = runPromptProfile?.systemPrompt ?? runPromptProfile?.prompt
+    const promptBlocks = additionalPrompt
+      ? [...agentPromptBlocks, ...normalizeSystemPromptBlocks(additionalPrompt)]
+      : agentPromptBlocks
     const promptSource = safeJSONStringify(promptBlocks)
     const cachedPrompt = this.#resolvedSystemPromptCache.get(agentId)
     let systemPrompt: string
@@ -6070,7 +6079,13 @@ export class Service {
     const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}})
     const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
     const resourceLoader = createSeedPiResourceLoader(
-      await this.#agentSystemPrompt(accountId, session.agentId, definition, agentStateDir),
+      await this.#agentSystemPrompt(
+        accountId,
+        session.agentId,
+        definition,
+        agentStateDir,
+        run ? this.#spawnContextForRun(run).spec : undefined,
+      ),
     )
     // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
     // (unsupported platform, missing runtime) so the model never sees a tool that can only fail.
@@ -7970,6 +7985,9 @@ export class Service {
             ? {
                 runConfig: {
                   ...(trigger.continuation.systemPrompt ? {systemPrompt: trigger.continuation.systemPrompt} : {}),
+                  ...(trigger.continuation.includeAgentSystemPrompt !== undefined
+                    ? {includeAgentSystemPrompt: trigger.continuation.includeAgentSystemPrompt}
+                    : {}),
                   ...(trigger.continuation.tools ? {tools: trigger.continuation.tools} : {}),
                 },
               }
@@ -8976,6 +8994,10 @@ function normalizeTriggerContinuation(raw: api.TriggerContinuation): api.Trigger
       raw.systemPrompt === undefined
         ? undefined
         : normalizeBoundedString(raw.systemPrompt, 'Trigger system prompt', MAX_PROMPT_BYTES)
+    const includeAgentSystemPrompt =
+      raw.includeAgentSystemPrompt === undefined
+        ? undefined
+        : normalizeBoolean(raw.includeAgentSystemPrompt, 'Trigger includeAgentSystemPrompt')
     if (raw.tools !== undefined && !Array.isArray(raw.tools)) {
       throw new APIError(400, 'Trigger tools must be an array')
     }
@@ -8986,6 +9008,7 @@ function normalizeTriggerContinuation(raw: api.TriggerContinuation): api.Trigger
     return {
       kind: 'newThread',
       ...(systemPrompt ? {systemPrompt} : {}),
+      ...(includeAgentSystemPrompt !== undefined ? {includeAgentSystemPrompt} : {}),
       ...(tools ? {tools: [...new Set(tools)]} : {}),
     }
   }

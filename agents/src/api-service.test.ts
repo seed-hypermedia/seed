@@ -3138,6 +3138,7 @@ describe('api service', () => {
         }),
       )
       expect(deleted).toEqual({_: 'DeleteAgentTriggerResponse', triggerId: createdTrigger.trigger.id})
+
       const empty = await svc.message(
         await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgentTriggers', agentId: createdAgent.agentId}}),
       )
@@ -3212,7 +3213,8 @@ describe('api service', () => {
         expect(JSON.stringify(body.messages)).toContain('Run the scheduled task.')
         expect(JSON.stringify(body.messages)).toContain('schedule')
         const systemMessage = body.messages.find((message: {role?: string}) => message.role === 'system')
-        expect(systemMessage?.content).toStartWith('You are the isolated scheduler worker.')
+        expect(systemMessage?.content).toContain('ok')
+        expect(systemMessage?.content).toContain('You are the isolated scheduler worker.')
         return openAIStreamResponse([
           {id: 'chat-schedule', choices: [{delta: {content: 'Scheduled task handled.'}}]},
           {id: 'chat-schedule', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
@@ -3254,6 +3256,54 @@ describe('api service', () => {
         }),
       )
       expect(deleted).toEqual({_: 'DeleteAgentTriggerResponse', triggerId: createdTrigger.trigger.id})
+
+      const isolatedTrigger = await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {
+            _: 'CreateAgentTrigger',
+            agentId: createdAgent.agentId,
+            trigger: {
+              name: 'Isolated worker',
+              prompt: 'Run without the agent persona.',
+              source: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}},
+              continuation: {
+                kind: 'newThread',
+                systemPrompt: 'You are only the isolated worker.',
+                includeAgentSystemPrompt: false,
+              },
+            },
+          },
+        }),
+      )
+      if (isolatedTrigger._ !== 'CreateAgentTriggerResponse') throw new Error('unexpected response')
+      expect(isolatedTrigger.trigger.continuation).toMatchObject({includeAgentSystemPrompt: false})
+      openAICallCount = 0
+      globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+        openAICallCount += 1
+        const body = JSON.parse(String(init?.body))
+        const systemMessage = body.messages.find((message: {role?: string}) => message.role === 'system')
+        expect(systemMessage?.content).not.toContain('ok')
+        expect(systemMessage?.content).toContain('You are only the isolated worker.')
+        return openAIStreamResponse([
+          {id: 'chat-isolated', choices: [{delta: {content: 'Isolated task handled.'}}]},
+          {id: 'chat-isolated', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
+        ])
+      }) as unknown as typeof fetch
+      const isolatedDue = await svc.processScheduledTriggers(isolatedTrigger.trigger.createdAt + 60 * 60 * 1000)
+      expect(isolatedDue).toMatchObject({matched: 1, fired: 1, skipped: 0, errors: 0})
+      await svc.drainTriggerSessions()
+      expect(openAICallCount).toBe(1)
+      const isolatedRun = db
+        .query<{input_cbor: Uint8Array}, [string]>(
+          `SELECT r.input_cbor FROM runs r
+           JOIN trigger_firings f ON f.id = r.trigger_firing_id
+           WHERE f.trigger_id = ?`,
+        )
+        .get(isolatedTrigger.trigger.id)
+      expect(
+        cbor.decode<{spec?: {includeAgentSystemPrompt?: boolean}}>(isolatedRun!.input_cbor).spec
+          ?.includeAgentSystemPrompt,
+      ).toBe(false)
     } finally {
       globalThis.fetch = originalFetch
       db.close()
@@ -5704,6 +5754,7 @@ describe('api service', () => {
         const body = JSON.parse(await fetchBodyText(url, init))
         const messagesJSON = JSON.stringify(body.messages)
         if (messagesJSON.includes('You are the worker.')) {
+          expect(messagesJSON).toContain('You are the coordinator.')
           childCalls += 1
           // First attempt hits an overloaded provider; the queue must try again by itself.
           // The outage must outlast the provider client's OWN retries, so the run itself fails and
@@ -8473,14 +8524,17 @@ describe('normalizeSubSessionSpec', () => {
   test('accepts the explicit systemPrompt field without overloading the brief', () => {
     const spec = apisvc.normalizeSubSessionSpec({
       systemPrompt: 'You are a researcher.',
+      includeAgentSystemPrompt: false,
       brief: 'Find sources.',
       tools: ['search'],
     })
     expect(spec).toMatchObject({
       systemPrompt: 'You are a researcher.',
+      includeAgentSystemPrompt: false,
       input: 'Find sources.',
       tools: ['search'],
     })
+    expect(apisvc.normalizeSubSessionSpec({brief: 'Use defaults.'}).includeAgentSystemPrompt).toBeUndefined()
   })
 
   test('still requires some form of brief', () => {
@@ -9460,7 +9514,10 @@ describe('obligations that resolve themselves', () => {
     index,
     id,
     type: 'function',
-    function: {name: 'delegate', arguments: JSON.stringify({title, brief: `Do ${title}`, prompt})},
+    function: {
+      name: 'delegate',
+      arguments: JSON.stringify({title, brief: `Do ${title}`, prompt, includeAgentSystemPrompt: false}),
+    },
   })
   const planStateOf = (body: {messages: Array<{role?: string; content?: unknown}>}) =>
     body.messages
@@ -9601,6 +9658,7 @@ describe('obligations that resolve themselves', () => {
                   title: 'Doomed',
                   brief: 'Deliver a verdict',
                   prompt: 'You are the doomed worker.',
+                  includeAgentSystemPrompt: false,
                   output: {
                     type: 'object',
                     required: ['verdict'],
