@@ -18,7 +18,7 @@ import {useCancelRun, useRun, useSessionRuns, type AgentRunTreeLiveState} from '
 import {useNavigate} from './navigation'
 import {Button} from '@shm/ui/button'
 import {ArrowUpRight, ChevronDown, ChevronRight, Loader2} from 'lucide-react'
-import React, {useEffect, useMemo, useRef, useState} from 'react'
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 
 /**
  * What a parked run is actually waiting for, in words — or nothing, when the card's own title says
@@ -178,7 +178,9 @@ export function SessionRunCard({
   }
   return (
     <RunCardShell compact={compact}>
-      <RunPlanSteps plan={sessionPlan} compact={compact} settle={settled ? 'idle' : 'live'} />
+      <CardScrollArea compact={compact}>
+        <RunPlanSteps plan={sessionPlan} compact={compact} settle={settled ? 'idle' : 'live'} />
+      </CardScrollArea>
     </RunCardShell>
   )
 }
@@ -302,6 +304,23 @@ function RunCardBody({
   const headerTitle = (isParked ? parkedLabel(run) : undefined) ?? cardTitle(run, plan, childRuns)
   const navigate = useNavigate()
 
+  const workHierarchy = (
+    <RunWorkHierarchy
+      run={run}
+      childRuns={childRuns}
+      plan={plan}
+      journal={liveState.journal}
+      liveState={liveState}
+      compact={compact}
+      onOpenSession={onOpenSession}
+      onCancelRun={readOnly ? undefined : onCancelRun}
+      cancelPending={cancelPending}
+      renderToolPart={(part) => (
+        <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
+      )}
+    />
+  )
+
   return (
     <>
       <div className="group/runhead flex min-w-0 items-center gap-2">
@@ -385,26 +404,16 @@ function RunCardBody({
 
       {/* Live: the work itself stays inline — that is the card's purpose. Finished record: the
           checklist alone tells the story. Everything technical (hierarchy, code, activity) lives
-          on the run page, behind the open-run bubble. */}
+          on the run page, behind the open-run bubble. The pinned card caps this section's height
+          (see CardScrollArea); the transcript record scrolls with the chat and needs no cap. */}
       {isCompletedTranscript ? (
         plan?.steps.length ? (
           <RunPlanSteps plan={plan} compact={compact} settle="run-finished" />
         ) : null
+      ) : transcript ? (
+        workHierarchy
       ) : (
-        <RunWorkHierarchy
-          run={run}
-          childRuns={childRuns}
-          plan={plan}
-          journal={liveState.journal}
-          liveState={liveState}
-          compact={compact}
-          onOpenSession={onOpenSession}
-          onCancelRun={readOnly ? undefined : onCancelRun}
-          cancelPending={cancelPending}
-          renderToolPart={(part) => (
-            <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={run.agentId} />
-          )}
-        />
+        <CardScrollArea compact={compact}>{workHierarchy}</CardScrollArea>
       )}
 
       {/* Status and elapsed time anchor the card's bottom-left; cost keeps the opposite corner. */}
@@ -604,6 +613,55 @@ export function RunSourceDrawer({runs}: {runs: RunInfo[]}) {
             </div>
           ))
         : null}
+    </div>
+  )
+}
+
+/**
+ * Caps the pinned card's growing middle — a long plan or a wide fan-out of children must not push
+ * the composer off screen. Content past the cap scrolls, and whichever edge still hides more fades
+ * out into the card background (white in light mode, near-black in dark) until that edge is
+ * reached. The fade is a mask to transparent rather than a painted gradient, so it matches the
+ * card's background in either theme for free.
+ */
+function CardScrollArea({children, compact}: {children: React.ReactNode; compact?: boolean}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const innerRef = useRef<HTMLDivElement | null>(null)
+  const [fade, setFade] = useState({top: false, bottom: false})
+
+  const update = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const top = el.scrollTop > 4
+    const bottom = el.scrollTop + el.clientHeight < el.scrollHeight - 4
+    setFade((current) => (current.top === top && current.bottom === bottom ? current : {top, bottom}))
+  }, [])
+
+  // The fades track content growth, not just scrolling: a live run appends steps and children,
+  // which changes scrollHeight without any scroll event. Observing the inner wrapper catches that.
+  useEffect(() => {
+    update()
+    const observer = new ResizeObserver(update)
+    if (scrollRef.current) observer.observe(scrollRef.current)
+    if (innerRef.current) observer.observe(innerRef.current)
+    return () => observer.disconnect()
+  }, [update])
+
+  const mask =
+    fade.top || fade.bottom
+      ? `linear-gradient(to bottom, ${fade.top ? 'transparent, black 24px' : 'black'}, ${
+          fade.bottom ? 'black calc(100% - 24px), transparent' : 'black'
+        })`
+      : undefined
+
+  return (
+    <div
+      ref={scrollRef}
+      onScroll={update}
+      className={`min-w-0 flex-1 overflow-y-auto ${compact ? 'max-h-48' : 'max-h-[min(40vh,20rem)]'}`}
+      style={{maskImage: mask, WebkitMaskImage: mask}}
+    >
+      <div ref={innerRef}>{children}</div>
     </div>
   )
 }
