@@ -467,6 +467,27 @@ export function resolveDelegateModelRef(definition: api.AgentDefinition, request
 }
 
 /**
+ * Merges a session's model override into the definition for a run. The definition's own pair
+ * stays selectable under an override (enabledModels need not list it), so it is folded into the
+ * merged enabled set — otherwise the system prompt's delegation menu silently loses the agent's
+ * default model whenever a session is quick-switched away from it.
+ */
+export function applySessionModelOverride(
+  definition: api.AgentDefinition,
+  override: api.SessionModelOverride,
+): api.AgentDefinition {
+  const merged: api.AgentDefinition = {...definition, modelProvider: override.provider, model: override.model}
+  if (override.reasoningLevel) merged.reasoningLevel = override.reasoningLevel
+  else delete merged.reasoningLevel
+  const defaultPair = {provider: definition.modelProvider, model: definition.model}
+  const enabled = merged.enabledModels ?? []
+  if (!enabled.some((ref) => ref.provider === defaultPair.provider && ref.model === defaultPair.model)) {
+    merged.enabledModels = [...enabled, defaultPair]
+  }
+  return merged
+}
+
+/**
  * The child's first user message IS the parent's input, verbatim: sub-session transcripts must read
  * as the exact briefing the parent wrote (spawners are instructed to pass human-readable markdown).
  * Non-string inputs fall back to a bare fenced JSON block so nothing is ever hidden or reworded.
@@ -3284,10 +3305,7 @@ export class Service {
       .query<{name: string}, [string, string]>(`SELECT name FROM model_providers WHERE account_id = ? AND name = ?`)
       .get(accountId, override.provider)
     if (!providerRow) return definition
-    const merged: api.AgentDefinition = {...definition, modelProvider: override.provider, model: override.model}
-    if (override.reasoningLevel) merged.reasoningLevel = override.reasoningLevel
-    else delete merged.reasoningLevel
-    return merged
+    return applySessionModelOverride(definition, override)
   }
 
   #deleteSession(accountId: string, sessionId: string): api.DeleteSessionResponse {

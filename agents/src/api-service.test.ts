@@ -8626,6 +8626,39 @@ describe('resolveDelegateModelRef', () => {
   })
 })
 
+describe('applySessionModelOverride', () => {
+  const definition = {
+    name: 'Coder',
+    systemPrompt: '',
+    modelProvider: 'OpenAI',
+    model: 'gpt-5.6-terra',
+    enabledModels: [
+      {provider: 'OpenAI', model: 'gpt-5.6-sol'},
+      {provider: 'OpenAI', model: 'gpt-5.6-luna'},
+    ],
+  } as AgentDefinition
+
+  test('quick-switching a session keeps the definition default in the enabled menu', () => {
+    // The live bug: a session quick-switched to sol lost terra from the prompt's delegation menu
+    // (built from enabledModels, which need not list the default pair) — the agent reported
+    // "Terra is not exposed" despite terra being the agent's own configured model.
+    const merged = apisvc.applySessionModelOverride(definition, {provider: 'OpenAI', model: 'gpt-5.6-sol'})
+    expect(merged.model).toBe('gpt-5.6-sol')
+    expect(merged.modelProvider).toBe('OpenAI')
+    expect(merged.enabledModels).toEqual([
+      {provider: 'OpenAI', model: 'gpt-5.6-sol'},
+      {provider: 'OpenAI', model: 'gpt-5.6-luna'},
+      {provider: 'OpenAI', model: 'gpt-5.6-terra'},
+    ])
+  })
+
+  test('a default already in the enabled list is not duplicated', () => {
+    const listed = {...definition, model: 'gpt-5.6-sol'} as AgentDefinition
+    const merged = apisvc.applySessionModelOverride(listed, {provider: 'OpenAI', model: 'gpt-5.6-luna'})
+    expect(merged.enabledModels).toHaveLength(2)
+  })
+})
+
 describe('obligations: what a run owes before it may end', () => {
   /** Drives one session whose agent publishes a plan, with the provider scripted per turn. */
   async function runPlanScenario(
