@@ -173,21 +173,26 @@ function assertNoSymlinkComponents(stateDir: string, relPath: string): void {
  *
  * The walk is synchronous on the server's only thread, so it must stay bounded no matter what an
  * agent has written: `maxEntries` stops the walk once that many entries have been collected and
- * flags the result `truncated`. (An agent once imported a 192k-file source tree into memory; the
- * unbounded walk froze the event loop for 6–8 seconds per call.) When truncated, `totalBytes`
- * covers only the visited files.
+ * flags the result `truncated`, and `maxDepth` stops it from descending past that many directory
+ * levels (an unentered directory also flags `truncated`). (An agent once imported a 192k-file
+ * source tree into memory; the unbounded walk froze the event loop for 6–8 seconds per call.)
+ * When truncated, `totalBytes` covers only the visited files.
  */
 export function listMemory(
   stateDir: string,
-  options: {maxEntries?: number} = {},
+  options: {maxEntries?: number; maxDepth?: number} = {},
 ): {entries: AgentMemoryEntry[]; totalBytes: number; truncated: boolean} {
   const maxEntries = options.maxEntries ?? Number.MAX_SAFE_INTEGER
+  const maxDepth = options.maxDepth ?? Number.MAX_SAFE_INTEGER
   const root = memoryRootPath(stateDir)
   assertNoSymlinkComponents(stateDir, '')
   const entries: AgentMemoryEntry[] = []
   let totalBytes = 0
+  // The entry budget aborts the walk outright; the depth budget only skips a subtree and keeps
+  // walking siblings, so a deep corner cannot hide the rest of the memory from the listing.
+  let aborted = false
   let truncated = false
-  const walk = (dirAbs: string, dirRel: string): void => {
+  const walk = (dirAbs: string, dirRel: string, depth: number): void => {
     let names: fs.Dirent[]
     try {
       names = fs.readdirSync(dirAbs, {withFileTypes: true})
@@ -196,6 +201,7 @@ export function listMemory(
     }
     for (const dirent of names) {
       if (entries.length >= maxEntries) {
+        aborted = true
         truncated = true
         return
       }
@@ -205,8 +211,12 @@ export function listMemory(
       if (dirent.isDirectory()) {
         const stat = statOrNull(abs)
         entries.push({path: rel, type: 'dir', size: 0, updatedAt: stat?.mtimeMs ? Math.round(stat.mtimeMs) : 0})
-        walk(abs, rel)
-        if (truncated) return
+        if (depth < maxDepth) {
+          walk(abs, rel, depth + 1)
+          if (aborted) return
+        } else {
+          truncated = true
+        }
       } else if (dirent.isFile()) {
         const stat = statOrNull(abs)
         if (!stat) continue
@@ -215,7 +225,62 @@ export function listMemory(
       }
     }
   }
-  walk(root, '')
+  walk(root, '', 1)
+  entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+  return {entries, totalBytes, truncated}
+}
+
+/**
+ * Async variant of {@link listMemory} for background rollups: the same bounds and results, but
+ * every directory read and stat awaits, so a large tree shares the event loop with request
+ * handling instead of blocking it.
+ */
+export async function listMemoryAsync(
+  stateDir: string,
+  options: {maxEntries?: number; maxDepth?: number} = {},
+): Promise<{entries: AgentMemoryEntry[]; totalBytes: number; truncated: boolean}> {
+  const maxEntries = options.maxEntries ?? Number.MAX_SAFE_INTEGER
+  const maxDepth = options.maxDepth ?? Number.MAX_SAFE_INTEGER
+  const root = memoryRootPath(stateDir)
+  assertNoSymlinkComponents(stateDir, '')
+  const entries: AgentMemoryEntry[] = []
+  let totalBytes = 0
+  let aborted = false
+  let truncated = false
+  const walk = async (dirAbs: string, dirRel: string, depth: number): Promise<void> => {
+    let names: fs.Dirent[]
+    try {
+      names = await fs.promises.readdir(dirAbs, {withFileTypes: true})
+    } catch {
+      return
+    }
+    for (const dirent of names) {
+      if (entries.length >= maxEntries) {
+        aborted = true
+        truncated = true
+        return
+      }
+      const rel = dirRel ? `${dirRel}/${dirent.name}` : dirent.name
+      const abs = path.join(dirAbs, dirent.name)
+      if (dirent.isSymbolicLink()) continue
+      if (dirent.isDirectory()) {
+        const stat = await statOrNullAsync(abs)
+        entries.push({path: rel, type: 'dir', size: 0, updatedAt: stat?.mtimeMs ? Math.round(stat.mtimeMs) : 0})
+        if (depth < maxDepth) {
+          await walk(abs, rel, depth + 1)
+          if (aborted) return
+        } else {
+          truncated = true
+        }
+      } else if (dirent.isFile()) {
+        const stat = await statOrNullAsync(abs)
+        if (!stat) continue
+        totalBytes += stat.size
+        entries.push(fileEntry(rel, stat))
+      }
+    }
+  }
+  await walk(root, '', 1)
   entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   return {entries, totalBytes, truncated}
 }
@@ -419,7 +484,7 @@ export type AgentMemoryTopLevelEntry = {
   type: 'file' | 'dir'
   /** File size in bytes; total bytes of contained files for directories. */
   size: number
-  /** Number of files inside, for directories. */
+  /** Number of files inside, for directories; a minimum for trees deeper than the summary depth. */
   fileCount?: number
 }
 
@@ -432,17 +497,49 @@ export type AgentMemoryTopLevelEntry = {
 export const MAX_MEMORY_SUMMARY_ENTRIES = 10_000
 
 /**
- * Summarizes the top level of the agent's memory for automatic system-prompt injection: root
- * files and directories (with contained file counts), without listing subfolder contents.
- * Aggregated in one pass over a bounded walk; a truncated walk yields minimum counts/sizes.
+ * Depth budget for the summary walk. The summary only names root entries with rough counts, so
+ * descending further buys nothing — and agents park entire dev environments (a pnpm store, an
+ * imported source tree) in memory, where a deep walk melts the event loop for a line the model
+ * skims. Two levels keeps the counts meaningful for note-shaped memories while a deeper tree
+ * simply reads as a minimum.
  */
-export function summarizeMemoryTopLevel(stateDir: string): {
+export const MAX_MEMORY_SUMMARY_DEPTH = 2
+
+/** Result shape shared by the sync and async memory summaries. */
+export type AgentMemorySummary = {
   entries: AgentMemoryTopLevelEntry[]
   totalFiles: number
   totalBytes: number
   truncated: boolean
-} {
-  const {entries, totalBytes, truncated} = listMemory(stateDir, {maxEntries: MAX_MEMORY_SUMMARY_ENTRIES})
+}
+
+/**
+ * Summarizes the top level of the agent's memory for automatic system-prompt injection: root
+ * files and directories (with contained file counts), without listing subfolder contents.
+ * Aggregated in one pass over a bounded walk; a truncated walk yields minimum counts/sizes.
+ */
+export function summarizeMemoryTopLevel(stateDir: string): AgentMemorySummary {
+  return aggregateTopLevel(
+    listMemory(stateDir, {maxEntries: MAX_MEMORY_SUMMARY_ENTRIES, maxDepth: MAX_MEMORY_SUMMARY_DEPTH}),
+  )
+}
+
+/** Async {@link summarizeMemoryTopLevel} for background rollups that must not block the loop. */
+export async function summarizeMemoryTopLevelAsync(stateDir: string): Promise<AgentMemorySummary> {
+  return aggregateTopLevel(
+    await listMemoryAsync(stateDir, {maxEntries: MAX_MEMORY_SUMMARY_ENTRIES, maxDepth: MAX_MEMORY_SUMMARY_DEPTH}),
+  )
+}
+
+function aggregateTopLevel({
+  entries,
+  totalBytes,
+  truncated,
+}: {
+  entries: AgentMemoryEntry[]
+  totalBytes: number
+  truncated: boolean
+}): AgentMemorySummary {
   const top: AgentMemoryTopLevelEntry[] = []
   const dirs = new Map<string, AgentMemoryTopLevelEntry>()
   let totalFiles = 0
@@ -522,6 +619,14 @@ function concatBytes(chunks: Uint8Array[], total: number): Uint8Array {
 function statOrNull(target: string): fs.Stats | null {
   try {
     return fs.statSync(target)
+  } catch {
+    return null
+  }
+}
+
+async function statOrNullAsync(target: string): Promise<fs.Stats | null> {
+  try {
+    return await fs.promises.stat(target)
   } catch {
     return null
   }

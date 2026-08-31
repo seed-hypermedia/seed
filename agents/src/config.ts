@@ -63,6 +63,12 @@ export type Config = {
     /** Upstream DNS nameservers for sandbox name resolution. */
     dnsServers: string[]
   }
+  runQueue: {
+    /** Model-backed runs executed concurrently. Everything shares one event loop, so size this to the host. */
+    maxConcurrentModelRuns: number
+    /** Workflow runs executed concurrently (they mostly park waiting on children). */
+    maxConcurrentWorkflows: number
+  }
 }
 
 /** Parsed command-line flags accepted by the Agents service. */
@@ -89,6 +95,8 @@ export type Flags = {
   'exec-timeout-secs': number
   'exec-allow-network': string
   'exec-dns': string
+  'max-concurrent-model-runs': number
+  'max-concurrent-workflows': number
   'log-level': string
 }
 
@@ -117,6 +125,8 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
     'exec-allow-network': env.SEED_AGENTS_EXEC_ALLOW_NETWORK ?? '',
     'exec-dns': env.SEED_AGENTS_EXEC_DNS || '',
+    'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
+    'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
   }
 }
@@ -153,7 +163,9 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
       key === 'activity-max-pages' ||
       key === 'exec-cpus' ||
       key === 'exec-memory-mib' ||
-      key === 'exec-timeout-secs'
+      key === 'exec-timeout-secs' ||
+      key === 'max-concurrent-model-runs' ||
+      key === 'max-concurrent-workflows'
     ) {
       parsed[key] = parsePositiveInteger(value, key)
     } else {
@@ -199,6 +211,16 @@ export function create(pflags: Flags): Config {
       timeoutSecs: parsePositiveInteger(String(pflags['exec-timeout-secs']), 'exec-timeout-secs'),
       allowNetwork: isNetworkEnabled(pflags['exec-allow-network']),
       dnsServers: parseDnsServers(pflags['exec-dns']),
+    },
+    runQueue: {
+      maxConcurrentModelRuns: parsePositiveInteger(
+        String(pflags['max-concurrent-model-runs']),
+        'max-concurrent-model-runs',
+      ),
+      maxConcurrentWorkflows: parsePositiveInteger(
+        String(pflags['max-concurrent-workflows']),
+        'max-concurrent-workflows',
+      ),
     },
     subscriptionAuth: pflags['subscription-auth'],
     titleGeneration: pflags['session-title-generation'],

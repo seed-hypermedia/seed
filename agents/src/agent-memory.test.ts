@@ -12,6 +12,7 @@ import {
   readMemoryFile,
   resolveMemoryPath,
   summarizeMemoryTopLevel,
+  summarizeMemoryTopLevelAsync,
   writeMemoryFile,
 } from '@/agent-memory'
 
@@ -175,20 +176,40 @@ describe('agent memory', () => {
   })
 
   test('summarizes the top level without expanding subfolders', async () => {
-    withStateDir((stateDir) => {
+    await withStateDir(async (stateDir) => {
       writeMemoryFile(stateDir, 'MEMORY.md', 'index')
       writeMemoryFile(stateDir, 'notes/a.md', 'aa')
       writeMemoryFile(stateDir, 'notes/deep/b.md', 'bbb')
       writeMemoryFile(stateDir, 'media/pic.png', new Uint8Array(4))
 
+      // The summary walk stops at MAX_MEMORY_SUMMARY_DEPTH: notes/deep/ is seen but not entered,
+      // so its file is absent, the counts read as minimums, and the result flags truncation.
       const summary = summarizeMemoryTopLevel(stateDir)
-      expect(summary.totalFiles).toBe(4)
-      expect(summary.truncated).toBe(false)
+      expect(summary.totalFiles).toBe(3)
+      expect(summary.truncated).toBe(true)
       expect(summary.entries).toEqual([
         {name: 'MEMORY.md', type: 'file', size: 5},
         {name: 'media', type: 'dir', size: 4, fileCount: 1},
-        {name: 'notes', type: 'dir', size: 5, fileCount: 2},
+        {name: 'notes', type: 'dir', size: 2, fileCount: 1},
       ])
+
+      // The async rollup used by background refreshes reports the same result.
+      expect(await summarizeMemoryTopLevelAsync(stateDir)).toEqual(summary)
+    })
+  })
+
+  test('the depth budget skips a deep subtree without hiding its siblings', () => {
+    withStateDir((stateDir) => {
+      writeMemoryFile(stateDir, 'store/aa/bb/cc/huge.bin', new Uint8Array(8))
+      writeMemoryFile(stateDir, 'zz-notes/keep.md', 'kept')
+
+      const listed = listMemory(stateDir, {maxDepth: 2})
+      expect(listed.truncated).toBe(true)
+      const paths = listed.entries.map((entry) => entry.path)
+      // store/aa is listed but not entered; the later sibling tree is still fully visited.
+      expect(paths).toContain('store/aa')
+      expect(paths).not.toContain('store/aa/bb')
+      expect(paths).toContain('zz-notes/keep.md')
     })
   })
 
