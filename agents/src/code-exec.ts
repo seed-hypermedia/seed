@@ -66,7 +66,11 @@ export type CodeExecConfig = {
   dnsServers: string[]
   /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off by default. */
   warmPool: boolean
-  /** Maximum live pooled VMs host-wide; overflow executions fall back to single-use VMs. */
+  /**
+   * Maximum RETAINED pool entries (parked or leased pooled VMs). Not a hard cap on total live
+   * VMs: same-key concurrency and lost boot races create transient single-use overflow VMs at
+   * boot-per-call cost, so the cap can never make a call fail or wait.
+   */
   poolMaxVms: number
   /** How long a parked VM may sit idle before it is disposed. */
   poolIdleTtlMs: number
@@ -538,32 +542,55 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     }
   }
   /**
-   * Kills everything a call left running before the VM parks. An explicit /proc sweep because the
-   * broadcast form is not portable: the guest's dash builtin rejects `kill -9 -1` AND
-   * `kill -9 -- -1` ("Illegal number") — both observed against a real guest, where the sweep
-   * silently killed nothing. Spared: pid 1 (the guest supervisor), the sweeping shell itself, and
-   * its ancestor chain (the exec session's plumbing); kernel threads shrug off the signal.
+   * Kills everything a call left running before the VM parks, and PROVES it. An explicit /proc
+   * sweep because the broadcast form is not portable: the guest's dash builtin rejects
+   * `kill -9 -1` AND `kill -9 -- -1` ("Illegal number") — both observed against a real guest,
+   * where the sweep silently killed nothing.
    *
-   * Killed daemons may linger in /proc as zombies (init.krun reaps lazily; verified `State: Z`,
-   * empty cmdline against a real guest). A zombie runs nothing and holds nothing but a pid-table
-   * slot, so the reset contract — no process from a previous call is RUNNING at reuse — holds;
-   * the corpses are bounded by the VM's own lifetime.
+   * A single sweep has a fork race: a process forking after the glob expanded leaves a child the
+   * pass never visits. So the sweep repeats, each pass re-expanding /proc, until one full pass
+   * observes ZERO live candidates — at that scan there was no non-spared process left to fork, so
+   * the VM is verifiably empty. A guest still spawning after the pass budget (a fork storm) fails
+   * the reset and the VM is disposed instead of parked: the contract is "verified empty or
+   * destroyed", never "probably clean".
+   *
+   * Candidates exclude: pid 1 (the guest supervisor), the sweeping shell and its ancestor chain
+   * (the exec session's plumbing), kernel threads (PF_KTHREAD flag in /proc/pid/stat; SIGKILL is
+   * a no-op on them), and zombies — killed daemons linger as `State: Z` corpses because init.krun
+   * reaps lazily (verified against a real guest); a zombie runs nothing and cannot fork, so it
+   * cannot violate the contract, and the corpses are bounded by the VM's own lifetime.
    */
   const GUEST_RESET_SCRIPT = [
-    'self=$$',
-    'keep=" 1 $self "',
-    'p=$self',
+    'keep=" 1 $$ "',
+    'p=$$',
     'while :; do',
     '  pp=$(grep "^PPid:" /proc/$p/status 2>/dev/null | cut -f2)',
     '  case "$pp" in ""|0|1|$p) break;; esac',
     '  keep="$keep$pp "',
     '  p=$pp',
     'done',
-    'for f in /proc/[0-9]*; do',
-    '  pid=${f#/proc/}',
-    '  case "$keep" in *" $pid "*) ;; *) kill -9 "$pid" 2>/dev/null;; esac',
+    'pass=0',
+    'while [ $pass -lt 5 ]; do',
+    '  pass=$((pass+1))',
+    '  live=0',
+    '  for f in /proc/[0-9]*; do',
+    '    pid=${f#/proc/}',
+    '    case "$keep" in *" $pid "*) continue;; esac',
+    // Strip "pid (comm) " — greedy, so a comm containing ") " cannot desync the fields. Fields
+    // then: state ppid pgrp session tty tpgid flags …; PF_KTHREAD = 0x00200000.
+    '    line=$(sed "s/^[0-9]* (.*) //" "$f/stat" 2>/dev/null) || continue',
+    '    [ -z "$line" ] && continue',
+    '    set -- $line',
+    '    [ "$1" = "Z" ] && continue',
+    '    flags=$7',
+    '    case "$flags" in ""|*[!0-9]*) continue;; esac',
+    '    [ $((flags & 2097152)) -ne 0 ] && continue',
+    '    live=$((live+1))',
+    '    kill -9 "$pid" 2>/dev/null',
+    '  done',
+    '  [ "$live" -eq 0 ] && exit 0',
     'done',
-    'exit 0',
+    'exit 1',
   ].join('\n')
   const resetGuest = (sandbox: SandboxLike) => guestExecOk(sandbox, GUEST_RESET_SCRIPT)
   const probeGuest = (sandbox: SandboxLike) => guestExecOk(sandbox, 'exit 0')
@@ -631,10 +658,9 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
         }
         disposeEntry(existing)
       }
-      const busy = entries.get(key)?.leased === true
-      recordPerfCount(busy ? 'exec.pool_overflow' : 'exec.pool_miss')
-      if (busy) {
+      if (entries.get(key)?.leased === true) {
         // The key's VM is out on another call: single-use VM, today's boot-per-call economics.
+        recordPerfCount('exec.pool_overflow')
         const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
         return overflowLease(sandbox, bootMs)
       }
@@ -650,8 +676,11 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
       const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, Math.ceil(config.poolVmLifetimeMs / 1000))
       if (entries.has(key) || entries.size >= config.poolMaxVms) {
         // Lost a boot race for this key, or every slot filled while booting: stay single-use.
+        // Counted as overflow — the counters classify what a VM BECAME, not what was hoped for.
+        recordPerfCount('exec.pool_overflow')
         return overflowLease(sandbox, bootMs)
       }
+      recordPerfCount('exec.pool_miss')
       const entry: PoolEntry = {key, sandbox, bootedAt: Date.now(), lastParkedAt: 0, leased: true}
       entries.set(key, entry)
       return pooledLease(entry, bootMs, false)

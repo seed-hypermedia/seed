@@ -64,7 +64,7 @@ export type Config = {
     dnsServers: string[]
     /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off unless opted in. */
     warmPool: boolean
-    /** Maximum live pooled VMs host-wide. */
+    /** Maximum retained pool entries — transient overflow VMs can exceed it (see CodeExecConfig). */
     poolMaxVms: number
     /** Idle time before a parked pooled VM is disposed. */
     poolIdleTtlMs: number
