@@ -26,7 +26,7 @@ import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import React, {lazy, ReactElement, ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
@@ -216,7 +216,9 @@ export default function Main({className}: {className?: string}) {
           }}
         >
           {titlebar}
-          <PageComponent />
+          <Suspense fallback={<Fallback />}>
+            <PageComponent />
+          </Suspense>
         </ErrorBoundary>
       </div>
     )
@@ -233,7 +235,9 @@ export default function Main({className}: {className?: string}) {
             window.location.reload()
           }}
         >
-          <PageComponent />
+          <Suspense fallback={<Fallback />}>
+            <PageComponent />
+          </Suspense>
         </ErrorBoundary>
       </div>
     )
@@ -266,7 +270,12 @@ export default function Main({className}: {className?: string}) {
                       window.location.reload()
                     }}
                   >
-                    <PageComponent />
+                    {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
+                        inside the panel. Without this, the lazy import suspends all the way to the
+                        root boundary and the whole window — chrome included — becomes a spinner. */}
+                    <Suspense fallback={<Fallback />}>
+                      <PageComponent />
+                    </Suspense>
                   </ErrorBoundary>
                 </Panel>
               </PanelContent>
