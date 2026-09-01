@@ -481,8 +481,8 @@ export const POOL_GUEST_EXEC_TIMEOUT_MS = 2_000
  * - A VM is on loan to at most one lease. The parked entry is locked (`leased = true`)
  *   synchronously — before any await — so interleaved acquires cannot double-lease it; a
  *   same-key acquire while the VM is out gets a single-use overflow VM instead.
- * - Reset before park: release kills everything the call left running (`kill -9 -1` spares only
- *   the guest's pid-1 supervisor and the killer itself); a failed reset disposes the VM. Reuse is
+ * - Reset before park: release runs the fail-closed multi-pass /proc sweep (GUEST_RESET_SCRIPT
+ *   below) until a full pass proves the guest empty; a failed reset disposes the VM. Reuse is
  *   additionally gated on a health probe, so a VM that died while parked is replaced, not handed out.
  * - An unhealthy release always disposes; a wedged VM is never parked.
  * - Pooled VM lifetime is pool policy (`poolVmLifetimeMs`, idle TTL, LRU cap eviction) — never
@@ -549,16 +549,24 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
    *
    * A single sweep has a fork race: a process forking after the glob expanded leaves a child the
    * pass never visits. So the sweep repeats, each pass re-expanding /proc, until one full pass
-   * observes ZERO live candidates — at that scan there was no non-spared process left to fork, so
-   * the VM is verifiably empty. A guest still spawning after the pass budget (a fork storm) fails
-   * the reset and the VM is disposed instead of parked: the contract is "verified empty or
-   * destroyed", never "probably clean".
+   * proves EVERY snapshot entry is spared, a zombie, or a kernel thread — at that scan there was
+   * no non-spared process left to fork, so the VM is verifiably empty. The pass is FAIL-CLOSED:
+   * an entry that is unreadable, vanished mid-pass, or unparseable marks the pass dirty (and gets
+   * a kill attempt anyway) — a vanished parent may have forked before exiting, so its
+   * disappearance is grounds for another pass, never for trust. A guest still dirtying passes
+   * after the budget (a fork storm) fails the reset and the VM is disposed instead of parked: the
+   * contract is "verified empty or destroyed", never "probably clean".
    *
-   * Candidates exclude: pid 1 (the guest supervisor), the sweeping shell and its ancestor chain
-   * (the exec session's plumbing), kernel threads (PF_KTHREAD flag in /proc/pid/stat; SIGKILL is
-   * a no-op on them), and zombies — killed daemons linger as `State: Z` corpses because init.krun
-   * reaps lazily (verified against a real guest); a zombie runs nothing and cannot fork, so it
-   * cannot violate the contract, and the corpses are bounded by the VM's own lifetime.
+   * Excluded from dirtiness: pid 1 (the guest supervisor), the sweeping shell and its ancestor
+   * chain (the exec session's plumbing), kernel threads (PF_KTHREAD flag in /proc/pid/stat;
+   * SIGKILL is a no-op on them), and zombies — killed daemons linger as `State: Z` corpses
+   * because init.krun reaps lazily (verified against a real guest); a zombie runs nothing and
+   * cannot fork, so it cannot violate the contract, and the corpses are bounded by the VM's own
+   * lifetime.
+   *
+   * Parsing is delimiter-safe against hostile process names: stat is flattened (`tr '\n' ' '`)
+   * before the greedy comm strip, so a comm containing newlines or ") " cannot truncate or desync
+   * the parse — and if anything still fails to parse, the entry is dirty, not skipped.
    */
   const GUEST_RESET_SCRIPT = [
     'keep=" 1 $$ "',
@@ -572,23 +580,29 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     'pass=0',
     'while [ $pass -lt 5 ]; do',
     '  pass=$((pass+1))',
-    '  live=0',
+    '  dirty=0',
     '  for f in /proc/[0-9]*; do',
     '    pid=${f#/proc/}',
     '    case "$keep" in *" $pid "*) continue;; esac',
-    // Strip "pid (comm) " — greedy, so a comm containing ") " cannot desync the fields. Fields
-    // then: state ppid pgrp session tty tpgid flags …; PF_KTHREAD = 0x00200000.
-    '    line=$(sed "s/^[0-9]* (.*) //" "$f/stat" 2>/dev/null) || continue',
-    '    [ -z "$line" ] && continue',
-    '    set -- $line',
-    '    [ "$1" = "Z" ] && continue',
-    '    flags=$7',
-    '    case "$flags" in ""|*[!0-9]*) continue;; esac',
-    '    [ $((flags & 2097152)) -ne 0 ] && continue',
-    '    live=$((live+1))',
+    // Flatten, then strip "pid (comm) " greedily to the comm's true closing paren. Fields then:
+    // state ppid pgrp session tty tpgid flags …; PF_KTHREAD = 0x00200000.
+    '    line=$(tr "\\n" " " < "$f/stat" 2>/dev/null | sed "s/^[0-9]* (.*) //")',
+    '    ok=1',
+    '    [ -z "$line" ] && ok=0',
+    '    if [ "$ok" -eq 1 ]; then',
+    '      set -- $line',
+    '      state=$1',
+    '      flags=$7',
+    '      case "$flags" in ""|*[!0-9]*) ok=0;; esac',
+    '    fi',
+    '    if [ "$ok" -eq 1 ]; then',
+    '      [ "$state" = "Z" ] && continue',
+    '      [ $((flags & 2097152)) -ne 0 ] && continue',
+    '    fi',
+    '    dirty=$((dirty+1))',
     '    kill -9 "$pid" 2>/dev/null',
     '  done',
-    '  [ "$live" -eq 0 ] && exit 0',
+    '  [ "$dirty" -eq 0 ] && exit 0',
     'done',
     'exit 1',
   ].join('\n')
