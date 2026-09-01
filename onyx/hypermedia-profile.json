@@ -1,6 +1,4 @@
 {
-  "name": "Profile",
-  "description": "A snapshot describing an account: display name, avatar, and description — or an alias redirecting to another key.",
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-blob",
   "properties": {
     "type": {

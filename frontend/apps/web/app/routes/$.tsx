@@ -255,7 +255,7 @@ export const meta: MetaFunction<typeof loader> = (args) => {
     return [{title: 'Email Subscribers'}]
   }
   if ('kind' in payload && payload.kind === 'schema') {
-    return [{title: `Schema · ${payload.route.cid.slice(0, 12)}…`}]
+    return [{title: payload.route.cid ? `Schema · ${payload.route.cid.slice(0, 12)}…` : 'Schema'}]
   }
   return documentPageMeta({
     // @ts-ignore
@@ -563,7 +563,9 @@ export default function UnifiedDocumentPage() {
       dehydratedState={siteData.dehydratedState}
       initialRoute={siteData.isInspect ? initialInspectRoute : initialRouteWithExploreParams}
     >
-      {siteData.viewTerm === 'feed' && !siteData.isInspect ? (
+      {siteData.viewTerm === 'schema' && !siteData.isInspect ? (
+        <WebSchemaPage />
+      ) : siteData.viewTerm === 'feed' && !siteData.isInspect ? (
         <WebFeedPage docId={siteData.id} />
       ) : siteData.isInspect ? (
         <InnerInspectorPage docId={siteData.id} />
