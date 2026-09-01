@@ -6191,8 +6191,13 @@ describe('api service', () => {
       const account = blobs.generateNobleKeyPair()
       globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
         const body = JSON.parse(await fetchBodyText(url, init))
-        const messagesJSON = JSON.stringify(body.messages)
-        if (!messagesJSON.includes('You are the batcher.')) {
+        const systemContent = String(
+          body.messages.find((message: {role?: string}) => message.role === 'system')?.content ?? '',
+        )
+        // Children inherit the agent persona plus their delegate systemPrompt (delegate appends
+        // rather than replaces), and the parent transcript echoes the delegate arguments — so
+        // route on the child-only worker persona in the SYSTEM message.
+        if (systemContent.includes('You are a worker.')) {
           return openAIStreamResponse([
             {id: 'child', choices: [{delta: {content: 'Child finished the task.'}}]},
             {id: 'child', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
@@ -6830,7 +6835,12 @@ describe('api service', () => {
       globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
         const body = JSON.parse(await fetchBodyText(url, init))
         const messagesJSON = JSON.stringify(body.messages)
-        const isParent = messagesJSON.includes('You are the coordinator.')
+        const systemContent = String(
+          body.messages.find((message: {role?: string}) => message.role === 'system')?.content ?? '',
+        )
+        // Children carry the coordinator persona too (delegate appends, not replaces), so the
+        // parent is the request whose SYSTEM message names no worker persona.
+        const isParent = !systemContent.includes('You are worker ')
         if (isParent) {
           parentRequests.push(messagesJSON)
           expect(messagesJSON).not.toContain('"status":"spawned"')
@@ -6885,7 +6895,7 @@ describe('api service', () => {
             {id: 'parent-2', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
           ])
         }
-        const worker = messagesJSON.includes('worker Alpha') ? 'Alpha' : 'Beta'
+        const worker = systemContent.includes('worker Alpha') ? 'Alpha' : 'Beta'
         return openAIStreamResponse([
           {id: `child-${worker}`, choices: [{delta: {content: `${worker} finished the task.`}}]},
           {id: `child-${worker}`, choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},
@@ -7046,7 +7056,12 @@ describe('api service', () => {
       globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
         const body = JSON.parse(await fetchBodyText(url, init))
         const messagesJSON = JSON.stringify(body.messages)
-        if (messagesJSON.includes('You are the coordinator.')) {
+        const systemContent = String(
+          body.messages.find((message: {role?: string}) => message.role === 'system')?.content ?? '',
+        )
+        // The child's system prompt includes the coordinator persona too (delegate appends), so
+        // route on the child-only scorer persona.
+        if (!systemContent.includes('You are a scorer.')) {
           const hasResults = body.messages.some((message: {role?: string}) => message.role === 'tool')
           if (!hasResults) {
             return openAIStreamResponse([
@@ -8264,7 +8279,11 @@ describe('api service', () => {
         const body = JSON.parse(await fetchBodyText(url, init))
         // The provider request must not include the error event and has exactly one user message.
         expect(JSON.stringify(body.messages)).not.toContain('boom')
-        expect(body.messages.filter((message: {role?: string}) => message.role === 'user')).toHaveLength(1)
+        const realUserMessages = body.messages.filter(
+          (message: {role?: string; content?: unknown}) =>
+            message.role === 'user' && !String(message.content).startsWith('<session_status>'),
+        )
+        expect(realUserMessages).toHaveLength(1)
         return openAIStreamResponse([
           {id: 'retry', choices: [{delta: {content: 'Paris.'}}]},
           {id: 'retry', choices: [{delta: {}, finish_reason: 'stop'}], usage: openAIUsage()},

@@ -930,8 +930,22 @@ describe('thread listing and search', () => {
     expect(contentThreads[0]?.thread).toBe('thread:s1')
     expect(String(contentThreads[0]?.snippet)).toContain('pelican rodeo')
 
+    // Another agent's sessions never appear, and the legacy {agentId} option is inert: the
+    // listing is always scoped to the calling agent (agents do not read each other's state).
+    context.db.run(
+      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['other-agent', 'test-account', new Uint8Array([160]), 'y', 'ready', now, now],
+    )
+    context.db.run(
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['s3', 'test-account', 'other-agent', 'Other agent thread', 'system', 'idle', now, now + 1000],
+    )
+    const scoped = await executeReadVerb(context, {address: 'thread:'})
+    expect((scoped.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
     const byAgent = await executeReadVerb(context, {address: 'thread:', options: {agentId: 'other-agent'}})
-    expect((byAgent.threads as unknown[]).length).toBe(0)
+    expect((byAgent.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
   })
 })
 
