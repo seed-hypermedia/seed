@@ -74,6 +74,7 @@ import {
   sessionContextTokens,
   useFollowContinuation,
 } from './continuation'
+import {OpenAgentSessionContext} from './open-session-context'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
@@ -929,167 +930,178 @@ function AssistantSessionChat({
     }
   }
 
+  // Everything rendered under this transcript opens sessions IN THE PANEL: a continuation's
+  // successor, a delegate child, a predecessor. Cmd/shift-click still spawns a full window.
+  const openInPanel = useCallback((targetSessionId: string) => onOpenSession?.(targetSessionId), [onOpenSession])
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
-      {sessionInfo?.continuedFrom ? (
-        <ContinuationHeader
-          compact
-          link={sessionInfo.continuedFrom}
-          onOpenPredecessor={() => onOpenSession?.(sessionInfo.continuedFrom!.sessionId)}
-        />
-      ) : null}
-      <SessionSummaryBanner compact description={session.data?.session.description} />
-      {contextTokens !== undefined && session.data?.contextWindow ? (
-        <div className="border-border flex flex-none justify-end border-b px-3 py-1">
-          <ContextUsageMeter tokens={contextTokens} contextWindow={session.data.contextWindow} size={14} />
-        </div>
-      ) : null}
-      <div
-        ref={autoScroll.containerRef}
-        onScroll={autoScroll.handleScroll}
-        className="relative flex-1 overflow-x-hidden overflow-y-auto px-3 py-2"
-      >
-        <div ref={autoScroll.contentRef} className="flex min-h-full flex-col">
-          {rows.length === 0 && !isStreaming ? (
-            <div className="text-muted-foreground flex flex-1 items-center justify-center text-xs">
-              {/* While the transcript is on its way, the empty-state prompt would be a lie about a
+    <OpenAgentSessionContext.Provider value={onOpenSession ? openInPanel : null}>
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {sessionInfo?.continuedFrom ? (
+          <ContinuationHeader
+            compact
+            link={sessionInfo.continuedFrom}
+            onOpenPredecessor={() => onOpenSession?.(sessionInfo.continuedFrom!.sessionId)}
+          />
+        ) : null}
+        <SessionSummaryBanner compact description={session.data?.session.description} />
+        {contextTokens !== undefined && session.data?.contextWindow ? (
+          <div className="border-border flex flex-none justify-end border-b px-3 py-1">
+            <ContextUsageMeter tokens={contextTokens} contextWindow={session.data.contextWindow} size={14} />
+          </div>
+        ) : null}
+        <div
+          ref={autoScroll.containerRef}
+          onScroll={autoScroll.handleScroll}
+          className="relative flex-1 overflow-x-hidden overflow-y-auto px-3 py-2"
+        >
+          <div ref={autoScroll.contentRef} className="flex min-h-full flex-col">
+            {rows.length === 0 && !isStreaming ? (
+              <div className="text-muted-foreground flex flex-1 items-center justify-center text-xs">
+                {/* While the transcript is on its way, the empty-state prompt would be a lie about a
                   session that may be full of messages — hold quiet, then a tiny spinner. */}
-              {session.isLoading ? <DelayedSpinner /> : 'Send a message to start chatting'}
-            </div>
-          ) : null}
-          {rows.map((row) => {
-            if (row.kind === 'message')
-              return (
-                <ChatMessageBubble
-                  key={row.key}
-                  message={row.message}
-                  liveActivity={chatRowHasPendingToolCall(row) ? live.activity : undefined}
-                  serverUrl={serverUrl}
-                  accountUid={accountUid}
-                  agentId={session.data?.session.agentId}
-                />
-              )
-            if (row.kind === 'error') {
-              return (
-                <AgentErrorRow
-                  key={row.key}
-                  compact
-                  message={row.message}
-                  onRetry={row.key === retryableRowKey ? handleRetry : undefined}
-                  retryPending={retrySession.isPending}
-                />
-              )
-            }
-            if (row.kind === 'run-record') {
-              return (
-                <RunRecordCard
-                  key={row.key}
-                  serverUrl={serverUrl}
-                  accountUid={accountUid}
-                  runId={row.run.id}
-                  plan={row.plan}
-                  onOpenSession={(childSessionId, childAgentId) =>
-                    navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
-                  }
-                />
-              )
-            }
-            if (row.kind === 'continuation') {
-              return (
-                <ContinuationHandoffCard
-                  key={row.key}
-                  compact
-                  projection={row.projection}
-                  onOpenPredecessor={onOpenSession}
-                />
-              )
-            }
-            return null
-          })}
-          {live.text ? (
-            <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
-          ) : null}
-          {isStreaming && !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
-            // Hidden while a pending tool row is showing its own live status, to avoid two spinners.
-            <AgentRunStatusBar startedAt={runStartedAt} activity={live.activity} usage={live.usage} />
-          ) : null}
-          {autoScroll.showScrollButton ? (
-            <div className="pointer-events-none sticky bottom-2 flex justify-center">
-              <button
-                onClick={autoScroll.scrollToBottom}
-                className="bg-muted border-border text-foreground pointer-events-auto rounded-full border p-1.5 shadow-lg"
-                aria-label="Scroll to latest message"
-              >
-                <ArrowDown className="size-4" />
-              </button>
-            </div>
-          ) : null}
+                {session.isLoading ? <DelayedSpinner /> : 'Send a message to start chatting'}
+              </div>
+            ) : null}
+            {rows.map((row) => {
+              if (row.kind === 'message')
+                return (
+                  <ChatMessageBubble
+                    key={row.key}
+                    message={row.message}
+                    liveActivity={chatRowHasPendingToolCall(row) ? live.activity : undefined}
+                    serverUrl={serverUrl}
+                    accountUid={accountUid}
+                    agentId={session.data?.session.agentId}
+                  />
+                )
+              if (row.kind === 'error') {
+                return (
+                  <AgentErrorRow
+                    key={row.key}
+                    compact
+                    message={row.message}
+                    onRetry={row.key === retryableRowKey ? handleRetry : undefined}
+                    retryPending={retrySession.isPending}
+                  />
+                )
+              }
+              if (row.kind === 'run-record') {
+                return (
+                  <RunRecordCard
+                    key={row.key}
+                    serverUrl={serverUrl}
+                    accountUid={accountUid}
+                    runId={row.run.id}
+                    plan={row.plan}
+                    onOpenSession={(childSessionId, childAgentId) =>
+                      onOpenSession
+                        ? onOpenSession(childSessionId)
+                        : navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+                    }
+                  />
+                )
+              }
+              if (row.kind === 'continuation') {
+                return (
+                  <ContinuationHandoffCard
+                    key={row.key}
+                    compact
+                    projection={row.projection}
+                    onOpenPredecessor={onOpenSession}
+                  />
+                )
+              }
+              return null
+            })}
+            {live.text ? (
+              <AssistantMessageParts parts={[{type: 'text', text: live.text}]} isStreaming={isStreaming} />
+            ) : null}
+            {isStreaming && !(live.activity?.phase === 'tool' && rows.some(chatRowHasPendingToolCall)) ? (
+              // Hidden while a pending tool row is showing its own live status, to avoid two spinners.
+              <AgentRunStatusBar startedAt={runStartedAt} activity={live.activity} usage={live.usage} />
+            ) : null}
+            {autoScroll.showScrollButton ? (
+              <div className="pointer-events-none sticky bottom-2 flex justify-center">
+                <button
+                  onClick={autoScroll.scrollToBottom}
+                  className="bg-muted border-border text-foreground pointer-events-auto rounded-full border p-1.5 shadow-lg"
+                  aria-label="Scroll to latest message"
+                >
+                  <ArrowDown className="size-4" />
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      <SessionRunCard
-        compact
-        serverUrl={serverUrl}
-        accountUid={accountUid}
-        sessionId={sessionId}
-        sessionPlan={session.data?.session.plan}
-        frozenRunIds={frozenRuns}
-        readOnly={!canWrite}
-        onOpenSession={(childSessionId, childAgentId) =>
-          navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
-        }
-      />
+        <SessionRunCard
+          compact
+          serverUrl={serverUrl}
+          accountUid={accountUid}
+          sessionId={sessionId}
+          sessionPlan={session.data?.session.plan}
+          frozenRunIds={frozenRuns}
+          readOnly={!canWrite}
+          onOpenSession={(childSessionId, childAgentId) =>
+            onOpenSession
+              ? onOpenSession(childSessionId)
+              : navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
+          }
+        />
 
-      {/* No focus-on-mount here: session chats mount with the panel itself (e.g. on app launch),
+        {/* No focus-on-mount here: session chats mount with the panel itself (e.g. on app launch),
           where stealing focus from the document would be wrong. Focus is imperative, via the
           panel's new-chat flows. */}
-      <AgentRichMessageComposer
-        isBusy={isBusy}
-        isStreaming={isStreaming}
-        disabledMessage={
-          readOnly ? (
-            'You have read-only access to this agent.'
-          ) : isDrivenByParent ? (
-            <SubSessionDrivenNotice
-              parentTitle={parentSession.data?.session.title}
-              onOpenParent={() =>
-                navigate({
-                  key: 'agent-session',
-                  agentId: parentSession.data?.session.agentId,
-                  sessionId: parentSessionId!,
-                  serverUrl,
-                })
-              }
-            />
-          ) : undefined
-        }
-        stopPending={stopSession.isPending}
-        serverUrl={serverUrl}
-        accountId={accountUid ?? null}
-        sessionId={sessionId}
-        agentTools={agentDetail.data?.agent.definition.tools}
-        agentToolsLoading={agentDetail.isLoading}
-        focusOnMount={false}
-        canInvokeTools={canWrite}
-        composerHandleRef={composerRef}
-        onSend={handleSend}
-        onStop={() => void handleStop()}
-      />
-      {/* The active model for THIS session: the same per-session override switcher as the full
+        <AgentRichMessageComposer
+          isBusy={isBusy}
+          isStreaming={isStreaming}
+          disabledMessage={
+            readOnly ? (
+              'You have read-only access to this agent.'
+            ) : isDrivenByParent ? (
+              <SubSessionDrivenNotice
+                parentTitle={parentSession.data?.session.title}
+                onOpenParent={() =>
+                  onOpenSession
+                    ? onOpenSession(parentSessionId!)
+                    : navigate({
+                        key: 'agent-session',
+                        agentId: parentSession.data?.session.agentId,
+                        sessionId: parentSessionId!,
+                        serverUrl,
+                      })
+                }
+              />
+            ) : undefined
+          }
+          stopPending={stopSession.isPending}
+          serverUrl={serverUrl}
+          accountId={accountUid ?? null}
+          sessionId={sessionId}
+          agentTools={agentDetail.data?.agent.definition.tools}
+          agentToolsLoading={agentDetail.isLoading}
+          focusOnMount={false}
+          canInvokeTools={canWrite}
+          composerHandleRef={composerRef}
+          onSend={handleSend}
+          onStop={() => void handleStop()}
+        />
+        {/* The active model for THIS session: the same per-session override switcher as the full
           session page, so changing it here never touches the agent's default. */}
-      {session.data ? (
-        <div className="flex flex-none items-center justify-end px-3 pb-2">
-          <SessionModelBadge
-            agent={agentDetail.data?.agent}
-            agentId={session.data.session.agentId}
-            serverUrl={serverUrl}
-            sessionId={sessionId}
-            modelOverride={session.data.session.modelOverride}
-            canWrite={canWrite}
-          />
-        </div>
-      ) : null}
-    </div>
+        {session.data ? (
+          <div className="flex flex-none items-center justify-end px-3 pb-2">
+            <SessionModelBadge
+              agent={agentDetail.data?.agent}
+              agentId={session.data.session.agentId}
+              serverUrl={serverUrl}
+              sessionId={sessionId}
+              modelOverride={session.data.session.modelOverride}
+              canWrite={canWrite}
+            />
+          </div>
+        ) : null}
+      </div>
+    </OpenAgentSessionContext.Provider>
   )
 }
 

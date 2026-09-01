@@ -438,6 +438,31 @@ describe('assistant message rendering', () => {
     cleanupRendered(root, container)
   })
 
+  it('names a called lambda by its own name, and an MCP tool by server · tool', () => {
+    const lambda = renderToolPart({
+      type: 'tool',
+      id: 'tool-call-lambda',
+      name: 'call',
+      args: {tool: 'word_count', input: {text: 'one two three'}},
+      rawOutput: {summary: 'Counted 3 words.', word_count: 3},
+    })
+    expect(lambda.container.textContent).toContain('word_count')
+    expect(lambda.container.textContent).toContain('Counted 3 words.')
+    expect(lambda.container.textContent).not.toContain('Call')
+    cleanupRendered(lambda.root, lambda.container)
+
+    const mcp = renderToolPart({
+      type: 'tool',
+      id: 'tool-call-mcp',
+      name: 'call',
+      args: {tool: 'github__list_issues', input: {repo: 'seed'}},
+      rawOutput: {summary: '2 open issues.'},
+    })
+    expect(mcp.container.textContent).toContain('github · list_issues')
+    expect(mcp.container.textContent).not.toContain('Call')
+    cleanupRendered(mcp.root, mcp.container)
+  })
+
   it('renders the registry-defined comment.create write UI', () => {
     const {container, root} = renderToolPart({
       type: 'tool',
@@ -552,10 +577,13 @@ describe('assistant message rendering', () => {
     const title = findButton(container, (element) => element.textContent === 'Research Acme')
     expect(title).toBeTruthy()
     click(title)
-    expect(mockState.clickNavigate).toHaveBeenCalledWith(
-      {key: 'agent-session', sessionId: 'child-session-1', serverUrl: 'http://localhost:3050'},
-      expect.anything(),
-    )
+    // Session opens route through useOpenAgentSession, so the assistant panel can keep them
+    // in the panel; with no override in scope it falls through to plain navigation.
+    expect(mockState.navigate).toHaveBeenCalledWith({
+      key: 'agent-session',
+      sessionId: 'child-session-1',
+      serverUrl: 'http://localhost:3050',
+    })
     // Opening the sub-session is not a request to expand the row.
     expect(findButton(container, (element) => element.getAttribute('title') === 'Show tool details')).toBeTruthy()
 

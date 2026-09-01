@@ -25,6 +25,7 @@ import {
   type ToolRowSummary,
 } from './tool-summary'
 import {useOpenUrl} from './navigation'
+import {useOpenAgentSession} from './open-session-context'
 import {useFullAgentSessionEvent, useRun, useRunTree, useSessionAttachmentDataUrls, useSessionRuns} from './models'
 import {Notice} from '@shm/ui/notice'
 import {descendantsOf, isTerminalRun, RunTimerProgress, RunWorkHierarchy, useRunTreeView} from './run-work'
@@ -33,7 +34,7 @@ import {useRouteLink} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {ParkedRunActions} from './run-parked-actions'
 import {useSelectedAccountId} from './account'
-import {useClickNavigate, useNavigate} from './navigation'
+import {useClickNavigate} from './navigation'
 import {getAgentsPlatform} from './platform'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
@@ -379,13 +380,13 @@ function StatusUpdateRow({item}: {item: ChatToolPart}) {
 
 /** The `continue_session` row: where the conversation went, with a way there and every detail behind ⓘ. */
 function ContinuationTransitionRow({item, serverUrl}: {item: ChatToolPart; serverUrl?: string}) {
-  const navigate = useNavigate()
+  const openSession = useOpenAgentSession()
   const [detailsOpen, setDetailsOpen] = useState(false)
   return (
     <>
       <ContinuationTransitionCard
         item={item}
-        onOpenSuccessor={serverUrl ? (sessionId) => navigate({key: 'agent-session', sessionId, serverUrl}) : undefined}
+        onOpenSuccessor={(sessionId) => openSession({sessionId, serverUrl})}
         onInspect={() => setDetailsOpen(true)}
       />
       <ContinuationDetailsDialog item={item} open={detailsOpen} onOpenChange={setDetailsOpen} />
@@ -690,6 +691,7 @@ function useToolLinkOpener() {
   const {serverUrl, agentId} = React.useContext(ToolRowContext)
   const openUrl = useOpenUrl()
   const clickNavigate = useClickNavigate()
+  const openSession = useOpenAgentSession()
 
   return {
     /** False when the target needs context this row does not have — the label stays plain text. */
@@ -705,7 +707,7 @@ function useToolLinkOpener() {
         return
       }
       if (target.type === 'session') {
-        clickNavigate({key: 'agent-session', sessionId: target.sessionId, serverUrl}, event as never)
+        openSession({sessionId: target.sessionId, serverUrl, event})
         return
       }
       if (!agentId) return
@@ -879,7 +881,10 @@ function getRowToolMetadata(item: ChatToolPart): SeedToolMetadata | undefined {
   if (item.name !== 'call') return getSeedTool(item.name) ?? promotedDocumentToolMetadata(item.name)
   const called = getToolString(item.args, 'tool')
   const metadata = called ? getSeedTool(called) : undefined
-  if (!metadata) return getSeedTool(item.name)
+  // A callee outside the registry — an authored lambda, an MCP projection — still names the row:
+  // "Call" says what the verb did, not what was called. Its promoted metadata already reads the
+  // nested `input` and the executor's own summary, so nothing needs rebasing.
+  if (!metadata) return (called ? promotedDocumentToolMetadata(called) : undefined) ?? getSeedTool(item.name)
   const nest = (path?: string) => (path ? `input.${path}` : 'input')
   const {render} = metadata
   return {
@@ -2044,12 +2049,12 @@ function OpenRunLink({runId, serverUrl}: {runId: string; serverUrl: string}) {
 
 /** The way into a child's own transcript, honouring cmd/shift-click like every other session row. */
 function OpenTranscriptLink({sessionId, serverUrl}: {sessionId: string; serverUrl: string}) {
-  const clickNavigate = useClickNavigate()
+  const openSession = useOpenAgentSession()
   return (
     <button
       type="button"
       className="text-primary self-start text-[11px] hover:underline"
-      onClick={(event) => clickNavigate({key: 'agent-session', sessionId, serverUrl}, event)}
+      onClick={(event) => openSession({sessionId, serverUrl, event})}
     >
       Open transcript →
     </button>
@@ -2116,7 +2121,7 @@ function DelegateRunView({
   /** The run record when the caller already holds a live copy of it, so it is not fetched twice. */
   seed?: RunInfo
 }) {
-  const navigate = useNavigate()
+  const openSession = useOpenAgentSession()
   const direct = useRun(serverUrl, accountUid, seedRun ? undefined : runId)
   const seed = seedRun ?? direct.data ?? undefined
   // A finished run never changes again: no socket, no tree query, on a transcript full of them.
@@ -2140,7 +2145,7 @@ function DelegateRunView({
         journal={liveState.journal}
         liveState={liveState}
         compact
-        onOpenSession={(childSessionId) => navigate({key: 'agent-session', sessionId: childSessionId, serverUrl})}
+        onOpenSession={(childSessionId) => openSession({sessionId: childSessionId, serverUrl})}
         renderToolPart={(part) => (
           <ToolCallLine item={part} serverUrl={serverUrl} accountUid={accountUid} agentId={focus.agentId} />
         )}
@@ -2214,7 +2219,7 @@ export function ToolCallLine({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
-  const clickNavigate = useClickNavigate()
+  const openSession = useOpenAgentSession()
   const reportedSessionId = getToolSessionId(item)
   const metadata = getRowToolMetadata(item)
   const render = metadata?.render
@@ -2337,9 +2342,7 @@ export function ToolCallLine({
                     title={`Open ${summary}`}
                     // clickNavigate honours cmd/shift-click into a new window, like every other
                     // session row in the app.
-                    onOpen={(event) =>
-                      clickNavigate({key: 'agent-session', sessionId: childSessionId, serverUrl}, event)
-                    }
+                    onOpen={(event) => openSession({sessionId: childSessionId, serverUrl, event})}
                   />
                 ) : (
                   <span className="text-foreground/75 min-w-0 truncate">{summary}</span>

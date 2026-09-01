@@ -2,7 +2,7 @@ import {type SessionContinuationLink, type SessionEvent, type SessionInfo} from 
 import {type ChatToolPart} from './chat-parts'
 import {Markdown} from './markdown'
 import {formatTokenCount} from './agent-run-status'
-import {useNavigate} from './navigation'
+import {useOpenAgentSession} from './open-session-context'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {cn} from '@shm/ui/utils'
@@ -286,7 +286,9 @@ export function ContinuationHeader({
         title="Back to the previous session"
       >
         <CornerLeftUp className="size-3 flex-none" />
-        <span className="min-w-0 truncate">Continued from {link.title ? `“${link.title}”` : 'previous session'}</span>
+        <span className="min-w-0 break-words">
+          Continued from {link.title ? `“${link.title}”` : 'previous session'}
+        </span>
       </button>
     </div>
   )
@@ -380,15 +382,16 @@ export function ContinuationTransitionCard({
   return (
     <div
       className={cn(
-        'group/controw my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs',
+        'group/controw @container my-1.5 mr-6 rounded-lg border px-2 py-1.5 text-xs',
         item.isError
           ? 'border-destructive/30 bg-destructive/5'
           : 'border-violet-200 bg-violet-50 dark:border-violet-900 dark:bg-violet-950/40',
       )}
     >
-      {/* The whole line toggles the handoff; inner buttons stop propagation. */}
+      {/* The whole line toggles the handoff; inner buttons stop propagation. The line WRAPS —
+          a title must stay readable in the panel's width, not fit or vanish. */}
       <div
-        className="flex min-w-0 cursor-pointer items-center gap-1.5 select-none"
+        className="flex min-w-0 cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-1 select-none"
         onClick={() => setExpanded((current) => !current)}
       >
         <button
@@ -409,10 +412,13 @@ export function ContinuationTransitionCard({
             item.isError ? 'text-destructive' : 'text-violet-700 dark:text-violet-300',
           )}
         />
-        <span className="min-w-0 truncate text-sm font-medium">
+        <span className="min-w-0 text-sm font-medium break-words">
           {item.isError ? 'Continuation refused' : isPending ? 'Continuing in' : 'Continued in'} “{title}”
         </span>
-        {reasonLabel ? <span className="text-muted-foreground shrink-0">{reasonLabel}</span> : null}
+        {/* The reason is a garnish: hidden where the row is too narrow to carry it. */}
+        {reasonLabel ? (
+          <span className="text-muted-foreground hidden shrink-0 @[26rem]:inline">{reasonLabel}</span>
+        ) : null}
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {successorId && onOpenSuccessor ? (
             <Button
@@ -478,13 +484,13 @@ export function ContinuationHandoffCard({
     <div
       id={id}
       className={cn(
-        'group/controw my-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1.5 text-xs dark:border-violet-900 dark:bg-violet-950/40',
+        'group/controw @container my-1.5 rounded-lg border border-violet-200 bg-violet-50 px-2 py-1.5 text-xs dark:border-violet-900 dark:bg-violet-950/40',
         compact ? '' : 'mr-6',
       )}
     >
-      {/* The whole line toggles the handoff; inner buttons stop propagation. */}
+      {/* The whole line toggles the handoff and WRAPS; inner buttons stop propagation. */}
       <div
-        className="flex min-w-0 cursor-pointer items-center gap-1.5 select-none"
+        className="flex min-w-0 cursor-pointer flex-wrap items-center gap-x-1.5 gap-y-1 select-none"
         onClick={() => setExpanded((current) => !current)}
       >
         <button
@@ -500,10 +506,12 @@ export function ContinuationHandoffCard({
           {expanded ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
         </button>
         <GitBranch className="size-3.5 shrink-0 text-violet-700 dark:text-violet-300" />
-        <span className="min-w-0 truncate text-sm font-medium">
+        <span className="min-w-0 text-sm font-medium break-words">
           Handoff from {projection.predecessorTitle ? `“${projection.predecessorTitle}”` : 'the previous session'}
         </span>
-        {reasonLabel ? <span className="text-muted-foreground shrink-0">{reasonLabel}</span> : null}
+        {reasonLabel ? (
+          <span className="text-muted-foreground hidden shrink-0 @[26rem]:inline">{reasonLabel}</span>
+        ) : null}
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {predecessorId && onOpenPredecessor ? (
             <Button
@@ -621,14 +629,12 @@ export function ContinuedMessageChip({
   continuedFrom: {sessionId: string; eventId: string}
   serverUrl?: string
 }) {
-  const navigate = useNavigate()
+  const openSession = useOpenAgentSession()
   return (
     <button
       type="button"
       className="text-muted-foreground hover:text-foreground mt-1 flex items-center gap-1 text-[10px]"
-      onClick={() => {
-        if (serverUrl) navigate({key: 'agent-session', sessionId: continuedFrom.sessionId, serverUrl})
-      }}
+      onClick={() => openSession({sessionId: continuedFrom.sessionId, serverUrl})}
       title="This message was carried over from the previous session"
     >
       <CornerLeftUp className="size-3" />
