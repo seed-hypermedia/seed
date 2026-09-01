@@ -92,6 +92,8 @@ import {toast} from '@shm/ui/toast'
 import {pageFrameStyles} from '@shm/ui/container'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {blobBuilderMenuItems} from '@shm/ui/onyx/blob-menu-items'
+import {publishObject} from '@shm/ui/onyx/linked-object-dialog'
+import {SCHEMA_DRAFT_KEY} from '@shm/ui/onyx/schema-document'
 import {WorldBuilderDialog} from '@/components/world-builder-dialog'
 import {useMutation} from '@tanstack/react-query'
 import {Braces, Copy, FileCode2, FileInput, Globe, History, Layers, LayoutList, Split} from 'lucide-react'
@@ -225,6 +227,7 @@ export default function DesktopResourcePage() {
     'site-profile',
     'all-documents',
     'metadata',
+    'schema',
   ]
   if (!supportedKeys.includes(route.key)) {
     throw new Error(`DesktopResourcePage: unsupported route ${route.key}`)
@@ -463,6 +466,9 @@ export default function DesktopResourcePage() {
   })
   const publishResourceRef = useRef(publishResource)
   publishResourceRef.current = publishResource
+  // For freezing a draft's working schema into a blob at publish (stable actor, live client).
+  const universalClientRef = useRef(universalClient)
+  universalClientRef.current = universalClient
 
   // Push-on-publish: ref keeps the fromPromise actor stable across renders
   // while always reading the latest hook value when it fires.
@@ -1140,6 +1146,9 @@ export default function DesktopResourcePage() {
                     canEdit={canEdit}
                     CommentEditor={CommentBox}
                     optionsMenuItems={menuItems}
+                    onExtendSchema={(baseSchemaCid) =>
+                      destinationDialog.open({id: docId, mode: 'extend-schema', extendSchema: {baseSchemaCid}})
+                    }
                     fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
                     existingDraft={existingDraft}
                     reservedDraftId={

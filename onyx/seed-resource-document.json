@@ -1,6 +1,4 @@
 {
-  "name": "Resource: document",
-  "description": "A resolved resource that is a document. A derived read model computed by the Seed daemon/API for clients \u2014 not a signed network blob.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "type",

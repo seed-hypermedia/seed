@@ -55,6 +55,7 @@ export function DocumentHeader({
   children,
   onRemoveIcon,
   mobileBylineAction,
+  titleAccessory,
   flushByline = false,
 }: {
   docId: UnpackedHypermediaId | null
@@ -69,6 +70,8 @@ export function DocumentHeader({
   children?: React.ReactNode
   onRemoveIcon?: () => void
   mobileBylineAction?: React.ReactNode
+  /** Small affordance rendered to the right of the document name (e.g. the Schema button). */
+  titleAccessory?: React.ReactNode
   /** Removes the divider and bottom padding beneath the author/date row. */
   flushByline?: boolean
 }) {
@@ -121,17 +124,27 @@ export function DocumentHeader({
           </div>
         ) : null}
         {children ? (
-          children
+          titleAccessory ? (
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">{children}</div>
+              <div className="pt-2">{titleAccessory}</div>
+            </div>
+          ) : (
+            children
+          )
         ) : (
           <>
             {showTitle && (
-              <SizableText
-                className="text-2xl max-md:leading-tight md:text-4xl lg:text-5xl"
-                weight="bold"
-                {...highlighter(docId)}
-              >
-                {isHomeDoc ? 'Home' : docMetadata?.name}
-              </SizableText>
+              <div className="flex items-center gap-3">
+                <SizableText
+                  className="min-w-0 text-2xl max-md:leading-tight md:text-4xl lg:text-5xl"
+                  weight="bold"
+                  {...highlighter(docId)}
+                >
+                  {isHomeDoc ? 'Home' : docMetadata?.name}
+                </SizableText>
+                {titleAccessory}
+              </div>
             )}
             {docMetadata?.summary ? (
               <span className="font-body text-muted-foreground text-xl">{docMetadata?.summary}</span>

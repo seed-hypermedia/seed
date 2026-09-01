@@ -1072,15 +1072,18 @@ export function useCreateDraft(
     visibility,
     initialMetadata,
     initialContent,
+    location,
   }: {
     visibility?: HMResourceVisibility
     initialMetadata?: HMDraft['metadata']
     initialContent?: EditorBlock[]
+    /** Call-time location override, for flows that pick the destination in a dialog. */
+    location?: {locationUid?: HMDraftMeta['locationUid']; locationPath?: HMDraftMeta['locationPath']}
   } = {}) => {
     const hasInitialData = initialMetadata !== undefined || initialContent !== undefined
     const plan = computeNewDraftParams(
       visibility,
-      draftParams,
+      location ? {...draftParams, ...location} : draftParams,
       selectedAccountId ?? undefined,
       () => nanoid(10),
       () => nanoid(21),

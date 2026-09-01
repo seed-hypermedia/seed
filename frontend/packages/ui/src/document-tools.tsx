@@ -10,6 +10,7 @@ import {
 import type {InspectTab} from '@shm/shared/routes'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {
+  FileCode2,
   FileText,
   Folder,
   GitGraph,
@@ -33,6 +34,8 @@ export function DocumentTools({
   citationsCount = 0,
   collabsCount = 0,
   metadataCount = 0,
+  schemaCid = null,
+  hasDraftSchema = false,
   activeTabAction,
   existingDraft,
   currentPanel,
@@ -42,12 +45,16 @@ export function DocumentTools({
   layoutProps,
 }: {
   id: UnpackedHypermediaId
-  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations' | 'metadata'
+  activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations' | 'metadata' | 'schema'
   commentsCount?: number
   citationsCount?: number
   collabsCount?: number
   /** Number of custom (non-built-in) metadata fields; shows the Attributes tab with a count when > 0. */
   metadataCount?: number
+  /** The schema CID the document defines (`schemaDefinition`); shows the Schema tab. Fully hidden otherwise. */
+  schemaCid?: string | null
+  /** True when the draft carries a working schema (`schemaDraft`) — the tab shows for editing it. */
+  hasDraftSchema?: boolean
   /** Rendered immediately to the right of the active tab pill. When no tab is active, rendered as last sibling. */
   activeTabAction?: React.ReactNode
   existingDraft?: HMExistingDraft | false
@@ -266,6 +273,19 @@ export function DocumentTools({
                   active: activeTab === 'metadata',
                   count: metadataCount,
                   route: {key: 'metadata', id: idWithoutBlock, panel: panelFor()} as NavRoute,
+                },
+              ]
+            : []),
+          // Only for documents that define a schema; everyone else never sees it. The route
+          // carries the CID too, so CID-addressed affordances (the dev Inspect) work on the tab.
+          ...(activeTab === 'schema' || schemaCid || hasDraftSchema
+            ? [
+                {
+                  label: 'Schema',
+                  tooltip: 'Open the schema this document defines',
+                  icon: FileCode2,
+                  active: activeTab === 'schema',
+                  route: {key: 'schema', id: idWithoutBlock, cid: schemaCid ?? undefined} as NavRoute,
                 },
               ]
             : []),

@@ -1,5 +1,6 @@
 // A purpose-built GUI for authoring an Onyx schema — presented as a struct (a
-// named type with a list of fields), NOT as raw schema JSON. Each field has a
+// list of fields), NOT as raw schema JSON. A schema carries no name of its own;
+// the defining document names and describes the type. Each field has a
 // name, a kind, and a `required` checkbox (the schema's `required` array is
 // derived from the checkboxes). A "JSON" escape hatch reveals the raw editor for
 // shapes the struct form doesn't cover (unions, generics, nesting). Kept visually
@@ -9,7 +10,6 @@ import {Plus, X} from 'lucide-react'
 import {Button} from '../button'
 import {Checkbox} from '../components/checkbox'
 import {Input} from '../components/input'
-import {Switch} from '../components/switch'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
 import {Tooltip} from '../tooltip'
 import {kindOf, kindUrl, MAP_URL, nameToUrl, refToName, type OnyxSchema} from './onyx-engine'
@@ -69,7 +69,34 @@ const signedTypeTag = (schema: OnyxSchema): string => {
 const isReferenceKind = (kind: string) => kind === 'hm-url' || kind === 'ipfs'
 
 /** An empty starter struct schema. */
-export const emptyStructSchema = (): OnyxSchema => ({type: MAP_URL, name: '', properties: {}, required: []})
+export const emptyStructSchema = (): OnyxSchema => ({type: MAP_URL, properties: {}, required: []})
+
+/** What a schema's root can be: a plain struct, the signed-blob envelope, or an extension of any base type. */
+export type SchemaRootKind = 'struct' | 'signed' | 'extends'
+
+/**
+ * The schema rewritten with a new root kind, fields preserved. Signed pins a `type` tag (kept if
+ * already set, else "Custom"); leaving signed drops the pinned tag; `extends` keeps an existing
+ * non-envelope base ref (or starts blank, for the user to paste any base).
+ */
+export function withRootKind(schema: OnyxSchema, kind: SchemaRootKind): OnyxSchema {
+  const properties: Record<string, any> = {...(schema.properties ?? {})}
+  const required = new Set<string>(Array.isArray(schema.required) ? schema.required : [])
+  const {type: _t, ref: _r, ...rest} = schema
+  if (kind === 'signed') {
+    const tag = signedTypeTag(schema) || 'Custom'
+    properties.type = {type: kindUrl('string'), enum: [tag]}
+    required.add('type')
+    return {...rest, ref: SIGNED_BLOB_URL, properties, required: Array.from(required)}
+  }
+  if (isSignedBlobType(schema)) {
+    delete properties.type
+    required.delete('type')
+  }
+  if (kind === 'struct') return {...rest, type: MAP_URL, properties, required: Array.from(required)}
+  const baseRef = !schema.type && typeof schema.ref === 'string' && schema.ref !== SIGNED_BLOB_URL ? schema.ref : ''
+  return {...rest, ref: baseRef, properties, required: Array.from(required)}
+}
 
 export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSchema: (s: OnyxSchema) => void}) {
   const properties: Record<string, any> = schema.properties ?? {}
@@ -80,27 +107,11 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
   const commit = (nextProps: Record<string, any>, nextRequired: Set<string>) => {
     // Drop required entries whose field no longer exists.
     const req = Array.from(nextRequired).filter((k) => k in nextProps)
-    const root = isSignedBlobType(schema) ? {ref: SIGNED_BLOB_URL} : {type: MAP_URL}
+    // A ref-rooted schema EXTENDS something — the signed-blob envelope or any base schema (the
+    // "Extend Schema" flow). Editing fields must never silently drop that root.
+    const root = !schema.type && typeof schema.ref === 'string' ? {ref: schema.ref} : {type: MAP_URL}
     const {type: _t, ref: _r, ...rest} = schema
     onSchema({...rest, ...root, properties: nextProps, ...(req.length ? {required: req} : {required: []})})
-  }
-  // Signed blob: extend the envelope (signer/sig/ts inherited) and pin a `type`
-  // tag — the discriminator the network dispatches on. Off: a plain struct.
-  const setSigned = (on: boolean) => {
-    const nextProps: Record<string, any> = {...properties}
-    const nextRequired = new Set(required)
-    const {type: _t, ref: _r, ...rest} = schema
-    if (on) {
-      const tag =
-        signedTypeTag(schema) || (typeof schema.name === 'string' ? schema.name.replace(/\s+/g, '') : '') || 'Custom'
-      nextProps.type = {type: kindUrl('string'), enum: [tag]}
-      nextRequired.add('type')
-      onSchema({...rest, ref: SIGNED_BLOB_URL, properties: nextProps, required: Array.from(nextRequired)})
-    } else {
-      delete nextProps.type
-      nextRequired.delete('type')
-      onSchema({...rest, type: MAP_URL, properties: nextProps, required: Array.from(nextRequired)})
-    }
   }
   const setTypeTag = (tag: string) => {
     commit(
@@ -144,16 +155,21 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
     commit({...properties, [name]: kindSchema('string')}, required)
   }
 
+  // What the schema's root IS: a plain struct, the signed-blob envelope, or an
+  // extension of any other type (its base named by a raw ref). Fully editable —
+  // extending anything is a matter of picking "Extends" and pasting the base.
+  const extendsRef = !schema.type && typeof schema.ref === 'string' && !signed ? schema.ref : undefined
+  const rootKind: SchemaRootKind = signed ? 'signed' : extendsRef !== undefined ? 'extends' : 'struct'
+  const setExtendsRef = (ref: string) => {
+    const {type: _t, ref: _r, ...rest} = schema
+    onSchema({...rest, ref, properties: schema.properties ?? {}, required: schema.required ?? []})
+  }
+  const setRootKind = (kind: SchemaRootKind) => {
+    if (kind !== rootKind) onSchema(withRootKind(schema, kind))
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <label className="text-muted-foreground text-xs font-medium">Type name</label>
-        <Input
-          value={typeof schema.name === 'string' ? schema.name : ''}
-          placeholder="e.g. Employee"
-          onChange={(e) => onSchema({...schema, name: e.target.value})}
-        />
-      </div>
       <div className="flex flex-col gap-1">
         <label className="text-muted-foreground text-xs font-medium">Description</label>
         <Input
@@ -163,26 +179,48 @@ export function OnyxSchemaEditor({schema, onSchema}: {schema: OnyxSchema; onSche
         />
       </div>
 
-      <div className="flex flex-col gap-1">
-        <Tooltip content="A signed blob extends the Hypermedia envelope — signer, signature, and timestamp are inherited and filled at signing time — and pins a type tag. Values are created with Sign & publish.">
-          <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
-            <Switch checked={signed} onCheckedChange={(on) => setSigned(on)} aria-label="Signed blob type" />
-            Signed blob type
-          </label>
-        </Tooltip>
-        {signed && (
-          <div className="flex items-center gap-2 pl-6">
-            <span className="text-muted-foreground text-xs">type tag</span>
+      <div className="flex flex-col gap-1" data-testid="schema-root-kind">
+        <label className="text-muted-foreground text-xs font-medium">Root kind</label>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={rootKind} onValueChange={(kind) => setRootKind(kind as 'struct' | 'signed' | 'extends')}>
+            <SelectTrigger className="w-44 shrink-0" aria-label="Root kind">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="struct">Struct (fields)</SelectItem>
+              <SelectItem value="signed">Signed blob</SelectItem>
+              <SelectItem value="extends">Extends a type…</SelectItem>
+            </SelectContent>
+          </Select>
+          {rootKind === 'signed' && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-xs">type tag</span>
+              <Input
+                value={signedTypeTag(schema)}
+                aria-label="Type tag"
+                placeholder="e.g. Vote"
+                className="w-48 font-mono text-sm"
+                onChange={(e) => setTypeTag(e.target.value)}
+              />
+            </div>
+          )}
+          {rootKind === 'extends' && (
             <Input
-              value={signedTypeTag(schema)}
-              aria-label="Type tag"
-              placeholder="e.g. Vote"
-              className="w-48 font-mono text-sm"
-              onChange={(e) => setTypeTag(e.target.value)}
+              value={extendsRef ?? ''}
+              aria-label="Base type ref"
+              placeholder="hm://… or ipfs://… base type"
+              className="min-w-64 flex-1 font-mono text-xs"
+              onChange={(e) => setExtendsRef(e.target.value)}
             />
-            <span className="text-muted-foreground text-xs">+ signer, sig, ts (inherited)</span>
-          </div>
-        )}
+          )}
+        </div>
+        <p className="text-muted-foreground text-xs">
+          {rootKind === 'struct'
+            ? 'A plain object made of the fields below.'
+            : rootKind === 'signed'
+              ? 'Extends the Hypermedia envelope — signer, signature, and timestamp are inherited and filled at signing time; the type tag is the discriminator.'
+              : 'Inherits everything from the base type; the fields below are added on top of it.'}
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">
