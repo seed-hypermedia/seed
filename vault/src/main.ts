@@ -62,7 +62,7 @@ async function main() {
 
   const db = result.db
   const hmacSecret = sqlite.getOrCreateHmacSecret(db)
-  const emailSender = email.createSender(cfg.smtp)
+  const emailSender = email.createSender(cfg.smtp, cfg.webBaseUrl)
   const grpcClient = createClient(cfg.backend.grpcBaseUrl)
   const svc = new apisvc.Service(
     db,

@@ -20,7 +20,7 @@ export type VerificationEmail = {
 }
 
 /** Render a verification email for the given code. */
-export function createVerificationEmail(code: string): VerificationEmail {
+export function createVerificationEmail(code: string, logoUrl?: string): VerificationEmail {
   const subject = 'Your verification code for Seed Hypermedia'
   const text = `Your verification code for Seed Hypermedia
 
@@ -40,14 +40,9 @@ Seed Hypermedia`
       <MjmlBody width={500} backgroundColor="#f4f4f5">
         <MjmlSection padding="40px 0 20px">
           <MjmlColumn>
-            <MjmlImage
-              src="https://iili.io/FJ0pBl1.png"
-              alt="Seed Logo"
-              width="24px"
-              height="30px"
-              padding="0"
-              align="center"
-            />
+            {logoUrl ? (
+              <MjmlImage src={logoUrl} alt="Seed Logo" width="40px" height="40px" padding="0" align="center" />
+            ) : null}
             <MjmlText fontSize="18px" fontWeight="bold" color="#068f7b" padding="10px 0 0" align="center">
               Seed Hypermedia
             </MjmlText>

@@ -1,5 +1,5 @@
-import nodemailer from 'nodemailer'
 import * as emailTemplate from '@/email-template'
+import nodemailer from 'nodemailer'
 
 /** SMTP connection configuration. */
 export type SmtpConfig = {
@@ -19,9 +19,11 @@ export interface EmailSender {
 class SmtpSender implements EmailSender {
   private transporter: nodemailer.Transporter
   private sender: string
+  private logoUrl: string
 
-  constructor(config: SmtpConfig) {
+  constructor(config: SmtpConfig, webBaseUrl: string) {
     this.sender = config.sender
+    this.logoUrl = webBaseUrl ? new URL('/email-logo.png', webBaseUrl).toString() : ''
     this.transporter = nodemailer.createTransport({
       host: config.host,
       port: config.port,
@@ -37,7 +39,7 @@ class SmtpSender implements EmailSender {
 
   async sendVerificationEmail(to: string, code: string): Promise<void> {
     console.log(`Sending email to ${to}...`)
-    const {subject, text, html} = emailTemplate.createVerificationEmail(code)
+    const {subject, text, html} = emailTemplate.createVerificationEmail(code, this.logoUrl)
     await this.transporter.sendMail({
       from: this.sender,
       to,
@@ -57,10 +59,10 @@ class ConsoleSender implements EmailSender {
 }
 
 /** Create an EmailSender: SmtpSender if SMTP is configured, ConsoleSender otherwise. */
-export function createSender(smtp: SmtpConfig | null): EmailSender {
+export function createSender(smtp: SmtpConfig | null, webBaseUrl: string): EmailSender {
   if (smtp) {
     console.log('Email: SMTP configured, sending real emails')
-    return new SmtpSender(smtp)
+    return new SmtpSender(smtp, webBaseUrl)
   }
   console.warn('Email: No SMTP configured, verification codes will be logged to console')
   return new ConsoleSender()
