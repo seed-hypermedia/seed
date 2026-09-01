@@ -280,5 +280,9 @@ function applyResolvedViewTerm(
     return {key: 'explore', context: {type: 'site', id: route.id}}
   }
 
+  if (routeKey === 'schema') {
+    return {key: 'schema', id: route.id}
+  }
+
   return {key: routeKey, id: route.id}
 }

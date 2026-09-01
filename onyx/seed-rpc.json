@@ -1,6 +1,4 @@
 {
-  "name": "RPC",
-  "description": "The union of every read-only method of the Seed universal-client API. Each variant pins a method key and types its input and output \u2014 the machine-readable catalog the in-app API console is driven by.",
   "anyOf": [
     {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/seed-rpc-account"

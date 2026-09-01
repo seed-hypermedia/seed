@@ -53,6 +53,7 @@ export const VIEW_TERMS = [
   ':settings',
   ':attributes',
   ':metadata', // backward compat: the metadata view is now surfaced as :attributes
+  ':schema', // the schema a document defines (its schemaDefinition), in the schema browser
   ...SITE_PROFILE_VIEW_TERMS,
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
@@ -68,6 +69,7 @@ export type ViewRouteKey =
   | 'explore'
   | 'site-settings'
   | 'metadata'
+  | 'schema'
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
@@ -188,6 +190,7 @@ export function viewTermToRouteKey(viewTerm: ViewTerm | null): ViewRouteKey | nu
     ':settings': 'site-settings',
     ':attributes': 'metadata',
     ':metadata': 'metadata', // backward compat
+    ':schema': 'schema',
     ':profile': 'profile',
     ':membership': 'membership',
     ':followers': 'followers',
@@ -639,6 +642,15 @@ export function routeToUrl(
       panel: effectivePanelParam,
     })
   }
+  if (route.key === 'schema' && route.id) {
+    // The Schema tool tab: the document URL suffixed with /:schema.
+    return createWebHMUrl(route.id.uid, {
+      ...route.id,
+      hostname: opts?.hostname,
+      originHomeId: opts?.originHomeId,
+      viewTerm: ':schema',
+    })
+  }
   if (route.key === 'site-settings') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
     const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
@@ -741,6 +753,11 @@ export function routeToHmUrl(route: NavRoute): string | null {
   if (route.key === 'site-settings') {
     const tabPath = route.tab ? `/${route.tab}` : ''
     return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}`
+  }
+
+  // The schema a document defines: the document URL suffixed with /:schema.
+  if (route.key === 'schema' && route.id) {
+    return `${packBaseId(route.id.uid, route.id.path)}/:schema`
   }
 
   if (route.key === 'site-profile') {

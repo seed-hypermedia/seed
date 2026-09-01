@@ -35,6 +35,7 @@ vi.mock('@/models/documents', () => ({
   useMoveDocument: () => ({mutateAsync: moveMutateAsyncMock, isLoading: false}),
   useMoveDraft: () => ({mutateAsync: moveDraftMutateAsyncMock, isLoading: false}),
   useRepublishDocument: () => ({mutateAsync: republishMutateAsyncMock, isLoading: false}),
+  useCreateDraft: () => async () => {},
 }))
 
 vi.mock('@/models/gateway-settings', () => ({

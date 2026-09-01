@@ -1,6 +1,4 @@
 {
-  "name": "Key/value",
-  "description": "A metadata attribute: a dotted key path (segments) and a value.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "properties": {
     "key": {

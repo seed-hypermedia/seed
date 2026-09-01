@@ -57,7 +57,7 @@ describe('OnyxSchemaByCid', () => {
   it('renders a bundled schema by its CID without fetching', async () => {
     const request = vi.fn(async () => ({}))
     await mount(schemaCid('example-person')!, request)
-    expect(container.textContent).toContain('Person')
+    expect(container.textContent).toContain('example-person')
     expect(container.textContent).toContain('nicknames')
     expect(request).not.toHaveBeenCalled()
   })
@@ -96,11 +96,12 @@ describe('OnyxSchemaByCid', () => {
     )
     const header = container.querySelector('[data-testid="schema-browser-header"]')!
     expect(header.textContent).toContain('Schema')
-    expect(header.textContent).toContain(cid)
+    // The CID lives in the omnibar URL, not the header; the header offers the options dropdown.
+    expect(header.querySelector('[aria-label="Schema options"]')).toBeTruthy()
     // No back button; New starts the raw-blob draft seeded with this schema.
     expect(container.textContent).not.toContain('Back')
     const newButton = container.querySelector('[data-testid="schema-browser-new"]') as HTMLButtonElement
-    expect(newButton.textContent).toContain('New Person')
+    expect(newButton.textContent).toContain('New example-person')
     act(() => newButton.click())
     expect(navigate).toHaveBeenCalledWith({key: 'inspect-ipfs', ipfsPath: `new/${cid}`})
     expect(container.textContent).not.toContain('browse the library')

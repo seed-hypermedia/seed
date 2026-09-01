@@ -1,6 +1,4 @@
 {
-  "name": "Blob",
-  "description": "A binary payload tagged with a MIME type and optional size.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "mime",

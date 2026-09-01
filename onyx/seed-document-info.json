@@ -1,6 +1,4 @@
 {
-  "name": "Document info",
-  "description": "One document in a listing (query results, directories): identity, authorship, timestamps, breadcrumbs, and its activity summary \u2014 without the full content. A derived read model computed by the Seed daemon/API for clients \u2014 not a signed network blob.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "properties": {
     "type": {
