@@ -1,4 +1,4 @@
-// Scaffold a co-located Markdown doc for every Onyx schema in schemas/*.json,
+// Scaffold a co-located Markdown doc for every Onyx schema in hypermedia/*.schema.json,
 // written next to the schema as schemas/<name>.md. Each doc describes one
 // concept (a type); the sync step (frontend/apps/cli/src/sync-onyx.ts) publishes
 // it as hm://<onyx>/<name> with a `schemaDefinition` metadata field linking to
@@ -20,12 +20,12 @@ const AUTHORITY = [
   ['hypermedia-', 'seed.hyper.media'],
   ['seed-', 'seed.hyper.media'], ['example-', 'example.com'],
 ]
-const SRC = 'onyx'
-const OUT = 'onyx'
+const SRC = 'hypermedia'
+const OUT = 'hypermedia'
 
-const files = readdirSync(SRC).filter((f) => f.endsWith('.json') && f !== 'schemas.lock.json')
+const files = readdirSync(SRC).filter((f) => f.endsWith('.schema.json'))
 const schemas = {}
-for (const f of files) schemas[f.replace(/\.json$/, '')] = JSON.parse(readFileSync(join(SRC, f), 'utf8'))
+for (const f of files) schemas[f.replace(/\.schema\.json$/, '')] = JSON.parse(readFileSync(join(SRC, f), 'utf8'))
 
 const ONYX = BASE.replace('hm://', '')
 // The published-doc public name: strip `onyx-` from primitives/meta; keep the rest.
@@ -34,7 +34,7 @@ const KIND_URL = new RegExp(`^hm://(?:hyper\\.media|${ONYX})/([a-z]+)$`)
 const kindOf = (t) => (typeof t === 'string' ? KIND_URL.exec(t)?.[1] ?? t : t)
 function refToName(ref) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
-  if (!m) return ref.replace(/\.json$/, '')
+  if (!m) return ref.replace(/\.schema\.json$/, '')
   const [, auth, name] = m
   if (auth === ONYX) return schemas[name] ? name : schemas[`onyx-${name}`] ? `onyx-${name}` : name
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0]

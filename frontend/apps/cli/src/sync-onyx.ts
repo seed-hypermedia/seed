@@ -2,15 +2,15 @@
  * sync-onyx.ts — publish the Onyx schema system to Seed Hypermedia.
  *
  * Publishes, under the onyx account (signing key `main`):
- *   1. Every schema blob (onyx/*.json except schemas.lock.json) encoded to
+ *   1. Every schema blob (hypermedia/*.schema.json) encoded to
  *      canonical DAG-CBOR and content-addressed. Each computed CID is verified
  *      against schemas/schemas.lock.json; a mismatch fails the run.
  *   2. One Hypermedia document per schema, from its CO-LOCATED markdown
- *      (onyx/<name>.md beside onyx/<name>.json), published at its public
+ *      (hypermedia/<name>.md beside hypermedia/<name>.schema.json), published at its public
  *      name (onyx- primitives stripped: /map, /string; others prefixed). A TYPE
  *      doc DEFINES a schema (metadata.schemaDefinition = ipfs://<CID>); an
  *      INSTANCE doc ({$type,value}) CONFORMS to one (metadata.schema = $type).
- *   3. Narrative pages from onyx/site/*.md (home.md -> root path "").
+ *   3. Narrative pages from hypermedia/site/*.md (home.md -> root path "").
  *
  * Usage:
  *   cd frontend/apps/cli && bun run src/sync-onyx.ts [--dry-run] [--server <url>]
@@ -77,7 +77,7 @@ import {createSignerFromKey} from './utils/signer'
 
 const DIR = dirname(fileURLToPath(import.meta.url)) // frontend/apps/cli/src
 const REPO_ROOT = resolve(DIR, '../../../..') // /Users/ericvicenti/Code/Seed
-const SCHEMAS_DIR = resolve(REPO_ROOT, 'onyx')
+const SCHEMAS_DIR = resolve(REPO_ROOT, 'hypermedia')
 const SITE_DIR = resolve(SCHEMAS_DIR, 'site')
 const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
@@ -281,7 +281,7 @@ async function main() {
   // ── 1. Schema blobs ──
   const lock = JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as {schemas: Record<string, string>}
   const schemaFiles = readdirSync(SCHEMAS_DIR)
-    .filter((f) => f.endsWith('.json') && f !== 'schemas.lock.json')
+    .filter((f) => f.endsWith('.schema.json'))
     .sort()
 
   const schemaBlobs: Array<{data: Uint8Array; cid: string}> = []
@@ -292,7 +292,7 @@ async function main() {
   let mismatches = 0
 
   for (const file of schemaFiles) {
-    const basename = file.replace(/\.json$/, '')
+    const basename = file.replace(/\.schema\.json$/, '')
     const obj = JSON.parse(readFileSync(resolve(SCHEMAS_DIR, file), 'utf8'))
     if (obj && typeof obj === 'object' && typeof obj.$type === 'string' && 'value' in obj) {
       instanceTypeByBasename.set(basename, obj.$type)
