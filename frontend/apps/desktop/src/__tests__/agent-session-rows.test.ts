@@ -824,3 +824,108 @@ describe('symmetric log actors', () => {
     expect(row.message.parts?.[0]).toMatchObject({actor: 'user'})
   })
 })
+
+describe('continuation rows', () => {
+  const projection = [
+    '<session_continuation>',
+    '  <origin session="session-0" />',
+    '  <predecessor session="session-0" title="Rethink compaction" edge="edge-1" />',
+    '  <initiating_event id="event-9" seq="9" />',
+    '  <projection manifest="edge-1" reason="topic_change" />',
+    '  This session continues the conversation "Rethink compaction".',
+    '</session_continuation>',
+    '',
+    '<handoff>',
+    '## Purpose',
+    'Write the continuation proposal.',
+    '',
+    '## Current request',
+    'Draft the doc.',
+    '</handoff>',
+    '',
+    '<sources>',
+    '- resource hm://z6Mk/notes — agenda',
+    '- thread:session-0 seq 9 — runtime: the initiating user message, replayed verbatim into the successor',
+    '</sources>',
+    '',
+    '<recent_exchanges thread="session-0" from_seq="5" to_seq="8">',
+    '[5] user: earlier question',
+    '[6] assistant: earlier answer',
+    '</recent_exchanges>',
+  ].join('\n')
+
+  it('turns the projection message into a handoff card row, not a chat bubble', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {type: 'message', role: 'user', actor: 'system', content: projection}),
+        event(2, {
+          type: 'message',
+          role: 'user',
+          content: 'Draft the doc.',
+          meta: {continuedFrom: {sessionId: 'session-0', eventId: 'event-9', seq: 9}},
+        }),
+      ],
+      CONTEXT,
+    )
+    expect(rows).toHaveLength(2)
+    const card = rows[0]!
+    if (card.kind !== 'continuation') throw new Error('expected a continuation row')
+    expect(card.projection).toMatchObject({
+      originSessionId: 'session-0',
+      predecessorSessionId: 'session-0',
+      predecessorTitle: 'Rethink compaction',
+      continuationId: 'edge-1',
+      initiatingSeq: 9,
+      reason: 'topic_change',
+    })
+    expect(card.projection.handoffMarkdown).toContain('## Purpose')
+    expect(card.projection.handoffMarkdown).toContain('Write the continuation proposal.')
+    expect(card.projection.sources).toEqual([
+      'resource hm://z6Mk/notes — agenda',
+      'thread:session-0 seq 9 — runtime: the initiating user message, replayed verbatim into the successor',
+    ])
+    expect(card.projection.excerpts.startsWith('<recent_exchanges')).toBe(true)
+    const replayed = rows[1]!
+    if (replayed.kind !== 'message') throw new Error('expected the replayed user message')
+    expect(replayed.message.actor).toBe('user')
+    expect(replayed.message.content).toBe('Draft the doc.')
+    expect(replayed.message.meta?.continuedFrom).toEqual({sessionId: 'session-0', eventId: 'event-9', seq: 9})
+  })
+
+  it('leaves a user-authored message that merely mentions the tag as a plain bubble', () => {
+    const rows = buildAgentSessionChatRows(
+      [event(1, {type: 'message', role: 'user', content: '<session_continuation> is a thing the runtime writes'})],
+      CONTEXT,
+    )
+    expect(rows[0]?.kind).toBe('message')
+  })
+
+  it('keeps the continue_session call and its result on one row for the transition card', () => {
+    const rows = buildAgentSessionChatRows(
+      [
+        event(1, {
+          type: 'tool_call',
+          id: 'call-1',
+          name: 'continue_session',
+          input: {reason: 'topic_change', title: 'Plan the offsite', description: 'Venue and agenda.', handoff: {}},
+        }),
+        event(2, {
+          type: 'tool_result',
+          toolCallId: 'call-1',
+          name: 'continue_session',
+          output: {successorSessionId: 'session-2', title: 'Plan the offsite', continuationId: 'edge-2'},
+        }),
+      ],
+      CONTEXT,
+    )
+    expect(rows).toHaveLength(1)
+    const row = rows[0]!
+    if (row.kind !== 'message') throw new Error('expected a message row')
+    expect(row.message.parts?.[0]).toMatchObject({
+      type: 'tool',
+      name: 'continue_session',
+      args: {title: 'Plan the offsite'},
+      rawOutput: {successorSessionId: 'session-2'},
+    })
+  })
+})

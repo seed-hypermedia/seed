@@ -103,7 +103,7 @@ const readVerb = {
     '- `https://…` — read a public web page as markdown.',
     '- `activity:` — the recent activity feed; filter with options {authors, eventTypes, resource, pageSize, pageToken}.',
     '- `attachment:<id>` — a file attached to this conversation (images are shown to you when the model supports it).',
-    "- `thread:<id>` — another conversation transcript of yours. `thread:` alone lists your account's conversations, newest first; options {query} searches titles and message text, {agentId} filters to one agent, {limit} caps results. `run:<id>` — a run journal.",
+    "- `thread:<id>` — another of YOUR OWN conversation transcripts, as `[seq] who: text` lines (newest 200 by default; options {fromSeq, toSeq} select an exact range — the way to recall material a continuation handoff cites — and {limit} caps the count), with its continuation lineage. `thread:` alone lists your conversations, newest first; options {query} searches titles and message text, {limit} caps results. Other agents' threads are not reachable — talk to other agents through documents and comments. `run:<id>` — a run journal.",
     'Directory listings return {entries: [{path, type, size}]}; memory file reads return {content}. Prefer reading exactly what you need; directory listings are cheap, whole trees are not.',
   ].join('\n'),
   inputSchema: {
@@ -124,7 +124,7 @@ const readVerb = {
       options: {
         type: 'object',
         description:
-          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, agentId, limit}; ipfs {path} to choose the memory destination.',
+          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, limit}; thread transcript {fromSeq, toSeq, limit}; ipfs {path} to choose the memory destination.',
       },
     },
     required: ['address'],
@@ -428,7 +428,7 @@ const statusVerb = {
   name: 'status',
   label: 'Status',
   description:
-    'Update this session\'s title and description — the one-line label and one-or-two-sentence summary shown in session lists and read by any parent session or teammate checking on your work. Call it once early, as soon as you know what the conversation is about (a specific title beats a generic one: "Migrate billing cron to Postgres", not "Help with code"), and again whenever the focus shifts or a milestone is reached so the description reflects what is going on right now and what is left. Keep the description to what an outside reader needs: current objective, progress, blockers. When the task is finished, call it one final time so the description states the outcome rather than the intent — an idle session whose status still says what you were about to do misleads whoever checks on it. Omit a field to leave it unchanged. A title the user typed themselves is never overwritten.',
+    'Update this session\'s title and/or description as they appear in session lists and to any parent session or teammate checking on your work. They are two different things. The TITLE names what this whole session is about — the activity, not the current step ("Migrate billing cron to Postgres", not "Help with code"); set it once early, refine it gently if your understanding sharpens, and if the work shifts dramatically that is a continue_session, not a rename. The DESCRIPTION is the live status — one or two sentences on what is happening right now, how far along it is, and what is blocked — and it can change a lot: update it at milestones, when the focus moves within the session, and one final time when the work finishes so it states the outcome rather than the intent (an idle session whose status still says what you were about to do misleads whoever checks on it). Pass only the fields you are changing; passing just a description is the normal case. Each turn shows the current values in a <session_status> block: call this to change them, never to restate them. A title the user typed themselves is never overwritten, and a session a continuation already named needs no call until its status actually moves.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
@@ -441,6 +441,130 @@ const statusVerb = {
     },
   },
   render: {kind: 'hidden', label: 'Status', color: 'hidden', summaryArg: 'title'},
+  runtimes: ['agent-service'],
+} satisfies SeedToolMetadata
+
+const continueSessionVerb = {
+  name: 'continue_session',
+  label: 'Continue',
+  description: [
+    'Carry this conversation into a FRESH session and answer the user there. Call it INSTEAD of replying when the current transcript is no longer the right working context. This session is never compacted or rewritten: its history stays complete and unchanged, a new session is created linked to it, the user is moved there, and the successor run answers the current message. Your turn here ends the moment you call it — do not write a reply first; the successor gives the reply.',
+    'Reach for it at semantic boundaries, not on a token count:',
+    '- the user changes to a substantially different subject (`topic_change`);',
+    '- one phase of the work is done and the next begins — research finished, implementation starts; a task completed, a new one requested (`phase_change`);',
+    '- the user wants to get back to something earlier, or to focus on one thread of a sprawling conversation, and a clean context built around that thread would serve better than scrolling through everything else (`refocus`);',
+    '- old tool traffic or abandoned tangents crowd out what matters now (`refocus`);',
+    '- the user asks for it (`user_request`);',
+    '- the `<context_usage>` block shows the context nearly full (roughly 70% or more), or you notice the model losing track of earlier facts (`context_pressure`). Do not wait until it is completely full: continue while there is room to write a careful handoff. Continuing at 40% for a real subject change is right; splitting a coherent single task at 60% just because of the number is not.',
+    'Do NOT continue while side effects are unresolved: finish or explicitly account for in-flight work first (delegated children still running, a write you have not confirmed). Do not continue from a delegated child session — a child reports back with its result. Do not continue when the user is simply following up on the same work with the same working set; that is the conversation working as intended.',
+    'The successor starts with: its normal system prompt and tools; a runtime-generated lineage block naming this session (it can `read thread:<id>` to recall anything exact); your handoff; the exact text of the message that caused the continuation; and short excerpts of the most recent exchanges. Everything else from here is reachable but NOT loaded, so the handoff must stand on its own: write it for a capable colleague who has read none of this conversation. Put in `establishedFacts` the concrete things learned (names, ids, URLs, numbers, what worked and what failed); in `decisions` what was chosen and why; in `nextActions` what the successor should do first. Cite `sources` — hm:// resources, memory files, thread event ranges — for anything the successor might need exactly rather than as your summary.',
+    '`title` and `description` name the successor as it will appear in session lists; they are required and are yours to set, the way the status verb sets them: a specific title ("Migrate billing cron to Postgres", not "Continued conversation") and a one-or-two-sentence description of what the successor is about to do.',
+    '`transfer.plan` says what happens to the live checklist: `carry` copies it into the successor (default when it has unfinished steps), `close` leaves it here as history. Structured state — identity, grants, model, attachments — is carried by the runtime, not by your prose.',
+  ].join('\n'),
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      reason: {
+        type: 'string',
+        enum: ['topic_change', 'phase_change', 'refocus', 'context_pressure', 'user_request', 'other'],
+        description: 'Why the conversation is moving to a fresh session.',
+      },
+      title: {
+        type: 'string',
+        minLength: 1,
+        description: 'Title of the successor session, at most eight words, specific to what it will do.',
+      },
+      description: {
+        type: 'string',
+        minLength: 1,
+        description: 'One or two sentences: what the successor session is about and what it will do first.',
+      },
+      handoff: {
+        type: 'object',
+        additionalProperties: false,
+        description: 'Orientation for the successor, written for a colleague who has read none of this conversation.',
+        properties: {
+          purpose: {type: 'string', minLength: 1, description: 'What the successor session is for.'},
+          currentRequest: {
+            type: 'string',
+            minLength: 1,
+            description:
+              'What the user is asking for right now, in your words. (The exact user message is also replayed verbatim.)',
+          },
+          establishedFacts: {
+            type: 'array',
+            items: {type: 'string'},
+            description: 'Concrete facts learned here: names, ids, URLs, numbers, what worked, what failed.',
+          },
+          decisions: {type: 'array', items: {type: 'string'}, description: 'What was decided, and why.'},
+          openQuestions: {type: 'array', items: {type: 'string'}, description: 'What is still unresolved.'},
+          nextActions: {
+            type: 'array',
+            items: {type: 'string'},
+            description: 'What the successor should do first, in order.',
+          },
+          cautions: {type: 'array', items: {type: 'string'}, description: 'Pitfalls, constraints, things not to do.'},
+        },
+        required: ['purpose', 'currentRequest'],
+      },
+      sources: {
+        type: 'array',
+        description:
+          'Exact references the successor may need: {kind: "resource", url, relevance} for hm:// or web content; {kind: "memory", path, relevance} for a memory file; {kind: "session_events", fromSeq, toSeq, relevance} or {kind: "session_event", seq, relevance} for a range of this thread (seqs as shown by read thread:<id>). Each carries a one-line relevance.',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            kind: {type: 'string', enum: ['resource', 'memory', 'session_events', 'session_event']},
+            url: {type: 'string'},
+            version: {type: 'string'},
+            blockId: {type: 'string'},
+            path: {type: 'string'},
+            sessionId: {type: 'string', description: 'Defaults to this session.'},
+            fromSeq: {type: 'number'},
+            toSeq: {type: 'number'},
+            seq: {type: 'number'},
+            relevance: {type: 'string', minLength: 1},
+          },
+          required: ['kind', 'relevance'],
+        },
+      },
+      transfer: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          plan: {
+            type: 'string',
+            enum: ['carry', 'close', 'omit'],
+            description: 'carry: copy the live checklist into the successor. close/omit: leave it here as history.',
+          },
+        },
+      },
+    },
+    required: ['reason', 'title', 'description', 'handoff'],
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      continuationId: {type: 'string'},
+      successorSessionId: {type: 'string'},
+      title: {type: 'string'},
+    },
+  },
+  render: {
+    kind: 'generic',
+    label: 'Continue',
+    pendingLabel: 'Continuing',
+    color: 'violet',
+    primaryArg: 'title',
+    summaryArg: 'title',
+    details: [
+      {label: 'Handoff', source: 'input', path: 'handoff'},
+      {label: 'Sources', source: 'input', path: 'sources'},
+      {label: 'Result', source: 'output'},
+    ],
+  },
   runtimes: ['agent-service'],
 } satisfies SeedToolMetadata
 
@@ -468,6 +592,7 @@ export const seedVerbRegistry = {
   delegate: delegateVerb,
   plan: planVerb,
   status: statusVerb,
+  continue_session: continueSessionVerb,
   return_result: returnResultTool,
 } as const
 

@@ -3177,7 +3177,12 @@ describe('api service', () => {
         await apisvc.createSignedEnvelope(account, {
           action: {
             _: 'CreateAgent',
-            definition: {name: 'Agent', systemPrompt: 'ok', modelProvider: 'openai', model: 'gpt'},
+            definition: {
+              name: 'Agent',
+              systemPrompt: 'You are the scheduling persona.',
+              modelProvider: 'openai',
+              model: 'gpt',
+            },
           },
         }),
       )
@@ -3213,7 +3218,7 @@ describe('api service', () => {
         expect(JSON.stringify(body.messages)).toContain('Run the scheduled task.')
         expect(JSON.stringify(body.messages)).toContain('schedule')
         const systemMessage = body.messages.find((message: {role?: string}) => message.role === 'system')
-        expect(systemMessage?.content).toContain('ok')
+        expect(systemMessage?.content).toContain('You are the scheduling persona.')
         expect(systemMessage?.content).toContain('You are the isolated scheduler worker.')
         return openAIStreamResponse([
           {id: 'chat-schedule', choices: [{delta: {content: 'Scheduled task handled.'}}]},
@@ -3282,7 +3287,7 @@ describe('api service', () => {
         openAICallCount += 1
         const body = JSON.parse(String(init?.body))
         const systemMessage = body.messages.find((message: {role?: string}) => message.role === 'system')
-        expect(systemMessage?.content).not.toContain('ok')
+        expect(systemMessage?.content).not.toContain('You are the scheduling persona.')
         expect(systemMessage?.content).toContain('You are only the isolated worker.')
         return openAIStreamResponse([
           {id: 'chat-isolated', choices: [{delta: {content: 'Isolated task handled.'}}]},
@@ -4055,6 +4060,7 @@ describe('api service', () => {
             'delegate',
             'plan',
             'status',
+            'continue_session',
           ])
           return openAIStreamResponse([
             {id: 'chat-1', choices: [{delta: {content: "I'll read it first.\n"}}]},
@@ -4295,7 +4301,7 @@ describe('api service', () => {
       // First provider request advertises exactly the verb surface (delegate is run-backed).
       expect(
         (openAIBodies[0]?.tools as Array<{function?: {name?: string}}>)?.map((tool) => tool.function?.name),
-      ).toEqual(['read', 'write', 'call', 'delegate', 'plan', 'status'])
+      ).toEqual(['read', 'write', 'call', 'delegate', 'plan', 'status', 'continue_session'])
       // The follow-up request carries the tool result (with the SearXNG URL) after its tool call.
       const followUpMessages = openAIBodies[1]?.messages as Array<Record<string, unknown>>
       expect(followUpMessages.some((message) => message.role === 'tool')).toBe(true)
@@ -4393,6 +4399,7 @@ describe('api service', () => {
             'delegate',
             'plan',
             'status',
+            'continue_session',
           ])
           expect(JSON.stringify(body.tools)).toContain('hm://<account>/<path>')
           expect(JSON.stringify(body.messages)).toContain('Writer Bot')

@@ -2,6 +2,13 @@ import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {type AgentRunActivity, type AgentSessionTriggerContext} from './client'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {SessionSummaryBanner} from './session-children'
+import {
+  ContextUsageMeter,
+  ContinuationHandoffCard,
+  ContinuationHeader,
+  sessionContextTokens,
+  useFollowContinuation,
+} from './continuation'
 import {useChatAutoScroll} from './chat-autoscroll'
 import {describeAgentError} from './errors'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
@@ -252,6 +259,19 @@ function AgentSessionPage({
   const ownRun = useRun(serverUrl, selectedAccountId, parentSessionId ? session.data?.session.runId : undefined)
   const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
   const isDrivenByParent = !!parentSessionId && (isAgentStreaming || hasLiveRun)
+  // Continuation: follow the turn into its successor when this client was watching it, and show
+  // how full the model's context is so a coming continuation is no surprise.
+  const sessionInfo = session.data?.session
+  const openSuccessor = useCallback(
+    (successorId: string) => navigate({key: 'agent-session', agentId, sessionId: successorId, serverUrl}),
+    [agentId, navigate, serverUrl],
+  )
+  const followContinuation = useFollowContinuation({
+    session: sessionInfo,
+    isStreaming: !!isAgentStreaming,
+    onFollow: useCallback((link) => openSuccessor(link.sessionId), [openSuccessor]),
+  })
+  const contextTokens = useMemo(() => sessionContextTokens(session.data?.events), [session.data?.events])
   const triggerActivityRoute = useMemo(
     () => (session.data?.triggerContext ? getTriggerActivityRoute(session.data.triggerContext) : null),
     [session.data?.triggerContext],
@@ -334,13 +354,22 @@ function AgentSessionPage({
         // The stamped drafts carry the clientMessageIds the optimistic rows were keyed with, so the
         // server's echo replaces those rows instead of rendering beside them.
         if (selectedAccountId) messages = addOptimisticSessionMessage(serverUrl, selectedAccountId, sessionId, messages)
+        followContinuation.markFollowing()
         const result = await messageSession.mutateAsync({sessionId, message: messages})
         if (result._ !== 'MessageSessionResponse') throw new Error('Unexpected message response')
+        if (result.continuedToSessionId) {
+          followContinuation.followNow({
+            continuationId: '',
+            sessionId: result.continuedToSessionId,
+            reason: 'other',
+            createdAt: Date.now(),
+          })
+        }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Could not send message')
       }
     },
-    [messageSession, selectedAccountId, serverUrl, sessionId],
+    [followContinuation, messageSession, selectedAccountId, serverUrl, sessionId],
   )
 
   async function handleSendMessage(message: AgentSessionDraftMessage) {
@@ -398,6 +427,7 @@ function AgentSessionPage({
           <>
             {deleteSessionDialog.content}
             {systemPromptDialog.content}
+            <ContextUsageMeter tokens={contextTokens} contextWindow={session.data?.contextWindow} className="mr-1" />
             <SessionModelBadge
               agent={agent.data?.agent}
               agentId={session.data?.session.agentId ?? agentId}
@@ -501,6 +531,12 @@ function AgentSessionPage({
                     serverUrl,
                   })
                 }
+              />
+            ) : null}
+            {sessionInfo?.continuedFrom ? (
+              <ContinuationHeader
+                link={sessionInfo.continuedFrom}
+                onOpenPredecessor={() => openSuccessor(sessionInfo.continuedFrom!.sessionId)}
               />
             ) : null}
             <SessionSummaryBanner description={session.data.session.description} />
@@ -744,6 +780,18 @@ const AgentSessionChatRow = React.memo(function AgentSessionChatRow({
         runId={row.run.id}
         plan={row.plan}
         onOpenSession={onOpenSession}
+      />
+    )
+  }
+
+  if (row.kind === 'continuation') {
+    // What this session started from: the handoff, readable and inspectable, in place of the raw
+    // projection text the model was given.
+    return (
+      <ContinuationHandoffCard
+        id="continuation-handoff"
+        projection={row.projection}
+        onOpenPredecessor={onOpenSession ? (predecessorId) => onOpenSession(predecessorId) : undefined}
       />
     )
   }

@@ -8,6 +8,7 @@ import {
   type SessionEventPayload,
 } from './client'
 import {type ChatBubbleMessage} from './chat-parts'
+import {isContinuationProjection, parseContinuationProjection, type ContinuationProjectionView} from './continuation'
 import {type ChatToolChild, type ChatToolPart} from './chat-parts'
 import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
@@ -32,6 +33,17 @@ export type AgentSessionChatRow =
     }
   | {key: string; kind: 'error'; message: string; createdAt?: number}
   | {key: string; kind: 'raw'; event: SessionEvent; createdAt?: number}
+  | {
+      /**
+       * The projection a successor session opened with — the runtime's lineage block plus the
+       * agent's handoff and loaded excerpts. Rendered as the handoff card, never as a chat bubble:
+       * it is what the model started from, not something anyone said.
+       */
+      key: string
+      kind: 'continuation'
+      projection: ContinuationProjectionView
+      createdAt?: number
+    }
   | {
       key: string
       kind: 'run-record'
@@ -429,6 +441,22 @@ export function buildAgentSessionChatRows(
       runId?: string
       sessionId?: string
       title?: string
+    }
+
+    if (
+      payload.type === 'message' &&
+      payload.role === 'user' &&
+      typeof payload.content === 'string' &&
+      sessionEventActor(event.event) === 'system' &&
+      isContinuationProjection(payload.content)
+    ) {
+      rows.push({
+        key: event.id,
+        kind: 'continuation',
+        createdAt: event.createdAt,
+        projection: parseContinuationProjection(payload.content),
+      })
+      continue
     }
 
     if (payload.type === 'message' && typeof payload.content === 'string') {

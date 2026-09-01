@@ -13,6 +13,23 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Session continuation: the typed predecessor/successor edge continue_session creates, with the
+  // projection manifest that says exactly what the successor started from.
+  `CREATE TABLE session_continuations (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      agent_id TEXT NOT NULL REFERENCES agents (id),
+      predecessor_session_id TEXT NOT NULL REFERENCES sessions (id),
+      successor_session_id TEXT NOT NULL UNIQUE REFERENCES sessions (id),
+      origin_session_id TEXT NOT NULL,
+      tool_call_id TEXT NOT NULL,
+      initiating_event_id TEXT NOT NULL,
+      reason TEXT NOT NULL,
+      manifest_cbor BLOB NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE (predecessor_session_id, tool_call_id)
+  ) WITHOUT ROWID;
+  CREATE INDEX session_continuations_by_predecessor ON session_continuations (predecessor_session_id, created_at DESC);`,
   // Newest-first cross-session event reads (thread content search) used to sort the whole table
   // with a temp b-tree, reading every event blob on the server's only thread. This index lets
   // those reads walk recency order directly and stop at their limit.

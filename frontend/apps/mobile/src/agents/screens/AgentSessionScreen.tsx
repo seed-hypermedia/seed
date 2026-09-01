@@ -190,6 +190,15 @@ export function AgentSessionScreen({navigation, route}: Props) {
                   onOpenChild={(child) => openChildSession(navigation, child, serverUrl)}
                 />
               )
+            case 'continuation':
+              return (
+                <Label key={row.key} size="sm" tone="muted" style={styles.empty}>
+                  Continued from{' '}
+                  {row.projection.predecessorTitle ? `“${row.projection.predecessorTitle}”` : 'the previous session'}
+                  {' — '}
+                  {row.projection.handoffMarkdown.split('\n').find((line) => line && !line.startsWith('#')) ?? ''}
+                </Label>
+              )
             default:
               return null
           }

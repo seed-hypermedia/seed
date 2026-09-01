@@ -6,6 +6,7 @@ import {
   sessionEventActor,
   isReasoningLevel,
   modelReasoningSupport,
+  modelContextWindow,
   modelSupportsImageInput,
   normalizeSeedToolName,
   seedAssistantSystemPrompt,
@@ -139,6 +140,20 @@ const MAX_SESSION_SPAWN_DEPTH = 3
 const MAX_SESSION_SPAWNS_PER_SESSION = 10
 /** Bound on the agent-maintained session description (status verb). */
 const MAX_SESSION_DESCRIPTION_BYTES = 1024
+/** Successors one session may be continued into; beyond this a loop is likelier than a branch. */
+const MAX_SESSION_CONTINUATIONS_PER_SESSION = 8
+/** Text budget for the projection message a successor session starts from. */
+const CONTINUATION_PROJECTION_BUDGET_BYTES = 40 * 1024
+/** Recent predecessor exchanges the projection compiler offers when the budget allows. */
+const CONTINUATION_RECENT_EVENTS = 16
+/** Per-excerpt cap inside a projection, so one giant message cannot eat the whole budget. */
+const CONTINUATION_EXCERPT_MAX_CHARS = 2_000
+/** Name of the projection compiler recorded on every manifest it writes. */
+const CONTINUATION_PROJECTION_COMPILER = 'projection/1'
+/** Context fullness at which the runtime starts telling the model to continue. */
+const CONTEXT_PRESSURE_WARN_FRACTION = 0.7
+/** Context fullness at which the runtime tells the model to continue before answering. */
+const CONTEXT_PRESSURE_URGENT_FRACTION = 0.85
 
 /** Dedicated title-generation model calls a session gets per process before the runtime stops trying. */
 const MAX_TITLE_GENERATION_ATTEMPTS = 3
@@ -287,6 +302,24 @@ class SessionParkedError extends Error {
   }
 }
 
+/**
+ * Thrown out of a Pi run when the turn ended by continuing into a successor session: the answer
+ * to the current message belongs to the successor's run, so this run stops after the tool batch
+ * without producing one of its own.
+ */
+class SessionContinuedError extends Error {
+  constructor(readonly continuation: SessionContinuationOutcome) {
+    super('Agent run continued into a successor session')
+  }
+}
+
+/** What a `continue_session` call left behind for the run that made it. */
+type SessionContinuationOutcome = {
+  continuationId: string
+  successorSessionId: string
+  title: string
+}
+
 type RunningSession = {
   accountId: string
   abort?: () => Promise<void>
@@ -299,6 +332,8 @@ type RunningSession = {
   subResultRetries?: number
   /** Set when the turn should end after the current tool batch (result delivered). */
   completeAfterTools?: boolean
+  /** Set by `continue_session`: the turn ends after this tool batch and the successor answers. */
+  continuation?: SessionContinuationOutcome
 }
 
 /** Validated delegate tool input for a model child, embedded in the child run's `input` so the run is self-describing. */
@@ -2574,7 +2609,11 @@ export class Service {
     const hasMore = rows.length > pageSize
     const page = hasMore ? rows.slice(0, pageSize) : rows
     const sessions = page.map((session) =>
-      sessionRowToInfo(session, this.#getSessionTriggerContext(session.account_id, session.id) ?? undefined),
+      sessionRowToInfo(
+        session,
+        this.#getSessionTriggerContext(session.account_id, session.id) ?? undefined,
+        this.#sessionContinuationLinks(session.account_id, session.id),
+      ),
     )
     const referencedAgentIds = new Set(sessions.map((session) => session.agentId))
     const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
@@ -3203,6 +3242,10 @@ export class Service {
       runId?: string
       titleSource?: 'system' | 'agent'
       modelOverride?: api.SessionModelOverride
+      /** Agent-authored description, set at creation by a continuation's predecessor. */
+      description?: string
+      /** A checklist carried across a continuation edge, already re-stamped for the new session. */
+      plan?: runs.RunPlanState
     } = {},
   ): api.CreateSessionResponse {
     const agent = this.#db
@@ -3221,8 +3264,8 @@ export class Service {
       rawTitle === undefined ? null : normalizeBoundedString(rawTitle, 'Session title', MAX_NAME_BYTES)
     const title = normalizedTitle && isPlaceholderSessionTitle(normalizedTitle) ? null : normalizedTitle
     this.#db.run(
-      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, parent_session_id, run_id, model_override_cbor, description, plan_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sessionId,
         accountId,
@@ -3233,6 +3276,8 @@ export class Service {
         opts.parentSessionId ?? null,
         opts.runId ?? null,
         opts.modelOverride ? cbor.encode(opts.modelOverride) : null,
+        opts.description ?? null,
+        opts.plan ? cbor.encode(opts.plan) : null,
         now,
         now,
       ],
@@ -3551,6 +3596,27 @@ export class Service {
   }
 
   /** The plan as currently stored, or undefined for a session that has never published one. */
+  /**
+   * The prompt size of the session's most recent model turn — input plus cache reads and writes,
+   * which together are the whole context the provider was sent — from the usage stamped on the
+   * last assistant message. Undefined until a turn has completed.
+   */
+  #lastPromptTokens(sessionId: string): number | undefined {
+    const rows = this.#db
+      .query<{event_cbor: Uint8Array}, [string]>(
+        `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 60`,
+      )
+      .all(sessionId)
+    for (const row of rows) {
+      const payload = cbor.decode<{type?: string; role?: string; meta?: api.SessionEventMeta}>(row.event_cbor)
+      if (payload.type !== 'message' || payload.role !== 'assistant') continue
+      const usage = payload.meta?.usage
+      if (!usage) continue
+      return usage.input + usage.cacheRead + usage.cacheWrite
+    }
+    return undefined
+  }
+
   #storedSessionPlan(accountId: string, sessionId: string): runs.RunPlanState | undefined {
     const row = this.#db
       .query<{plan_cbor: Uint8Array | null}, [string, string]>(
@@ -3695,6 +3761,326 @@ export class Service {
       })
     }
     return session
+  }
+
+  /**
+   * continue_session verb: carries this conversation into a fresh successor session.
+   *
+   * The predecessor is never rewritten. In one transaction the successor is created (titled and
+   * described by the predecessor's agent), the continuation edge and its projection manifest are
+   * stored, the checklist is carried when asked, and the successor's first two events are
+   * appended: a runtime-generated lineage block with the agent's handoff and exact excerpts, then
+   * the user's initiating message copied VERBATIM with its provenance. The successor's run starts
+   * right after, and this turn ends after its tool batch — the answer is produced over there.
+   *
+   * Idempotent on the tool call id: a replayed call returns the successor it already made.
+   */
+  #continueSessionFromAgent(
+    accountId: string,
+    run: runs.RunRecord,
+    sessionId: string,
+    agentId: string,
+    runningSession: RunningSession,
+    toolCallId: string,
+    raw: unknown,
+  ): Record<string, unknown> {
+    const replayed = this.#db
+      .query<{id: string; successor_session_id: string}, [string, string]>(
+        `SELECT id, successor_session_id FROM session_continuations WHERE predecessor_session_id = ? AND tool_call_id = ?`,
+      )
+      .get(sessionId, toolCallId)
+    if (replayed) {
+      const successor = this.#getSessionInfo(accountId, replayed.successor_session_id)
+      const outcome: SessionContinuationOutcome = {
+        continuationId: replayed.id,
+        successorSessionId: replayed.successor_session_id,
+        title: successor?.title ?? '',
+      }
+      runningSession.continuation = outcome
+      runningSession.completeAfterTools = true
+      return continuationToolOutput(outcome)
+    }
+    const input = normalizeContinueSessionInput(raw, sessionId)
+    if (runningSession.parkToolCallIds?.length) {
+      throw new APIError(
+        400,
+        'Cannot continue while children delegated this turn are still running: wait for their results, or account for them explicitly, then continue.',
+      )
+    }
+    if (run.parentRunId) {
+      throw new APIError(
+        400,
+        'A delegated child does not continue into a new session: finish the task and report back to the parent instead.',
+      )
+    }
+    const session = this.#db
+      .query<SessionRow, [string, string]>(
+        `SELECT id, account_id, agent_id, title, status, parent_session_id, run_id, plan_cbor, model_override_cbor, description,
+                0 AS child_count, created_at, updated_at
+         FROM sessions WHERE account_id = ? AND id = ?`,
+      )
+      .get(accountId, sessionId)
+    if (!session) throw new APIError(404, 'Session not found')
+    const successorsSoFar =
+      this.#db
+        .query<{n: number}, [string]>(
+          `SELECT COUNT(*) AS n FROM session_continuations WHERE predecessor_session_id = ?`,
+        )
+        .get(sessionId)?.n ?? 0
+    if (successorsSoFar >= MAX_SESSION_CONTINUATIONS_PER_SESSION) {
+      throw new APIError(
+        400,
+        `This session has already been continued ${MAX_SESSION_CONTINUATIONS_PER_SESSION} times; answer here instead.`,
+      )
+    }
+    const events = this.#db
+      .query<SessionEventRow, [string]>(
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+      )
+      .all(sessionId)
+      .map(sessionEventRowToInfo)
+    const initiating = findContinuationInitiatingEvent(events)
+    if (!initiating) throw new APIError(400, 'Nothing to continue: this session has no user message to carry forward.')
+    const initiatingPayload = initiating.event as {meta?: api.SessionEventMeta}
+    if (initiatingPayload.meta?.continuedFrom) {
+      throw new APIError(
+        400,
+        'This session was itself just continued and has had no new user message since. Answer here; continuing again would loop.',
+      )
+    }
+    const stateDir = this.#agentMemoryStateDir(accountId, agentId)
+    const sources = this.#validateContinuationSources(accountId, agentId, sessionId, events, stateDir, input.sources)
+    const originSessionId = this.#continuationOriginOf(accountId, sessionId)
+    const plan = this.#storedSessionPlan(accountId, sessionId)
+    const planTransfer: 'carry' | 'close' | 'omit' =
+      input.transfer?.plan ?? (plan && !isPlanFullySettled(plan) ? 'carry' : 'omit')
+    const continuationId = crypto.randomUUID()
+    const now = Date.now()
+    const projection = compileContinuationProjection({
+      continuationId,
+      predecessor: {id: sessionId, title: session.title},
+      originSessionId,
+      initiating,
+      reason: input.reason,
+      handoff: input.handoff,
+      sources,
+      events,
+      budgetBytes: CONTINUATION_PROJECTION_BUDGET_BYTES,
+    })
+    const modelOverride = session.model_override_cbor
+      ? cbor.decode<api.SessionModelOverride>(session.model_override_cbor)
+      : undefined
+    const transaction = this.#db.transaction(() => {
+      const created = this.#createSessionOnce(accountId, agentId, input.title, {
+        parentSessionId: session.parent_session_id ?? undefined,
+        titleSource: 'agent',
+        ...(modelOverride ? {modelOverride} : {}),
+        description: input.description,
+        ...(planTransfer === 'carry' && plan ? {plan: {...plan, ownerRunId: undefined, settledAt: undefined}} : {}),
+      })
+      const successorSessionId = created.sessionId
+      const manifest: api.SessionContinuationManifest = {
+        continuationId,
+        predecessorSessionId: sessionId,
+        successorSessionId,
+        originSessionId,
+        initiatingEvent: {id: initiating.id, seq: initiating.seq},
+        toolCallId,
+        reason: input.reason,
+        createdAt: now,
+        handoff: input.handoff,
+        sources: projection.sources,
+        included: projection.included,
+        omitted: projection.omitted,
+        transfer: {plan: planTransfer},
+        projectionBytes: Buffer.byteLength(projection.content),
+        compiler: CONTINUATION_PROJECTION_COMPILER,
+      }
+      this.#db.run(
+        `INSERT INTO session_continuations (id, account_id, agent_id, predecessor_session_id, successor_session_id,
+           origin_session_id, tool_call_id, initiating_event_id, reason, manifest_cbor, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          continuationId,
+          accountId,
+          agentId,
+          sessionId,
+          successorSessionId,
+          originSessionId,
+          toolCallId,
+          initiating.id,
+          input.reason,
+          cbor.encode(manifest),
+          now,
+        ],
+      )
+      // The successor's opening: lineage + handoff + excerpts as one system-authored message, then
+      // the user's own message, verbatim, so the model answers the user and not the runtime.
+      this.#appendSessionEvent(
+        accountId,
+        agentId,
+        successorSessionId,
+        {type: 'message', role: 'user', actor: 'system', content: projection.content},
+        now,
+      )
+      const original = initiating.event as Extract<api.SessionEventPayload, {type: 'message'}>
+      const attachments = (original.attachments ?? []).flatMap((attachment) => {
+        try {
+          sessionAttachments.linkSessionAttachment(stateDir, sessionId, successorSessionId, attachment.id)
+          return [attachment]
+        } catch (error) {
+          console.warn('[agents/runtime] continuation could not carry attachment', {
+            attachmentId: attachment.id,
+            error: error instanceof Error ? error.message : String(error),
+          })
+          return []
+        }
+      })
+      const copied = this.#appendSessionEvent(
+        accountId,
+        agentId,
+        successorSessionId,
+        {
+          type: 'message',
+          role: 'user',
+          content: original.content,
+          ...(original.rawMarkdown !== undefined ? {rawMarkdown: original.rawMarkdown} : {}),
+          ...(original.blocks ? {blocks: original.blocks} : {}),
+          ...(original.contextLines ? {contextLines: original.contextLines} : {}),
+          ...(attachments.length > 0 ? {attachments} : {}),
+          actor: sessionEventActor(initiating.event),
+          meta: {
+            ...(original.meta ?? {}),
+            continuedFrom: {sessionId, eventId: initiating.id, seq: initiating.seq},
+          },
+        },
+        now + 1,
+      )
+      return {successorSessionId, copiedEventId: copied.id}
+    })
+    const {successorSessionId, copiedEventId} = transaction()
+    const outcome: SessionContinuationOutcome = {continuationId, successorSessionId, title: input.title}
+    runningSession.continuation = outcome
+    runningSession.completeAfterTools = true
+    console.info('[agents/runtime] session continued', {
+      accountId,
+      agentId,
+      predecessorSessionId: sessionId,
+      successorSessionId,
+      continuationId,
+      reason: input.reason,
+      initiatingSeq: initiating.seq,
+      projectionBytes: Buffer.byteLength(projection.content),
+      included: projection.included,
+      omitted: projection.omitted.length,
+    })
+    // Both ends changed shape: the successor now carries continuedFrom, the predecessor continuedTo.
+    for (const id of [sessionId, successorSessionId]) {
+      const info = this.#getSessionInfo(accountId, id)
+      if (info) this.#emit({type: 'session-change', accountId, session: info})
+    }
+    this.#emit({type: 'account-change', accountId, reason: 'session-updated', agentId, sessionId})
+    this.#emit({type: 'account-change', accountId, reason: 'session-continued', agentId, sessionId: successorSessionId})
+    // The successor answers. Its run is a fresh interactive turn on its own session; the user's
+    // client follows the continuedTo link the predecessor now advertises.
+    const original = initiating.event as {rawMarkdown?: string; content?: string}
+    this.#runQueue.enqueue({
+      accountId,
+      kind: 'agent',
+      origin: 'agent',
+      agentId,
+      sessionId: successorSessionId,
+      title: sessionTitleFromPrompt(original.rawMarkdown ?? original.content ?? input.title),
+      input: {
+        kind: 'session-message',
+        userEventIds: [copiedEventId],
+        queuedBehindAnotherTurn: false,
+        continuedFrom: {sessionId, continuationId},
+      },
+      queue: 'interactive',
+      maxAttempts: 1,
+      dispatch: true,
+    })
+    return continuationToolOutput(outcome)
+  }
+
+  /** Walks predecessor links back to the first session of a continuation chain. */
+  #continuationOriginOf(accountId: string, sessionId: string): string {
+    let current = sessionId
+    for (let hops = 0; hops < 10_000; hops += 1) {
+      const row = this.#db
+        .query<{origin_session_id: string}, [string, string]>(
+          `SELECT origin_session_id FROM session_continuations WHERE account_id = ? AND successor_session_id = ?`,
+        )
+        .get(accountId, current)
+      if (!row) return current
+      // Origins are stored on every edge, so one hop reaches it; the loop is only for a stored
+      // origin that is itself a successor (never written, but never trusted either).
+      if (row.origin_session_id === current) return current
+      current = row.origin_session_id
+    }
+    return current
+  }
+
+  /**
+   * Checks every cited source is something the successor can actually reach: a well-formed
+   * resource URL, a memory file that exists, or a seq range inside a thread of this account.
+   * A handoff that cites what is not there is exactly the lossy breadcrumb this exists to prevent.
+   */
+  #validateContinuationSources(
+    accountId: string,
+    agentId: string,
+    sessionId: string,
+    events: api.SessionEvent[],
+    stateDir: string,
+    raw: api.SessionContinuationSource[],
+  ): api.SessionContinuationSource[] {
+    const maxSeqOf = new Map<string, number>([[sessionId, events.at(-1)?.seq ?? 0]])
+    const threadMaxSeq = (id: string): number => {
+      const known = maxSeqOf.get(id)
+      if (known !== undefined) return known
+      // Only this agent's own threads are citable. Agents do not read each other's state — they
+      // communicate over public interfaces (documents, comments) until a deliberate inter-agent
+      // contract exists.
+      const owned = this.#db
+        .query<{n: number}, [string, string]>(`SELECT COUNT(*) AS n FROM sessions WHERE id = ? AND agent_id = ?`)
+        .get(id, agentId)
+      if (!owned?.n) {
+        throw new APIError(400, `Source thread ${id} does not exist, or is not one of this agent's threads`)
+      }
+      const max =
+        this.#db
+          .query<{max: number | null}, [string]>(`SELECT MAX(seq) AS max FROM session_events WHERE session_id = ?`)
+          .get(id)?.max ?? 0
+      maxSeqOf.set(id, max)
+      return max
+    }
+    return raw.map((source) => {
+      if (source.kind === 'resource') {
+        if (!/^(hm:\/\/|ipfs:\/\/|https?:\/\/)/.test(source.url)) {
+          throw new APIError(400, `Source url must be hm://, ipfs://, or http(s)://: ${source.url}`)
+        }
+        return source
+      }
+      if (source.kind === 'memory') {
+        const {relPath, absPath} = agentMemory.resolveMemoryPath(stateDir, source.path.replace(/^~\/memory\/?/, ''))
+        if (!fs.existsSync(absPath)) throw new APIError(400, `Source memory file does not exist: ${source.path}`)
+        return {...source, path: `~/memory/${relPath}`}
+      }
+      const max = threadMaxSeq(source.sessionId)
+      if (source.kind === 'session_event') {
+        if (source.seq < 1 || source.seq > max)
+          throw new APIError(400, `Source seq ${source.seq} is outside thread ${source.sessionId} (1..${max})`)
+        return source
+      }
+      if (source.fromSeq < 1 || source.toSeq > max || source.fromSeq > source.toSeq) {
+        throw new APIError(
+          400,
+          `Source range ${source.fromSeq}..${source.toSeq} is outside thread ${source.sessionId} (1..${max})`,
+        )
+      }
+      return source
+    })
   }
 
   /**
@@ -4116,8 +4502,13 @@ export class Service {
       return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
     }
     if (final.status === 'succeeded' || final.status === 'canceled') {
-      const output = (final.output ?? {}) as {assistantEventId?: string}
-      return {_: 'MessageSessionResponse', sessionId, assistantEventId: output.assistantEventId ?? ''}
+      const output = (final.output ?? {}) as {assistantEventId?: string; continuedToSessionId?: string}
+      return {
+        _: 'MessageSessionResponse',
+        sessionId,
+        assistantEventId: output.assistantEventId ?? '',
+        ...(output.continuedToSessionId ? {continuedToSessionId: output.continuedToSessionId} : {}),
+      }
     }
     if (final.status === 'failed') {
       const error = final.error ?? {code: 'run-failed', message: 'Agent run failed'}
@@ -4215,6 +4606,17 @@ export class Service {
         }
         return {type: 'succeeded', output: turnOutput(spec, assistantEvent)}
       } catch (error) {
+        if (error instanceof SessionContinuedError) {
+          // Nothing is owed here any more — plan, typed result, obligations — the successor
+          // carries what was chosen to carry, and this run's record says where it went.
+          return {
+            type: 'succeeded',
+            output: {
+              continuedToSessionId: error.continuation.successorSessionId,
+              continuationId: error.continuation.continuationId,
+            },
+          }
+        }
         if (error instanceof SessionParkedError) {
           const pending = (runningSession.parkToolCallIds ?? []).filter(
             (toolCallId) => !this.#sessionHasToolResult(sessionId, toolCallId),
@@ -5939,6 +6341,7 @@ export class Service {
       : ''
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
+    const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
     // Advertise delegation model choice only when there is actually a choice: the active pair plus
     // at least one other enabled model. `definition` may already carry a session override; the
     // enabled list is untouched by overrides, so the full menu is always shown.
@@ -5952,7 +6355,7 @@ export class Service {
         )}. When you delegate, pass \`model\` so each child runs on the model its task deserves: route simple, mechanical, or high-volume subtasks (extraction, reformatting, short summaries, routine lookups) to a cheaper/faster model, and route work that needs deep reasoning, difficult code, or careful judgment to the strongest enabled model — even when that is not the model you are running on. Judge tiers by model family and name. Omit \`model\` when the child should simply inherit its agent's configured model.`
       : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${userActionsPrompt}${conversationMembersPrompt}${spaceIndex}`
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = this.#db
@@ -6070,6 +6473,18 @@ export class Service {
     // A session-level model override replaces the definition's model settings for this whole run.
     definition = this.#definitionForSession(accountId, definition, session)
     const subSessionOutputSchema = run ? this.#spawnContextForRun(run).spec?.output : undefined
+    // Continuation needs a run to end and a conversation that is the foreground: a delegated child
+    // (awaited by a parent, typed or not) reports back instead of moving on.
+    const canContinueSession = run !== undefined && !run.parentRunId && !subSessionOutputSchema
+    const continuationToolContext: Pick<AgentServicePiToolContext, 'continueSession'> = (() => {
+      if (!canContinueSession || run === undefined || runningSession === undefined) return {}
+      const liveRun = run
+      const live = runningSession
+      return {
+        continueSession: (toolCallId: string, input: unknown) =>
+          this.#continueSessionFromAgent(accountId, liveRun, sessionId, session.agentId, live, toolCallId, input),
+      }
+    })()
     const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
 
     const cwd = this.#dataDir
@@ -6151,6 +6566,7 @@ export class Service {
           }),
         setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan, run?.id),
         setSessionStatus: (status) => this.#setSessionStatusFromAgent(accountId, sessionId, status),
+        ...continuationToolContext,
         startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
         callableTools: enabledCallables,
         publishEnabled: publishGrantEnabled(definition),
@@ -6175,6 +6591,8 @@ export class Service {
         ...(run !== undefined ? [seedVerbRegistry.delegate.name] : []),
         seedVerbRegistry.plan.name,
         seedVerbRegistry.status.name,
+        // A foreground conversation may carry itself into a successor; a delegated child may not.
+        ...(canContinueSession ? [seedVerbRegistry.continue_session.name] : []),
         // Typed delegate children must deliver their result through this tool.
         ...(subSessionOutputSchema ? [seedVerbRegistry.return_result.name] : []),
       ],
@@ -6293,6 +6711,18 @@ export class Service {
     if (planIsHistory) this.#retireSettledSessionPlan(accountId, sessionId, storedPlan)
     const planBlock = planIsHistory ? undefined : planStateBlock(storedPlan)
     if (planBlock) replayMessages.push({role: 'user', content: planBlock, timestamp: Date.now()})
+    // How full the context is, from the last turn's prompt size against the model's window. Like
+    // the plan block: rendered fresh, never stored — a measurement, not a transcript event. Only
+    // where continuing is possible; a delegated child has no use for the number.
+    const contextBlock = canContinueSession
+      ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow)
+      : undefined
+    if (contextBlock) replayMessages.push({role: 'user', content: contextBlock, timestamp: Date.now()})
+    // What the session is currently called and said to be doing, so the status verb is a change
+    // the model makes on purpose rather than a restatement it makes by habit. Same rule as the
+    // plan block: rendered fresh from session state, never stored.
+    const statusBlock = sessionStatusBlock(this.#getSessionInfo(accountId, sessionId))
+    if (statusBlock) replayMessages.push({role: 'user', content: statusBlock, timestamp: Date.now()})
     piSession.state.messages = replayMessages as never
     let partialId = crypto.randomUUID()
     let partialText = ''
@@ -6602,6 +7032,12 @@ export class Service {
       // The turn ended by design: sub-sessions were spawned and the run parks on them.
       if (partialText.trim()) flushPartialAssistantMessage()
       throw new SessionParkedError()
+    }
+    if (runningSession.continuation) {
+      // The turn moved into a successor session: whatever text streamed before the call stays
+      // here, and the answer itself is the successor run's to give.
+      if (partialText.trim()) flushPartialAssistantMessage()
+      throw new SessionContinuedError(runningSession.continuation)
     }
     if (runningSession.completeAfterTools && runningSession.subResult) {
       // Typed result delivered; the abort that ended the loop is success, not an error.
@@ -6994,11 +7430,16 @@ export class Service {
     const triggerContext = this.#getSessionTriggerContext(accountId, sessionId)
     return {
       _: 'GetSessionResponse',
-      session: sessionRowToInfo(session, triggerContext ?? undefined),
+      session: sessionRowToInfo(
+        session,
+        triggerContext ?? undefined,
+        this.#sessionContinuationLinks(accountId, sessionId),
+      ),
       events,
       systemPromptMarkdown: await this.#agentSystemPrompt(accountId, agent.id, definition, agent.state_dir),
       ...(triggerContext ? {triggerContext} : {}),
       ...(hasMoreBefore ? {hasMoreBefore} : {}),
+      contextWindow: this.#sessionContextWindow(accountId, definition, sessionRowToInfo(session)),
     }
   }
 
@@ -7252,13 +7693,51 @@ export class Service {
          FROM sessions WHERE account_id = ? AND id = ?`,
       )
       .get(accountId, sessionId)
-    return session ? sessionRowToInfo(session, this.#getSessionTriggerContext(accountId, sessionId) ?? undefined) : null
+    return session
+      ? sessionRowToInfo(
+          session,
+          this.#getSessionTriggerContext(accountId, sessionId) ?? undefined,
+          this.#sessionContinuationLinks(accountId, sessionId),
+        )
+      : null
   }
 
   #sessionRowsToInfo(accountId: string, sessions: SessionRow[]): api.SessionInfo[] {
     return sessions.map((session) =>
-      sessionRowToInfo(session, this.#getSessionTriggerContext(accountId, session.id) ?? undefined),
+      sessionRowToInfo(
+        session,
+        this.#getSessionTriggerContext(accountId, session.id) ?? undefined,
+        this.#sessionContinuationLinks(accountId, session.id),
+      ),
     )
+  }
+
+  /**
+   * The continuation edges touching one session: the predecessor it was continued from, and the
+   * latest successor it was continued into. A predecessor may have several successors (someone
+   * came back and branched again); the newest is the one advertised as "where this went".
+   */
+  #sessionContinuationLinks(accountId: string, sessionId: string): SessionContinuationLinks {
+    return sessionContinuationLinksOf(this.#db, accountId, sessionId)
+  }
+
+  /**
+   * The context window of the model a session runs on (its override, else the agent's model) —
+   * from the SAME resolution the run itself registers with Pi, so the meter and the runtime's
+   * <context_usage> block never disagree: the Codex subscription catalog for subscription
+   * providers, the shared per-model heuristics otherwise.
+   */
+  #sessionContextWindow(accountId: string, definition: api.AgentDefinition, session: api.SessionInfo): number {
+    const effective = this.#definitionForSession(accountId, definition, session)
+    const providerRow = this.#db
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
+      .get(accountId, effective.modelProvider)
+    if (!providerRow) return modelContextWindow('', effective.model)
+    const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
+    const subscription = provider.authMode === 'subscription'
+    return piModelForDefinition(provider.type, '', effective, {subscription}).contextWindow
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
@@ -8489,7 +8968,49 @@ function agentTriggerRowToInfo(row: AgentTriggerRow): api.AgentTriggerInfo {
   }
 }
 
-function sessionRowToInfo(row: SessionRow, triggerContext?: api.AgentSessionTriggerContext): api.SessionInfo {
+/** Both ends of a session's continuation edges, as {@link api.SessionInfo} carries them. */
+type SessionContinuationLinks = Pick<api.SessionInfo, 'continuedFrom' | 'continuedTo'>
+
+/**
+ * The continuation edges touching one session: the predecessor it was continued from, and the
+ * latest successor it was continued into. A predecessor may have several successors (someone
+ * came back and branched again); the newest is the one advertised as "where this went".
+ */
+function sessionContinuationLinksOf(db: Database, accountId: string, sessionId: string): SessionContinuationLinks {
+  type EdgeRow = {id: string; other_id: string; other_title: string | null; reason: string; created_at: number}
+  const from = db
+    .query<EdgeRow, [string, string]>(
+      `SELECT c.id, c.predecessor_session_id AS other_id, p.title AS other_title, c.reason, c.created_at
+         FROM session_continuations c LEFT JOIN sessions p ON p.id = c.predecessor_session_id
+        WHERE c.account_id = ? AND c.successor_session_id = ?`,
+    )
+    .get(accountId, sessionId)
+  const to = db
+    .query<EdgeRow, [string, string]>(
+      `SELECT c.id, c.successor_session_id AS other_id, s.title AS other_title, c.reason, c.created_at
+         FROM session_continuations c LEFT JOIN sessions s ON s.id = c.successor_session_id
+        WHERE c.account_id = ? AND c.predecessor_session_id = ?
+        ORDER BY c.created_at DESC LIMIT 1`,
+    )
+    .get(accountId, sessionId)
+  const link = (row: EdgeRow): api.SessionContinuationLink => ({
+    continuationId: row.id,
+    sessionId: row.other_id,
+    ...(row.other_title ? {title: row.other_title} : {}),
+    reason: normalizeContinuationReason(row.reason),
+    createdAt: row.created_at,
+  })
+  return {
+    ...(from ? {continuedFrom: link(from)} : {}),
+    ...(to ? {continuedTo: link(to)} : {}),
+  }
+}
+
+function sessionRowToInfo(
+  row: SessionRow,
+  triggerContext?: api.AgentSessionTriggerContext,
+  continuation: SessionContinuationLinks = {},
+): api.SessionInfo {
   return {
     id: row.id,
     account: row.account_id,
@@ -8502,6 +9023,8 @@ function sessionRowToInfo(row: SessionRow, triggerContext?: api.AgentSessionTrig
     ...(row.model_override_cbor ? {modelOverride: cbor.decode<api.SessionModelOverride>(row.model_override_cbor)} : {}),
     ...(row.description ? {description: row.description} : {}),
     ...(row.child_count > 0 ? {childSessionCount: row.child_count} : {}),
+    ...(continuation.continuedFrom ? {continuedFrom: continuation.continuedFrom} : {}),
+    ...(continuation.continuedTo ? {continuedTo: continuation.continuedTo} : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ...(triggerContext
@@ -9600,7 +10123,7 @@ function piModelForDefinition(
     // Image input gates whether view_attachment returns actual image content to the model.
     input: modelSupportsImageInput(type, definition.model) ? ['text', 'image'] : ['text'],
     cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
-    contextWindow: 128000,
+    contextWindow: modelContextWindow(type, definition.model),
     maxTokens: 16384,
   }
 }
@@ -9665,6 +10188,12 @@ export type AgentServicePiToolContext = WriteToolContext & {
   setSessionPlan?: (plan: unknown) => api.SessionInfo
   /** status verb: sets the session's agent-maintained title and/or description. Absent in session-less contexts. */
   setSessionStatus?: (status: unknown) => api.SessionInfo
+  /**
+   * continue_session verb: creates the successor session from a projection of this one, starts
+   * its run, and ends this turn after the tool batch. Absent where there is no run to end (a
+   * script context, a runless invocation) or where continuing is wrong (a delegated child).
+   */
+  continueSession?: (toolCallId: string, input: unknown) => unknown
   /** delegate (model child): spawns an awaited child run + session and parks the calling turn on it. */
   spawnSubSession?: (toolCallId: string, input: unknown) => unknown
   /** delegate {script}: lints + spawns a script child run and parks the calling turn on it. */
@@ -9955,41 +10484,64 @@ function readAttachmentAddress(context: AgentServicePiToolContext, attachmentId:
 }
 
 /** Reads a thread address: a compact transcript of one of this account's sessions. */
-function readThreadAddress(context: AgentServicePiToolContext, sessionId: string): Record<string, unknown> {
+/**
+ * Reads one of the account's threads: metadata, its continuation lineage, and a page of its
+ * transcript rendered as `[seq] who: text` lines. The default page is the newest 200 events;
+ * options {fromSeq, toSeq} select an exact range (as cited by a continuation manifest) and
+ * {limit} caps how many events come back.
+ */
+function readThreadAddress(
+  context: AgentServicePiToolContext,
+  sessionId: string,
+  options: Record<string, unknown> = {},
+): Record<string, unknown> {
+  // Only this agent's own threads are readable — the same reach a continuation may cite. Agents
+  // do not read each other's state; they communicate over public interfaces.
   const session = context.db
     .query<{id: string; title: string | null; description: string | null; agent_id: string}, [string, string]>(
-      `SELECT id, title, description, agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+      `SELECT id, title, description, agent_id FROM sessions WHERE id = ? AND agent_id = ?`,
     )
-    .get(context.accountId, sessionId)
+    .get(sessionId, context.agentId)
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
-  const rows = context.db
-    .query<SessionEventRow, [string]>(
-      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT 200`,
-    )
-    .all(sessionId)
-    .reverse()
-    .map(sessionEventRowToInfo)
-  const lines = rows.map((row) => {
-    const event = row.event as {type?: string; role?: string; content?: unknown; name?: string; message?: string}
-    if (event.type === 'message') {
-      const content = typeof event.content === 'string' ? event.content : JSON.stringify(event.content)
-      return `**${event.role ?? 'unknown'}**: ${content}`
-    }
-    if (event.type === 'tool_call') return `→ tool call ${event.name ?? ''}`
-    if (event.type === 'tool_result') return `← tool result ${event.name ?? ''}`
-    if (event.type === 'error') return `⚠ error: ${event.message ?? ''}`
-    return `(${event.type ?? 'event'})`
-  })
+  const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
+  const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
+  const limit = Math.max(1, Math.min(1_000, Number.isInteger(options.limit) ? Number(options.limit) : 200))
+  const rows =
+    fromSeq !== undefined || toSeq !== undefined
+      ? context.db
+          .query<SessionEventRow, [string, number, number, number]>(
+            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+             WHERE session_id = ? AND seq >= ? AND seq <= ? ORDER BY seq ASC LIMIT ?`,
+          )
+          .all(sessionId, fromSeq ?? 1, toSeq ?? Number.MAX_SAFE_INTEGER, limit)
+          .map(sessionEventRowToInfo)
+      : context.db
+          .query<SessionEventRow, [string, number]>(
+            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
+          )
+          .all(sessionId, limit)
+          .reverse()
+          .map(sessionEventRowToInfo)
+  const lines = rows.map((row) => transcriptEventLine(row, 4_000))
   const markdown = lines.join('\n\n')
   const bounded =
     markdown.length > MAX_TOOL_RESULT_BYTES
       ? `[earlier events truncated]\n\n${markdown.slice(-MAX_TOOL_RESULT_BYTES)}`
       : markdown
+  const lineage = sessionContinuationLinksOf(context.db, context.accountId, sessionId)
+  const range = rows.length ? `seq ${rows[0]!.seq}–${rows.at(-1)!.seq}` : 'no events'
   return {
-    summary: `Thread "${session.title ?? sessionId}": ${rows.length} recent events.`,
+    summary: `Thread "${session.title ?? sessionId}": ${rows.length} events (${range}).`,
     sessionId,
     title: session.title,
     ...(session.description ? {description: session.description} : {}),
+    ...(lineage.continuedFrom
+      ? {continuedFrom: {...lineage.continuedFrom, thread: `thread:${lineage.continuedFrom.sessionId}`}}
+      : {}),
+    ...(lineage.continuedTo
+      ? {continuedTo: {...lineage.continuedTo, thread: `thread:${lineage.continuedTo.sessionId}`}}
+      : {}),
+    ...(rows.length ? {fromSeq: rows[0]!.seq, toSeq: rows.at(-1)!.seq} : {}),
     markdown: bounded,
   }
 }
@@ -10406,13 +10958,15 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
 }
 
 /**
- * Lists (and searches) the account's conversations for `read thread:` with no id. Search covers
+ * Lists (and searches) THIS AGENT's conversations for `read thread:` with no id. Other agents'
+ * threads are not listed — agents do not read each other's state, whatever account they share —
+ * and the legacy {agentId} option is inert. Search covers
  * titles and, bounded, recent message text — enough to find "that thread where we discussed X"
  * without scanning the whole log history.
  */
 function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
   const limit = boundedInteger(options.limit, 25, 1, 100)
-  const agentId = typeof options.agentId === 'string' && options.agentId ? options.agentId : undefined
+  const agentId = context.agentId
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
 
   type ThreadRow = {
@@ -10440,12 +10994,8 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
       }),
   )
   const loadThreads = (ids?: string[]): ThreadRow[] => {
-    const conditions = ['account_id = ?']
-    const params: (string | number)[] = [context.accountId]
-    if (agentId) {
-      conditions.push('agent_id = ?')
-      params.push(agentId)
-    }
+    const conditions = ['account_id = ?', 'agent_id = ?']
+    const params: (string | number)[] = [context.accountId, agentId]
     if (ids) {
       if (ids.length === 0) return []
       conditions.push(`id IN (${ids.map(() => '?').join(', ')})`)
@@ -10673,7 +11223,7 @@ export async function executeReadVerb(
     const threadId = address.slice('thread:'.length).trim()
     // A bare `thread:` lists (and with options.query searches) the account's conversations.
     if (!threadId) return threadsListing(context, options)
-    return readThreadAddress(context, threadId)
+    return readThreadAddress(context, threadId, options)
   }
   if (address.startsWith('run:')) return readRunAddress(context, address.slice('run:'.length))
 
@@ -11511,6 +12061,15 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
         ...(session.title ? {title: session.title} : {}),
         ...(session.description ? {description: session.description} : {}),
       }
+    }),
+    defineSeedPiTool(seedVerbRegistry.continue_session, (params, toolCallId) => {
+      if (!context.continueSession) {
+        throw new APIError(
+          400,
+          'continue_session is not available here: only a foreground conversation with a live run can continue, never a delegated child or a script.',
+        )
+      }
+      return context.continueSession(toolCallId, params)
     }),
     defineSeedPiTool(
       context.returnResultSchema
@@ -12754,6 +13313,463 @@ function collapseMemoryPath(rawPath: string): string | undefined {
 
 /** Derives a human-readable document title from a memory file name, e.g. notes/weekly-update.md → "Weekly update". */
 /** Derives a session title from the first line of a start_session prompt. */
+// ---------------------------------------------------------------------------------------------
+// Session continuation: the projection compiler and the model-facing framing around it. The
+// continuation itself is a Service method (#continueSessionFromAgent); everything here is pure.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * What every foreground agent is told about continuation, once, in its system prompt. The verb's
+ * own contract carries the detailed triggers; this is the mental model — what a continuation IS,
+ * so the model reaches for it as a normal move and not as an emergency.
+ */
+const SESSION_CONTINUATION_PROMPT = [
+  'Conversations are never compacted or summarized behind your back: this transcript is the complete record and stays that way. When it stops being the right working context, you continue the conversation in a fresh session with the `continue_session` verb — the user changed subject, a phase of the work ended and a new one begins, they want to get back to or focus on one thread of a long conversation, they asked for a fresh start, or your context is getting full. A continuation is a normal, visible move, not a failure: the user is carried to the new session automatically and experiences one continuous interaction, this session stays readable and linked, and the new session starts from the handoff you write plus the exact text of the message being answered. Calling it ends your turn here; the successor session answers the user, so call it instead of replying, not after.',
+  'Each turn may begin with a <context_usage> block measuring how full your context is. Treat it as one input to a semantic decision: continue at a natural boundary well before the context fills (around 70% is the time to look for one), and prefer a continuation to letting earlier facts fall off the edge. A successor can always recall exact earlier material with `read thread:<id>` (options {fromSeq, toSeq}), so a continuation reduces what is loaded, never what is reachable.',
+].join(' ')
+
+/**
+ * The session's current title and description as the model should see them this turn. The title
+ * names what the whole session is about; the description is the live status. A session with
+ * neither (freshly created, not yet named) gets the block too, saying so — the one time the
+ * status verb is asked for unprompted.
+ */
+function sessionStatusBlock(session: api.SessionInfo | null): string | undefined {
+  if (!session) return undefined
+  const title = session.title ? escapeActionFraming(session.title) : undefined
+  const description = session.description ? escapeActionFraming(session.description) : undefined
+  const lines = [
+    `<session_status${title ? ` title="${title.replace(/"/g, '&quot;')}"` : ''}>`,
+    description ?? '(no description yet)',
+    title || description
+      ? 'This is how the session appears in session lists right now. The title names what this whole session is about and should stay stable; if the work shifts dramatically, that is a continue_session, not a rename. The description is the live status: update it (description alone is fine) whenever progress, blockers, or the outcome change what an outside reader should see — and never call status just to restate what is already here.'
+      : 'This session has no title or description yet. Once you know what it is about, call the status verb once to name it and describe what you are doing; after that, update the description as the status changes and leave the title unless the focus truly moves.',
+    '</session_status>',
+  ]
+  return lines.join('\n')
+}
+
+/** The per-turn context measurement, framed for the model. Nothing when no turn has run yet. */
+function contextUsageBlock(promptTokens: number | undefined, contextWindow: number): string | undefined {
+  if (promptTokens === undefined || contextWindow <= 0) return undefined
+  const fraction = Math.min(1, promptTokens / contextWindow)
+  const percent = Math.round(fraction * 100)
+  const guidance =
+    fraction >= CONTEXT_PRESSURE_URGENT_FRACTION
+      ? 'Your context is nearly full. Unless this message is a one-line wrap-up, call continue_session NOW with a thorough handoff instead of answering here — the successor session will answer.'
+      : fraction >= CONTEXT_PRESSURE_WARN_FRACTION
+        ? 'Context pressure: continue_session at the next natural boundary — now, if this message starts anything new or shifts focus. Write the handoff while you still have room to do it well.'
+        : 'No pressure yet. Continue only at a semantic boundary (subject change, phase change, refocus, user request).'
+  return [
+    `<context_usage tokens="${promptTokens}" window="${contextWindow}" percent="${percent}">`,
+    `Your last turn's prompt was about ${percent}% of this model's ${contextWindow.toLocaleString(
+      'en-US',
+    )}-token context window. ${guidance}`,
+    '</context_usage>',
+  ].join('\n')
+}
+
+const CONTINUATION_REASONS: readonly api.SessionContinuationReason[] = [
+  'topic_change',
+  'phase_change',
+  'refocus',
+  'context_pressure',
+  'user_request',
+  'other',
+]
+
+function normalizeContinuationReason(raw: unknown): api.SessionContinuationReason {
+  return CONTINUATION_REASONS.includes(raw as api.SessionContinuationReason)
+    ? (raw as api.SessionContinuationReason)
+    : 'other'
+}
+
+type ContinueSessionInput = {
+  reason: api.SessionContinuationReason
+  title: string
+  description: string
+  handoff: api.SessionContinuationHandoff
+  sources: api.SessionContinuationSource[]
+  transfer?: {plan?: 'carry' | 'close' | 'omit'}
+}
+
+/**
+ * Validates continue_session input: what the agent must supply, bounded like the status verb.
+ * Thread sources default to `defaultSessionId` — the session being continued — when they name none.
+ */
+function normalizeContinueSessionInput(raw: unknown, defaultSessionId: string): ContinueSessionInput {
+  const input = isPlainRecord(raw) ? raw : {}
+  if (!CONTINUATION_REASONS.includes(input.reason as api.SessionContinuationReason)) {
+    throw new APIError(400, `continue_session needs a reason: one of ${CONTINUATION_REASONS.join(', ')}`)
+  }
+  const title = normalizeBoundedString(input.title, 'Successor session title', MAX_NAME_BYTES)
+  const description = normalizeBoundedString(
+    input.description,
+    'Successor session description',
+    MAX_SESSION_DESCRIPTION_BYTES,
+  )
+  const handoffRaw = isPlainRecord(input.handoff) ? input.handoff : {}
+  const list = (value: unknown, label: string): string[] | undefined => {
+    if (value === undefined || value === null) return undefined
+    if (!Array.isArray(value)) throw new APIError(400, `handoff.${label} must be a list of strings`)
+    const items = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .map((item) => normalizeBoundedString(item, `handoff.${label} entry`, MAX_MESSAGE_TEXT_BYTES))
+    return items.length ? items : undefined
+  }
+  const handoff: api.SessionContinuationHandoff = {
+    purpose: normalizeBoundedString(handoffRaw.purpose, 'handoff.purpose', MAX_MESSAGE_TEXT_BYTES),
+    currentRequest: normalizeBoundedString(handoffRaw.currentRequest, 'handoff.currentRequest', MAX_MESSAGE_TEXT_BYTES),
+  }
+  for (const key of ['establishedFacts', 'decisions', 'openQuestions', 'nextActions', 'cautions'] as const) {
+    const items = list(handoffRaw[key], key)
+    if (items) handoff[key] = items
+  }
+  const sources: api.SessionContinuationSource[] = []
+  if (input.sources !== undefined && input.sources !== null) {
+    if (!Array.isArray(input.sources)) throw new APIError(400, 'sources must be a list')
+    if (input.sources.length > 64) throw new APIError(400, 'At most 64 sources may be cited')
+    for (const entry of input.sources) {
+      if (!isPlainRecord(entry)) throw new APIError(400, 'Each source must be an object')
+      const relevance = normalizeBoundedString(entry.relevance, 'source.relevance', MAX_SESSION_DESCRIPTION_BYTES)
+      const sessionId =
+        typeof entry.sessionId === 'string' && entry.sessionId.trim() ? entry.sessionId.trim() : defaultSessionId
+      switch (entry.kind) {
+        case 'resource':
+          sources.push({
+            kind: 'resource',
+            url: normalizeBoundedString(entry.url, 'source.url', MAX_NAME_BYTES * 8),
+            ...(typeof entry.version === 'string' && entry.version ? {version: entry.version} : {}),
+            ...(typeof entry.blockId === 'string' && entry.blockId ? {blockId: entry.blockId} : {}),
+            relevance,
+          })
+          break
+        case 'memory':
+          sources.push({
+            kind: 'memory',
+            path: normalizeBoundedString(entry.path, 'source.path', MAX_NAME_BYTES * 4),
+            relevance,
+          })
+          break
+        case 'session_event': {
+          const seq = Number(entry.seq)
+          if (!Number.isInteger(seq)) throw new APIError(400, 'session_event source needs an integer seq')
+          sources.push({kind: 'session_event', sessionId, seq, relevance})
+          break
+        }
+        case 'session_events': {
+          const fromSeq = Number(entry.fromSeq)
+          const toSeq = Number(entry.toSeq)
+          if (!Number.isInteger(fromSeq) || !Number.isInteger(toSeq)) {
+            throw new APIError(400, 'session_events source needs integer fromSeq and toSeq')
+          }
+          sources.push({kind: 'session_events', sessionId, fromSeq, toSeq, relevance})
+          break
+        }
+        default:
+          throw new APIError(400, `Unknown source kind: ${String(entry.kind)}`)
+      }
+    }
+  }
+  const transferRaw = isPlainRecord(input.transfer) ? input.transfer : undefined
+  const plan = transferRaw?.plan
+  if (plan !== undefined && plan !== 'carry' && plan !== 'close' && plan !== 'omit') {
+    throw new APIError(400, 'transfer.plan must be carry, close, or omit')
+  }
+  return {
+    reason: input.reason as api.SessionContinuationReason,
+    title,
+    description,
+    handoff,
+    sources,
+    ...(plan ? {transfer: {plan}} : {}),
+  }
+}
+
+/**
+ * The message a continuation answers: the latest user-authored (or trigger-authored) message on
+ * the log. A runtime-authored user-role message (a continuation prompt, a projection) is not a
+ * request and never qualifies.
+ */
+function findContinuationInitiatingEvent(events: api.SessionEvent[]): api.SessionEvent | undefined {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index]!
+    const payload = event.event as {type?: string; role?: string}
+    if (payload.type !== 'message' || payload.role !== 'user') continue
+    const actor = sessionEventActor(event.event as never)
+    if (actor === 'user' || actor === 'trigger') return event
+  }
+  return undefined
+}
+
+function continuationToolOutput(outcome: SessionContinuationOutcome): Record<string, unknown> {
+  return {
+    summary: `Continued into "${outcome.title}" (thread:${outcome.successorSessionId}). This turn ends here; the successor session is answering the user.`,
+    continuationId: outcome.continuationId,
+    successorSessionId: outcome.successorSessionId,
+    title: outcome.title,
+  }
+}
+
+/**
+ * One transcript event as a line the model can read and cite: `[seq] who: text`. Shared by the
+ * projection compiler and `read thread:<id>`, so what a successor sees in its handoff and what it
+ * recalls later have the same shape and the same seq numbers.
+ */
+function transcriptEventLine(event: api.SessionEvent, maxChars: number): string {
+  const payload = event.event as {
+    type?: string
+    role?: string
+    content?: unknown
+    name?: string
+    input?: unknown
+    output?: unknown
+    error?: string
+    message?: string
+    title?: string
+  }
+  const clip = (text: string): string =>
+    text.length > maxChars ? `${text.slice(0, maxChars)}… [${text.length - maxChars} more chars]` : text
+  const tag = `[${event.seq}]`
+  if (payload.type === 'message') {
+    const actor = sessionEventActor(event.event as never)
+    const who = payload.role === 'assistant' ? 'assistant' : actor === 'user' ? 'user' : actor
+    const content = typeof payload.content === 'string' ? payload.content : JSON.stringify(payload.content)
+    return `${tag} ${who}: ${clip(content ?? '')}`
+  }
+  if (payload.type === 'tool_call') {
+    const detail = summarizeToolArgs(payload.input)
+    return `${tag} → ${payload.name ?? 'tool'}${detail ? ` ${clip(detail)}` : ''}`
+  }
+  if (payload.type === 'tool_spawn') return `${tag} ↳ ${payload.name ?? 'delegate'} spawned "${payload.title ?? ''}"`
+  if (payload.type === 'tool_result') {
+    const text = payload.error ?? getToolOutputSummaryText(payload.output)
+    return `${tag} ← ${payload.name ?? 'tool'}${payload.error ? ' failed' : ''}: ${clip(text)}`
+  }
+  if (payload.type === 'error') return `${tag} ⚠ error: ${clip(payload.message ?? '')}`
+  return `${tag} (${payload.type ?? 'event'})`
+}
+
+/** A tool output's `summary` line when it has one, else a compact JSON rendering. */
+function getToolOutputSummaryText(output: unknown): string {
+  if (isPlainRecord(output) && typeof output.summary === 'string') return output.summary
+  if (typeof output === 'string') return output
+  if (output === undefined) return ''
+  try {
+    return JSON.stringify(output)
+  } catch {
+    return String(output)
+  }
+}
+
+type ContinuationProjectionInput = {
+  continuationId: string
+  predecessor: {id: string; title: string | null}
+  originSessionId: string
+  initiating: api.SessionEvent
+  reason: api.SessionContinuationReason
+  handoff: api.SessionContinuationHandoff
+  sources: api.SessionContinuationSource[]
+  /** The predecessor's full event log, ascending. */
+  events: api.SessionEvent[]
+  budgetBytes: number
+}
+
+type ContinuationProjection = {
+  content: string
+  /** Every source on the manifest: the agent's, plus what the runtime selected. */
+  sources: api.SessionContinuationSource[]
+  included: Array<{fromSeq: number; toSeq: number; bytes: number}>
+  omitted: api.SessionContinuationSource[]
+}
+
+/**
+ * Builds the successor's opening message from exact material, in the order the budget is spent:
+ * lineage, the agent's handoff, the cited source list (always, it is small), the cited thread
+ * ranges as excerpts, then the most recent exchanges before the initiating message. Whatever
+ * does not fit is listed as omitted on the manifest: linked, reachable with `read thread:`, and
+ * not loaded. The initiating message itself is not excerpted here — it is replayed verbatim as
+ * the next event, with its provenance.
+ */
+function compileContinuationProjection(input: ContinuationProjectionInput): ContinuationProjection {
+  const escape = escapeActionFraming
+  const predecessorTitle = input.predecessor.title ? escape(input.predecessor.title) : ''
+  const head = [
+    '<session_continuation>',
+    `  <origin session="${input.originSessionId}" />`,
+    `  <predecessor session="${input.predecessor.id}" title="${predecessorTitle.replace(/"/g, '&quot;')}" edge="${
+      input.continuationId
+    }" />`,
+    `  <initiating_event id="${input.initiating.id}" seq="${input.initiating.seq}" />`,
+    `  <projection manifest="${input.continuationId}" reason="${input.reason}" />`,
+    `  This session continues the conversation "${
+      predecessorTitle || input.predecessor.id
+    }". That transcript is complete and unchanged; recall any of it exactly with \`read thread:${
+      input.predecessor.id
+    }\` (options {fromSeq, toSeq} select a range by the [seq] numbers shown below). The handoff and excerpts here are a projection chosen for this session's purpose, not the record. The user's message that caused this continuation follows this block verbatim — answer it here, as the same continuous conversation.`,
+    `  Your predecessor already named and described this session (see <session_status>); do not call the status verb to restate that.`,
+    '</session_continuation>',
+  ]
+  const section = (title: string, items: string[] | undefined): string[] =>
+    items?.length ? [`## ${title}`, ...items.map((item) => `- ${escape(item)}`), ''] : []
+  const handoff = [
+    '<handoff>',
+    '## Purpose',
+    escape(input.handoff.purpose),
+    '',
+    '## Current request',
+    escape(input.handoff.currentRequest),
+    '',
+    ...section('Established facts', input.handoff.establishedFacts),
+    ...section('Decisions', input.handoff.decisions),
+    ...section('Open questions', input.handoff.openQuestions),
+    ...section('Next actions', input.handoff.nextActions),
+    ...section('Cautions', input.handoff.cautions),
+    '</handoff>',
+  ]
+  const describeSource = (source: api.SessionContinuationSource): string => {
+    switch (source.kind) {
+      case 'resource':
+        return `resource ${source.url}${source.version ? ` @${source.version}` : ''}${
+          source.blockId ? `#${source.blockId}` : ''
+        } — ${escape(source.relevance)}`
+      case 'memory':
+        return `memory ${source.path} — ${escape(source.relevance)}`
+      case 'session_event':
+        return `thread:${source.sessionId} seq ${source.seq} — ${escape(source.relevance)}`
+      case 'session_events':
+        return `thread:${source.sessionId} seq ${source.fromSeq}–${source.toSeq} — ${escape(source.relevance)}`
+    }
+  }
+  const eventsBySeq = new Map(input.events.map((event) => [event.seq, event]))
+  const included: ContinuationProjection['included'] = []
+  const omitted: api.SessionContinuationSource[] = []
+  const loadedSeqs = new Set<number>()
+  const excerptBlocks: string[] = []
+  let spent = Buffer.byteLength([...head, '', ...handoff].join('\n'))
+  const sourceLines = input.sources.map((source) => `- ${describeSource(source)}`)
+  // The source list is small and always present: it is the breadcrumb trail.
+  spent += Buffer.byteLength(['<sources>', ...sourceLines, '</sources>'].join('\n')) + 2
+
+  const renderRange = (fromSeq: number, toSeq: number, label: string): {text: string; bytes: number} | null => {
+    const lines: string[] = []
+    for (let seq = fromSeq; seq <= toSeq; seq += 1) {
+      const event = eventsBySeq.get(seq)
+      if (!event || seq === input.initiating.seq) continue
+      lines.push(escape(transcriptEventLine(event, CONTINUATION_EXCERPT_MAX_CHARS)))
+    }
+    if (!lines.length) return null
+    const text = [
+      `<excerpt thread="${input.predecessor.id}" from_seq="${fromSeq}" to_seq="${toSeq}" why="${label.replace(
+        /"/g,
+        '&quot;',
+      )}">`,
+      ...lines,
+      '</excerpt>',
+    ].join('\n')
+    return {text, bytes: Buffer.byteLength(text) + 2}
+  }
+
+  // Cited ranges of THIS thread, in the agent's order. Ranges of other threads stay as links.
+  for (const source of input.sources) {
+    if (source.kind !== 'session_events' && source.kind !== 'session_event') continue
+    if (source.sessionId !== input.predecessor.id) continue
+    const fromSeq = source.kind === 'session_event' ? source.seq : source.fromSeq
+    const toSeq = source.kind === 'session_event' ? source.seq : source.toSeq
+    const rendered = renderRange(fromSeq, toSeq, escape(source.relevance))
+    if (!rendered) continue
+    if (spent + rendered.bytes > input.budgetBytes) {
+      omitted.push(source)
+      continue
+    }
+    spent += rendered.bytes
+    excerptBlocks.push(rendered.text)
+    included.push({fromSeq, toSeq, bytes: rendered.bytes})
+    for (let seq = fromSeq; seq <= toSeq; seq += 1) loadedSeqs.add(seq)
+  }
+
+  // Recent exchanges: the last conversational messages before the initiating one, newest first
+  // until the budget is spent, then presented in order. Runtime-authored messages (plan reminders,
+  // obligation notices) are not conversation and are skipped.
+  const recent: api.SessionEvent[] = []
+  for (let index = input.events.length - 1; index >= 0 && recent.length < CONTINUATION_RECENT_EVENTS; index -= 1) {
+    const event = input.events[index]!
+    if (event.seq >= input.initiating.seq || loadedSeqs.has(event.seq)) continue
+    const payload = event.event as {type?: string; role?: string}
+    if (payload.type !== 'message') continue
+    if (payload.role === 'user' && sessionEventActor(event.event as never) === 'system') continue
+    if (payload.role !== 'user' && payload.role !== 'assistant') continue
+    recent.push(event)
+  }
+  recent.reverse()
+  const recentLines: string[] = []
+  let recentBytes = 0
+  const frame =
+    Buffer.byteLength(
+      `<recent_exchanges thread="${input.predecessor.id}" from_seq="000000" to_seq="000000">\n</recent_exchanges>`,
+    ) + 2
+  for (let index = recent.length - 1; index >= 0; index -= 1) {
+    const line = escape(transcriptEventLine(recent[index]!, CONTINUATION_EXCERPT_MAX_CHARS))
+    const bytes = Buffer.byteLength(line) + 1
+    if (spent + frame + recentBytes + bytes > input.budgetBytes) break
+    recentLines.unshift(line)
+    recentBytes += bytes
+  }
+  const runtimeSources: api.SessionContinuationSource[] = [
+    {
+      kind: 'session_event',
+      sessionId: input.predecessor.id,
+      seq: input.initiating.seq,
+      relevance: 'runtime: the initiating user message, replayed verbatim into the successor',
+    },
+  ]
+  if (recentLines.length) {
+    const kept = recent.slice(recent.length - recentLines.length)
+    const fromSeq = kept[0]!.seq
+    const toSeq = kept.at(-1)!.seq
+    const block = [
+      `<recent_exchanges thread="${input.predecessor.id}" from_seq="${fromSeq}" to_seq="${toSeq}">`,
+      ...recentLines,
+      '</recent_exchanges>',
+    ].join('\n')
+    excerptBlocks.push(block)
+    included.push({fromSeq, toSeq, bytes: Buffer.byteLength(block) + 2})
+    runtimeSources.push({
+      kind: 'session_events',
+      sessionId: input.predecessor.id,
+      fromSeq,
+      toSeq,
+      relevance: 'runtime: the most recent exchanges before the initiating message',
+    })
+  } else if (recent.length) {
+    runtimeSources.push({
+      kind: 'session_events',
+      sessionId: input.predecessor.id,
+      fromSeq: recent[0]!.seq,
+      toSeq: recent.at(-1)!.seq,
+      relevance: 'runtime: recent exchanges (not loaded — budget)',
+    })
+    omitted.push(runtimeSources.at(-1)!)
+  }
+  const content = [
+    ...head,
+    '',
+    ...handoff,
+    '',
+    '<sources>',
+    ...(sourceLines.length ? sourceLines : ['- (none cited by the agent)']),
+    ...runtimeSources.map((source) => `- ${describeSource(source)}`),
+    ...(omitted.length
+      ? ['', `Not loaded (budget), still reachable with read thread:: ${omitted.map(describeSource).join('; ')}`]
+      : []),
+    '</sources>',
+    ...(excerptBlocks.length ? ['', ...excerptBlocks] : []),
+  ].join('\n')
+  return {content, sources: [...input.sources, ...runtimeSources], included, omitted}
+}
+
 function sessionTitleFromPrompt(prompt: string): string {
   const firstLine = prompt.split('\n', 1)[0]!.replace(/\s+/g, ' ').trim()
   if (!firstLine) return 'Agent-started session'
