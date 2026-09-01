@@ -1,6 +1,4 @@
 {
-  "name": "Query inclusion",
-  "description": "One source a Query block pulls documents from: a space (account), an optional path prefix inside it, and whether to list direct Children or AllDescendants.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "space",

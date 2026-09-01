@@ -1,6 +1,4 @@
 {
-  "name": "JSON value",
-  "description": "A recursive JSON value: null, boolean, number, string, list, or map. References itself.",
   "anyOf": [
     {
       "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/null"

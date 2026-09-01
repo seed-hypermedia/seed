@@ -22,7 +22,13 @@ import {copyTextToClipboard} from './copy-to-clipboard'
 import {base64ToBytes, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
 import {useFileProxyUrl, useImageUrl} from './get-file-url'
 import {publishCborBlob, publishTextBlob} from './ipfs-publish'
-import {blobBuilderMenuItems, META_SCHEMA_CID, NEW_BLOB_PATH, newInstanceRoute} from './onyx/blob-menu-items'
+import {
+  blobBuilderMenuItems,
+  EXTEND_PATH_SEGMENT,
+  META_SCHEMA_CID,
+  NEW_BLOB_PATH,
+  newInstanceRoute,
+} from './onyx/blob-menu-items'
 import {seedValue} from './onyx/onyx-data-editor'
 import {emptyStructSchema} from './onyx/onyx-schema-editor'
 import {SchemaAwareEditor} from './onyx/schema-aware-editor'
@@ -138,6 +144,8 @@ export function InspectIpfsPage({
   const segments = ipfsPath.split('/').filter(Boolean)
   const isDraft = segments[0] === NEW_BLOB_PATH
   const seedSchemaCid = isDraft ? segments[1] : undefined
+  // `new/<metaSchemaCid>/extend/<baseCid>`: a new-schema draft rooted on the base schema's ref.
+  const extendBaseCid = isDraft && segments[2] === EXTEND_PATH_SEGMENT ? segments[3] : undefined
   const cid = isDraft ? undefined : segments[0]
   const pathSegments = isDraft ? [] : segments.slice(1)
   const hasSubpath = pathSegments.length > 0
@@ -237,10 +245,13 @@ export function InspectIpfsPage({
     }
     if (!seedSchema) return
     const starter = seedValue(seedSchema)
-    if (isMetaSeed) setEditJson(emptyStructSchema())
-    else if (isPlainObject(starter)) setEditJson({...starter, schema: {'/': seedSchemaCid}})
+    if (isMetaSeed) {
+      // An extension starts rooted on the base schema (`ref`, no `type`) — the same shape the
+      // signed-blob envelope uses — with its own fields empty and ready to add.
+      setEditJson(extendBaseCid ? {ref: `ipfs://${extendBaseCid}`, properties: {}, required: []} : emptyStructSchema())
+    } else if (isPlainObject(starter)) setEditJson({...starter, schema: {'/': seedSchemaCid}})
     else setEditJson(starter !== undefined ? starter : {schema: {'/': seedSchemaCid}})
-  }, [isDraft, editJson, seedSchemaCid, seedSchema, isMetaSeed])
+  }, [isDraft, editJson, seedSchemaCid, seedSchema, isMetaSeed, extendBaseCid])
 
   // A blank draft offers a schema picker; choosing one restarts the draft as
   // `new/<schemaCid>` (bundled names resolve at once, pasted refs resolve first).
