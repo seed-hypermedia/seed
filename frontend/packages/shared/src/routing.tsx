@@ -41,6 +41,8 @@ export const appExperimentsSchema = z
     advancedCopyLinkOptions: z.boolean().optional(),
     /** Surfaces experimental building-block features (blob editor, schemas, …) in regular menus. */
     developerMode: z.boolean().optional(),
+    /** Dev-mode sub-toggle: expose Hypermedia Schema features (New > Schema, schema building blocks). */
+    hypermediaSchemas: z.boolean().optional(),
   })
   .strict()
 export type AppExperiments = z.infer<typeof appExperimentsSchema>
