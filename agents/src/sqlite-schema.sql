@@ -125,6 +125,27 @@ CREATE INDEX sessions_by_agent ON sessions (agent_id, updated_at DESC);
 
 CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);
 
+-- A continuation edge: an agent carried a conversation from the predecessor into a fresh
+-- successor session (continue_session). Distinct from parent/child (delegation that returns):
+-- the successor becomes the foreground conversation. The manifest is the successor's exact
+-- starting point — handoff, cited sources, what was loaded and what was left cold.
+CREATE TABLE session_continuations (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    predecessor_session_id TEXT NOT NULL REFERENCES sessions (id),
+    successor_session_id TEXT NOT NULL UNIQUE REFERENCES sessions (id),
+    origin_session_id TEXT NOT NULL,
+    tool_call_id TEXT NOT NULL,
+    initiating_event_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    manifest_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE (predecessor_session_id, tool_call_id)
+) WITHOUT ROWID;
+
+CREATE INDEX session_continuations_by_predecessor ON session_continuations (predecessor_session_id, created_at DESC);
+
 CREATE TABLE trigger_firings (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),

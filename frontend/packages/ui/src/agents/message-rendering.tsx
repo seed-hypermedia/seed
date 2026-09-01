@@ -40,6 +40,7 @@ import {Button} from '@shm/ui/button'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {cn} from '@shm/ui/utils'
 import {
+  Activity,
   BookOpenText,
   Bot,
   ChevronDown,
@@ -62,6 +63,14 @@ import React, {Fragment, Suspense, useMemo, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Markdown} from './markdown'
+import {
+  ContinuationTransitionCard,
+  ContinuedMessageChip,
+  HandoffBody,
+  continuationReasonLabel,
+  handoffMarkdownFromArgs,
+  sourceLinesFromArgs,
+} from './continuation'
 
 /** Renders a chat message bubble shared by the assistant panel and Agents session UI. */
 export const ChatMessageBubble = React.memo(function ChatMessageBubble({
@@ -109,6 +118,9 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
               <Markdown>{message.content || ''}</Markdown>
             )}
             {message.contextLines?.length ? <MessageContextInfo lines={message.contextLines} /> : null}
+            {message.meta?.continuedFrom ? (
+              <ContinuedMessageChip continuedFrom={message.meta.continuedFrom} serverUrl={serverUrl} />
+            ) : null}
           </div>
           {rawMarkdown ? <RawMarkdownButton onClick={() => setShowRawMarkdown(true)} /> : null}
           <UserMessageOrigin meta={message.meta} />
@@ -290,6 +302,14 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
     : -1
 
   return parts.map((part, index) => {
+    if (part.type === 'tool' && part.name === 'continue_session') {
+      // The conversation moved on from here: a transition card, not a tool row.
+      return <ContinuationTransitionRow key={`${part.id}:${index}`} item={part} serverUrl={serverUrl} />
+    }
+    if (part.type === 'tool' && part.name === 'status') {
+      // The agent's own account of the session: the description is the point, so it is shown whole.
+      return <StatusUpdateRow key={`${part.id}:${index}`} item={part} />
+    }
     if (part.type === 'tool') {
       return (
         <ToolCallItem
@@ -316,6 +336,125 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
     )
   })
 })
+
+/**
+ * A `status` call as the transcript shows it. The description is a status line the reader is
+ * meant to read, so it is rendered in full rather than clipped into a one-line tool row; a new
+ * title, when one was set, leads. A description-only update is the common case.
+ */
+function StatusUpdateRow({item}: {item: ChatToolPart}) {
+  const title = getToolString(item.args, 'title')
+  const description = getToolString(item.args, 'description')
+  const isPending = item.result === undefined && item.rawOutput === undefined
+  return (
+    <div
+      className={cn(
+        'my-1 mr-6 rounded-lg border px-3 py-2 text-xs',
+        item.isError ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-muted/40',
+      )}
+    >
+      {/* The header line is the title when the call set one; "Status" only when it did not. */}
+      <div className="flex items-center gap-1.5">
+        {isPending ? (
+          <Loader2 className="text-muted-foreground size-3 shrink-0 animate-spin" />
+        ) : (
+          <Activity className="text-muted-foreground size-3 shrink-0" />
+        )}
+        {title ? (
+          <span className="text-foreground min-w-0 text-sm font-medium">{title}</span>
+        ) : (
+          <span className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Status</span>
+        )}
+        {item.isError ? <ToolChip tone="error">Failed</ToolChip> : null}
+      </div>
+      {description ? (
+        <p className="text-foreground/85 mt-1 text-[13px] leading-5 whitespace-pre-wrap">{description}</p>
+      ) : null}
+      {item.isError && item.result ? (
+        <pre className="text-destructive mt-1 whitespace-pre-wrap">{item.result}</pre>
+      ) : null}
+    </div>
+  )
+}
+
+/** The `continue_session` row: where the conversation went, with a way there and every detail behind ⓘ. */
+function ContinuationTransitionRow({item, serverUrl}: {item: ChatToolPart; serverUrl?: string}) {
+  const navigate = useNavigate()
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  return (
+    <>
+      <ContinuationTransitionCard
+        item={item}
+        onOpenSuccessor={serverUrl ? (sessionId) => navigate({key: 'agent-session', sessionId, serverUrl}) : undefined}
+        onInspect={() => setDetailsOpen(true)}
+      />
+      <ContinuationDetailsDialog item={item} open={detailsOpen} onOpenChange={setDetailsOpen} />
+    </>
+  )
+}
+
+/**
+ * Every detail of a continuation: who decided it and what it cost (the same metadata block as any
+ * tool call — model, provider, tokens, timing), the handoff as written, its sources, and the exact
+ * call and result payloads.
+ */
+function ContinuationDetailsDialog({
+  item,
+  open,
+  onOpenChange,
+}: {
+  item: ChatToolPart
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const args = item.args
+  const output = (item.rawOutput ?? {}) as {successorSessionId?: string; title?: string}
+  const title = String(args?.title ?? output.title ?? 'a new session')
+  const description = typeof args?.description === 'string' ? args.description : undefined
+  const reason = continuationReasonLabel(typeof args?.reason === 'string' ? args.reason : undefined)
+  const transfer = args?.transfer as {plan?: string} | undefined
+  const rawOutput = item.rawOutput ?? item.result
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] w-[min(44rem,calc(100vw-2rem))]">
+        <DialogHeader>
+          <DialogTitle>Continued in “{title}”</DialogTitle>
+          <DialogDescription>
+            {[reason, description].filter(Boolean).join(' ') || 'The handoff this session ended with.'}
+          </DialogDescription>
+        </DialogHeader>
+        {/* Plain flow, not a min-h-0 grid: the dialog body scrolls as a whole, and every section
+            keeps its own height instead of collapsing under the flex column. */}
+        <div className="flex shrink-0 flex-col gap-3">
+          <EventMetaSection
+            meta={item.meta}
+            times={
+              item.calledAt || item.completedAt ? {startedAt: item.calledAt, completedAt: item.completedAt} : undefined
+            }
+          />
+          <HandoffBody handoffMarkdown={handoffMarkdownFromArgs(args)} sources={sourceLinesFromArgs(args)} />
+          {transfer?.plan ? (
+            <div className="text-muted-foreground text-xs">
+              Checklist: {transfer.plan === 'carry' ? 'carried into the successor' : 'left here as history'}
+            </div>
+          ) : null}
+          <div className="space-y-1">
+            <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Call</div>
+            <pre className="bg-muted max-h-64 overflow-auto rounded-xl p-3 text-[11px] whitespace-pre-wrap">
+              {formatToolDebugValue(args)}
+            </pre>
+          </div>
+          <div className="space-y-1">
+            <div className="text-muted-foreground text-[10px] font-medium tracking-[0.18em] uppercase">Result</div>
+            <pre className="bg-muted max-h-64 overflow-auto rounded-xl p-3 text-[11px] whitespace-pre-wrap">
+              {formatToolDebugValue(rawOutput)}
+            </pre>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 /**
  * A failed turn, as the transcript shows it — with a way back when it is the last thing that

@@ -65,6 +65,7 @@ describe('sqlite', () => {
             '',
           )
           .replace(/CREATE INDEX sessions_by_parent ON sessions \(parent_session_id, created_at\);\n\n/u, '')
+          .replace(/-- A continuation edge[\s\S]*?CREATE TABLE trigger_firings/u, 'CREATE TABLE trigger_firings')
           .replace(/    capability_cid TEXT,\n/u, '')
           .replace(/    public_read INTEGER NOT NULL DEFAULT 0,\n/u, '')
           .replace(/    public_chat INTEGER NOT NULL DEFAULT 0,\n/u, '')
@@ -93,6 +94,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'agent_triggers')).toBe(true)
       expect(tableExists(db, 'trigger_firings')).toBe(true)
       expect(tableExists(db, 'webhook_trigger_credentials')).toBe(true)
+      expect(tableExists(db, 'session_continuations')).toBe(true)
       expect(columnExists(db, 'trigger_firings', 'body_digest')).toBe(true)
       expect(columnExists(db, 'trigger_firings', 'run_id')).toBe(true)
       expect(tableExists(db, 'activity_watermarks')).toBe(true)

@@ -493,6 +493,17 @@ another turn (`api-service.ts:2640`).
 
 ---
 
+## `continue_session`
+
+Carries the conversation into a fresh **successor** session and ends the turn; the successor's run answers the user.
+`{reason, title, description, handoff: {purpose, currentRequest, establishedFacts?, decisions?, openQuestions?, nextActions?, cautions?}, sources?, transfer?: {plan}}`.
+`title` and `description` are required — the predecessor names the successor exactly as the `status` verb would
+(`title_source = 'agent'`). Available to a foreground conversation with a live run; never to a delegated child (typed or
+not) or a script. Idempotent on the tool call id. The predecessor's transcript is untouched; the successor opens with a
+runtime-generated projection (lineage, the handoff, cited and recent excerpts) followed by the initiating user message
+copied verbatim. Each turn where the verb is available also carries a `<context_usage>` block. Full account:
+[`session-continuation.md`](./session-continuation.md).
+
 ## The user holds the same verbs
 
 `InvokeSessionTool` (`agents/protocol/src/index.ts:616`) runs `read`, `write`, or `call` **as the user** on the

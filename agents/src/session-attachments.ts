@@ -151,6 +151,34 @@ export function readSessionAttachment(
   }
 }
 
+/**
+ * Makes one session's attachment available under another session by identity: the content file
+ * is hard-linked (copied when the filesystem refuses) and the metadata duplicated, so a message a
+ * continuation replays into its successor keeps `attachment:<id>` readable there. Ids are content
+ * hashes, so nothing about the attachment changes — only where it is reachable from.
+ */
+export function linkSessionAttachment(
+  stateDir: string,
+  fromSessionId: string,
+  toSessionId: string,
+  attachmentId: string,
+): SessionAttachmentInfo {
+  const source = attachmentPaths(stateDir, fromSessionId, attachmentId)
+  const target = attachmentPaths(stateDir, toSessionId, attachmentId)
+  const info = readAttachmentMeta(source.meta)
+  if (!info) throw new SessionAttachmentError(404, `Attachment not found: ${attachmentId}`)
+  fs.mkdirSync(path.dirname(target.bin), {recursive: true})
+  if (!fs.existsSync(target.bin)) {
+    try {
+      fs.linkSync(source.bin, target.bin)
+    } catch {
+      fs.copyFileSync(source.bin, target.bin)
+    }
+  }
+  if (!fs.existsSync(target.meta)) fs.copyFileSync(source.meta, target.meta)
+  return info
+}
+
 /** Removes every attachment stored for a session. Safe to call when none exist. */
 export function deleteSessionAttachments(stateDir: string, sessionId: string): void {
   fs.rmSync(sessionAttachmentsDir(stateDir, sessionId), {recursive: true, force: true})

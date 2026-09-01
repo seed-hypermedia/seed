@@ -53,6 +53,7 @@ import {
 } from './models'
 import {describeAgentError} from './errors'
 import {SessionStatusDot, SubSessionsDisclosure} from './session-children'
+import {ContinuedListChip} from './continuation'
 import {useSelectedAccountId} from './account'
 import {useClickNavigate, useNavigate} from './navigation'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
@@ -2831,6 +2832,7 @@ function SessionListItem({
           </SizableText>
         ) : null}
       </button>
+      {session.continuedTo ? <ContinuedListChip link={session.continuedTo} /> : null}
       {session.startedByTrigger ? (
         <button
           type="button"

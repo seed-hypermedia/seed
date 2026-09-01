@@ -1118,6 +1118,85 @@ export type SessionInfo = {
    * can see inside without opening the transcript.
    */
   description?: string
+  /**
+   * Set on a session created by `continue_session`: the predecessor this session carries work
+   * forward from. The predecessor's transcript is complete and unchanged; this session began from
+   * a projection of it (see {@link SessionContinuationManifest}).
+   */
+  continuedFrom?: SessionContinuationLink
+  /**
+   * Set on a session the agent has continued out of: the latest successor. The session stays
+   * readable (and writable — writing here branches), but the foreground conversation moved on.
+   */
+  continuedTo?: SessionContinuationLink
+}
+
+/** Why an agent carried a conversation into a fresh session. */
+export type SessionContinuationReason =
+  | 'topic_change'
+  | 'phase_change'
+  | 'refocus'
+  | 'context_pressure'
+  | 'user_request'
+  | 'other'
+
+/** One end of a continuation edge, as seen from the other session. */
+export type SessionContinuationLink = {
+  continuationId: string
+  sessionId: string
+  title?: string
+  reason: SessionContinuationReason
+  createdAt: number
+}
+
+/** The agent-authored orientation a successor session starts from. Narrative, not state. */
+export type SessionContinuationHandoff = {
+  purpose: string
+  currentRequest: string
+  establishedFacts?: string[]
+  decisions?: string[]
+  openQuestions?: string[]
+  nextActions?: string[]
+  cautions?: string[]
+}
+
+/** An exact, inspectable pointer the handoff cites — never a paraphrase of it. */
+export type SessionContinuationSource =
+  | {kind: 'session_events'; sessionId: string; fromSeq: number; toSeq: number; relevance: string}
+  | {kind: 'session_event'; sessionId: string; seq: number; relevance: string}
+  | {kind: 'resource'; url: string; version?: string; blockId?: string; relevance: string}
+  | {kind: 'memory'; path: string; relevance: string}
+
+/**
+ * The projection manifest: exactly what the successor's first context was built from, and what
+ * stayed linked but cold. Stored on the continuation edge and rendered by "View handoff", so the
+ * system can always explain a successor's starting point instead of asking anyone to trust it.
+ */
+export type SessionContinuationManifest = {
+  continuationId: string
+  predecessorSessionId: string
+  successorSessionId: string
+  /** The first session in the chain of continuations this one descends from. */
+  originSessionId: string
+  /** The user (or trigger) message whose answer belongs in the successor. */
+  initiatingEvent: {id: string; seq: number}
+  /** The predecessor's `continue_session` tool call this edge was created by. */
+  toolCallId: string
+  reason: SessionContinuationReason
+  createdAt: number
+  handoff: SessionContinuationHandoff
+  /** Sources the agent cited, plus the runtime's own selection. */
+  sources: SessionContinuationSource[]
+  /** Predecessor event ranges whose text was loaded into the successor's first context. */
+  included: Array<{fromSeq: number; toSeq: number; bytes: number}>
+  /** Cited sources that did not fit the budget: linked, reachable, not loaded. */
+  omitted: SessionContinuationSource[]
+  /** What structured state crossed the edge. */
+  transfer: {plan: 'carry' | 'close' | 'omit'}
+  /** Bytes of projection text placed in the successor's first context. */
+  projectionBytes: number
+  /** Version of the projection compiler that built this manifest. */
+  compiler: string
 }
 
 /** Lifecycle status of a durable run. */
@@ -1345,6 +1424,11 @@ export type SessionEventMeta = {
   usage?: AgentRunUsage
   /** Wall time this message or tool call took, in milliseconds. */
   durationMs?: number
+  /**
+   * On a user message a continuation replayed into its successor: the exact predecessor event it
+   * is a verbatim copy of. The message is the user's, not a paraphrase — this is its provenance.
+   */
+  continuedFrom?: {sessionId: string; eventId: string; seq: number}
 }
 
 /** Durable event payloads stored for a session. */
@@ -2015,6 +2099,11 @@ export type GetSessionResponse = {
   triggerContext?: AgentSessionTriggerContext
   /** Set when `limit` cut older events out of the response; page them with `beforeSeq`. */
   hasMoreBefore?: boolean
+  /**
+   * The context window (tokens) of the model this session runs on, so a client can show how much
+   * of it the last turn used (the prompt size is stamped on each assistant message's `meta.usage`).
+   */
+  contextWindow?: number
 }
 
 /** Successful response for `GetSessionEvent`: one event, never truncated. */
@@ -2033,6 +2122,11 @@ export type MessageSessionResponse = {
    * turn streams over WS).
    */
   assistantEventId: string
+  /**
+   * Set when the turn ended by continuing into a fresh session: the answer to this message is
+   * being produced there. A client following the turn should move to that session.
+   */
+  continuedToSessionId?: string
 }
 
 /** Successful response for `RetrySession`. */

@@ -23,6 +23,10 @@ export type AgentInviteInfo = AgentsProtocol.AgentInviteInfo
 export type SessionInfo = AgentsProtocol.SessionInfo
 /** Per-session model configuration overriding the agent definition's model. */
 export type SessionModelOverride = AgentsProtocol.SessionModelOverride
+
+export type SessionContinuationLink = AgentsProtocol.SessionContinuationLink
+
+export type SessionContinuationReason = AgentsProtocol.SessionContinuationReason
 /** Compact trigger attribution attached to sessions created by triggers. */
 export type AgentSessionTriggerSummary = AgentsProtocol.AgentSessionTriggerSummary
 /** Full trigger context passed into a trigger-created session. */

@@ -128,6 +128,8 @@ Important incomplete work:
 10. [Model providers](./model-providers.md) — provider records, secrets, OpenAI execution, unsupported providers.
 11. [Tools](./tools.md) — tool-call lifecycle and `read` behavior.
     - [MCP servers](./mcp.md) — remote MCP servers as tool documents: discovery, projection, runtime, actions, UI.
+    - [Session continuation](./session-continuation.md) — `continue_session`: fresh successor sessions at semantic
+      boundaries instead of compaction; projection manifests, context meter, guarded navigation.
 12. [Prompt injection map](./prompt-injection-map.md) — where hosted-agent and desktop-assistant prompts are defined,
     assembled, and sent to providers.
 13. [Security](./security.md) — current security model and hardening gaps.

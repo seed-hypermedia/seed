@@ -67,6 +67,13 @@ import {
   X,
 } from 'lucide-react'
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {
+  ContextUsageMeter,
+  ContinuationHandoffCard,
+  ContinuationHeader,
+  sessionContextTokens,
+  useFollowContinuation,
+} from './continuation'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {AgentRunStatusBar, useRunStartedAt} from './agent-run-status'
 import {AgentErrorRow, AssistantMessageParts, ChatMessageBubble} from './message-rendering'
@@ -402,6 +409,7 @@ export function AssistantPanel({
           sessionRef={activeSession}
           accountUid={accountUid}
           composerRef={composerRef}
+          onOpenSession={(sessionId) => selectSession({serverUrl: activeSession.serverUrl, sessionId})}
         />
       ) : activeAgent ? (
         <AssistantDraftChat
@@ -780,10 +788,13 @@ function AssistantSessionChat({
   sessionRef,
   accountUid,
   composerRef,
+  onOpenSession,
 }: {
   sessionRef: AssistantSessionRef
   accountUid: string | null | undefined
   composerRef: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
+  /** Switches the panel to another session of this server (a continuation's successor or predecessor). */
+  onOpenSession?: (sessionId: string) => void
 }) {
   const {serverUrl, sessionId} = sessionRef
   const navigate = useNavigate()
@@ -824,6 +835,14 @@ function AssistantSessionChat({
   const ownRun = useRun(serverUrl, accountUid, parentSessionId ? session.data?.session.runId : undefined)
   const hasLiveRun = !!ownRun.data && !TERMINAL_RUN_STATUSES.has(ownRun.data.status)
   const isDrivenByParent = !!parentSessionId && (isStreaming || hasLiveRun)
+  // Continuation: the panel follows the turn into its successor like the full page does.
+  const sessionInfo = session.data?.session
+  const followContinuation = useFollowContinuation({
+    session: sessionInfo,
+    isStreaming,
+    onFollow: useCallback((link) => onOpenSession?.(link.sessionId), [onOpenSession]),
+  })
+  const contextTokens = useMemo(() => sessionContextTokens(session.data?.events), [session.data?.events])
   const events = session.data?.events
   const sessionRuns = useSessionRuns(serverUrl, accountUid, sessionId)
   const rows = useMemo(
@@ -868,9 +887,24 @@ function AssistantSessionChat({
           index === 0 && contextLines ? {...message, contextLines} : message,
         ),
       )
-      messageSession.mutate({sessionId, message: messages})
+      followContinuation.markFollowing()
+      messageSession.mutate(
+        {sessionId, message: messages},
+        {
+          onSuccess: (result) => {
+            if (result._ === 'MessageSessionResponse' && result.continuedToSessionId) {
+              followContinuation.followNow({
+                continuationId: '',
+                sessionId: result.continuedToSessionId,
+                reason: 'other',
+                createdAt: Date.now(),
+              })
+            }
+          },
+        },
+      )
     },
-    [accountUid, messageSession, serverUrl, sessionId],
+    [accountUid, followContinuation, messageSession, serverUrl, sessionId],
   )
 
   // Retry is offered on a trailing error only, and survives its own in-flight state: the row goes
@@ -897,7 +931,19 @@ function AssistantSessionChat({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
+      {sessionInfo?.continuedFrom ? (
+        <ContinuationHeader
+          compact
+          link={sessionInfo.continuedFrom}
+          onOpenPredecessor={() => onOpenSession?.(sessionInfo.continuedFrom!.sessionId)}
+        />
+      ) : null}
       <SessionSummaryBanner compact description={session.data?.session.description} />
+      {contextTokens !== undefined && session.data?.contextWindow ? (
+        <div className="border-border flex flex-none justify-end border-b px-3 py-1">
+          <ContextUsageMeter tokens={contextTokens} contextWindow={session.data.contextWindow} size={14} />
+        </div>
+      ) : null}
       <div
         ref={autoScroll.containerRef}
         onScroll={autoScroll.handleScroll}
@@ -945,6 +991,16 @@ function AssistantSessionChat({
                   onOpenSession={(childSessionId, childAgentId) =>
                     navigate({key: 'agent-session', agentId: childAgentId, sessionId: childSessionId, serverUrl})
                   }
+                />
+              )
+            }
+            if (row.kind === 'continuation') {
+              return (
+                <ContinuationHandoffCard
+                  key={row.key}
+                  compact
+                  projection={row.projection}
+                  onOpenPredecessor={onOpenSession}
                 />
               )
             }
