@@ -19,7 +19,7 @@ const PORT = Number(process.env.PORT) || 4747;
 
 const base = (n) => n.replace(/\.(json|md)$/, "");
 const files = readdirSync(DIR);
-const SCHEMA_FILES = files.filter((f) => f.endsWith(".json") && f !== "schemas.lock.json").sort();
+const SCHEMA_FILES = files.filter((f) => f.endsWith(".schema.json")).sort();
 // Published CID manifest (hm:// URL -> dag-cbor CID), if `node publish.mjs` has run.
 let MANIFEST = {};
 try { MANIFEST = JSON.parse(readFileSync(resolve(DIR, "schemas.lock.json"), "utf8")).schemas || {}; } catch {}
@@ -42,9 +42,9 @@ const fileToUrl = (file) => {
 };
 const urlToFile = (ref) => {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref);
-  if (!m) return ref.endsWith(".json") ? ref : `${ref}.json`;
+  if (!m) return ref.endsWith(".json") ? ref : `${ref}.schema.json`;
   const prefix = AUTHORITY.find(([, a]) => a === m[1])?.[0];
-  return prefix ? `${prefix}${m[2]}.json` : `${m[2]}.json`;
+  return prefix ? `${prefix}${m[2]}.schema.json` : `${m[2]}.schema.json`;
 };
 const refToSlug = (ref) => base(urlToFile(ref)); // hm:// URL -> local route slug
 const refIsSchema = (ref) => SCHEMA_FILES.includes(urlToFile(ref));
@@ -56,9 +56,9 @@ const kindOf = (t) => (typeof t === "string" ? KIND_URL.exec(t)?.[1] ?? t : t);
 const KINDS = ["null", "boolean", "integer", "float", "string", "bytes", "list", "map", "link"];
 
 // The meta-schema is a discriminated union; its variants are the anyOf refs.
-const META_ROOT = loadJson("onyx-schema.json");
+const META_ROOT = loadJson("onyx-schema.schema.json");
 const VARIANT_FILES = (META_ROOT.anyOf || []).map((r) => urlToFile(r.ref)).filter(Boolean);
-const META_FILES = ["onyx-schema.json", ...VARIANT_FILES];
+const META_FILES = ["onyx-schema.schema.json", ...VARIANT_FILES];
 const isVariant = (f) => VARIANT_FILES.includes(f);
 
 // The primitive standard library: onyx-<kind>.json, each just { "type": <kind> }.
@@ -72,7 +72,7 @@ const isInstance = (f) => INSTANCE_FILES.includes(f);
 // The Hypermedia Network's CBOR schemas (hm://seed.hyper.media/*), split into
 // document-content block types and everything else (the signed blobs).
 const isHypermedia = (f) => f.startsWith("hypermedia-");
-const BLOCK_EXTRA = new Set(["hypermedia-children-type.json", "hypermedia-button-alignment.json", "hypermedia-embed-view.json", "hypermedia-annotation.json"]);
+const BLOCK_EXTRA = new Set(["hypermedia-children-type.schema.json", "hypermedia-button-alignment.schema.json", "hypermedia-embed-view.schema.json", "hypermedia-annotation.schema.json"]);
 const isHypermediaBlock = (f) => f.startsWith("hypermedia-block") || BLOCK_EXTRA.has(f);
 // onyx-* types beyond the meta-schema and the nine kind primitives (e.g. onyx-any).
 const isOnyxLibrary = (f) => f.startsWith("onyx-") && !META_FILES.includes(f) && !isPrimitive(f);
