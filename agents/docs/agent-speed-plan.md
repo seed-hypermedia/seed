@@ -33,6 +33,10 @@ lands where the number is worst.
     reported on every `CodeExecResult`
   - `run.dispatch_delay` — run dispatchable → executor started
   - `tool.<name>` — every tool call span by tool name
+- **Counters** (occurrences, in the same snapshot so they correlate with the spans above):
+  `provider.error.<provider>.<model>.<reason>` with reason normalized to {overloaded, rate_limited, timeout, other} —
+  ion's ask, so provider overload is distinguishable from local queue/prep time — and `run.retry.<code>` for queue-level
+  retries.
 - **`scripts/bench-exec.ts`** — standalone sandbox benchmark through the real executor
   (`bun scripts/bench-exec.ts --runs=6 --runtime=shell`), for before/after proof on any host.
 

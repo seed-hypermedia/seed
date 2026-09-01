@@ -1,5 +1,13 @@
 import {describe, expect, test, beforeEach} from 'bun:test'
-import {PERF_WINDOW_SIZE, perfSnapshot, recordPerf, resetPerfForTests, startPerfSpan} from '@/perf'
+import {
+  PERF_WINDOW_SIZE,
+  perfSnapshot,
+  providerErrorReason,
+  recordPerf,
+  recordPerfCount,
+  resetPerfForTests,
+  startPerfSpan,
+} from '@/perf'
 
 describe('perf', () => {
   beforeEach(() => {
@@ -44,5 +52,25 @@ describe('perf', () => {
     recordPerf('z.metric', 1)
     recordPerf('a.metric', 1)
     expect(Object.keys(perfSnapshot().metrics)).toEqual(['a.metric', 'z.metric'])
+  })
+
+  test('counters accumulate occurrences separately from duration metrics', () => {
+    recordPerfCount('provider.error.anthropic.claude-x.overloaded')
+    recordPerfCount('provider.error.anthropic.claude-x.overloaded')
+    const snapshot = perfSnapshot()
+    expect(snapshot.counters['provider.error.anthropic.claude-x.overloaded']!.count).toBe(2)
+    expect(snapshot.counters['provider.error.anthropic.claude-x.overloaded']!.lastAt).toBeGreaterThan(0)
+    expect(snapshot.metrics['provider.error.anthropic.claude-x.overloaded']).toBeUndefined()
+  })
+
+  test('provider error reasons normalize to the bounded set', () => {
+    expect(providerErrorReason('Overloaded')).toBe('overloaded')
+    expect(providerErrorReason('HTTP 529: server overloaded')).toBe('overloaded')
+    expect(providerErrorReason('429 Too Many Requests')).toBe('rate_limited')
+    expect(providerErrorReason('rate limit exceeded, retry later')).toBe('rate_limited')
+    expect(providerErrorReason('request timed out after 60s')).toBe('timeout')
+    expect(providerErrorReason('fetch failed: ETIMEDOUT')).toBe('timeout')
+    expect(providerErrorReason('invalid api key')).toBe('other')
+    expect(providerErrorReason(undefined)).toBe('other')
   })
 })

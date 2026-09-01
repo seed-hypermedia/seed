@@ -20,6 +20,13 @@
  * - `exec.total`             — whole execute_code span as the model experiences it
  * - `run.dispatch_delay`     — run became dispatchable → executor actually started
  * - `tool.<name>`            — each tool call's execution span, by tool name
+ *
+ * Counters (occurrences, not durations):
+ * - `provider.error.<provider>.<model>.<reason>` — provider turn errors, reason normalized to the
+ *   bounded {@link ProviderErrorReason} set so overload/rate-limit spikes are visible and can be
+ *   correlated with `run.dispatch_delay` / `provider.request_gap` / `provider.ttft` in the same
+ *   snapshot.
+ * - `run.retry.<code>`       — queue-level retries of failed runs, by error code.
  */
 
 /** Samples kept per metric for percentile estimates. Old samples fall off; totals keep counting. */
@@ -44,6 +51,35 @@ export type PerfSnapshot = {
   /** When this process started recording (epoch ms), so rates can be derived. */
   since: number
   metrics: Record<string, PerfMetricSnapshot>
+  /** Occurrence counters (errors, retries) — events with no duration to measure. */
+  counters: Record<string, {count: number; lastAt: number}>
+}
+
+/**
+ * Bounded normalized cause of a provider error, so error-rate counters have fixed cardinality
+ * instead of raw error text. `overloaded` and `rate_limited` are the provider pushing back;
+ * `timeout` is the exchange dying of old age; everything else stays `other`.
+ */
+export type ProviderErrorReason = 'overloaded' | 'rate_limited' | 'timeout' | 'other'
+
+/** Classifies a provider error message into its bounded reason. */
+export function providerErrorReason(message: string | undefined): ProviderErrorReason {
+  const text = (message ?? '').toLowerCase()
+  if (/overload|529/.test(text)) return 'overloaded'
+  if (/rate.?limit|too many requests|429/.test(text)) return 'rate_limited'
+  if (/timed?.?out|deadline|etimedout|esockettimedout/.test(text)) return 'timeout'
+  return 'other'
+}
+
+/** Counts one occurrence of an event that has no duration (an error, a retry). */
+export function recordPerfCount(metric: string): void {
+  const state = counters.get(metric)
+  if (state) {
+    state.count += 1
+    state.lastAt = Date.now()
+  } else {
+    counters.set(metric, {count: 1, lastAt: Date.now()})
+  }
 }
 
 type MetricState = {
@@ -59,6 +95,7 @@ type MetricState = {
 
 const startedAt = Date.now()
 const metrics = new Map<string, MetricState>()
+const counters = new Map<string, {count: number; lastAt: number}>()
 
 /** Records one duration sample. Negative durations are clamped to zero (clock skew, not signal). */
 export function recordPerf(metric: string, durationMs: number): void {
@@ -122,10 +159,13 @@ export function perfSnapshot(): PerfSnapshot {
       lastAt: state.lastAt,
     }
   }
-  return {since: startedAt, metrics: out}
+  const countersOut: Record<string, {count: number; lastAt: number}> = {}
+  for (const name of [...counters.keys()].sort()) countersOut[name] = {...counters.get(name)!}
+  return {since: startedAt, metrics: out, counters: countersOut}
 }
 
 /** Drops all recorded metrics. Tests only — production stats live for the process lifetime. */
 export function resetPerfForTests(): void {
   metrics.clear()
+  counters.clear()
 }

@@ -10,7 +10,7 @@
  */
 import type {Database} from 'bun:sqlite'
 import * as cbor from '@/cbor'
-import {recordPerf} from '@/perf'
+import {recordPerf, recordPerfCount} from '@/perf'
 
 export type RunKind = 'agent' | 'workflow'
 export type RunOrigin = 'user' | 'trigger' | 'agent' | 'workflow' | 'system'
@@ -910,6 +910,7 @@ export class RunQueue {
     } else {
       const retryable = outcome.error.retryable === true && current.attempt < current.maxAttempts
       if (retryable) {
+        recordPerfCount(`run.retry.${outcome.error.code}`)
         const backoff = Math.min(this.#retryBaseMs * 2 ** (current.attempt - 1), RETRY_CAP_MS)
         const jitter = Math.floor(Math.random() * Math.min(1_000, this.#retryBaseMs))
         row = this.#db

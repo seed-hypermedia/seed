@@ -101,7 +101,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as pi from '@mariozechner/pi-coding-agent'
-import {recordPerf} from '@/perf'
+import {providerErrorReason, recordPerf, recordPerfCount} from '@/perf'
 import {getModels} from '@mariozechner/pi-ai'
 import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
 import {openaiCodexOAuthProvider} from '@mariozechner/pi-ai/oauth'
@@ -6895,6 +6895,12 @@ export class Service {
         emitProgress({usage: {...runUsage}, activity: {phase: 'thinking'}})
         if (assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted') {
           finalError = assistantMessage.errorMessage || 'Agent run failed'
+          // Aborts are people stopping runs, not the provider failing; only real errors count.
+          if (assistantMessage.stopReason === 'error') {
+            recordPerfCount(
+              `provider.error.${model.provider}.${definition.model ?? 'default'}.${providerErrorReason(finalError)}`,
+            )
+          }
           logRunError('assistant turn reported error', {stopReason: assistantMessage.stopReason, error: finalError})
           return
         }
