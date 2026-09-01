@@ -50,6 +50,10 @@ Local (M-series macOS, libkrun), 6 trivial shell executions, 2026-09-01:
 | exec.run      | 16ms  | 8%             |
 | exec.teardown | 70ms  | (after result) |
 
+With the warm pool (this branch, `--warm-pool`): the first call boots (~400ms including image cache effects), every
+repeat call for the same agent runs in **1–3ms total** — the boot share falls from 86% to 0%, and the guest keeps its
+warm state between calls.
+
 Boot dominates even on a fast laptop for the cheapest possible command. Production is worse in two compounding ways: the
 4-vCPU VPS boots slower under load, and a fresh VM means **no warm state** — the 2026-08-29 investigation measured a
 cold repo typecheck at 150s+ where a warm incremental one takes seconds. Prod numbers should be collected from

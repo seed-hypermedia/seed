@@ -99,8 +99,23 @@ in the types, the rest are contract obligations a pool implementation must land 
 1. ~~Extract a `SandboxLease` seam in `code-exec.ts` (acquire/release instead of create/teardown) with the current
    create-per-call behavior behind it; land tests.~~ DONE, including the typed-principal and injectable-source hardening
    above.
-2. Add the pool behind `SEED_AGENTS_EXEC_WARM_POOL=1` with hit/miss metrics, satisfying contract items 3–6 with tests;
-   bench before/after with `scripts/bench-exec.ts`.
-3. Tool-contract wording update for the new semantics.
+2. ~~Add the pool behind `SEED_AGENTS_EXEC_WARM_POOL=1` with hit/miss metrics, satisfying contract items 3–6 with tests;
+   bench before/after with `scripts/bench-exec.ts`.~~ DONE — `createWarmPoolSource` in `code-exec.ts`, selected by
+   config (`SEED_AGENTS_EXEC_WARM_POOL=1`, cap via `SEED_AGENTS_EXEC_MAX_VMS`), contract tests in
+   `src/exec-pool.test.ts` (`bun test src/exec-pool.test.ts`). Measured against real microVMs
+   (`bun scripts/bench-exec.ts --runs=6 --warm-pool`): warm hits run **1–3ms total vs ~200ms cold** — boot share drops
+   from 86% to 0% on repeat calls.
+
+   Real-guest findings baked into the implementation:
+
+   - The broadcast kill is not portable: the guest's dash builtin rejects both `kill -9 -1` and `kill -9 -- -1`
+     ("Illegal number"), silently killing nothing. The reset is an explicit `/proc` sweep sparing pid 1, the sweeping
+     shell, and its ancestor chain.
+   - Killed daemons linger as zombies (`State: Z`, empty cmdline) because init.krun reaps lazily. A zombie runs nothing
+     — the reset contract (no prior-call process RUNNING at reuse) holds; corpses are bounded by the VM's 30-minute
+     lifetime.
+   - Exec sessions are direct children of pid 1, so the ancestor chain the sweep must spare is short and stable.
+
+3. Tool-contract wording update for the new semantics (before any staging enable).
 4. Enable on staging, watch `/api/perf` and `docker stats`, then prod.
 5. Pre-warm on session start; evaluate snapshot/restore only if numbers still leave a gap.

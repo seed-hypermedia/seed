@@ -3,7 +3,7 @@
  * through the exact same executor the agents server uses. This is the probe behind the warm-pool
  * workstream in docs/exec-warm-pool.md — run it before and after to prove the boot cost moved.
  *
- * Usage: bun scripts/bench-exec.ts [--runs=5] [--runtime=shell|python|ts]
+ * Usage: bun scripts/bench-exec.ts [--runs=5] [--runtime=shell|python|ts] [--warm-pool]
  *
  * Requires a host that can run microVMs (see /api/health codeExec on a running server). Results
  * print per-run and aggregate milliseconds; the memory workspace is a throwaway temp directory.
@@ -27,7 +27,8 @@ const code = runtime === 'python' ? 'print("bench")' : runtime === 'ts' ? 'conso
 
 // realpath because macOS tmpdir lives under a symlink (/var → /private/var) the bind mount rejects.
 const stateDir = await realpath(await mkdtemp(path.join(tmpdir(), 'seed-bench-exec-')))
-const executor = createCodeExecutor(defaultCodeExecConfig())
+const warmPool = args.has('warm-pool')
+const executor = createCodeExecutor({...defaultCodeExecConfig(), warmPool})
 
 const availability = await executor.availability()
 if (!availability.available) {
@@ -35,7 +36,11 @@ if (!availability.available) {
   process.exit(1)
 }
 
-console.log(`Benchmarking ${runCount} ${runtime} executions (fresh microVM each, current behavior)…`)
+console.log(
+  warmPool
+    ? `Benchmarking ${runCount} ${runtime} executions (warm pool: first call boots, repeats reuse)…`
+    : `Benchmarking ${runCount} ${runtime} executions (fresh microVM each, current behavior)…`,
+)
 const rows: Array<{run: number; bootMs: number; totalMs: number; exitCode: number}> = []
 try {
   for (let index = 1; index <= runCount; index += 1) {
@@ -52,6 +57,7 @@ try {
     )
   }
 } finally {
+  await executor.drain()
   await rm(stateDir, {recursive: true, force: true})
 }
 

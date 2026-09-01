@@ -13,7 +13,7 @@
  */
 
 import {listMemory, memoryRootPath} from '@/agent-memory'
-import {recordPerf} from '@/perf'
+import {recordPerf, recordPerfCount} from '@/perf'
 import * as fs from 'node:fs'
 
 /** Guest path where the agent's memory directory is mounted. */
@@ -64,6 +64,14 @@ export type CodeExecConfig = {
   allowNetwork: boolean
   /** Upstream DNS nameservers for sandbox name resolution when networking is enabled. */
   dnsServers: string[]
+  /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off by default. */
+  warmPool: boolean
+  /** Maximum live pooled VMs host-wide; overflow executions fall back to single-use VMs. */
+  poolMaxVms: number
+  /** How long a parked VM may sit idle before it is disposed. */
+  poolIdleTtlMs: number
+  /** Hard lifetime of a pooled VM from boot (also its SDK max duration). */
+  poolVmLifetimeMs: number
   /** Override for EXEC_TIMEOUT_GRACE_MS, so tests can exercise the watchdog without real waits. */
   timeoutGraceMs?: number
   /** Override for EXEC_TEARDOWN_TIMEOUT_MS, so tests can exercise stop→kill escalation quickly. */
@@ -277,6 +285,10 @@ export function defaultCodeExecConfig(): CodeExecConfig {
     timeoutSecs: 60,
     allowNetwork: true,
     dnsServers: DEFAULT_EXEC_DNS_SERVERS,
+    warmPool: false,
+    poolMaxVms: 3,
+    poolIdleTtlMs: 10 * 60_000,
+    poolVmLifetimeMs: 30 * 60_000,
   }
 }
 
@@ -384,48 +396,60 @@ export type SandboxSource = {
 /** Builds a source from executor internals; injectable so tests can substitute a fake source. */
 export type SandboxSourceFactory = (config: CodeExecConfig, getSdk: () => Promise<SandboxSdk>) => SandboxSource
 
+/** Boots one microVM for a spec, with the max lifetime the calling source chose. */
+async function bootSandboxVm(
+  config: CodeExecConfig,
+  getSdk: () => Promise<SandboxSdk>,
+  spec: SandboxSpec,
+  maxDurationSecs: number,
+): Promise<{sandbox: SandboxLike; bootMs: number}> {
+  const sdk = await getSdk()
+  const bootStartedAt = Date.now()
+  let sandbox: SandboxLike
+  try {
+    let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
+      .image(spec.image)
+      .cpus(config.cpus)
+      .memory(config.memoryMib)
+      .workdir(EXEC_WORKSPACE_GUEST_PATH)
+      .ephemeral(true)
+      .security('restricted')
+      .maxDuration(maxDurationSecs)
+      .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(spec.memoryRoot))
+    if (config.allowNetwork) {
+      // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
+      // non-local policy so code can reach the public internet but not the host's private
+      // network or cloud metadata endpoints.
+      const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
+      builder = builder.network((network) =>
+        network
+          .enabled(true)
+          .dns((dns) => dns.nameservers(dnsServers))
+          .policy(nonLocalNetworkPolicy(sdk)),
+      )
+    } else {
+      builder = builder.disableNetwork()
+    }
+    sandbox = await builder.create()
+  } catch (error) {
+    throw new CodeExecError(
+      502,
+      `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  const bootMs = Date.now() - bootStartedAt
+  recordPerf('exec.boot', bootMs)
+  return {sandbox, bootMs}
+}
+
 /** The default source: one fresh ephemeral microVM per lease, torn down on release. */
 export const createBootPerCallSource: SandboxSourceFactory = (config, getSdk) => {
   return {
     // Teardown here is awaited inside release, so there is never an async disposal to drain.
     drain: async () => {},
     async acquire(spec) {
-      const sdk = await getSdk()
-      const bootStartedAt = Date.now()
-      let sandbox: SandboxLike
-      try {
-        let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
-          .image(spec.image)
-          .cpus(config.cpus)
-          .memory(config.memoryMib)
-          .workdir(EXEC_WORKSPACE_GUEST_PATH)
-          .ephemeral(true)
-          .security('restricted')
-          .maxDuration(spec.timeoutSecs + 30)
-          .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(spec.memoryRoot))
-        if (config.allowNetwork) {
-          // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
-          // non-local policy so code can reach the public internet but not the host's private
-          // network or cloud metadata endpoints.
-          const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
-          builder = builder.network((network) =>
-            network
-              .enabled(true)
-              .dns((dns) => dns.nameservers(dnsServers))
-              .policy(nonLocalNetworkPolicy(sdk)),
-          )
-        } else {
-          builder = builder.disableNetwork()
-        }
-        sandbox = await builder.create()
-      } catch (error) {
-        throw new CodeExecError(
-          502,
-          `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
-      const bootMs = Date.now() - bootStartedAt
-      recordPerf('exec.boot', bootMs)
+      // The VM exists for exactly one call, so its lifetime derives from that call's timeout.
+      const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
       return {
         sandbox,
         bootMs,
@@ -441,6 +465,207 @@ export const createBootPerCallSource: SandboxSourceFactory = (config, getSdk) =>
   }
 }
 
+/** How long a guest reset or health probe may take before the VM is judged wedged and disposed. */
+export const POOL_GUEST_EXEC_TIMEOUT_MS = 2_000
+
+/**
+ * The warm pool (docs/exec-warm-pool.md): keeps one VM alive per (principal, image) between
+ * executions so repeat calls skip the boot entirely and the guest keeps its warm state.
+ *
+ * Invariants, per the reviewed seam contract:
+ * - Reuse is keyed on typed principal identity plus image; a VM never crosses that key.
+ * - A VM is on loan to at most one lease. The parked entry is locked (`leased = true`)
+ *   synchronously — before any await — so interleaved acquires cannot double-lease it; a
+ *   same-key acquire while the VM is out gets a single-use overflow VM instead.
+ * - Reset before park: release kills everything the call left running (`kill -9 -1` spares only
+ *   the guest's pid-1 supervisor and the killer itself); a failed reset disposes the VM. Reuse is
+ *   additionally gated on a health probe, so a VM that died while parked is replaced, not handed out.
+ * - An unhealthy release always disposes; a wedged VM is never parked.
+ * - Pooled VM lifetime is pool policy (`poolVmLifetimeMs`, idle TTL, LRU cap eviction) — never
+ *   derived from any single call's timeout. A parked VM without enough lifetime left for the
+ *   requested call is replaced.
+ * - Disposal is asynchronous (off the tool call's critical path); `drain` settles it.
+ *
+ * The `poolMaxVms` cap bounds pooled VMs; overflow VMs are transient extras, exactly as costly as
+ * today's boot-per-call behavior, so the cap can never make a call fail.
+ */
+export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
+  type PoolEntry = {
+    key: string
+    sandbox: SandboxLike
+    bootedAt: number
+    lastParkedAt: number
+    leased: boolean
+    idleTimer?: ReturnType<typeof setTimeout>
+  }
+  const entries = new Map<string, PoolEntry>()
+  const disposals = new Set<Promise<void>>()
+  const teardownMs = config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS
+
+  // JSON keeps the three parts unambiguous no matter what characters ids ever contain.
+  const keyOf = (spec: SandboxSpec): string =>
+    JSON.stringify([spec.principal.accountId, spec.principal.agentId, spec.image])
+
+  const disposeSandbox = (sandbox: SandboxLike): void => {
+    const teardownStartedAt = Date.now()
+    let done: Promise<void>
+    done = teardownSandbox(sandbox, teardownMs).finally(() => {
+      recordPerf('exec.teardown', Date.now() - teardownStartedAt)
+      disposals.delete(done)
+    })
+    disposals.add(done)
+  }
+
+  const disposeEntry = (entry: PoolEntry): void => {
+    if (entry.idleTimer) clearTimeout(entry.idleTimer)
+    if (entries.get(entry.key) === entry) entries.delete(entry.key)
+    disposeSandbox(entry.sandbox)
+  }
+
+  /** Runs a short shell command in the guest; false on failure, error, or timeout. */
+  const guestExecOk = async (sandbox: SandboxLike, script: string): Promise<boolean> => {
+    const deadline = createDeadline(POOL_GUEST_EXEC_TIMEOUT_MS + 500)
+    try {
+      const outcome = await raceDeadline(
+        sandbox.execWith('/bin/sh', (builder) => builder.args(['-c', script]).timeout(POOL_GUEST_EXEC_TIMEOUT_MS)),
+        deadline.promise,
+      )
+      return outcome !== EXEC_DEADLINE && outcome.success
+    } catch {
+      return false
+    } finally {
+      deadline.clear()
+    }
+  }
+  /**
+   * Kills everything a call left running before the VM parks. An explicit /proc sweep because the
+   * broadcast form is not portable: the guest's dash builtin rejects `kill -9 -1` AND
+   * `kill -9 -- -1` ("Illegal number") — both observed against a real guest, where the sweep
+   * silently killed nothing. Spared: pid 1 (the guest supervisor), the sweeping shell itself, and
+   * its ancestor chain (the exec session's plumbing); kernel threads shrug off the signal.
+   *
+   * Killed daemons may linger in /proc as zombies (init.krun reaps lazily; verified `State: Z`,
+   * empty cmdline against a real guest). A zombie runs nothing and holds nothing but a pid-table
+   * slot, so the reset contract — no process from a previous call is RUNNING at reuse — holds;
+   * the corpses are bounded by the VM's own lifetime.
+   */
+  const GUEST_RESET_SCRIPT = [
+    'self=$$',
+    'keep=" 1 $self "',
+    'p=$self',
+    'while :; do',
+    '  pp=$(grep "^PPid:" /proc/$p/status 2>/dev/null | cut -f2)',
+    '  case "$pp" in ""|0|1|$p) break;; esac',
+    '  keep="$keep$pp "',
+    '  p=$pp',
+    'done',
+    'for f in /proc/[0-9]*; do',
+    '  pid=${f#/proc/}',
+    '  case "$keep" in *" $pid "*) ;; *) kill -9 "$pid" 2>/dev/null;; esac',
+    'done',
+    'exit 0',
+  ].join('\n')
+  const resetGuest = (sandbox: SandboxLike) => guestExecOk(sandbox, GUEST_RESET_SCRIPT)
+  const probeGuest = (sandbox: SandboxLike) => guestExecOk(sandbox, 'exit 0')
+
+  /** Whether a parked VM has enough lifetime left to safely serve this call. */
+  const lifetimeCovers = (entry: PoolEntry, spec: SandboxSpec): boolean => {
+    const remainingMs = config.poolVmLifetimeMs - (Date.now() - entry.bootedAt)
+    return remainingMs > spec.timeoutSecs * 1000 + (config.timeoutGraceMs ?? EXEC_TIMEOUT_GRACE_MS)
+  }
+
+  const pooledLease = (entry: PoolEntry, bootMs: number, reused: boolean): SandboxLease => {
+    let released = false
+    return {
+      sandbox: entry.sandbox,
+      bootMs,
+      reused,
+      async release({healthy}) {
+        if (released) return
+        released = true
+        if (!healthy) {
+          disposeEntry(entry)
+          return
+        }
+        // Reset before park: nothing from this call may still be running when the VM is next
+        // handed out. A guest that cannot even run the reset is wedged — dispose it.
+        if (!(await resetGuest(entry.sandbox))) {
+          disposeEntry(entry)
+          return
+        }
+        entry.leased = false
+        entry.lastParkedAt = Date.now()
+        entry.idleTimer = setTimeout(() => {
+          if (!entry.leased && entries.get(entry.key) === entry) disposeEntry(entry)
+        }, config.poolIdleTtlMs)
+        entry.idleTimer.unref?.()
+      },
+    }
+  }
+
+  const overflowLease = (sandbox: SandboxLike, bootMs: number): SandboxLease => {
+    let released = false
+    return {
+      sandbox,
+      bootMs,
+      reused: false,
+      async release() {
+        if (released) return
+        released = true
+        disposeSandbox(sandbox)
+      },
+    }
+  }
+
+  return {
+    async acquire(spec) {
+      const key = keyOf(spec)
+      const existing = entries.get(key)
+      if (existing && !existing.leased) {
+        // Lock before the first await so an interleaved same-key acquire can never double-lease.
+        existing.leased = true
+        if (existing.idleTimer) clearTimeout(existing.idleTimer)
+        if (lifetimeCovers(existing, spec) && (await probeGuest(existing.sandbox))) {
+          recordPerfCount('exec.pool_hit')
+          return pooledLease(existing, 0, true)
+        }
+        disposeEntry(existing)
+      }
+      const busy = entries.get(key)?.leased === true
+      recordPerfCount(busy ? 'exec.pool_overflow' : 'exec.pool_miss')
+      if (busy) {
+        // The key's VM is out on another call: single-use VM, today's boot-per-call economics.
+        const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
+        return overflowLease(sandbox, bootMs)
+      }
+      // Make room under the cap by evicting the least-recently parked idle VM.
+      while (entries.size >= config.poolMaxVms) {
+        let oldest: PoolEntry | undefined
+        for (const entry of entries.values()) {
+          if (!entry.leased && (oldest === undefined || entry.lastParkedAt < oldest.lastParkedAt)) oldest = entry
+        }
+        if (!oldest) break
+        disposeEntry(oldest)
+      }
+      const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, Math.ceil(config.poolVmLifetimeMs / 1000))
+      if (entries.has(key) || entries.size >= config.poolMaxVms) {
+        // Lost a boot race for this key, or every slot filled while booting: stay single-use.
+        return overflowLease(sandbox, bootMs)
+      }
+      const entry: PoolEntry = {key, sandbox, bootedAt: Date.now(), lastParkedAt: 0, leased: true}
+      entries.set(key, entry)
+      return pooledLease(entry, bootMs, false)
+    },
+    async drain() {
+      while (disposals.size > 0) await Promise.allSettled([...disposals])
+    },
+  }
+}
+
+/** Selects the sandbox source the configuration asks for. */
+export const createConfiguredSandboxSource: SandboxSourceFactory = (config, getSdk) =>
+  config.warmPool ? createWarmPoolSource(config, getSdk) : createBootPerCallSource(config, getSdk)
+
 /**
  * Creates the code executor for a service. `loadSdk` is injectable for tests; the real SDK is
  * imported lazily on first execution so unsupported hosts only fail when the tool is used.
@@ -448,7 +673,7 @@ export const createBootPerCallSource: SandboxSourceFactory = (config, getSdk) =>
 export function createCodeExecutor(
   config: CodeExecConfig,
   loadSdk: () => Promise<SandboxSdk> = loadMicrosandbox,
-  createSource: SandboxSourceFactory = createBootPerCallSource,
+  createSource: SandboxSourceFactory = createConfiguredSandboxSource,
 ): CodeExecutor {
   let sdkPromise: Promise<SandboxSdk> | undefined
   const getSdk = () => {

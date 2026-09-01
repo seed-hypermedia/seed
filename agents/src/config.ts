@@ -62,6 +62,14 @@ export type Config = {
     allowNetwork: boolean
     /** Upstream DNS nameservers for sandbox name resolution. */
     dnsServers: string[]
+    /** Keep microVMs alive between executions (docs/exec-warm-pool.md). Off unless opted in. */
+    warmPool: boolean
+    /** Maximum live pooled VMs host-wide. */
+    poolMaxVms: number
+    /** Idle time before a parked pooled VM is disposed. */
+    poolIdleTtlMs: number
+    /** Hard lifetime of a pooled VM from boot. */
+    poolVmLifetimeMs: number
   }
   runQueue: {
     /** Model-backed runs executed concurrently. Everything shares one event loop, so size this to the host. */
@@ -95,6 +103,8 @@ export type Flags = {
   'exec-timeout-secs': number
   'exec-allow-network': string
   'exec-dns': string
+  'exec-warm-pool': string
+  'exec-max-vms': number
   'max-concurrent-model-runs': number
   'max-concurrent-workflows': number
   'log-level': string
@@ -125,6 +135,8 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
     'exec-allow-network': env.SEED_AGENTS_EXEC_ALLOW_NETWORK ?? '',
     'exec-dns': env.SEED_AGENTS_EXEC_DNS || '',
+    'exec-warm-pool': env.SEED_AGENTS_EXEC_WARM_POOL ?? '',
+    'exec-max-vms': Number(env.SEED_AGENTS_EXEC_MAX_VMS) || 3,
     'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
     'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
@@ -211,6 +223,12 @@ export function create(pflags: Flags): Config {
       timeoutSecs: parsePositiveInteger(String(pflags['exec-timeout-secs']), 'exec-timeout-secs'),
       allowNetwork: isNetworkEnabled(pflags['exec-allow-network']),
       dnsServers: parseDnsServers(pflags['exec-dns']),
+      // Opt-in polarity, unlike allowNetwork: pooling changes execution semantics, so it must be
+      // asked for explicitly (SEED_AGENTS_EXEC_WARM_POOL=1) until it is the proven default.
+      warmPool: isFlagEnabled(pflags['exec-warm-pool']),
+      poolMaxVms: parsePositiveInteger(String(pflags['exec-max-vms']), 'exec-max-vms'),
+      poolIdleTtlMs: 10 * 60_000,
+      poolVmLifetimeMs: 30 * 60_000,
     },
     runQueue: {
       maxConcurrentModelRuns: parsePositiveInteger(
@@ -246,6 +264,11 @@ function parseDnsServers(value: string): string[] {
  */
 function isNetworkEnabled(value: string): boolean {
   return !['0', 'false', 'no', 'off'].includes(value.trim().toLowerCase())
+}
+
+/** True only when a flag is explicitly turned on; empty means off. */
+function isFlagEnabled(value: string): boolean {
+  return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
 }
 
 /** Parses the code-execution backend flag; empty disables execution. */
