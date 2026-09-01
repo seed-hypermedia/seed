@@ -529,6 +529,66 @@ describe('workflow host', () => {
     expect(resumed.waits).toHaveLength(0)
   })
 
+  test('parallel waits park on a timed wait even when an untimed wait registers first', async () => {
+    const source = `export default async function (input, ctx) {
+      return ctx.parallel([
+        () => ctx.waitForEvent({signal: 'untimed'}),
+        () => ctx.waitForEvent({signal: 'timed'}, {timeoutMs: 20_000}),
+      ])
+    }`
+    const run = fakeAdapters({source})
+    const parked = await runWorkflowVM(run.adapters)
+    if (parked.type !== 'parked' || parked.wait.reason !== 'event') throw new Error('expected an event park')
+
+    expect(run.waits).toHaveLength(2)
+    const timedWait = run.waits.find((wait) => (wait.match as {signal?: string}).signal === 'timed')!
+    expect(parked.wait.waitId).toBe(timedWait.waitId)
+    expect(parked.wait.timeoutAt).toBe(timedWait.timeoutAt)
+  })
+
+  test('parallel timed waits park on the earliest deadline in either registration order', async () => {
+    for (const timeouts of [
+      [10_000, 20_000],
+      [20_000, 10_000],
+    ]) {
+      const source = `export default async function (input, ctx) {
+        return ctx.parallel([
+          () => ctx.waitForEvent({signal: 'first'}, {timeoutMs: ${timeouts[0]}}),
+          () => ctx.waitForEvent({signal: 'second'}, {timeoutMs: ${timeouts[1]}}),
+        ])
+      }`
+      const run = fakeAdapters({source})
+      const parked = await runWorkflowVM(run.adapters)
+      if (parked.type !== 'parked' || parked.wait.reason !== 'event') throw new Error('expected an event park')
+
+      expect(run.waits).toHaveLength(2)
+      const earliest = run.waits.reduce((left, right) => (left.timeoutAt! < right.timeoutAt! ? left : right))
+      expect(parked.wait.waitId).toBe(earliest.waitId)
+      expect(parked.wait.timeoutAt).toBe(earliest.timeoutAt)
+    }
+  })
+
+  test('parallel event waits and long sleeps park at the global earliest deadline', async () => {
+    for (const sleepMs of [5_000, 30_000]) {
+      const source = `export default async function (input, ctx) {
+        return ctx.parallel([
+          () => ctx.waitForEvent({signal: 'untimed'}),
+          () => ctx.waitForEvent({signal: 'timed'}, {timeoutMs: 10_000}),
+          () => ctx.sleep(${sleepMs}),
+        ])
+      }`
+      const run = fakeAdapters({source, timerParkThresholdMs: 1})
+      const parked = await runWorkflowVM(run.adapters)
+      if (parked.type !== 'parked' || parked.wait.reason !== 'event') throw new Error('expected an event park')
+
+      expect(run.waits).toHaveLength(2)
+      const timedWait = run.waits.find((wait) => (wait.match as {signal?: string}).signal === 'timed')!
+      const timer = run.journal.find((entry) => entry.kind === 'timer')!
+      expect(parked.wait.waitId).toBe(timedWait.waitId)
+      expect(parked.wait.timeoutAt).toBe(Math.min(timedWait.timeoutAt!, timer.wakeAt))
+    }
+  })
+
   test('a wait that runs out of time resolves as null on the next replay', async () => {
     const source = `export default async function (input, ctx) {
       const answer = await ctx.waitForEvent({signal: 'approved'}, {timeoutMs: 40})

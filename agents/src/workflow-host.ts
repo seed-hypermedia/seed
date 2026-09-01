@@ -722,13 +722,20 @@ export async function runWorkflowVM(adapters: WorkflowAdapters): Promise<Workflo
           return
         }
         adapters.effects.registerEventWait({waitId, match, ...(timeoutAt === undefined ? {} : {timeoutAt})})
-        // Several parallel waits all register; the run parks on the first and any of them can wake it.
+        // Several parallel waits all register and any of them can wake the run. Park on the one
+        // with the earliest deadline, though, so an untimed or later first wait cannot suppress it.
         const answerWith = answerSignalFor(match)
-        parkState.event ??= {
-          waitId,
-          ...(timeoutAt === undefined ? {} : {timeoutAt}),
-          ...(label ? {label} : {}),
-          ...(answerWith === undefined ? {} : {answerWith}),
+        if (
+          !parkState.event ||
+          (timeoutAt !== undefined &&
+            (parkState.event.timeoutAt === undefined || timeoutAt < parkState.event.timeoutAt))
+        ) {
+          parkState.event = {
+            waitId,
+            ...(timeoutAt === undefined ? {} : {timeoutAt}),
+            ...(label ? {label} : {}),
+            ...(answerWith === undefined ? {} : {answerWith}),
+          }
         }
         return
       }
