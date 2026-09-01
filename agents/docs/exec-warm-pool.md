@@ -111,6 +111,11 @@ in the types, the rest are contract obligations a pool implementation must land 
    - The broadcast kill is not portable: the guest's dash builtin rejects both `kill -9 -1` and `kill -9 -- -1`
      ("Illegal number"), silently killing nothing. The reset is an explicit `/proc` sweep sparing pid 1, the sweeping
      shell, and its ancestor chain.
+   - A single sweep has a fork race (ion's second-pass blocker): a process forking after the glob expanded escapes that
+     pass. The reset therefore repeats (bounded at 5 passes), each pass re-expanding `/proc`, and reports clean only
+     when a full pass observes zero live candidates — verified empty, or the VM is disposed instead of parked.
+     `scripts/verify-exec-reset.ts` proves it against real guests: a plain daemon, a continuously respawning forker, and
+     a double-forked orphan all leave a clean reused VM.
    - Killed daemons linger as zombies (`State: Z`, empty cmdline) because init.krun reaps lazily. A zombie runs nothing
      — the reset contract (no prior-call process RUNNING at reuse) holds; corpses are bounded by the VM's 30-minute
      lifetime.
