@@ -29,16 +29,16 @@ const ONYX = "z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb";
 const AUTHORITY = [["onyx-", "hyper.media"], ["hypermedia-", "seed.hyper.media"], ["example-", "example.com"]];
 const urlToFile = (ref) => {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref);
-  if (!m) return ref.endsWith(".json") ? ref : `${ref}.json`;
+  if (!m) return ref.endsWith(".json") ? ref : `${ref}.schema.json`;
   const [, auth, name] = m;
   if (auth === ONYX) {
     // Public name -> filename: hypermedia-*/example-* are basenames; primitive/
     // meta names had `onyx-` stripped, so restore it when that file exists.
-    if (existsSync(resolve(DIR, `${name}.json`))) return `${name}.json`;
-    return `onyx-${name}.json`;
+    if (existsSync(resolve(DIR, `${name}.schema.json`))) return `${name}.schema.json`;
+    return `onyx-${name}.schema.json`;
   }
   const prefix = AUTHORITY.find(([, a]) => a === auth)?.[0];
-  return prefix ? `${prefix}${name}.json` : `${name}.json`;
+  return prefix ? `${prefix}${name}.schema.json` : `${name}.schema.json`;
 };
 
 const cache = new Map();
@@ -249,7 +249,7 @@ if (schemaArg && dataArg) {
 }
 
 let failed = 0;
-const meta = load("onyx-schema.json");
+const meta = load("onyx-schema.schema.json");
 
 // dag-json constructors for test data
 const cid = (s) => ({ "/": s });
@@ -259,14 +259,14 @@ const bytes = (b) => ({ "/": { bytes: b } });
 // 1. Self-description — the meta-schema is a valid instance of itself.
 // =====================================================================
 section("Self-description");
-failed += report("onyx-schema.json describes itself", validate(meta, meta));
+failed += report("onyx-schema.schema.json describes itself", validate(meta, meta));
 
 // =====================================================================
 // 2. Every schema block in the directory is a valid Onyx schema.
 //    Auto-discovered, so new examples are covered without editing tests.
 // =====================================================================
 section("Every schema block is a valid Onyx schema");
-const jsonFiles = readdirSync(DIR).filter((f) => f.endsWith(".json") && f !== "schemas.lock.json").sort();
+const jsonFiles = readdirSync(DIR).filter((f) => f.endsWith(".schema.json")).sort();
 for (const f of jsonFiles) {
   if (isInstance(load(f))) continue; // instances are data, not schemas
   failed += report(`${f}`, validate(meta, load(f)));
@@ -291,7 +291,7 @@ section("Data validates against its schema");
 
 const CASES = [
   {
-    schema: "example-geo.json",
+    schema: "example-geo.schema.json",
     valid: [{ lat: 51.5, lng: -0.12, altitude: 35 }, { lat: 0, lng: 0 }],
     invalid: [
       ["missing lng", { lat: 51.5 }],
@@ -301,32 +301,32 @@ const CASES = [
     ],
   },
   {
-    schema: "example-status.json",
+    schema: "example-status.schema.json",
     valid: ["draft", "published", "archived"],
     invalid: [["not in enum", "deleted"], ["wrong kind", 5], ["null", null]],
   },
   {
-    schema: "example-tags.json",
+    schema: "example-tags.schema.json",
     valid: [[], ["a", "b", "c"]],
     invalid: [["element not string", ["a", 2]], ["not a list", "nope"]],
   },
   {
-    schema: "example-matrix.json",
+    schema: "example-matrix.schema.json",
     valid: [[], [[1, 2], [3]], [[]]],
     invalid: [["inner element not integer", [[1, "x"]]], ["element not a list", [1, 2]]],
   },
   {
-    schema: "example-metadata.json",
+    schema: "example-metadata.schema.json",
     valid: [{}, { lang: "en", tone: "formal" }],
     invalid: [["value not string", { lang: 1 }]],
   },
   {
-    schema: "example-registry.json",
+    schema: "example-registry.schema.json",
     valid: [{}, { u1: cid("bafyu1"), u2: cid("bafyu2") }],
     invalid: [["value not a link", { u1: "bafyu1" }], ["value is a map not a link", { u1: { name: "x" } }]],
   },
   {
-    schema: "example-blob.json",
+    schema: "example-blob.schema.json",
     valid: [{ mime: "image/png", data: bytes("aGVsbG8"), size: 5 }, { mime: "text/plain", data: bytes("QQ") }],
     invalid: [
       ["missing data", { mime: "x" }],
@@ -336,12 +336,12 @@ const CASES = [
     ],
   },
   {
-    schema: "example-value.json",
+    schema: "example-value.schema.json",
     valid: ["hi", 42, true, null],
     invalid: [["float not in the union", 3.14], ["list", [1]], ["map", { a: 1 }]],
   },
   {
-    schema: "example-json.json",
+    schema: "example-json.schema.json",
     valid: [
       null, true, 42, 3.14, "hi",
       [1, "two", true, null],
@@ -356,7 +356,7 @@ const CASES = [
     ],
   },
   {
-    schema: "example-comment.json",
+    schema: "example-comment.schema.json",
     valid: [{ text: "hi" }, { text: "hi", author: cid("bafyp"), replies: [cid("bafyc1"), cid("bafyc2")] }],
     invalid: [
       ["missing text", {}],
@@ -365,7 +365,7 @@ const CASES = [
     ],
   },
   {
-    schema: "example-tree.json",
+    schema: "example-tree.schema.json",
     valid: [{ value: 1 }, { value: 1, children: [cid("t1"), cid("t2")] }],
     invalid: [
       ["missing value", {}],
@@ -374,12 +374,12 @@ const CASES = [
     ],
   },
   {
-    schema: "example-entry.json",
+    schema: "example-entry.schema.json",
     valid: [{ name: "docs" }, { name: "docs", files: [cid("f")] }, { name: "a.txt", parent: cid("fold") }],
     invalid: [["missing name (both arms require it)", {}], ["unknown key in both arms", { name: "x", bogus: 1 }]],
   },
   {
-    schema: "example-admin.json",
+    schema: "example-admin.schema.json",
     valid: [
       { name: "Root", employeeId: "E-0", permissions: ["all"] },
       { name: "Root", employeeId: "E-0", permissions: [], age: 40, department: "IT" },
@@ -392,7 +392,7 @@ const CASES = [
     ],
   },
   {
-    schema: "example-article.json",
+    schema: "example-article.schema.json",
     valid: [
       { title: "Hi", slug: "hi", status: "draft", author: cid("bafyA") },
       {
@@ -411,7 +411,7 @@ const CASES = [
     ],
   },
   {
-    schema: "example-employee.json",
+    schema: "example-employee.schema.json",
     valid: [{ name: "Grace", employeeId: "E-1", department: "Research", active: true }],
     invalid: [
       ["missing added required", { name: "Grace" }],
@@ -420,29 +420,29 @@ const CASES = [
     ],
   },
   {
-    schema: "example-person.json",
+    schema: "example-person.schema.json",
     valid: [{ name: "Ada" }, { name: "Ada", age: 36, active: true, home: { street: "1 Analytical Way", city: "London" }, nicknames: ["Countess"] }],
     invalid: [["age not integer", { name: "Ada", age: "old" }], ["home missing city", { name: "Ada", home: { street: "x" } }]],
   },
   {
-    schema: "example-document.json",
+    schema: "example-document.schema.json",
     valid: [{ title: "Genesis", author: cid("bafyP"), body: bytes("aGVsbG8"), previous: cid("bafyD") }, { title: "Genesis" }],
     invalid: [["body not bytes", { title: "T", body: "hello" }], ["author not a link", { title: "T", author: "P" }]],
   },
   {
-    schema: "example-folder.json",
+    schema: "example-folder.schema.json",
     valid: [{ name: "photos", files: [cid("f1")], subfolders: [cid("s1")] }, { name: "empty" }],
     invalid: [["file not a link", { name: "x", files: ["nope"] }]],
   },
   {
-    schema: "example-counts.json",
+    schema: "example-counts.schema.json",
     valid: [{ Apples: 5, Oranges: 3 }, {}],
     invalid: [["value not integer", { Apples: "five" }]],
   },
 
   // --- Hypermedia CBOR blobs (real production data shapes) -----------------
   {
-    schema: "hypermedia-ref.json",
+    schema: "hypermedia-ref.schema.json",
     valid: [
       { type: "Ref", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1700000000000, path: "/", heads: [cid("bafyH1")], genesisBlob: cid("bafyG"), generation: 1, visibility: "" },
       { type: "Ref", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1700000000000, heads: [] },
@@ -455,7 +455,7 @@ const CASES = [
     ],
   },
   {
-    schema: "hypermedia-capability.json",
+    schema: "hypermedia-capability.schema.json",
     valid: [{ type: "Capability", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, delegate: bytes("ZGVs"), role: "WRITER", label: "editor" }],
     invalid: [
       ["missing delegate (required)", { type: "Capability", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1 }],
@@ -463,7 +463,7 @@ const CASES = [
     ],
   },
   {
-    schema: "hypermedia-change.json",
+    schema: "hypermedia-change.schema.json",
     valid: [
       { type: "Change", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, genesis: cid("bafyG"), deps: [cid("bafyD")], depth: 1,
         body: { opCount: 2, ops: [{ type: "MoveBlocks", blocks: ["b1"] }, { type: "ReplaceBlock", block: { id: "b1", type: "paragraph", text: "Hello", bold: true } }] } },
@@ -475,7 +475,7 @@ const CASES = [
     ],
   },
   {
-    schema: "hypermedia-any-blob.json",
+    schema: "hypermedia-any-blob.schema.json",
     valid: [
       { type: "Profile", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, name: "Alice" },
       { type: "Contact", signer: bytes("cGs"), sig: bytes("c2ln"), ts: 1, subject: bytes("ZGVs"), name: "Bob" },
@@ -486,7 +486,7 @@ const CASES = [
     ],
   },
   {
-    schema: "hypermedia-metadata.json",
+    schema: "hypermedia-metadata.schema.json",
     valid: [
       { name: "My Doc", summary: "A doc.", contentWidth: "M", showOutline: true, theme: { headerLayout: "Center" }, customKey: "extra" },
       {},
@@ -496,7 +496,7 @@ const CASES = [
 
   // --- Block types: strict concrete types vs the open forward-compatible type
   {
-    schema: "hypermedia-block-paragraph.json",
+    schema: "hypermedia-block-paragraph.schema.json",
     valid: [
       { id: "b1", type: "Paragraph", text: "Hello", annotations: [], attributes: { childrenType: "Group" } },
       { id: "b2", type: "Paragraph" },
@@ -508,19 +508,19 @@ const CASES = [
     ],
   },
   {
-    schema: "hypermedia-block-image.json",
+    schema: "hypermedia-block-image.schema.json",
     valid: [{ id: "i1", type: "Image", link: "ipfs://bafyimg", attributes: { width: 640, name: "pic.png" } }],
     invalid: [["missing link (required)", { id: "i1", type: "Image" }]],
   },
   {
     // The core union WE define — strict, rejects block types outside the eleven.
-    schema: "hypermedia-block-core.json",
+    schema: "hypermedia-block-core.schema.json",
     valid: [{ id: "b1", type: "Paragraph", text: "hi" }, { id: "i1", type: "Image", link: "ipfs://x" }],
     invalid: [["a block type outside the core", { id: "p1", type: "Poll", question: "?" }]],
   },
   {
     // The extensible wire block = core OR custom — accepts core strictly AND any custom/future block.
-    schema: "hypermedia-block.json",
+    schema: "hypermedia-block.schema.json",
     valid: [
       { id: "b1", type: "Paragraph", text: "hi" },
       { id: "p1", type: "Poll", question: "Fave?", options: ["a", "b"], meta: { nested: true } },
@@ -530,13 +530,13 @@ const CASES = [
   },
   {
     // A third party's custom block, extending the shared base like a core block.
-    schema: "example-poll-block.json",
+    schema: "example-poll-block.schema.json",
     valid: [{ id: "p1", type: "Poll", question: "Q?", options: ["a", "b"], attributes: { multiple: true } }],
     invalid: [["missing options (required)", { id: "p1", type: "Poll", question: "Q?" }], ["wrong type", { id: "p1", type: "Paragraph" }]],
   },
   {
     // The app's block type = core union EXTENDED with their Poll. Strict: core + Poll only.
-    schema: "example-app-block.json",
+    schema: "example-app-block.schema.json",
     valid: [
       { id: "b1", type: "Paragraph", text: "hi" },
       { id: "p1", type: "Poll", question: "Fave?", options: ["a", "b"] },
@@ -544,7 +544,7 @@ const CASES = [
     invalid: [["a type outside core + their extensions", { id: "w1", type: "Widget", foo: 1 }]],
   },
   {
-    schema: "example-constrained.json",
+    schema: "example-constrained.schema.json",
     valid: [
       { username: "alice", score: 50 },
       { username: "bob_1", score: 0, tags: ["x"] },
@@ -562,7 +562,7 @@ const CASES = [
     ],
   },
   {
-    schema: "onyx-any.json",
+    schema: "onyx-any.schema.json",
     valid: [null, true, 42, 3.14, "x", [1, "two", { a: [true] }], { k: { nested: [1, 2] } }, cid("bafy"), bytes("QQ")],
     invalid: [],
   },
@@ -597,14 +597,14 @@ failed += report("invalid regex is ignored (no throw, no error)", validate(S("st
 
 // `format: date` — the built-in Date type is a string refinement whose pattern
 // checks the ISO 8601 calendar-date shape (YYYY-MM-DD) without parsing.
-const dateT = load("onyx-date.json");
+const dateT = load("onyx-date.schema.json");
 failed += report("date: ISO calendar date", validate(dateT, "2026-08-26"));
 failed += report("date: leap day shape", validate(dateT, "2024-02-29"));
 failed += reportReject("date: month 13", validate(dateT, "2026-13-01"));
 failed += reportReject("date: slashes", validate(dateT, "26/08/2026"));
 failed += reportReject("date: date-time is not a date", validate(dateT, "2026-08-26T10:00:00Z"));
 failed += reportReject("date: not a string", validate(dateT, 20260826));
-const dateTimeT = load("onyx-date-time.json");
+const dateTimeT = load("onyx-date-time.schema.json");
 failed += report("date-time: RFC 3339 zulu", validate(dateTimeT, "2026-08-26T14:30:00Z"));
 failed += report("date-time: offset + fraction", validate(dateTimeT, "2026-08-26T14:30:00.250+02:00"));
 failed += reportReject("date-time: bare date", validate(dateTimeT, "2026-08-26"));
@@ -644,10 +644,10 @@ failed += report("advisory mode passes clean data", validateAdvisory(intRange, 5
 // 5. Error paths are precise (regression guard on error reporting).
 // =====================================================================
 section("Error paths point at the offending value");
-failed += assertPath("nested list index", validate(load("example-matrix.json"), [[1, "x"]]), "$[0][1]");
-failed += assertPath("nested map key", validate(load("example-person.json"), { name: "Ada", home: { street: "x" } }), "home");
-failed += assertPath("deep JSON path", validate(load("example-json.json"), { a: [1, cid("bad")] }), "$.a[1]");
-failed += assertPath("article field", validate(load("example-article.json"), { title: "T", slug: "t", status: "draft", author: cid("A"), wordCount: 1.5 }), "$.wordCount");
+failed += assertPath("nested list index", validate(load("example-matrix.schema.json"), [[1, "x"]]), "$[0][1]");
+failed += assertPath("nested map key", validate(load("example-person.schema.json"), { name: "Ada", home: { street: "x" } }), "home");
+failed += assertPath("deep JSON path", validate(load("example-json.schema.json"), { a: [1, cid("bad")] }), "$.a[1]");
+failed += assertPath("article field", validate(load("example-article.schema.json"), { title: "T", slug: "t", status: "draft", author: cid("A"), wordCount: 1.5 }), "$.wordCount");
 
 // =====================================================================
 // 5b. Generics: Change<Block>. The block type threads through
@@ -659,11 +659,11 @@ const blockChange = (b) => ({ type: "Change", signer: bytes("cGs"), sig: bytes("
 const widgetBlock = { id: "w1", type: "Widget", foo: 1 };
 const pollBlock = { id: "p1", type: "Poll", question: "?", options: ["a", "b"] };
 const paraBlock = { id: "b1", type: "Paragraph", text: "hi" };
-failed += report("default Change accepts an unknown Widget block (open Block)", validate(load("hypermedia-change.json"), blockChange(widgetBlock)));
-failed += report("Change<app-block> accepts the app's Poll block", validate(load("example-myapp-change.json"), blockChange(pollBlock)));
-failed += report("Change<app-block> accepts a core Paragraph block", validate(load("example-myapp-change.json"), blockChange(paraBlock)));
-failed += reportReject("Change<app-block> REJECTS the Widget block (strict, deep in the op)", validate(load("example-myapp-change.json"), blockChange(widgetBlock)));
-failed += assertPath("the rejection points inside the op stack", validate(load("example-myapp-change.json"), blockChange(widgetBlock)), "body.ops[0].block");
+failed += report("default Change accepts an unknown Widget block (open Block)", validate(load("hypermedia-change.schema.json"), blockChange(widgetBlock)));
+failed += report("Change<app-block> accepts the app's Poll block", validate(load("example-myapp-change.schema.json"), blockChange(pollBlock)));
+failed += report("Change<app-block> accepts a core Paragraph block", validate(load("example-myapp-change.schema.json"), blockChange(paraBlock)));
+failed += reportReject("Change<app-block> REJECTS the Widget block (strict, deep in the op)", validate(load("example-myapp-change.schema.json"), blockChange(widgetBlock)));
+failed += assertPath("the rejection points inside the op stack", validate(load("example-myapp-change.schema.json"), blockChange(widgetBlock)), "body.ops[0].block");
 
 // =====================================================================
 // 6. Example instances are valid data for their declared type.
