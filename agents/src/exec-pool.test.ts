@@ -196,8 +196,9 @@ describe('warm pool source', () => {
     farm.failGuestExec = true
     await first.release({healthy: true})
     await settled(() => farm.sandboxes[0]!.stopped)
-    // The counter is what lets an external observer attribute a disposal to the reset.
-    expect(perfSnapshot().counters['exec.pool_reset_failed']!.count).toBe(1)
+    // The counter is what lets an external observer attribute a disposal to the reset verdict.
+    // The fake guest exits 1, which is the reset script's designated pass-budget-exhausted code.
+    expect(perfSnapshot().counters['exec.pool_reset_exhausted']!.count).toBe(1)
     farm.failGuestExec = false
     const second = await source.acquire(specFor('acct', 'agent'))
     expect(second.sandbox).not.toBe(first.sandbox)

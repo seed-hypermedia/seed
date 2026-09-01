@@ -27,6 +27,10 @@
  *   correlated with `run.dispatch_delay` / `provider.request_gap` / `provider.ttft` in the same
  *   snapshot.
  * - `run.retry.<code>`       — queue-level retries of failed runs, by error code.
+ * - `exec.pool_hit` / `exec.pool_miss` / `exec.pool_overflow` — warm-pool acquisition outcomes.
+ * - `exec.pool_reset_exhausted` / `exec.pool_reset_error` / `exec.pool_probe_failed` — why a
+ *   pooled VM was disposed: its park reset ran out of pass budget (the guest's own verdict), the
+ *   reset exchange broke, or the reuse probe failed.
  */
 
 /** Samples kept per metric for percentile estimates. Old samples fall off; totals keep counting. */

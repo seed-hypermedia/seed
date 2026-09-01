@@ -526,17 +526,24 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     disposeSandbox(entry.sandbox)
   }
 
-  /** Runs a short shell command in the guest; false on failure, error, or timeout. */
-  const guestExecOk = async (sandbox: SandboxLike, script: string): Promise<boolean> => {
+  /**
+   * Runs a short shell script in the guest. `ok` = exit 0; `fail` = the script itself concluded
+   * failure (its designated exit 1 — for the reset, pass-budget exhaustion); `error` = the
+   * exchange broke (exception, deadline, or any other exit code, e.g. a shell parse error) — so
+   * counters can attribute a disposal to the guest's verdict versus transport trouble.
+   */
+  const guestExec = async (sandbox: SandboxLike, script: string): Promise<'ok' | 'fail' | 'error'> => {
     const deadline = createDeadline(POOL_GUEST_EXEC_TIMEOUT_MS + 500)
     try {
       const outcome = await raceDeadline(
         sandbox.execWith('/bin/sh', (builder) => builder.args(['-c', script]).timeout(POOL_GUEST_EXEC_TIMEOUT_MS)),
         deadline.promise,
       )
-      return outcome !== EXEC_DEADLINE && outcome.success
+      if (outcome === EXEC_DEADLINE) return 'error'
+      if (outcome.success) return 'ok'
+      return outcome.code === 1 ? 'fail' : 'error'
     } catch {
-      return false
+      return 'error'
     } finally {
       deadline.clear()
     }
@@ -563,9 +570,12 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
    * process can fork after the glob expanded and die before its stat is read, so a Z on FIRST
    * observation may have children this pass's snapshot never saw — it dirties the pass, and is
    * spared only once it was already a zombie in the prior complete pass (dead at that scan, so it
-   * cannot have forked since). Killed daemons linger as `State: Z` corpses because init.krun
-   * reaps lazily (verified against a real guest); a proven zombie runs nothing and cannot fork,
-   * and persistent corpses cost one extra pass on their first reset, not one per pass.
+   * cannot have forked since). The proof binds PROCESS IDENTITY, pid + starttime (stat field 22),
+   * not pid alone: a reaped corpse's pid can be reused by a new process between passes, and the
+   * impostor must not inherit the corpse's proof. Killed daemons linger as `State: Z` corpses
+   * because init.krun reaps lazily (verified against a real guest); a proven zombie runs nothing
+   * and cannot fork, and persistent corpses cost one extra pass on their first reset, not one per
+   * pass.
    *
    * Parsing is delimiter-safe against hostile process names: stat is flattened (`tr '\n' ' '`)
    * before the greedy comm strip, so a comm containing newlines or ") " cannot truncate or desync
@@ -602,9 +612,15 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     '    fi',
     '    if [ "$ok" -eq 1 ]; then',
     '      if [ "$state" = "Z" ]; then',
-    // Two-snapshot zombie proof: spared only if it was already Z in the prior complete pass.
-    '        curz="$curz $pid "',
-    '        case "$prevz" in *" $pid "*) continue;; esac',
+    // Two-snapshot zombie proof, keyed by process identity (pid + starttime, stripped field 20 =
+    // stat field 22) so a reused pid cannot inherit a reaped corpse's proof. An unreadable
+    // starttime falls through to the dirty path like any other ambiguity.
+    '        shift 19',
+    '        start=$1',
+    '        case "$start" in ""|*[!0-9]*) ;; *)',
+    '          curz="$curz $pid:$start "',
+    '          case "$prevz" in *" $pid:$start "*) continue;; esac',
+    '        ;; esac',
     '        dirty=$((dirty+1))',
     '        continue',
     '      fi',
@@ -618,8 +634,8 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     'done',
     'exit 1',
   ].join('\n')
-  const resetGuest = (sandbox: SandboxLike) => guestExecOk(sandbox, GUEST_RESET_SCRIPT)
-  const probeGuest = (sandbox: SandboxLike) => guestExecOk(sandbox, 'exit 0')
+  const resetGuest = (sandbox: SandboxLike) => guestExec(sandbox, GUEST_RESET_SCRIPT)
+  const probeGuest = async (sandbox: SandboxLike) => (await guestExec(sandbox, 'exit 0')) === 'ok'
 
   /** Whether a parked VM has enough lifetime left to safely serve this call. */
   const lifetimeCovers = (entry: PoolEntry, spec: SandboxSpec): boolean => {
@@ -642,9 +658,11 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
         }
         // Reset before park: nothing from this call may still be running when the VM is next
         // handed out. A guest that cannot prove itself empty (or run the reset at all) is
-        // disposed; the counter makes reset-caused disposal distinguishable from other paths.
-        if (!(await resetGuest(entry.sandbox))) {
-          recordPerfCount('exec.pool_reset_failed')
+        // disposed; the split counters attribute the disposal — pass-budget exhaustion (the
+        // guest's own verdict) versus a broken exchange — distinguishable from every other path.
+        const resetOutcome = await resetGuest(entry.sandbox)
+        if (resetOutcome !== 'ok') {
+          recordPerfCount(resetOutcome === 'fail' ? 'exec.pool_reset_exhausted' : 'exec.pool_reset_error')
           disposeEntry(entry)
           return
         }

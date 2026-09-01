@@ -13,10 +13,12 @@
  *   the sweep cannot even clean a single idle daemon.
  * - `clean` (moderate respawner): either outcome is acceptable — reuse or disposal — but the VM
  *   serving call 2 must be clean; the outcome taken is reported.
- * - `expect-disposal` (recursive fork storm): the bounded sweep is SUPPOSED to give up here —
- *   pass-budget exhaustion must dispose the VM (fresh boot in call 2) and call 2 must be clean.
- *   This proves the fail-closed path, not just the happy path. Retried a few times because a
- *   fast host can occasionally out-race the storm.
+ * - `expect-disposal` (self-perpetuating respawn chains): the bounded sweep is SUPPOSED to give
+ *   up here — call 1's release reset must exhaust its pass budget (exactly one
+ *   `exec.pool_reset_exhausted` in the call-1 counter window, none anywhere else) and call 2 must
+ *   be a clean fresh boot. This proves the fail-closed path with positive attribution, not just
+ *   the happy path. Probabilistic by nature — a pass can catch every pending chain tip
+ *   pre-recursion — so the harness retries and reports a converged attempt rather than passing it.
  *
  * Detection is by a marker assembled at runtime in call 2, so the autopsy shell's own cmdline
  * (which carries this script's text) can never match itself — a literal marker produced false
@@ -73,19 +75,23 @@ const SCENARIOS: Array<{name: string; plant: string; expect: Expectation; retrie
     ].join('\n'),
   },
   {
-    name: 'self-perpetuating respawn chain',
+    name: 'self-perpetuating respawn chains',
     expect: 'expect-disposal',
     retries: 3,
     plant: [
-      // Each generation forks its successor FIRST, then parks in a long sleep. Every sweep pass
-      // sees at least one live generation (dirty) while the just-forked successor postdates that
-      // pass's /proc snapshot — so the chain survives every pass and the bounded reset must
-      // exhaust its budget. Gentle by construction (~50 tiny sleeps/sec, no doubling), unlike a
-      // raw fork bomb, which melts the guest so hard the PLANT call itself dies and the disposal
-      // gets attributed to an unhealthy release instead of the reset.
-      `nohup sh -c 'r(){ (sleep 0.02; r) & sleep ${MARKER}; }; r' >/dev/null 2>&1 &`,
+      // Three independent staggered chains; each generation forks its successor FIRST, then parks
+      // in a long sleep, so a sweep pass that sees a generation (dirty, killed) usually postdates
+      // the fork of its successor. NOT deterministic: a pass whose snapshot happens to catch
+      // every pending tip pre-recursion kills all chains and the reset converges — three tips
+      // with staggered phases make that unlikely, and the harness retries; a converged attempt is
+      // reported, never silently passed. Gentle by construction (~150 tiny sleeps/sec, no
+      // doubling) — a raw fork bomb melts the guest so hard the PLANT call itself dies and the
+      // disposal gets attributed to an unhealthy release instead of the reset.
+      `for stagger in 0 0.007 0.013; do`,
+      `  nohup sh -c "sleep $stagger; r(){ (sleep 0.02; r) & sleep ${MARKER}; }; r" >/dev/null 2>&1 &`,
+      'done',
       'pid=$!',
-      'sleep 0.3',
+      'sleep 0.4',
       'kill -0 "$pid" 2>/dev/null && echo PLANTED-OK || echo PLANT-FAILED',
     ].join('\n'),
   },
@@ -114,35 +120,68 @@ if (!availability.available) {
   process.exit(1)
 }
 
+type CounterWindow = {resetExhausted: number; resetError: number; probeFailed: number; poolHit: number}
+
 type Attempt = {
   planted: boolean
   reused: boolean
   clean: boolean
   bootMs: number
-  /* Counter deltas across the scenario, attributing WHY the pool behaved as it did. */
-  resetFailed: number
-  poolHit: number
+  /** Counter deltas measured across call 1 (plant + its release reset) and call 2 separately. */
+  call1: CounterWindow
+  call2: CounterWindow
 }
 
-const counterValue = (name: string): number => perfSnapshot().counters[name]?.count ?? 0
+const COUNTERS: Record<keyof CounterWindow, string> = {
+  resetExhausted: 'exec.pool_reset_exhausted',
+  resetError: 'exec.pool_reset_error',
+  probeFailed: 'exec.pool_probe_failed',
+  poolHit: 'exec.pool_hit',
+}
+
+function counterSample(): CounterWindow {
+  const counters = perfSnapshot().counters
+  const value = (name: string): number => counters[name]?.count ?? 0
+  return {
+    resetExhausted: value(COUNTERS.resetExhausted),
+    resetError: value(COUNTERS.resetError),
+    probeFailed: value(COUNTERS.probeFailed),
+    poolHit: value(COUNTERS.poolHit),
+  }
+}
+
+function windowDelta(before: CounterWindow, after: CounterWindow): CounterWindow {
+  return {
+    resetExhausted: after.resetExhausted - before.resetExhausted,
+    resetError: after.resetError - before.resetError,
+    probeFailed: after.probeFailed - before.probeFailed,
+    poolHit: after.poolHit - before.poolHit,
+  }
+}
+
+const noDisposals = (w: CounterWindow): boolean => w.resetExhausted === 0 && w.resetError === 0 && w.probeFailed === 0
 
 async function runScenario(scenario: (typeof SCENARIOS)[number], attempt: number): Promise<Attempt> {
   // A distinct principal per attempt so a disposed VM from a prior attempt cannot interfere.
   const principal = {accountId: 'verify-reset', agentId: `${scenario.name.replace(/\W+/g, '-')}-${attempt}`}
-  const resetFailedBefore = counterValue('exec.pool_reset_failed')
-  const poolHitBefore = counterValue('exec.pool_hit')
+  // Counters are sampled around EACH call: the plant call's release runs inside execute(), so the
+  // call-1 window isolates the reset under test, and the call-2 window proves the autopsy's own
+  // acquire/release contributed no disposal that could be misattributed to call 1.
+  const beforePlant = counterSample()
   const plant = await executor.execute({principal, stateDir, runtime: 'shell', code: scenario.plant})
+  const afterPlant = counterSample()
   // Positive call-1 success: the plant must have executed cleanly AND verified its daemon alive —
   // a timed-out or failed planting call must never let a scenario "pass" vacuously.
   const planted = plant.exitCode === 0 && /PLANTED-OK/.test(plant.stdout)
   const autopsy = await executor.execute({principal, stateDir, runtime: 'shell', code: AUTOPSY})
+  const afterAutopsy = counterSample()
   return {
     planted,
     reused: autopsy.bootMs === 0,
     clean: autopsy.exitCode === 0 && /alive marked processes: 0/.test(autopsy.stdout),
     bootMs: autopsy.bootMs,
-    resetFailed: counterValue('exec.pool_reset_failed') - resetFailedBefore,
-    poolHit: counterValue('exec.pool_hit') - poolHitBefore,
+    call1: windowDelta(beforePlant, afterPlant),
+    call2: windowDelta(afterPlant, afterAutopsy),
   }
 }
 
@@ -163,30 +202,44 @@ try {
         break
       }
       if (scenario.expect === 'reuse-clean') {
-        if (outcome.reused && outcome.poolHit === 1 && outcome.resetFailed === 0) {
-          verdict = 'PASS (pool hit, reused clean VM, reset succeeded)'
+        if (outcome.reused && outcome.call2.poolHit === 1 && noDisposals(outcome.call1) && noDisposals(outcome.call2)) {
+          verdict = 'PASS (call-1 reset succeeded; call-2 pool hit, reused clean VM)'
         } else if (!outcome.reused) {
           verdict = 'FAIL (reset disposed the VM for a trivially cleanable guest)'
         } else {
-          verdict = `FAIL (reuse not attributable to a clean pool hit: poolHit=${outcome.poolHit} resetFailed=${outcome.resetFailed})`
+          verdict = `FAIL (reuse not attributable to a clean pool hit: call1=${JSON.stringify(
+            outcome.call1,
+          )} call2=${JSON.stringify(outcome.call2)})`
         }
         break
       }
       if (scenario.expect === 'clean') {
-        if (outcome.reused) verdict = 'PASS (clean; reused via pool hit)'
-        else if (outcome.resetFailed >= 1) verdict = 'PASS (clean; reset-caused disposal + fresh boot)'
-        else verdict = 'FAIL (disposed clean, but not attributable to the reset — investigate the disposal path)'
+        if (outcome.reused && outcome.call2.poolHit === 1) verdict = 'PASS (clean; reused via pool hit)'
+        else if (!outcome.reused && outcome.call1.resetExhausted >= 1)
+          verdict = 'PASS (clean; call-1 reset-exhausted disposal + fresh boot)'
+        else
+          verdict = `FAIL (outcome not attributable: call1=${JSON.stringify(outcome.call1)} call2=${JSON.stringify(
+            outcome.call2,
+          )})`
         break
       }
-      // expect-disposal: the fresh boot must be POSITIVELY attributed to reset-budget exhaustion —
-      // exactly one pool_reset_failed during the scenario — not to a failed probe, a timed-out
-      // plant, or any other disposal path that looks identical from boot timing alone.
-      if (!outcome.reused && outcome.resetFailed === 1) {
-        verdict = 'PASS (reset pass budget exhausted; reset-attributed disposal, fresh boot clean)'
+      // expect-disposal: the fresh boot must be POSITIVELY attributed to CALL 1's release reset
+      // exhausting its pass budget — exactly one pool_reset_exhausted inside the call-1 window,
+      // zero disposal counters in the call-2 window (so the autopsy's own probe/reset cannot be
+      // the source), and no transport-error masquerading (resetError 0).
+      if (
+        !outcome.reused &&
+        outcome.call1.resetExhausted === 1 &&
+        outcome.call1.resetError === 0 &&
+        noDisposals(outcome.call2)
+      ) {
+        verdict = 'PASS (call-1 reset pass budget exhausted; attributed disposal, fresh boot clean)'
         break
       }
       if (!outcome.reused) {
-        verdict = `FAIL (disposal happened but was not reset-attributed: resetFailed=${outcome.resetFailed})`
+        verdict = `FAIL (disposal not attributable to call-1 reset exhaustion: call1=${JSON.stringify(
+          outcome.call1,
+        )} call2=${JSON.stringify(outcome.call2)})`
         break
       }
       verdict = 'FAIL (storm never forced disposal — strengthen the storm or the host is too fast)'
@@ -195,8 +248,8 @@ try {
     console.log(`${scenario.name}: ${verdict}`)
     if (outcome) {
       console.log(
-        `  planted=${outcome.planted} call2 bootMs=${outcome.bootMs} clean=${outcome.clean} ` +
-          `poolHit=${outcome.poolHit} resetFailed=${outcome.resetFailed}`,
+        `  planted=${outcome.planted} call2 bootMs=${outcome.bootMs} clean=${outcome.clean}\n` +
+          `  call1 deltas=${JSON.stringify(outcome.call1)}\n  call2 deltas=${JSON.stringify(outcome.call2)}`,
       )
     }
   }
