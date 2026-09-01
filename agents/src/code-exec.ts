@@ -315,6 +315,95 @@ export const loadMicrosandbox = async (): Promise<SandboxSdk> => {
   }
 }
 
+/** What an execution needs from a sandbox, whatever provides it. */
+export type SandboxSpec = {
+  /** OCI image for the rootfs (already runtime-resolved: tsImage for ts, image otherwise). */
+  image: string
+  /** Host path of the agent's memory directory, bind-mounted at the workspace guest path. */
+  memoryRoot: string
+  /** Requested execution timeout; the boot path derives the VM's max lifetime from it. */
+  timeoutSecs: number
+}
+
+/**
+ * A sandbox on loan for one execution. `release` MUST be called exactly once, success or failure;
+ * `healthy: false` tells the source the guest may be wedged (a watchdog kill, an SDK error) so it
+ * is disposed rather than ever handed out again.
+ */
+export type SandboxLease = {
+  sandbox: SandboxLike
+  /** Milliseconds spent booting; 0 once a pooling source hands out a warm sandbox. */
+  bootMs: number
+  /** True when the lease reused a live sandbox instead of booting one. */
+  reused: boolean
+  release(opts: {healthy: boolean}): Promise<void>
+}
+
+/**
+ * Where executions get their sandboxes — the seam the warm-pool workstream implements
+ * (docs/exec-warm-pool.md). The default source boots a fresh microVM per lease and tears it down
+ * on release, which is exactly the historical behavior; a pooling source can keep healthy
+ * sandboxes alive between leases without the execute path changing at all.
+ */
+export type SandboxSource = {
+  acquire(spec: SandboxSpec): Promise<SandboxLease>
+}
+
+/** The default source: one fresh ephemeral microVM per lease, torn down on release. */
+function createBootPerCallSource(config: CodeExecConfig, getSdk: () => Promise<SandboxSdk>): SandboxSource {
+  return {
+    async acquire(spec) {
+      const sdk = await getSdk()
+      const bootStartedAt = Date.now()
+      let sandbox: SandboxLike
+      try {
+        let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
+          .image(spec.image)
+          .cpus(config.cpus)
+          .memory(config.memoryMib)
+          .workdir(EXEC_WORKSPACE_GUEST_PATH)
+          .ephemeral(true)
+          .security('restricted')
+          .maxDuration(spec.timeoutSecs + 30)
+          .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(spec.memoryRoot))
+        if (config.allowNetwork) {
+          // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
+          // non-local policy so code can reach the public internet but not the host's private
+          // network or cloud metadata endpoints.
+          const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
+          builder = builder.network((network) =>
+            network
+              .enabled(true)
+              .dns((dns) => dns.nameservers(dnsServers))
+              .policy(nonLocalNetworkPolicy(sdk)),
+          )
+        } else {
+          builder = builder.disableNetwork()
+        }
+        sandbox = await builder.create()
+      } catch (error) {
+        throw new CodeExecError(
+          502,
+          `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
+        )
+      }
+      const bootMs = Date.now() - bootStartedAt
+      recordPerf('exec.boot', bootMs)
+      return {
+        sandbox,
+        bootMs,
+        reused: false,
+        async release() {
+          // Fresh-per-call disposes unconditionally; only a pooling source acts on `healthy`.
+          const teardownStartedAt = Date.now()
+          await teardownSandbox(sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
+          recordPerf('exec.teardown', Date.now() - teardownStartedAt)
+        },
+      }
+    },
+  }
+}
+
 /**
  * Creates the code executor for a service. `loadSdk` is injectable for tests; the real SDK is
  * imported lazily on first execution so unsupported hosts only fail when the tool is used.
@@ -336,6 +425,8 @@ export function createCodeExecutor(
     })
     return sdkPromise
   }
+
+  const source = createBootPerCallSource(config, getSdk)
 
   // Availability cannot change during the process lifetime (platform, staged runtime, config are
   // all fixed at startup), so the probe result is memoized including failures.
@@ -410,45 +501,18 @@ export function createCodeExecutor(
       fs.mkdirSync(memoryRoot, {recursive: true})
       const before = snapshotMemory(request.stateDir)
 
-      const sdk = await getSdk()
       const startedAt = Date.now()
       request.onProgress?.({stage: 'starting'})
-      let sandbox: SandboxLike
-      try {
-        let builder = sdk.Sandbox.builder(`seed-exec-${crypto.randomUUID().slice(0, 13)}`)
-          // TypeScript runs in its own image: the default rootfs carries python and a shell, not bun.
-          .image(request.runtime === 'ts' ? config.tsImage : config.image)
-          .cpus(config.cpus)
-          .memory(config.memoryMib)
-          .workdir(EXEC_WORKSPACE_GUEST_PATH)
-          .ephemeral(true)
-          .security('restricted')
-          .maxDuration(timeoutSecs + 30)
-          .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(memoryRoot))
-        if (config.allowNetwork) {
-          // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
-          // non-local policy so code can reach the public internet but not the host's private
-          // network or cloud metadata endpoints.
-          const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
-          builder = builder.network((network) =>
-            network
-              .enabled(true)
-              .dns((dns) => dns.nameservers(dnsServers))
-              .policy(nonLocalNetworkPolicy(sdk)),
-          )
-        } else {
-          builder = builder.disableNetwork()
-        }
-        sandbox = await builder.create()
-      } catch (error) {
-        throw new CodeExecError(
-          502,
-          `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
-        )
-      }
-      const bootMs = Date.now() - startedAt
-      recordPerf('exec.boot', bootMs)
+      const lease = await source.acquire({
+        // TypeScript runs in its own image: the default rootfs carries python and a shell, not bun.
+        image: request.runtime === 'ts' ? config.tsImage : config.image,
+        memoryRoot,
+        timeoutSecs,
+      })
 
+      // Assume wedged until the exchange completes normally, so every early exit (SDK error,
+      // watchdog kill) disposes the sandbox instead of ever letting a pool source reuse it.
+      let healthy = false
       try {
         const command = runtimeCommand(request.runtime, code)
         request.onProgress?.({stage: 'running'})
@@ -458,15 +522,18 @@ export function createCodeExecutor(
         const deadlineMs = timeoutSecs * 1000 + (config.timeoutGraceMs ?? EXEC_TIMEOUT_GRACE_MS)
         let output: RawExecResult
         try {
-          output = sandbox.execStreamWith
-            ? await runStreamingExec(sandbox, command, timeoutSecs, deadlineMs, request.onProgress)
-            : await runBufferedExec(sandbox, command, timeoutSecs, deadlineMs)
+          output = lease.sandbox.execStreamWith
+            ? await runStreamingExec(lease.sandbox, command, timeoutSecs, deadlineMs, request.onProgress)
+            : await runBufferedExec(lease.sandbox, command, timeoutSecs, deadlineMs)
         } catch (error) {
           throw new CodeExecError(
             502,
             `Code execution failed: ${error instanceof Error ? error.message : String(error)}`,
           )
         }
+        // Synthesized -1 means the exchange never got a real exit status (watchdog kill, vanished
+        // stream) — the guest may be wedged. Any genuine exit code, zero or not, is a healthy VM.
+        healthy = output.code >= 0
         recordPerf('exec.run', Date.now() - runStartedAt)
         const stdout = boundOutput(output.stdout)
         const stderr = boundOutput(output.stderr)
@@ -480,13 +547,11 @@ export function createCodeExecutor(
           stderr: stderr.text,
           truncated: stdout.truncated || stderr.truncated,
           durationMs,
-          bootMs,
+          bootMs: lease.bootMs,
           ...diffMemory(before.files, after.files),
         }
       } finally {
-        const teardownStartedAt = Date.now()
-        await teardownSandbox(sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
-        recordPerf('exec.teardown', Date.now() - teardownStartedAt)
+        await lease.release({healthy})
       }
     },
   }
