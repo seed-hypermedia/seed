@@ -4039,14 +4039,15 @@ export class Service {
     const threadMaxSeq = (id: string): number => {
       const known = maxSeqOf.get(id)
       if (known !== undefined) return known
-      // Any thread of this agent is citable, whoever's account it sits under; so is any thread of
-      // this account. A thread outside both is unreachable to the successor and must not be cited.
+      // Only this agent's own threads are citable. Agents do not read each other's state — they
+      // communicate over public interfaces (documents, comments) until a deliberate inter-agent
+      // contract exists.
       const owned = this.#db
-        .query<{n: number}, [string, string, string]>(
-          `SELECT COUNT(*) AS n FROM sessions WHERE id = ? AND (account_id = ? OR agent_id = ?)`,
-        )
-        .get(id, accountId, agentId)
-      if (!owned?.n) throw new APIError(400, `Source thread ${id} does not exist, or belongs to another agent`)
+        .query<{n: number}, [string, string]>(`SELECT COUNT(*) AS n FROM sessions WHERE id = ? AND agent_id = ?`)
+        .get(id, agentId)
+      if (!owned?.n) {
+        throw new APIError(400, `Source thread ${id} does not exist, or is not one of this agent's threads`)
+      }
       const max =
         this.#db
           .query<{max: number | null}, [string]>(`SELECT MAX(seq) AS max FROM session_events WHERE session_id = ?`)
@@ -10484,13 +10485,13 @@ function readThreadAddress(
   sessionId: string,
   options: Record<string, unknown> = {},
 ): Record<string, unknown> {
-  // Any thread of this agent is readable, whichever account it sits under, and so is any thread
-  // of this account — the same reach a continuation may cite.
+  // Only this agent's own threads are readable — the same reach a continuation may cite. Agents
+  // do not read each other's state; they communicate over public interfaces.
   const session = context.db
-    .query<{id: string; title: string | null; description: string | null; agent_id: string}, [string, string, string]>(
-      `SELECT id, title, description, agent_id FROM sessions WHERE id = ? AND (account_id = ? OR agent_id = ?)`,
+    .query<{id: string; title: string | null; description: string | null; agent_id: string}, [string, string]>(
+      `SELECT id, title, description, agent_id FROM sessions WHERE id = ? AND agent_id = ?`,
     )
-    .get(sessionId, context.accountId, context.agentId)
+    .get(sessionId, context.agentId)
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
@@ -10947,13 +10948,15 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
 }
 
 /**
- * Lists (and searches) the account's conversations for `read thread:` with no id. Search covers
+ * Lists (and searches) THIS AGENT's conversations for `read thread:` with no id. Other agents'
+ * threads are not listed — agents do not read each other's state, whatever account they share —
+ * and the legacy {agentId} option is inert. Search covers
  * titles and, bounded, recent message text — enough to find "that thread where we discussed X"
  * without scanning the whole log history.
  */
 function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
   const limit = boundedInteger(options.limit, 25, 1, 100)
-  const agentId = typeof options.agentId === 'string' && options.agentId ? options.agentId : undefined
+  const agentId = context.agentId
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
 
   type ThreadRow = {
@@ -10981,12 +10984,8 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
       }),
   )
   const loadThreads = (ids?: string[]): ThreadRow[] => {
-    const conditions = ['account_id = ?']
-    const params: (string | number)[] = [context.accountId]
-    if (agentId) {
-      conditions.push('agent_id = ?')
-      params.push(agentId)
-    }
+    const conditions = ['account_id = ?', 'agent_id = ?']
+    const params: (string | number)[] = [context.accountId, agentId]
     if (ids) {
       if (ids.length === 0) return []
       conditions.push(`id IN (${ids.map(() => '?').join(', ')})`)

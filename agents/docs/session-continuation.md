@@ -91,7 +91,8 @@ is not a typed child (`return_result`). Scripts never see it.
   `modelContextWindow(providerType, modelId)` (`model-capabilities.ts`, also used for Pi's model registration). Guidance
   escalates at 70% and 85%.
 - Recall: `read thread:<id>` now prints `[seq]`-prefixed lines, accepts `{fromSeq, toSeq, limit}`, and reports the
-  thread's `continuedFrom`/`continuedTo`.
+  thread's `continuedFrom`/`continuedTo`. Thread reads and cited `session_events` sources reach only this agent's own
+  threads: agents do not read each other's state and communicate over public interfaces instead.
 - Per turn, everywhere: a `<session_status title="…">description</session_status>` block (`sessionStatusBlock`) so the
   `status` verb is a deliberate change, never a restatement — a successor keeps the title and description its
   predecessor gave it. Title = what the whole session is about (a dramatic shift is a continuation, not a rename);

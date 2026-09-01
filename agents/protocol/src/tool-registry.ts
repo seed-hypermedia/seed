@@ -103,7 +103,7 @@ const readVerb = {
     '- `https://…` — read a public web page as markdown.',
     '- `activity:` — the recent activity feed; filter with options {authors, eventTypes, resource, pageSize, pageToken}.',
     '- `attachment:<id>` — a file attached to this conversation (images are shown to you when the model supports it).',
-    "- `thread:<id>` — another conversation transcript of yours, as `[seq] who: text` lines (newest 200 by default; options {fromSeq, toSeq} select an exact range — the way to recall material a continuation handoff cites — and {limit} caps the count), with its continuation lineage. `thread:` alone lists your account's conversations, newest first; options {query} searches titles and message text, {agentId} filters to one agent, {limit} caps results. `run:<id>` — a run journal.",
+    "- `thread:<id>` — another of YOUR OWN conversation transcripts, as `[seq] who: text` lines (newest 200 by default; options {fromSeq, toSeq} select an exact range — the way to recall material a continuation handoff cites — and {limit} caps the count), with its continuation lineage. `thread:` alone lists your conversations, newest first; options {query} searches titles and message text, {limit} caps results. Other agents' threads are not reachable — talk to other agents through documents and comments. `run:<id>` — a run journal.",
     'Directory listings return {entries: [{path, type, size}]}; memory file reads return {content}. Prefer reading exactly what you need; directory listings are cheap, whole trees are not.',
   ].join('\n'),
   inputSchema: {
@@ -124,7 +124,7 @@ const readVerb = {
       options: {
         type: 'object',
         description:
-          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, agentId, limit}; thread transcript {fromSeq, toSeq, limit}; ipfs {path} to choose the memory destination.',
+          'Source-specific options: activity filters {authors, eventTypes, resource, pageSize, pageToken}; thread listing {query, limit}; thread transcript {fromSeq, toSeq, limit}; ipfs {path} to choose the memory destination.',
       },
     },
     required: ['address'],

@@ -77,6 +77,13 @@ Account-owned tables include `account_id`:
 
 Session events do not store account ID directly; the server verifies ownership through the parent session.
 
+## Agent isolation
+
+Agents of the same account do not read each other's state. The `thread:` address (reads and listings) and continuation
+`session_events` sources reach only the calling agent's own threads; memory and tools are per-agent by construction
+(`state_dir`). Until a deliberate inter-agent interaction model exists, agents communicate over public interfaces —
+documents and comments on the hypermedia network — never by inspecting one another's transcripts.
+
 ## Secrets
 
 `SetSecret` accepts key bytes, encrypts them, and returns only redacted metadata. `CreateSigningIdentity` generates a

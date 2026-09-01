@@ -145,26 +145,28 @@ type ReadInput = {
 }
 ```
 
-| address             | behavior                                                                                                                                                                                                             |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `~/memory/<path>`   | file content, or a directory listing (`{entries: [{path, type, size}]}`) for a directory address                                                                                                                     |
-| `~/tools/<name>`    | one tool's full contract as markdown; `~/tools/` alone lists everything callable                                                                                                                                     |
-| `~/triggers/<name>` | one trigger — source, prompt markdown, status, continuation, recent firings; `~/triggers/` lists all, with the write contract inline                                                                                 |
-| `~/self`            | the agent's own record: definition (name, model, provider, reasoning level, system prompt), grants, signing-key names, triggers, memory summary, session count, and guidance on what it can change itself            |
-| `hm://…`            | a hypermedia document or comment, markdown by default                                                                                                                                                                |
-| `ipfs://<cid>`      | fetches through the configured `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it                                                                                                               |
-| `https://…`         | resolved as hypermedia first, then read as a web page                                                                                                                                                                |
-| `activity:`         | the activity feed via `ListEvents`, filtered by `options`                                                                                                                                                            |
-| `attachment:<id>`   | a session-private attachment (images are returned as image content to vision models)                                                                                                                                 |
-| `thread:<id>`       | a conversation transcript (its last 200 events) rendered as markdown                                                                                                                                                 |
-| `thread:`           | lists the account's conversations, newest first; `options.query` searches titles plus a bounded scan (4000 most recent events) of message text with snippets, `options.agentId` filters, `options.limit` caps at 100 |
-| `run:<id>`          | a run's public record, plus `sourceText` for script runs                                                                                                                                                             |
+| address             | behavior                                                                                                                                                                                                  |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `~/memory/<path>`   | file content, or a directory listing (`{entries: [{path, type, size}]}`) for a directory address                                                                                                          |
+| `~/tools/<name>`    | one tool's full contract as markdown; `~/tools/` alone lists everything callable                                                                                                                          |
+| `~/triggers/<name>` | one trigger — source, prompt markdown, status, continuation, recent firings; `~/triggers/` lists all, with the write contract inline                                                                      |
+| `~/self`            | the agent's own record: definition (name, model, provider, reasoning level, system prompt), grants, signing-key names, triggers, memory summary, session count, and guidance on what it can change itself |
+| `hm://…`            | a hypermedia document or comment, markdown by default                                                                                                                                                     |
+| `ipfs://<cid>`      | fetches through the configured `/ipfs/` gateway into memory (default path `ipfs/<cid>`) and returns it                                                                                                    |
+| `https://…`         | resolved as hypermedia first, then read as a web page                                                                                                                                                     |
+| `activity:`         | the activity feed via `ListEvents`, filtered by `options`                                                                                                                                                 |
+| `attachment:<id>`   | a session-private attachment (images are returned as image content to vision models)                                                                                                                      |
+| `thread:<id>`       | a conversation transcript (its last 200 events) rendered as markdown                                                                                                                                      |
+| `thread:`           | lists THIS AGENT's conversations, newest first; `options.query` searches titles plus a bounded scan (4000 most recent events) of message text with snippets, `options.limit` caps at 100                  |
+| `run:<id>`          | a run's public record, plus `sourceText` for script runs                                                                                                                                                  |
 
 Unrecognized addresses fail with the supported list (`api-service.ts:7350`).
 
-`thread:` and `run:` are scoped by **account**, not by agent (`readThreadAddress`, `threadsListing`, `readRunAddress`).
-One agent can list, search, and read the transcripts and runs of every other agent on the same account — deliberate, so
-an agent asked "what did my research agent find yesterday?" can answer (see `security.md`).
+`thread:` reads and listings are scoped to the **agent's own threads** (`readThreadAddress`, `threadsListing`): agents
+do not read each other's state, whatever account they share — they communicate over public interfaces (documents,
+comments) until a deliberate inter-agent contract exists. `run:` remains account-scoped (`readRunAddress`). One agent
+can list, search, and read the transcripts and runs of every other agent on the same account — deliberate, so an agent
+asked "what did my research agent find yesterday?" can answer (see `security.md`).
 
 **Tool contracts.** A read of `~/tools/<name>` resolves verbs from the registry and everything else from the agent's
 tool documents. A builtin the agent has not been granted reads as "no tool named …" plus the listing, so grants are not
