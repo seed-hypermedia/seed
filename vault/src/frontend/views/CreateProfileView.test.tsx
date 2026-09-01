@@ -54,7 +54,9 @@ describe('CreateProfileView', () => {
   test('shares the email with the notification server by default', async () => {
     const {createAccount} = renderCreateProfileView()
 
-    const checkbox = screen.getByLabelText('Notify me at test@example.com') as HTMLInputElement
+    const checkbox = screen.getByLabelText(
+      'Get email notifications about mentions and replies activity.',
+    ) as HTMLInputElement
     expect(checkbox.checked).toBe(true)
 
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
@@ -84,7 +86,7 @@ describe('CreateProfileView', () => {
   test('registers without an email when the checkbox is unchecked', async () => {
     const {createAccount} = renderCreateProfileView()
 
-    fireEvent.click(screen.getByLabelText('Notify me at test@example.com'))
+    fireEvent.click(screen.getByLabelText('Get email notifications about mentions and replies activity.'))
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
     fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
 
