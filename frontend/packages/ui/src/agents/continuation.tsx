@@ -68,7 +68,8 @@ const CONTEXT_URGENT_FRACTION = 0.85
 /**
  * The context meter: a small pie showing how much of the model's window the last turn used.
  * Muted while there is room, amber as it nears the point where the agent should continue, red
- * when it is nearly full. Renders nothing until there is a measurement.
+ * when it is nearly full. Just the pie — the exact tokens and percentage live in its hover
+ * tooltip. Renders nothing until there is a measurement.
  */
 export function ContextUsageMeter({
   tokens,
@@ -95,7 +96,7 @@ export function ContextUsageMeter({
   const label = `Context: ${formatTokenCount(tokens)} of ${formatTokenCount(contextWindow)} tokens used (${percent}%)`
   return (
     <span
-      className={cn('inline-flex shrink-0 items-center gap-1.5 text-[11px] tabular-nums', tone, className)}
+      className={cn('inline-flex shrink-0 items-center', tone, className)}
       title={label}
       aria-label={label}
       role="img"
@@ -115,7 +116,6 @@ export function ContextUsageMeter({
           transform="rotate(-90 10 10)"
         />
       </svg>
-      <span>{percent}%</span>
     </span>
   )
 }

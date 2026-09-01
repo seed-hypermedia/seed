@@ -944,11 +944,6 @@ function AssistantSessionChat({
           />
         ) : null}
         <SessionSummaryBanner compact description={session.data?.session.description} />
-        {contextTokens !== undefined && session.data?.contextWindow ? (
-          <div className="border-border flex flex-none justify-end border-b px-3 py-1">
-            <ContextUsageMeter tokens={contextTokens} contextWindow={session.data.contextWindow} size={14} />
-          </div>
-        ) : null}
         <div
           ref={autoScroll.containerRef}
           onScroll={autoScroll.handleScroll}
@@ -1089,7 +1084,8 @@ function AssistantSessionChat({
         {/* The active model for THIS session: the same per-session override switcher as the full
           session page, so changing it here never touches the agent's default. */}
         {session.data ? (
-          <div className="flex flex-none items-center justify-end px-3 pb-2">
+          <div className="flex flex-none items-center justify-end gap-2 px-3 pb-2">
+            <ContextUsageMeter tokens={contextTokens} contextWindow={session.data.contextWindow} size={16} />
             <SessionModelBadge
               agent={agentDetail.data?.agent}
               agentId={session.data.session.agentId}
