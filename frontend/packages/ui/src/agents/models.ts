@@ -114,10 +114,17 @@ function applyAgentToCaches(serverUrl: string, accountUid: string, agent: AgentI
  */
 function applySessionToCaches(serverUrl: string, accountUid: string, session: SessionInfo): void {
   const client = getQueryClient()
+  let modelChanged = false
   client.setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, session.id]}, (old: any) => {
     if (!old || old._ !== 'GetSessionResponse') return old
+    // GetSessionResponse carries model-derived fields beside the session (contextWindow); a model
+    // override change makes them stale, and only a refetch recomputes them.
+    if (JSON.stringify(old.session?.modelOverride ?? null) !== JSON.stringify(session.modelOverride ?? null)) {
+      modelChanged = true
+    }
     return {...old, session}
   })
+  if (modelChanged) invalidateQueries(['agents', 'session', serverUrl, accountUid, session.id])
   client.setQueriesData({queryKey: ['agents', 'sessions', serverUrl, accountUid]}, (old: any) => {
     if (!Array.isArray(old)) return old
     if (!old.some((entry: AgentSessionListEntry) => entry.session.id === session.id)) {

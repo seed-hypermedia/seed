@@ -7721,13 +7721,23 @@ export class Service {
     return sessionContinuationLinksOf(this.#db, accountId, sessionId)
   }
 
-  /** The context window of the model a session runs on (its override, else the agent's model). */
+  /**
+   * The context window of the model a session runs on (its override, else the agent's model) —
+   * from the SAME resolution the run itself registers with Pi, so the meter and the runtime's
+   * <context_usage> block never disagree: the Codex subscription catalog for subscription
+   * providers, the shared per-model heuristics otherwise.
+   */
   #sessionContextWindow(accountId: string, definition: api.AgentDefinition, session: api.SessionInfo): number {
     const effective = this.#definitionForSession(accountId, definition, session)
     const providerRow = this.#db
-      .query<{type: string}, [string, string]>(`SELECT type FROM model_providers WHERE account_id = ? AND name = ?`)
+      .query<{config_cbor: Uint8Array}, [string, string]>(
+        `SELECT config_cbor FROM model_providers WHERE account_id = ? AND name = ?`,
+      )
       .get(accountId, effective.modelProvider)
-    return modelContextWindow(providerRow?.type ?? '', effective.model)
+    if (!providerRow) return modelContextWindow('', effective.model)
+    const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
+    const subscription = provider.authMode === 'subscription'
+    return piModelForDefinition(provider.type, '', effective, {subscription}).contextWindow
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {

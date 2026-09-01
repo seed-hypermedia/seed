@@ -94,17 +94,10 @@ export function ContextUsageMeter({
         : 'text-muted-foreground'
   const radius = 8
   const circumference = 2 * Math.PI * radius
-  const remaining = Math.max(0, contextWindow - tokens)
   const label = `Context ${percent}% full`
-  const detail = [
-    `${tokens.toLocaleString('en-US')} of ${contextWindow.toLocaleString('en-US')} tokens used (${percent}%)`,
-    `${remaining.toLocaleString('en-US')} tokens (${Math.max(0, 100 - percent)}%) remaining`,
-    fraction >= CONTEXT_URGENT_FRACTION
-      ? 'Nearly full — the agent should continue to a fresh session now.'
-      : fraction >= CONTEXT_WARN_FRACTION
-        ? 'Getting full — the agent will continue to a fresh session at the next natural boundary.'
-        : 'The agent continues to a fresh session at a natural boundary, around 70% full.',
-  ].join('\n')
+  const detail = `${tokens.toLocaleString('en-US')} of ${contextWindow.toLocaleString(
+    'en-US',
+  )} tokens used (${percent}%)`
   return (
     <Tooltip content={`${label}\n${detail}`} contentClassName="whitespace-pre-line text-left" asChild>
       <span className={cn('inline-flex shrink-0 items-center', tone, className)} aria-label={label} role="img">
