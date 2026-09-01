@@ -161,6 +161,40 @@ describe('warm pool source', () => {
     expect(aAgain.sandbox).toBe(a.sandbox)
   })
 
+  test('SECURITY: malformed principal ids never pool — undefined/null/empty cannot share a VM', async () => {
+    const farm = guestFarm()
+    const source = createWarmPoolSource(poolConfig(), async () => farm.sdk)
+    // undefined and null both JSON-serialize to null, so without validation these two "identities"
+    // would collide into one retained-VM key (ion's session-delta finding).
+    const malformed: Array<Record<string, unknown>> = [
+      {accountId: 'acct', agentId: 'agent'}, // sessionId omitted
+      {accountId: 'acct', agentId: 'agent', sessionId: undefined},
+      {accountId: 'acct', agentId: 'agent', sessionId: null},
+      {accountId: 'acct', agentId: 'agent', sessionId: ''},
+      {accountId: '', agentId: 'agent', sessionId: 'session-1'},
+      {accountId: 'acct', agentId: null, sessionId: 'session-1'},
+    ]
+    const seen: unknown[] = []
+    for (const principal of malformed) {
+      const spec = {...specFor('x', 'x'), principal: principal as never}
+      const lease = await source.acquire(spec)
+      // Never a reuse, never the same sandbox as any earlier malformed acquire.
+      expect(lease.reused).toBe(false)
+      expect(seen).not.toContain(lease.sandbox)
+      seen.push(lease.sandbox)
+      // Single-use: disposed on release even when healthy — a malformed identity is never parked.
+      await lease.release({healthy: true})
+      await settled(() => (lease.sandbox as GuestSandbox).stopped)
+    }
+    expect(perfSnapshot().counters['exec.pool_invalid_principal']!.count).toBe(malformed.length)
+    // A well-formed principal still pools normally afterwards.
+    const good = await source.acquire(specFor('acct', 'agent'))
+    await good.release({healthy: true})
+    const again = await source.acquire(specFor('acct', 'agent'))
+    expect(again.sandbox).toBe(good.sandbox)
+    expect(again.reused).toBe(true)
+  })
+
   test('reuse is session-scoped: the same agent in a different session gets a fresh VM', async () => {
     const farm = guestFarm()
     const source = createWarmPoolSource(poolConfig(), async () => farm.sdk)

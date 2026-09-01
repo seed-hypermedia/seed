@@ -547,6 +547,18 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
   const keyOf = (spec: SandboxSpec): string =>
     JSON.stringify([spec.principal.accountId, spec.principal.agentId, spec.principal.sessionId, spec.image])
 
+  /**
+   * SECURITY: the pool key is only sound when every part is a real identifier. Types promise
+   * that, but a plain-JavaScript caller can pass undefined/null/'' — and JSON.stringify maps
+   * undefined and null to the SAME serialized entry, so two malformed "identities" would collide
+   * into one retained-VM key (found by ion's session-delta review). A malformed principal
+   * therefore never touches the pool at all: the execution falls back to a single-use VM, which
+   * cannot be shared with anyone.
+   */
+  const validId = (value: unknown): boolean => typeof value === 'string' && value.length > 0
+  const validPrincipal = (spec: SandboxSpec): boolean =>
+    validId(spec.principal?.accountId) && validId(spec.principal?.agentId) && validId(spec.principal?.sessionId)
+
   const disposeSandbox = (sandbox: SandboxLike): void => {
     const teardownStartedAt = Date.now()
     let done: Promise<void>
@@ -735,6 +747,12 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
 
   return {
     async acquire(spec) {
+      if (!validPrincipal(spec)) {
+        // Fail closed: no pooling for an identity we cannot trust — single-use VM, never parked.
+        recordPerfCount('exec.pool_invalid_principal')
+        const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
+        return overflowLease(sandbox, bootMs)
+      }
       const key = keyOf(spec)
       const existing = entries.get(key)
       if (existing && !existing.leased) {

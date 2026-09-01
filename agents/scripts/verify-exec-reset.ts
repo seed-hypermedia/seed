@@ -18,7 +18,8 @@
  *   `exec.pool_reset_exhausted` in the call-1 counter window, none anywhere else) and call 2 must
  *   be a clean fresh boot. This proves the fail-closed path with positive attribution, not just
  *   the happy path. Probabilistic by nature — a pass can catch every pending chain tip
- *   pre-recursion — so the harness retries and reports a converged attempt rather than passing it.
+ *   pre-recursion — a converged run is reported as a terminal scenario failure; rerunning the
+ *   harness is a human decision.
  *
  * Detection is by a marker assembled at runtime in call 2, so the autopsy shell's own cmdline
  * (which carries this script's text) can never match itself — a literal marker produced false

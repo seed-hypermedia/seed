@@ -83,10 +83,11 @@ export function judgeAttempt(expect: Expectation, a: AttemptEvidence): AttemptJu
 }
 
 /**
- * Judges a sequence of attempts: the first failed attempt decides the scenario, and a later
- * passing attempt can never overwrite it. With every judgement terminal this reduces to the first
- * attempt, but the rule is encoded (and regression-tested) here so no future retry loop can
- * reintroduce the silent-overwrite bug.
+ * Judges a sequence of attempts conservatively: ANY failed attempt fails the scenario (the first
+ * failure's judgement is returned, and no later pass can overwrite it); an all-pass sequence
+ * returns the last pass. The current script integration supplies exactly one attempt, but the
+ * rule is encoded (and regression-tested) here so no future retry loop can reintroduce the
+ * silent-overwrite bug in either direction.
  */
 export function judgeScenario(expect: Expectation, attempts: AttemptEvidence[]): AttemptJudgement {
   if (attempts.length === 0) return {verdict: 'FAIL (no attempts ran)', failed: true}
