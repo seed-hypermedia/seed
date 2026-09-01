@@ -28,7 +28,12 @@ Two distinct wins, one mechanism: fast single calls (boot removed) and fast dev 
   motivated the pool are intra-session. Image is part of the key because `ts` runs in a different rootfs than
   python/shell.
 - `execute` checks the pool: hit → run in the live VM; miss → boot one, run, then **park it** instead of tearing down.
-- **Idle TTL ~10 min**, sliding — also the natural end-of-life for a finished session's VM. **Caps**: 1 VM per session,
+- **Idle TTL 3 min** (`SEED_AGENTS_EXEC_POOL_IDLE_TTL_SECS`), sliding — the natural end-of-life for a finished session's
+  VM, and short because a re-boot costs only ~200–500ms while a parked VM holds ~512MB of guest RAM. **Max age 30 min**
+  (`SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS`), enforced only BETWEEN calls (Eric, 2026-09-01: expiry must never interrupt a
+  call in flight): an over-age VM finishes its call, is disposed at park time (`exec.pool_recycled`), and the next call
+  boots fresh — bounding zombie-corpse and memory drift in long sessions without any mid-use kill. The SDK's own
+  `maxDuration` is a distant 24h backstop against pool-bookkeeping bugs, not a policy clock. **Caps**: 1 VM per session,
   `SEED_AGENTS_EXEC_MAX_VMS` host-wide (start at 3 on the current prod box; scale with vCPUs). LRU eviction on cap
   pressure.
 - Eviction is always safe: `/workspace` is a bind mount, so durable state survives; only guest RAM is lost — which is

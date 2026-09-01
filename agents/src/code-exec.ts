@@ -74,8 +74,13 @@ export type CodeExecConfig = {
   poolMaxVms: number
   /** How long a parked VM may sit idle before it is disposed. */
   poolIdleTtlMs: number
-  /** Hard lifetime of a pooled VM from boot (also its SDK max duration). */
-  poolVmLifetimeMs: number
+  /**
+   * Maximum age of a pooled VM, enforced only BETWEEN calls: an over-age VM is disposed at park
+   * time, after its call completed — a VM can never expire while it is being used. Bounds the
+   * slow cruft of a long-lived guest (unreaped zombie corpses from per-call resets, memory drift)
+   * at the cost of one invisible re-boot per this interval of continuous use.
+   */
+  poolVmMaxAgeMs: number
   /** Override for EXEC_TIMEOUT_GRACE_MS, so tests can exercise the watchdog without real waits. */
   timeoutGraceMs?: number
   /** Override for EXEC_TEARDOWN_TIMEOUT_MS, so tests can exercise stop→kill escalation quickly. */
@@ -300,8 +305,8 @@ export function defaultCodeExecConfig(): CodeExecConfig {
     dnsServers: DEFAULT_EXEC_DNS_SERVERS,
     warmPool: false,
     poolMaxVms: 3,
-    poolIdleTtlMs: 10 * 60_000,
-    poolVmLifetimeMs: 30 * 60_000,
+    poolIdleTtlMs: 3 * 60_000,
+    poolVmMaxAgeMs: 30 * 60_000,
   }
 }
 
@@ -478,8 +483,25 @@ export const createBootPerCallSource: SandboxSourceFactory = (config, getSdk) =>
   }
 }
 
-/** How long a guest reset or health probe may take before the VM is judged wedged and disposed. */
+/** How long a guest health probe may take before the VM is judged wedged and disposed. */
 export const POOL_GUEST_EXEC_TIMEOUT_MS = 2_000
+
+/**
+ * How long the park reset may take. Its own, larger budget: the reset is a bounded FIVE-pass
+ * /proc sweep whose passes slow down exactly when a guest is crowded — observed live: a 3-chain
+ * respawn storm pushed the sweep past a 2s budget, so the deadline fired before the script could
+ * deliver its designated exit-1 verdict and the disposal was misattributed to a transport error.
+ * The budget must comfortably contain a worst-case full sweep so 'fail' (the guest's own verdict)
+ * and 'error' (a genuinely broken exchange) stay distinguishable.
+ */
+export const POOL_GUEST_RESET_TIMEOUT_MS = 15_000
+
+/**
+ * SDK max duration handed to pooled VMs: a last-resort backstop against pool-bookkeeping bugs (a
+ * lost entry or timer), far beyond anything age/TTL policy allows, so the hypervisor can never
+ * kill a VM that is actually in use.
+ */
+export const POOL_VM_SDK_MAX_DURATION_SECS = 24 * 3600
 
 /**
  * The warm pool (docs/exec-warm-pool.md): keeps one VM alive per (principal, image) between
@@ -497,9 +519,10 @@ export const POOL_GUEST_EXEC_TIMEOUT_MS = 2_000
  *   below) until a full pass proves the guest empty; a failed reset disposes the VM. Reuse is
  *   additionally gated on a health probe, so a VM that died while parked is replaced, not handed out.
  * - An unhealthy release always disposes; a wedged VM is never parked.
- * - Pooled VM lifetime is pool policy (`poolVmLifetimeMs`, idle TTL, LRU cap eviction) — never
- *   derived from any single call's timeout. A parked VM without enough lifetime left for the
- *   requested call is replaced.
+ * - Pooled VM lifetime is pool policy (`poolVmMaxAgeMs`, idle TTL, LRU cap eviction) — never
+ *   derived from any single call's timeout, and never enforced mid-use: age is checked only at
+ *   park time, so an over-age VM always finishes its call and is then recycled. The SDK max
+ *   duration is a distant backstop (POOL_VM_SDK_MAX_DURATION_SECS) no real workload reaches.
  * - Disposal is asynchronous (off the tool call's critical path); `drain` settles it.
  *
  * The `poolMaxVms` cap bounds pooled VMs; overflow VMs are transient extras, exactly as costly as
@@ -546,11 +569,15 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
    * exchange broke (exception, deadline, or any other exit code, e.g. a shell parse error) — so
    * counters can attribute a disposal to the guest's verdict versus transport trouble.
    */
-  const guestExec = async (sandbox: SandboxLike, script: string): Promise<'ok' | 'fail' | 'error'> => {
-    const deadline = createDeadline(POOL_GUEST_EXEC_TIMEOUT_MS + 500)
+  const guestExec = async (
+    sandbox: SandboxLike,
+    script: string,
+    budgetMs: number,
+  ): Promise<'ok' | 'fail' | 'error'> => {
+    const deadline = createDeadline(budgetMs + 500)
     try {
       const outcome = await raceDeadline(
-        sandbox.execWith('/bin/sh', (builder) => builder.args(['-c', script]).timeout(POOL_GUEST_EXEC_TIMEOUT_MS)),
+        sandbox.execWith('/bin/sh', (builder) => builder.args(['-c', script]).timeout(budgetMs)),
         deadline.promise,
       )
       if (outcome === EXEC_DEADLINE) return 'error'
@@ -648,14 +675,9 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
     'done',
     'exit 1',
   ].join('\n')
-  const resetGuest = (sandbox: SandboxLike) => guestExec(sandbox, GUEST_RESET_SCRIPT)
-  const probeGuest = async (sandbox: SandboxLike) => (await guestExec(sandbox, 'exit 0')) === 'ok'
-
-  /** Whether a parked VM has enough lifetime left to safely serve this call. */
-  const lifetimeCovers = (entry: PoolEntry, spec: SandboxSpec): boolean => {
-    const remainingMs = config.poolVmLifetimeMs - (Date.now() - entry.bootedAt)
-    return remainingMs > spec.timeoutSecs * 1000 + (config.timeoutGraceMs ?? EXEC_TIMEOUT_GRACE_MS)
-  }
+  const resetGuest = (sandbox: SandboxLike) => guestExec(sandbox, GUEST_RESET_SCRIPT, POOL_GUEST_RESET_TIMEOUT_MS)
+  const probeGuest = async (sandbox: SandboxLike) =>
+    (await guestExec(sandbox, 'exit 0', POOL_GUEST_EXEC_TIMEOUT_MS)) === 'ok'
 
   const pooledLease = (entry: PoolEntry, bootMs: number, reused: boolean): SandboxLease => {
     let released = false
@@ -667,6 +689,13 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
         if (released) return
         released = true
         if (!healthy) {
+          disposeEntry(entry)
+          return
+        }
+        // Generational recycle, between calls only: an over-age VM is disposed here — after its
+        // call completed, never before or during one — so expiry can never interrupt work.
+        if (Date.now() - entry.bootedAt > config.poolVmMaxAgeMs) {
+          recordPerfCount('exec.pool_recycled')
           disposeEntry(entry)
           return
         }
@@ -712,13 +741,11 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
         // Lock before the first await so an interleaved same-key acquire can never double-lease.
         existing.leased = true
         if (existing.idleTimer) clearTimeout(existing.idleTimer)
-        if (lifetimeCovers(existing, spec)) {
-          if (await probeGuest(existing.sandbox)) {
-            recordPerfCount('exec.pool_hit')
-            return pooledLease(existing, 0, true)
-          }
-          recordPerfCount('exec.pool_probe_failed')
+        if (await probeGuest(existing.sandbox)) {
+          recordPerfCount('exec.pool_hit')
+          return pooledLease(existing, 0, true)
         }
+        recordPerfCount('exec.pool_probe_failed')
         disposeEntry(existing)
       }
       if (entries.get(key)?.leased === true) {
@@ -736,7 +763,7 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
         if (!oldest) break
         disposeEntry(oldest)
       }
-      const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, Math.ceil(config.poolVmLifetimeMs / 1000))
+      const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, POOL_VM_SDK_MAX_DURATION_SECS)
       if (entries.has(key) || entries.size >= config.poolMaxVms) {
         // Lost a boot race for this key, or every slot filled while booting: stay single-use.
         // Counted as overflow — the counters classify what a VM BECAME, not what was hoped for.

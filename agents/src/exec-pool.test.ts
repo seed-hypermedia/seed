@@ -93,7 +93,7 @@ function poolConfig(overrides: Partial<CodeExecConfig> = {}): CodeExecConfig {
     warmPool: true,
     poolMaxVms: 3,
     poolIdleTtlMs: 60_000,
-    poolVmLifetimeMs: 60_000,
+    poolVmMaxAgeMs: 60_000,
     teardownTimeoutMs: 200,
     timeoutGraceMs: 100,
     ...overrides,
@@ -234,16 +234,21 @@ describe('warm pool source', () => {
     expect(perfSnapshot().counters['exec.pool_probe_failed']!.count).toBe(1)
   })
 
-  test('VM lifetime is pool policy: a parked VM without enough life left is replaced, not reused', async () => {
+  test('an over-age VM is recycled at park time — after its call, never during it', async () => {
     const farm = guestFarm()
-    // Lifetime budget: 1s call timeout + 100ms grace must NOT fit into what remains after aging.
-    const source = createWarmPoolSource(poolConfig({poolVmLifetimeMs: 1_300}), async () => farm.sdk)
-    const first = await source.acquire(specFor('acct', 'agent', 1))
+    const source = createWarmPoolSource(poolConfig({poolVmMaxAgeMs: 50}), async () => farm.sdk)
+    const first = await source.acquire(specFor('acct', 'agent'))
+    // The call outlives the max age; the lease is untouched while in use.
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    expect(farm.sandboxes[0]!.stopped).toBe(false)
     await first.release({healthy: true})
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    const second = await source.acquire(specFor('acct', 'agent', 1))
-    expect(second.sandbox).not.toBe(first.sandbox)
+    // Park-time recycle: disposed after the call completed, counted, and no reset was attempted.
     await settled(() => farm.sandboxes[0]!.stopped)
+    expect(perfSnapshot().counters['exec.pool_recycled']!.count).toBe(1)
+    expect(farm.sandboxes[0]!.execScripts.length).toBe(0)
+    const second = await source.acquire(specFor('acct', 'agent'))
+    expect(second.sandbox).not.toBe(first.sandbox)
+    expect(second.reused).toBe(false)
   })
 
   test('idle TTL disposes a parked VM', async () => {
@@ -289,7 +294,7 @@ describe('warm pool through the executor', () => {
     const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exec-pool-test-'))
     try {
       const farm = guestFarm()
-      const executor = createCodeExecutor(poolConfig({poolVmLifetimeMs: 600_000}), async () => farm.sdk)
+      const executor = createCodeExecutor(poolConfig(), async () => farm.sdk)
       const alpha = {accountId: 'acct', agentId: 'alpha', sessionId: 's1'}
       const first = await executor.execute({principal: alpha, stateDir, runtime: 'shell', code: 'echo hi'})
       const second = await executor.execute({principal: alpha, stateDir, runtime: 'shell', code: 'echo again'})
