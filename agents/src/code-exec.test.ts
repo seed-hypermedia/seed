@@ -16,6 +16,10 @@ import {
   type ExecOutputLike,
   type ExecStreamEventLike,
   type SandboxSdk,
+  type SandboxLease,
+  type SandboxLike,
+  type SandboxSourceFactory,
+  type SandboxSpec,
 } from '@/code-exec'
 
 function withStateDir(run: (stateDir: string) => Promise<void>): Promise<void> {
@@ -169,6 +173,8 @@ function fakeSdk(
   }
 }
 
+const principal = {accountId: 'test-account', agentId: 'test-agent'}
+
 describe('code exec', () => {
   test('runs python inside an ephemeral restricted sandbox with memory bind-mounted', async () => {
     await withStateDir(async (stateDir) => {
@@ -176,7 +182,7 @@ describe('code exec', () => {
       const call: FakeCall = {mounts: []}
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(call))
 
-      const result = await executor.execute({stateDir, runtime: 'python', code: 'print("hi")'})
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'print("hi")'})
       expect(result).toMatchObject({exitCode: 0, success: true, stdout: 'ok\n', truncated: false, changedFiles: []})
 
       expect(call.image).toBe('python')
@@ -208,7 +214,7 @@ describe('code exec', () => {
       // on every host is the claim this test is named for — withhold the image, and ts is not on
       // offer. The configured set itself is asserted through `runtimes` above.
       expect((await withoutBun.availability()).runtimes).not.toContain('ts')
-      await expect(withoutBun.execute({stateDir, runtime: 'ts', code: 'console.log(1)'})).rejects.toThrow(
+      await expect(withoutBun.execute({principal, stateDir, runtime: 'ts', code: 'console.log(1)'})).rejects.toThrow(
         'needs a sandbox image with bun',
       )
 
@@ -216,7 +222,7 @@ describe('code exec', () => {
       const call: FakeCall = {mounts: []}
       const withBun = createCodeExecutor({...defaultCodeExecConfig(), tsImage: 'oven/bun'}, async () => fakeSdk(call))
       expect(withBun.runtimes).toEqual(['ts', 'python', 'shell'])
-      await withBun.execute({stateDir, runtime: 'ts', code: 'console.log(1)'})
+      await withBun.execute({principal, stateDir, runtime: 'ts', code: 'console.log(1)'})
       expect(call.image).toBe('oven/bun')
       expect(call.exec).toEqual({cmd: 'bun', args: ['-e', 'console.log(1)'], timeoutMs: 60_000})
     })
@@ -235,7 +241,7 @@ describe('code exec', () => {
     await withStateDir(async (stateDir) => {
       const offCall: FakeCall = {mounts: []}
       const off = createCodeExecutor({...defaultCodeExecConfig(), allowNetwork: false}, async () => fakeSdk(offCall))
-      await off.execute({stateDir, runtime: 'python', code: 'x'})
+      await off.execute({principal, stateDir, runtime: 'python', code: 'x'})
       expect(offCall.networkDisabled).toBe(true)
       expect(offCall.networkEnabled).toBeUndefined()
 
@@ -243,7 +249,7 @@ describe('code exec', () => {
       const custom = createCodeExecutor({...defaultCodeExecConfig(), dnsServers: ['9.9.9.9']}, async () =>
         fakeSdk(dnsCall),
       )
-      await custom.execute({stateDir, runtime: 'python', code: 'x'})
+      await custom.execute({principal, stateDir, runtime: 'python', code: 'x'})
       expect(dnsCall.dnsServers).toEqual(['9.9.9.9'])
     })
   })
@@ -253,7 +259,7 @@ describe('code exec', () => {
       const call: FakeCall = {mounts: []}
       const oldSdk = {...fakeSdk(call), NetworkPolicy: {nonLocal: () => 'nonLocal'}}
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => oldSdk)
-      await executor.execute({stateDir, runtime: 'python', code: 'x'})
+      await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
       expect(call.networkPolicy).toBe('nonLocal')
     })
   })
@@ -262,7 +268,7 @@ describe('code exec', () => {
     await withStateDir(async (stateDir) => {
       const call: FakeCall = {mounts: []}
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(call))
-      await executor.execute({stateDir, runtime: 'shell', code: 'ls -la', timeoutSecs: 10_000})
+      await executor.execute({principal, stateDir, runtime: 'shell', code: 'ls -la', timeoutSecs: 10_000})
       expect(call.exec).toEqual({cmd: '/bin/sh', args: ['-c', 'ls -la'], timeoutMs: 300_000})
     })
   })
@@ -283,7 +289,7 @@ describe('code exec', () => {
           },
         }),
       )
-      const result = await executor.execute({stateDir, runtime: 'python', code: 'x'})
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
       expect(result.changedFiles).toEqual([
         {path: 'edit.md', change: 'modified'},
         {path: 'gone.md', change: 'removed'},
@@ -303,7 +309,7 @@ describe('code exec', () => {
           },
         }),
       )
-      const result = await executor.execute({stateDir, runtime: 'python', code: 'x'})
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
       expect(result.changedFiles).toHaveLength(200)
       expect(result.changedFilesTotal).toBe(250)
       expect(result.changedFiles[0]).toEqual({path: 'bulk-000.md', change: 'added'})
@@ -316,7 +322,7 @@ describe('code exec', () => {
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
         fakeSdk(call, {output: {code: 3, success: false, stdoutText: 'x'.repeat(MAX_EXEC_OUTPUT_BYTES + 100)}}),
       )
-      const result = await executor.execute({stateDir, runtime: 'python', code: 'x'})
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
       expect(result.exitCode).toBe(3)
       expect(result.success).toBe(false)
       expect(result.truncated).toBe(true)
@@ -341,6 +347,7 @@ describe('code exec', () => {
       )
       const progress: CodeExecProgress[] = []
       const result = await executor.execute({
+        principal,
         stateDir,
         runtime: 'python',
         code: 'print("hi")',
@@ -368,7 +375,7 @@ describe('code exec', () => {
           ],
         }),
       )
-      const result = await executor.execute({stateDir, runtime: 'shell', code: 'sleep 999'})
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'sleep 999'})
       expect(result.exitCode).toBe(-1)
       expect(result.success).toBe(false)
       expect(result.stdout).toBe('partial\n')
@@ -392,7 +399,7 @@ describe('code exec', () => {
         }),
       )
       const startedAt = Date.now()
-      const result = await executor.execute({stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
       expect(Date.now() - startedAt).toBeLessThan(5_000)
       expect(result.exitCode).toBe(-1)
       expect(result.success).toBe(false)
@@ -410,7 +417,7 @@ describe('code exec', () => {
       const executor = createCodeExecutor({...defaultCodeExecConfig(), timeoutGraceMs: 50}, async () =>
         fakeSdk(call, {execHangs: true}),
       )
-      const result = await executor.execute({stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'sleep 999', timeoutSecs: 1})
       expect(result.exitCode).toBe(-1)
       expect(result.success).toBe(false)
       expect(result.stderr).toContain('killed by the server')
@@ -424,7 +431,7 @@ describe('code exec', () => {
       const executor = createCodeExecutor({...defaultCodeExecConfig(), teardownTimeoutMs: 50}, async () =>
         fakeSdk(call, {stopHangs: true}),
       )
-      const result = await executor.execute({stateDir, runtime: 'python', code: 'print("hi")'})
+      const result = await executor.execute({principal, stateDir, runtime: 'python', code: 'print("hi")'})
       // The execution itself succeeded; a wedged stop must not lose the result or leak the VM.
       expect(result.success).toBe(true)
       expect(call.stopped).toBeUndefined()
@@ -438,7 +445,7 @@ describe('code exec', () => {
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
         fakeSdk(call, {execError: new Error('boom')}),
       )
-      await expect(executor.execute({stateDir, runtime: 'shell', code: 'x'})).rejects.toThrow('boom')
+      await expect(executor.execute({principal, stateDir, runtime: 'shell', code: 'x'})).rejects.toThrow('boom')
       expect(call.stopped).toBe(true)
     })
   })
@@ -511,24 +518,153 @@ describe('code exec', () => {
     await withStateDir(async (stateDir) => {
       const disabled = createCodeExecutor({...defaultCodeExecConfig(), backend: ''}, async () => fakeSdk({mounts: []}))
       expect(disabled.enabled).toBe(false)
-      await expect(disabled.execute({stateDir, runtime: 'python', code: 'x'})).rejects.toThrow('not enabled')
+      await expect(disabled.execute({principal, stateDir, runtime: 'python', code: 'x'})).rejects.toThrow('not enabled')
 
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk({mounts: []}))
       expect(executor.enabled).toBe(true)
-      await expect(executor.execute({stateDir, runtime: 'python', code: '  '})).rejects.toThrow('Code is required')
-      await expect(executor.execute({stateDir, runtime: 'ruby' as never, code: 'x'})).rejects.toThrow(
+      await expect(executor.execute({principal, stateDir, runtime: 'python', code: '  '})).rejects.toThrow(
+        'Code is required',
+      )
+      await expect(executor.execute({principal, stateDir, runtime: 'ruby' as never, code: 'x'})).rejects.toThrow(
         'Runtime must be one of: ts, python, shell',
       )
 
       const broken = createCodeExecutor(defaultCodeExecConfig(), async () => {
         throw new Error('no virtualization')
       })
-      await expect(broken.execute({stateDir, runtime: 'python', code: 'x'})).rejects.toThrow(
+      await expect(broken.execute({principal, stateDir, runtime: 'python', code: 'x'})).rejects.toThrow(
         'unavailable on this server',
       )
-      expect(await broken.execute({stateDir, runtime: 'python', code: 'x'}).catch((error) => error)).toBeInstanceOf(
-        CodeExecError,
-      )
+      expect(
+        await broken.execute({principal, stateDir, runtime: 'python', code: 'x'}).catch((error) => error),
+      ).toBeInstanceOf(CodeExecError)
     })
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// SandboxSource seam contract (the seam the warm pool implements; see docs/exec-warm-pool.md)
+// ------------------------------------------------------------------------------------------------
+
+/** Minimal healthy sandbox: buffered exec returning the given exit code. */
+function fakeSandbox(behavior: {code?: number; execError?: Error; stream?: ExecStreamEventLike[]}): SandboxLike {
+  const optionsBuilder = {args: () => optionsBuilder, timeout: () => optionsBuilder} as never
+  const base: SandboxLike = {
+    async execWith(_cmd, configure) {
+      configure(optionsBuilder)
+      if (behavior.execError) throw behavior.execError
+      const code = behavior.code ?? 0
+      return {code, success: code === 0, stdout: () => 'out', stderr: () => ''}
+    },
+    stop: async () => {},
+    kill: async () => {},
+  }
+  if (behavior.stream) {
+    const events = [...behavior.stream]
+    base.execStreamWith = async (_cmd, configure) => {
+      configure(optionsBuilder)
+      return {recv: async () => events.shift() ?? null, kill: async () => {}}
+    }
+  }
+  return base
+}
+
+/** A source handing out one canned lease, recording the spec it saw and every release. */
+function fakeSource(sandbox: SandboxLike, opts: {bootMs?: number; reused?: boolean} = {}) {
+  const releases: Array<{healthy: boolean}> = []
+  const specs: SandboxSpec[] = []
+  const factory: SandboxSourceFactory = () => ({
+    drain: async () => {},
+    async acquire(spec) {
+      specs.push(spec)
+      const lease: SandboxLease = {
+        sandbox,
+        bootMs: opts.bootMs ?? 0,
+        reused: opts.reused ?? false,
+        release: async (o) => {
+          releases.push(o)
+        },
+      }
+      return lease
+    },
+  })
+  return {factory, releases, specs}
+}
+
+const unusedSdk = async (): Promise<SandboxSdk> => {
+  throw new Error('the injected source never loads the SDK')
+}
+
+describe('sandbox source seam', () => {
+  test('a normal exit releases the lease healthy, exactly once, with bootMs passed through', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory, releases, specs} = fakeSource(fakeSandbox({code: 0}), {bootMs: 123})
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'echo hi'})
+      expect(result.exitCode).toBe(0)
+      expect(result.bootMs).toBe(123)
+      expect(releases).toEqual([{healthy: true}])
+      // The spec carries typed identity and the runtime-resolved image — the pool's security key.
+      expect(specs[0]!.principal).toEqual(principal)
+      expect(specs[0]!.image).toBe(defaultCodeExecConfig().image)
+    })
+  })
+
+  test('a non-zero exit is still a healthy VM', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory, releases} = fakeSource(fakeSandbox({code: 2}))
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'exit 2'})
+      expect(result.exitCode).toBe(2)
+      expect(result.success).toBe(false)
+      expect(releases).toEqual([{healthy: true}])
+    })
+  })
+
+  test('a stream that vanishes without an exit status releases unhealthy', async () => {
+    await withStateDir(async (stateDir) => {
+      const sandbox = fakeSandbox({stream: [{kind: 'stdout', data: new TextEncoder().encode('partial')}]})
+      const {factory, releases} = fakeSource(sandbox)
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'x'})
+      expect(result.exitCode).toBe(-1)
+      expect(releases).toEqual([{healthy: false}])
+    })
+  })
+
+  test('an exec error releases unhealthy, exactly once, and surfaces as CodeExecError', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory, releases} = fakeSource(fakeSandbox({execError: new Error('sdk wedged')}))
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const error = await executor
+        .execute({principal, stateDir, runtime: 'shell', code: 'x'})
+        .catch((thrown: unknown) => thrown)
+      expect(error).toBeInstanceOf(CodeExecError)
+      expect(releases).toEqual([{healthy: false}])
+    })
+  })
+
+  test('a reused lease reports bootMs 0 on the result', async () => {
+    await withStateDir(async (stateDir) => {
+      const {factory} = fakeSource(fakeSandbox({code: 0}), {bootMs: 0, reused: true})
+      const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+      const result = await executor.execute({principal, stateDir, runtime: 'shell', code: 'echo hi'})
+      expect(result.bootMs).toBe(0)
+    })
+  })
+
+  test('executor drain settles through the source', async () => {
+    let drained = false
+    const factory: SandboxSourceFactory = () => ({
+      drain: async () => {
+        drained = true
+      },
+      acquire: async () => {
+        throw new Error('unused')
+      },
+    })
+    const executor = createCodeExecutor(defaultCodeExecConfig(), unusedSdk, factory)
+    await executor.drain()
+    expect(drained).toBe(true)
   })
 })

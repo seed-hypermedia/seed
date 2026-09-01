@@ -39,7 +39,12 @@ console.log(`Benchmarking ${runCount} ${runtime} executions (fresh microVM each,
 const rows: Array<{run: number; bootMs: number; totalMs: number; exitCode: number}> = []
 try {
   for (let index = 1; index <= runCount; index += 1) {
-    const result = await executor.execute({stateDir, runtime, code})
+    const result = await executor.execute({
+      principal: {accountId: 'bench-account', agentId: 'bench-agent'},
+      stateDir,
+      runtime,
+      code,
+    })
     rows.push({run: index, bootMs: result.bootMs, totalMs: result.durationMs, exitCode: result.exitCode})
     console.log(
       `  run ${index}: boot ${result.bootMs}ms, total ${result.durationMs}ms, ` +

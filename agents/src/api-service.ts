@@ -11718,6 +11718,7 @@ async function executeLambdaTool(
   let execution: CodeExecResult
   try {
     execution = await context.codeExec.execute({
+      principal: {accountId: context.accountId, agentId: context.agentId},
       stateDir: context.stateDir,
       runtime,
       code: buildLambdaProgram(runtime, source, toolInput),
@@ -11955,6 +11956,7 @@ export async function executeCallVerb(
       let result
       try {
         result = await context.codeExec.execute({
+          principal: {accountId: context.accountId, agentId: context.agentId},
           stateDir: context.stateDir,
           runtime: toolInput.runtime as never,
           code: typeof toolInput.code === 'string' ? toolInput.code : '',

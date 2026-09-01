@@ -72,12 +72,35 @@ call's tail regardless of pool hits.
 - **Security review**: reuse must not weaken the account boundary — the pool key and a "never rebind the workspace
   mount" rule are the invariants; add a test that a pool hit for agent B can never return agent A's VM.
 
+## Seam contract (reviewed by ion, 2026-09-01)
+
+Ion's review of the first seam cut set these as **prerequisites for any pooling source** — the first two are now encoded
+in the types, the rest are contract obligations a pool implementation must land with tests:
+
+1. **Typed principal identity — DONE.** `ExecPrincipal {accountId, agentId}` travels explicitly through
+   `CodeExecRequest` → `SandboxSpec`; the pool keys on `(principal, image)` and never infers identity from a filesystem
+   path. An isolation test (two principals can never share a VM) ships with the pool.
+2. **Injectable source — DONE.** `createCodeExecutor(config, loadSdk, createSource)` takes a `SandboxSourceFactory`;
+   seam tests prove normal exit → healthy release, watchdog/vanished stream → unhealthy release, reuse → `bootMs` 0, and
+   release-exactly-once.
+3. **No double-leasing.** A sandbox is on loan to at most one lease; concurrent acquires for the same key queue or get
+   distinct VMs. Needs an explicit concurrency test before the pool ships.
+4. **Reset before park.** The promised cross-call cleanup (kill the guest process group, clear guest temp state) is part
+   of `release` semantics, with a background-process isolation test (start a daemon in call 1, prove call 2 cannot see
+   it).
+5. **Lifetime decoupled from call timeout.** `maxDuration(timeoutSecs + 30)` is a boot-per-call artifact; a pooled VM's
+   lifetime is pool policy (idle TTL, caps), never derived from any single call's timeout.
+6. **Fast release, drained teardown.** `release` may return immediately (parking); actual disposal drains asynchronously
+   and `SandboxSource.drain()` / `CodeExecutor.drain()` settle it, keeping shutdown and tests deterministic. This also
+   takes today's ~70ms teardown off the critical path.
+
 ## Sequencing
 
-1. Extract a `SandboxLease` seam in `code-exec.ts` (acquire/release instead of create/teardown) with the current
-   create-per-call behavior behind it; land tests.
-2. Add the pool behind `SEED_AGENTS_EXEC_WARM_POOL=1` with hit/miss metrics; bench before/after with
-   `scripts/bench-exec.ts`.
-3. Process-group kill between calls + tool-contract wording update.
+1. ~~Extract a `SandboxLease` seam in `code-exec.ts` (acquire/release instead of create/teardown) with the current
+   create-per-call behavior behind it; land tests.~~ DONE, including the typed-principal and injectable-source hardening
+   above.
+2. Add the pool behind `SEED_AGENTS_EXEC_WARM_POOL=1` with hit/miss metrics, satisfying contract items 3–6 with tests;
+   bench before/after with `scripts/bench-exec.ts`.
+3. Tool-contract wording update for the new semantics.
 4. Enable on staging, watch `/api/perf` and `docker stats`, then prod.
 5. Pre-warm on session start; evaluate snapshot/restore only if numbers still leave a gap.

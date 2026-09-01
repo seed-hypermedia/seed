@@ -51,6 +51,12 @@ Boot dominates even on a fast laptop for the cheapest possible command. Producti
 cold repo typecheck at 150s+ where a warm incremental one takes seconds. Prod numbers should be collected from
 `/api/perf` once this branch deploys.
 
+Prod-side experience (ion, 2026-09-01, reviewing this plan from the agentic host): cold `execute` dominates dev loops —
+preserving warm guest state is higher leverage than shaving milliseconds off trivial commands; provider round-trips
+compound with transcript growth (pointing at upload/prefill + re-decode, not model degradation); control-plane
+read/write calls are secondary but 1–2s each adds up; and delegation occasionally hits provider overload, which the
+percentiles should distinguish from local queue/prep time.
+
 ## Workstreams, in order of expected impact
 
 1. **Keep the microVM alive between calls** — [exec-warm-pool.md](exec-warm-pool.md). Removes `exec.boot` from every

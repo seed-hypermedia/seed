@@ -76,8 +76,17 @@ export type CodeExecRuntime = 'ts' | 'python' | 'shell'
 /** Every runtime this build knows how to run, in the order the contract lists them. */
 export const CODE_EXEC_RUNTIMES: readonly CodeExecRuntime[] = ['ts', 'python', 'shell']
 
+/**
+ * The security identity an execution runs for. Carried explicitly across the sandbox seam so a
+ * pooling source keys VMs on typed identity — never inferred from a filesystem path, which is a
+ * representation detail and not a security boundary.
+ */
+export type ExecPrincipal = {accountId: string; agentId: string}
+
 /** One code execution request against an agent's memory workspace. */
 export type CodeExecRequest = {
+  /** Who this execution belongs to; sandbox reuse must never cross this identity. */
+  principal: ExecPrincipal
   stateDir: string
   runtime: CodeExecRuntime
   code: string
@@ -240,6 +249,8 @@ export type CodeExecutor = {
   /** Whether execution can actually work here: config, platform support, loadable runtime. Memoized. */
   availability(): Promise<CodeExecAvailability>
   execute(request: CodeExecRequest): Promise<CodeExecResult>
+  /** Settles any asynchronously disposed sandboxes; shutdown and tests await it for determinism. */
+  drain(): Promise<void>
 }
 
 /** Error raised for invalid execution requests or backend failures. */
@@ -317,11 +328,21 @@ export const loadMicrosandbox = async (): Promise<SandboxSdk> => {
 
 /** What an execution needs from a sandbox, whatever provides it. */
 export type SandboxSpec = {
+  /**
+   * SECURITY: the identity a pooling source MUST key sandbox reuse on (together with `image`).
+   * Two different principals may never receive the same VM; a test must prove it before any
+   * pooling source ships.
+   */
+  principal: ExecPrincipal
   /** OCI image for the rootfs (already runtime-resolved: tsImage for ts, image otherwise). */
   image: string
   /** Host path of the agent's memory directory, bind-mounted at the workspace guest path. */
   memoryRoot: string
-  /** Requested execution timeout; the boot path derives the VM's max lifetime from it. */
+  /**
+   * This call's execution timeout. The boot-per-call source derives the VM's max lifetime from it
+   * (the VM exists for exactly one call); a pooling source must NOT — pooled VM lifetime is the
+   * source's own policy (idle TTL, caps), decoupled from any single call's timeout.
+   */
   timeoutSecs: number
 }
 
@@ -344,14 +365,30 @@ export type SandboxLease = {
  * (docs/exec-warm-pool.md). The default source boots a fresh microVM per lease and tears it down
  * on release, which is exactly the historical behavior; a pooling source can keep healthy
  * sandboxes alive between leases without the execute path changing at all.
+ *
+ * Contract every source must honor:
+ * - A sandbox is on loan to at most one lease at a time — never double-leased. Concurrent
+ *   acquires for the same (principal, image) either queue or get distinct VMs.
+ * - `release` may return fast (parking is not teardown); actual disposal can drain
+ *   asynchronously. `drain` is where that debt is settled, so shutdown and tests stay
+ *   deterministic.
+ * - A reused sandbox must be reset before it is handed out again (no processes or guest temp
+ *   state from the previous call), per the reset-before-park contract in the pool design.
  */
 export type SandboxSource = {
   acquire(spec: SandboxSpec): Promise<SandboxLease>
+  /** Resolves when every asynchronously disposed sandbox has finished tearing down. */
+  drain(): Promise<void>
 }
 
+/** Builds a source from executor internals; injectable so tests can substitute a fake source. */
+export type SandboxSourceFactory = (config: CodeExecConfig, getSdk: () => Promise<SandboxSdk>) => SandboxSource
+
 /** The default source: one fresh ephemeral microVM per lease, torn down on release. */
-function createBootPerCallSource(config: CodeExecConfig, getSdk: () => Promise<SandboxSdk>): SandboxSource {
+export const createBootPerCallSource: SandboxSourceFactory = (config, getSdk) => {
   return {
+    // Teardown here is awaited inside release, so there is never an async disposal to drain.
+    drain: async () => {},
     async acquire(spec) {
       const sdk = await getSdk()
       const bootStartedAt = Date.now()
@@ -411,6 +448,7 @@ function createBootPerCallSource(config: CodeExecConfig, getSdk: () => Promise<S
 export function createCodeExecutor(
   config: CodeExecConfig,
   loadSdk: () => Promise<SandboxSdk> = loadMicrosandbox,
+  createSource: SandboxSourceFactory = createBootPerCallSource,
 ): CodeExecutor {
   let sdkPromise: Promise<SandboxSdk> | undefined
   const getSdk = () => {
@@ -426,7 +464,7 @@ export function createCodeExecutor(
     return sdkPromise
   }
 
-  const source = createBootPerCallSource(config, getSdk)
+  const source = createSource(config, getSdk)
 
   // Availability cannot change during the process lifetime (platform, staged runtime, config are
   // all fixed at startup), so the probe result is memoized including failures.
@@ -481,6 +519,7 @@ export function createCodeExecutor(
     enabled: config.backend === 'microsandbox',
     runtimes: configuredRuntimes,
     availability: () => (availabilityPromise ??= probeAvailability()),
+    drain: () => source.drain(),
     async execute(request) {
       if (config.backend !== 'microsandbox') {
         throw new CodeExecError(400, 'Code execution is not enabled on this server')
@@ -504,6 +543,7 @@ export function createCodeExecutor(
       const startedAt = Date.now()
       request.onProgress?.({stage: 'starting'})
       const lease = await source.acquire({
+        principal: request.principal,
         // TypeScript runs in its own image: the default rootfs carries python and a shell, not bun.
         image: request.runtime === 'ts' ? config.tsImage : config.image,
         memoryRoot,
