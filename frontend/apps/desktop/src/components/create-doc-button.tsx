@@ -2,6 +2,7 @@ import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-contro
 import {useMyAccountIds} from '@/models/daemon'
 import {useCreateDraft} from '@/models/documents'
 import {useChildDrafts} from '@/models/documents'
+import {useExperiments} from '@/models/experiments'
 import {buildDocumentCollectionDraftSeed} from '@/utils/publish-utils'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {deriveDocumentType} from '@shm/shared/models/document-machine'
@@ -23,7 +24,8 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
-import {FilePlus2, Grid3X3, Import} from 'lucide-react'
+import {emptyStructSchema} from '@shm/ui/onyx/onyx-schema-editor'
+import {FileCode2, FilePlus2, Grid3X3, Import} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -48,6 +50,9 @@ export function useCreateDocumentMenuItem({
     locationUid: locationId.uid,
   })
   const myAccountIds = useMyAccountIds()
+  const experiments = useExperiments().data
+  // The Hypermedia Schemas dev toggle (Settings → Developer Mode) exposes schema creation here.
+  const schemasEnabled = !!experiments?.developerMode && !!experiments?.hypermediaSchemas
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
 
@@ -79,6 +84,20 @@ export function useCreateDocumentMenuItem({
             void createDraft()
           },
         },
+        ...(schemasEnabled
+          ? [
+              {
+                key: 'new-schema',
+                label: 'Schema',
+                icon: <FileCode2 className="size-4" />,
+                onClick: () => {
+                  // A real (public) document draft carrying a working schema: the Schema tab
+                  // edits it in place; publish freezes it into a blob via schemaDefinition.
+                  void createDraft({initialMetadata: {schemaDraft: emptyStructSchema()}})
+                },
+              },
+            ]
+          : []),
         {
           key: 'new-document-collection',
           label: 'Collection',
@@ -96,7 +115,7 @@ export function useCreateDocumentMenuItem({
         },
       ],
     }
-  }, [canCreateChildren, canEdit, createDraft, myAccountIds.data?.length, openImportDialog])
+  }, [canCreateChildren, canEdit, createDraft, myAccountIds.data?.length, openImportDialog, schemasEnabled])
 
   return {
     menuItem,
