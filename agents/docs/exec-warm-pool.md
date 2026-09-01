@@ -127,6 +127,8 @@ in the types, the rest are contract obligations a pool implementation must land 
      lifetime.
    - Exec sessions are direct children of pid 1, so the ancestor chain the sweep must spare is short and stable.
 
-3. Tool-contract wording update for the new semantics (before any staging enable).
+3. ~~Tool-contract wording update for the new semantics (before any staging enable).~~ DONE — the `execute` contract now
+   reads "treat the sandbox as ephemeral: consecutive calls MAY reuse a warm sandbox … background processes are always
+   terminated between calls", truthful in both modes.
 4. Enable on staging, watch `/api/perf` and `docker stats`, then prod.
 5. Pre-warm on session start; evaluate snapshot/restore only if numbers still leave a gap.
