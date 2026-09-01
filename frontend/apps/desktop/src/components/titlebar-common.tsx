@@ -26,7 +26,6 @@ import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
-import {META_SCHEMA_CID, newInstanceRoute} from '@shm/ui/onyx/blob-menu-items'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
@@ -456,10 +455,6 @@ export function AccountProfileButton() {
                   Inspect
                 </DropdownMenuItem>
               ) : null}
-              <DropdownMenuItem onClick={() => navigate(newInstanceRoute(META_SCHEMA_CID))}>
-                <FileCode2 className="size-4" />
-                New Schema
-              </DropdownMenuItem>
             </>
           ) : null}
           {canLogOut ? (
