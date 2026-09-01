@@ -113,9 +113,15 @@ in the types, the rest are contract obligations a pool implementation must land 
      shell, and its ancestor chain.
    - A single sweep has a fork race (ion's second-pass blocker): a process forking after the glob expanded escapes that
      pass. The reset therefore repeats (bounded at 5 passes), each pass re-expanding `/proc`, and reports clean only
-     when a full pass observes zero live candidates — verified empty, or the VM is disposed instead of parked.
-     `scripts/verify-exec-reset.ts` proves it against real guests: a plain daemon, a continuously respawning forker, and
-     a double-forked orphan all leave a clean reused VM.
+     when a full pass proves every snapshot entry spared, zombie, or kernel thread. The pass is **fail-closed** (ion's
+     staging-pass blocker): an unreadable, vanished, or unparseable entry marks the pass dirty and gets a kill attempt
+     anyway — a vanished parent may have forked before exiting, so its disappearance is grounds for another pass, never
+     for trust — and stat parsing flattens newlines first so a hostile comm cannot break it. A guest still dirtying
+     passes after the budget is disposed instead of parked.
+   - `scripts/verify-exec-reset.ts` proves the contract against real guests with plant assertions and per-scenario
+     expectations: a plain daemon and a double-forked orphan MUST be reused clean; a moderate respawner must be clean
+     either way; a recursive fork storm MUST exhaust the pass budget and be disposed (fresh boot, clean) — the
+     fail-closed disposal path demonstrated, not just the happy path.
    - Killed daemons linger as zombies (`State: Z`, empty cmdline) because init.krun reaps lazily. A zombie runs nothing
      — the reset contract (no prior-call process RUNNING at reuse) holds; corpses are bounded by the VM's 30-minute
      lifetime.
