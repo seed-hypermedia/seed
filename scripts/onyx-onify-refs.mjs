@@ -13,7 +13,7 @@ import {readFileSync, writeFileSync, readdirSync} from 'node:fs'
 import {join} from 'node:path'
 
 const ONYX = 'z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb'
-const SRC = 'onyx'
+const SRC = 'hypermedia'
 
 function toOnyx(url) {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(url)
@@ -37,7 +37,7 @@ function walk(node) {
   return node
 }
 
-const files = readdirSync(SRC).filter((f) => f.endsWith('.json') && f !== 'schemas.lock.json')
+const files = readdirSync(SRC).filter((f) => f.endsWith('.schema.json'))
 let changed = 0
 for (const f of files) {
   const before = readFileSync(join(SRC, f), 'utf8')
