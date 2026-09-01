@@ -94,12 +94,11 @@ export function ContextUsageMeter({
         : 'text-muted-foreground'
   const radius = 8
   const circumference = 2 * Math.PI * radius
-  const label = `Context ${percent}% full`
-  const detail = `${tokens.toLocaleString('en-US')} of ${contextWindow.toLocaleString(
+  const label = `${tokens.toLocaleString('en-US')} of ${contextWindow.toLocaleString(
     'en-US',
   )} tokens used (${percent}%)`
   return (
-    <Tooltip content={`${label}\n${detail}`} contentClassName="whitespace-pre-line text-left" asChild>
+    <Tooltip content={label} asChild>
       <span className={cn('inline-flex shrink-0 items-center', tone, className)} aria-label={label} role="img">
         <svg width={size} height={size} viewBox="0 0 20 20" className="shrink-0">
           <circle cx="10" cy="10" r={radius} fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="3" />
