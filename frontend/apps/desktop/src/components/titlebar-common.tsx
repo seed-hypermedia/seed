@@ -18,6 +18,8 @@ import {
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {client} from '@/trpc'
+import {pathNameify} from '@/utils/path'
+import {META_SCHEMA_CID, newInstanceRoute} from '@shm/ui/onyx/blob-menu-items'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
 import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
@@ -465,6 +467,10 @@ export function AccountProfileButton() {
                   Inspect
                 </DropdownMenuItem>
               ) : null}
+              <DropdownMenuItem onClick={() => navigate(newInstanceRoute(META_SCHEMA_CID))}>
+                <FileCode2 className="size-4" />
+                New Schema
+              </DropdownMenuItem>
             </>
           ) : null}
           {canLogOut ? (
@@ -782,15 +788,17 @@ function LocalAgentsOmnibarToken() {
   )
 }
 
-/** The omnibar for a schema page: a "Schema" tag followed by the schema's CID. */
-function SchemaOmnibarToken({cid}: {cid: string}) {
+/** The omnibar for a BARE-CID schema page: a "Schema" tag followed by the CID. A schema reached
+ * from its defining document is a document route (`id` set) and shows the normal /:schema URL. */
+function SchemaOmnibarToken({cid}: {cid?: string}) {
+  const label = cid
   return (
     <div className="flex min-w-0 flex-1 items-center gap-2" data-testid="schema-omnibar-token">
       <div className="bg-muted text-muted-foreground no-select flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs">
         <FileCode2 className="size-3" />
         <span>Schema</span>
       </div>
-      <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">{cid}</span>
+      <span className="text-muted-foreground min-w-0 flex-1 truncate font-mono text-xs">{label}</span>
     </div>
   )
 }
@@ -963,7 +971,8 @@ function useCurrentRouteUrl(): {
     }
 
     if (route.key === 'schema') {
-      // Shown as the Schema token (below); copying yields the schema blob's ipfs URL.
+      // Bare-CID form only (the doc form matched routeId above): shown as the Schema token;
+      // copying yields the schema blob's ipfs URL.
       const url = `ipfs://${route.cid}`
       return {displayUrl: url, copyableUrl: url}
     }
@@ -1005,6 +1014,9 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     route.key === 'site-settings'
   ) {
     return route.id
+  }
+  if (route.key === 'schema') {
+    return route.id ?? null
   }
   if (route.key === 'explore') {
     return route.context.type === 'site' ? route.context.id : null
@@ -1255,7 +1267,7 @@ export function Omnibar() {
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
           {isLocalAgentsRoute ? (
             <LocalAgentsOmnibarToken />
-          ) : route.key === 'schema' ? (
+          ) : route.key === 'schema' && !route.id ? (
             <SchemaOmnibarToken cid={route.cid} />
           ) : route.key === 'account-settings' ? (
             <AccountSettingsOmnibarLabel

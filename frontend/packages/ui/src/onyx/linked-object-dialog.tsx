@@ -180,7 +180,7 @@ function LinkedObjectEditor({
         <span className="text-muted-foreground">Schema</span>
         {locked ? (
           <span className="bg-muted rounded-md px-2 py-1 font-mono text-xs" data-testid="linked-object-target">
-            {typeof schema?.name === 'string' && schema.name ? schema.name : target}
+            {target}
             <span className="text-muted-foreground"> · required</span>
           </span>
         ) : (

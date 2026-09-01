@@ -16,6 +16,11 @@ export const META_SCHEMA_CID = schemaCid('onyx-schema')!
 export const newBlobRoute = (): NavRoute => createInspectIpfsNavRoute(NEW_BLOB_PATH)
 export const newInstanceRoute = (schemaBlobCid: string): NavRoute =>
   createInspectIpfsNavRoute(newInstancePath(schemaBlobCid))
+/** Path segment marking a new-schema draft as an EXTENSION of a base schema. */
+export const EXTEND_PATH_SEGMENT = 'extend'
+/** A new-schema draft pre-rooted on `ref: ipfs://<base>` — "start extending this schema". */
+export const extendSchemaRoute = (baseSchemaCid: string): NavRoute =>
+  createInspectIpfsNavRoute(`${newInstancePath(META_SCHEMA_CID)}/${EXTEND_PATH_SEGMENT}/${baseSchemaCid}`)
 
 export function blobBuilderMenuItems(navigate: (route: NavRoute) => void): MenuItemType[] {
   return [

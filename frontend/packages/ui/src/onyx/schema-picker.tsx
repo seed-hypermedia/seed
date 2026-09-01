@@ -4,7 +4,7 @@
 import {useMemo, useState} from 'react'
 import {Input} from '../components/input'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../select-dropdown'
-import {kindOf, nameToUrl, ONYX_SCHEMAS, refToName} from './onyx-engine'
+import {kindOf, nameToUrl, ONYX_SCHEMAS} from './onyx-engine'
 
 const NONE = ' none'
 const CUSTOM = ' custom'
@@ -19,10 +19,10 @@ export function instantiableLibrarySchemas(): {name: string; label: string; ref:
       const kind = s.type ? kindOf(s.type) : s.ref ? 'map' : null
       return kind === 'map' && (s.properties || s.values)
     })
-    .map(([name, s]) => ({
+    .map(([name]) => ({
       name,
       ref: nameToUrl(name)!,
-      label: typeof s.name === 'string' && s.name ? `${s.name} (${name})` : name,
+      label: name,
     }))
     .sort((a, b) => a.label.localeCompare(b.label))
 }
@@ -106,9 +106,7 @@ export function SchemaPicker({
   )
 }
 
-/** A short, human label for a schema reference (bundled name, or the ref itself). */
+/** A short, human label for a schema reference — the ref itself (schemas carry no names). */
 export function schemaRefLabel(ref: string): string {
-  const name = refToName(ref)
-  const s = ONYX_SCHEMAS[name]
-  return s && typeof s.name === 'string' && s.name ? s.name : ref
+  return ref
 }

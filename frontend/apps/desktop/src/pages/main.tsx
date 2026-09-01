@@ -477,7 +477,7 @@ function getPageComponent(navRoute: NavRoute) {
     case 'schema':
       return {
         PageComponent: SchemaBrowser,
-        Fallback: BaseLoading,
+        Fallback: DocumentPlaceholder,
       }
     case 'collaborators':
       return {
