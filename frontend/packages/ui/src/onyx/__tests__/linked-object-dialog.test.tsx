@@ -61,7 +61,7 @@ describe('LinkedObjectDialog', () => {
     await mount(client, {target: nameToUrl('example-stats')!, fieldLabel: 'stats'})
     await flush()
     const lock = document.querySelector('[data-testid="linked-object-target"]')!
-    expect(lock.textContent).toContain('Character stats')
+    expect(lock.textContent).toContain('example-stats')
     expect(lock.textContent).toContain('required')
     expect(document.querySelector('[aria-label="Object schema"]')).toBeNull()
     // The seeded stats (0s) violate minimum 1 → the form shows issues and publish is disabled.

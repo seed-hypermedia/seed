@@ -329,8 +329,19 @@ export function routeToHref(
     })
   }
 
-  // A schema blob by CID (reserved `/hm/schema/<cid>`): the full-page schema browser.
+  // The full-page schema browser. With a defining document, the URL is that
+  // document's URL suffixed with /:schema; a bare CID keeps the reserved form.
   if (typeof route !== 'string' && route.key === 'schema') {
+    if (route.id) {
+      const docId = route.id
+      const basePath =
+        options?.originHomeId?.uid === docId.uid
+          ? docId.path?.length
+            ? `/${docId.path.join('/')}`
+            : ''
+          : `/hm/${docId.uid}${docId.path?.length ? `/${docId.path.join('/')}` : ''}`
+      return `${basePath}/:schema`
+    }
     return `/hm/schema/${route.cid}`
   }
 

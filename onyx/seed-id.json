@@ -1,6 +1,4 @@
 {
-  "name": "Hypermedia ID (parsed)",
-  "description": "A parsed hm:// identifier as clients pass it around: account uid, path segments, pinned version, block reference, and origin hints. Fields the URL does not carry are null. A derived read model computed by the Seed daemon/API for clients \u2014 not a signed network blob.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "id",

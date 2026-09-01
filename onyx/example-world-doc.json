@@ -1,6 +1,4 @@
 {
-  "name": "World",
-  "description": "A world-builder kit type: the root page of a fictional world. Its children are the type definitions and the folders of characters, places, factions, and events; its metadata names the genre and the date the chronicle begins.",
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document",
   "properties": {
     "metadata": {

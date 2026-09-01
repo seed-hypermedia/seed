@@ -1,6 +1,4 @@
 {
-  "name": "Document metadata",
-  "description": "Resolved document metadata (merged from Change ops): known keys plus arbitrary extras.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "properties": {
     "name": {

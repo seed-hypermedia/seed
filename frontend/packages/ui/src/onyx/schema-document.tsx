@@ -1,25 +1,22 @@
-// The schema-document header actions: when a document carries a
-// `schemaDefinition` metadata field (an ipfs://<cid> pointing at a schema
-// blob), it "describes a type." This surfaces two header buttons:
-//   - "Schema"  → the full-page schema browser at /hm/schema/<cid> (follow refs).
-//   - "Create"  → a dialog with a schema-respecting editor to build and publish
-//                 a value of that type (e.g. create an employee on the employee
-//                 document).
-// Resolves the schema from the bundled Onyx registry by CID (no fetch needed for
-// the tour's schemas); documents pointing at an unbundled schema simply show no
-// actions for now.
+// Schema-document affordances: when a document carries a `schemaDefinition`
+// metadata field (an ipfs://<cid> pointing at a schema blob), it "describes a
+// type." The Schema tool tab is the way in (see DocumentTools); this module
+// carries the options-menu rows (useSchemaMenuItems) and the toolbar "Create"
+// button (SchemaDocumentHeaderActions), which builds and publishes a value of
+// the type through a schema-respecting editor.
 import * as cbor from '@ipld/dag-cbor'
-import {FileCode2, Plus} from 'lucide-react'
+import {Layers, Plus, SearchCode} from 'lucide-react'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
-import {useState} from 'react'
+import {useMemo, useState} from 'react'
 import {useUniversalClient} from '@shm/shared'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '../button'
 import {Dialog, DialogContent, DialogHeader, DialogTitle} from '../components/dialog'
 import {dagJsonToIpld} from '../dag-json'
+import type {MenuItemType} from '../options-dropdown'
 import {toast} from '../toast'
-import {Tooltip} from '../tooltip'
+import {extendSchemaRoute, newInstanceRoute} from './blob-menu-items'
 import {OnyxDataEditor, seedValue} from './onyx-data-editor'
 import {nameForCid, schemaForCid, validate} from './onyx-engine'
 import {useOnyxSchemaRegistry} from './onyx-schema-registry-cid'
@@ -33,6 +30,8 @@ export const SCHEMA_KEY = 'schema'
 export const CHILDREN_SCHEMA_KEY = 'childrenSchema'
 /** The metadata field pointing at a schema blob this document DEFINES. */
 export const SCHEMA_DEFINITION_KEY = 'schemaDefinition'
+/** The WORKING schema object a draft carries while being authored; frozen into a blob at publish. */
+export const SCHEMA_DRAFT_KEY = 'schemaDraft'
 
 /**
  * Metadata keys that are NOT ordinary content fields: the standard header fields
@@ -45,7 +44,15 @@ export const RESERVED_METADATA_KEYS = new Set<string>([
   SCHEMA_KEY,
   CHILDREN_SCHEMA_KEY,
   SCHEMA_DEFINITION_KEY,
+  SCHEMA_DRAFT_KEY,
 ])
+
+/** The draft's working schema object, when the metadata carries one. */
+export function schemaDraftValue(metadata: unknown): Record<string, any> | null {
+  if (!metadata || typeof metadata !== 'object') return null
+  const raw = (metadata as Record<string, unknown>)[SCHEMA_DRAFT_KEY]
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, any>) : null
+}
 
 /** The bare schema CID a document points at via its `schemaDefinition` metadata, or null. */
 export function schemaDefinitionCid(metadata: unknown): string | null {
@@ -111,6 +118,64 @@ function CreateInstance({schema, typeName}: {schema: Record<string, any>; typeNa
 }
 
 /**
+ * The schema actions for a document that DEFINES a type, as rows for the document's
+ * REGULAR options menu: New <Type>, Extend Schema, and Inspect Schema (the raw
+ * IPFS blob in the inspector). The generic "New Schema" lives in the account
+ * dropdown's dev section. Empty for every other document, so the menu shows
+ * nothing schema-ish unless a schema is actually set.
+ */
+export function useSchemaMenuItems(
+  metadata: unknown,
+  options?: {
+    /** Platform override for Extend Schema — e.g. the desktop dialog that creates an extending
+     * document draft. Without it, extend falls back to the raw blob-draft flow. */
+    onExtendSchema?: (baseSchemaCid: string) => void
+  },
+): MenuItemType[] {
+  const navigate = useNavigate()
+  const onExtendSchema = options?.onExtendSchema
+  const cid = schemaDefinitionCid(metadata)
+  const bundledName = cid ? nameForCid(cid) : undefined
+  const {byCid} = useOnyxSchemaRegistry(cid && !bundledName ? [cid] : [])
+  const schema = !cid ? undefined : bundledName ? schemaForCid(cid) : byCid[cid]
+  return useMemo(() => {
+    if (!cid) return []
+    // The defining document's name is the type's canonical name; the schema blob no longer
+    // carries one of its own (the blob's `name`, when present, is a legacy fallback).
+    const docName =
+      metadata && typeof metadata === 'object' && typeof (metadata as Record<string, unknown>).name === 'string'
+        ? ((metadata as Record<string, unknown>).name as string)
+        : undefined
+    const typeName = docName || bundledName || 'Instance'
+    const canCreate = !!schema && !schema.anyOf && !schema.$type
+    return [
+      ...(canCreate
+        ? [
+            {
+              key: 'schema-new-instance',
+              label: `New ${typeName}`,
+              icon: <Plus className="size-4" />,
+              onClick: () => navigate(newInstanceRoute(cid)),
+            },
+            {
+              key: 'schema-extend',
+              label: 'Extend Schema',
+              icon: <Layers className="size-4" />,
+              onClick: () => (onExtendSchema ? onExtendSchema(cid) : navigate(extendSchemaRoute(cid))),
+            },
+          ]
+        : []),
+      {
+        key: 'schema-inspect',
+        label: 'Inspect Schema',
+        icon: <SearchCode className="size-4" />,
+        onClick: () => navigate({key: 'inspect-ipfs', ipfsPath: cid}),
+      },
+    ]
+  }, [cid, schema, bundledName, metadata, navigate, onExtendSchema])
+}
+
+/**
  * Header actions for a document that DEFINES a type (has a `schemaDefinition`):
  *   - a tag-style link that opens the schema (browse its shape),
  *   - a "Create" button that opens a schema-defined value editor and publishes
@@ -125,25 +190,12 @@ export function SchemaDocumentHeaderActions({metadata}: {metadata: unknown}) {
   const bundledName = cid ? nameForCid(cid) : undefined
   const schema = cid ? byCid[cid] : undefined
   const [createOpen, setCreateOpen] = useState(false)
-  const navigate = useNavigate()
   if (!cid) return null
-  const typeName = (typeof schema?.name === 'string' && schema.name) || bundledName || 'Schema'
+  const typeName = bundledName || 'Schema'
   const isInstantiable = !!schema && !schema.anyOf // a union has no single seed shape
 
   return (
     <div className="flex items-center gap-1.5">
-      {/* Tag-style link: opens the full-page schema browser (/hm/schema/<cid>). */}
-      <Tooltip content="Open the schema this document defines">
-        <button
-          type="button"
-          data-testid="schema-definition-pill"
-          className="border-border bg-muted/40 hover:bg-muted text-foreground inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors"
-          onClick={() => navigate({key: 'schema', cid})}
-        >
-          <FileCode2 className="size-3.5" />
-          {typeName}
-        </button>
-      </Tooltip>
       {isInstantiable && (
         <Button size="sm" onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 size-4" /> Create

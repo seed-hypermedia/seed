@@ -1,6 +1,4 @@
 {
-  "name": "Place",
-  "description": "A world-builder kit type: a page about a place. Its metadata requires a `kind`, may carry a `founded` date, nests inside a `region` (another Place), and links to a coordinates object (an `ipfs://` object conforming to Geo point).",
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-document",
   "properties": {
     "metadata": {

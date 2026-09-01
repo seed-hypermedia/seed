@@ -1,6 +1,4 @@
 {
-  "name": "ReplaceBlock op",
-  "description": "Replace the content of a block.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "type",

@@ -1,6 +1,4 @@
 {
-  "name": "Query table config",
-  "description": "Persisted presentation settings for a Query block's Table view: which columns are visible and how wide they are.",
   "type": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/map",
   "required": [
     "columns"

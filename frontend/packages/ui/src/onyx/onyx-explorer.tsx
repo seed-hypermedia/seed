@@ -345,7 +345,17 @@ function Callout({tone = 'note', children}: {tone?: 'note' | 'meta'; children: R
   )
 }
 
-export function OnyxSchemaPage({slug, nav}: {slug: string; nav: (slug: string) => void}) {
+export function OnyxSchemaPage({
+  slug,
+  nav,
+  hideIdentity,
+}: {
+  slug: string
+  nav: (slug: string) => void
+  /** Embedded in a defining document: the doc's own header carries name and description, so the
+   * schema's identity block (name, slug/URL/CID line, description) is suppressed. */
+  hideIdentity?: boolean
+}) {
   const schema: OnyxSchema | undefined = ONYX_SCHEMAS[slug]
   if (!schema) return <div className="text-muted-foreground p-4">Unknown schema: {slug}</div>
 
@@ -500,17 +510,21 @@ export function OnyxSchemaPage({slug, nav}: {slug: string; nav: (slug: string) =
 
   return (
     <div className="flex flex-col gap-2">
-      <h1 className="text-xl font-bold">{schema.name || slug}</h1>
-      <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-        <code className="bg-muted rounded px-1 py-0.5">{slug}</code>
-        {url && <span>· {url}</span>}
-        {cid && (
-          <>
-            <span>· CID</span> <code className="bg-muted rounded px-1 py-0.5">{cid.slice(0, 12)}…</code>
-          </>
-        )}
-      </p>
-      {schema.description && <p className="text-sm">{schema.description}</p>}
+      {!hideIdentity && (
+        <>
+          <h1 className="text-xl font-bold">{slug}</h1>
+          <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+            <code className="bg-muted rounded px-1 py-0.5">{slug}</code>
+            {url && <span>· {url}</span>}
+            {cid && (
+              <>
+                <span>· CID</span> <code className="bg-muted rounded px-1 py-0.5">{cid.slice(0, 12)}…</code>
+              </>
+            )}
+          </p>
+          {schema.description && <p className="text-sm">{schema.description}</p>}
+        </>
+      )}
       {lead}
       {isMeta && (
         <Callout tone="meta">
@@ -546,10 +560,6 @@ export function OnyxSchemaPage({slug, nav}: {slug: string; nav: (slug: string) =
       )}
       {main}
       <DepLists name={slug} nav={nav} />
-      <h2 className="mt-2 text-sm font-semibold">
-        Source <span className="text-muted-foreground font-normal">(dag-json — ref/type values are links)</span>
-      </h2>
-      <SourceJson schema={schema} nav={nav} />
     </div>
   )
 }
@@ -560,11 +570,32 @@ export function OnyxSchemaPage({slug, nav}: {slug: string; nav: (slug: string) =
  * the registry) renders its shape from the blob itself. Every reference is
  * clickable: bundled names via `nav`, everything else via OnyxNavContext.
  */
-export function OnyxSchemaByCid({cid, nav}: {cid: string; nav: (slug: string) => void}) {
+/** A readable label for a schema's base ref: bundled name, else a shortened ipfs CID, else the hm name. */
+function baseRefLabel(ref: string): string {
+  const ipfs = /^ipfs:\/\/([^/]+)/.exec(ref)
+  if (ipfs) {
+    const bundled = nameForCid(ipfs[1]!)
+    if (bundled) return bundled
+    const cid = ipfs[1]!
+    return cid.length > 18 ? `ipfs://${cid.slice(0, 8)}…${cid.slice(-6)}` : ref
+  }
+  return refToName(ref)
+}
+
+export function OnyxSchemaByCid({
+  cid,
+  nav,
+  hideIdentity,
+}: {
+  cid: string
+  nav: (slug: string) => void
+  /** See {@link OnyxSchemaPage}: suppress the schema's own name/CID/description block. */
+  hideIdentity?: boolean
+}) {
   const bundled = nameForCid(cid)
   const {byCid, isLoading} = useOnyxSchemaRegistry(bundled ? [] : [cid])
   const open = useRefClick(nav)
-  if (bundled) return <OnyxSchemaPage slug={bundled} nav={nav} />
+  if (bundled) return <OnyxSchemaPage slug={bundled} nav={nav} hideIdentity={hideIdentity} />
   const schema = byCid[cid]
   if (!schema)
     return (
@@ -573,17 +604,20 @@ export function OnyxSchemaByCid({cid, nav}: {cid: string; nav: (slug: string) =>
       </div>
     )
   const isExt = !!schema.ref && !schema.type
-  const parentName = isExt ? refToName(schema.ref) : null
+  const parentName = isExt ? baseRefLabel(schema.ref) : null
   const kind = schema.type ? kindOf(schema.type) : null
   const isSigned = isSignedBlobSchema(schema)
   return (
     <div className="flex flex-col gap-2" data-testid="schema-by-cid">
-      <h1 className="text-xl font-bold">{schema.name || 'Untitled schema'}</h1>
-      <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-        <span>ipfs://</span>
-        <code className="bg-muted rounded px-1 py-0.5">{cid}</code>
-      </p>
-      {schema.description && <p className="text-sm">{schema.description}</p>}
+      {!hideIdentity && (
+        <>
+          <p className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+            <span>ipfs://</span>
+            <code className="bg-muted rounded px-1 py-0.5">{cid}</code>
+          </p>
+          {schema.description && <p className="text-sm">{schema.description}</p>}
+        </>
+      )}
       {isExt && parentName && (
         <p className="text-sm">
           <span className="text-muted-foreground">Extends</span>{' '}
@@ -593,11 +627,36 @@ export function OnyxSchemaByCid({cid, nav}: {cid: string; nav: (slug: string) =>
           )}
         </p>
       )}
-      {schema.anyOf ? (
-        <p className="text-sm">
-          <span className="text-muted-foreground">One of </span>
-          <SchemaRef node={schema} nav={nav} />
+      {schema.params && (
+        <p className="text-sm" data-testid="schema-params">
+          <span className="text-muted-foreground">Generic over</span>{' '}
+          {Object.entries(schema.params).map(([p, def], i) => (
+            <span key={p}>
+              {i > 0 && ', '}
+              <Tag kind="var">{`⟨${p}⟩`}</Tag>{' '}
+              <span className="text-muted-foreground">
+                (default <SchemaRef node={def as any} nav={nav} />)
+              </span>
+            </span>
+          ))}
         </p>
+      )}
+      {schema.anyOf ? (
+        // A root union as a LIST — one variant per row. Inlining them (with the "one of …"
+        // phrasing SchemaRef uses for nested unions) wraps into an unreadable clutter here.
+        <div className="flex flex-col gap-1.5" data-testid="schema-union-variants">
+          <p className="text-muted-foreground text-sm">
+            One of {schema.anyOf.length} variant{schema.anyOf.length === 1 ? '' : 's'}:
+          </p>
+          <ul className="flex flex-col gap-0.5 pl-1">
+            {schema.anyOf.map((v: any, i: number) => (
+              <li key={i} className="flex items-baseline gap-1.5 text-sm">
+                <span className="text-muted-foreground select-none">·</span>
+                <SchemaRef node={v} nav={nav} />
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : schema.properties ? (
         <FieldsTable properties={schema.properties} required={new Set(schema.required || [])} nav={nav} />
       ) : kind ? (
@@ -605,10 +664,6 @@ export function OnyxSchemaByCid({cid, nav}: {cid: string; nav: (slug: string) =>
           Root kind: <KindBadge kind={kind} nav={nav} />
         </p>
       ) : null}
-      <h2 className="mt-2 text-sm font-semibold">
-        Source <span className="text-muted-foreground font-normal">(dag-json — refs are links)</span>
-      </h2>
-      <SourceJson schema={schema} nav={nav} />
     </div>
   )
 }

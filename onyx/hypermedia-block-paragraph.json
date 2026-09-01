@@ -1,6 +1,4 @@
 {
-  "name": "Paragraph block",
-  "description": "A paragraph of rich text with annotations.",
   "ref": "hm://z6MkmZUb4K5c17zGGBuJJerwFzBaGkiYLfEEnkb9CH1W1ptb/hypermedia-block-base",
   "properties": {
     "type": {
