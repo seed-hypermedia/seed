@@ -30,13 +30,15 @@ type GuestFarm = {
   sandboxes: GuestSandbox[]
   /** When set, guest shell execs (reset/probe) report failure. */
   failGuestExec: boolean
+  /** When set, guest shell execs take this long — simulates a slow multi-pass reset. */
+  execDelayMs: number
   /** When set, stop() resolves only after this many milliseconds. */
   stopDelayMs: number
 }
 
 /** Fake SDK whose every create() yields a fresh guest that records its execs and teardown. */
 function guestFarm(): GuestFarm {
-  const farm: GuestFarm = {sandboxes: [], failGuestExec: false, stopDelayMs: 0, sdk: undefined as never}
+  const farm: GuestFarm = {sandboxes: [], failGuestExec: false, execDelayMs: 0, stopDelayMs: 0, sdk: undefined as never}
   const optionsBuilder = {args: () => optionsBuilder, timeout: () => optionsBuilder} as never
   farm.sdk = {
     Sandbox: {
@@ -65,6 +67,7 @@ function guestFarm(): GuestFarm {
             async execWith(cmd, configure) {
               configure(optionsBuilder)
               if (cmd === '/bin/sh') sandbox.execScripts.push('guest-shell')
+              if (farm.execDelayMs) await new Promise((resolve) => setTimeout(resolve, farm.execDelayMs))
               if (farm.failGuestExec) return {code: 1, success: false, stdout: () => '', stderr: () => 'wedged'}
               return {code: 0, success: true, stdout: () => 'ok', stderr: () => ''}
             },
@@ -283,6 +286,23 @@ describe('warm pool source', () => {
     const second = await source.acquire(specFor('acct', 'agent'))
     expect(second.sandbox).not.toBe(first.sandbox)
     expect(second.reused).toBe(false)
+  })
+
+  test('a VM that crosses max age DURING the reset is recycled, not parked (park-boundary)', async () => {
+    const farm = guestFarm()
+    // Under max age when release starts; the (slow) reset carries it past the limit.
+    const source = createWarmPoolSource(poolConfig({poolVmMaxAgeMs: 60}), async () => farm.sdk)
+    const lease = await source.acquire(specFor('acct', 'agent'))
+    farm.execDelayMs = 100
+    await lease.release({healthy: true})
+    // The reset ran (one guest exec), then the post-reset age gate disposed instead of parking.
+    expect(farm.sandboxes[0]!.execScripts.length).toBe(1)
+    await settled(() => farm.sandboxes[0]!.stopped)
+    expect(perfSnapshot().counters['exec.pool_recycled']!.count).toBe(1)
+    farm.execDelayMs = 0
+    const next = await source.acquire(specFor('acct', 'agent'))
+    expect(next.sandbox).not.toBe(lease.sandbox)
+    expect(next.reused).toBe(false)
   })
 
   test('idle TTL disposes a parked VM', async () => {

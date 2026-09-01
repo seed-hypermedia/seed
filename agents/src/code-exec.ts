@@ -705,7 +705,8 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
           return
         }
         // Generational recycle, between calls only: an over-age VM is disposed here — after its
-        // call completed, never before or during one — so expiry can never interrupt work.
+        // call completed, never before or during one — so expiry can never interrupt work. This
+        // pre-reset check just skips a pointless (up to 15s) reset for a VM already past its age.
         if (Date.now() - entry.bootedAt > config.poolVmMaxAgeMs) {
           recordPerfCount('exec.pool_recycled')
           disposeEntry(entry)
@@ -718,6 +719,15 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
         const resetOutcome = await resetGuest(entry.sandbox)
         if (resetOutcome !== 'ok') {
           recordPerfCount(resetOutcome === 'fail' ? 'exec.pool_reset_exhausted' : 'exec.pool_reset_error')
+          disposeEntry(entry)
+          return
+        }
+        // Age is THE park gate, so it is rechecked after the reset (ion's park-boundary finding):
+        // the reset itself can run long enough for a just-under-age VM to cross the limit, and
+        // with the acquire-time gate intentionally gone, parking here would let an over-age VM
+        // serve one more full call before recycling.
+        if (Date.now() - entry.bootedAt > config.poolVmMaxAgeMs) {
+          recordPerfCount('exec.pool_recycled')
           disposeEntry(entry)
           return
         }
